@@ -1,4 +1,10 @@
-import type { McpStatusResponse, SettingsRecoveryActionRequest, SettingsUpdateRequest } from "@shared/ipc/contracts";
+import type {
+  McpStatusResponse,
+  PortableArchivePathRequest,
+  PortableImportRequest,
+  SettingsRecoveryActionRequest,
+  SettingsUpdateRequest
+} from "@shared/ipc/contracts";
 import { HcbPublicError } from "@shared/ipc/result";
 import type { LocalSettingsRepository } from "../data/localRepositories";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
@@ -135,7 +141,12 @@ export function createSqliteSettingsDomainService({
         requiresReload: false,
         message: "MCP bearer token was reset without exposing the new token value."
       };
-    }
+    },
+    exportPortableArchive: () => settingsRepository.exportPortableArchive(),
+    previewPortableImport: (request: PortableArchivePathRequest) =>
+      settingsRepository.previewPortableImport(request.path),
+    importPortableArchive: (request: PortableImportRequest) =>
+      settingsRepository.importPortableArchive(request.path)
   };
 }
 

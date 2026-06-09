@@ -63,6 +63,8 @@ export function stableCalendarEventViewModel(
     event.mutationState ?? "",
     event.completedAt ?? "",
     event.recurrenceRule ?? "",
+    event.recurringEventId ?? "",
+    event.originalStartAt ?? "",
     calendarTitle ?? "",
     calendarBackgroundColor ?? "",
     calendarForegroundColor ?? "",
@@ -106,7 +108,9 @@ export function stableCalendarEventViewModel(
     tags: event.tags ?? [],
     conference: event.conference ?? null,
     mutationState: event.mutationState,
-    recurrenceRule: event.recurrenceRule ?? null
+    recurrenceRule: event.recurrenceRule ?? null,
+    recurringEventId: event.recurringEventId ?? null,
+    originalStartAt: event.originalStartAt ?? null
   };
 
   cache.set(event.id, { signature, viewModel });

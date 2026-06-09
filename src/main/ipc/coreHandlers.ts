@@ -30,6 +30,8 @@ import {
   type NoteListRequest,
   type NoteListRenameRequest,
   type NoteUpdateRequest,
+  type PortableArchivePathRequest,
+  type PortableImportRequest,
   type SearchQueryRequest,
   type ScheduledTaskBlockCreateRequest,
   type ScheduledTaskBlockListRequest,
@@ -347,6 +349,20 @@ export function createCoreIpcHandlers(
       contract: ipcContracts.settings.recoveryAction,
       handle: (request) =>
         services.settings.recoveryAction(request as SettingsRecoveryActionRequest)
+    },
+    {
+      contract: ipcContracts.settings.exportPortableArchive,
+      handle: () => services.settings.exportPortableArchive()
+    },
+    {
+      contract: ipcContracts.settings.previewPortableImport,
+      handle: (request) =>
+        services.settings.previewPortableImport(request as PortableArchivePathRequest)
+    },
+    {
+      contract: ipcContracts.settings.importPortableArchive,
+      handle: (request) =>
+        services.settings.importPortableArchive(request as PortableImportRequest)
     },
     {
       contract: ipcContracts.undo.status,

@@ -10,6 +10,7 @@ export type CalendarCreateSeed = { startsAt?: string; endsAt?: string; allDay?: 
 export interface CalendarEventDraft {
   mode: "create" | "edit";
   id?: string;
+  eventId?: string;
   hcbKind?: "birthday";
   mutationState?: CalendarEventViewModel["mutationState"];
   completedAt?: string | null;
@@ -27,6 +28,8 @@ export interface CalendarEventDraft {
   reminderMinutes: string;
   conference: CalendarEventViewModel["conference"];
   repeatFrequency: CalendarRepeatFrequency;
+  recurringEventId?: string | null;
+  originalStartAt?: string | null;
   repeatCustomFrequency: CalendarEventRecurrence["frequency"];
   repeatEndMode: CalendarRepeatEndMode;
   repeatInterval: string;

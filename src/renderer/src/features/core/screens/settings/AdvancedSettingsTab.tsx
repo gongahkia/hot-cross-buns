@@ -10,6 +10,7 @@ import type { AutoTagTargetKind } from "@shared/ipc/autoTags";
 import type {
   AutoTagRule,
   CalendarListSummary,
+  PortableImportPreview,
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
@@ -136,6 +137,9 @@ export function AdvancedSettingsTab({
   const [autoTagPreviewExistingColorId, setAutoTagPreviewExistingColorId] = useState("");
   const [autoTagPreviewRequestedColorId, setAutoTagPreviewRequestedColorId] = useState("");
   const [autoTagPreviewLocalKind, setAutoTagPreviewLocalKind] = useState<AutoTagPreviewLocalKind>("normal");
+  const [portableArchivePath, setPortableArchivePath] = useState("");
+  const [portableImportPreview, setPortableImportPreview] = useState<PortableImportPreview | null>(null);
+  const [portableStatus, setPortableStatus] = useState<string | null>(null);
   const autoTagAutoDisableRequestRef = useRef<string | null>(null);
   const autoTagPreviewExistingTagValues = useMemo(
     () => parseTagText(autoTagPreviewExistingTags),
@@ -476,23 +480,55 @@ export function AdvancedSettingsTab({
     updateAutoTagRule(rule.id, { targetKinds: targetKinds.length > 0 ? targetKinds : [kind] });
   }
 
-  async function importPortableSettings(file: File): Promise<void> {
-    const text = await file.text();
-    const parsed = JSON.parse(text) as Partial<SettingsSnapshot>;
+  async function exportPortableArchive(): Promise<void> {
+    setPortableStatus("Exporting portable archive.");
+    const result = await window.hcb?.settings.exportPortableArchive();
 
-    updateSettings({
-      ...(parsed.theme ? { theme: parsed.theme } : {}),
-      ...(parsed.colorTheme ? { colorTheme: parsed.colorTheme } : {}),
-      ...(parsed.keybindings ? { keybindings: parsed.keybindings } : {}),
-      ...(parsed.selectedTaskListIds ? { selectedTaskListIds: parsed.selectedTaskListIds } : {}),
-      ...(parsed.selectedCalendarIds ? { selectedCalendarIds: parsed.selectedCalendarIds } : {}),
-      ...(parsed.savedSearchViews ? { savedSearchViews: parsed.savedSearchViews } : {}),
-      ...(parsed.savedTaskViews ? { savedTaskViews: parsed.savedTaskViews } : {}),
-      ...(parsed.taskTemplates ? { taskTemplates: parsed.taskTemplates } : {}),
-      ...(parsed.eventTemplates ? { eventTemplates: parsed.eventTemplates } : {}),
-      ...(parsed.noteTemplates ? { noteTemplates: parsed.noteTemplates } : {}),
-      ...(parsed.autoTagRules ? { autoTagRules: autoDisableInvalidAutoTagRules(parsed.autoTagRules, new Date().toISOString()) } : {})
+    if (!result?.ok) {
+      setPortableStatus(result?.error.message ?? "Portable export failed.");
+      return;
+    }
+
+    setPortableArchivePath(result.data.path);
+    setPortableStatus(`Exported ${result.data.path}`);
+  }
+
+  async function previewPortableArchive(): Promise<void> {
+    if (!portableArchivePath.trim()) {
+      setPortableStatus("Enter a .hcbexport path.");
+      return;
+    }
+
+    const result = await window.hcb?.settings.previewPortableImport({ path: portableArchivePath.trim() });
+
+    if (!result?.ok) {
+      setPortableImportPreview(null);
+      setPortableStatus(result?.error.message ?? "Portable import preview failed.");
+      return;
+    }
+
+    setPortableImportPreview(result.data);
+    setPortableStatus("Import preview ready.");
+  }
+
+  async function importPortableArchive(): Promise<void> {
+    if (!portableImportPreview) {
+      await previewPortableArchive();
+      return;
+    }
+
+    const result = await window.hcb?.settings.importPortableArchive({
+      path: portableImportPreview.path,
+      confirm: true
     });
+
+    if (!result?.ok) {
+      setPortableStatus(result?.error.message ?? "Portable import failed.");
+      return;
+    }
+
+    setPortableStatus(`Imported archive. Backup: ${result.data.backupPath}`);
+    setPortableImportPreview(result.data.preview);
   }
 
   return (
@@ -623,7 +659,7 @@ export function AdvancedSettingsTab({
           icon={Archive}
           label="Portable archive"
         >
-          <Button onClick={() => beginRecoveryAction("exportPortableArchive")} variant="secondary">
+          <Button onClick={() => void exportPortableArchive()} variant="secondary">
             <FileDown aria-hidden="true" size={14} />
             Export portable archive
           </Button>
@@ -643,23 +679,47 @@ export function AdvancedSettingsTab({
           label="Only future/current events"
           onChange={(checked) => updateSettings({ portableExportOnlyFutureCurrentEvents: checked })}
         />
-        <SettingsControlRow label="Import portable archive">
-          <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] font-medium text-text-primary hover:bg-surface-1">
-            <Upload aria-hidden="true" size={14} />
-            Import settings JSON
-            <input
-              accept="application/json,.json"
-              className="hidden"
+        <SettingsControlRow
+          description={portableStatus ?? undefined}
+          label="Import portable archive"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Input
+              aria-label="Portable archive path"
+              className="min-w-64"
               onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                if (file) {
-                  void importPortableSettings(file);
-                }
+                setPortableArchivePath(event.currentTarget.value);
+                setPortableImportPreview(null);
               }}
-              type="file"
+              placeholder="/path/to/archive.hcbexport"
+              value={portableArchivePath}
             />
-          </label>
+            <Button onClick={() => void previewPortableArchive()} variant="secondary">
+              <Upload aria-hidden="true" size={14} />
+              Preview import
+            </Button>
+            <Button
+              disabled={!portableImportPreview}
+              onClick={() => void importPortableArchive()}
+              variant="danger"
+            >
+              <Upload aria-hidden="true" size={14} />
+              Import
+            </Button>
+          </div>
         </SettingsControlRow>
+        {portableImportPreview ? (
+          <SettingsControlRow label="Import preview">
+            <div className="flex flex-wrap gap-2 text-[var(--text-sm)] text-text-secondary">
+              <Badge>Tasks {portableImportPreview.tasks.added}/{portableImportPreview.tasks.changed}/{portableImportPreview.tasks.removed}</Badge>
+              <Badge>Events {portableImportPreview.events.added}/{portableImportPreview.events.changed}/{portableImportPreview.events.removed}</Badge>
+              <Badge>Calendars {portableImportPreview.calendars.added}/{portableImportPreview.calendars.changed}/{portableImportPreview.calendars.removed}</Badge>
+              <Badge>Task lists {portableImportPreview.taskLists.added}/{portableImportPreview.taskLists.changed}/{portableImportPreview.taskLists.removed}</Badge>
+              <Badge>Queued {portableImportPreview.queuedMutationCount}</Badge>
+              <Badge>Attachments {portableImportPreview.attachments.bundled}</Badge>
+            </div>
+          </SettingsControlRow>
+        ) : null}
       </SettingsGroup>
 
       <SettingsGroup title="Local backups">

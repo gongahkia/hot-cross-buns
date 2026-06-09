@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
 import {
@@ -1512,6 +1515,103 @@ describe("SQLite-backed domain services", () => {
     });
 
     expect(updated.recurrenceRule).toBe("RRULE:FREQ=YEARLY;INTERVAL=1;COUNT=2");
+  });
+
+  it("splits a recurring event for future-scoped edits", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    syncRepository.writeCalendarEvents(
+      "acct-1",
+      "product",
+      [
+        {
+          id: "event-daily-root",
+          calendarId: "product",
+          status: "confirmed",
+          summary: "Daily planning",
+          startAt: "2026-05-22T08:00:00.000Z",
+          endAt: "2026-05-22T08:30:00.000Z",
+          isAllDay: false,
+          recurrenceRule: "RRULE:FREQ=DAILY;COUNT=3",
+          updatedAt: now
+        }
+      ],
+      {
+        fullSync: false,
+        now
+      }
+    );
+
+    const before = await domain.planner.listCalendarEvents({
+      calendarIds: ["acct-1:calendar:product"],
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-25T00:00:00.000Z",
+      limit: 20
+    });
+    const second = before.items.find((event) => event.startsAt === "2026-05-23T08:00:00.000Z");
+
+    expect(second).toBeDefined();
+
+    const updated = await domain.planner.updateCalendarEvent({
+      id: second?.id ?? "",
+      scope: "seriesFuture",
+      title: "Future planning"
+    });
+    const after = await domain.planner.listCalendarEvents({
+      calendarIds: ["acct-1:calendar:product"],
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-25T00:00:00.000Z",
+      limit: 20
+    });
+    const mutationRows = testConnection().query<{ operation: string }>(
+      `SELECT operation
+       FROM google_pending_mutations
+       WHERE resource_type = 'event'
+       ORDER BY created_at ASC, id ASC;`
+    );
+
+    expect(updated.title).toBe("Future planning");
+    expect(after.items.filter((event) => event.title === "Daily planning")).toHaveLength(1);
+    expect(after.items.filter((event) => event.title === "Future planning")).toHaveLength(2);
+    expect(mutationRows.map((row) => row.operation)).toEqual([
+      "calendar.events.update",
+      "calendar.events.create"
+    ]);
+  });
+
+  it("fails fast for occurrence edits on locally materialized recurrence instances", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const created = await domain.planner.createCalendarEvent({
+      title: "Unsynced recurring planning",
+      calendarId: "acct-1:calendar:product",
+      startsAt: "2026-05-22T08:00:00.000Z",
+      endsAt: "2026-05-22T08:30:00.000Z",
+      recurrence: {
+        frequency: "daily",
+        interval: 1,
+        count: 2,
+        endsOn: null
+      }
+    });
+    const events = await domain.planner.listCalendarEvents({
+      calendarIds: ["acct-1:calendar:product"],
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-24T00:00:00.000Z",
+      limit: 20
+    });
+    const second = events.items.find((event) =>
+      event.eventId === created.id && event.startsAt === "2026-05-23T08:00:00.000Z"
+    );
+
+    expect(second).toBeDefined();
+    expect(() =>
+      domain.planner.updateCalendarEvent({
+        id: second?.id ?? "",
+        scope: "occurrence",
+        title: "Only one"
+      })
+    ).toThrow("Recurring event occurrence/future edits are not supported yet");
   });
 
   it("applies auto tag rules to task, note, and event creates", async () => {

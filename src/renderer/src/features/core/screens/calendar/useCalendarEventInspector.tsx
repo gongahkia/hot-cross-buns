@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import type { CalendarEventUpdateRequest } from "@shared/ipc/contracts";
+import type { CalendarEventCompletionScope, CalendarEventUpdateRequest } from "@shared/ipc/contracts";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
@@ -55,6 +55,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const [formError, setFormError] = useState<string | undefined>();
   const [calendarInspectorMode, setCalendarInspectorModeState] = useState<"view" | "edit">("edit");
   const [calendarActionError, setCalendarActionError] = useState<string | undefined>();
+  const [eventWriteScope, setEventWriteScopeState] = useState<CalendarEventCompletionScope>("seriesAll");
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
   const calendarInspectorDirtyRef = useRef(false);
@@ -62,6 +63,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const calendarInspectorModeRef = useRef<"view" | "edit">("edit");
   const createModeRef = useRef<CalendarCreateMode>("event");
   const createTaskListIdRef = useRef(createTaskListId);
+  const eventWriteScopeRef = useRef<CalendarEventCompletionScope>("seriesAll");
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     setDraftState((current) => {
@@ -112,6 +114,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setCreateModeState(mode);
   }
 
+  function setEventWriteScope(scope: CalendarEventCompletionScope): void {
+    eventWriteScopeRef.current = scope;
+    setEventWriteScopeState(scope);
+  }
+
   function setCreateMode(mode: CalendarCreateMode): void {
     setCreateModeValue(mode);
 
@@ -151,6 +158,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     createTaskListId,
     source.settings.defaultTimeZone,
     source.settings.calendarEventColorOverrides,
+    eventWriteScope,
     updateInspector
   ]);
 
@@ -225,6 +233,21 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     );
   }
 
+  function recurrenceScopeSelect(): ReactNode {
+    return (
+      <select
+        aria-label="Recurring event edit scope"
+        className="h-7 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] text-text-primary"
+        onChange={(event) => setEventWriteScope(event.currentTarget.value as CalendarEventCompletionScope)}
+        value={eventWriteScope}
+      >
+        <option value="occurrence">This occurrence</option>
+        <option value="seriesFuture">This and future</option>
+        <option value="seriesAll">Whole series</option>
+      </select>
+    );
+  }
+
   function eventInspectorActions(
     nextDraft: CalendarEventDraft,
     mode = calendarInspectorModeRef.current
@@ -232,7 +255,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     if (nextDraft.mode === "edit" && mode === "view") {
       return (
         <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {recurringDraft(nextDraft) ? recurrenceScopeSelect() : null}
             <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
               <Trash2 aria-hidden="true" size={14} />
               Delete event
@@ -268,6 +292,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     return (
       <>
+        {nextDraft.mode === "edit" && recurringDraft(nextDraft) ? recurrenceScopeSelect() : null}
         {nextDraft.mode === "edit" ? (
           <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
             <Trash2 aria-hidden="true" size={14} />
@@ -320,6 +345,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     calendarDraftRef.current = nextDraft;
     calendarInspectorDirtyRef.current = false;
     setCalendarInspectorMode(mode);
+    setEventWriteScope(defaultEventWriteScope(nextDraft, source.settings.eventCompletionDefaultScope));
     setFormError(undefined);
     setDraft(nextDraft);
     openInspector({
@@ -564,7 +590,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         ? await window.hcb?.calendar.create(writePayload)
         : await window.hcb?.calendar.update({
             id: currentDraft.id ?? "",
-            scope: "seriesAll",
+            scope: eventWriteScopeRef.current,
             ...writePayload
           } satisfies CalendarEventUpdateRequest);
 
@@ -588,7 +614,10 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return;
     }
 
-    const result = await window.hcb?.calendar.delete({ id: currentDraft.id, scope: "seriesAll" });
+    const result = await window.hcb?.calendar.delete({
+      id: currentDraft.id,
+      scope: eventWriteScopeRef.current
+    });
 
     if (!result?.ok) {
       setFormError(result?.error.message ?? "Calendar event delete failed.");
@@ -668,4 +697,22 @@ function eventNoteBody(sourceDraft: CalendarEventDraft, timeZone: string): strin
     `Event: ${calendarDraftRangeLabel(sourceDraft, timeZone)}`,
     sourceDraft.location.trim() ? `Location: ${sourceDraft.location.trim()}` : ""
   ].filter(Boolean).join("\n\n");
+}
+
+function recurringDraft(draft: CalendarEventDraft): boolean {
+  return draft.repeatFrequency !== "none" ||
+    !!draft.recurringEventId ||
+    !!draft.originalStartAt ||
+    (!!draft.eventId && draft.eventId !== draft.id);
+}
+
+function defaultEventWriteScope(
+  draft: CalendarEventDraft,
+  setting: CoreViewModelSource["settings"]["eventCompletionDefaultScope"]
+): CalendarEventCompletionScope {
+  if (!recurringDraft(draft)) {
+    return "seriesAll";
+  }
+
+  return setting === "ask" ? "occurrence" : setting;
 }

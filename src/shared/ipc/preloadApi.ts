@@ -64,6 +64,11 @@ import type {
   NoteListResponse,
   NoteListSummary,
   NoteUpdateRequest,
+  PortableArchivePathRequest,
+  PortableExportResponse,
+  PortableImportPreview,
+  PortableImportRequest,
+  PortableImportResponse,
   SearchQueryRequest,
   SearchQueryResponse,
   ScheduledTaskBlockCreateRequest,
@@ -195,6 +200,13 @@ export interface HcbApi {
     recoveryAction: (
       request: SettingsRecoveryActionRequest
     ) => Promise<HcbResult<SettingsRecoveryActionResponse>>;
+    exportPortableArchive: () => Promise<HcbResult<PortableExportResponse>>;
+    previewPortableImport: (
+      request: PortableArchivePathRequest
+    ) => Promise<HcbResult<PortableImportPreview>>;
+    importPortableArchive: (
+      request: PortableImportRequest
+    ) => Promise<HcbResult<PortableImportResponse>>;
   };
   undo: {
     status: () => Promise<HcbResult<UndoStackStatusResponse>>;

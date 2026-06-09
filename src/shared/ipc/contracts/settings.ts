@@ -448,3 +448,97 @@ export const settingsRecoveryActionResponseSchema = z
 export type SettingsRecoveryActionResponse = z.infer<
   typeof settingsRecoveryActionResponseSchema
 >;
+
+export const portableArchivePathRequestSchema = z
+  .object({
+    path: z.string().trim().min(1).max(4_096)
+  })
+  .strict();
+
+export type PortableArchivePathRequest = z.input<typeof portableArchivePathRequestSchema>;
+
+export const portableAttachmentManifestSchema = z
+  .object({
+    kind: z.enum(["image", "file"]),
+    displayName: z.string().min(1).max(500),
+    originalURL: z.string().min(1).max(4_096),
+    bundledRelativePath: z.string().min(1).max(1_000),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    byteCount: z.number().int().nonnegative()
+  })
+  .strict();
+
+export const portableArchiveManifestSchema = z
+  .object({
+    formatVersion: z.literal(1),
+    exportedAt: isoDateTimeSchema,
+    appVersion: z.string().min(1).max(80),
+    stateFile: z.literal("hot-cross-buns-2-state.json"),
+    stateSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    attachmentDirectory: z.literal("Attachments"),
+    attachments: z.array(portableAttachmentManifestSchema).max(10_000),
+    skippedPointers: z.array(z.string().min(1).max(4_096)).max(10_000),
+    notes: z.array(z.string().min(1).max(500)).max(20)
+  })
+  .strict();
+
+export type PortableArchiveManifest = z.infer<typeof portableArchiveManifestSchema>;
+
+export const portableExportResponseSchema = z
+  .object({
+    path: z.string().min(1).max(4_096),
+    exportedAt: isoDateTimeSchema,
+    manifest: portableArchiveManifestSchema
+  })
+  .strict();
+
+export type PortableExportResponse = z.infer<typeof portableExportResponseSchema>;
+
+export const portableChangeCountSchema = z
+  .object({
+    added: z.number().int().nonnegative(),
+    removed: z.number().int().nonnegative(),
+    changed: z.number().int().nonnegative()
+  })
+  .strict();
+
+export const portableImportPreviewSchema = z
+  .object({
+    path: z.string().min(1).max(4_096),
+    exportedAt: isoDateTimeSchema,
+    formatVersion: z.literal(1),
+    destructive: z.literal(true),
+    tasks: portableChangeCountSchema,
+    events: portableChangeCountSchema,
+    calendars: portableChangeCountSchema,
+    taskLists: portableChangeCountSchema,
+    settingsWillChange: z.boolean(),
+    queuedMutationCount: z.number().int().nonnegative(),
+    attachments: z
+      .object({
+        bundled: z.number().int().nonnegative(),
+        missing: z.number().int().nonnegative(),
+        corrupt: z.number().int().nonnegative(),
+        skipped: z.number().int().nonnegative()
+      })
+      .strict()
+  })
+  .strict();
+
+export type PortableImportPreview = z.infer<typeof portableImportPreviewSchema>;
+
+export const portableImportRequestSchema = portableArchivePathRequestSchema.extend({
+  confirm: z.literal(true)
+}).strict();
+
+export type PortableImportRequest = z.input<typeof portableImportRequestSchema>;
+
+export const portableImportResponseSchema = z
+  .object({
+    importedAt: isoDateTimeSchema,
+    backupPath: z.string().min(1).max(4_096),
+    preview: portableImportPreviewSchema
+  })
+  .strict();
+
+export type PortableImportResponse = z.infer<typeof portableImportResponseSchema>;

@@ -1,7 +1,16 @@
-import { randomUUID } from "node:crypto";
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
+import { createHash, randomUUID } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, normalize } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  portableArchiveManifestSchema,
+  type PortableArchiveManifest,
+  type PortableExportResponse,
+  type PortableImportPreview,
+  type PortableImportResponse,
+  type SettingsSnapshot,
+  type SettingsUpdateRequest
+} from "@shared/ipc/contracts";
 import {
   defaultHistoryCategoryVisibility,
   defaultKeybindings,
@@ -10,7 +19,28 @@ import {
   hotkeyActionIds
 } from "@shared/settingsCatalog";
 import type { SqliteConnection } from "../sqliteConnection";
-import { systemTimeZone, uniqueIds } from "./shared";
+import { systemTimeZone, uniqueIds, validationFailure } from "./shared";
+
+const PORTABLE_FORMAT_VERSION = 1;
+const PORTABLE_STATE_FILE = "hot-cross-buns-2-state.json";
+const PORTABLE_ATTACHMENT_DIR = "Attachments";
+const PORTABLE_TABLES = [
+  "google_accounts",
+  "google_task_lists",
+  "google_tasks",
+  "google_calendar_lists",
+  "google_calendar_events",
+  "google_calendar_event_instances",
+  "local_scheduled_task_blocks",
+  "google_sync_checkpoints",
+  "google_pending_mutations",
+  "local_settings",
+  "local_tags",
+  "local_entity_tags",
+  "local_history_entries",
+  "local_undo_entries",
+  "local_search_index_state"
+] as const;
 
 const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
@@ -810,26 +840,324 @@ export class LocalSettingsRepository {
     };
   }
 
-  exportPortableArchive(now = new Date().toISOString()): { path: string; exportedAt: string } {
+  exportPortableArchive(now = new Date().toISOString()): PortableExportResponse {
     const exportDirectory = join(
       dirname(this.connection.databasePath),
       "PortableExports",
-      `hot-cross-buns-2-${now.replace(/[:.]/g, "-")}`
+      `hot-cross-buns-2-${now.replace(/[:.]/g, "-")}.hcbexport`
     );
+    const attachmentDirectory = join(exportDirectory, PORTABLE_ATTACHMENT_DIR);
+    const state = this.portableState();
+    const attachments = this.collectPortableAttachments(state, attachmentDirectory);
+    const stateJson = `${stableJson(state)}\n`;
+    const manifest: PortableArchiveManifest = {
+      formatVersion: PORTABLE_FORMAT_VERSION,
+      exportedAt: now,
+      appVersion: "0.0.0",
+      stateFile: PORTABLE_STATE_FILE,
+      stateSha256: sha256Buffer(Buffer.from(stateJson, "utf8")),
+      attachmentDirectory: PORTABLE_ATTACHMENT_DIR,
+      attachments: attachments.attachments,
+      skippedPointers: attachments.skippedPointers,
+      notes: [
+        "Portable migration archive. Import replaces the local cache after preview and backup.",
+        "Google remains the source of truth for synced tasks and calendar data."
+      ]
+    };
 
     mkdirSync(exportDirectory, { recursive: true });
-    writeFileSync(
-      join(exportDirectory, "settings.json"),
-      `${JSON.stringify(this.get(), null, 2)}\n`,
-      "utf8"
-    );
-    this.connection.run("PRAGMA wal_checkpoint(FULL);");
-    copyFileSync(this.connection.databasePath, join(exportDirectory, "cache-state.sqlite3"));
+    mkdirSync(attachmentDirectory, { recursive: true });
+    writeFileSync(join(exportDirectory, PORTABLE_STATE_FILE), stateJson, "utf8");
+    writeFileSync(join(exportDirectory, "manifest.json"), `${stableJson(manifest)}\n`, "utf8");
 
     return {
       path: exportDirectory,
-      exportedAt: now
+      exportedAt: now,
+      manifest
     };
+  }
+
+  previewPortableImport(archivePath: string): PortableImportPreview {
+    const archive = this.readPortableArchive(archivePath);
+    const current = this.portableState();
+    const attachmentHealth = this.portableAttachmentHealth(archivePath, archive.manifest);
+
+    return {
+      path: archivePath,
+      exportedAt: archive.manifest.exportedAt,
+      formatVersion: archive.manifest.formatVersion,
+      destructive: true,
+      tasks: portableTableDiff(current, archive.state, "google_tasks"),
+      events: portableTableDiff(current, archive.state, "google_calendar_events"),
+      calendars: portableTableDiff(current, archive.state, "google_calendar_lists"),
+      taskLists: portableTableDiff(current, archive.state, "google_task_lists"),
+      settingsWillChange:
+        stableJson(current.tables.local_settings?.rows ?? []) !==
+        stableJson(archive.state.tables.local_settings?.rows ?? []),
+      queuedMutationCount: archive.state.tables.google_pending_mutations?.rows.length ?? 0,
+      attachments: {
+        bundled: archive.manifest.attachments.length,
+        missing: attachmentHealth.missing,
+        corrupt: attachmentHealth.corrupt,
+        skipped: archive.manifest.skippedPointers.length
+      }
+    };
+  }
+
+  importPortableArchive(archivePath: string, now = new Date().toISOString()): PortableImportResponse {
+    const archive = this.readPortableArchive(archivePath);
+    const preview = this.previewPortableImport(archivePath);
+    const backup = this.createLocalBackup(now);
+    const rewrittenState = this.rewritePortableAttachmentPointers(archivePath, archive.state, archive.manifest);
+    const operations = this.portableImportOperations(rewrittenState);
+
+    this.connection.executeTransaction(operations);
+    this.rebuildPortableFts();
+    this.cachedSnapshot = null;
+    this.settingsReadCache = null;
+
+    return {
+      importedAt: now,
+      backupPath: backup.path,
+      preview
+    };
+  }
+
+  private portableState(): PortableState {
+    const tables: PortableState["tables"] = {};
+
+    for (const table of PORTABLE_TABLES) {
+      if (!this.tableExists(table)) {
+        continue;
+      }
+
+      const columns = this.tableColumns(table);
+      const selectColumns = columns.map((column) => quoteIdent(column.name)).join(", ");
+      const orderColumns = columns
+        .filter((column) => column.pk > 0)
+        .sort((left, right) => left.pk - right.pk)
+        .map((column) => column.name);
+      const fallbackOrder = columns.map((column) => column.name);
+      const orderBy = (orderColumns.length > 0 ? orderColumns : fallbackOrder)
+        .map((column) => quoteIdent(column))
+        .join(", ");
+      const rows = this.connection.query<Record<string, unknown>>(
+        `SELECT ${selectColumns} FROM ${quoteIdent(table)} ORDER BY ${orderBy};`
+      );
+
+      tables[table] = {
+        columns: columns.map((column) => column.name),
+        rows: rows.map((row) => orderedRow(row, columns.map((column) => column.name)))
+      };
+    }
+
+    return {
+      formatVersion: PORTABLE_FORMAT_VERSION,
+      tables
+    };
+  }
+
+  private readPortableArchive(archivePath: string): {
+    manifest: PortableArchiveManifest;
+    state: PortableState;
+  } {
+    const manifestPath = join(archivePath, "manifest.json");
+    const statePath = join(archivePath, PORTABLE_STATE_FILE);
+
+    if (!existsSync(manifestPath) || !existsSync(statePath)) {
+      throw validationFailure("Portable archive must contain manifest.json and hot-cross-buns-2-state.json.");
+    }
+
+    const manifest = portableArchiveManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+    const stateBuffer = readFileSync(statePath);
+
+    if (sha256Buffer(stateBuffer) !== manifest.stateSha256) {
+      throw validationFailure("Portable archive state checksum does not match the manifest.");
+    }
+
+    const state = parsePortableState(JSON.parse(stateBuffer.toString("utf8")));
+
+    return { manifest, state };
+  }
+
+  private collectPortableAttachments(
+    state: PortableState,
+    attachmentDirectory: string
+  ): {
+    attachments: PortableArchiveManifest["attachments"];
+    skippedPointers: string[];
+  } {
+    const pointers = portableFilePointers(state);
+    const attachments: PortableArchiveManifest["attachments"] = [];
+    const skippedPointers: string[] = [];
+    const seen = new Set<string>();
+
+    for (const pointer of pointers) {
+      if (seen.has(pointer)) {
+        continue;
+      }
+
+      seen.add(pointer);
+
+      try {
+        const sourcePath = fileURLToPath(pointer);
+        const stat = statSync(sourcePath);
+
+        if (!stat.isFile()) {
+          skippedPointers.push(pointer);
+          continue;
+        }
+
+        mkdirSync(attachmentDirectory, { recursive: true });
+        const bytes = readFileSync(sourcePath);
+        const digest = sha256Buffer(bytes);
+        const fileName = `${digest.slice(0, 16)}-${safePortableFileName(basename(sourcePath))}`;
+        const bundledRelativePath = `${PORTABLE_ATTACHMENT_DIR}/${fileName}`;
+
+        copyFileSync(sourcePath, join(attachmentDirectory, fileName));
+        attachments.push({
+          kind: portableAttachmentKind(sourcePath),
+          displayName: basename(sourcePath),
+          originalURL: pointer,
+          bundledRelativePath,
+          sha256: digest,
+          byteCount: stat.size
+        });
+      } catch {
+        skippedPointers.push(pointer);
+      }
+    }
+
+    return { attachments, skippedPointers };
+  }
+
+  private portableAttachmentHealth(
+    archivePath: string,
+    manifest: PortableArchiveManifest
+  ): { missing: number; corrupt: number } {
+    let missing = 0;
+    let corrupt = 0;
+
+    for (const attachment of manifest.attachments) {
+      const path = safeArchiveChildPath(archivePath, attachment.bundledRelativePath);
+
+      if (!path || !existsSync(path)) {
+        missing += 1;
+        continue;
+      }
+
+      const bytes = readFileSync(path);
+
+      if (bytes.byteLength !== attachment.byteCount || sha256Buffer(bytes) !== attachment.sha256) {
+        corrupt += 1;
+      }
+    }
+
+    return { missing, corrupt };
+  }
+
+  private rewritePortableAttachmentPointers(
+    archivePath: string,
+    state: PortableState,
+    manifest: PortableArchiveManifest
+  ): PortableState {
+    const next = structuredClonePortableState(state);
+    const attachmentDirectory = join(dirname(this.connection.databasePath), PORTABLE_ATTACHMENT_DIR);
+    const replacements = new Map<string, string>();
+
+    mkdirSync(attachmentDirectory, { recursive: true });
+
+    for (const attachment of manifest.attachments) {
+      const sourcePath = safeArchiveChildPath(archivePath, attachment.bundledRelativePath);
+
+      if (!sourcePath || !existsSync(sourcePath)) {
+        continue;
+      }
+
+      const bytes = readFileSync(sourcePath);
+
+      if (bytes.byteLength !== attachment.byteCount || sha256Buffer(bytes) !== attachment.sha256) {
+        continue;
+      }
+
+      const targetPath = join(
+        attachmentDirectory,
+        `${attachment.sha256.slice(0, 16)}-${safePortableFileName(attachment.displayName)}`
+      );
+
+      copyFileSync(sourcePath, targetPath);
+      replacements.set(attachment.originalURL, pathToFileURL(targetPath).href);
+    }
+
+    rewritePortableTableText(next, "google_tasks", "notes", replacements);
+    rewritePortableTableText(next, "google_calendar_events", "description", replacements);
+    return next;
+  }
+
+  private portableImportOperations(state: PortableState) {
+    const operations = [];
+
+    for (const table of [...PORTABLE_TABLES].reverse()) {
+      if (this.tableExists(table)) {
+        operations.push({
+          kind: "run" as const,
+          sql: `DELETE FROM ${quoteIdent(table)};`
+        });
+      }
+    }
+
+    for (const table of PORTABLE_TABLES) {
+      const tableState = state.tables[table];
+
+      if (!tableState || !this.tableExists(table) || tableState.rows.length === 0) {
+        continue;
+      }
+
+      const existingColumns = new Set(this.tableColumns(table).map((column) => column.name));
+
+      for (const column of tableState.columns) {
+        if (!existingColumns.has(column)) {
+          throw validationFailure(`Portable archive column ${table}.${column} is not supported by this app version.`);
+        }
+      }
+
+      const placeholders = tableState.columns.map(() => "?").join(", ");
+      const columns = tableState.columns.map(quoteIdent).join(", ");
+
+      for (const row of tableState.rows) {
+        operations.push({
+          kind: "run" as const,
+          sql: `INSERT INTO ${quoteIdent(table)} (${columns}) VALUES (${placeholders});`,
+          params: tableState.columns.map((column) => sqlitePortableValue(row[column]))
+        });
+      }
+    }
+
+    return operations;
+  }
+
+  private rebuildPortableFts(): void {
+    for (const table of [
+      "google_task_lists_fts",
+      "google_tasks_fts",
+      "google_calendar_lists_fts",
+      "google_calendar_events_fts"
+    ]) {
+      if (this.tableExists(table)) {
+        this.connection.run(`INSERT INTO ${quoteIdent(table)}(${quoteIdent(table)}) VALUES ('rebuild');`);
+      }
+    }
+  }
+
+  private tableExists(table: string): boolean {
+    return this.connection.get<{ name: string }>(
+      `SELECT name FROM sqlite_master WHERE name = ? AND type IN ('table', 'view') LIMIT 1;`,
+      [table]
+    ) !== undefined;
+  }
+
+  private tableColumns(table: string): Array<{ name: string; pk: number }> {
+    return this.connection.query<{ name: string; pk: number }>(`PRAGMA table_info(${quoteIdent(table)});`);
   }
 
   private readSetting<T>(scope: string, key: string, fallback: T): T {
@@ -912,6 +1240,210 @@ export class LocalSettingsRepository {
 
 function settingsCacheKey(scope: string, key: string): string {
   return `${scope}\0${key}`;
+}
+
+interface PortableTableState {
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
+
+interface PortableState {
+  formatVersion: 1;
+  tables: Partial<Record<(typeof PORTABLE_TABLES)[number], PortableTableState>>;
+}
+
+function parsePortableState(value: unknown): PortableState {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    (value as { formatVersion?: unknown }).formatVersion !== PORTABLE_FORMAT_VERSION
+  ) {
+    throw validationFailure("Portable archive state has an unsupported format.");
+  }
+
+  const state = value as PortableState;
+
+  if (typeof state.tables !== "object" || state.tables === null) {
+    throw validationFailure("Portable archive state is missing required fields.");
+  }
+
+  for (const table of Object.keys(state.tables)) {
+    if (!PORTABLE_TABLES.includes(table as (typeof PORTABLE_TABLES)[number])) {
+      throw validationFailure(`Portable archive table ${table} is not supported.`);
+    }
+  }
+
+  return state;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`;
+  }
+
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`).join(",")}}`;
+}
+
+function sha256Buffer(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function quoteIdent(value: string): string {
+  return `"${value.replace(/"/g, "\"\"")}"`;
+}
+
+function orderedRow(row: Record<string, unknown>, columns: string[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const column of columns) {
+    result[column] = row[column] ?? null;
+  }
+
+  return result;
+}
+
+function sqlitePortableValue(value: unknown): string | number | boolean | null {
+  return typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null
+    ? value
+    : JSON.stringify(value);
+}
+
+function portableTableDiff(
+  current: PortableState,
+  archive: PortableState,
+  table: (typeof PORTABLE_TABLES)[number]
+): { added: number; removed: number; changed: number } {
+  const currentRows = portableRowsByKey(current.tables[table]);
+  const archiveRows = portableRowsByKey(archive.tables[table]);
+  let added = 0;
+  let removed = 0;
+  let changed = 0;
+
+  for (const [key, row] of archiveRows) {
+    const currentRow = currentRows.get(key);
+
+    if (currentRow === undefined) {
+      added += 1;
+    } else if (currentRow !== row) {
+      changed += 1;
+    }
+  }
+
+  for (const key of currentRows.keys()) {
+    if (!archiveRows.has(key)) {
+      removed += 1;
+    }
+  }
+
+  return { added, removed, changed };
+}
+
+function portableRowsByKey(table: PortableTableState | undefined): Map<string, string> {
+  const rows = new Map<string, string>();
+
+  for (const row of table?.rows ?? []) {
+    rows.set(portableRowKey(row), stableJson(row));
+  }
+
+  return rows;
+}
+
+function portableRowKey(row: Record<string, unknown>): string {
+  if (typeof row.id === "string") {
+    return row.id;
+  }
+
+  if (typeof row.scope === "string" && typeof row.key === "string") {
+    return `${row.scope}\0${row.key}`;
+  }
+
+  return stableJson(row);
+}
+
+function portableFilePointers(state: PortableState): string[] {
+  const values = [
+    ...portableColumnValues(state, "google_tasks", "notes"),
+    ...portableColumnValues(state, "google_calendar_events", "description")
+  ];
+  const pointers: string[] = [];
+  const pointerPattern = /file:\/\/[^\s)'"<>]+/g;
+
+  for (const value of values) {
+    for (const match of value.matchAll(pointerPattern)) {
+      pointers.push(match[0]);
+    }
+  }
+
+  return pointers;
+}
+
+function portableColumnValues(
+  state: PortableState,
+  table: (typeof PORTABLE_TABLES)[number],
+  column: string
+): string[] {
+  return (state.tables[table]?.rows ?? [])
+    .map((row) => row[column])
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function portableAttachmentKind(path: string): "image" | "file" {
+  return /\.(avif|gif|jpe?g|png|webp|heic|tiff?)$/i.test(path) ? "image" : "file";
+}
+
+function safePortableFileName(name: string): string {
+  const cleaned = name.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 160);
+  return cleaned || "attachment";
+}
+
+function safeArchiveChildPath(archivePath: string, relativePath: string): string | null {
+  if (isAbsolute(relativePath)) {
+    return null;
+  }
+
+  const normalized = normalize(relativePath);
+
+  if (normalized.startsWith("..")) {
+    return null;
+  }
+
+  return join(archivePath, normalized);
+}
+
+function structuredClonePortableState(state: PortableState): PortableState {
+  return JSON.parse(JSON.stringify(state)) as PortableState;
+}
+
+function rewritePortableTableText(
+  state: PortableState,
+  table: (typeof PORTABLE_TABLES)[number],
+  column: string,
+  replacements: Map<string, string>
+): void {
+  for (const row of state.tables[table]?.rows ?? []) {
+    const value = row[column];
+
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    let next = value;
+
+    for (const [from, to] of replacements) {
+      next = next.split(from).join(to);
+    }
+
+    row[column] = next;
+  }
 }
 
 function parseSettingValue<T>(valueJson: string, fallback: T): T {

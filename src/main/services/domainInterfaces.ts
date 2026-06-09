@@ -38,6 +38,11 @@ import type {
   NoteUpdateRequest,
   SearchQueryRequest,
   SearchQueryResponse,
+  PortableArchivePathRequest,
+  PortableExportResponse,
+  PortableImportPreview,
+  PortableImportRequest,
+  PortableImportResponse,
   SettingsRecoveryActionRequest,
   SettingsRecoveryActionResponse,
   ScheduledTaskBlockCreateRequest,
@@ -286,6 +291,13 @@ export interface SettingsDomainService {
   recoveryAction: (
     request: SettingsRecoveryActionRequest
   ) => MaybePromise<SettingsRecoveryActionResponse>;
+  exportPortableArchive: () => MaybePromise<PortableExportResponse>;
+  previewPortableImport: (
+    request: PortableArchivePathRequest
+  ) => MaybePromise<PortableImportPreview>;
+  importPortableArchive: (
+    request: PortableImportRequest
+  ) => MaybePromise<PortableImportResponse>;
 }
 
 export interface UndoDomainService {

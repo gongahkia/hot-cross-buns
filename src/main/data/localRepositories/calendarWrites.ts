@@ -105,6 +105,46 @@ export function recurrenceFromRule(rule: string | null): CalendarEventRecurrence
   };
 }
 
+export function recurringInstanceStarts(rule: string | null, input: {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+}): string[] {
+  return materializedLocalEventInstances({
+    ...input,
+    recurrenceRule: rule
+  }).map((instance) => instance.startsAt);
+}
+
+export function splitRecurrenceRuleAt(rule: string, selectedStartsAt: string, input: {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+}): { beforeRule: string | null; futureRule: string; beforeCount: number; futureCount: number } | null {
+  const starts = recurringInstanceStarts(rule, input);
+  const selectedMs = Date.parse(selectedStartsAt);
+
+  if (!Number.isFinite(selectedMs) || starts.length === 0) {
+    return null;
+  }
+
+  const beforeCount = starts.filter((startsAt) => Date.parse(startsAt) < selectedMs).length;
+  const futureCount = starts.length - beforeCount;
+
+  if (beforeCount <= 0 || futureCount <= 0) {
+    return null;
+  }
+
+  return {
+    beforeRule: setRRuleLimit(rule, { count: beforeCount }),
+    futureRule: setRRuleLimit(rule, { count: futureCount }),
+    beforeCount,
+    futureCount
+  };
+}
+
 export function materializedLocalEventInstances(input: {
   id: string;
   startsAt: string;
@@ -154,6 +194,29 @@ export function materializedLocalEventInstances(input: {
   }
 
   return instances.length > 0 ? instances : [singleInstance];
+}
+
+function setRRuleLimit(rule: string, limit: { count: number }): string {
+  const lines = rule.split("\n");
+  let replaced = false;
+  const nextLines = lines.map((candidate) => {
+    const line = candidate.trim();
+
+    if (!line.startsWith("RRULE:")) {
+      return candidate;
+    }
+
+    replaced = true;
+    const parts = line
+      .slice("RRULE:".length)
+      .split(";")
+      .filter((part) => !part.startsWith("COUNT=") && !part.startsWith("UNTIL="));
+
+    parts.push(`COUNT=${Math.max(1, Math.min(366, Math.floor(limit.count)))}`);
+    return `RRULE:${parts.join(";")}`;
+  });
+
+  return replaced ? nextLines.join("\n") : rule;
 }
 
 export function parseLocalRRule(value: string | null | undefined): ParsedLocalRRule | null {

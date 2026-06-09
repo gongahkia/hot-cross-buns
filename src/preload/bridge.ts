@@ -322,6 +322,27 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           ipcContracts.settings.recoveryAction,
           request,
           "Settings recovery action failed"
+        ),
+      exportPortableArchive: () =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.exportPortableArchive,
+          {},
+          "Portable archive export failed"
+        ),
+      previewPortableImport: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.previewPortableImport,
+          request,
+          "Portable archive preview failed"
+        ),
+      importPortableArchive: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.importPortableArchive,
+          request,
+          "Portable archive import failed"
         )
     },
     undo: {

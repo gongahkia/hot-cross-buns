@@ -101,6 +101,8 @@ export interface CalendarEventViewModel {
   } | null;
   mutationState?: "synced" | "queued" | "failed";
   recurrenceRule: string | null;
+  recurringEventId?: string | null;
+  originalStartAt?: string | null;
 }
 
 export interface ScheduledTaskBlockViewModel {

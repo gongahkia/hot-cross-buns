@@ -21,7 +21,8 @@ import {
   mutationInsertOperation,
   mutationPayload,
   normalizeCalendarWrite,
-  recurrenceRuleFromRequest
+  recurrenceRuleFromRequest,
+  splitRecurrenceRuleAt
 } from "./calendarWrites";
 import { googleTaskIdFromCalendarDescription } from "./googleTaskProjection";
 import { availabilityLine, calendarEventDetail, calendarEventSummary, calendarListSummary } from "./mappers";
@@ -249,7 +250,13 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         throw notFound("Calendar event was not found.");
       }
 
-      validateRecurringWriteScope(existing, request.scope ?? "seriesAll");
+      const scope = request.scope ?? "seriesAll";
+
+      if (scope === "seriesFuture" && existing.id !== existing.eventId) {
+        return this.updateFutureCalendarEventSeries(existing, request);
+      }
+
+      validateRecurringWriteScope(existing, scope);
       const targetCalendar = this.requireCalendar(request.calendarId ?? existing.calendarId);
       const now = new Date().toISOString();
       const timeZone = request.timeZone ?? existing.timeZone ?? targetCalendar.timeZone ?? systemTimeZone();
@@ -360,7 +367,13 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         throw notFound("Calendar event was not found.");
       }
 
-      validateRecurringWriteScope(existing, request.scope ?? "seriesAll");
+      const scope = request.scope ?? "seriesAll";
+
+      if (scope === "seriesFuture" && existing.id !== existing.eventId) {
+        return this.deleteFutureCalendarEventSeries(existing);
+      }
+
+      validateRecurringWriteScope(existing, scope);
       const now = new Date().toISOString();
       const mutationId = `mutation:event:${randomUUID()}`;
 
@@ -467,6 +480,237 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         busyBlockCount: busyEvents.length
       };
     });
+  }
+
+  private updateFutureCalendarEventSeries(
+    selected: CalendarEventRow,
+    request: CalendarEventUpdateRequest
+  ): CalendarEventDetail {
+    const master = this.findCalendarEventRow(selected.eventId);
+
+    if (!master?.recurrenceRule) {
+      throw validationFailure("Future recurring edits need the original recurring series.");
+    }
+
+    requireRemoteRecurringMaster(master);
+
+    if (!hasGoogleBackedCalendarPatch(request) && request.tags !== undefined) {
+      throw validationFailure("Future-scope local-only tag edits are not supported yet.");
+    }
+
+    const split = splitRecurrenceRuleAt(master.recurrenceRule, selected.startsAt, {
+      id: master.eventId,
+      startsAt: master.startsAt,
+      endsAt: master.endsAt,
+      allDay: master.allDay === 1
+    });
+
+    if (!split) {
+      return this.updateCalendarEvent({
+        ...request,
+        id: master.eventId,
+        scope: "seriesAll"
+      });
+    }
+
+    const targetCalendar = this.requireCalendar(request.calendarId ?? master.calendarId);
+    const now = new Date().toISOString();
+    const futureGoogleId = `local-${randomUUID()}`;
+    const futureId = `${targetCalendar.accountId}:event:${targetCalendar.googleId}:${futureGoogleId}`;
+    const masterTags = normalizeLocalTagNames(parseStringArray(master.tagsJson ?? null));
+    const futureTags =
+      request.tags === undefined ? masterTags : normalizeLocalTagNames(request.tags);
+    const futureRecurrenceRule =
+      request.recurrence === undefined
+        ? split.futureRule
+        : recurrenceRuleFromRequest(request.recurrence);
+    const masterWrite = normalizeCalendarWrite({
+      title: master.title,
+      calendarId: master.calendarId,
+      startsAt: master.startsAt,
+      endsAt: master.endsAt,
+      allDay: master.allDay === 1,
+      location: master.location ?? "",
+      notes: master.notes ?? "",
+      guestEmails: parseStringArray(master.guestEmailsJson),
+      reminderMinutes: parseNumberArray(master.reminderMinutesJson),
+      colorId: master.colorId,
+      recurrenceRule: split.beforeRule
+    });
+    const futureWrite = normalizeCalendarWrite({
+      title: request.title ?? master.title,
+      calendarId: targetCalendar.id,
+      startsAt: request.startsAt ?? selected.startsAt,
+      endsAt: request.endsAt ?? selected.endsAt,
+      allDay: request.allDay ?? selected.allDay === 1,
+      location: request.location ?? master.location ?? "",
+      notes: request.notes ?? master.notes ?? "",
+      guestEmails: request.guestEmails ?? parseStringArray(master.guestEmailsJson),
+      reminderMinutes: request.reminderMinutes ?? parseNumberArray(master.reminderMinutesJson),
+      colorId: request.colorId === undefined ? master.colorId : request.colorId,
+      recurrenceRule: futureRecurrenceRule
+    });
+
+    this.connection.executeTransaction([
+      eventUpdateOperation({
+        id: master.eventId,
+        hcbKind: request.hcbKind ?? master.hcbKind ?? null,
+        localTagsJson: JSON.stringify(masterTags),
+        timeZone: master.timeZone ?? targetCalendar.timeZone ?? systemTimeZone(),
+        now,
+        ...masterWrite,
+        calendarId: master.calendarId
+      }),
+      instanceDeleteOperation(master.eventId, now),
+      ...eventInstanceInsertOperations({
+        id: master.eventId,
+        accountId: master.accountId,
+        calendarId: master.calendarId,
+        eventId: master.eventId,
+        googleEventId: googleEventIdFromLocalEventId(master.eventId),
+        startsAt: masterWrite.startsAt,
+        endsAt: masterWrite.endsAt,
+        allDay: masterWrite.allDay,
+        recurrenceRule: masterWrite.recurrenceRule,
+        status: "confirmed",
+        updatedAt: now
+      }),
+      mutationInsertOperation({
+        id: `mutation:event:${randomUUID()}`,
+        accountId: master.accountId,
+        resourceId: master.eventId,
+        operation: "calendar.events.update",
+        payload: mutationPayload(masterWrite, master.hcbKind ?? null),
+        now
+      }),
+      eventInsertOperation({
+        id: futureId,
+        accountId: targetCalendar.accountId,
+        googleId: futureGoogleId,
+        hcbKind: request.hcbKind ?? master.hcbKind ?? null,
+        localTagsJson: JSON.stringify(futureTags),
+        timeZone: request.timeZone ?? master.timeZone ?? targetCalendar.timeZone ?? systemTimeZone(),
+        now,
+        ...futureWrite,
+        calendarId: targetCalendar.id
+      }),
+      ...this.tagSyncOperations({
+        entityKind: "event",
+        entityId: futureId,
+        tags: futureTags,
+        now
+      }),
+      ...eventInstanceInsertOperations({
+        id: futureId,
+        accountId: targetCalendar.accountId,
+        calendarId: targetCalendar.id,
+        eventId: futureId,
+        googleEventId: futureGoogleId,
+        startsAt: futureWrite.startsAt,
+        endsAt: futureWrite.endsAt,
+        allDay: futureWrite.allDay,
+        recurrenceRule: futureWrite.recurrenceRule,
+        status: "confirmed",
+        updatedAt: now
+      }),
+      mutationInsertOperation({
+        id: `mutation:event:${randomUUID()}`,
+        accountId: targetCalendar.accountId,
+        resourceId: futureId,
+        operation: "calendar.events.create",
+        payload: mutationPayload(futureWrite, request.hcbKind ?? master.hcbKind ?? null),
+        now
+      })
+    ]);
+    this.recordHistory({
+      kind: "event.edit",
+      resourceId: futureId,
+      summary: "Edited future recurring events",
+      metadata: { queued: true, calendarId: targetCalendar.id, scope: "seriesFuture" }
+    });
+
+    return this.getCalendarEvent(futureId);
+  }
+
+  private deleteFutureCalendarEventSeries(selected: CalendarEventRow): { id: string; queued: boolean; revision: string } {
+    const master = this.findCalendarEventRow(selected.eventId);
+
+    if (!master?.recurrenceRule) {
+      throw validationFailure("Future recurring delete needs the original recurring series.");
+    }
+
+    requireRemoteRecurringMaster(master);
+    const split = splitRecurrenceRuleAt(master.recurrenceRule, selected.startsAt, {
+      id: master.eventId,
+      startsAt: master.startsAt,
+      endsAt: master.endsAt,
+      allDay: master.allDay === 1
+    });
+
+    if (!split?.beforeRule) {
+      return this.deleteCalendarEvent({ id: master.eventId, scope: "seriesAll" });
+    }
+
+    const now = new Date().toISOString();
+    const masterWrite = normalizeCalendarWrite({
+      title: master.title,
+      calendarId: master.calendarId,
+      startsAt: master.startsAt,
+      endsAt: master.endsAt,
+      allDay: master.allDay === 1,
+      location: master.location ?? "",
+      notes: master.notes ?? "",
+      guestEmails: parseStringArray(master.guestEmailsJson),
+      reminderMinutes: parseNumberArray(master.reminderMinutesJson),
+      colorId: master.colorId,
+      recurrenceRule: split.beforeRule
+    });
+
+    this.connection.executeTransaction([
+      eventUpdateOperation({
+        id: master.eventId,
+        hcbKind: master.hcbKind ?? null,
+        localTagsJson: JSON.stringify(normalizeLocalTagNames(parseStringArray(master.tagsJson ?? null))),
+        timeZone: master.timeZone ?? systemTimeZone(),
+        now,
+        ...masterWrite,
+        calendarId: master.calendarId
+      }),
+      instanceDeleteOperation(master.eventId, now),
+      ...eventInstanceInsertOperations({
+        id: master.eventId,
+        accountId: master.accountId,
+        calendarId: master.calendarId,
+        eventId: master.eventId,
+        googleEventId: googleEventIdFromLocalEventId(master.eventId),
+        startsAt: masterWrite.startsAt,
+        endsAt: masterWrite.endsAt,
+        allDay: masterWrite.allDay,
+        recurrenceRule: masterWrite.recurrenceRule,
+        status: "confirmed",
+        updatedAt: now
+      }),
+      mutationInsertOperation({
+        id: `mutation:event:${randomUUID()}`,
+        accountId: master.accountId,
+        resourceId: master.eventId,
+        operation: "calendar.events.update",
+        payload: mutationPayload(masterWrite, master.hcbKind ?? null),
+        now
+      })
+    ]);
+    this.recordHistory({
+      kind: "event.delete",
+      resourceId: master.eventId,
+      summary: "Deleted future recurring events",
+      metadata: { queued: true, calendarId: master.calendarId, scope: "seriesFuture" }
+    });
+
+    return {
+      id: master.eventId,
+      queued: true,
+      revision: now
+    };
   }
 
   protected findCalendarEventRow(id: string): CalendarEventRow | undefined {
@@ -593,12 +837,49 @@ function validateRecurringWriteScope(
   event: CalendarEventRow,
   scope: CalendarEventCompletionScope
 ): void {
+  if (event.hcbKind === "birthday" && scope !== "seriesAll") {
+    throw validationFailure("Birthday event scoped edits are not supported. Choose the whole series.");
+  }
+
   if (scope === "seriesAll") {
+    return;
+  }
+
+  if (scope === "occurrence" && event.recurringEventId && event.id === event.eventId) {
     return;
   }
 
   if (event.recurrenceRule || event.recurringEventId || event.originalStartAt || event.id !== event.eventId) {
     throw validationFailure("Recurring event occurrence/future edits are not supported yet. Choose the whole series.");
+  }
+}
+
+function hasGoogleBackedCalendarPatch(request: CalendarEventUpdateRequest): boolean {
+  return request.title !== undefined ||
+    request.calendarId !== undefined ||
+    request.startsAt !== undefined ||
+    request.endsAt !== undefined ||
+    request.allDay !== undefined ||
+    request.location !== undefined ||
+    request.notes !== undefined ||
+    request.guestEmails !== undefined ||
+    request.reminderMinutes !== undefined ||
+    request.colorId !== undefined ||
+    request.recurrence !== undefined ||
+    request.hcbKind !== undefined ||
+    request.timeZone !== undefined;
+}
+
+function requireRemoteRecurringMaster(event: CalendarEventRow): void {
+  const googleId = googleEventIdFromLocalEventId(event.eventId);
+
+  if (
+    googleId === event.eventId ||
+    googleId.startsWith("pending:") ||
+    googleId.startsWith("local-") ||
+    googleId.includes(":pending:")
+  ) {
+    throw validationFailure("Future recurring edits need the series to sync with Google first.");
   }
 }
 

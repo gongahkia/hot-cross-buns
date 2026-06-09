@@ -750,6 +750,58 @@ const hcbApi: HcbApi = {
         requiresReload: request.action === "clearGoogleCache",
         message: "Recovery action accepted."
       })
+    ),
+    exportPortableArchive: vi.fn(async () => {
+      const exportedAt = new Date().toISOString();
+      return ok({
+        path: "/tmp/hcb-test.hcbexport",
+        exportedAt,
+        manifest: {
+          formatVersion: 1 as const,
+          exportedAt,
+          appVersion: "0.0.0",
+          stateFile: "hot-cross-buns-2-state.json" as const,
+          stateSha256: "0".repeat(64),
+          attachmentDirectory: "Attachments" as const,
+          attachments: [],
+          skippedPointers: [],
+          notes: ["Test archive."]
+        }
+      });
+    }),
+    previewPortableImport: vi.fn(async (request) =>
+      ok({
+        path: request.path,
+        exportedAt: new Date().toISOString(),
+        formatVersion: 1 as const,
+        destructive: true as const,
+        tasks: { added: 0, removed: 0, changed: 0 },
+        events: { added: 0, removed: 0, changed: 0 },
+        calendars: { added: 0, removed: 0, changed: 0 },
+        taskLists: { added: 0, removed: 0, changed: 0 },
+        settingsWillChange: false,
+        queuedMutationCount: 0,
+        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+      })
+    ),
+    importPortableArchive: vi.fn(async (request) =>
+      ok({
+        importedAt: new Date().toISOString(),
+        backupPath: "/tmp/hcb-test-backup.sqlite3",
+        preview: {
+          path: request.path,
+          exportedAt: new Date().toISOString(),
+          formatVersion: 1 as const,
+          destructive: true as const,
+          tasks: { added: 0, removed: 0, changed: 0 },
+          events: { added: 0, removed: 0, changed: 0 },
+          calendars: { added: 0, removed: 0, changed: 0 },
+          taskLists: { added: 0, removed: 0, changed: 0 },
+          settingsWillChange: false,
+          queuedMutationCount: 0,
+          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+        }
+      })
     )
   },
   undo: {

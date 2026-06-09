@@ -111,6 +111,11 @@ import {
 } from "./tags";
 import {
   settingsGetRequestSchema,
+  portableArchivePathRequestSchema,
+  portableExportResponseSchema,
+  portableImportPreviewSchema,
+  portableImportRequestSchema,
+  portableImportResponseSchema,
   settingsRecoveryActionRequestSchema,
   settingsRecoveryActionResponseSchema,
   settingsSnapshotSchema,
@@ -354,6 +359,24 @@ export const ipcContracts = {
       "recoveryAction",
       settingsRecoveryActionRequestSchema,
       settingsRecoveryActionResponseSchema
+    ),
+    exportPortableArchive: defineIpcContract(
+      "settings",
+      "exportPortableArchive",
+      settingsGetRequestSchema,
+      portableExportResponseSchema
+    ),
+    previewPortableImport: defineIpcContract(
+      "settings",
+      "previewPortableImport",
+      portableArchivePathRequestSchema,
+      portableImportPreviewSchema
+    ),
+    importPortableArchive: defineIpcContract(
+      "settings",
+      "importPortableArchive",
+      portableImportRequestSchema,
+      portableImportResponseSchema
     )
   },
   undo: {

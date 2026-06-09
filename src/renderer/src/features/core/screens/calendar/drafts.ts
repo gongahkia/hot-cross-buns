@@ -56,6 +56,7 @@ export function newCalendarDraft(
 
   return {
     mode: "create",
+    eventId: undefined,
     hcbKind: undefined,
     mutationState: undefined,
     completedAt: null,
@@ -72,6 +73,8 @@ export function newCalendarDraft(
     guests: "",
     reminderMinutes: "",
     conference: null,
+    recurringEventId: null,
+    originalStartAt: null,
     repeatFrequency: "none",
     repeatCustomFrequency: "weekly",
     repeatEndMode: "never",
@@ -88,6 +91,7 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
   return {
     mode: "edit",
     id: event.id,
+    eventId: event.eventId,
     hcbKind: event.hcbKind,
     mutationState: event.mutationState,
     completedAt: event.completedAt ?? null,
@@ -104,6 +108,8 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     guests: event.guestEmails.join(", "),
     reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
     conference: event.conference,
+    recurringEventId: event.recurringEventId ?? null,
+    originalStartAt: event.originalStartAt ?? null,
     repeatFrequency: recurrence?.repeatFrequency ?? "none",
     repeatCustomFrequency: recurrence?.repeatCustomFrequency ?? "weekly",
     repeatEndMode: recurrence?.repeatEndMode ?? "never",
@@ -150,6 +156,7 @@ export function calendarEventDraftsEqual(
   return (
     left.mode === right.mode &&
     left.id === right.id &&
+    left.eventId === right.eventId &&
     left.hcbKind === right.hcbKind &&
     left.mutationState === right.mutationState &&
     left.title === right.title &&
@@ -165,6 +172,8 @@ export function calendarEventDraftsEqual(
     left.guests === right.guests &&
     left.reminderMinutes === right.reminderMinutes &&
     JSON.stringify(left.conference ?? null) === JSON.stringify(right.conference ?? null) &&
+    left.recurringEventId === right.recurringEventId &&
+    left.originalStartAt === right.originalStartAt &&
     left.repeatFrequency === right.repeatFrequency &&
     left.repeatCustomFrequency === right.repeatCustomFrequency &&
     left.repeatEndMode === right.repeatEndMode &&

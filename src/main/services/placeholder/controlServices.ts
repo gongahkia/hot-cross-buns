@@ -129,7 +129,57 @@ export function createPlaceholderControlServices(
           requiresReload: request.action === "clearGoogleCache",
           message: recoveryMessage(request.action)
         };
-      }
+      },
+      exportPortableArchive: () => {
+        const exportedAt = new Date().toISOString();
+        const manifest = {
+          formatVersion: 1 as const,
+          exportedAt,
+          appVersion: "0.0.0",
+          stateFile: "hot-cross-buns-2-state.json" as const,
+          stateSha256: "0".repeat(64),
+          attachmentDirectory: "Attachments" as const,
+          attachments: [],
+          skippedPointers: [],
+          notes: ["Placeholder portable archive."]
+        };
+
+        return {
+          path: "/tmp/hot-cross-buns-2-placeholder.hcbexport",
+          exportedAt,
+          manifest
+        };
+      },
+      previewPortableImport: (request) => ({
+        path: request.path,
+        exportedAt: new Date().toISOString(),
+        formatVersion: 1 as const,
+        destructive: true as const,
+        tasks: { added: 0, removed: 0, changed: 0 },
+        events: { added: 0, removed: 0, changed: 0 },
+        calendars: { added: 0, removed: 0, changed: 0 },
+        taskLists: { added: 0, removed: 0, changed: 0 },
+        settingsWillChange: false,
+        queuedMutationCount: 0,
+        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+      }),
+      importPortableArchive: (request) => ({
+        importedAt: new Date().toISOString(),
+        backupPath: "/tmp/hot-cross-buns-2-placeholder-backup.sqlite3",
+        preview: {
+          path: request.path,
+          exportedAt: new Date().toISOString(),
+          formatVersion: 1 as const,
+          destructive: true as const,
+          tasks: { added: 0, removed: 0, changed: 0 },
+          events: { added: 0, removed: 0, changed: 0 },
+          calendars: { added: 0, removed: 0, changed: 0 },
+          taskLists: { added: 0, removed: 0, changed: 0 },
+          settingsWillChange: false,
+          queuedMutationCount: 0,
+          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+        }
+      })
     },
     undo: {
       status: () => ({
