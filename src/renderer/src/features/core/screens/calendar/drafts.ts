@@ -1,4 +1,8 @@
-import type { CalendarEventCreateRequest, CalendarEventRecurrence } from "@shared/ipc/contracts";
+import type {
+  CalendarEventCreateRequest,
+  CalendarEventRecurrence,
+  CalendarEventReminder
+} from "@shared/ipc/contracts";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import {
@@ -72,6 +76,12 @@ export function newCalendarDraft(
     tags: [],
     guests: "",
     reminderMinutes: "",
+    reminders: [],
+    remindersUseDefault: false,
+    attendees: [],
+    addMeet: false,
+    transparency: "opaque",
+    visibility: "default",
     conference: null,
     recurringEventId: null,
     originalStartAt: null,
@@ -81,7 +91,10 @@ export function newCalendarDraft(
     repeatInterval: "1",
     repeatEndsOn: "",
     repeatCount: "",
-    repeatWeekdays: [recurrenceWeekdayForIso(startsAt)]
+    repeatWeekdays: [recurrenceWeekdayForIso(startsAt)],
+    repeatMonthlyMode: "dayOfMonth",
+    repeatMonthDay: String(new Date(startsAt).getUTCDate()),
+    repeatSetPos: "1"
   };
 }
 
@@ -107,6 +120,14 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     tags: event.tags ?? [],
     guests: event.guestEmails.join(", "),
     reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
+    reminders: event.reminders.length > 0
+      ? event.reminders
+      : event.reminderMinutes.map((minutes) => ({ method: "popup", minutes })),
+    remindersUseDefault: event.remindersUseDefault,
+    attendees: event.attendees,
+    addMeet: false,
+    transparency: event.transparency ?? "opaque",
+    visibility: event.visibility ?? "default",
     conference: event.conference,
     recurringEventId: event.recurringEventId ?? null,
     originalStartAt: event.originalStartAt ?? null,
@@ -116,12 +137,16 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     repeatInterval: recurrence ? String(recurrence.interval) : "1",
     repeatEndsOn: recurrence?.endsOn ?? "",
     repeatCount: recurrence?.count === null || recurrence?.count === undefined ? "" : String(recurrence.count),
-    repeatWeekdays: recurrence?.byDay?.length ? recurrence.byDay : [recurrenceWeekdayForIso(event.startsAt)]
+    repeatWeekdays: recurrence?.byDay?.length ? recurrence.byDay : [recurrenceWeekdayForIso(event.startsAt)],
+    repeatMonthlyMode: recurrence?.bySetPos ? "weekday" : "dayOfMonth",
+    repeatMonthDay: recurrence?.byMonthDay ? String(recurrence.byMonthDay) : String(new Date(event.startsAt).getUTCDate()),
+    repeatSetPos: recurrence?.bySetPos ? String(recurrence.bySetPos) : "1"
   };
 }
 
 export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCreateRequest {
-  const reminderMinutes = draft.reminderMinutes === "" ? [] : normalizeReminderMinutes([Number(draft.reminderMinutes)]);
+  const reminders = normalizeDraftReminders(draft);
+  const reminderMinutes = normalizeReminderMinutes(reminders.map((reminder) => reminder.minutes));
 
   return {
     title: draft.title.trim(),
@@ -136,6 +161,11 @@ export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCr
     tags: draft.tags,
     guestEmails: normalizeGuestEmails(draft.guests.split(",")),
     reminderMinutes,
+    reminders,
+    remindersUseDefault: draft.remindersUseDefault,
+    conferenceCreateRequest: draft.addMeet ? { type: "hangoutsMeet" } : null,
+    transparency: draft.transparency,
+    visibility: draft.visibility,
     recurrence: calendarDraftRecurrence(draft),
     hcbKind: draft.hcbKind
   };
@@ -171,6 +201,12 @@ export function calendarEventDraftsEqual(
     left.tags.join("\u001f") === right.tags.join("\u001f") &&
     left.guests === right.guests &&
     left.reminderMinutes === right.reminderMinutes &&
+    JSON.stringify(left.reminders) === JSON.stringify(right.reminders) &&
+    left.remindersUseDefault === right.remindersUseDefault &&
+    JSON.stringify(left.attendees) === JSON.stringify(right.attendees) &&
+    left.addMeet === right.addMeet &&
+    left.transparency === right.transparency &&
+    left.visibility === right.visibility &&
     JSON.stringify(left.conference ?? null) === JSON.stringify(right.conference ?? null) &&
     left.recurringEventId === right.recurringEventId &&
     left.originalStartAt === right.originalStartAt &&
@@ -180,8 +216,24 @@ export function calendarEventDraftsEqual(
     left.repeatInterval === right.repeatInterval &&
     left.repeatEndsOn === right.repeatEndsOn &&
     left.repeatCount === right.repeatCount &&
-    left.repeatWeekdays.join(",") === right.repeatWeekdays.join(",")
+    left.repeatWeekdays.join(",") === right.repeatWeekdays.join(",") &&
+    left.repeatMonthlyMode === right.repeatMonthlyMode &&
+    left.repeatMonthDay === right.repeatMonthDay &&
+    left.repeatSetPos === right.repeatSetPos
   );
+}
+
+function normalizeDraftReminders(draft: CalendarEventDraft): CalendarEventReminder[] {
+  if (draft.reminders.length > 0) {
+    return draft.reminders
+      .filter((reminder) => reminder.method === "popup" || reminder.method === "email")
+      .filter((reminder) => Number.isInteger(reminder.minutes) && reminder.minutes >= 0 && reminder.minutes <= 28 * 24 * 60)
+      .slice(0, 10);
+  }
+
+  return draft.reminderMinutes === ""
+    ? []
+    : normalizeReminderMinutes([Number(draft.reminderMinutes)]).map((minutes) => ({ method: "popup", minutes }));
 }
 
 function calendarDraftRecurrence(draft: CalendarEventDraft): CalendarEventRecurrence | null {
@@ -200,6 +252,12 @@ function calendarDraftRecurrence(draft: CalendarEventDraft): CalendarEventRecurr
     interval: draft.repeatFrequency === "custom" ? interval : 1,
     endsOn: draft.repeatEndMode === "on" ? draft.repeatEndsOn.trim() || null : null,
     count,
+    ...(draft.repeatFrequency === "custom" && frequency === "monthly" && draft.repeatMonthlyMode === "dayOfMonth"
+      ? { byMonthDay: Math.min(31, Math.max(1, Number.parseInt(draft.repeatMonthDay, 10) || 1)) }
+      : {}),
+    ...(draft.repeatFrequency === "custom" && frequency === "monthly" && draft.repeatMonthlyMode === "weekday"
+      ? { byDay: draft.repeatWeekdays.slice(0, 1), bySetPos: Math.min(5, Math.max(-5, Number.parseInt(draft.repeatSetPos, 10) || 1)) }
+      : {}),
     ...(draft.repeatFrequency === "custom" && frequency === "weekly" && draft.repeatWeekdays.length > 0
       ? { byDay: draft.repeatWeekdays }
       : {})
@@ -230,6 +288,7 @@ function calendarDraftRecurrenceFromRule(rule: string | null | undefined): (Cale
   const frequency = parts.FREQ?.toLowerCase();
   const byDay = parts.BYDAY
     ?.split(",")
+    .map((day) => day.replace(/^[+-]?\d+/, ""))
     .filter((day): day is CalendarRepeatWeekday => recurrenceWeekdays.includes(day as CalendarRepeatWeekday));
 
   if (
@@ -244,7 +303,9 @@ function calendarDraftRecurrenceFromRule(rule: string | null | undefined): (Cale
   const interval = Math.min(366, Math.max(1, Number.parseInt(parts.INTERVAL ?? "1", 10) || 1));
   const count = parts.COUNT ? Math.min(366, Math.max(1, Number.parseInt(parts.COUNT, 10) || 1)) : null;
   const endsOn = parts.UNTIL ? recurrenceDateInputValue(parts.UNTIL) : null;
-  const custom = interval !== 1 || count !== null || endsOn !== null || (byDay?.length ?? 0) > 0;
+  const byMonthDay = parts.BYMONTHDAY ? Math.min(31, Math.max(1, Number.parseInt(parts.BYMONTHDAY, 10) || 1)) : null;
+  const bySetPos = parts.BYSETPOS ? Math.min(5, Math.max(-5, Number.parseInt(parts.BYSETPOS, 10) || 1)) : null;
+  const custom = interval !== 1 || count !== null || endsOn !== null || byMonthDay !== null || bySetPos !== null || (byDay?.length ?? 0) > 0;
 
   return {
     frequency,
@@ -252,6 +313,8 @@ function calendarDraftRecurrenceFromRule(rule: string | null | undefined): (Cale
     endsOn,
     count,
     ...(byDay?.length ? { byDay } : {}),
+    ...(byMonthDay !== null ? { byMonthDay } : {}),
+    ...(bySetPos !== null ? { bySetPos } : {}),
     repeatCustomFrequency: frequency,
     repeatEndMode: count !== null ? "after" : endsOn !== null ? "on" : "never",
     repeatFrequency: custom ? "custom" : frequency
@@ -285,12 +348,66 @@ export function calendarRecurrenceSummary(draft: CalendarEventDraft): string {
   const weekdayLabels = recurrence.frequency === "weekly" && recurrence.byDay?.length
     ? ` on ${recurrence.byDay.map(recurrenceWeekdayLabel).join(", ")}`
     : "";
+  const monthlyLabel = recurrence.frequency === "monthly" && recurrence.byMonthDay
+    ? ` on day ${recurrence.byMonthDay}`
+    : recurrence.frequency === "monthly" && recurrence.bySetPos && recurrence.byDay?.[0]
+      ? ` on the ${recurrenceSetPosLabel(recurrence.bySetPos)} ${recurrenceWeekdayLabel(recurrence.byDay[0])}`
+      : "";
   const qualifiers = [
     recurrence.endsOn ? `until ${recurrence.endsOn}` : null,
     recurrence.count ? `${recurrence.count} times` : null
   ].filter((part): part is string => part !== null);
 
-  return qualifiers.length > 0 ? `${cadence}${weekdayLabels}, ${qualifiers.join(", ")}` : `${cadence}${weekdayLabels}`;
+  return qualifiers.length > 0
+    ? `${cadence}${weekdayLabels}${monthlyLabel}, ${qualifiers.join(", ")}`
+    : `${cadence}${weekdayLabels}${monthlyLabel}`;
+}
+
+export function calendarRecurrenceRulePreview(draft: CalendarEventDraft): string {
+  const recurrence = calendarDraftRecurrence(draft);
+
+  if (!recurrence) {
+    return "";
+  }
+
+  const parts = [
+    `FREQ=${recurrence.frequency.toUpperCase()}`,
+    `INTERVAL=${recurrence.interval}`
+  ];
+
+  if (recurrence.byDay?.length) {
+    parts.push(`BYDAY=${recurrence.byDay.join(",")}`);
+  }
+
+  if (recurrence.byMonthDay) {
+    parts.push(`BYMONTHDAY=${recurrence.byMonthDay}`);
+  }
+
+  if (recurrence.bySetPos) {
+    parts.push(`BYSETPOS=${recurrence.bySetPos}`);
+  }
+
+  if (recurrence.endsOn) {
+    parts.push(`UNTIL=${recurrence.endsOn.replace(/-/g, "")}`);
+  }
+
+  if (recurrence.count) {
+    parts.push(`COUNT=${recurrence.count}`);
+  }
+
+  return `RRULE:${parts.join(";")}`;
+}
+
+function recurrenceSetPosLabel(value: number): string {
+  return value === -1
+    ? "last"
+    : value === 1
+      ? "first"
+      : value === 2
+        ? "second"
+        : value === 3
+          ? "third"
+          : `${value}th`;
 }
 
 function recurrenceWeekdayLabel(day: CalendarRepeatWeekday): string {
