@@ -277,6 +277,187 @@ function EventColorSelect({
   );
 }
 
+function ReminderControls({
+  draft,
+  setDraft
+}: {
+  draft: CalendarEventDraft;
+  setDraft: (draft: CalendarEventDraft) => void;
+}): JSX.Element {
+  const mode = draft.remindersUseDefault ? "default" : draft.reminders.length > 0 ? "custom" : "none";
+
+  function setMode(value: string): void {
+    if (value === "default") {
+      setDraft({ ...draft, remindersUseDefault: true, reminders: [], reminderMinutes: "" });
+      return;
+    }
+
+    if (value === "custom") {
+      setDraft({
+        ...draft,
+        remindersUseDefault: false,
+        reminders: draft.reminders.length > 0 ? draft.reminders : [{ method: "popup", minutes: 10 }],
+        reminderMinutes: ""
+      });
+      return;
+    }
+
+    setDraft({ ...draft, remindersUseDefault: false, reminders: [], reminderMinutes: "" });
+  }
+
+  function setReminder(index: number, patch: Partial<CalendarEventDraft["reminders"][number]>): void {
+    setDraft({
+      ...draft,
+      reminders: draft.reminders.map((reminder, reminderIndex) =>
+        reminderIndex === index ? { ...reminder, ...patch } : reminder
+      )
+    });
+  }
+
+  return (
+    <div className="grid gap-2">
+      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+        <span className="inline-flex items-center gap-1">
+          <Bell aria-hidden="true" size={13} />
+          Reminders
+        </span>
+        <select
+          aria-label="Event reminder mode"
+          className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          onChange={(event) => setMode(event.target.value)}
+          value={mode}
+        >
+          <option value="default">Calendar default</option>
+          <option value="none">None</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      {mode === "custom" ? (
+        <div className="grid gap-2">
+          {draft.reminders.map((reminder, index) => (
+            <div className="grid grid-cols-[minmax(0,1fr)_96px_32px] gap-2" key={`${reminder.method}-${index}`}>
+              <select
+                aria-label={`Reminder ${index + 1} method`}
+                className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
+                onChange={(event) => setReminder(index, { method: event.target.value as "popup" | "email" })}
+                value={reminder.method}
+              >
+                <option value="popup">Popup</option>
+                <option value="email">Email</option>
+              </select>
+              <Input
+                aria-label={`Reminder ${index + 1} minutes`}
+                min={0}
+                max={40320}
+                onChange={(event) => setReminder(index, { minutes: Math.max(0, Number.parseInt(event.target.value, 10) || 0) })}
+                type="number"
+                value={String(reminder.minutes)}
+              />
+              <button
+                aria-label={`Remove reminder ${index + 1}`}
+                className="grid size-8 place-items-center rounded-hcbMd border border-border bg-surface-0 text-text-muted hover:bg-danger/10 hover:text-danger"
+                onClick={() => setDraft({ ...draft, reminders: draft.reminders.filter((_, reminderIndex) => reminderIndex !== index) })}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            className="inline-flex h-8 items-center justify-center gap-2 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-1"
+            onClick={() => setDraft({ ...draft, reminders: [...draft.reminders, { method: "popup" as const, minutes: 10 }].slice(0, 10) })}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={14} />
+            Add reminder
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PrivacyControls({
+  draft,
+  setDraft
+}: {
+  draft: CalendarEventDraft;
+  setDraft: (draft: CalendarEventDraft) => void;
+}): JSX.Element {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+        <span>Show as</span>
+        <select
+          aria-label="Event transparency"
+          className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
+          onChange={(event) => setDraft({ ...draft, transparency: event.target.value as CalendarEventDraft["transparency"] })}
+          value={draft.transparency ?? "opaque"}
+        >
+          <option value="opaque">Busy</option>
+          <option value="transparent">Free</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+        <span>Visibility</span>
+        <select
+          aria-label="Event visibility"
+          className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
+          onChange={(event) => setDraft({ ...draft, visibility: event.target.value as CalendarEventDraft["visibility"] })}
+          value={draft.visibility ?? "default"}
+        >
+          <option value="default">Default</option>
+          <option value="public">Public</option>
+          <option value="private">Private</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function MeetControl({
+  draft,
+  setDraft
+}: {
+  draft: CalendarEventDraft;
+  setDraft: (draft: CalendarEventDraft) => void;
+}): JSX.Element {
+  if (draft.conference?.videoUri) {
+    return <CalendarConferenceDetails conference={draft.conference} />;
+  }
+
+  return (
+    <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
+      <input
+        checked={draft.addMeet}
+        className="accent-[var(--color-accent)]"
+        onChange={(event) => setDraft({ ...draft, addMeet: event.target.checked })}
+        type="checkbox"
+      />
+      <span className="inline-flex items-center gap-1">
+        <Video aria-hidden="true" size={13} />
+        Add Google Meet
+      </span>
+    </label>
+  );
+}
+
+function AttendeeStatusPreview({ draft }: { draft: CalendarEventDraft }): JSX.Element | null {
+  if (draft.attendees.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {draft.attendees.map((attendee) => (
+        <Badge key={attendee.email} tone="neutral">
+          {attendee.email} · {attendeeStatusLabel(attendee.responseStatus)}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 export function CalendarEventDetails({
   calendars,
   defaultTimeZone,
@@ -372,7 +553,7 @@ export function CalendarEventDetails({
       {guests.length > 0 ? (
         <DetailLine icon={Users}>
           <div className="flex flex-wrap gap-2">
-            {(draft.attendees.length > 0 ? draft.attendees : guests.map((email) => ({ email }))).map((guest) => (
+            {(draft.attendees.length > 0 ? draft.attendees : guests.map((email) => ({ email, responseStatus: undefined }))).map((guest) => (
               <Badge key={guest.email} tone="neutral">
                 {guest.email}{guest.responseStatus ? ` · ${attendeeStatusLabel(guest.responseStatus)}` : ""}
               </Badge>
@@ -761,6 +942,7 @@ export function CalendarEventForm({
           selectedCalendar={selectedCalendar}
           setDraft={setDraft}
         />
+        <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
       <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Time</legend>
@@ -823,27 +1005,9 @@ export function CalendarEventForm({
             value={draft.guests}
           />
         </label>
-        <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
-          <span className="inline-flex items-center gap-1">
-            <Bell aria-hidden="true" size={13} />
-            Reminder
-          </span>
-          <select
-            aria-label="Event reminder"
-            className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => setDraft({ ...draft, reminderMinutes: event.target.value })}
-            value={draft.reminderMinutes}
-          >
-            <option value="">None</option>
-            <option value="0">At start</option>
-            <option value="5">5 minutes before</option>
-            <option value="10">10 minutes before</option>
-            <option value="15">15 minutes before</option>
-            <option value="30">30 minutes before</option>
-            <option value="60">1 hour before</option>
-            <option value="1440">1 day before</option>
-          </select>
-        </label>
+        <AttendeeStatusPreview draft={draft} />
+        <ReminderControls draft={draft} setDraft={setDraft} />
+        <MeetControl draft={draft} setDraft={setDraft} />
         <TagInput onChange={(tags) => setDraft({ ...draft, tags })} value={draft.tags} />
         <AutoTagAudit
           input={{
@@ -939,6 +1103,59 @@ export function CalendarEventForm({
                 </div>
               </div>
             ) : null}
+            {draft.repeatCustomFrequency === "monthly" ? (
+              <div className="grid gap-2">
+                <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+                  <span>Monthly rule</span>
+                  <select
+                    aria-label="Monthly repeat rule"
+                    className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
+                    onChange={(event) => setDraft({ ...draft, repeatMonthlyMode: event.target.value as CalendarEventDraft["repeatMonthlyMode"] })}
+                    value={draft.repeatMonthlyMode}
+                  >
+                    <option value="dayOfMonth">Day of month</option>
+                    <option value="weekday">Weekday position</option>
+                  </select>
+                </label>
+                {draft.repeatMonthlyMode === "dayOfMonth" ? (
+                  <Input
+                    aria-label="Repeat month day"
+                    min={1}
+                    max={31}
+                    onChange={(event) => setDraft({ ...draft, repeatMonthDay: event.target.value })}
+                    type="number"
+                    value={draft.repeatMonthDay}
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      aria-label="Repeat weekday position"
+                      className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
+                      onChange={(event) => setDraft({ ...draft, repeatSetPos: event.target.value })}
+                      value={draft.repeatSetPos}
+                    >
+                      <option value="1">First</option>
+                      <option value="2">Second</option>
+                      <option value="3">Third</option>
+                      <option value="4">Fourth</option>
+                      <option value="-1">Last</option>
+                    </select>
+                    <select
+                      aria-label="Repeat weekday"
+                      className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
+                      onChange={(event) => setDraft({ ...draft, repeatWeekdays: [event.target.value as CalendarRepeatWeekday] })}
+                      value={draft.repeatWeekdays[0] ?? repeatWeekdayForIso(draft.startsAt)}
+                    >
+                      {repeatWeekdays.map((weekday) => (
+                        <option key={weekday.id} value={weekday.id}>
+                          {weekday.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            ) : null}
             <fieldset className="grid gap-2">
               <legend className="text-[var(--text-sm)] text-text-secondary">Ends</legend>
               <label className="grid min-h-8 grid-cols-[24px_72px_minmax(0,1fr)] items-center gap-2 text-[var(--text-sm)] text-text-secondary">
@@ -989,6 +1206,11 @@ export function CalendarEventForm({
                 />
               </label>
             </fieldset>
+            {calendarRecurrenceRulePreview(draft) ? (
+              <code className="overflow-auto rounded-hcbMd border border-border bg-bg-tertiary px-2 py-1 text-[var(--text-xs)] text-text-muted">
+                {calendarRecurrenceRulePreview(draft)}
+              </code>
+            ) : null}
           </div>
         ) : null}
         <div className="text-[var(--text-xs)] text-text-muted">{calendarRecurrenceSummary(draft)}</div>

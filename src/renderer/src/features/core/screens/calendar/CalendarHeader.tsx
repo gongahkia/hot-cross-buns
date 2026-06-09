@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import type { PlannerActionId } from "../../../../actions/plannerActions";
 import { Button, IconButton } from "../../../../components/primitives";
 import type { CalendarViewId } from "../../coreViewModels";
@@ -43,9 +43,11 @@ export function CalendarHeader({
   onSetView,
   onShiftRange,
   onToggleShareAvailability,
+  onToggleSmartReschedule,
   previousRangeLabel,
   shareAvailabilityOpen,
   shareAvailabilityVisible,
+  smartRescheduleOpen,
   visibleCalendarViewIds
 }: {
   activeViewId: CalendarViewId;
@@ -56,9 +58,11 @@ export function CalendarHeader({
   onSetView: (viewId: CalendarViewId) => void;
   onShiftRange: (direction: -1 | 1) => void;
   onToggleShareAvailability: () => void;
+  onToggleSmartReschedule: () => void;
   previousRangeLabel: string;
   shareAvailabilityOpen: boolean;
   shareAvailabilityVisible: boolean;
+  smartRescheduleOpen: boolean;
   visibleCalendarViewIds: CalendarViewId[];
 }): JSX.Element {
   return (
@@ -120,6 +124,15 @@ export function CalendarHeader({
           Share availability
         </Button>
       ) : null}
+      <Button
+        aria-expanded={smartRescheduleOpen}
+        onClick={onToggleSmartReschedule}
+        size="sm"
+        variant={smartRescheduleOpen ? "secondary" : "ghost"}
+      >
+        <Sparkles aria-hidden="true" size={14} />
+        Smart reschedule
+      </Button>
       <div aria-label="Calendar status" className="sr-only" role="status" />
     </div>
   );

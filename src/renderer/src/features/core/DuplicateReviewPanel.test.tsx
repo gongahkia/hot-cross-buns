@@ -40,6 +40,11 @@ function event(overrides: Partial<CalendarEventViewModel>): CalendarEventViewMod
     notes: "",
     guestEmails: [],
     reminderMinutes: [],
+    attendees: [],
+    reminders: [],
+    remindersUseDefault: false,
+    transparency: null,
+    visibility: null,
     conference: null,
     recurrenceRule: null,
     ...overrides

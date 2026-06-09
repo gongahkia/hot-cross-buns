@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { CalendarPlus, Copy, Eye, EyeOff, MapPin, Minus, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { SmartRescheduleResponse } from "@shared/ipc/contracts";
+import { CalendarPlus, Check, Copy, Eye, EyeOff, MapPin, Minus, Sparkles, X } from "lucide-react";
 import { Badge, Button, IconButton, Input, Panel, cx } from "../../../../components/primitives";
 import { EmptyState, ErrorState } from "../../../../components/states";
 import type { CalendarEventViewModel } from "../../coreViewModels";
@@ -7,6 +8,22 @@ import type { CalendarSourceViewModel } from "../../coreScreenShared";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
 import { calendarTimeBlockLabel, sortedCalendarTimeBlocks } from "./calendarGrid";
 import type { CalendarTimeBlock } from "./types";
+
+function hourInputValue(value: number): string {
+  return String(Math.max(0, Math.min(24, value)));
+}
+
+function smartSuggestionTimeLabel(startsAt: string, endsAt: string, timeZone: string): string {
+  return `${new Date(startsAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone
+  })}-${new Date(endsAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone
+  })}`;
+}
 
 function CalendarSourceRow({
   calendar,
@@ -361,6 +378,143 @@ export function ShareAvailabilityPanel({
             {snippet}
           </pre>
         </div>
+      </div>
+    </Panel>
+  );
+}
+
+export function SmartReschedulePanel({
+  calendars,
+  defaultTimeZone,
+  initialDate,
+  onApplied,
+  onClose
+}: {
+  calendars: CalendarSourceViewModel[];
+  defaultTimeZone: string;
+  initialDate: string;
+  onApplied: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const defaultCalendarId = calendars.find((calendar) => calendar.selected)?.id ?? calendars[0]?.id ?? "";
+  const [date, setDate] = useState(initialDate);
+  const [calendarId, setCalendarId] = useState(defaultCalendarId);
+  const [workStart, setWorkStart] = useState(9);
+  const [workEnd, setWorkEnd] = useState(17);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<SmartRescheduleResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runSmartReschedule(apply: boolean): Promise<void> {
+    if (!window.hcb?.calendar.smartReschedule) {
+      setError("Preload bridge is unavailable.");
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+    const response = await window.hcb.calendar.smartReschedule({
+      date,
+      calendarId,
+      apply,
+      workingHours: { start: workStart, end: workEnd },
+      capacityMinutes: Math.max(5, (workEnd - workStart) * 60)
+    });
+    setPending(false);
+
+    if (!response.ok) {
+      setError(response.error.message);
+      return;
+    }
+
+    setResult(response.data);
+
+    if (apply) {
+      onApplied();
+    }
+  }
+
+  return (
+    <Panel className="flex flex-col overflow-hidden self-start">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+        <div className="min-w-0">
+          <h2 className="truncate text-[var(--text-sm)] font-semibold text-text-primary">Smart reschedule</h2>
+          <p className="text-[var(--text-xs)] text-text-muted">
+            {result ? `${result.suggestions.length} suggestion${result.suggestions.length === 1 ? "" : "s"}` : "Preview before applying"}
+          </p>
+        </div>
+        <IconButton icon={X} label="Close smart reschedule" onClick={onClose} size="sm" variant="ghost" />
+      </div>
+      <div className="grid gap-3 overflow-auto p-3">
+        <div className="grid gap-2">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Date</span>
+            <Input aria-label="Smart reschedule date" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+          </label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Calendar</span>
+            <select
+              aria-label="Smart reschedule calendar"
+              className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
+              onChange={(event) => setCalendarId(event.target.value)}
+              value={calendarId}
+            >
+              {calendars.map((calendar) => (
+                <option key={calendar.id} value={calendar.id}>
+                  {calendar.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Start hour</span>
+              <Input aria-label="Working start hour" max={23} min={0} onChange={(event) => setWorkStart(Number(event.target.value))} type="number" value={hourInputValue(workStart)} />
+            </label>
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>End hour</span>
+              <Input aria-label="Working end hour" max={24} min={1} onChange={(event) => setWorkEnd(Number(event.target.value))} type="number" value={hourInputValue(workEnd)} />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={pending || !calendarId || workEnd <= workStart} onClick={() => void runSmartReschedule(false)} size="sm" variant="secondary">
+              <Sparkles aria-hidden="true" size={14} />
+              {pending ? "Checking" : "Preview"}
+            </Button>
+            <Button disabled={pending || !result || result.suggestions.length === 0} onClick={() => void runSmartReschedule(true)} size="sm" variant="primary">
+              <Check aria-hidden="true" size={14} />
+              Apply
+            </Button>
+          </div>
+        </div>
+        {error ? <ErrorState description={error} title="Smart reschedule failed" /> : null}
+        {result ? (
+          <div className="grid gap-2">
+            {result.suggestions.map((suggestion) => (
+              <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-2" key={`${suggestion.taskId}-${suggestion.startsAt}`}>
+                <div className="flex items-center justify-between gap-2 text-[var(--text-sm)] font-medium text-text-primary">
+                  <span className="truncate">{suggestion.action === "move" ? "Move task" : "Schedule task"}</span>
+                  <Badge tone="info">{smartSuggestionTimeLabel(suggestion.startsAt, suggestion.endsAt, defaultTimeZone)}</Badge>
+                </div>
+                <div className="text-[var(--text-xs)] text-text-muted">{suggestion.reason}</div>
+              </div>
+            ))}
+            {result.suggestions.length === 0 ? (
+              <div className="rounded-hcbMd border border-dashed border-border px-3 py-4 text-[var(--text-sm)] text-text-muted">
+                No schedule changes suggested.
+              </div>
+            ) : null}
+            {result.skipped.length > 0 ? (
+              <div className="grid gap-1 border-t border-border pt-2">
+                {result.skipped.slice(0, 5).map((item) => (
+                  <div className="text-[var(--text-xs)] text-text-muted" key={item.taskId}>
+                    {item.reason}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </Panel>
   );

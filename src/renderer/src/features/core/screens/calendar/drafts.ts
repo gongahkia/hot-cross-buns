@@ -411,7 +411,7 @@ function recurrenceSetPosLabel(value: number): string {
 }
 
 function recurrenceWeekdayLabel(day: CalendarRepeatWeekday): string {
-  return {
+  const labels: Record<CalendarRepeatWeekday, string> = {
     SU: "Sun",
     MO: "Mon",
     TU: "Tue",
@@ -419,7 +419,9 @@ function recurrenceWeekdayLabel(day: CalendarRepeatWeekday): string {
     TH: "Thu",
     FR: "Fri",
     SA: "Sat"
-  }[day];
+  };
+
+  return labels[day];
 }
 
 export function allDayEndInputValue(endsAt: string): string {

@@ -282,7 +282,9 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         notes: request.notes ?? existing.notes ?? "",
         guestEmails: request.guestEmails ?? parseStringArray(existing.guestEmailsJson),
         reminderMinutes: request.reminderMinutes ?? parseNumberArray(existing.reminderMinutesJson),
-        reminders: request.reminders ?? parseReminderObjects(existing.remindersJson, parseNumberArray(existing.reminderMinutesJson)),
+        reminders: request.reminders ?? (request.reminderMinutes === undefined
+          ? parseReminderObjects(existing.remindersJson, parseNumberArray(existing.reminderMinutesJson))
+          : undefined),
         remindersUseDefault: request.remindersUseDefault ?? existing.remindersUseDefault === 1,
         colorId: request.colorId === undefined ? existing.colorId : request.colorId,
         transparency: request.transparency === undefined ? normalizeEventTransparency(existing.transparency) : request.transparency,
@@ -573,7 +575,9 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       notes: request.notes ?? master.notes ?? "",
       guestEmails: request.guestEmails ?? parseStringArray(master.guestEmailsJson),
       reminderMinutes: request.reminderMinutes ?? parseNumberArray(master.reminderMinutesJson),
-      reminders: request.reminders ?? parseReminderObjects(master.remindersJson, parseNumberArray(master.reminderMinutesJson)),
+      reminders: request.reminders ?? (request.reminderMinutes === undefined
+        ? parseReminderObjects(master.remindersJson, parseNumberArray(master.reminderMinutesJson))
+        : undefined),
       remindersUseDefault: request.remindersUseDefault ?? master.remindersUseDefault === 1,
       colorId: request.colorId === undefined ? master.colorId : request.colorId,
       transparency: request.transparency === undefined ? normalizeEventTransparency(master.transparency) : request.transparency,
@@ -940,7 +944,7 @@ function parseReminderObjects(value: string | null | undefined, fallbackMinutes:
       return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
     }
 
-    return parsed.flatMap((entry): CalendarEventReminder[] => {
+    const reminders = parsed.flatMap((entry): CalendarEventReminder[] => {
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
         return [];
       }
@@ -959,6 +963,10 @@ function parseReminderObjects(value: string | null | undefined, fallbackMinutes:
 
       return [{ method, minutes }];
     });
+
+    return reminders.length === 0 && fallbackMinutes.length > 0
+      ? fallbackMinutes.map((minutes) => ({ method: "popup", minutes }))
+      : reminders;
   } catch {
     return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
   }

@@ -1358,7 +1358,8 @@ describe("App calendar", () => {
     await user.type(screen.getByRole("textbox", { name: "Event location" }), "Room 3");
     await user.type(screen.getByRole("textbox", { name: "Event guests" }), "ada@example.com");
     await user.selectOptions(screen.getByLabelText("Event color"), "9");
-    await user.selectOptions(screen.getByLabelText("Event reminder"), "15");
+    await user.selectOptions(screen.getByLabelText("Event reminder mode"), "custom");
+    fireEvent.change(screen.getByLabelText("Reminder 1 minutes"), { target: { value: "15" } });
     await user.selectOptions(screen.getByLabelText("Event repeat frequency"), "custom");
     await user.selectOptions(screen.getByLabelText("Repeat unit"), "weekly");
     fireEvent.change(screen.getByLabelText("Repeat interval"), { target: { value: "2" } });
@@ -1381,6 +1382,8 @@ describe("App calendar", () => {
           notes: "Bring mocks.",
           guestEmails: ["ada@example.com"],
           reminderMinutes: [15],
+          reminders: [{ method: "popup", minutes: 15 }],
+          remindersUseDefault: false,
           recurrence: {
             frequency: "weekly",
             interval: 2,
@@ -1492,8 +1495,8 @@ describe("App calendar", () => {
     const inspector = await screen.findByTestId("inspector-shell");
     const inspectorBody = within(inspector).getByTestId("inspector-body");
     expect(inspector).toHaveAttribute("data-inspector-kind", "event");
-    expect(within(inspectorBody).getByText("Every 2 months, 4 times")).toBeInTheDocument();
-    expect(within(inspectorBody).getByText("7 hr 0 min before")).toBeInTheDocument();
+    expect(within(inspectorBody).getByText("Every 2 months on day 9, 4 times")).toBeInTheDocument();
+    expect(within(inspectorBody).getByText("Popup 7 hr 0 min before")).toBeInTheDocument();
     expect(screen.queryByLabelText("Event repeat frequency")).not.toBeInTheDocument();
     await user.click(
       within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Edit" })
@@ -1502,7 +1505,7 @@ describe("App calendar", () => {
     expect(screen.getByLabelText("Repeat unit")).toHaveValue("monthly");
     expect(screen.getByLabelText("Repeat interval")).toHaveValue(2);
     expect(screen.getByLabelText("Repeat count")).toHaveValue(4);
-    expect(screen.getByText("Every 2 months, 4 times")).toBeInTheDocument();
+    expect(screen.getByText("Every 2 months on day 9, 4 times")).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Event repeat frequency"), "none");
     expect(screen.queryByLabelText("Repeat interval")).not.toBeInTheDocument();

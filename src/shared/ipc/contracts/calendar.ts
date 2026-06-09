@@ -205,11 +205,11 @@ export const calendarEventRecurrenceSchema = z
     byMonthDay: z.number().int().min(1).max(31).nullable().optional(),
     bySetPos: z.number().int().min(-5).max(5).nullable().optional()
   })
+  .strict()
   .refine((recurrence) => recurrence.bySetPos !== 0, {
     path: ["bySetPos"],
     message: "Monthly weekday position cannot be zero"
-  })
-  .strict();
+  });
 
 export type CalendarEventRecurrence = z.infer<typeof calendarEventRecurrenceSchema>;
 

@@ -539,7 +539,7 @@ function parseReminderObjects(
     return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
   }
 
-  return parsed.flatMap((entry): Array<{ method: "popup" | "email"; minutes: number }> => {
+  const reminders = parsed.flatMap((entry): Array<{ method: "popup" | "email"; minutes: number }> => {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
       return [];
     }
@@ -554,6 +554,10 @@ function parseReminderObjects(
 
     return minutes >= 0 && minutes <= 28 * 24 * 60 ? [{ method, minutes }] : [];
   });
+
+  return reminders.length === 0 && fallbackMinutes.length > 0
+    ? fallbackMinutes.map((minutes) => ({ method: "popup", minutes }))
+    : reminders;
 }
 
 function pendingMutationResourceType(value: string): PendingGoogleMutationResourceType {

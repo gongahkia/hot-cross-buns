@@ -309,7 +309,9 @@ describe("Google pending mutation worker", () => {
       isAllDay: true,
       recurrenceRule: "RRULE:FREQ=YEARLY",
       colorId: null,
-      reminderMinutes: []
+      reminderMinutes: [],
+      reminders: [],
+      remindersUseDefault: false
     });
     expect(mutationRows(connection).map((row) => row.status)).toEqual(["applied", "applied"]);
     expect(
@@ -384,7 +386,9 @@ describe("Google pending mutation worker", () => {
       isAllDay: true,
       recurrenceRule: "RRULE:FREQ=YEARLY",
       colorId: null,
-      reminderMinutes: [15]
+      reminderMinutes: [15],
+      reminders: [{ method: "popup", minutes: 15 }],
+      remindersUseDefault: false
     });
   });
 

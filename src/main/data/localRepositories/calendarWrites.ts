@@ -495,7 +495,7 @@ export function eventInsertOperation(input: {
       hcb_kind, local_tags_json, color_id, transparency, visibility, attendee_emails_json,
       attendee_details_json, reminder_minutes_json, reminders_json, reminders_use_default,
       created_at, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
+    ) VALUES (?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
     params: [
       input.id,
       input.accountId,

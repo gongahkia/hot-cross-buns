@@ -14,7 +14,7 @@ import {
 } from "../../coreScreenShared";
 import { CalendarAgendaView } from "./CalendarAgendaView";
 import { CalendarHeader } from "./CalendarHeader";
-import { ShareAvailabilityPanel } from "./CalendarSidebar";
+import { ShareAvailabilityPanel, SmartReschedulePanel } from "./CalendarSidebar";
 import { DayView, MultiDayView, WeekView } from "./CalendarTimelineView";
 import { MonthView } from "./MonthView";
 import {
@@ -126,6 +126,7 @@ export function CalendarView({
     calendarCurrentDayKey(source.settings.defaultTimeZone)
   );
   const [multiDayCount, setMultiDayCount] = useState(3);
+  const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
   const calendarNavigationStartedAt = useRef<number | null>(null);
   const {
     addAvailabilitySlot,
@@ -461,10 +462,18 @@ export function CalendarView({
         onResetRange={resetCalendarAnchor}
         onSetView={setCalendarView}
         onShiftRange={shiftCalendarAnchor}
-        onToggleShareAvailability={() => setShareAvailabilityOpen((open) => !open)}
+        onToggleShareAvailability={() => {
+          setSmartRescheduleOpen(false);
+          setShareAvailabilityOpen((open) => !open);
+        }}
+        onToggleSmartReschedule={() => {
+          setShareAvailabilityOpen(false);
+          setSmartRescheduleOpen((open) => !open);
+        }}
         previousRangeLabel={previousRangeLabel}
         shareAvailabilityOpen={shareAvailabilityOpen}
         shareAvailabilityVisible={shareAvailabilityVisible}
+        smartRescheduleOpen={smartRescheduleOpen}
         visibleCalendarViewIds={visibleCalendarViewIds}
       />
 
@@ -488,7 +497,15 @@ export function CalendarView({
       <SectionChrome
         title="Calendar"
         sidebar={
-          shareAvailabilityVisible && shareAvailabilityOpen ? (
+          smartRescheduleOpen ? (
+            <SmartReschedulePanel
+              calendars={source.calendarSources}
+              defaultTimeZone={source.settings.defaultTimeZone}
+              initialDate={calendarAnchorDate}
+              onApplied={() => source.refresh()}
+              onClose={() => setSmartRescheduleOpen(false)}
+            />
+          ) : shareAvailabilityVisible && shareAvailabilityOpen ? (
             <ShareAvailabilityPanel
               calendarId={availabilityCalendarId}
               calendars={source.calendarSources}

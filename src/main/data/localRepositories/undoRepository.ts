@@ -135,7 +135,10 @@ interface CalendarEventSnapshot extends Record<string, JsonValue> {
   hcbKind: string | null;
   localTagsJson: string;
   attendeeEmailsJson: string;
+  attendeeDetailsJson: string;
   reminderMinutesJson: string;
+  remindersJson: string;
+  remindersUseDefault: number;
   conferenceJson: string | null;
   etag: string | null;
   sequence: number | null;
@@ -431,7 +434,10 @@ export class LocalUndoRepository {
          events.hcb_kind AS hcbKind,
          events.local_tags_json AS localTagsJson,
          events.attendee_emails_json AS attendeeEmailsJson,
+         events.attendee_details_json AS attendeeDetailsJson,
          events.reminder_minutes_json AS reminderMinutesJson,
+         events.reminders_json AS remindersJson,
+         events.reminders_use_default AS remindersUseDefault,
          events.conference_json AS conferenceJson,
          events.etag,
          events.sequence,
@@ -766,7 +772,10 @@ function conflictFingerprint(
         "visibility",
         "localTimeZone",
         "attendeeEmailsJson",
+        "attendeeDetailsJson",
         "reminderMinutesJson",
+        "remindersJson",
+        "remindersUseDefault",
         "conferenceJson"
       ]);
       output.instances = arrayFingerprints(snapshot.instances, "calendarEventInstance", actionKind);
@@ -1352,8 +1361,9 @@ function upsertCalendarEventOperation(event: CalendarEventSnapshot, now: string)
       status, summary, description, location, start_at, start_time_zone, end_at,
       end_time_zone, is_all_day, recurrence_rule, color_id, transparency,
       visibility, local_time_zone, hcb_kind, local_tags_json, attendee_emails_json, reminder_minutes_json,
-      conference_json, etag, sequence, google_updated_at, created_at, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      attendee_details_json, reminders_json, reminders_use_default, conference_json, etag, sequence, google_updated_at,
+      created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       account_id = excluded.account_id,
       calendar_id = excluded.calendar_id,
@@ -1377,7 +1387,10 @@ function upsertCalendarEventOperation(event: CalendarEventSnapshot, now: string)
       hcb_kind = excluded.hcb_kind,
       local_tags_json = excluded.local_tags_json,
       attendee_emails_json = excluded.attendee_emails_json,
+      attendee_details_json = excluded.attendee_details_json,
       reminder_minutes_json = excluded.reminder_minutes_json,
+      reminders_json = excluded.reminders_json,
+      reminders_use_default = excluded.reminders_use_default,
       conference_json = excluded.conference_json,
       etag = excluded.etag,
       sequence = excluded.sequence,
@@ -1409,6 +1422,9 @@ function upsertCalendarEventOperation(event: CalendarEventSnapshot, now: string)
       event.localTagsJson,
       event.attendeeEmailsJson,
       event.reminderMinutesJson,
+      event.attendeeDetailsJson,
+      event.remindersJson,
+      event.remindersUseDefault,
       event.conferenceJson,
       event.etag,
       event.sequence,
@@ -1474,8 +1490,14 @@ function eventGoogleFieldsChanged(target: CalendarEventSnapshot, opposite: Calen
     target.isAllDay !== opposite.isAllDay ||
     target.recurrenceRule !== opposite.recurrenceRule ||
     target.colorId !== opposite.colorId ||
+    target.transparency !== opposite.transparency ||
+    target.visibility !== opposite.visibility ||
     target.attendeeEmailsJson !== opposite.attendeeEmailsJson ||
+    target.attendeeDetailsJson !== opposite.attendeeDetailsJson ||
     target.reminderMinutesJson !== opposite.reminderMinutesJson ||
+    target.remindersJson !== opposite.remindersJson ||
+    target.remindersUseDefault !== opposite.remindersUseDefault ||
+    target.conferenceJson !== opposite.conferenceJson ||
     target.deletedAt !== opposite.deletedAt ||
     target.status !== opposite.status;
 }
@@ -1491,7 +1513,11 @@ function calendarMutationPayload(event: CalendarEventSnapshot): JsonValue {
     notes: event.description ?? "",
     guestEmails: parseJsonArray(event.attendeeEmailsJson),
     reminderMinutes: parseJsonArray(event.reminderMinutesJson),
+    reminders: parseJsonArray(event.remindersJson),
+    remindersUseDefault: event.remindersUseDefault === 1,
     colorId: event.colorId,
+    transparency: event.transparency,
+    visibility: event.visibility,
     hcbKind: event.hcbKind === "birthday" ? "birthday" : null,
     recurrence: null,
     recurrenceRule: event.recurrenceRule

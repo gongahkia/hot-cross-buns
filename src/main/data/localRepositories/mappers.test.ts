@@ -69,7 +69,10 @@ describe("local repository mappers", () => {
       guestEmailsJson: JSON.stringify(
         Array.from({ length: 60 }, (_, index) => `guest-${index}@example.com`)
       ),
+      attendeeDetailsJson: JSON.stringify([{ email: "ada@example.com", responseStatus: "accepted" }]),
       reminderMinutesJson: JSON.stringify([-1, 0, 15, 40_320, 40_321]),
+      remindersJson: JSON.stringify([{ method: "email", minutes: 15 }]),
+      remindersUseDefault: 0,
       conferenceJson: JSON.stringify({
         solutionName: "Google Meet",
         videoUri: "https://meet.google.com/nrf-pwpu-cws",
@@ -81,6 +84,8 @@ describe("local repository mappers", () => {
       pendingMutationStatus: null,
       timeZone: "UTC",
       recurrenceRule: "RRULE:FREQ=DAILY;".repeat(80),
+      transparency: "opaque",
+      visibility: "default",
       recurringEventId: null,
       originalStartAt: null
     };
@@ -94,7 +99,7 @@ describe("local repository mappers", () => {
     expect(summary.location).toHaveLength(1_000);
     expect(summary.notes).toHaveLength(20_000);
     expect(summary.guestEmails).toHaveLength(50);
-    expect(summary.reminderMinutes).toEqual([0, 15, 40_320]);
+    expect(summary.reminderMinutes).toEqual([15]);
     expect(summary.recurrenceRule).toHaveLength(1_000);
     expect(summary.conference?.videoLabel).toBe("meet.google.com/nrf-pwpu-cws");
     expect(summary.hcbKind).toBe("birthday");

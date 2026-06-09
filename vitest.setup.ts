@@ -365,6 +365,14 @@ const hcbApi: HcbApi = {
         overloadMinutes: 0
       })
     ),
+    smartReschedule: vi.fn(async (request) =>
+      ok({
+        suggestions: [],
+        skipped: [],
+        applied: request.apply ?? false,
+        appliedBlocks: []
+      })
+    ),
     exportAvailability: vi.fn(async (request) =>
       ok({
         format: "text" as const,

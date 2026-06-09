@@ -588,6 +588,89 @@ export function createPlaceholderPlannerViewService(
         }
       });
     },
+    smartReschedule: (request) => {
+      const start = `${request.date}T00:00:00.000Z`;
+      const end = new Date(Date.parse(start) + 24 * 60 * 60 * 1000).toISOString();
+      const schedule = buildDaySchedule({
+        date: request.date,
+        events: state.calendarEvents.filter(
+          (event) => event.calendarId === request.calendarId && event.startsAt < end && event.endsAt > start
+        ),
+        tasks: state.tasks,
+        capacityMinutes: request.capacityMinutes ?? 480,
+        workingHours: {
+          start: request.workingHours?.start ?? 6,
+          end: request.workingHours?.end ?? 22
+        }
+      });
+      const suggestions = schedule.slots.flatMap((slot) => {
+        if (!slot.taskId) {
+          return [];
+        }
+
+        const task = state.tasks.find((candidate) => candidate.id === slot.taskId);
+        const existing = state.scheduledTaskBlocks.find((block) => block.taskId === slot.taskId);
+
+        return [{
+          taskId: slot.taskId,
+          calendarId: request.calendarId,
+          ...(existing ? { scheduledTaskBlockId: existing.id } : {}),
+          action: existing ? "move" as const : "create" as const,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          durationMinutes: Math.max(5, Math.round((Date.parse(slot.endsAt) - Date.parse(slot.startsAt)) / 60_000)),
+          reason: task?.dueAt && task.dueAt < start ? "Overdue task scheduled before newer work." : "Task placed in the first open slot."
+        }];
+      }).slice(0, 200);
+
+      if (!(request.apply ?? false)) {
+        return {
+          suggestions,
+          skipped: schedule.unscheduled.map((task) => ({ taskId: task.id, reason: "No free slot inside working hours." })),
+          applied: false,
+          appliedBlocks: []
+        };
+      }
+
+      const appliedBlocks = suggestions.map((suggestion) => {
+        const existing = state.scheduledTaskBlocks.find((block) => block.taskId === suggestion.taskId);
+        const block = existing ?? {
+          id: `block-smart-${state.scheduledTaskBlocks.length + 1}`,
+          taskId: suggestion.taskId,
+          calendarEventId: `event-smart-${state.calendarEvents.length + 1}`,
+          calendarId: request.calendarId,
+          title: state.tasks.find((task) => task.id === suggestion.taskId)?.title ?? "Scheduled task",
+          startsAt: suggestion.startsAt,
+          endsAt: suggestion.endsAt,
+          durationMinutes: suggestion.durationMinutes,
+          status: "scheduled" as const,
+          updatedAt: new Date().toISOString()
+        };
+
+        Object.assign(block, {
+          calendarId: request.calendarId,
+          startsAt: suggestion.startsAt,
+          endsAt: suggestion.endsAt,
+          durationMinutes: suggestion.durationMinutes,
+          status: "scheduled",
+          updatedAt: new Date().toISOString()
+        });
+
+        if (!existing) {
+          state.scheduledTaskBlocks.unshift(block);
+        }
+
+        return block;
+      });
+
+      state.sync.pendingMutationCount += appliedBlocks.length;
+      return {
+        suggestions,
+        skipped: schedule.unscheduled.map((task) => ({ taskId: task.id, reason: "No free slot inside working hours." })),
+        applied: true,
+        appliedBlocks
+      };
+    },
     exportAvailability: (request) => {
       const events = state.calendarEvents.filter((event) => {
         const startMs = Date.parse(event.startsAt);

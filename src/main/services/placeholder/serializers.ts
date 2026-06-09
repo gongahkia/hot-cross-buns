@@ -73,8 +73,16 @@ export function recurrenceRuleFromRequest(recurrence: CalendarEventRecurrence | 
     `INTERVAL=${recurrence.interval}`
   ];
 
-  if (recurrence.frequency === "weekly" && recurrence.byDay?.length) {
+  if ((recurrence.frequency === "weekly" || recurrence.bySetPos) && recurrence.byDay?.length) {
     parts.push(`BYDAY=${recurrence.byDay.join(",")}`);
+  }
+
+  if (recurrence.frequency === "monthly" && recurrence.byMonthDay) {
+    parts.push(`BYMONTHDAY=${recurrence.byMonthDay}`);
+  }
+
+  if (recurrence.frequency === "monthly" && recurrence.bySetPos) {
+    parts.push(`BYSETPOS=${recurrence.bySetPos}`);
   }
 
   if (recurrence.endsOn) {

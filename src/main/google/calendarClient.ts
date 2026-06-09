@@ -548,10 +548,11 @@ function eventMutationBody(
     overrides: (input.reminderMinutes ?? []).map((minutes) => ({ method: "popup", minutes }))
   });
   const reminders = normalizeReminders({
-    overrides: input.reminders ??
-      (input.reminderMinutes === undefined
+    overrides: input.reminders !== undefined && input.reminders.length > 0
+      ? [...input.reminders]
+      : input.reminderMinutes === undefined
         ? undefined
-        : input.reminderMinutes.map((minutes) => ({ method: "popup", minutes })))
+        : input.reminderMinutes.map((minutes) => ({ method: "popup", minutes }))
   });
 
   return {
@@ -595,10 +596,11 @@ function birthdayMutationBody(
     overrides: (input.reminderMinutes ?? []).map((minutes) => ({ method: "popup", minutes }))
   });
   const reminders = normalizeReminders({
-    overrides: input.reminders ??
-      (input.reminderMinutes === undefined
+    overrides: input.reminders !== undefined && input.reminders.length > 0
+      ? [...input.reminders]
+      : input.reminderMinutes === undefined
         ? undefined
-        : input.reminderMinutes.map((minutes) => ({ method: "popup", minutes })))
+        : input.reminderMinutes.map((minutes) => ({ method: "popup", minutes }))
   });
 
   return {
