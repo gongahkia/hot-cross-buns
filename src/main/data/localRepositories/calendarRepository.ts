@@ -7,6 +7,7 @@ import type {
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
   CalendarEventDetail,
+  CalendarEventReminder,
   CalendarEventUpdateRequest,
   CalendarListRequest,
   CalendarListResponse,
@@ -117,12 +118,17 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            events.location AS location,
            events.description AS notes,
            events.attendee_emails_json AS guestEmailsJson,
+           events.attendee_details_json AS attendeeDetailsJson,
            events.reminder_minutes_json AS reminderMinutesJson,
+           events.reminders_json AS remindersJson,
+           events.reminders_use_default AS remindersUseDefault,
            events.conference_json AS conferenceJson,
            pending.status AS pendingMutationStatus,
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            events.color_id AS colorId,
+           events.transparency AS transparency,
+           events.visibility AS visibility,
            events.local_tags_json AS tagsJson,
            instances.recurring_event_id AS recurringEventId,
            instances.original_start_at AS originalStartAt
@@ -184,7 +190,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         notes: request.notes ?? "",
         guestEmails: request.guestEmails ?? [],
         reminderMinutes: request.reminderMinutes ?? [],
+        reminders: request.reminders,
+        remindersUseDefault: request.remindersUseDefault ?? false,
         colorId: request.colorId ?? null,
+        transparency: request.transparency ?? null,
+        visibility: request.visibility ?? null,
+        conferenceCreateRequest: request.conferenceCreateRequest ?? null,
         recurrenceRule: recurrenceRuleFromRequest(request.recurrence ?? null)
       });
       const tags = normalizeLocalTagNames(request.tags ?? []);
@@ -271,7 +282,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         notes: request.notes ?? existing.notes ?? "",
         guestEmails: request.guestEmails ?? parseStringArray(existing.guestEmailsJson),
         reminderMinutes: request.reminderMinutes ?? parseNumberArray(existing.reminderMinutesJson),
+        reminders: request.reminders ?? parseReminderObjects(existing.remindersJson, parseNumberArray(existing.reminderMinutesJson)),
+        remindersUseDefault: request.remindersUseDefault ?? existing.remindersUseDefault === 1,
         colorId: request.colorId === undefined ? existing.colorId : request.colorId,
+        transparency: request.transparency === undefined ? normalizeEventTransparency(existing.transparency) : request.transparency,
+        visibility: request.visibility === undefined ? normalizeEventVisibility(existing.visibility) : request.visibility,
+        conferenceCreateRequest: request.conferenceCreateRequest ?? null,
         recurrenceRule:
           request.recurrence === undefined
             ? existing.recurrenceRule
@@ -293,6 +309,11 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         request.notes !== undefined ||
         request.guestEmails !== undefined ||
         request.reminderMinutes !== undefined ||
+        request.reminders !== undefined ||
+        request.remindersUseDefault !== undefined ||
+        request.conferenceCreateRequest !== undefined ||
+        request.transparency !== undefined ||
+        request.visibility !== undefined ||
         request.colorId !== undefined ||
         request.recurrence !== undefined ||
         request.hcbKind !== undefined;
@@ -535,7 +556,11 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       notes: master.notes ?? "",
       guestEmails: parseStringArray(master.guestEmailsJson),
       reminderMinutes: parseNumberArray(master.reminderMinutesJson),
+      reminders: parseReminderObjects(master.remindersJson, parseNumberArray(master.reminderMinutesJson)),
+      remindersUseDefault: master.remindersUseDefault === 1,
       colorId: master.colorId,
+      transparency: normalizeEventTransparency(master.transparency),
+      visibility: normalizeEventVisibility(master.visibility),
       recurrenceRule: split.beforeRule
     });
     const futureWrite = normalizeCalendarWrite({
@@ -548,7 +573,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       notes: request.notes ?? master.notes ?? "",
       guestEmails: request.guestEmails ?? parseStringArray(master.guestEmailsJson),
       reminderMinutes: request.reminderMinutes ?? parseNumberArray(master.reminderMinutesJson),
+      reminders: request.reminders ?? parseReminderObjects(master.remindersJson, parseNumberArray(master.reminderMinutesJson)),
+      remindersUseDefault: request.remindersUseDefault ?? master.remindersUseDefault === 1,
       colorId: request.colorId === undefined ? master.colorId : request.colorId,
+      transparency: request.transparency === undefined ? normalizeEventTransparency(master.transparency) : request.transparency,
+      visibility: request.visibility === undefined ? normalizeEventVisibility(master.visibility) : request.visibility,
+      conferenceCreateRequest: request.conferenceCreateRequest ?? null,
       recurrenceRule: futureRecurrenceRule
     });
 
@@ -663,7 +693,11 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       notes: master.notes ?? "",
       guestEmails: parseStringArray(master.guestEmailsJson),
       reminderMinutes: parseNumberArray(master.reminderMinutesJson),
+      reminders: parseReminderObjects(master.remindersJson, parseNumberArray(master.reminderMinutesJson)),
+      remindersUseDefault: master.remindersUseDefault === 1,
       colorId: master.colorId,
+      transparency: normalizeEventTransparency(master.transparency),
+      visibility: normalizeEventVisibility(master.visibility),
       recurrenceRule: split.beforeRule
     });
 
@@ -733,12 +767,17 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            events.location AS location,
            events.description AS notes,
            events.attendee_emails_json AS guestEmailsJson,
+           events.attendee_details_json AS attendeeDetailsJson,
            events.reminder_minutes_json AS reminderMinutesJson,
+           events.reminders_json AS remindersJson,
+           events.reminders_use_default AS remindersUseDefault,
            events.conference_json AS conferenceJson,
            pending.status AS pendingMutationStatus,
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            events.color_id AS colorId,
+           events.transparency AS transparency,
+           events.visibility AS visibility,
            events.local_tags_json AS tagsJson,
            COALESCE(instances.recurring_event_id, events.recurring_event_id) AS recurringEventId,
            instances.original_start_at AS originalStartAt
