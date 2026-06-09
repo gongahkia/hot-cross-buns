@@ -876,3 +876,20 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
   return normalizedLeft.length === normalizedRight.length &&
     normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
+
+function autoTagBackgroundSummary(items: Array<{ kind: AutoTagTargetKind; changed: number }>): string {
+  return `Rules changed. ${items.map((item) => autoTagKindLabel(item.kind, item.changed)).join(", ")} need reapply.`;
+}
+
+function autoTagBackgroundAppliedSummary(items: Array<{ kind: AutoTagTargetKind; changed: number; failed: number }>): string {
+  const changed = items.reduce((total, item) => total + item.changed, 0);
+  const failed = items.reduce((total, item) => total + item.failed, 0);
+
+  return `${changed} updated${failed > 0 ? `, ${failed} failed` : ""}.`;
+}
+
+function autoTagKindLabel(kind: AutoTagTargetKind, count: number): string {
+  const noun = kind === "task" ? "task" : kind === "event" ? "event" : "note";
+
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}

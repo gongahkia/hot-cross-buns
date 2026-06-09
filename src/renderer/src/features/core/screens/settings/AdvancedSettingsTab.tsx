@@ -1179,6 +1179,26 @@ export function AdvancedSettingsTab({
             ))}
           </div>
         </SettingsControlRow>
+        <SettingsControlRow
+          description="Runs after saved rule changes."
+          icon={RotateCcw}
+          label="Background reapply"
+        >
+          <select
+            aria-label="Auto-tag background reapply mode"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({
+                autoTagBackgroundReapplyMode: event.currentTarget.value as SettingsSnapshot["autoTagBackgroundReapplyMode"]
+              })
+            }
+            value={settings.autoTagBackgroundReapplyMode}
+          >
+            <option value="manual">Manual only</option>
+            <option value="preview">Preview and notify</option>
+            <option value="silent">Silent apply</option>
+          </select>
+        </SettingsControlRow>
         {autoTagErrors.length > 0 || autoTagWarnings.length > 0 ? (
           <div className="grid gap-1 border-b border-border px-3 py-2 text-[var(--text-sm)]">
             {autoTagErrors.length > 0 ? (

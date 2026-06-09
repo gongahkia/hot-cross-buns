@@ -43,6 +43,11 @@ import { TaskLocalRepository } from "./taskRepository";
 import type { SqliteWriteOperation } from "../sqliteConnection";
 import type { CalendarEventRow, CalendarListRow, CalendarRow } from "./types";
 
+const futureRecurringEditMissingMasterMessage =
+  "This future-series edit needs the original recurring event. Sync calendar data, open the whole series, then try again.";
+const futureRecurringDeleteMissingMasterMessage =
+  "This future-series delete needs the original recurring event. Sync calendar data, open the whole series, then try again.";
+
 export class CalendarLocalRepository extends TaskLocalRepository {
   listCalendars(request: CalendarListRequest): CalendarListResponse {
     return this.measureSqlite("calendar.listCalendars", () => {
@@ -264,6 +269,10 @@ export class CalendarLocalRepository extends TaskLocalRepository {
 
       const scope = request.scope ?? "seriesAll";
 
+      if (scope === "seriesFuture" && isMissingMasterFutureScopeTarget(existing)) {
+        throw validationFailure(futureRecurringEditMissingMasterMessage);
+      }
+
       if (scope === "seriesFuture" && existing.id !== existing.eventId) {
         return this.updateFutureCalendarEventSeries(existing, request);
       }
@@ -392,6 +401,10 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       }
 
       const scope = request.scope ?? "seriesAll";
+
+      if (scope === "seriesFuture" && isMissingMasterFutureScopeTarget(existing)) {
+        throw validationFailure(futureRecurringDeleteMissingMasterMessage);
+      }
 
       if (scope === "seriesFuture" && existing.id !== existing.eventId) {
         return this.deleteFutureCalendarEventSeries(existing);
