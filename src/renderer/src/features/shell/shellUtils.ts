@@ -64,7 +64,7 @@ export function sectionMetric(source: CoreViewModelSource, sectionId: SectionId)
     return source.syncStatus.state;
   }
 
-  return source.todayViewModel.metrics[0]?.value ?? "0";
+  return "0";
 }
 
 function deferredCountMetric(source: CoreViewModelSource, count: number | null = null): string {
