@@ -90,13 +90,14 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
       return;
     }
 
-    const merged = group.kind === "task"
-      ? await mergeTaskDuplicates(winnerItem.id, loserItems.map((item) => item.id), source)
-      : group.kind === "event"
-        ? await mergeEventDuplicates(winnerItem.id, loserItems.map((item) => item.id), source)
-        : await mergeNoteDuplicates(winnerItem.id, loserItems.map((item) => item.id), source);
+    const merged = await window.hcb?.duplicates.cleanup({
+      kind: group.kind,
+      winnerId: winnerItem.id,
+      loserIds: loserItems.map((item) => item.id)
+    });
 
-    if (!merged) {
+    if (!merged?.ok) {
+      window.alert(merged?.error.message ?? "Merge failed.");
       return;
     }
 
@@ -159,6 +160,7 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
   );
 }
 
+/* kept for duplicate grouping tests; cleanup is applied by the domain service. */
 async function mergeTaskDuplicates(
   winnerId: string,
   loserIds: string[],

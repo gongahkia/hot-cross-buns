@@ -8,6 +8,7 @@ import { getAppNotifications } from "../core/appNotifications";
 import type { ConvertCommandDetail } from "../core/conversionEvents";
 import { DiagnosticsOverlay } from "../core/DiagnosticsOverlay";
 import { AgentActionTray } from "../core/AgentActionTray";
+import { PlanningChatPanel } from "../core/PlanningChatPanel";
 import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
@@ -1002,6 +1003,7 @@ export function AppShell(): JSX.Element {
         />
       ) : null}
       <AgentActionTray enabled={source.settings.agentActionTrayEnabled} />
+      <PlanningChatPanel enabled={source.settings.llmEnabled || source.settings.semanticSearchEnabled} />
     </div>
     </I18nProvider>
   );
