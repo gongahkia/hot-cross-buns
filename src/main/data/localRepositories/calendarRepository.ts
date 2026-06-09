@@ -904,6 +904,11 @@ function hasGoogleBackedCalendarPatch(request: CalendarEventUpdateRequest): bool
     request.notes !== undefined ||
     request.guestEmails !== undefined ||
     request.reminderMinutes !== undefined ||
+    request.reminders !== undefined ||
+    request.remindersUseDefault !== undefined ||
+    request.conferenceCreateRequest !== undefined ||
+    request.transparency !== undefined ||
+    request.visibility !== undefined ||
     request.colorId !== undefined ||
     request.recurrence !== undefined ||
     request.hcbKind !== undefined ||
@@ -921,6 +926,50 @@ function requireRemoteRecurringMaster(event: CalendarEventRow): void {
   ) {
     throw validationFailure("Future recurring edits need the series to sync with Google first.");
   }
+}
+
+function parseReminderObjects(value: string | null | undefined, fallbackMinutes: number[]): CalendarEventReminder[] {
+  if (!value) {
+    return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
+    }
+
+    return parsed.flatMap((entry): CalendarEventReminder[] => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return [];
+      }
+
+      const source = entry as Record<string, unknown>;
+      const method = source.method;
+      const minutes = source.minutes;
+
+      if ((method !== "popup" && method !== "email") || typeof minutes !== "number" || !Number.isInteger(minutes)) {
+        return [];
+      }
+
+      if (minutes < 0 || minutes > 28 * 24 * 60) {
+        return [];
+      }
+
+      return [{ method, minutes }];
+    });
+  } catch {
+    return fallbackMinutes.map((minutes) => ({ method: "popup", minutes }));
+  }
+}
+
+function normalizeEventTransparency(value: string | null | undefined): "opaque" | "transparent" | null {
+  return value === "opaque" || value === "transparent" ? value : null;
+}
+
+function normalizeEventVisibility(value: string | null | undefined): "default" | "public" | "private" | null {
+  return value === "default" || value === "public" || value === "private" ? value : null;
 }
 
 function calendarEventCompletionPredicate(scope: CalendarEventCompletionScope): string {

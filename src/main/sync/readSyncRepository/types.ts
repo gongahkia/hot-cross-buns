@@ -121,8 +121,12 @@ export interface CalendarEventMutationTarget extends Record<string, unknown> {
   isAllDay: boolean;
   recurrenceRule: string | null;
   colorId: string | null;
+  transparency: string | null;
+  visibility: string | null;
   attendeeEmails: string[];
   reminderMinutes: number[];
+  reminders: Array<{ method: "popup" | "email"; minutes: number }>;
+  remindersUseDefault: boolean;
   etag: string | null;
   deletedAt: string | null;
 }
