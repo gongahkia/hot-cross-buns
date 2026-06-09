@@ -7,6 +7,7 @@ import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
 import type { ConvertCommandDetail } from "../core/conversionEvents";
 import { DiagnosticsOverlay } from "../core/DiagnosticsOverlay";
+import { AgentActionTray } from "../core/AgentActionTray";
 import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
@@ -1000,6 +1001,7 @@ export function AppShell(): JSX.Element {
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
+      <AgentActionTray enabled={source.settings.agentActionTrayEnabled} />
     </div>
     </I18nProvider>
   );
