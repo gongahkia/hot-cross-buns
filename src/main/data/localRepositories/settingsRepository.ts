@@ -61,6 +61,7 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   perSurfaceFontOverrides: {},
   calendarEventColorOverrides: {},
   autoTagRules: [],
+  autoTagBackgroundReapplyMode: "preview",
   disableAnimations: false,
   uiLayoutScale: 1,
   navigationPlacement: "left",
@@ -192,6 +193,11 @@ export class LocalSettingsRepository {
         DEFAULT_SETTINGS.calendarEventColorOverrides
       ),
       autoTagRules: this.readSetting("tags", "autoRules", DEFAULT_SETTINGS.autoTagRules),
+      autoTagBackgroundReapplyMode: this.readSetting(
+        "tags",
+        "backgroundReapplyMode",
+        DEFAULT_SETTINGS.autoTagBackgroundReapplyMode
+      ),
       disableAnimations: this.readSetting(
         "appearance",
         "disableAnimations",
@@ -531,6 +537,10 @@ export class LocalSettingsRepository {
 
     if (request.autoTagRules !== undefined) {
       this.writeSetting("tags", "autoRules", request.autoTagRules, now);
+    }
+
+    if (request.autoTagBackgroundReapplyMode !== undefined) {
+      this.writeSetting("tags", "backgroundReapplyMode", request.autoTagBackgroundReapplyMode, now);
     }
 
     if (request.disableAnimations !== undefined) {

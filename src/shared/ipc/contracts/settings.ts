@@ -141,6 +141,7 @@ export const calendarEventColorOverridesSchema = z
 export const autoTagRuleMatchKindSchema = z.enum(["prefix", "contains", "regex"]);
 export const autoTagRuleTargetKindSchema = z.enum(["task", "event", "note"]);
 export const autoTagRuleMatchFieldSchema = z.enum(["title", "body", "anyText"]);
+export const autoTagBackgroundReapplyModeSchema = z.enum(["manual", "preview", "silent"]);
 export const autoTagRuleSchema = z
   .object({
     id: idSchema,
@@ -251,6 +252,7 @@ export const settingsSnapshotSchema = z
     perSurfaceFontOverrides: perSurfaceFontOverridesSchema,
     calendarEventColorOverrides: calendarEventColorOverridesSchema,
     autoTagRules: z.array(autoTagRuleSchema).max(200),
+    autoTagBackgroundReapplyMode: autoTagBackgroundReapplyModeSchema,
     disableAnimations: z.boolean(),
     uiLayoutScale: z.number().min(0.8).max(1.5),
     navigationPlacement: navigationPlacementSchema,
@@ -343,6 +345,7 @@ export const settingsUpdateRequestSchema = z
     perSurfaceFontOverrides: perSurfaceFontOverridesSchema.optional(),
     calendarEventColorOverrides: calendarEventColorOverridesSchema.optional(),
     autoTagRules: z.array(autoTagRuleSchema).max(200).optional(),
+    autoTagBackgroundReapplyMode: autoTagBackgroundReapplyModeSchema.optional(),
     disableAnimations: z.boolean().optional(),
     uiLayoutScale: z.number().min(0.8).max(1.5).optional(),
     navigationPlacement: navigationPlacementSchema.optional(),

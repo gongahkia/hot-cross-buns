@@ -39,6 +39,7 @@ export const emptySettings: SettingsSnapshot = {
   perSurfaceFontOverrides: {},
   calendarEventColorOverrides: {},
   autoTagRules: [],
+  autoTagBackgroundReapplyMode: "preview",
   disableAnimations: false,
   uiLayoutScale: 1,
   navigationPlacement: "left",
