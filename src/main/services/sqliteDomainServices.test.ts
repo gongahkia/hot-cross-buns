@@ -1575,6 +1575,62 @@ describe("SQLite-backed domain services", () => {
     expect((await domain.sync.status()).pendingMutationCount).toBe(3);
   });
 
+  it("previews and applies smart reschedule with grouped undo", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const preview = await domain.planner.smartReschedule({
+      date: "2026-05-22",
+      calendarId: "acct-1:calendar:product",
+      workingHours: { start: 9, end: 12 },
+      capacityMinutes: 60
+    });
+
+    expect(preview).toMatchObject({
+      applied: false,
+      suggestions: [
+        {
+          taskId: "acct-1:task:inbox:task-1",
+          calendarId: "acct-1:calendar:product",
+          action: "create",
+          startsAt: "2026-05-22T09:00:00.000Z",
+          endsAt: "2026-05-22T09:30:00.000Z",
+          reason: "Unscheduled task placed in the first open slot."
+        }
+      ]
+    });
+    expect((await domain.planner.listScheduledTaskBlocks({
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-23T00:00:00.000Z",
+      limit: 20
+    })).items).toEqual([]);
+
+    const applied = await domain.planner.smartReschedule({
+      date: "2026-05-22",
+      calendarId: "acct-1:calendar:product",
+      workingHours: { start: 9, end: 12 },
+      capacityMinutes: 60,
+      apply: true
+    });
+
+    expect(applied.applied).toBe(true);
+    expect(applied.appliedBlocks).toEqual([
+      expect.objectContaining({
+        taskId: "acct-1:task:inbox:task-1",
+        startsAt: "2026-05-22T09:00:00.000Z",
+        endsAt: "2026-05-22T09:30:00.000Z"
+      })
+    ]);
+    expect(await domain.undo.status()).toMatchObject({ canUndo: true, undoLabel: "Smart reschedule" });
+
+    await domain.undo.undo();
+    expect((await domain.planner.listScheduledTaskBlocks({
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-23T00:00:00.000Z",
+      limit: 20
+    })).items).toEqual([]);
+  });
+
   it("prevents duplicate scheduled task blocks and repairs orphaned blocks", async () => {
     const { domain, syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);

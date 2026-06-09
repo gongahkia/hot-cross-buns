@@ -10,7 +10,7 @@ This is the single July 2026 planning todo. Ports stay last.
 
 Last repo audit for this file: 2026-06-09.
 
-Audit note: static repo/source/test evidence only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed for this update. Follow-up removed verified implemented leftovers for snooze UX, auto-tag audit/reapply, calendar drag-create, note-template creation, pointer repair, dock badge code paths, bulk reschedule, task/event template quick-add, board subtask/reorder UX, and chrono quick-add examples.
+Audit note: static repo/source/test evidence only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed for this update. Follow-up removed verified implemented leftovers for snooze UX, auto-tag audit/reapply, calendar drag-create, note-template creation, pointer repair, dock badge code paths, bulk reschedule, task/event template quick-add, board subtask/reorder UX, chrono quick-add examples, smart reschedule, RRULE editor depth, Meet attach, visibility/transparency UI, richer reminders, and Google attendee/reminder metadata display. Generic day agenda popover was removed by product decision.
 
 Status key:
 
@@ -37,6 +37,9 @@ Status key:
 - Google Calendar event `colorId` is cached, written, theme-mapped, and user-overridable in Appearance settings.
 - Rule-based auto-tagging/color assignment exists for tasks/events/notes with settings toggle, validation, preview, conflict visibility, reorder controls, invalid-regex auto-disable, and tests.
 - Calendar has Agenda/Day/Multi-Day/Week/Month modes, overflow popovers titled `Items for <date>`, all-item overflow contents, completed-first ordering in overflow, and task-linked Google Calendar projection cleanup on task deletion.
+- Calendar smart reschedule exists with dry-run preview, apply, grouped undo, capacity/working-hour controls, locked-schedule skips, busy-range avoidance, and explanation text.
+- Calendar event editing now supports monthly RRULE day-of-month/weekday-position rules, raw RRULE preview, structured popup/email reminders, Google Meet create requests, busy/free transparency, default/public/private visibility, and Google attendee RSVP/status display.
+- Google Calendar read/write plumbing exists for event reminders, reminder defaults, visibility, transparency, conference creation, and attendee email writes; RSVP/status metadata is read/displayed but not locally invented.
 - Startup bootstrap snapshot, light bootstrap timings, startup fan-out fallback, and deferred `calendar.scheduleSuggest` request path exist.
 - Near-immediate post-CRUD sync/drain path exists through shared sync control/service-container wiring and live Google smoke docs reference `sync.post-crud-drain`.
 - Advanced local search parser/repository coverage exists for regex, attendee, duration, notes/body presence, due/start windows, list, calendar, tag, status, priority, and source/domain filters.
@@ -69,7 +72,7 @@ Status key:
 - MCP/CLI is featureful, and prompt/resource registries now include `hcb_brief`, `hcb tail`, `hcb plan`, `hcb://brief`, `hcb://plan`, and `hcb://tail`. Durable pending agent actions and loopback webhooks are now present; external MCP client QA, webhook retry/rate-limit hardening, and full event-source coverage remain open.
 - Birthday Google payload shape is unit-tested, but live Google API smoke for birthday create/update/delete is still the main external-risk test.
 - Quick-add/NL parsing has meaningful code and tests, including recurrence handling, alternate-week weekdays, ranges, and until dates. Time-zone parsing and broader ambiguity QA remain open.
-- Calendar recurrence UI exists. Edit/delete scope selection now reaches repository writes; whole-series, Google-backed occurrence edits/deletes, and locally materialized future-series splits are covered by focused tests. Google-expanded future-series edits still fail fast when the master series is unavailable; deeper RRULE editor depth and live Google smoke remain open.
+- Calendar recurrence UI exists. Edit/delete scope selection now reaches repository writes; whole-series, Google-backed occurrence edits/deletes, locally materialized future-series splits, and monthly RRULE editor depth are covered by focused tests. Google-expanded future-series edits still fail fast when the master series is unavailable; live Google smoke remains open.
 - Search/filter depth is partial: advanced parser-backed operators, boolean `AND`/`OR`/`NOT`, saved-search settings, pinned filters, command-palette pinned filter chips, opt-in local semantic/hybrid search with disabled lexical fallback diagnostics, provider-backed chat, and a chat sidebar exist. Production semantic model/vector packaging and richer agentic planning remain open.
 - Portable data has real `.hcbexport` export/preview/import with deterministic state JSON, selected list/calendar/future filters, manifest SHA-256, attachment bundling/relinking, richer item-level import preview, pre-import backup, local pointer scan/repair UI, and focused tests. ICS import/subscriptions and manual migration QA remain open.
 
@@ -89,8 +92,8 @@ Status key:
    - Status: `Partial`; implemented local tag catalog/repository, tag/entity tables, CRUD/merge UI, tag colors, counts, filters via tag search, pinned saved filters, inspector audit, backend full-cache auto-tag reapply, and Settings analytics.
    - Remaining: background scheduling and large-account perf QA.
 2. Recurrence correctness:
-   - Status: `Partial`; whole-series, Google-backed occurrence edits/deletes, locally materialized future-series splits, and recurrence tests exist.
-   - Remaining: Google-expanded future-series writes when master data is unavailable, deeper RRULE editor, and live Google smoke.
+   - Status: `Partial`; whole-series, Google-backed occurrence edits/deletes, locally materialized future-series splits, monthly RRULE editor depth, and recurrence tests exist.
+   - Remaining: Google-expanded future-series writes when master data is unavailable and live Google smoke.
    - reason: high-risk calendar behavior; better before broad calendar automation.
 3. Boolean/custom search and pinned filters:
    - Status: `Partial`; boolean DSL, pinned saved filters, opt-in local semantic/hybrid search with lexical fallback when disabled, local-disabled chat, Ollama/OpenAI-compatible provider hooks, and a chat sidebar are implemented.
@@ -174,32 +177,12 @@ Status key:
 
 ### Calendar
 
-- Status: `Partial`; Agenda/Day/Multi-Day/Week/Month and drag-to-create are present.
-- Add generic month/week/day agenda popover from cell/day click beyond current overflow popovers.
-- Add smart-reschedule:
-  - suggest new slots for overdue, conflicted, or unscheduled tasks
-  - respect priority, duration, locked schedules, working hours, visible calendars, and existing events
-  - dry-run preview before applying changes
-  - batch apply with undo and mutation coalescing
-  - explain why each slot was chosen
+- Status: `Partial`; Agenda/Day/Multi-Day/Week/Month, drag-to-create, smart reschedule, richer event editor fields, and Google-backed reminder/privacy/Meet plumbing are present.
 - Harden recurring-event edit scope:
   - Google-backed occurrence edits/deletes are implemented.
   - Locally materialized future-series split is implemented.
   - Remaining: Google-expanded future-series writes when only an instance is cached, clearer unsupported-state copy, and live Google smoke.
-- Finish visual RRULE editor depth beyond current frequency/interval/weekday/end/count/readable-summary controls:
-  - month rules and never-ending rule polish
-  - raw RRULE preview
-  - validation for unsupported Google/RFC combinations
-  - round-trip tests against current recurrence sync code
-- Add attendee management depth beyond raw guest emails:
-  - RSVP/status display
-  - invitations
-  - attendee validation/errors
-- Add Google Meet/Hangouts attach on event create if current conference support is read-only.
-- Add event visibility/transparency UI:
-  - busy/free
-  - public/private/default
-- Expand custom reminders beyond one simple reminder field if needed.
+- Deferred: attendee invitation/status editing beyond guest email writes. RSVP/status metadata is read from Google and displayed, while local writes avoid inventing attendee response state.
 
 ## 3. Linked markdown and knowledge graph
 
