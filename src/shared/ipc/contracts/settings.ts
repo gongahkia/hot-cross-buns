@@ -524,6 +524,14 @@ export const portableChangeCountSchema = z
   })
   .strict();
 
+export const portablePreviewItemSchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1).max(500),
+    change: z.enum(["added", "removed", "changed"])
+  })
+  .strict();
+
 export const portableImportPreviewSchema = z
   .object({
     path: z.string().min(1).max(4_096),
@@ -543,7 +551,16 @@ export const portableImportPreviewSchema = z
         corrupt: z.number().int().nonnegative(),
         skipped: z.number().int().nonnegative()
       })
+      .strict(),
+    items: z
+      .object({
+        tasks: z.array(portablePreviewItemSchema).max(50),
+        events: z.array(portablePreviewItemSchema).max(50),
+        calendars: z.array(portablePreviewItemSchema).max(50),
+        taskLists: z.array(portablePreviewItemSchema).max(50)
+      })
       .strict()
+      .optional()
   })
   .strict();
 
@@ -564,3 +581,54 @@ export const portableImportResponseSchema = z
   .strict();
 
 export type PortableImportResponse = z.infer<typeof portableImportResponseSchema>;
+
+export const localPointerKindSchema = z.enum(["task", "event"]);
+export const localPointerSummarySchema = z
+  .object({
+    pointer: z.string().min(1).max(4_096),
+    kind: localPointerKindSchema,
+    entityId: idSchema,
+    title: z.string().min(1).max(500),
+    exists: z.boolean()
+  })
+  .strict();
+
+export const localPointerListRequestSchema = z
+  .object({
+    includeHealthy: z.boolean().optional(),
+    limit: z.number().int().min(1).max(500).default(100)
+  })
+  .strict();
+
+export type LocalPointerListRequest = z.input<typeof localPointerListRequestSchema>;
+
+export const localPointerListResponseSchema = z
+  .object({
+    items: z.array(localPointerSummarySchema).max(500),
+    totalKnown: z.number().int().nonnegative()
+  })
+  .strict();
+
+export type LocalPointerListResponse = z.infer<typeof localPointerListResponseSchema>;
+
+export const localPointerRepairRequestSchema = z
+  .object({
+    pointer: z.string().min(1).max(4_096),
+    replacementPath: z.string().trim().min(1).max(4_096),
+    confirm: z.literal(true)
+  })
+  .strict();
+
+export type LocalPointerRepairRequest = z.input<typeof localPointerRepairRequestSchema>;
+
+export const localPointerRepairResponseSchema = z
+  .object({
+    pointer: z.string().min(1).max(4_096),
+    replacementPointer: z.string().min(1).max(4_096),
+    updated: z.number().int().nonnegative(),
+    queued: z.boolean(),
+    revision: isoDateTimeSchema
+  })
+  .strict();
+
+export type LocalPointerRepairResponse = z.infer<typeof localPointerRepairResponseSchema>;

@@ -47,7 +47,8 @@ export const searchQueryResponseSchema = pagedListResponseSchema(
       semanticEnabled: z.boolean(),
       indexedCount: z.number().int().nonnegative(),
       staleCount: z.number().int().nonnegative(),
-      modelId: z.string().min(1).max(120).optional()
+      modelId: z.string().min(1).max(120).optional(),
+      fallbackReason: z.enum(["semantic-disabled", "semantic-unavailable"]).optional()
     })
     .strict()
     .optional()

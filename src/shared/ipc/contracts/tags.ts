@@ -21,6 +21,8 @@ export const tagSummarySchema = z
     color: tagColorSchema,
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
+    firstUsedAt: isoDateTimeSchema.nullable().optional(),
+    lastUsedAt: isoDateTimeSchema.nullable().optional(),
     taskCount: z.number().int().nonnegative(),
     eventCount: z.number().int().nonnegative(),
     noteCount: z.number().int().nonnegative(),
@@ -96,3 +98,61 @@ export const tagMutationResponseSchema = mutationAckSchema.extend({
 });
 
 export type TagMutationResponse = z.infer<typeof tagMutationResponseSchema>;
+
+export const autoTagReapplyScopeSchema = z.enum(["all"]);
+export const autoTagReapplyPreviewRequestSchema = z
+  .object({
+    kind: tagEntityKindSchema,
+    scope: autoTagReapplyScopeSchema.default("all")
+  })
+  .strict();
+
+export type AutoTagReapplyPreviewRequest = z.input<typeof autoTagReapplyPreviewRequestSchema>;
+
+export const autoTagReapplyPreviewResponseSchema = z
+  .object({
+    kind: tagEntityKindSchema,
+    scope: autoTagReapplyScopeSchema,
+    scanned: z.number().int().nonnegative(),
+    changed: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    blocked: z.boolean(),
+    message: z.string().min(1).max(500),
+    sample: z.array(z.object({
+      id: idSchema,
+      title: z.string().min(1).max(500),
+      nextTitle: z.string().min(1).max(500),
+      tags: z.array(z.string().min(1).max(120)).max(64),
+      nextTags: z.array(z.string().min(1).max(120)).max(64)
+    }).strict()).max(20)
+  })
+  .strict();
+
+export type AutoTagReapplyPreviewResponse = z.infer<typeof autoTagReapplyPreviewResponseSchema>;
+
+export const autoTagReapplyApplyRequestSchema = autoTagReapplyPreviewRequestSchema.extend({
+  confirm: z.literal(true)
+}).strict();
+
+export type AutoTagReapplyApplyRequest = z.input<typeof autoTagReapplyApplyRequestSchema>;
+
+export const autoTagReapplyApplyResponseSchema = autoTagReapplyPreviewResponseSchema.extend({
+  queued: z.boolean(),
+  revision: isoDateTimeSchema,
+  undoLabel: z.string().min(1).max(120).optional()
+});
+
+export type AutoTagReapplyApplyResponse = z.infer<typeof autoTagReapplyApplyResponseSchema>;
+
+export const tagAnalyticsResponseSchema = z
+  .object({
+    totalTags: z.number().int().nonnegative(),
+    unusedTags: z.number().int().nonnegative(),
+    linkedEntities: z.number().int().nonnegative(),
+    topTags: z.array(tagSummarySchema).max(10),
+    staleTags: z.array(tagSummarySchema).max(10)
+  })
+  .strict();
+
+export type TagAnalyticsResponse = z.infer<typeof tagAnalyticsResponseSchema>;
