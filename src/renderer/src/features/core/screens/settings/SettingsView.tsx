@@ -727,6 +727,27 @@ export function SettingsView({
           tone="warning"
         />
       ) : null}
+      {autoTagBackgroundNotice ? (
+        <StatusBanner
+          action={autoTagBackgroundNotice.changedKinds ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                onClick={() => void applyAutoTagBackgroundChanges(autoTagBackgroundNotice.changedKinds ?? [])}
+                size="sm"
+                variant="secondary"
+              >
+                Apply
+              </Button>
+              <Button onClick={() => setAutoTagBackgroundNotice(null)} size="sm" variant="ghost">
+                Dismiss
+              </Button>
+            </div>
+          ) : undefined}
+          description={autoTagBackgroundNotice.description}
+          title={autoTagBackgroundNotice.title}
+          tone={autoTagBackgroundNotice.tone}
+        />
+      ) : null}
       {recoveryMessage ? (
         <StatusBanner description={recoveryMessage} title="Settings action applied" tone="success" />
       ) : null}
