@@ -4,7 +4,7 @@ import type {
   SettingsSnapshot,
   TaskListSummary
 } from "@shared/ipc/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, Save, ShieldCheck, Trash2, Users } from "lucide-react";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
@@ -17,7 +17,7 @@ import {
 interface ProfileSettingsTabProps {
   beginGoogleOAuth: () => Promise<void>;
   calendarSources: CalendarListSummary[];
-  disconnectGoogle: () => Promise<void>;
+  disconnectGoogle: (accountId?: string) => Promise<void>;
   googleClientId: string;
   googleClientSecret: string;
   googleStatus: GoogleStatusResponse;
@@ -51,9 +51,25 @@ export function ProfileSettingsTab({
   const selectedTaskLists = new Set(settings.selectedTaskListIds);
   const selectedCalendars = new Set(settings.selectedCalendarIds);
   const account = googleStatus.account;
+  const accounts = googleStatus.accounts.length > 0 ? googleStatus.accounts : account ? [account] : [];
+  const [resourceAccountFilter, setResourceAccountFilter] = useState("all");
+  const visibleTaskLists = resourceAccountFilter === "all"
+    ? taskLists
+    : taskLists.filter((taskList) => taskList.accountId === resourceAccountFilter);
+  const visibleCalendarSources = resourceAccountFilter === "all"
+    ? calendarSources
+    : calendarSources.filter((calendar) => calendar.accountId === resourceAccountFilter);
   const connected = account?.connectionState === "connected";
   const accountLabel = account?.displayName || account?.email || (connected ? "Connected Google account" : "Not connected");
   const accountDetail = account?.email ?? account?.googleAccountId ?? account?.connectionState ?? "Google account is not connected";
+
+  useEffect(() => {
+    if (resourceAccountFilter === "all" || accounts.some((candidate) => candidate.accountId === resourceAccountFilter)) {
+      return;
+    }
+
+    setResourceAccountFilter("all");
+  }, [accounts, resourceAccountFilter]);
 
   return (
     <div className="grid gap-5">
@@ -111,34 +127,69 @@ export function ProfileSettingsTab({
       </SettingsGroup>
 
       <SettingsGroup title="Google accounts">
-        <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {account?.avatarUrl ? (
-              <img
-                alt=""
-                className="size-8 shrink-0 rounded-full border border-border bg-surface-0 object-cover"
-                referrerPolicy="no-referrer"
-                src={account.avatarUrl}
-              />
-            ) : (
+        {accounts.length > 0 ? (
+          accounts.map((candidate) => {
+            const candidateConnected = candidate.connectionState === "connected";
+            const candidateLabel = candidate.displayName || candidate.email || "Google account";
+            const candidateDetail = candidate.email ?? candidate.googleAccountId ?? candidate.connectionState;
+
+            return (
+              <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={candidate.accountId}>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {candidate.avatarUrl ? (
+                    <img
+                      alt=""
+                      className="size-8 shrink-0 rounded-full border border-border bg-surface-0 object-cover"
+                      referrerPolicy="no-referrer"
+                      src={candidate.avatarUrl}
+                    />
+                  ) : (
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-0 text-text-muted">
+                      <Users aria-hidden="true" size={16} />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{candidateLabel}</div>
+                    <p className={cx(
+                      "mt-0.5 truncate text-[var(--text-sm)]",
+                      candidateConnected ? "text-text-muted" : "text-warning"
+                    )}>
+                      {candidateDetail}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <Badge tone={candidateConnected ? "success" : "warning"}>
+                    {candidateConnected ? "Active" : candidate.connectionState}
+                  </Badge>
+                  <Button onClick={() => void disconnectGoogle(candidate.accountId)} size="sm" variant="secondary">
+                    Disconnect
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-0 text-text-muted">
                 <Users aria-hidden="true" size={16} />
               </div>
-            )}
-            <div className="min-w-0">
-              <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{accountLabel}</div>
-              <p className={cx(
-                "mt-0.5 truncate text-[var(--text-sm)]",
-                connected ? "text-text-muted" : "text-warning"
-              )}>
-                {accountDetail}
-              </p>
+              <div className="min-w-0">
+                <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{accountLabel}</div>
+                <p className={cx(
+                  "mt-0.5 truncate text-[var(--text-sm)]",
+                  connected ? "text-text-muted" : "text-warning"
+                )}>
+                  {accountDetail}
+                </p>
+              </div>
             </div>
+            <Badge tone={connected ? "success" : "warning"}>
+              {connected ? "Active" : "Disconnected"}
+            </Badge>
           </div>
-          <Badge tone={connected ? "success" : "warning"}>
-            {connected ? "Active" : "Disconnected"}
-          </Badge>
-        </div>
+        )}
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
           <Button
             disabled={!googleStatus.oauthClientConfigured}
@@ -148,40 +199,104 @@ export function ProfileSettingsTab({
             <Users aria-hidden="true" size={14} />
             Add Google Account
           </Button>
-          <Button disabled={!account} onClick={() => void disconnectGoogle()} variant="secondary">
-            Disconnect
+          <Button disabled={accounts.length === 0} onClick={() => void disconnectGoogle()} variant="secondary">
+            Disconnect all
           </Button>
         </div>
       </SettingsGroup>
 
       <SettingsGroup title="Task lists">
-        {taskLists.length === 0 ? (
+        {accounts.length > 1 ? (
+          <ResourceAccountFilter
+            accounts={accounts}
+            value={resourceAccountFilter}
+            onChange={setResourceAccountFilter}
+          />
+        ) : null}
+        {visibleTaskLists.length === 0 ? (
           <EmptyState description="No task lists are available yet." title="No task lists" />
-        ) : taskLists.map((taskList) => (
+        ) : visibleTaskLists.map((taskList) => (
           <SettingsSwitch
             checked={selectedTaskLists.size === 0 || selectedTaskLists.has(taskList.id)}
             key={taskList.id}
             label={taskList.title}
             onChange={(checked) => updateSelectedTaskList(taskList.id, checked)}
-            trailing={<Badge>{taskList.activeTaskCount ?? taskList.taskCount ?? 0}</Badge>}
+            trailing={(
+              <span className="flex items-center gap-2">
+                {accounts.length > 1 && taskList.accountId ? <Badge tone="neutral">{accountName(accounts, taskList.accountId)}</Badge> : null}
+                <Badge>{taskList.activeTaskCount ?? taskList.taskCount ?? 0}</Badge>
+              </span>
+            )}
           />
         ))}
       </SettingsGroup>
 
       <SettingsGroup title="Calendars">
-        {calendarSources.length === 0 ? (
+        {accounts.length > 1 ? (
+          <ResourceAccountFilter
+            accounts={accounts}
+            value={resourceAccountFilter}
+            onChange={setResourceAccountFilter}
+          />
+        ) : null}
+        {visibleCalendarSources.length === 0 ? (
           <EmptyState description="No calendars are available yet." title="No calendars" />
-        ) : calendarSources.map((calendar) => (
+        ) : visibleCalendarSources.map((calendar) => (
           <SettingsSwitch
             checked={selectedCalendars.size === 0 ? calendar.selected : selectedCalendars.has(calendar.id)}
             description={calendar.timeZone ?? undefined}
             key={calendar.id}
             label={calendar.title}
             onChange={(checked) => updateSelectedCalendar(calendar.id, checked)}
-            trailing={<Badge>{calendar.eventCount ?? 0}</Badge>}
+            trailing={(
+              <span className="flex items-center gap-2">
+                {accounts.length > 1 && calendar.accountId ? <Badge tone="neutral">{accountName(accounts, calendar.accountId)}</Badge> : null}
+                <Badge>{calendar.eventCount ?? 0}</Badge>
+              </span>
+            )}
           />
         ))}
       </SettingsGroup>
+    </div>
+  );
+}
+
+function accountName(
+  accounts: GoogleStatusResponse["accounts"],
+  accountId: string
+): string {
+  const account = accounts.find((candidate) => candidate.accountId === accountId);
+  return account?.displayName || account?.email || "Account";
+}
+
+function ResourceAccountFilter({
+  accounts,
+  onChange,
+  value
+}: {
+  accounts: GoogleStatusResponse["accounts"];
+  onChange: (value: string) => void;
+  value: string;
+}): JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+      <Button
+        onClick={() => onChange("all")}
+        size="sm"
+        variant={value === "all" ? "primary" : "secondary"}
+      >
+        All accounts
+      </Button>
+      {accounts.map((account) => (
+        <Button
+          key={account.accountId}
+          onClick={() => onChange(account.accountId)}
+          size="sm"
+          variant={value === account.accountId ? "primary" : "secondary"}
+        >
+          {accountName(accounts, account.accountId)}
+        </Button>
+      ))}
     </div>
   );
 }

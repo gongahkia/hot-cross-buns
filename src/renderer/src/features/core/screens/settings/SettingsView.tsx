@@ -515,10 +515,10 @@ export function SettingsView({
     }
   }
 
-  async function disconnectGoogle(): Promise<void> {
+  async function disconnectGoogle(accountId?: string): Promise<void> {
     setRecoveryMessage(null);
 
-    const result = await window.hcb?.google.disconnect();
+    const result = await window.hcb?.google.disconnect(accountId ? { accountId } : {});
 
     if (result?.ok) {
       setRecoveryMessage("Google account disconnected.");

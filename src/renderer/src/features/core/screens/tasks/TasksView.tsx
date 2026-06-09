@@ -202,6 +202,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
           onDeleteTask={(taskId) => void deleteTask(taskId)}
           onDuplicateTask={duplicateTask}
           onMoveTask={moveTaskToList}
+          onMoveTaskRequest={(request) => { void source.moveTask(request); }}
           onOpenTask={selectTask}
           onRenameList={promptRenameTaskList}
           onSetListSort={setListSort}

@@ -32,6 +32,7 @@ export interface TaskViewModel {
   list: string;
   dueDate: string | null;
   dueLabel: string;
+  sortOrder?: number;
   updatedAt?: string;
   plannedStart?: string | null;
   plannedEnd?: string | null;

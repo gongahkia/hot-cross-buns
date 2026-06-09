@@ -16,7 +16,8 @@ import {
   Plus,
   Star,
   Target,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
@@ -517,6 +518,15 @@ function TaskListCheckbox({
   );
 }
 
+function googleAccountLabel(source: CoreViewModelSource, accountId?: string): string {
+  const account = source.googleStatus.accounts.find((candidate) => candidate.accountId === accountId);
+  return account?.displayName || account?.email || "Local";
+}
+
+function showAccountBadges(source: CoreViewModelSource): boolean {
+  return source.googleStatus.accounts.length > 1;
+}
+
 function dateOnlyFromLocalOffset(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -634,6 +644,7 @@ function TaskListColumn({
   const [dropActive, setDropActive] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const hasRows = tasks.length > 0 || completedTasks.length > 0;
+  const showAccounts = showAccountBadges(source);
 
   function handleDragOver(event: DragEvent<HTMLElement>): void {
     if (!list || !event.dataTransfer.types.includes(taskDragType)) {
@@ -674,6 +685,7 @@ function TaskListColumn({
     >
       <div className="relative flex items-center gap-2 px-4 py-3">
         <h2 className="min-w-0 flex-1 truncate text-[var(--text-xl)] font-medium text-text-primary">{title}</h2>
+        {showAccounts && list?.accountId ? <Badge tone="neutral">{googleAccountLabel(source, list.accountId)}</Badge> : null}
         {list ? (
           <IconButton
             aria-expanded={menuOpen}
@@ -722,12 +734,15 @@ function TaskListColumn({
               onToggleTask={onToggleTask}
               onAddSubtask={onAddSubtask}
               bulkSelected={bulkSelectedIds.has(task.id)}
+              bulkSelectedIds={bulkSelectedIds}
               onBulkSelectTask={onBulkSelectTask}
               scheduledBlock={scheduledBlocksByTask.get(task.id)}
               selected={selectedTaskId === task.id}
+              selectedTaskId={selectedTaskId}
               source={source}
               starred={starred.ids.has(task.id)}
               task={task}
+              showAccountBadge={showAccounts}
             />
           ))
         ) : null}
@@ -760,12 +775,15 @@ function TaskListColumn({
                     onToggleTask={onToggleTask}
                     onAddSubtask={onAddSubtask}
                     bulkSelected={bulkSelectedIds.has(task.id)}
+                    bulkSelectedIds={bulkSelectedIds}
                     onBulkSelectTask={onBulkSelectTask}
                     scheduledBlock={scheduledBlocksByTask.get(task.id)}
                     selected={selectedTaskId === task.id}
+                    selectedTaskId={selectedTaskId}
                     source={source}
                     starred={starred.ids.has(task.id)}
                     task={task}
+                    showAccountBadge={showAccounts}
                   />
                 ))
               : null}
@@ -826,33 +844,45 @@ function ListActionMenu({
 }
 
 function GoogleTaskRow({
+  bulkSelected,
+  bulkSelectedIds,
   onCreateList,
   onDeleteTask,
   onDuplicateTask,
   onMoveTask,
+  onMoveTaskRequest,
   onOpenTask,
   onToggleStar,
   onToggleTask,
   onAddSubtask,
+  onBulkSelectTask,
   scheduledBlock,
   selected,
+  selectedTaskId,
   source,
   starred,
-  task
+  task,
+  showAccountBadge
 }: {
+  bulkSelected: boolean;
+  bulkSelectedIds: ReadonlySet<string>;
   onCreateList: () => void;
   onDeleteTask: (taskId: string) => void;
   onDuplicateTask: (taskId: string) => void;
   onMoveTask: (taskId: string, listId: string) => void;
+  onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
   onToggleStar: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
   onAddSubtask: (task: TaskViewModel) => void;
+  onBulkSelectTask: (taskId: string, selected: boolean) => void;
   scheduledBlock?: ScheduledTaskBlockViewModel;
   selected: boolean;
+  selectedTaskId: string | null;
   source: CoreViewModelSource;
   starred: boolean;
   task: TaskViewModel;
+  showAccountBadge: boolean;
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
@@ -860,13 +890,172 @@ function GoogleTaskRow({
   const preview = taskPreview(task);
   const completed = task.status === "completed";
   const futureSnoozed = isFutureSnoozed(task);
+  const childTasks = task.subtasks
+    .map((subtask) => source.getTaskById(subtask.id))
+    .filter((subtask) => subtask.parentId === task.id);
+
+  return (
+    <div role="listitem">
+      <div
+        className={cx(
+          "group relative grid grid-cols-[24px_32px_minmax(0,1fr)_auto] gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
+          selected ? "bg-surface-0" : "hover:bg-surface-0",
+          futureSnoozed && "opacity-65"
+        )}
+        draggable
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenuPoint({ x: event.clientX, y: event.clientY });
+          setMenuOpen(true);
+        }}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData(taskDragType, task.id);
+        }}
+      >
+        <input
+          aria-label={`Select ${task.title}`}
+          checked={bulkSelected}
+          className="mt-2 size-4 accent-[var(--color-accent)]"
+          onChange={(event) => onBulkSelectTask(task.id, event.target.checked)}
+          type="checkbox"
+        />
+        <TaskCompletionButton completed={completed} onToggle={onToggleTask} task={task} />
+        <button
+          className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          onClick={() => onOpenTask(task.id)}
+          type="button"
+        >
+          <div className={cx(
+            "line-clamp-2 text-[var(--text-md)] font-medium",
+            completed ? "text-text-muted line-through" : "text-text-primary"
+          )}>{task.title}</div>
+          {preview ? (
+            <p className={cx(
+              "mt-0.5 line-clamp-2 text-[var(--text-sm)]",
+              completed ? "text-text-muted line-through" : "text-text-secondary"
+            )}>{preview}</p>
+          ) : null}
+          {scheduleLabel || task.dueDate || task.snoozeUntil || (showAccountBadge && task.accountId) ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {showAccountBadge && task.accountId ? (
+                <Badge tone="neutral">{googleAccountLabel(source, task.accountId)}</Badge>
+              ) : null}
+              {task.dueDate ? (
+                <Badge className="gap-1">
+                  <CalendarClock aria-hidden="true" size={12} />
+                  {task.dueLabel}
+                </Badge>
+              ) : null}
+              {scheduleLabel ? (
+                <Badge className="gap-1" tone={taskScheduleTone(scheduledBlock)}>
+                  <Target aria-hidden="true" size={12} />
+                  {scheduleLabel}
+                </Badge>
+              ) : null}
+              {task.snoozeUntil ? (
+                <Badge className="gap-1" tone={futureSnoozed ? "warning" : "neutral"}>
+                  <Clock aria-hidden="true" size={12} />
+                  {snoozeBadgeLabel(task.snoozeUntil)}
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
+        </button>
+        <div
+          className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          <IconButton
+            className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
+            icon={Star}
+            label={starred ? `Unstar ${task.title}` : `Star ${task.title}`}
+            onClick={() => onToggleStar(task.id)}
+            variant="ghost"
+          />
+          {menuOpen ? (
+            <TaskActionMenu
+              anchorPoint={menuPoint ?? undefined}
+              onClose={() => setMenuOpen(false)}
+              onAddSubtask={() => { onAddSubtask(task); setMenuOpen(false); }}
+              onCreateList={() => { onCreateList(); setMenuOpen(false); }}
+              onDelete={() => { onDeleteTask(task.id); setMenuOpen(false); }}
+              onDuplicate={() => { onDuplicateTask(task.id); setMenuOpen(false); }}
+              onMoveTask={(listId) => { onMoveTask(task.id, listId); setMenuOpen(false); }}
+              onMoveTaskRequest={(request) => { onMoveTaskRequest(request); setMenuOpen(false); }}
+              onOpen={() => { onOpenTask(task.id); setMenuOpen(false); }}
+              source={source}
+              task={task}
+            />
+          ) : null}
+        </div>
+      </div>
+      {childTasks.length > 0 ? (
+        <div className="ml-12 border-l border-border/70">
+          {childTasks.map((child) => (
+            <TaskChildRow
+              key={child.id}
+              onAddSubtask={onAddSubtask}
+              onCreateList={onCreateList}
+              onDeleteTask={onDeleteTask}
+              onDuplicateTask={onDuplicateTask}
+              onBulkSelectTask={onBulkSelectTask}
+              onMoveTask={onMoveTask}
+              onMoveTaskRequest={onMoveTaskRequest}
+              onOpenTask={onOpenTask}
+              onToggleTask={onToggleTask}
+              selected={selectedTaskId === child.id}
+              task={child}
+              selectedForBulk={bulkSelectedIds.has(child.id)}
+              showAccountBadge={showAccountBadge}
+              source={source}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TaskChildRow({
+  onAddSubtask,
+  onCreateList,
+  onDeleteTask,
+  onDuplicateTask,
+  onBulkSelectTask,
+  onMoveTask,
+  onMoveTaskRequest,
+  onOpenTask,
+  onToggleTask,
+  selected,
+  selectedForBulk,
+  showAccountBadge,
+  source,
+  task
+}: {
+  onAddSubtask: (task: TaskViewModel) => void;
+  onCreateList: () => void;
+  onDeleteTask: (taskId: string) => void;
+  onDuplicateTask: (taskId: string) => void;
+  onBulkSelectTask: (taskId: string, selected: boolean) => void;
+  onMoveTask: (taskId: string, listId: string) => void;
+  onMoveTaskRequest: (request: TaskMoveRequest) => void;
+  onOpenTask: (taskId: string) => void;
+  onToggleTask: (taskId: string) => void;
+  selected: boolean;
+  selectedForBulk: boolean;
+  showAccountBadge: boolean;
+  source: CoreViewModelSource;
+  task: TaskViewModel;
+}): JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const completed = task.status === "completed";
 
   return (
     <div
       className={cx(
-        "group relative grid grid-cols-[32px_minmax(0,1fr)_auto] gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
-        selected ? "bg-surface-0" : "hover:bg-surface-0",
-        futureSnoozed && "opacity-65"
+        "group relative grid grid-cols-[24px_28px_minmax(0,1fr)_auto] items-start gap-2 py-1.5 pl-3 pr-4 transition-colors duration-fast ease-hcb",
+        selected ? "bg-surface-0" : "hover:bg-surface-0"
       )}
       draggable
       onContextMenu={(event) => {
@@ -880,6 +1069,13 @@ function GoogleTaskRow({
       }}
       role="listitem"
     >
+      <input
+        aria-label={`Select ${task.title}`}
+        checked={selectedForBulk}
+        className="mt-2 size-4 accent-[var(--color-accent)]"
+        onChange={(event) => onBulkSelectTask(task.id, event.target.checked)}
+        type="checkbox"
+      />
       <TaskCompletionButton completed={completed} onToggle={onToggleTask} task={task} />
       <button
         className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -887,63 +1083,39 @@ function GoogleTaskRow({
         type="button"
       >
         <div className={cx(
-          "line-clamp-2 text-[var(--text-md)] font-medium",
+          "line-clamp-2 text-[var(--text-sm)] font-medium",
           completed ? "text-text-muted line-through" : "text-text-primary"
         )}>{task.title}</div>
-        {preview ? (
-          <p className={cx(
-            "mt-0.5 line-clamp-2 text-[var(--text-sm)]",
-            completed ? "text-text-muted line-through" : "text-text-secondary"
-          )}>{preview}</p>
-        ) : null}
-        {scheduleLabel || task.dueDate || task.snoozeUntil ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {task.dueDate ? (
-              <Badge className="gap-1">
-                <CalendarClock aria-hidden="true" size={12} />
-                {task.dueLabel}
-              </Badge>
-            ) : null}
-            {scheduleLabel ? (
-              <Badge className="gap-1" tone={taskScheduleTone(scheduledBlock)}>
-                <Target aria-hidden="true" size={12} />
-                {scheduleLabel}
-              </Badge>
-            ) : null}
-            {task.snoozeUntil ? (
-              <Badge className="gap-1" tone={futureSnoozed ? "warning" : "neutral"}>
-                <Clock aria-hidden="true" size={12} />
-                {snoozeBadgeLabel(task.snoozeUntil)}
-              </Badge>
-            ) : null}
+        {showAccountBadge && task.accountId ? (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <Badge tone="neutral">{googleAccountLabel(source, task.accountId)}</Badge>
           </div>
         ) : null}
       </button>
-      <div
-        className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
+      <button
+        aria-expanded={menuOpen}
+        aria-label={`Open ${task.title} task menu`}
+        className="mt-0.5 flex size-8 items-center justify-center rounded-full text-text-muted opacity-0 transition-opacity duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary group-hover:opacity-100 group-focus-within:opacity-100"
+        onClick={() => setMenuOpen((open) => !open)}
+        type="button"
       >
-        <IconButton
-          className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
-          icon={Star}
-          label={starred ? `Unstar ${task.title}` : `Star ${task.title}`}
-          onClick={() => onToggleStar(task.id)}
-          variant="ghost"
+        <MoreVertical aria-hidden="true" size={16} />
+      </button>
+      {menuOpen ? (
+        <TaskActionMenu
+          anchorPoint={menuPoint ?? undefined}
+          onClose={() => setMenuOpen(false)}
+          onAddSubtask={() => { onAddSubtask(task); setMenuOpen(false); }}
+          onCreateList={() => { onCreateList(); setMenuOpen(false); }}
+          onDelete={() => { onDeleteTask(task.id); setMenuOpen(false); }}
+          onDuplicate={() => { onDuplicateTask(task.id); setMenuOpen(false); }}
+          onMoveTask={(listId) => { onMoveTask(task.id, listId); setMenuOpen(false); }}
+          onMoveTaskRequest={(request) => { onMoveTaskRequest(request); setMenuOpen(false); }}
+          onOpen={() => { onOpenTask(task.id); setMenuOpen(false); }}
+          source={source}
+          task={task}
         />
-        {menuOpen ? (
-          <TaskActionMenu
-            anchorPoint={menuPoint ?? undefined}
-            onClose={() => setMenuOpen(false)}
-            onAddSubtask={() => { onAddSubtask(task); setMenuOpen(false); }}
-            onCreateList={() => { onCreateList(); setMenuOpen(false); }}
-            onDelete={() => { onDeleteTask(task.id); setMenuOpen(false); }}
-            onDuplicate={() => { onDuplicateTask(task.id); setMenuOpen(false); }}
-            onMoveTask={(listId) => { onMoveTask(task.id, listId); setMenuOpen(false); }}
-            onOpen={() => { onOpenTask(task.id); setMenuOpen(false); }}
-            source={source}
-            task={task}
-          />
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -956,6 +1128,7 @@ function TaskActionMenu({
   onDelete,
   onDuplicate,
   onMoveTask,
+  onMoveTaskRequest,
   onOpen,
   source,
   task
@@ -967,20 +1140,78 @@ function TaskActionMenu({
   onDelete: () => void;
   onDuplicate: () => void;
   onMoveTask: (listId: string) => void;
+  onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpen: () => void;
   source: CoreViewModelSource;
   task: TaskViewModel;
 }): JSX.Element {
+  const siblingTasks = source.largeTaskWindow
+    .filter((candidate) =>
+      candidate.listId === task.listId &&
+      candidate.parentId === task.parentId &&
+      candidate.status !== "deleted"
+    )
+    .sort((left, right) =>
+      (left.sortOrder ?? 0) - (right.sortOrder ?? 0) ||
+      (left.updatedAt ?? "").localeCompare(right.updatedAt ?? "") ||
+      left.title.localeCompare(right.title) ||
+      left.id.localeCompare(right.id)
+    );
+  const siblingIndex = siblingTasks.findIndex((candidate) => candidate.id === task.id);
+  const previousSibling = siblingIndex > 0 ? siblingTasks[siblingIndex - 1] : null;
+  const nextSibling = siblingIndex >= 0 ? siblingTasks[siblingIndex + 1] : null;
+  const rootParentCandidates = source.largeTaskWindow
+    .filter((candidate) =>
+      candidate.listId === task.listId &&
+      candidate.parentId === null &&
+      candidate.id !== task.id &&
+      candidate.status !== "deleted"
+    )
+    .sort((left, right) => left.title.localeCompare(right.title));
+
+  function moveWithinList(previousSiblingId: string | null): void {
+    onMoveTaskRequest({
+      id: task.id,
+      listId: task.listId,
+      parentId: task.parentId,
+      previousSiblingId
+    });
+  }
+
+  function promoteToRoot(): void {
+    onMoveTaskRequest({
+      id: task.id,
+      listId: task.listId,
+      parentId: null,
+      previousSiblingId: task.parentId
+    });
+  }
+
+  function makeSubtask(parentId: string): void {
+    onMoveTaskRequest({
+      id: task.id,
+      listId: task.listId,
+      parentId,
+      previousSiblingId: null
+    });
+  }
+
   return (
     <FloatingMenu anchorPoint={anchorPoint} onClose={onClose} width={320}>
       <MenuButton onClick={onOpen}>
         <Target aria-hidden="true" size={18} />
         Add deadline
       </MenuButton>
-      <MenuButton onClick={onAddSubtask}>
+      <MenuButton disabled={Boolean(task.parentId)} onClick={onAddSubtask}>
         <CornerDownRight aria-hidden="true" size={18} />
         Add a subtask
       </MenuButton>
+      {task.parentId ? (
+        <MenuButton onClick={promoteToRoot}>
+          <ChevronRight aria-hidden="true" size={18} />
+          Promote to root
+        </MenuButton>
+      ) : null}
       <MenuButton onClick={onDuplicate}>
         <Copy aria-hidden="true" size={18} />
         Duplicate
@@ -993,6 +1224,34 @@ function TaskActionMenu({
         <Trash2 aria-hidden="true" size={18} />
         Delete
       </MenuButton>
+      <MenuSeparator />
+      <MenuButton disabled={!previousSibling} onClick={() => moveWithinList(siblingIndex > 1 ? siblingTasks[siblingIndex - 2]?.id ?? null : null)}>
+        <ChevronDown aria-hidden="true" className="rotate-180" size={18} />
+        Move up
+      </MenuButton>
+      <MenuButton disabled={!nextSibling} onClick={() => moveWithinList(nextSibling?.id ?? null)}>
+        <ChevronDown aria-hidden="true" size={18} />
+        Move down
+      </MenuButton>
+      <MenuSeparator />
+      {task.parentId ? (
+        <MenuButton disabled>
+          <CornerDownRight aria-hidden="true" size={18} />
+          Subtasks cannot have children
+        </MenuButton>
+      ) : rootParentCandidates.length > 0 ? (
+        rootParentCandidates.slice(0, 8).map((parent) => (
+          <MenuButton key={parent.id} onClick={() => makeSubtask(parent.id)}>
+            <CornerDownRight aria-hidden="true" size={18} />
+            Make subtask of {parent.title}
+          </MenuButton>
+        ))
+      ) : (
+        <MenuButton disabled>
+          <CornerDownRight aria-hidden="true" size={18} />
+          No parent tasks
+        </MenuButton>
+      )}
       <MenuSeparator />
       {source.taskLists.map((list) => (
         <MenuButton

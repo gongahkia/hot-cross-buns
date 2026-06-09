@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CalendarEventRecurrence } from "@shared/ipc/contracts";
+import type { CalendarEventRecurrence, EventTemplate, TaskTemplate } from "@shared/ipc/contracts";
 import { CalendarPlus, CheckSquare, FileText, Gift, Search, X, type LucideIcon } from "lucide-react";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import {
@@ -66,6 +66,92 @@ function addMinutes(value: Date, minutes: number): Date {
 
 function toUtcWallClockIso(value: Date): string {
   return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), value.getHours(), value.getMinutes())).toISOString();
+}
+
+function dateOnlyFromDate(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function templateTextFields(template: TaskTemplate | EventTemplate | null): string[] {
+  if (!template) {
+    return [];
+  }
+
+  if ("dueExpression" in template) {
+    return [template.title, template.notes ?? "", template.dueExpression ?? ""];
+  }
+
+  return [
+    template.title,
+    template.notes ?? "",
+    template.location ?? "",
+    template.startExpression ?? "",
+    template.endExpression ?? ""
+  ];
+}
+
+function templatePromptLabels(template: TaskTemplate | EventTemplate | null): string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  const pattern = /{{\s*prompt:([^}]+)\s*}}/gi;
+
+  for (const field of templateTextFields(template)) {
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(field)) !== null) {
+      const label = (match[1] ?? "").trim();
+
+      if (label && !seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+    }
+  }
+
+  return labels;
+}
+
+function templateUsesClipboard(template: TaskTemplate | EventTemplate | null): boolean {
+  return templateTextFields(template).some((field) => /{{\s*clipboard\s*}}/i.test(field));
+}
+
+function expandTemplateText(
+  value: string | null | undefined,
+  context: { clipboardText: string; now: Date; promptValues: Record<string, string> }
+): string {
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(/{{\s*([^}]+)\s*}}/g, (_token, expression: string) => {
+    const trimmed = expression.trim();
+    const lower = trimmed.toLowerCase();
+
+    if (lower === "today") {
+      return dateOnlyFromDate(context.now);
+    }
+
+    if (lower === "clipboard") {
+      return context.clipboardText;
+    }
+
+    const offset = /^\+(\d{1,3})d$/.exec(lower);
+
+    if (offset) {
+      return dateOnlyFromDate(addDays(context.now, Number(offset[1])));
+    }
+
+    if (lower.startsWith("prompt:")) {
+      const label = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+      return context.promptValues[label] ?? "";
+    }
+
+    return "";
+  }).trim();
+}
+
+function parseTemplateEventExpression(expression: string, now: Date): Date | null {
+  return expression ? parseQuickAddEvent(`event ${expression}`, now).startDate : null;
 }
 
 function destinationMatch<T extends { id: string; title: string }>(
@@ -141,20 +227,77 @@ export function QuickAddDialog({
   const [selectedTaskListId, setSelectedTaskListId] = useState(source.taskLists[0]?.id ?? "");
   const [selectedCalendarId, setSelectedCalendarId] = useState(source.calendarSources[0]?.id ?? "");
   const [selectedNoteListId, setSelectedNoteListId] = useState(source.noteLists[0]?.id ?? "");
+  const [selectedTaskTemplateId, setSelectedTaskTemplateId] = useState("");
+  const [selectedEventTemplateId, setSelectedEventTemplateId] = useState("");
+  const [templatePromptValues, setTemplatePromptValues] = useState<Record<string, string>>({});
+  const [templateClipboardText, setTemplateClipboardText] = useState("");
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const parsedTask = useMemo(() => parseQuickAddTask(input), [input]);
   const parsedEvent = useMemo(() => parseQuickAddEvent(input), [input]);
+  const activeTaskTemplate = useMemo(
+    () => source.settings.taskTemplates.find((template) => template.id === selectedTaskTemplateId) ?? null,
+    [selectedTaskTemplateId, source.settings.taskTemplates]
+  );
+  const activeEventTemplate = useMemo(
+    () => source.settings.eventTemplates.find((template) => template.id === selectedEventTemplateId) ?? null,
+    [selectedEventTemplateId, source.settings.eventTemplates]
+  );
+  const activeTemplate = mode === "task" ? activeTaskTemplate : mode === "event" ? activeEventTemplate : null;
+  const activeTemplatePrompts = useMemo(() => templatePromptLabels(activeTemplate), [activeTemplate]);
+  const activeTemplateUsesClipboard = templateUsesClipboard(activeTemplate);
+  const templateNow = useMemo(() => new Date(), [selectedTaskTemplateId, selectedEventTemplateId]);
+  const templateTitle = expandTemplateText(activeTemplate?.title, {
+    clipboardText: templateClipboardText,
+    now: templateNow,
+    promptValues: templatePromptValues
+  });
+  const templateNotes = expandTemplateText(activeTemplate && "notes" in activeTemplate ? activeTemplate.notes : null, {
+    clipboardText: templateClipboardText,
+    now: templateNow,
+    promptValues: templatePromptValues
+  });
+  const templateTaskDueDate = activeTaskTemplate
+    ? parseQuickAddTask(expandTemplateText(activeTaskTemplate.dueExpression, {
+        clipboardText: templateClipboardText,
+        now: templateNow,
+        promptValues: templatePromptValues
+      }), templateNow).dueDate
+    : null;
+  const templateEventStart = activeEventTemplate
+    ? parseTemplateEventExpression(expandTemplateText(activeEventTemplate.startExpression, {
+        clipboardText: templateClipboardText,
+        now: templateNow,
+        promptValues: templatePromptValues
+      }), templateNow)
+    : null;
+  const templateEventEnd = activeEventTemplate
+    ? parseTemplateEventExpression(expandTemplateText(activeEventTemplate.endExpression, {
+        clipboardText: templateClipboardText,
+        now: templateEventStart ?? templateNow,
+        promptValues: templatePromptValues
+      }), templateEventStart ?? templateNow)
+    : null;
+  const templateEventLocation = expandTemplateText(activeEventTemplate?.location, {
+    clipboardText: templateClipboardText,
+    now: templateNow,
+    promptValues: templatePromptValues
+  });
   const hashHint = firstHashHint(input);
   const matchedTaskList = destinationMatch(source.taskLists, parsedTask.taskListHint);
   const matchedCalendar = destinationMatch(source.calendarSources, hashHint);
   const matchedNoteList = destinationMatch(source.noteLists, parsedTask.taskListHint);
-  const effectiveTaskListId = matchedTaskList?.id ?? selectedTaskListId;
-  const effectiveCalendarId = matchedCalendar?.id ?? selectedCalendarId;
+  const templateTaskListId = source.taskLists.some((list) => list.id === activeTaskTemplate?.listId) ? activeTaskTemplate?.listId ?? "" : "";
+  const templateCalendarId = source.calendarSources.some((calendar) => calendar.id === activeEventTemplate?.calendarId) ? activeEventTemplate?.calendarId ?? "" : "";
+  const effectiveTaskListId = matchedTaskList?.id ?? (templateTaskListId || selectedTaskListId);
+  const effectiveCalendarId = matchedCalendar?.id ?? (templateCalendarId || selectedCalendarId);
   const effectiveNoteListId = matchedNoteList?.id ?? selectedNoteListId;
   const eventTitle = stripHashToken(parsedEvent.summary, hashHint);
   const noteTitle = parsedTask.title || input.trim();
   const taskTitle = parsedTask.title;
-  const title = mode === "event" || mode === "birthday" ? eventTitle : mode === "note" ? noteTitle : taskTitle;
+  const effectiveTaskTitle = taskTitle || templateTitle;
+  const effectiveEventTitle = eventTitle || (mode === "event" ? templateTitle : "");
+  const title = mode === "event" || mode === "birthday" ? effectiveEventTitle : mode === "note" ? noteTitle : effectiveTaskTitle;
   const canSubmit =
     title.trim().length > 0 &&
     (mode === "event" || mode === "birthday" ? effectiveCalendarId.length > 0 : mode === "note" ? true : effectiveTaskListId.length > 0);
@@ -165,6 +308,11 @@ export function QuickAddDialog({
     }
 
     setInput("");
+    setSelectedTaskTemplateId("");
+    setSelectedEventTemplateId("");
+    setTemplatePromptValues({});
+    setTemplateClipboardText("");
+    setTemplateError(null);
     window.requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
@@ -174,8 +322,36 @@ export function QuickAddDialog({
     setSelectedNoteListId((current) => current || (source.noteLists[0]?.id ?? ""));
   }, [source.calendarSources, source.noteLists, source.taskLists]);
 
+  useEffect(() => {
+    setTemplatePromptValues({});
+    setTemplateClipboardText("");
+    setTemplateError(null);
+  }, [selectedTaskTemplateId, selectedEventTemplateId]);
+
   if (!open) {
     return null;
+  }
+
+  async function loadTemplateClipboard(): Promise<void> {
+    setTemplateError(null);
+
+    if (!navigator.clipboard?.readText) {
+      setTemplateError("Clipboard access is unavailable.");
+      return;
+    }
+
+    try {
+      setTemplateClipboardText(await navigator.clipboard.readText());
+    } catch {
+      setTemplateError("Clipboard access was blocked.");
+    }
+  }
+
+  function setTemplatePrompt(label: string, value: string): void {
+    setTemplatePromptValues((current) => ({
+      ...current,
+      [label]: value
+    }));
   }
 
   function submit(): void {
@@ -186,10 +362,10 @@ export function QuickAddDialog({
     if (mode === "task") {
       onSubmit({
         mode,
-        title: taskTitle,
-        dueDate: parsedTask.dueDate ?? "",
+        title: effectiveTaskTitle,
+        dueDate: parsedTask.dueDate ?? templateTaskDueDate ?? "",
         listId: effectiveTaskListId,
-        notes: ""
+        notes: templateNotes
       });
       return;
     }
@@ -205,21 +381,25 @@ export function QuickAddDialog({
     }
 
     const fallbackStart = new Date();
-    const start = parsedEvent.startDate ?? fallbackStart;
+    const start = parsedEvent.startDate ?? templateEventStart ?? fallbackStart;
     const allDay = mode === "birthday" || parsedEvent.isAllDay;
-    const end = allDay
+    let end = allDay
       ? addDays(new Date(start.getFullYear(), start.getMonth(), start.getDate()), 1)
-      : parsedEvent.endDate ?? addMinutes(start, 60);
+      : parsedEvent.endDate ?? templateEventEnd ?? addMinutes(start, 60);
+
+    if (!allDay && end <= start) {
+      end = addDays(end, 1);
+    }
 
     onSubmit({
       mode,
-      title: eventTitle,
+      title: effectiveEventTitle,
       calendarId: effectiveCalendarId,
       startsAt: allDay ? `${toDateInput(start)}T00:00:00.000Z` : toUtcWallClockIso(start),
       endsAt: allDay ? `${toDateInput(end)}T00:00:00.000Z` : toUtcWallClockIso(end),
       allDay,
-      location: mode === "birthday" ? "" : parsedEvent.location ?? "",
-      notes: "",
+      location: mode === "birthday" ? "" : parsedEvent.location ?? templateEventLocation,
+      notes: templateNotes,
       recurrence: mode === "birthday" ? null : parsedEvent.recurrence
     });
   }
