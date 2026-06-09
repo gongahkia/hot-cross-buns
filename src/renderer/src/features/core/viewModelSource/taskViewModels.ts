@@ -159,6 +159,7 @@ export function stableTaskViewModel(
       : [];
   const viewModel: TaskViewModel = {
     id: task.id,
+    ...(task.accountId === undefined ? {} : { accountId: task.accountId }),
     listId: task.listId,
     parentId: task.parentId ?? null,
     title: task.title,
@@ -191,6 +192,7 @@ function taskViewModelSignature(
 ): string {
   return [
     task.id,
+    task.accountId ?? "",
     task.listId,
     task.parentId ?? "",
     task.title,

@@ -52,6 +52,7 @@ export interface TaskRow extends Record<string, unknown> {
 
 export interface CalendarListRow extends Record<string, unknown> {
   id: string;
+  accountId?: string;
   title: string;
   selected: number;
   timeZone: string | null;

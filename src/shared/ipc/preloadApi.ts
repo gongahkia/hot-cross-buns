@@ -122,6 +122,8 @@ import type {
   LocalPointerRepairResponse,
   UndoApplyResponse,
   UndoStackStatusResponse,
+  TaskBulkMutationResponse,
+  TaskBulkRescheduleRequest,
   TaskCompletionRequest,
   TaskCreateRequest,
   TaskDeleteRequest,
@@ -158,6 +160,7 @@ export interface HcbApi {
     complete: (request: TaskCompletionRequest) => Promise<HcbResult<TaskDetail>>;
     reopen: (request: TaskCompletionRequest) => Promise<HcbResult<TaskDetail>>;
     move: (request: TaskMoveRequest) => Promise<HcbResult<TaskDetail>>;
+    bulkReschedule: (request: TaskBulkRescheduleRequest) => Promise<HcbResult<TaskBulkMutationResponse>>;
     delete: (request: TaskDeleteRequest) => Promise<HcbResult<MutationAck>>;
     createTaskList: (request: TaskListCreateRequest) => Promise<HcbResult<TaskListSummary>>;
     renameTaskList: (request: TaskListRenameRequest) => Promise<HcbResult<TaskListSummary>>;

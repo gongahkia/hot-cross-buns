@@ -46,12 +46,14 @@ export function createPlaceholderControlServices(
       status: (): GoogleStatusResponse => ({
         oauthClientConfigured: false,
         clientId: null,
-        hasClientSecret: false
+        hasClientSecret: false,
+        accounts: []
       }),
       saveOAuthClient: () => ({
         oauthClientConfigured: false,
         clientId: null,
-        hasClientSecret: false
+        hasClientSecret: false,
+        accounts: []
       }),
       beginOAuth: () => {
         throw new Error("Google OAuth is unavailable in placeholder services.");
@@ -59,7 +61,8 @@ export function createPlaceholderControlServices(
       disconnect: () => ({
         oauthClientConfigured: false,
         clientId: null,
-        hasClientSecret: false
+        hasClientSecret: false,
+        accounts: []
       })
     },
     settings: {

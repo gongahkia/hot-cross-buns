@@ -36,6 +36,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       const rows = this.connection.query<TaskListRow>(
         `SELECT
            lists.id AS id,
+           lists.account_id AS accountId,
            lists.title AS title,
            lists.updated_at AS updatedAt,
            COUNT(tasks.id) AS taskCount,

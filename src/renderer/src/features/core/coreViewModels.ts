@@ -24,6 +24,7 @@ export interface TaskSubtaskViewModel {
 
 export interface TaskViewModel {
   id: string;
+  accountId?: string;
   listId: string;
   parentId: string | null;
   title: string;
@@ -62,6 +63,7 @@ export interface TaskFilterViewModel {
 
 export interface CalendarEventViewModel {
   id: string;
+  accountId?: string;
   eventId: string;
   hcbKind?: "birthday";
   status?: "confirmed" | "tentative" | "cancelled";

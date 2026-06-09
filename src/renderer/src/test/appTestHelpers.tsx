@@ -291,6 +291,22 @@ export function connectedGoogleStatus(overrides: Partial<GoogleStatusResponse> =
       lastAuthenticatedAt: now,
       updatedAt: now
     },
+    accounts: [
+      {
+        accountId: "google:test-account",
+        googleAccountId: "test-account",
+        email: "planner@example.com",
+        displayName: "Planner Test",
+        connectionState: "connected",
+        grantedScopes: [
+          "https://www.googleapis.com/auth/tasks",
+          "https://www.googleapis.com/auth/calendar"
+        ],
+        missingScopes: [],
+        lastAuthenticatedAt: now,
+        updatedAt: now
+      }
+    ],
     ...overrides
   };
 }

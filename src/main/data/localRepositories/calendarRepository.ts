@@ -49,6 +49,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       const rows = this.connection.query<CalendarListRow>(
         `SELECT
            calendars.id AS id,
+           calendars.account_id AS accountId,
            calendars.summary AS title,
            calendars.is_selected AS selected,
            calendars.time_zone AS timeZone,

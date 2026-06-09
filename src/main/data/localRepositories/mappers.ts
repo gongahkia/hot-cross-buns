@@ -75,6 +75,7 @@ function conferenceTextLimit(key: keyof CalendarConference & string): number {
 export function taskListSummary(row: TaskListRow): TaskListSummary {
   return {
     id: row.id,
+    ...(row.accountId === undefined ? {} : { accountId: row.accountId }),
     title: row.title,
     updatedAt: row.updatedAt,
     taskCount: row.taskCount,
@@ -87,6 +88,7 @@ export function taskSummary(row: TaskRow): TaskSummary {
 
   return {
     id: row.id,
+    ...(row.accountId === undefined ? {} : { accountId: row.accountId }),
     listId: row.listId,
     title: row.title,
     status,
@@ -130,6 +132,7 @@ export function taskDetail(row: TaskRow): TaskDetail {
 export function calendarListSummary(row: CalendarListRow): CalendarListSummary {
   return {
     id: row.id,
+    ...(row.accountId === undefined ? {} : { accountId: row.accountId }),
     title: truncateText(row.title, textLimits.calendarTitle),
     selected: row.selected === 1,
     timeZone: truncateNullableText(row.timeZone, textLimits.timeZone),
@@ -143,6 +146,7 @@ export function calendarListSummary(row: CalendarListRow): CalendarListSummary {
 export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummary {
   return {
     id: row.id,
+    accountId: row.accountId,
     eventId: row.eventId,
     linkedTaskId: row.linkedTaskId ?? undefined,
     hcbKind: row.hcbKind === "birthday" ? "birthday" : undefined,
