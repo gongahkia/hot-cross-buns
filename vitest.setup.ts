@@ -500,7 +500,25 @@ const hcbApi: HcbApi = {
         page: {
           limit: request.limit ?? 20,
           totalKnown: 0
+        },
+        diagnostics: {
+          mode: request.mode ?? "lexical",
+          semanticEnabled: false,
+          indexedCount: 0,
+          staleCount: 0,
+          modelId: "hcb-local-hash-384"
         }
+      })
+    )
+  },
+  duplicates: {
+    cleanup: vi.fn(async (request) =>
+      ok({
+        id: request.winnerId,
+        kind: request.kind,
+        loserIds: request.loserIds,
+        queued: false,
+        revision: now
       })
     )
   },
@@ -654,7 +672,17 @@ const hcbApi: HcbApi = {
         rawGoogleDiagnosticsEnabled: false,
         savedSearchViews: [],
         pinnedSavedSearchViewIds: [],
-        savedTaskViews: []
+        savedTaskViews: [],
+        semanticSearchEnabled: false,
+        semanticSearchMode: "lexical" as const,
+        embeddingModelId: "hcb-local-hash-384",
+        llmEnabled: false,
+        llmProvider: "ollama" as const,
+        llmEndpoint: "http://127.0.0.1:11434",
+        llmModel: "llama3.1",
+        llmAllowRemoteEndpoint: false,
+        agentActionTrayEnabled: true,
+        webhooksEnabled: false
       })
     ),
     update: vi.fn(async (request) =>
@@ -739,7 +767,17 @@ const hcbApi: HcbApi = {
         rawGoogleDiagnosticsEnabled: request.rawGoogleDiagnosticsEnabled ?? false,
         savedSearchViews: request.savedSearchViews ?? [],
         pinnedSavedSearchViewIds: request.pinnedSavedSearchViewIds ?? [],
-        savedTaskViews: request.savedTaskViews ?? []
+        savedTaskViews: request.savedTaskViews ?? [],
+        semanticSearchEnabled: request.semanticSearchEnabled ?? false,
+        semanticSearchMode: request.semanticSearchMode ?? "lexical",
+        embeddingModelId: request.embeddingModelId ?? "hcb-local-hash-384",
+        llmEnabled: request.llmEnabled ?? false,
+        llmProvider: request.llmProvider ?? "ollama",
+        llmEndpoint: request.llmEndpoint ?? "http://127.0.0.1:11434",
+        llmModel: request.llmModel ?? "llama3.1",
+        llmAllowRemoteEndpoint: request.llmAllowRemoteEndpoint ?? false,
+        agentActionTrayEnabled: request.agentActionTrayEnabled ?? true,
+        webhooksEnabled: request.webhooksEnabled ?? false
       })
     ),
     recoveryAction: vi.fn(async (request) =>
@@ -830,6 +868,136 @@ const hcbApi: HcbApi = {
         permissionMode: request.permissionMode ?? "read-only",
         port: request.port ?? 0,
         tokenState: "not_configured" as const
+      })
+    )
+  },
+  agent: {
+    listActions: vi.fn(async (request = {}) =>
+      ok({
+        items: [],
+        page: {
+          limit: request.limit ?? 50,
+          totalKnown: 0
+        }
+      })
+    ),
+    applyAction: vi.fn(async (request) =>
+      ok({
+        action: {
+          id: request.id,
+          status: "applied" as const,
+          toolName: "planner.create_task",
+          summary: "planner.create_task: test",
+          createdAt: now,
+          expiresAt: later,
+          updatedAt: now,
+          appliedAt: now,
+          errorMessage: null
+        }
+      })
+    ),
+    rejectAction: vi.fn(async (request) =>
+      ok({
+        action: {
+          id: request.id,
+          status: "rejected" as const,
+          toolName: "planner.create_task",
+          summary: "planner.create_task: test",
+          createdAt: now,
+          expiresAt: later,
+          updatedAt: now,
+          appliedAt: null,
+          errorMessage: null
+        }
+      })
+    ),
+    clearExpired: vi.fn(async () => ok({ cleared: 0 }))
+  },
+  webhooks: {
+    list: vi.fn(async (request = {}) =>
+      ok({
+        items: [],
+        page: {
+          limit: request.limit ?? 50,
+          totalKnown: 0
+        }
+      })
+    ),
+    upsert: vi.fn(async (request) =>
+      ok({
+        id: request.id ?? "webhook:test",
+        queued: false,
+        revision: now,
+        subscription: {
+          id: request.id ?? "webhook:test",
+          url: request.url,
+          events: request.events,
+          enabled: request.enabled,
+          includePrivateBodies: request.includePrivateBodies ?? false,
+          createdAt: now,
+          updatedAt: now,
+          lastDeliveryAt: null,
+          lastError: null
+        }
+      })
+    ),
+    delete: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now })),
+    test: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now }))
+  },
+  chat: {
+    listSessions: vi.fn(async (request = {}) =>
+      ok({
+        items: [],
+        page: {
+          limit: request.limit ?? 50,
+          totalKnown: 0
+        }
+      })
+    ),
+    listMessages: vi.fn(async (request) =>
+      ok({
+        items: [],
+        page: {
+          limit: request.limit ?? 50,
+          totalKnown: 0
+        }
+      })
+    ),
+    send: vi.fn(async (request) =>
+      ok({
+        session: {
+          id: request.sessionId ?? "chat:test",
+          title: request.message,
+          createdAt: now,
+          updatedAt: now
+        },
+        userMessage: {
+          id: "chat-message:user",
+          sessionId: request.sessionId ?? "chat:test",
+          role: "user" as const,
+          content: request.message,
+          createdAt: now
+        },
+        assistantMessage: {
+          id: "chat-message:assistant",
+          sessionId: request.sessionId ?? "chat:test",
+          role: "assistant" as const,
+          content: "Test assistant response.",
+          createdAt: now
+        },
+        provider: "local-disabled",
+        proposedActionIds: []
+      })
+    ),
+    clear: vi.fn(async () => ok({ cleared: 0 })),
+    providerHealth: vi.fn(async () =>
+      ok({
+        enabled: false,
+        provider: "ollama",
+        endpoint: "http://127.0.0.1:11434",
+        remoteAllowed: false,
+        ok: true,
+        message: "LLM provider is disabled."
       })
     )
   },

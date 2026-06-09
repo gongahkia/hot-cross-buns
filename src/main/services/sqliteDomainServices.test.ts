@@ -5,10 +5,13 @@ import { pathToFileURL } from "node:url";
 import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
 import {
+  LocalAgentRepository,
+  LocalChatRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository,
-  LocalUndoRepository
+  LocalUndoRepository,
+  LocalWebhookRepository
 } from "../data/localRepositories";
 import {
   createTemporarySqliteConnection,
@@ -34,11 +37,17 @@ function createTestServices() {
   const plannerRepository = new LocalPlannerRepository(temp.connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(temp.connection);
   const undoRepository = new LocalUndoRepository(temp.connection);
+  const agentRepository = new LocalAgentRepository(temp.connection);
+  const chatRepository = new LocalChatRepository(temp.connection);
+  const webhookRepository = new LocalWebhookRepository(temp.connection);
   const syncRepository = new GoogleSyncRepository(temp.connection);
   const domain = createSqliteDomainServices({
     plannerRepository,
     settingsRepository,
     undoRepository,
+    agentRepository,
+    chatRepository,
+    webhookRepository,
     syncRepository
   });
 
@@ -47,6 +56,9 @@ function createTestServices() {
     plannerRepository,
     settingsRepository,
     undoRepository,
+    agentRepository,
+    chatRepository,
+    webhookRepository,
     syncRepository,
     performanceRepository
   };
@@ -1935,6 +1947,214 @@ describe("SQLite-backed domain services", () => {
     expect((await domain.planner.getTask({ id: task.id })).tags).toEqual([]);
     expect((await domain.planner.getCalendarEvent({ id: event.id })).tags).toEqual([]);
     expect((await domain.planner.getNote({ id: note.id })).tags).toEqual(["ideas"]);
+  });
+
+  it("coalesces bulk tag writes into one undo entry across tasks", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const second = await domain.planner.createTask({
+      title: "Second tagged task",
+      notes: "",
+      dueDate: "2026-05-22",
+      listId: "acct-1:task-list:inbox"
+    });
+    const tag = await domain.planner.createTag({ name: "focus", color: "#123456" });
+    const taskIds = ["acct-1:task:inbox:task-1", second.id];
+
+    await domain.planner.bulkApplyTags({
+      tagIds: [tag.id],
+      entityKind: "task",
+      entityIds: taskIds,
+      mode: "add"
+    });
+
+    const rows = testConnection().query<{
+      actionKind: string;
+      label: string;
+      resourceKind: string;
+      resourceId: string | null;
+      undoPayloadJson: string;
+    }>(
+      `SELECT action_kind AS actionKind,
+              label,
+              resource_kind AS resourceKind,
+              resource_id AS resourceId,
+              undo_payload_json AS undoPayloadJson
+       FROM local_undo_entries
+       WHERE action_kind = 'tag.bulk_apply'
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1;`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      label: "Bulk apply tags",
+      resourceKind: "bulk",
+      resourceId: "tags:task"
+    });
+    expect(JSON.parse(rows[0]!.undoPayloadJson)).toMatchObject({
+      version: 2,
+      resourceKind: "bulk",
+      changes: expect.arrayContaining([
+        expect.objectContaining({ resourceId: taskIds[0] }),
+        expect.objectContaining({ resourceId: taskIds[1] })
+      ])
+    });
+    expect((await domain.planner.getTask({ id: taskIds[0] })).tags).toContain("focus");
+    expect((await domain.planner.getTask({ id: taskIds[1] })).tags).toContain("focus");
+
+    await domain.undo.undo();
+    expect((await domain.planner.getTask({ id: taskIds[0] })).tags).toEqual([]);
+    expect((await domain.planner.getTask({ id: taskIds[1] })).tags).toEqual([]);
+
+    await domain.undo.redo();
+    expect((await domain.planner.getTask({ id: taskIds[0] })).tags).toEqual(["focus"]);
+    expect((await domain.planner.getTask({ id: taskIds[1] })).tags).toEqual(["focus"]);
+  });
+
+  it("merges duplicate tasks through the domain and restores both rows through grouped undo", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const winnerId = "acct-1:task:inbox:task-1";
+    const loser = await domain.planner.createTask({
+      title: "Draft inbox triage rules",
+      notes: "Duplicate note",
+      dueDate: "2026-05-22",
+      listId: "acct-1:task-list:inbox",
+      priority: "high",
+      durationMinutes: 45,
+      tags: ["dup"]
+    });
+
+    const result = await domain.planner.cleanupDuplicates({
+      kind: "task",
+      winnerId,
+      loserIds: [loser.id]
+    });
+
+    expect(result).toMatchObject({ id: winnerId, kind: "task", loserIds: [loser.id], queued: true });
+    expect(await domain.planner.getTask({ id: winnerId })).toMatchObject({
+      notes: "Local search should find task notes.\n\n--- merged duplicate ---\n\nDuplicate note",
+      priority: "high",
+      durationMinutes: 45,
+      tags: ["dup"]
+    });
+    expect(() => domain.planner.getTask({ id: loser.id })).toThrow("Task was not found.");
+    expect(await domain.undo.status()).toMatchObject({
+      canUndo: true,
+      undoLabel: "Merge duplicate group"
+    });
+
+    await domain.undo.undo();
+    expect(await domain.planner.getTask({ id: winnerId })).toMatchObject({
+      notes: "Local search should find task notes.",
+      priority: "none",
+      durationMinutes: null,
+      tags: []
+    });
+    expect(await domain.planner.getTask({ id: loser.id })).toMatchObject({
+      notes: "Duplicate note",
+      priority: "high",
+      durationMinutes: 45,
+      tags: ["dup"]
+    });
+  });
+
+  it("persists pending agent actions and rejects them through the tray service", async () => {
+    const { domain, agentRepository } = createTestServices();
+    const id = agentRepository.create({
+      toolName: "planner.create_task",
+      argumentsObject: { title: "Agent task" },
+      preview: { message: "Create task", title: "Agent task" },
+      permissionMode: "confirm-writes",
+      credentialRevision: "rev-1",
+      clientKey: "cli",
+      createdAt: now,
+      expiresAt: "2026-05-23T00:00:00.000Z"
+    });
+
+    expect(await domain.agent.listActions({ statuses: ["pending"], limit: 10 })).toMatchObject({
+      items: [
+        expect.objectContaining({
+          id,
+          status: "pending",
+          toolName: "planner.create_task"
+        })
+      ]
+    });
+
+    const rejected = await domain.agent.rejectAction({ id });
+    expect(rejected.action).toMatchObject({ id, status: "rejected" });
+    expect((await domain.agent.listActions({ statuses: ["pending"], limit: 10 })).items).toEqual([]);
+    expect((await domain.agent.listActions({ statuses: ["rejected"], limit: 10 })).items).toEqual([
+      expect.objectContaining({ id, status: "rejected" })
+    ]);
+  });
+
+  it("validates webhook endpoints and stores loopback subscriptions", async () => {
+    const { domain } = createTestServices();
+
+    await expect(domain.webhooks.upsert({
+      url: "https://example.com/hcb",
+      events: ["sync.completed"],
+      enabled: true
+    })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    const created = await domain.webhooks.upsert({
+      url: "http://127.0.0.1:49321/hcb",
+      events: ["sync.completed", "task.created"],
+      enabled: true,
+      includePrivateBodies: false
+    });
+    expect(created.subscription).toMatchObject({
+      url: "http://127.0.0.1:49321/hcb",
+      events: ["sync.completed", "task.created"],
+      enabled: true,
+      includePrivateBodies: false
+    });
+    expect((await domain.webhooks.list({ limit: 10 })).items).toEqual([
+      expect.objectContaining({ id: created.id })
+    ]);
+
+    await domain.webhooks.delete({ id: created.id });
+    expect((await domain.webhooks.list({ limit: 10 })).items).toEqual([]);
+  });
+
+  it("indexes local semantic search and stores local-disabled chat sessions", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    await domain.planner.createNote({
+      title: "Cache-first startup",
+      body: "Renderer should paint from SQLite before fresh sync completes."
+    });
+    await domain.settings.update({ semanticSearchEnabled: true });
+
+    const semantic = await domain.planner.search({
+      query: "cache startup",
+      mode: "semantic",
+      limit: 10
+    });
+    expect(semantic.diagnostics).toMatchObject({
+      mode: "semantic",
+      semanticEnabled: true,
+      modelId: "hcb-local-hash-384"
+    });
+    expect(semantic.diagnostics?.indexedCount ?? 0).toBeGreaterThan(0);
+    expect(semantic.items.length).toBeGreaterThan(0);
+
+    const sent = await domain.chat.send({ message: "cache startup" });
+    expect(sent.provider).toBe("local-disabled");
+    expect(sent.assistantMessage.content).toContain("Local planner context is available.");
+    expect(await domain.chat.listMessages({ sessionId: sent.session.id, limit: 10 })).toMatchObject({
+      items: [
+        expect.objectContaining({ role: "user", content: "cache startup" }),
+        expect.objectContaining({ role: "assistant" })
+      ]
+    });
+    expect(await domain.chat.providerHealth()).toMatchObject({
+      enabled: false,
+      provider: "ollama",
+      ok: true
+    });
   });
 
   it("uses the calendar visible-range index for calendar id and start/end paths", () => {

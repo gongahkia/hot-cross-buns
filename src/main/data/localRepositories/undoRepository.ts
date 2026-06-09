@@ -671,7 +671,7 @@ export class LocalUndoRepository {
   }
 }
 
-function payloadFromChange(input: UndoChangeInput, target: JsonValue, opposite: JsonValue): UndoPayload {
+function payloadFromChange(input: UndoChangeInput, target: JsonValue, opposite: JsonValue): UndoSinglePayload {
   return {
     version: 1,
     actionKind: input.actionKind,

@@ -732,7 +732,16 @@ function minIso(values: ReadonlyArray<string | null>): string | null {
   return dates.length === 0 ? null : dates.sort()[0] ?? null;
 }
 
-function highestPriority(values: readonly NonNullable<ReturnType<LocalPlannerRepository["getTask"]>["priority"]>[]) {
+type TaskPriority = NonNullable<ReturnType<LocalPlannerRepository["getTask"]>["priority"]>;
+
+function highestPriority(values: ReadonlyArray<TaskPriority | null | undefined>): TaskPriority {
   const order = { none: 0, low: 1, medium: 2, high: 3 };
-  return values.reduce((best, value) => order[value] > order[best] ? value : best, "none" as const);
+  let best: TaskPriority = "none";
+  for (const value of values) {
+    const priority: TaskPriority = value ?? "none";
+    if (order[priority] > order[best]) {
+      best = priority;
+    }
+  }
+  return best;
 }

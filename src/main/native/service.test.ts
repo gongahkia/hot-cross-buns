@@ -112,6 +112,16 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     savedSearchViews: [],
     pinnedSavedSearchViewIds: [],
     savedTaskViews: [],
+    semanticSearchEnabled: false,
+    semanticSearchMode: "lexical",
+    embeddingModelId: "hcb-local-hash-384",
+    llmEnabled: false,
+    llmProvider: "ollama",
+    llmEndpoint: "http://127.0.0.1:11434",
+    llmModel: "llama3.1",
+    llmAllowRemoteEndpoint: false,
+    agentActionTrayEnabled: true,
+    webhooksEnabled: false,
     ...overrides
   };
 }

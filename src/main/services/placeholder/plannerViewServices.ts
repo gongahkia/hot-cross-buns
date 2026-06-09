@@ -785,7 +785,7 @@ export function createPlaceholderPlannerViewService(
             ...response,
             diagnostics: {
               mode: request.mode,
-              semanticEnabled: request.mode !== "lexical",
+              semanticEnabled: true,
               indexedCount: results.length,
               staleCount: 0,
               modelId: "placeholder"
