@@ -526,7 +526,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
     const master = this.findCalendarEventRow(selected.eventId);
 
     if (!master?.recurrenceRule) {
-      throw validationFailure("Future recurring edits need the original recurring series.");
+      throw validationFailure(futureRecurringEditMissingMasterMessage);
     }
 
     requireRemoteRecurringMaster(master);
@@ -684,7 +684,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
     const master = this.findCalendarEventRow(selected.eventId);
 
     if (!master?.recurrenceRule) {
-      throw validationFailure("Future recurring delete needs the original recurring series.");
+      throw validationFailure(futureRecurringDeleteMissingMasterMessage);
     }
 
     requireRemoteRecurringMaster(master);
@@ -888,6 +888,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
 
     return row;
   }
+}
+
+function isMissingMasterFutureScopeTarget(event: CalendarEventRow): boolean {
+  return Boolean(event.recurringEventId) &&
+    event.id === event.eventId &&
+    !event.recurrenceRule;
 }
 
 function validateRecurringWriteScope(

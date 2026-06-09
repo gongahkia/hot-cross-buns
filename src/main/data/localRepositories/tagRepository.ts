@@ -63,6 +63,14 @@ interface AutoTagChange extends AutoTagCandidate {
   nextEventColorId?: string | null;
 }
 
+interface DuplicateCleanupMutationRow extends Record<string, unknown> {
+  id: string;
+  resourceId: string;
+  operation: string;
+  payloadJson: string;
+  createdAt: string;
+}
+
 export class TagLocalRepository extends SearchLocalRepository {
   listTags(request: TagListRequest): TagListResponse {
     return this.measureSqlite("tags.list", () => {
@@ -401,31 +409,58 @@ export class TagLocalRepository extends SearchLocalRepository {
   }): void {
     const resourceType = input.kind === "event" ? "event" : "task";
     const ids = [input.winnerId, ...input.loserIds];
-    const rows = this.connection.query<{ id: string; payloadJson: string }>(
-      `SELECT id, payload_json AS payloadJson
+    const rows = this.connection.query<DuplicateCleanupMutationRow>(
+      `SELECT id,
+              resource_id AS resourceId,
+              operation,
+              payload_json AS payloadJson,
+              created_at AS createdAt
        FROM google_pending_mutations
        WHERE resource_type = ?
          AND resource_id IN (${ids.map(() => "?").join(", ")})
-         AND status IN ('pending', 'failed');`,
+         AND status IN ('pending', 'failed')
+       ORDER BY created_at ASC, id ASC;`,
       [resourceType, ...ids]
     );
     const now = new Date().toISOString();
+    const compactedIds = duplicateCleanupCompactedMutationIds(rows, input);
+    const cleanupMetadata = {
+      cleanupGroupId: input.cleanupGroupId,
+      cleanupKind: input.kind,
+      cleanupWinnerId: input.winnerId,
+      cleanupLoserIds: input.loserIds
+    };
 
-    this.connection.executeTransaction(rows.map((row) => ({
-      kind: "run" as const,
-      sql: "UPDATE google_pending_mutations SET payload_json = ?, updated_at = ? WHERE id = ?;",
-      params: [
-        JSON.stringify({
-          ...parsePayloadObject(row.payloadJson),
-          cleanupGroupId: input.cleanupGroupId,
-          cleanupKind: input.kind,
-          cleanupWinnerId: input.winnerId,
-          cleanupLoserIds: input.loserIds
-        }),
-        now,
-        row.id
-      ]
-    })));
+    this.connection.executeTransaction(rows.map((row) => {
+      const compacted = compactedIds.has(row.id);
+      const payload = JSON.stringify({
+        ...parsePayloadObject(row.payloadJson),
+        ...cleanupMetadata,
+        ...(compacted ? { cleanupCompacted: true } : {})
+      });
+
+      return compacted
+        ? {
+            kind: "run" as const,
+            sql: `UPDATE google_pending_mutations
+                  SET status = 'cancelled',
+                      next_retry_at = NULL,
+                      payload_json = ?,
+                      updated_at = ?
+                  WHERE id = ?
+                    AND status IN ('pending', 'failed');`,
+            params: [payload, now, row.id]
+          }
+        : {
+            kind: "run" as const,
+            sql: `UPDATE google_pending_mutations
+                  SET payload_json = ?,
+                      updated_at = ?
+                  WHERE id = ?
+                    AND status IN ('pending', 'failed');`,
+            params: [payload, now, row.id]
+          };
+    }));
   }
 
   tagEntityRefsForIds(tagIds: readonly string[]): TagEntityRef[] {
@@ -736,6 +771,61 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
   }
 
   return true;
+}
+
+function duplicateCleanupCompactedMutationIds(
+  rows: readonly DuplicateCleanupMutationRow[],
+  input: {
+    kind: TagEntityKind;
+    winnerId: string;
+    loserIds: readonly string[];
+  }
+): Set<string> {
+  const compactedIds = new Set<string>();
+  const loserIds = new Set(input.loserIds);
+
+  for (const row of rows) {
+    if (loserIds.has(row.resourceId) && isDuplicateCleanupLoserCompactionOperation(row.operation)) {
+      compactedIds.add(row.id);
+    }
+  }
+
+  const winnerHasCreate = rows.some((row) =>
+    row.resourceId === input.winnerId &&
+    isDuplicateCleanupCreateOperation(row.operation)
+  );
+  const winnerUpdateOperation = duplicateCleanupWinnerUpdateOperation(input.kind);
+  const winnerUpdates = rows.filter((row) =>
+    row.resourceId === input.winnerId &&
+    row.operation === winnerUpdateOperation
+  );
+
+  if (!winnerHasCreate && winnerUpdates.length > 1) {
+    for (const row of winnerUpdates.slice(0, -1)) {
+      compactedIds.add(row.id);
+    }
+  }
+
+  return compactedIds;
+}
+
+function isDuplicateCleanupLoserCompactionOperation(operation: string): boolean {
+  return !isDuplicateCleanupCreateOperation(operation) &&
+    !isDuplicateCleanupDeleteOperation(operation);
+}
+
+function isDuplicateCleanupCreateOperation(operation: string): boolean {
+  return operation === "task.create" ||
+    operation === "calendar.events.create";
+}
+
+function isDuplicateCleanupDeleteOperation(operation: string): boolean {
+  return operation === "task.delete" ||
+    operation === "calendar.events.delete";
+}
+
+function duplicateCleanupWinnerUpdateOperation(kind: TagEntityKind): string {
+  return kind === "event" ? "calendar.events.update" : "task.update";
 }
 
 function parsePayloadObject(value: string): Record<string, unknown> {
