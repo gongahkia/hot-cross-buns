@@ -59,9 +59,9 @@ Status key:
 - MCP/CLI is featureful, and prompt/resource registries now include `hcb_brief`, `hcb tail`, `hcb plan`, `hcb://brief`, `hcb://plan`, and `hcb://tail`. Webhooks and a durable pending agent action tray are still missing.
 - Birthday Google payload shape is unit-tested, but live Google API smoke for birthday create/update/delete is still the main external-risk test.
 - Quick-add/NL parsing has meaningful code and tests, including recurrence handling, but not the full chrono-style parser depth listed below.
-- Calendar recurrence UI exists, and recurring write scopes are now explicit in contracts with fail-fast validation for unsupported occurrence/future edits. Full Google-safe recurring exception edits and deeper RRULE depth still need audit/finish work.
+- Calendar recurrence UI exists. Edit/delete scope selection now reaches repository writes; whole-series, Google-backed occurrence edits/deletes, and locally materialized future-series splits are covered by focused tests. Google-expanded future-series edits still fail fast when the master series is unavailable; deeper RRULE editor depth and live Google smoke remain open.
 - Search/filter depth is partial: advanced parser-backed operators, boolean `AND`/`OR`/`NOT`, saved-search settings, pinned filters, and command-palette pinned filter chips exist. Semantic search, local LLM, and chat sidebar remain open.
-- Portable data is partial/verify: settings/docs/local backups exist, but source-backed portable export/import and attachment implementation need a focused audit before closing.
+- Portable data has real `.hcbexport` export/preview/import with deterministic state JSON, manifest SHA-256, attachment bundling/relinking, pre-import backup, and focused tests. ICS import/subscriptions and local pointer repair UI remain open.
 
 ### Missing / not implemented yet
 
@@ -69,7 +69,7 @@ Status key:
 - Bulk operations with coalesced undo/mutation entries.
 - Semantic search, local LLM provider, and conversational planning sidebar.
 - CSS snippets, JSON config/keymaps, and sandboxed user extensions.
-- Source-verified portable export/import, source-verified attachments, ICS import/subscriptions.
+- ICS import/subscriptions and local pointer repair UI.
 - Cache encryption.
 - Spotlight/Raycast/Alfred/App Intents/Shortcuts/Share Extension.
 - Rich notification actions.
@@ -81,7 +81,8 @@ Status key:
    - Status: `Partial`; implemented local tag catalog/repository, tag/entity tables, CRUD/merge UI, tag colors, counts, filters via tag search, pinned saved filters, inspector audit, and loaded-data bulk reapply.
    - Remaining: full-cache/background auto-tag reapply, richer tag analytics, and coalesced undo for bulk changes.
 2. Recurrence correctness:
-   - recurring edit scope, deeper RRULE editor, round-trip tests, live Google smoke
+   - Status: `Partial`; whole-series, Google-backed occurrence edits/deletes, locally materialized future-series splits, and recurrence tests exist.
+   - Remaining: Google-expanded future-series writes when master data is unavailable, deeper RRULE editor, and live Google smoke.
    - reason: high-risk calendar behavior; better before broad calendar automation.
 3. Boolean/custom search and pinned filters:
    - Status: `Partial`; boolean DSL and pinned saved filters are implemented.
@@ -90,8 +91,8 @@ Status key:
    - Status: `Partial`; duplicate group merge is implemented for loaded tasks/events/notes.
    - Remaining: coalesced undo/mutation entries and deeper duplicate-resolution QA.
 5. Portable export/import verification or implementation:
-   - source audit, deterministic `.hcb2export`, dry-run import diff, attachment bundling, backups
-   - reason: docs/settings exist, but implementation evidence was not closed in the static audit.
+   - Status: `Partial`; deterministic `.hcbexport`, dry-run import diff, attachment bundling/relinking, and pre-import backups exist.
+   - Remaining: local pointer repair UI, richer item-level preview, `.hcb2export` naming decision, and manual migration QA.
 6. Agent-native MCP/CLI v2:
    - Status: `Partial`; `hcb brief`, `hcb tail`, `hcb plan`, `hcb_brief`, `hcb_tail`, `hcb_plan`, resources, and prompts are implemented.
    - Remaining: webhooks and durable pending agent action tray/proposed-write store.
@@ -206,11 +207,10 @@ Status key:
   - dry-run preview before applying changes
   - batch apply with undo and mutation coalescing
   - explain why each slot was chosen
-- Finish recurring-event edit scope:
-  - this event
-  - this and future
-  - all events
-  - safe Google mutation semantics
+- Harden recurring-event edit scope:
+  - Google-backed occurrence edits/deletes are implemented.
+  - Locally materialized future-series split is implemented.
+  - Remaining: Google-expanded future-series writes when only an instance is cached, clearer unsupported-state copy, and live Google smoke.
 - Finish visual RRULE editor depth if current UI does not cover all supported recurrence fields:
   - frequency, interval, weekdays, month rules, end date, count, and never-ending rules
   - readable summary and raw RRULE preview
@@ -357,20 +357,12 @@ Status key:
 
 ## 6. Data, import/export, and local files
 
-- Status: `Verify` / `Partial` for portable import/export and attachments because settings/docs/local backup evidence exists but source-backed implementation was not closed in the 2026-06-08 static audit. `Missing` for ICS import/subscriptions.
-- Verify/finish portable `.hcbexport` / `.hcb2export` workflow:
-  - manifest
-  - state
-  - deterministic, stable-key JSON export for tasks, events, notes, lists, calendars, settings, links, and sync metadata
-  - sorted arrays and canonical object ordering so repeated exports can be git-diffed
-  - one-file-per-entity or domain-sharded layout suitable for `git init` audit trails
-  - omit or isolate volatile fields so unchanged planner state does not churn diffs
-  - bundled attachments
-  - SHA-256 verification
-  - dry-run import diff
-  - pre-import backup
-  - item-level preview
-  - path relinking
+- Status: `Partial`; portable `.hcbexport` export/preview/import now writes manifest/state/Attachments, deterministic table JSON, SHA-256 checks, bundled attachment copies, skipped pointer reporting, destructive import preview, pre-import backup, and attachment relinking.
+- Harden portable `.hcbexport` / `.hcb2export` workflow:
+  - richer item-level preview
+  - local pointer repair UI
+  - `.hcb2export` naming/version decision
+  - manual migration QA on a real profile copy
 - Verify/finish local file attachments for notes, tasks, and events:
   - image/file refs
   - app-owned attachment storage

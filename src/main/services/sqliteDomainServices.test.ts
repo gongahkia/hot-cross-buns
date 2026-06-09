@@ -716,6 +716,54 @@ describe("SQLite-backed domain services", () => {
     });
   });
 
+  it("exports, previews, and imports deterministic portable archives with attachments", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const attachmentPath = join(temp?.directory ?? "", "receipt.txt");
+    const attachmentUrl = pathToFileURL(attachmentPath).href;
+
+    writeFileSync(attachmentPath, "attachment bytes", "utf8");
+    await domain.planner.updateTask({
+      id: "acct-1:task:inbox:task-1",
+      notes: `Local file ${attachmentUrl}`
+    });
+
+    const firstExport = await domain.settings.exportPortableArchive();
+    const secondExport = await domain.settings.exportPortableArchive();
+    const firstState = readFileSync(join(firstExport.path, "hot-cross-buns-2-state.json"), "utf8");
+    const secondState = readFileSync(join(secondExport.path, "hot-cross-buns-2-state.json"), "utf8");
+
+    expect(firstState).toBe(secondState);
+    expect(firstExport.manifest.attachments).toHaveLength(1);
+    expect(existsSync(join(firstExport.path, firstExport.manifest.attachments[0]?.bundledRelativePath ?? ""))).toBe(true);
+
+    await domain.planner.updateTask({
+      id: "acct-1:task:inbox:task-1",
+      title: "Changed after export"
+    });
+
+    const preview = await domain.settings.previewPortableImport({ path: firstExport.path });
+
+    expect(preview.tasks.changed).toBe(1);
+    expect(preview.attachments).toMatchObject({
+      bundled: 1,
+      corrupt: 0,
+      missing: 0,
+      skipped: 0
+    });
+
+    const imported = await domain.settings.importPortableArchive({
+      path: firstExport.path,
+      confirm: true
+    });
+    const restored = await domain.planner.getTask({ id: "acct-1:task:inbox:task-1" });
+
+    expect(existsSync(imported.backupPath)).toBe(true);
+    expect(restored.title).toBe("Draft inbox triage rules");
+    expect(restored.notes).toContain("file://");
+    expect(restored.notes).not.toContain(attachmentUrl);
+  });
+
   it("deletes note lists by deleting the backing task list", async () => {
     const { domain } = createTestServices();
     const list = await domain.planner.createNoteList({ title: "Side notes" });

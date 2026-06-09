@@ -847,7 +847,7 @@ export class LocalSettingsRepository {
       `hot-cross-buns-2-${now.replace(/[:.]/g, "-")}.hcbexport`
     );
     const attachmentDirectory = join(exportDirectory, PORTABLE_ATTACHMENT_DIR);
-    const state = this.portableState();
+    const state = this.portableState(now, this.get());
     const attachments = this.collectPortableAttachments(state, attachmentDirectory);
     const stateJson = `${stableJson(state)}\n`;
     const manifest: PortableArchiveManifest = {
@@ -923,7 +923,7 @@ export class LocalSettingsRepository {
     };
   }
 
-  private portableState(): PortableState {
+  private portableState(now?: string, settings?: SettingsSnapshot): PortableState {
     const tables: PortableState["tables"] = {};
 
     for (const table of PORTABLE_TABLES) {
@@ -949,6 +949,10 @@ export class LocalSettingsRepository {
         columns: columns.map((column) => column.name),
         rows: rows.map((row) => orderedRow(row, columns.map((column) => column.name)))
       };
+    }
+
+    if (settings) {
+      applyPortableExportFilters(tables, settings, now ?? new Date().toISOString());
     }
 
     return {
@@ -1384,6 +1388,120 @@ function portableFilePointers(state: PortableState): string[] {
   }
 
   return pointers;
+}
+
+function applyPortableExportFilters(
+  tables: PortableState["tables"],
+  settings: SettingsSnapshot,
+  now: string
+): void {
+  const keptTaskListIds = settings.portableExportOnlySelectedTaskLists && settings.selectedTaskListIds.length > 0
+    ? new Set(settings.selectedTaskListIds)
+    : null;
+  const keptCalendarIds = settings.portableExportOnlySelectedCalendars && settings.selectedCalendarIds.length > 0
+    ? new Set(settings.selectedCalendarIds)
+    : null;
+  const taskFilterActive = keptTaskListIds !== null;
+  const eventFilterActive =
+    keptCalendarIds !== null || settings.portableExportOnlyFutureCurrentEvents;
+  const keptTaskIds = new Set<string>();
+  const keptEventIds = new Set<string>();
+
+  if (keptTaskListIds) {
+    filterRows(tables.google_task_lists, (row) => stringSetHas(keptTaskListIds, row.id));
+    filterRows(tables.google_tasks, (row) => stringSetHas(keptTaskListIds, row.task_list_id));
+  }
+
+  for (const row of tables.google_tasks?.rows ?? []) {
+    if (typeof row.id === "string") {
+      keptTaskIds.add(row.id);
+    }
+  }
+
+  if (keptCalendarIds) {
+    filterRows(tables.google_calendar_lists, (row) => stringSetHas(keptCalendarIds, row.id));
+    filterRows(tables.google_calendar_events, (row) => stringSetHas(keptCalendarIds, row.calendar_id));
+    filterRows(tables.google_calendar_event_instances, (row) => stringSetHas(keptCalendarIds, row.calendar_id));
+  }
+
+  if (settings.portableExportOnlyFutureCurrentEvents) {
+    const cutoffMs = Date.parse(now);
+    filterRows(tables.google_calendar_events, (row) => {
+      const endMs = typeof row.end_at === "string" ? Date.parse(row.end_at) : NaN;
+      return !Number.isFinite(cutoffMs) || !Number.isFinite(endMs) || endMs >= cutoffMs || row.recurrence_rule != null;
+    });
+    const visibleEventIds = new Set(
+      (tables.google_calendar_events?.rows ?? [])
+        .map((row) => row.id)
+        .filter((id): id is string => typeof id === "string")
+    );
+    filterRows(tables.google_calendar_event_instances, (row) => stringSetHas(visibleEventIds, row.event_id));
+  }
+
+  for (const row of tables.google_calendar_events?.rows ?? []) {
+    if (typeof row.id === "string") {
+      keptEventIds.add(row.id);
+    }
+  }
+
+  filterRows(tables.local_scheduled_task_blocks, (row) =>
+    (!taskFilterActive || stringSetHas(keptTaskIds, row.task_id)) &&
+    (!eventFilterActive || stringSetHas(keptEventIds, row.calendar_event_id))
+  );
+  filterRows(tables.local_entity_tags, (row) => {
+    if (row.entity_kind === "event") {
+      return !eventFilterActive || stringSetHas(keptEventIds, row.entity_id);
+    }
+
+    if (row.entity_kind === "task" || row.entity_kind === "note") {
+      return !taskFilterActive || stringSetHas(keptTaskIds, row.entity_id);
+    }
+
+    return true;
+  });
+  filterRows(tables.google_pending_mutations, (row) => {
+    if (row.resource_type === "event") {
+      return !eventFilterActive || stringSetHas(keptEventIds, row.resource_id);
+    }
+
+    if (row.resource_type === "task") {
+      return !taskFilterActive || stringSetHas(keptTaskIds, row.resource_id);
+    }
+
+    if (row.resource_type === "task_list") {
+      return !keptTaskListIds || stringSetHas(keptTaskListIds, row.resource_id);
+    }
+
+    if (row.resource_type === "calendar") {
+      return !keptCalendarIds || stringSetHas(keptCalendarIds, row.resource_id);
+    }
+
+    return true;
+  });
+  filterRows(tables.google_sync_checkpoints, (row) => {
+    if (row.resource_type === "task_list") {
+      return !keptTaskListIds || stringSetHas(keptTaskListIds, row.resource_id);
+    }
+
+    if (row.resource_type === "calendar") {
+      return !keptCalendarIds || stringSetHas(keptCalendarIds, row.resource_id);
+    }
+
+    return true;
+  });
+}
+
+function filterRows(
+  table: PortableTableState | undefined,
+  predicate: (row: Record<string, unknown>) => boolean
+): void {
+  if (table) {
+    table.rows = table.rows.filter(predicate);
+  }
+}
+
+function stringSetHas(values: Set<string>, value: unknown): boolean {
+  return typeof value === "string" && values.has(value);
 }
 
 function portableColumnValues(

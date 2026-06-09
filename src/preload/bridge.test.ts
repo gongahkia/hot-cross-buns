@@ -323,6 +323,7 @@ describe("preload bridge", () => {
       "search",
       "settings",
       "sync",
+      "tags",
       "tasks",
       "undo"
     ]);

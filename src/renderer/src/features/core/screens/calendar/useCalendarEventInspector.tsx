@@ -590,7 +590,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         ? await window.hcb?.calendar.create(writePayload)
         : await window.hcb?.calendar.update({
             id: currentDraft.id ?? "",
-            scope: eventWriteScopeRef.current,
+            ...(recurringDraft(currentDraft) ? { scope: eventWriteScopeRef.current } : {}),
             ...writePayload
           } satisfies CalendarEventUpdateRequest);
 
@@ -616,7 +616,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     const result = await window.hcb?.calendar.delete({
       id: currentDraft.id,
-      scope: eventWriteScopeRef.current
+      ...(recurringDraft(currentDraft) ? { scope: eventWriteScopeRef.current } : {})
     });
 
     if (!result?.ok) {
@@ -660,7 +660,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     void updateCalendarEventTime({
       id: event.id,
-      scope: "seriesAll",
       startsAt,
       endsAt,
       allDay
@@ -676,7 +675,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     void updateCalendarEventTime({
       id: event.id,
-      scope: "seriesAll",
       endsAt
     });
   }
