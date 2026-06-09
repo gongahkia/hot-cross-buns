@@ -5,7 +5,7 @@ import {
   googleCalendarEventColors,
   type SettingsSnapshot
 } from "@shared/ipc/contracts";
-import { Bell, CalendarPlus, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Phone, RotateCcw, Tag, Users, Video, type LucideIcon } from "lucide-react";
+import { Bell, CalendarPlus, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Phone, Plus, RotateCcw, Tag, Trash2, Users, Video, type LucideIcon } from "lucide-react";
 import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField";
 import { Badge, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
@@ -28,6 +28,7 @@ import {
   allDayEndInputValue,
   calendarDraftDurationLabel,
   calendarDraftRangeLabel,
+  calendarRecurrenceRulePreview,
   calendarRecurrenceSummary
 } from "./drafts";
 import type { CalendarCreateMode, CalendarEventDraft, CalendarRepeatFrequency, CalendarRepeatWeekday } from "./types";
