@@ -149,15 +149,12 @@ Status key:
 
 ### Tasks and organisation
 
-- Status: `Verify` for Kanban parity; `Partial` for tags/auto-tagging, duplicate detection/review, snooze, subtasks, templates, and NL quick-add; `Missing` for Areas and duplicate merge/coalesced cleanup.
+- Status: `Verify` for Kanban parity; `Partial` for tags/auto-tagging, duplicate detection/review, snooze, subtasks, templates, and NL quick-add; `Missing` for Areas and coalesced bulk cleanup.
 - Verify/finish Kanban parity beyond the current Google-list board if original `KanbanGrouping` behavior is not covered.
-- Finish first-class tags beyond current string-tag/auto-tag support:
-  - tag repository
-  - tag-task many-to-many table
-  - tag colors
-  - tag CRUD
-  - `@tag` extraction
-  - tag filters and saved views
+- Harden first-class tags beyond current catalog/link implementation:
+  - full-cache/background auto-tag reapply
+  - richer tag analytics
+  - coalesced undo for bulk tag changes
 - Harden current rule-based auto-tagging and color assignment:
   - "why was this tagged?" inspector/audit detail
 - Add auto-tag bulk tools:
@@ -174,9 +171,9 @@ Status key:
   - reschedule
   - tag/untag
   - batched/coalesced undo and mutation entries
-- Finish duplicate resolution for tasks, events, and notes.
-  - Note: duplicate create controls and duplicate review/dismiss/open/delete are already present.
-  - Remaining: merge flows, coalesced cleanup, and stronger duplicate-resolution QA.
+- Harden duplicate resolution for tasks, events, and notes.
+  - Note: duplicate create controls, review/dismiss/open/delete, and loaded-data merge flows are present.
+  - Remaining: coalesced cleanup and stronger duplicate-resolution QA.
 - Finish snooze UX:
   - inspector controls for `snoozeUntil`
   - visible snoozed state in task lists/today/search
@@ -265,7 +262,7 @@ Status key:
 
 ## 4. Search, filters, and command surfaces
 
-- Status: `Partial`; local search, MCP/CLI search, advanced parser-backed operators, and saved-search settings exist. Boolean DSL, pinned filters, semantic search, local LLM, and chat surfaces remain missing.
+- Status: `Partial`; local search, MCP/CLI search, advanced parser-backed operators, boolean DSL, saved-search settings, and pinned filters exist. Semantic search, local LLM, and chat surfaces remain missing.
 - Keep parser-backed advanced search operators covered:
   - regex mode
   - `attendee:`
@@ -273,8 +270,8 @@ Status key:
   - `notes:yes` / `body:yes`
   - `due<+7d`
   - list/tag/calendar/status/priority combinations
-- Finish custom-filter DSL:
-  - `AND` / `OR` / `NOT`
+- Harden custom-filter DSL:
+  - boolean explain/validation QA
   - relative dates
   - saved-query UX polish
   - validation and explain output
@@ -301,7 +298,7 @@ Status key:
   - surface proposed writes through the Pending agent action tray
   - keep chat history local, exportable, clearable, and excluded from remote services by default
   - include prompt-injection guardrails for note/event/task content used as context
-- Add pinned filters in sidebar and menu-bar popover with count badges.
+- Finish pinned filters in the menu-bar popover with count badges if sidebar/command-palette coverage is not enough.
 - Split quick switcher and quick-add mental model if current command palette remains one surface:
   - `Cmd+O` for go/open
   - `Shift+Cmd+P` for do/action
