@@ -31,7 +31,6 @@ export const hcbDomainSchema = z.enum([
   "search",
   "agent",
   "webhooks",
-  "chat",
   "sync",
   "google",
   "settings",

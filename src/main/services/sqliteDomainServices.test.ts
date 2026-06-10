@@ -6,7 +6,6 @@ import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
 import {
   LocalAgentRepository,
-  LocalChatRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository,
@@ -38,7 +37,6 @@ function createTestServices() {
   const settingsRepository = new LocalSettingsRepository(temp.connection);
   const undoRepository = new LocalUndoRepository(temp.connection);
   const agentRepository = new LocalAgentRepository(temp.connection);
-  const chatRepository = new LocalChatRepository(temp.connection);
   const webhookRepository = new LocalWebhookRepository(temp.connection);
   const syncRepository = new GoogleSyncRepository(temp.connection);
   const domain = createSqliteDomainServices({
@@ -46,7 +44,6 @@ function createTestServices() {
     settingsRepository,
     undoRepository,
     agentRepository,
-    chatRepository,
     webhookRepository,
     syncRepository
   });
@@ -57,7 +54,6 @@ function createTestServices() {
     settingsRepository,
     undoRepository,
     agentRepository,
-    chatRepository,
     webhookRepository,
     syncRepository,
     performanceRepository
@@ -2536,7 +2532,7 @@ describe("SQLite-backed domain services", () => {
     expect((await domain.webhooks.list({ limit: 10 })).items).toEqual([]);
   });
 
-  it("indexes local semantic search and stores local-disabled chat sessions", async () => {
+  it("indexes local semantic search", async () => {
     const { domain, syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);
     await domain.planner.createNote({
@@ -2570,20 +2566,6 @@ describe("SQLite-backed domain services", () => {
     expect(semantic.diagnostics?.indexedCount ?? 0).toBeGreaterThan(0);
     expect(semantic.items.length).toBeGreaterThan(0);
 
-    const sent = await domain.chat.send({ message: "cache startup" });
-    expect(sent.provider).toBe("local-disabled");
-    expect(sent.assistantMessage.content).toContain("Local planner context is available.");
-    expect(await domain.chat.listMessages({ sessionId: sent.session.id, limit: 10 })).toMatchObject({
-      items: [
-        expect.objectContaining({ role: "user", content: "cache startup" }),
-        expect.objectContaining({ role: "assistant" })
-      ]
-    });
-    expect(await domain.chat.providerHealth()).toMatchObject({
-      enabled: false,
-      provider: "ollama",
-      ok: true
-    });
   });
 
   it("uses the calendar visible-range index for calendar id and start/end paths", () => {

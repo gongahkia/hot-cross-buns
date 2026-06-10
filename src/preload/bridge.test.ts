@@ -316,7 +316,6 @@ describe("preload bridge", () => {
       "agent",
       "bootstrap",
       "calendar",
-      "chat",
       "diagnostics",
       "duplicates",
       "google",

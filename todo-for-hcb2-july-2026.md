@@ -29,9 +29,10 @@ Status key:
 2. Recurrence correctness:
    - Status: `Partial`.
    - Open: live Google smoke for future-series and missing-master recurrence cases.
-3. Boolean/custom search, semantic search, and planning chat:
+3. Boolean/custom search, semantic search, and MCP/CLI agent proposals:
    - Status: `Partial`.
-   - Open: production transformer/vector-extension path, embedding worker/model controls, broader embedding coverage, richer provider health/diagnostics, and MCP-backed action proposals.
+   - Open: production transformer/vector-extension path, embedding worker/model controls, broader embedding coverage, MCP-backed action proposals, and CLI/MCP QA.
+   - Deferred-with-reason: in-app chat and local/remote LLM provider adapters are out of scope; agent reasoning should use MCP/CLI programmatic access only.
 4. Duplicate merge/coalesced cleanup:
    - Status: `Partial`.
    - Open: manual real-profile duplicate cleanup smoke for tasks, events, and notes.
@@ -123,21 +124,11 @@ Status key:
   - local/private model and no remote embedding calls by default
   - model download/cache controls, rebuild controls, and disabled-state UI when the model or vector extension is unavailable
   - diagnostics for stale/missing embeddings
-- Harden opt-in local LLM provider hook:
-  - summarize long notes
-  - suggest task breakdowns
-  - draft event agendas
-  - explain plans through existing MCP read/write tools
-  - route writes through dry-run previews and confirmation IDs
-  - redact tokens/secrets
-  - enforce context budgets, timeouts, cancellation, rate limits, and audit logs
-  - show model/provider health, last error, and privacy status in Settings/Diagnostics
-- Harden in-app conversational planning sidebar:
-  - act as an MCP client to local tools/resources/prompts and a user-configured model
-  - answer richer planning questions like "what should I do next?" using Today/search/calendar/task context
-  - surface proposed writes through the Pending agent action tray
-  - keep chat history local, exportable, clearable, and excluded from remote services by default
-  - include prompt-injection guardrails for note/event/task content used as context
+- Defer in-app/local LLM work:
+  - no app-frontend chat surface
+  - no local or remote LLM provider settings/adapters
+  - keep agent reasoning external through MCP/CLI tools such as `brief`, `plan`, `search`, `today`, `week`, and confirmable write tools
+  - route future action proposals through MCP/CLI plus the existing pending-action/confirmation queue
 - Finish pinned filters in the menu-bar popover with count badges if sidebar/command-palette coverage is not enough.
 - Split quick switcher and quick-add mental model if current command palette remains one surface:
   - `Cmd+O` for go/open
@@ -300,8 +291,7 @@ Status key:
   - multi-account sync/filter/mutation isolation gaps
   - custom-filter DSL polish
   - production semantic model/vector extension path
-  - local LLM provider adapters
-  - chat-generated MCP action proposals
+  - MCP/CLI-only action proposal QA
   - external keymap JSON and `when` predicate parsing
   - ICS import/subscription parsing and refresh
   - encryption
@@ -315,8 +305,8 @@ Status key:
   - recurrence master-missing/live-Google cases
   - advanced search/pinned filters
   - semantic search production path
-  - local LLM summaries/plans
-  - conversational planning sidebar MCP action proposals
+  - MCP/CLI-generated summaries/plans
+  - MCP/CLI action proposal flow
   - settings/customisation
   - import/export/attachments
   - portable export/import migration

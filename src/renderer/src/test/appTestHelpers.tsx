@@ -195,11 +195,6 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     semanticSearchEnabled: false,
     semanticSearchMode: "lexical",
     embeddingModelId: "hcb-local-hash-384",
-    llmEnabled: false,
-    llmProvider: "ollama",
-    llmEndpoint: "http://127.0.0.1:11434",
-    llmModel: "llama3.1",
-    llmAllowRemoteEndpoint: false,
     agentActionTrayEnabled: true,
     webhooksEnabled: false,
     ...overrides
@@ -1091,47 +1086,6 @@ export function seededHcb(): HcbApi {
       ),
       delete: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now })),
       test: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now }))
-    },
-    chat: {
-      listSessions: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
-      listMessages: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
-      send: vi.fn(async (request) =>
-        ok({
-          session: {
-            id: request.sessionId ?? "chat:test",
-            title: request.message,
-            createdAt: now,
-            updatedAt: now
-          },
-          userMessage: {
-            id: "chat:user",
-            sessionId: request.sessionId ?? "chat:test",
-            role: "user" as const,
-            content: request.message,
-            createdAt: now
-          },
-          assistantMessage: {
-            id: "chat:assistant",
-            sessionId: request.sessionId ?? "chat:test",
-            role: "assistant" as const,
-            content: "Test answer",
-            createdAt: now
-          },
-          provider: "test",
-          proposedActionIds: []
-        })
-      ),
-      clear: vi.fn(async () => ok({ cleared: 0 })),
-      providerHealth: vi.fn(async () =>
-        ok({
-          enabled: false,
-          provider: "test",
-          endpoint: null,
-          remoteAllowed: false,
-          ok: true,
-          message: "Test provider"
-        })
-      )
     }
   };
 
