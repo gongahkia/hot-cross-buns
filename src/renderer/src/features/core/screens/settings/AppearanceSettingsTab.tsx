@@ -1,17 +1,21 @@
+import { useState } from "react";
 import {
+  calendarEventColorForTheme,
   googleCalendarEventColors,
-  themeCalendarEventColor,
   type GoogleCalendarEventColorId,
   type SettingsSnapshot,
   type SettingsUpdateRequest
 } from "@shared/ipc/contracts";
 import type {
   AppColorThemeDefinition,
-  AppColorThemeId
+  AppColorThemeId,
+  ColorThemeDefinition
 } from "@shared/ipc/themeCatalog";
-import { ArrowDown, ArrowUp, PanelLeft, PanelRight, RotateCcw } from "lucide-react";
+import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
+import { ArrowDown, ArrowUp, Image, PanelLeft, PanelRight, RotateCcw, Trash2 } from "lucide-react";
 import { Button, Input } from "../../../../components/primitives";
 import { useI18n } from "../../../../i18n";
+import { customBackgroundFromFile } from "./backgroundTheme";
 import {
   SegmentedControl,
   SettingsControlRow,
@@ -38,7 +42,7 @@ type CalendarEventColorOverride = NonNullable<
 >;
 
 interface AppearanceSettingsTabProps {
-  activeColorTheme: AppColorThemeDefinition;
+  activeColorTheme: ColorThemeDefinition;
   availableFontFamilies: string[];
   matchingColorThemes: readonly AppColorThemeDefinition[];
   settings: SettingsSnapshot;
@@ -55,6 +59,8 @@ export function AppearanceSettingsTab({
   updateSettings
 }: AppearanceSettingsTabProps): JSX.Element {
   const { t } = useI18n();
+  const [customBackgroundMessage, setCustomBackgroundMessage] = useState<string | null>(null);
+  const inferredThemeActive = activeColorTheme.id === customBackgroundThemeId;
 
   function updateNavigationTab(tabId: NavigationTabId, visible: boolean): void {
     const hidden = new Set(settings.hiddenNavigationTabs);
@@ -150,13 +156,53 @@ export function AppearanceSettingsTab({
   }
 
   function calendarEventColorDefault(colorId: GoogleCalendarEventColorId): CalendarEventColorOverride {
-    const themeColor = themeCalendarEventColor(activeColorTheme.id, colorId);
+    const themeColor = calendarEventColorForTheme(activeColorTheme, colorId);
     const googleColor = googleCalendarEventColors.find((color) => color.id === colorId);
 
     return {
       background: themeColor?.background ?? googleColor?.background ?? "#5484ed",
       foreground: themeColor?.foreground ?? googleColor?.foreground ?? "#ffffff"
     };
+  }
+
+  async function selectCustomBackground(file: File | null): Promise<void> {
+    if (!file) {
+      return;
+    }
+
+    setCustomBackgroundMessage("Reading background.");
+
+    try {
+      const customBackground = await customBackgroundFromFile(file);
+
+      updateSettings({
+        customBackground,
+        useInferredBackgroundTheme: true
+      });
+      setCustomBackgroundMessage("Background applied.");
+    } catch (error) {
+      setCustomBackgroundMessage(error instanceof Error ? error.message : "Background import failed.");
+    }
+  }
+
+  function updateColorTheme(value: string): void {
+    if (value === customBackgroundThemeId) {
+      updateSettings({ useInferredBackgroundTheme: true });
+      return;
+    }
+
+    updateSettings({
+      colorTheme: value as AppColorThemeId,
+      ...(settings.customBackground ? { useInferredBackgroundTheme: false } : {})
+    });
+  }
+
+  function customBackgroundPreview(): string | null {
+    if (!settings.customBackground) {
+      return null;
+    }
+
+    return `data:${settings.customBackground.mimeType};base64,${settings.customBackground.dataBase64}`;
   }
 
   return (
@@ -184,9 +230,12 @@ export function AppearanceSettingsTab({
           <select
             aria-label="Color theme"
             className={settingsSelectClass}
-            onChange={(event) => updateSettings({ colorTheme: event.target.value as AppColorThemeId })}
+            onChange={(event) => updateColorTheme(event.target.value)}
             value={activeColorTheme.id}
           >
+            {settings.customBackground ? (
+              <option value={customBackgroundThemeId}>Inferred from background</option>
+            ) : null}
             {matchingColorThemes.map((theme) => (
               <option key={theme.id} value={theme.id}>
                 {theme.title}
@@ -194,6 +243,83 @@ export function AppearanceSettingsTab({
             ))}
           </select>
         </SettingsControlRow>
+        <SettingsControlRow
+          description="Use a local image as the app backdrop and infer the palette from its pixels."
+          icon={Image}
+          label="Custom background"
+        >
+          <div className="grid min-w-0 gap-2 sm:min-w-[24rem]">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              {customBackgroundPreview() ? (
+                <img
+                  alt="Custom background preview"
+                  className="h-12 w-20 rounded-hcbSm border border-border object-cover"
+                  src={customBackgroundPreview() ?? undefined}
+                />
+              ) : null}
+              <Input
+                accept="image/png,image/jpeg,image/webp"
+                aria-label="Custom background image"
+                className="max-w-60"
+                onChange={(event) => void selectCustomBackground(event.currentTarget.files?.[0] ?? null)}
+                type="file"
+              />
+              <Button
+                disabled={!settings.customBackground}
+                onClick={() => {
+                  updateSettings({ customBackground: null, useInferredBackgroundTheme: true });
+                  setCustomBackgroundMessage("Background cleared.");
+                }}
+                variant="secondary"
+              >
+                <Trash2 aria-hidden="true" size={14} />
+                Clear
+              </Button>
+            </div>
+            {settings.customBackground ? (
+              <div className="flex flex-wrap justify-end gap-1">
+                {[
+                  settings.customBackground.palette.ember,
+                  settings.customBackground.palette.moss,
+                  settings.customBackground.palette.blue,
+                  settings.customBackground.palette.cream,
+                  settings.customBackground.palette.ink
+                ].map((color) => (
+                  <span
+                    aria-hidden="true"
+                    className="h-5 w-5 rounded-hcbSm border border-border"
+                    key={color}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            ) : null}
+            {customBackgroundMessage ? (
+              <div className="text-right text-[var(--text-xs)] text-text-muted">{customBackgroundMessage}</div>
+            ) : null}
+          </div>
+        </SettingsControlRow>
+        <SettingsControlRow
+          description="Use generated colors for surfaces and default event/tag mappings."
+          label="Infer theme from background"
+        >
+          <input
+            aria-label="Infer theme from background"
+            checked={settings.useInferredBackgroundTheme && Boolean(settings.customBackground)}
+            className="h-5 w-9 accent-[var(--color-accent)] disabled:opacity-50"
+            disabled={!settings.customBackground}
+            onChange={(event) => updateSettings({ useInferredBackgroundTheme: event.currentTarget.checked })}
+            type="checkbox"
+          />
+        </SettingsControlRow>
+        {inferredThemeActive && settings.customBackground ? (
+          <SettingsControlRow label="Inferred palette">
+            <div className="flex flex-wrap items-center justify-end gap-2 text-[var(--text-sm)] text-text-muted">
+              <span>{settings.customBackground.palette.isDark ? "Dark" : "Light"}</span>
+              <span className="font-mono">{settings.customBackground.palette.dominant}</span>
+            </div>
+          </SettingsControlRow>
+        ) : null}
         <SettingsSwitch
           checked={settings.disableAnimations}
           description="Turns off app-driven transitions, panel motion, and animated state changes."

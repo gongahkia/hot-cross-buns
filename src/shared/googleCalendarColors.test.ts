@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  appColorThemeIds
+  appColorThemeIds,
+  type ColorThemeDefinition
 } from "./ipc/themeCatalog";
 import {
+  calendarEventColorForTheme,
   googleCalendarEventColor,
   googleCalendarEventColorIds,
   resolveCalendarEventDisplayColor,
@@ -68,6 +70,31 @@ describe("Google Calendar event colors", () => {
         expect(color?.foreground).toMatch(/^#[\dA-F]{6}$/);
         expect(contrastRatio(color!.background, color!.foreground)).toBeGreaterThanOrEqual(4.5);
       }
+    }
+  });
+
+  it("derives readable event colors for an inferred custom theme", () => {
+    const theme: ColorThemeDefinition = {
+      id: "customBackground",
+      title: "Inferred from background",
+      source: "customBackground",
+      isDark: true,
+      ember: "#F97316",
+      moss: "#22C55E",
+      blue: "#38BDF8",
+      ink: "#F8FAFC",
+      cream: "#111827",
+      cardStroke: "#374151",
+      dominant: "#111827",
+      accents: ["#F97316", "#22C55E", "#38BDF8"]
+    };
+
+    for (const colorId of googleCalendarEventColorIds) {
+      const color = calendarEventColorForTheme(theme, colorId);
+
+      expect(color?.background).toMatch(/^#[\dA-F]{6}$/);
+      expect(color?.foreground).toMatch(/^#[\dA-F]{6}$/);
+      expect(contrastRatio(color!.background, color!.foreground)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

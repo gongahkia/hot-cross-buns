@@ -612,6 +612,7 @@ export {
 
 export {
   resolveCalendarEventDisplayColor,
+  calendarEventColorForTheme,
   googleCalendarEventColor,
   googleCalendarEventColors,
   themeCalendarEventColor,

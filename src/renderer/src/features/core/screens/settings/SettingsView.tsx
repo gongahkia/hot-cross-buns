@@ -9,6 +9,8 @@ import {
   appColorThemes,
   defaultAppColorTheme,
   resolveAppColorTheme,
+  resolveEffectiveColorTheme,
+  resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
 import { Bell, Brush, Copy, Info, Keyboard, Search, Settings2, SlidersHorizontal, Users } from "lucide-react";
@@ -140,6 +142,9 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Appearance",
     "Theme",
     "Color theme",
+    "Custom background",
+    "Infer theme from background",
+    "Inferred palette",
     "Color preview",
     "Reduce motion",
     "Layout scale",
@@ -232,11 +237,12 @@ export function SettingsView({
   const settings = source.settings;
   const diagnostics = source.diagnosticsSummary;
   const googleStatus = source.googleStatus;
-  const effectiveThemeMode = resolveAppThemeMode(settings.theme, currentSystemPrefersDark());
+  const baseThemeMode = resolveAppThemeMode(settings.theme, currentSystemPrefersDark());
+  const effectiveThemeMode = resolveEffectiveThemeMode(settings, currentSystemPrefersDark());
   const matchingColorThemes = appColorThemes.filter(
     (theme) => theme.isDark === (effectiveThemeMode === "dark")
   );
-  const activeColorTheme = resolveAppColorTheme(settings.colorTheme, effectiveThemeMode);
+  const activeColorTheme = resolveEffectiveColorTheme(settings, effectiveThemeMode);
   const autoTagBulkCounts = useMemo(() => ({
     task: source.largeTaskWindow.filter((task) => {
       const preview = previewAutoTagRules(settings.autoTagRules, {
@@ -497,7 +503,7 @@ export function SettingsView({
 
   function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {
     const nextMode = resolveAppThemeMode(theme, currentSystemPrefersDark());
-    const currentColorTheme = resolveAppColorTheme(settings.colorTheme, effectiveThemeMode);
+    const currentColorTheme = resolveAppColorTheme(settings.colorTheme, baseThemeMode);
     const nextColorTheme = currentColorTheme.isDark === (nextMode === "dark")
       ? currentColorTheme
       : defaultAppColorTheme(nextMode);
@@ -846,6 +852,7 @@ export function SettingsView({
             beginRecoveryAction={beginRecoveryAction}
             calendarSources={source.calendarSources}
             createTag={source.createTag}
+            defaultTagColor={activeColorTheme.ember}
             deleteTag={source.deleteTag}
             mergeTags={source.mergeTags}
             onReapplyAutoTags={(kind) => void reapplyAutoTags(kind)}

@@ -72,6 +72,7 @@ interface AdvancedSettingsTabProps {
   tags: TagSummary[];
   taskLists: TaskListSummary[];
   createTag: (request: TagCreateRequest) => Promise<TagMutationResponse | null>;
+  defaultTagColor: string;
   updateTag: (request: TagUpdateRequest) => Promise<TagMutationResponse | null>;
   deleteTag: (request: TagDeleteRequest) => Promise<TagMutationResponse | null>;
   mergeTags: (request: TagMergeRequest) => Promise<TagMutationResponse | null>;
@@ -133,6 +134,7 @@ export function AdvancedSettingsTab({
   beginRecoveryAction,
   calendarSources,
   createTag,
+  defaultTagColor,
   deleteTag,
   mergeTags,
   onReapplyAutoTags,
@@ -150,7 +152,7 @@ export function AdvancedSettingsTab({
   const [editingTaskTemplateId, setEditingTaskTemplateId] = useState<string | null>(null);
   const [editingEventTemplateId, setEditingEventTemplateId] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState("");
-  const [newTagColor, setNewTagColor] = useState("#7C3AED");
+  const [newTagColor, setNewTagColor] = useState(defaultTagColor);
   const [tagDrafts, setTagDrafts] = useState<Record<string, { color: string; name: string }>>({});
   const [tagMergeSourceId, setTagMergeSourceId] = useState("");
   const [tagMergeTargetId, setTagMergeTargetId] = useState("");
@@ -177,6 +179,7 @@ export function AdvancedSettingsTab({
   const [icsMessage, setIcsMessage] = useState<string | null>(null);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const autoTagAutoDisableRequestRef = useRef<string | null>(null);
+  const previousDefaultTagColorRef = useRef(defaultTagColor);
   const autoTagPreviewExistingTagValues = useMemo(
     () => parseTagText(autoTagPreviewExistingTags),
     [autoTagPreviewExistingTags]
@@ -215,6 +218,14 @@ export function AdvancedSettingsTab({
   );
   const autoTagErrors = autoTagRuleIssues.filter((issue) => issue.severity === "error");
   const autoTagWarnings = autoTagRuleIssues.filter((issue) => issue.severity === "warning");
+
+  useEffect(() => {
+    if (newTagColor === previousDefaultTagColorRef.current) {
+      setNewTagColor(defaultTagColor);
+    }
+
+    previousDefaultTagColorRef.current = defaultTagColor;
+  }, [defaultTagColor, newTagColor]);
 
   useEffect(() => {
     const invalidEnabledRuleKey = settings.autoTagRules
@@ -510,7 +521,7 @@ export function AdvancedSettingsTab({
   }
 
   function tagDraft(tag: TagSummary): { color: string; name: string } {
-    return tagDrafts[tag.id] ?? { color: tag.color ?? "#7C3AED", name: tag.name };
+    return tagDrafts[tag.id] ?? { color: tag.color ?? defaultTagColor, name: tag.name };
   }
 
   function setTagDraft(tag: TagSummary, patch: Partial<{ color: string; name: string }>): void {

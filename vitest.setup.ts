@@ -697,6 +697,8 @@ const hcbApi: HcbApi = {
       ok({
         theme: "system" as const,
         colorTheme: "notion" as const,
+        customBackground: null,
+        useInferredBackgroundTheme: true,
         appLanguage: "system" as const,
         uiFontName: null,
         uiTextSizePoints: 13,
@@ -791,6 +793,8 @@ const hcbApi: HcbApi = {
       ok({
         theme: request.theme ?? "system",
         colorTheme: request.colorTheme ?? "notion",
+        customBackground: request.customBackground ?? null,
+        useInferredBackgroundTheme: request.useInferredBackgroundTheme ?? true,
         appLanguage: request.appLanguage ?? "system",
         uiFontName: request.uiFontName === undefined ? null : request.uiFontName,
         uiTextSizePoints: request.uiTextSizePoints ?? 13,

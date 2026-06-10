@@ -563,6 +563,28 @@ describe("shared IPC contracts", () => {
     expect(settingsUpdateRequestSchema.safeParse({ uiTextSizePoints: 8 }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ uiTextSizePoints: 25 }).success).toBe(false);
     expect(
+      settingsUpdateRequestSchema.parse({
+        customBackground: {
+          fileName: "desk.png",
+          mimeType: "image/png",
+          dataBase64: "abc",
+          palette: {
+            isDark: true,
+            ember: "#F97316",
+            moss: "#22C55E",
+            blue: "#38BDF8",
+            ink: "#F8FAFC",
+            cream: "#111827",
+            cardStroke: "#374151",
+            dominant: "#111827",
+            accents: ["#F97316", "#22C55E", "#38BDF8"]
+          },
+          updatedAt: completedAt
+        },
+        useInferredBackgroundTheme: true
+      }).customBackground?.palette.ember
+    ).toBe("#F97316");
+    expect(
       settingsUpdateRequestSchema.safeParse({
         calendarEventColorOverrides: {
           "9": { background: "blue", foreground: "#ffffff" }

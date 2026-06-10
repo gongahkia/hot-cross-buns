@@ -174,6 +174,79 @@ describe("App settings and onboarding", () => {
     });
   });
 
+  it("uses inferred custom background theme until a built-in theme is selected", async () => {
+    const api = seededHcb();
+    const customBackground = {
+      fileName: "desk.png",
+      mimeType: "image/png",
+      dataBase64: "abc",
+      palette: {
+        isDark: false,
+        ember: "#D65D0E",
+        moss: "#79740E",
+        blue: "#076678",
+        ink: "#3C3836",
+        cream: "#FBF1C7",
+        cardStroke: "#D5C4A1",
+        dominant: "#FBF1C7",
+        accents: ["#D65D0E", "#79740E", "#076678"]
+      },
+      updatedAt: "2026-06-10T00:00:00.000Z"
+    };
+    let settings = testSettings({
+      customBackground,
+      useInferredBackgroundTheme: true
+    });
+    api.settings.get = vi.fn(async () => ok(settings));
+    api.settings.update = vi.fn(async (request) => {
+      settings = testSettings({
+        ...settings,
+        ...request
+      });
+
+      return ok(settings);
+    });
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "customBackground");
+      expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#D65D0E");
+      expect(document.documentElement.style.getPropertyValue("--app-shell-background")).toContain("data:image/png;base64,abc");
+    });
+
+    await goToSection("Settings");
+    await user.click(screen.getByRole("button", { name: "Appearance" }));
+    expect(screen.getByLabelText("Color theme")).toHaveValue("customBackground");
+    expect(screen.getByRole("img", { name: "Custom background preview" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Infer theme from background")).toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText("Color theme"), "githubLight");
+
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith({
+        colorTheme: "githubLight",
+        useInferredBackgroundTheme: false
+      });
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "githubLight");
+    });
+
+    await user.selectOptions(screen.getByLabelText("Color theme"), "customBackground");
+
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith({ useInferredBackgroundTheme: true });
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "customBackground");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(api.settings.update).toHaveBeenCalledWith({
+      customBackground: null,
+      useInferredBackgroundTheme: true
+    });
+  });
+
   it("opens the diagnostics workspace from settings", async () => {
     const api = seededHcb();
     const base = await api.diagnostics.summary();
