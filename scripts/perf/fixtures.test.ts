@@ -6,7 +6,7 @@ import {
   type PerfFixtureSize
 } from "./fixtures";
 
-const sizes: PerfFixtureSize[] = ["small", "medium", "large"];
+const sizes: PerfFixtureSize[] = ["small", "medium", "event15k", "large"];
 
 describe("performance fixtures", () => {
   it("generates the documented dataset sizes", () => {
@@ -33,5 +33,9 @@ describe("performance fixtures", () => {
 
     expect(serialized).toContain("Generated task");
     expect(serialized).not.toMatch(/oauth|access_token|refresh_token|gmail|googleapis/i);
+  });
+
+  it("has an explicit 15k-event regression target", () => {
+    expect(PERF_FIXTURE_COUNTS.event15k.eventInstances).toBe(15_000);
   });
 });

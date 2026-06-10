@@ -21,6 +21,7 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:smoke": "pnpm build && playwright test -c playwright.config.ts",
     "test:perf": "tsx scripts/perf-smoke.ts",
+    "test:perf:15k": "HCB_PERF_FIXTURE_SIZE=15k-event tsx scripts/perf-smoke.ts",
     "release:review-bundle": "tsx scripts/review-bundle.ts",
     "release:mac-artifacts": "tsx scripts/mac-preview-artifacts.ts",
     "release:checksums": "tsx scripts/release-checksums.ts",

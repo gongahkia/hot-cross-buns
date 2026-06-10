@@ -81,8 +81,12 @@ function roundMs(value: number): number {
 }
 
 function parsePerfFixtureSize(value: string | undefined): PerfFixtureSize {
-  if (value === "small" || value === "medium" || value === "large") {
+  if (value === "small" || value === "medium" || value === "event15k" || value === "large") {
     return value;
+  }
+
+  if (value === "15k-event") {
+    return "event15k";
   }
 
   return "medium";

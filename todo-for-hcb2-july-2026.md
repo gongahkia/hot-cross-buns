@@ -12,7 +12,7 @@ Last static repo audit for this file: 2026-06-10.
 
 Audit limits: static repo/source/test evidence plus local smoke harnesses only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed.
 
-2026-06-10 delta: tags/recurrence/search-command/MCP/duplicate QA items below were implemented or harnessed locally. Live Google and real-profile runs remain env-gated by the smoke harness.
+2026-06-10 delta: tags/recurrence/search-command/MCP/duplicate QA items below were implemented or harnessed locally. Webhook retry/rate-limit, missing `event.starting` / `mutation.failed` emits, constrained backoff tests, and explicit 15k-event perf fixture coverage were added. Live Google, packaged app, external MCP client, and real-profile runs remain env-gated or manual.
 
 Status key:
 
@@ -30,7 +30,7 @@ Status key:
    - Status: `Partial`.
    - Open: webhook retry/rate-limit hardening, event-starting/mutation-failed emit sources, external MCP client QA, deeper approval-tray UI QA.
 3. Release hardening:
-   - Open: live Google smoke, external MCP client QA, rich notification actions, updater, packaging/signing checks.
+   - Open: live Google smoke, external MCP client QA, rich notification actions, updater, native helper packaging/signing checks.
 
 ## Done / harnessed on 2026-06-10
 
@@ -38,6 +38,7 @@ Status key:
 - Recurrence: future-series and missing-master local smoke covered; live Google recurrence smoke is env-gated in `pnpm hcb:july-smoke`.
 - Search/commands/MCP: custom-filter explain output, semantic model settings/IPC/rebuild diagnostics, menu-bar pinned filters, quick switcher/action split, leader chords/which-key HUD, and MCP/CLI smoke coverage added.
 - Duplicates: generated task/event/note duplicate cleanup tests remain focused coverage; real-profile duplicate cleanup smoke is env-gated in `pnpm hcb:july-smoke`.
+- Security/native/perf slice: durable webhook retry/rate-limit, `event.starting` and `mutation.failed` webhook emits, low-power/constrained-network backoff multipliers, and explicit `pnpm test:perf:15k` fixture target.
 
 ## 0. Planning gate
 
@@ -195,6 +196,7 @@ Status key:
   - document key-loss behavior clearly: encrypted cache is unrecoverable without the stored key, but Google source data can be re-synced after reconnect
   - do not ship the settings toggle until migration, downgrade, backup restore, corrupt-key, missing-Keychain, and interrupted-write tests pass
 - Audit overdue cleanup behavior against completed-task retention.
+- 2026-06-10 static audit: retention settings and read-sync retention exist; no TS standalone destructive overdue cleanup service equivalent to legacy `PastCleanupService` found. Keep open if product expects explicit cleanup beyond sync-range retention.
 - Verify/finish in-app GitHub Releases update checker:
   - version compare
   - latest release state
@@ -236,23 +238,23 @@ Status key:
   - 64-notification cap behavior
   - reschedule diagnostics
 - Expand agent-native MCP, CLI, and local automation surface:
-  - event-starting and mutation-failed emit sources
-  - webhook retry/backoff/rate-limit hardening
+  - Done 2026-06-10: event-starting and mutation-failed emit sources
+  - Done 2026-06-10: webhook retry/backoff/rate-limit hardening
   - richer prompt coverage for day planning/inbox triage/standups/reschedule/duplicate review
   - external MCP client QA
   - redacted/context-budgeted output
-  - tests for webhook delivery retry paths, event-starting/mutation-failed emits, richer prompts, and external MCP client behavior
+  - tests for richer prompts and external MCP client behavior
 - Audit MCP tool catalogue parity with original:
-  - exact tool names
-  - aliases
-  - per-tool dry-run / confirm-write / allow-write modes
-  - docs and tests
+  - Done 2026-06-10 static audit: original Swift/docs tool names are present in HCB2; current TS registry is a superset.
+  - Done 2026-06-10 static audit: no alias registry found in original Swift MCP or current TS registry.
+  - Done 2026-06-10 static audit: dry-run / confirm-write / allow-write modes are covered by current MCP tests.
+  - Open: external MCP client QA.
 
 ## 9. Performance, tests, and docs
 
-- Add low-power-mode and constrained-network detection feeding sync backoff multipliers.
+- Done 2026-06-10: low-power-mode and constrained-network provider hooks feed sync and mutation backoff multipliers.
 - Add large-account regression coverage:
-  - 15k-event target
+  - Done 2026-06-10: explicit 15k-event fixture target via `HCB_PERF_FIXTURE_SIZE=15k-event` / `pnpm test:perf:15k`
   - prepared event indexes/snapshots where still missing
   - startup and calendar navigation timings
 - Maintain security posture:

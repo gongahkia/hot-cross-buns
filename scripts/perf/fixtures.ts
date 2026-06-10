@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export type PerfFixtureSize = "small" | "medium" | "large";
+export type PerfFixtureSize = "small" | "medium" | "event15k" | "large";
 
 export interface PerfFixtureCounts {
   tasks: number;
@@ -75,6 +75,11 @@ export const PERF_FIXTURE_COUNTS: Record<PerfFixtureSize, PerfFixtureCounts> = {
     tasks: 1000,
     eventInstances: 1000,
     notes: 200
+  },
+  event15k: {
+    tasks: 1000,
+    eventInstances: 15000,
+    notes: 500
   },
   large: {
     tasks: 10000,
@@ -198,7 +203,7 @@ export function summarizePerfFixtureSet(size: PerfFixtureSize): PerfFixtureSumma
 }
 
 export function summarizeAllPerfFixtureSets(): PerfFixtureSummary[] {
-  return (["small", "medium", "large"] as const).map((size) => summarizePerfFixtureSet(size));
+  return (["small", "medium", "event15k", "large"] as const).map((size) => summarizePerfFixtureSet(size));
 }
 
 export function writePerfFixtureSet(size: PerfFixtureSize, outputDir: string): string {

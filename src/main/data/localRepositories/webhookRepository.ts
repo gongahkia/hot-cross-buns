@@ -143,7 +143,7 @@ export class LocalWebhookRepository {
     );
     const payload = {
       event: input.event,
-      occurredAt: new Date().toISOString(),
+      occurredAt: now,
       payload: input.payload
     };
     const operations = rows
@@ -203,7 +203,13 @@ export class LocalWebhookRepository {
       const subscription = this.row(delivery.subscriptionId);
 
       if (!subscription || subscription.enabled !== 1) {
-        this.markDeliveryFailed(delivery, "Webhook subscription is disabled or deleted.", now, null);
+        this.markDeliveryFailed(
+          delivery,
+          "Webhook subscription is disabled or deleted.",
+          now,
+          null,
+          maxWebhookAttempts
+        );
         failedCount += 1;
         continue;
       }
