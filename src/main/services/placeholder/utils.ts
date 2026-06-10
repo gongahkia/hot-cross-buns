@@ -243,6 +243,14 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.keybindings = request.keybindings;
   }
 
+  if (request.leaderKey !== undefined) {
+    patch.leaderKey = request.leaderKey;
+  }
+
+  if (request.leaderKeybindings !== undefined) {
+    patch.leaderKeybindings = request.leaderKeybindings;
+  }
+
   if (request.selectedTaskListIds !== undefined) {
     patch.selectedTaskListIds = [...new Set(request.selectedTaskListIds)];
   }
@@ -433,6 +441,30 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
 
   if (request.savedTaskViews !== undefined) {
     patch.savedTaskViews = request.savedTaskViews;
+  }
+
+  if (request.semanticSearchEnabled !== undefined) {
+    patch.semanticSearchEnabled = request.semanticSearchEnabled;
+  }
+
+  if (request.semanticSearchMode !== undefined) {
+    patch.semanticSearchMode = request.semanticSearchMode;
+  }
+
+  if (request.embeddingModelId !== undefined) {
+    patch.embeddingModelId = request.embeddingModelId;
+  }
+
+  if (request.semanticSearchModels !== undefined) {
+    patch.semanticSearchModels = request.semanticSearchModels;
+  }
+
+  if (request.agentActionTrayEnabled !== undefined) {
+    patch.agentActionTrayEnabled = request.agentActionTrayEnabled;
+  }
+
+  if (request.webhooksEnabled !== undefined) {
+    patch.webhooksEnabled = request.webhooksEnabled;
   }
 
   return patch;

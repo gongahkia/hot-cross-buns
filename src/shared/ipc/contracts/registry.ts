@@ -116,7 +116,16 @@ import {
   noteListSummarySchema,
   noteUpdateRequestSchema
 } from "./notes";
-import { searchQueryRequestSchema, searchQueryResponseSchema } from "./search";
+import {
+  searchIndexRebuildRequestSchema,
+  searchIndexRebuildResponseSchema,
+  searchModelListRequestSchema,
+  searchModelListResponseSchema,
+  searchModelMutationRequestSchema,
+  searchModelMutationResponseSchema,
+  searchQueryRequestSchema,
+  searchQueryResponseSchema
+} from "./search";
 import {
   autoTagReapplyApplyRequestSchema,
   autoTagReapplyApplyResponseSchema,
@@ -390,6 +399,30 @@ export const ipcContracts = {
       "query",
       searchQueryRequestSchema,
       searchQueryResponseSchema
+    ),
+    listModels: defineIpcContract(
+      "search",
+      "listModels",
+      searchModelListRequestSchema,
+      searchModelListResponseSchema
+    ),
+    installModel: defineIpcContract(
+      "search",
+      "installModel",
+      searchModelMutationRequestSchema,
+      searchModelMutationResponseSchema
+    ),
+    uninstallModel: defineIpcContract(
+      "search",
+      "uninstallModel",
+      searchModelMutationRequestSchema,
+      searchModelMutationResponseSchema
+    ),
+    rebuildIndex: defineIpcContract(
+      "search",
+      "rebuildIndex",
+      searchIndexRebuildRequestSchema,
+      searchIndexRebuildResponseSchema
     )
   },
   agent: {

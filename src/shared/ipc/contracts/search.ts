@@ -1,11 +1,13 @@
 import { z } from "zod";
 import {
   MAX_SEARCH_LIMIT,
+  emptyRequestSchema,
   idSchema,
   isoDateTimeSchema,
   pagedListResponseSchema,
   searchLimitSchema
 } from "./core";
+import { semanticSearchModelSchema } from "./settings";
 
 export const searchDomainSchema = z.enum(["tasks", "calendar", "notes"]);
 export const searchModeSchema = z.enum(["lexical", "semantic", "hybrid"]);
@@ -48,10 +50,53 @@ export const searchQueryResponseSchema = pagedListResponseSchema(
       indexedCount: z.number().int().nonnegative(),
       staleCount: z.number().int().nonnegative(),
       modelId: z.string().min(1).max(120).optional(),
-      fallbackReason: z.enum(["semantic-disabled", "semantic-unavailable"]).optional()
+      fallbackReason: z.enum(["semantic-disabled", "semantic-unavailable", "model-not-installed"]).optional()
     })
     .strict()
     .optional()
 });
 
 export type SearchQueryResponse = z.infer<typeof searchQueryResponseSchema>;
+
+export const searchModelListRequestSchema = emptyRequestSchema;
+export const searchModelListResponseSchema = z
+  .object({
+    models: z.array(semanticSearchModelSchema).max(10),
+    selectedModelId: z.string().min(1).max(120),
+    enabled: z.boolean()
+  })
+  .strict();
+export type SearchModelListResponse = z.infer<typeof searchModelListResponseSchema>;
+
+export const searchModelMutationRequestSchema = z
+  .object({
+    modelId: z.string().trim().min(1).max(120)
+  })
+  .strict();
+export type SearchModelMutationRequest = z.input<typeof searchModelMutationRequestSchema>;
+
+export const searchModelMutationResponseSchema = z
+  .object({
+    model: semanticSearchModelSchema,
+    selectedModelId: z.string().min(1).max(120),
+    enabled: z.boolean()
+  })
+  .strict();
+export type SearchModelMutationResponse = z.infer<typeof searchModelMutationResponseSchema>;
+
+export const searchIndexRebuildRequestSchema = z
+  .object({
+    modelId: z.string().trim().min(1).max(120).optional()
+  })
+  .strict();
+export type SearchIndexRebuildRequest = z.input<typeof searchIndexRebuildRequestSchema>;
+
+export const searchIndexRebuildResponseSchema = z
+  .object({
+    modelId: z.string().min(1).max(120),
+    indexedCount: z.number().int().nonnegative(),
+    staleCount: z.number().int().nonnegative(),
+    unavailableReason: z.string().min(1).max(500).optional()
+  })
+  .strict();
+export type SearchIndexRebuildResponse = z.infer<typeof searchIndexRebuildResponseSchema>;

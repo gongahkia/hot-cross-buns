@@ -49,6 +49,11 @@ import type {
   NoteUpdateRequest,
   SearchQueryRequest,
   SearchQueryResponse,
+  SearchIndexRebuildRequest,
+  SearchIndexRebuildResponse,
+  SearchModelListResponse,
+  SearchModelMutationRequest,
+  SearchModelMutationResponse,
   PortableArchivePathRequest,
   PortableExportResponse,
   PortableImportPreview,
@@ -348,6 +353,13 @@ export interface SettingsDomainService {
   ) => MaybePromise<LocalPointerRepairResponse>;
 }
 
+export interface SearchModelDomainService {
+  listModels: () => MaybePromise<SearchModelListResponse>;
+  installModel: (request: SearchModelMutationRequest) => MaybePromise<SearchModelMutationResponse>;
+  uninstallModel: (request: SearchModelMutationRequest) => MaybePromise<SearchModelMutationResponse>;
+  rebuildIndex: (request: SearchIndexRebuildRequest) => MaybePromise<SearchIndexRebuildResponse>;
+}
+
 export interface UndoDomainService {
   status: () => MaybePromise<UndoStackStatusResponse>;
   undo: () => MaybePromise<UndoApplyResponse>;
@@ -385,6 +397,7 @@ export interface AppDomainServices {
   sync: SyncControlDomainService;
   google: GoogleControlDomainService;
   settings: SettingsDomainService;
+  searchModels: SearchModelDomainService;
   undo: UndoDomainService;
   mcp: McpControlDomainService;
   agent: AgentActionDomainService;

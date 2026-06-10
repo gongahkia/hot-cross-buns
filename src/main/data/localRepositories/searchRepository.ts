@@ -45,6 +45,11 @@ import {
 import { countRows, notFound, pageBounds, pageFromRows, parseStringArray, validationFailure } from "./shared";
 import type { SearchDomain } from "./types";
 
+type SearchRepositoryRequest = SearchQueryRequest & {
+  embeddingModelId?: string;
+  semanticInstalled?: boolean;
+};
+
 interface TaskBackedNoteRow extends Record<string, unknown> {
   id: string;
   listId: string;
@@ -84,7 +89,7 @@ interface EntityLinkRow extends Record<string, unknown> {
 }
 
 export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
-  search(request: SearchQueryRequest): SearchQueryResponse {
+  search(request: SearchRepositoryRequest): SearchQueryResponse {
     const startedAt = performance.now();
 
     try {
@@ -107,7 +112,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         const results: SearchResultItem[] = [];
 
         if (mode === "semantic") {
-          return this.semanticSearch(request.query, domains, limit, "semantic");
+          return this.semanticSearch(request.query, domains, limit, "semantic", request);
         }
 
         if (!hasRunnableLocalSearch(parsed) || (!ftsQuery && parsed.chips.length === 0 && parsed.boolean === undefined)) {
@@ -137,7 +142,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
               totalKnown: items.length
             }
           };
-          return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit) : lexical;
+          return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit, request) : lexical;
         }
 
         if (domains.has("tasks")) {
@@ -163,7 +168,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
             totalKnown: results.length
           }
         };
-        return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit) : lexical;
+        return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit, request) : lexical;
       });
 
       this.timings?.record({
@@ -193,9 +198,10 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
     lexical: SearchQueryResponse,
     query: string,
     domains: Set<SearchDomain>,
-    limit: number
+    limit: number,
+    request: SearchRepositoryRequest
   ): SearchQueryResponse {
-    const semantic = this.semanticSearch(query, domains, limit, "hybrid");
+    const semantic = this.semanticSearch(query, domains, limit, "hybrid", request);
     const byKey = new Map<string, SearchResultItem>();
 
     for (const item of lexical.items) {
@@ -239,10 +245,32 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
     query: string,
     domains: Set<SearchDomain>,
     limit: number,
-    mode: "semantic" | "hybrid"
+    mode: "semantic" | "hybrid",
+    request: SearchRepositoryRequest = {}
   ): SearchQueryResponse {
-    const modelId = "hcb-local-hash-384";
+    const modelId = request.embeddingModelId ?? "hcb-local-hash-384";
+
+    if (request.semanticInstalled === false) {
+      const stats = this.semanticIndexStats(modelId);
+      return {
+        items: [],
+        page: {
+          limit,
+          totalKnown: 0
+        },
+        diagnostics: {
+          mode,
+          semanticEnabled: true,
+          indexedCount: stats.indexedCount,
+          staleCount: stats.staleCount,
+          modelId,
+          fallbackReason: "model-not-installed"
+        }
+      };
+    }
+
     const indexedCount = this.refreshSemanticIndex(modelId);
+    const stats = this.semanticIndexStats(modelId);
     const queryVector = hashedEmbedding(query);
     const rows = this.connection.query<{
       id: string;
@@ -292,9 +320,43 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         mode,
         semanticEnabled: true,
         indexedCount,
-        staleCount: 0,
+        staleCount: stats.staleCount,
         modelId
       }
+    };
+  }
+
+  rebuildSemanticIndex(modelId: string): { indexedCount: number; staleCount: number } {
+    return {
+      indexedCount: this.refreshSemanticIndex(modelId),
+      staleCount: this.semanticIndexStats(modelId).staleCount
+    };
+  }
+
+  semanticIndexStats(modelId: string): { indexedCount: number; staleCount: number } {
+    const entities = this.semanticEntities();
+    let staleCount = 0;
+
+    for (const entity of entities) {
+      const existing = this.connection.get<{ textHash: string }>(
+        `SELECT text_hash AS textHash
+         FROM local_semantic_embeddings
+         WHERE entity_kind = ? AND entity_id = ? AND model_id = ?
+         LIMIT 1;`,
+        [entity.domain, entity.id, modelId]
+      );
+
+      if (existing?.textHash !== sha256(entity.text)) {
+        staleCount += 1;
+      }
+    }
+
+    return {
+      indexedCount: this.connection.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM local_semantic_embeddings WHERE model_id = ?;",
+        [modelId]
+      )?.count ?? 0,
+      staleCount
     };
   }
 

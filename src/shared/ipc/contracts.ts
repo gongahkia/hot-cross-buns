@@ -225,10 +225,21 @@ export {
 
 export {
   searchDomainSchema,
+  searchIndexRebuildRequestSchema,
+  searchIndexRebuildResponseSchema,
   searchModeSchema,
+  searchModelListRequestSchema,
+  searchModelListResponseSchema,
+  searchModelMutationRequestSchema,
+  searchModelMutationResponseSchema,
   searchQueryRequestSchema,
   searchQueryResponseSchema,
   searchResultItemSchema,
+  type SearchIndexRebuildRequest,
+  type SearchIndexRebuildResponse,
+  type SearchModelListResponse,
+  type SearchModelMutationRequest,
+  type SearchModelMutationResponse,
   type SearchQueryRequest,
   type SearchQueryResponse,
   type SearchResultItem
