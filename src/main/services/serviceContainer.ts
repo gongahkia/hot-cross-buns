@@ -213,7 +213,8 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     windows: options.nativeWindows ?? noopWindowActions,
     sync: {
       runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))
-    }
+    },
+    webhooks: sqliteDomain.webhooks
   });
   const domain: AppDomainServices = {
     ...sqliteDomain,

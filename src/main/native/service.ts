@@ -6,6 +6,7 @@ import type {
   SettingsSnapshot
 } from "@shared/ipc/contracts";
 import type { GoogleAccountConnectionStatusDto } from "../google";
+import { appLogger } from "../diagnostics/appLogger";
 import type { DomainJsonObject, NativeDomainService, WebhookDomainService } from "../services/domainInterfaces";
 import { parseHotCrossBunsDeepLink } from "./deepLinks";
 import { normalizeFontFamilies } from "./fontFamilies";

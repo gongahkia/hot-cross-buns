@@ -420,6 +420,7 @@ describe("Google pending mutation worker", () => {
           etag: "remote-task-etag"
         })
     });
+    const onMutationFailed = vi.fn();
     const worker = new GooglePendingMutationWorker({
       repository,
       tasks,
@@ -429,7 +430,8 @@ describe("Google pending mutation worker", () => {
         jitterMs: 200,
         random: () => 0.5
       }),
-      now: () => new Date(current)
+      now: () => new Date(current),
+      onMutationFailed
     });
 
     const failed = await worker.drainDue();
@@ -448,6 +450,14 @@ describe("Google pending mutation worker", () => {
       lastErrorCode: "RATE_LIMITED"
     });
     expect(JSON.stringify(afterFailure)).not.toContain("token");
+    expect(onMutationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "task.create",
+        errorCode: "RATE_LIMITED",
+        attemptCount: 1,
+        nextRetryAt: "2026-05-22T10:00:02.100Z"
+      })
+    );
 
     current = Date.parse("2026-05-22T10:00:02.100Z");
 
@@ -465,6 +475,40 @@ describe("Google pending mutation worker", () => {
       lastErrorCode: null
     });
     expect(tasks.insertTask).toHaveBeenCalledTimes(2);
+  });
+
+  it("multiplies mutation retry delays under constrained environments", async () => {
+    const { planner, repository } = createHarness();
+    planner.createTask({
+      title: "Constrained retry",
+      listId: "acct-1:task-list:inbox"
+    });
+    const tasks = taskWrites({
+      insertTask: vi.fn(async () => {
+        throw new GoogleApiError({
+          kind: "server",
+          status: 503,
+          message: "server unavailable"
+        });
+      })
+    });
+    const worker = new GooglePendingMutationWorker({
+      repository,
+      tasks,
+      calendar: calendarWrites(),
+      backoffPolicy: new MutationBackoffPolicy({
+        baseDelayMs: 1_000,
+        jitterMs: 0,
+        random: () => 0,
+        constraintState: () => ({ lowPowerMode: true, constrainedNetwork: true })
+      }),
+      now: () => new Date(now)
+    });
+
+    await expect(worker.drainDue()).resolves.toMatchObject({
+      failedCount: 1,
+      nextRetryAt: "2026-05-22T10:00:06.000Z"
+    });
   });
 
   it("pauses the account and leaves diagnostics when Google reports an auth failure", async () => {
