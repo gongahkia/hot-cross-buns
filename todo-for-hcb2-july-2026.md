@@ -163,8 +163,8 @@ Status key:
 
 ## 7. Data, import/export, and local files
 
-- Status: `Partial`.
-- Harden portable `.hcbexport` workflow:
+- Status: `Partial`; portable `.hcbexport` backend, Settings UI, attachment bundling, manifest/checksum validation, destructive preview, import backup, export filters, and pointer repair tests exist.
+- Finish portable `.hcbexport` release hardening:
   - manual migration QA on a real profile copy
   - decide only if a future `.hcb2export` alias/version is needed
 - Finish user-facing local file attachments for notes, tasks, and events beyond portable pointer scan/export/import backend:
@@ -178,7 +178,7 @@ Status key:
   - keep subscribed calendars read-only unless explicitly copied into HCB/Google
   - show refresh status, parse errors, stale feeds, and last successful sync in Settings/Diagnostics
   - avoid sending subscribed ICS data to Google unless the user explicitly imports/copies it
-- Add local export/report flows that are still missing after current print support.
+- Add local export/report flows that are still missing beyond diagnostics, availability, and portable archive exports.
 
 ## 8. Security, native Mac integration, and release polish
 
