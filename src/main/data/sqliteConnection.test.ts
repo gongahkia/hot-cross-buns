@@ -109,7 +109,7 @@ describe("SQLite connection foundation", () => {
          ORDER BY name;`
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
       expect(localNoteTables).toEqual([]);
     } finally {
       temporary.cleanup();
@@ -139,7 +139,7 @@ describe("SQLite connection foundation", () => {
         ["event-1"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
       expect(row?.localTimeZone).toBe("Asia/Singapore");
       expect(row?.hcbKind).toBeNull();
     } finally {
