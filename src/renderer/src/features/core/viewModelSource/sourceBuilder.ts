@@ -1,7 +1,7 @@
 import type { CalendarEventSummary, NoteListSummary, TaskSummary } from "@shared/ipc/contracts";
 import {
-  resolveAppColorTheme,
-  resolveAppThemeMode
+  resolveEffectiveColorTheme,
+  resolveEffectiveThemeMode
 } from "@shared/ipc/themeCatalog";
 import type { CalendarEventViewModel, NoteViewModel, TaskViewModel } from "../coreViewModels";
 import {
@@ -60,9 +60,9 @@ export function buildCoreViewModelSource(
   const calendarForegroundColorById = Object.fromEntries(
     snapshot.calendars.map((calendar) => [calendar.id, calendar.foregroundColor ?? null])
   );
-  const activeColorTheme = resolveAppColorTheme(
-    snapshot.settings.colorTheme,
-    resolveAppThemeMode(snapshot.settings.theme, options.systemPrefersDark)
+  const activeColorTheme = resolveEffectiveColorTheme(
+    snapshot.settings,
+    resolveEffectiveThemeMode(snapshot.settings, options.systemPrefersDark)
   );
   const events = snapshot.events.flatMap((event) => {
     const linkedTask = event.linkedTaskId ? taskById[event.linkedTaskId] : undefined;
@@ -101,7 +101,7 @@ export function buildCoreViewModelSource(
         calendarBackgroundColorById[event.calendarId] ?? null,
         calendarForegroundColorById[event.calendarId] ?? null,
         snapshot.settings.calendarEventColorOverrides,
-        activeColorTheme.id,
+        activeColorTheme,
         snapshot.settings.defaultTimeZone,
         options.calendarEventViewModelCache
       )
@@ -170,6 +170,7 @@ export function buildCoreViewModelSource(
     tasks: snapshot.diagnosticsSummary?.cache.taskCount ?? snapshot.resourceCounts.tasks
   };
   return {
+    activeColorTheme,
     activeColorThemeId: activeColorTheme.id,
     appearanceReady: options.appearanceReady,
     calendarAgendaEvents: calendarItems,

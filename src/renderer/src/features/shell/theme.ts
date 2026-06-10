@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
-  resolveAppColorTheme,
-  resolveAppThemeMode,
+  resolveEffectiveColorTheme,
+  resolveEffectiveThemeMode,
   semanticThemeVariables
 } from "@shared/ipc/themeCatalog";
 import { resolveAppLanguage } from "../../i18n";
@@ -81,8 +81,8 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
   }, []);
 
   useEffect(() => {
-    const mode = resolveAppThemeMode(settings.theme, prefersDark);
-    const colorTheme = resolveAppColorTheme(settings.colorTheme, mode);
+    const mode = resolveEffectiveThemeMode(settings, prefersDark);
+    const colorTheme = resolveEffectiveColorTheme(settings, mode);
     const root = document.documentElement;
 
     root.dataset.theme = mode;
@@ -96,7 +96,7 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
     root.style.setProperty("--text-sidebar", surfaceTextSize(settings, "sidebar"));
     root.style.setProperty("--font-family-menu-bar", surfaceFontFamily(settings, "menuBar"));
     root.style.setProperty("--text-menu-bar", surfaceTextSize(settings, "menuBar"));
-    root.style.setProperty("--app-shell-background", "var(--color-bg-primary)");
+    root.style.setProperty("--app-shell-background", shellBackground(settings));
     root.style.fontSize = `${Math.round(Math.min(1.5, Math.max(0.8, settings.uiLayoutScale)) * 16 * 100) / 100}px`;
 
     for (const [name, value] of Object.entries(semanticThemeVariables(colorTheme))) {
@@ -110,11 +110,27 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
     prefersDark,
     settings.appLanguage,
     settings.colorTheme,
+    settings.customBackground,
     settings.disableAnimations,
     settings.theme,
+    settings.useInferredBackgroundTheme,
     settings.uiFontName,
     settings.uiLayoutScale,
     settings.perSurfaceFontOverrides,
     settings.uiTextSizePoints
   ]);
+}
+
+function shellBackground(settings: SettingsSnapshot): string {
+  if (!settings.customBackground) {
+    return "var(--color-bg-primary)";
+  }
+
+  const mimeType = settings.customBackground.mimeType.replace(/[")\\]/g, "");
+  const image = `url("data:${mimeType};base64,${settings.customBackground.dataBase64}")`;
+  const overlay = settings.useInferredBackgroundTheme
+    ? "linear-gradient(rgba(0,0,0,0.08),rgba(0,0,0,0.08))"
+    : "linear-gradient(rgba(0,0,0,0.18),rgba(0,0,0,0.18))";
+
+  return `${overlay}, ${image} center / cover fixed, var(--color-bg-primary)`;
 }

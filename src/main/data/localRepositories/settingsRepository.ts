@@ -59,6 +59,8 @@ const PORTABLE_TABLES = [
 const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
   colorTheme: "notion",
+  customBackground: null,
+  useInferredBackgroundTheme: true,
   appLanguage: "system",
   uiFontName: null,
   uiTextSizePoints: 13,
@@ -177,6 +179,16 @@ export class LocalSettingsRepository {
       const snapshot: SettingsSnapshot = {
       theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
       colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
+      customBackground: this.readSetting(
+        "appearance",
+        "customBackground",
+        DEFAULT_SETTINGS.customBackground
+      ),
+      useInferredBackgroundTheme: this.readSetting(
+        "appearance",
+        "useInferredBackgroundTheme",
+        DEFAULT_SETTINGS.useInferredBackgroundTheme
+      ),
       appLanguage: this.readSetting("app", "language", DEFAULT_SETTINGS.appLanguage),
       uiFontName: this.readSetting("appearance", "uiFontName", DEFAULT_SETTINGS.uiFontName),
       uiTextSizePoints: this.readSetting(
@@ -513,6 +525,14 @@ export class LocalSettingsRepository {
 
     if (request.colorTheme !== undefined) {
       this.writeSetting("appearance", "colorTheme", request.colorTheme, now);
+    }
+
+    if (request.customBackground !== undefined) {
+      this.writeSetting("appearance", "customBackground", request.customBackground, now);
+    }
+
+    if (request.useInferredBackgroundTheme !== undefined) {
+      this.writeSetting("appearance", "useInferredBackgroundTheme", request.useInferredBackgroundTheme, now);
     }
 
     if (request.appLanguage !== undefined) {

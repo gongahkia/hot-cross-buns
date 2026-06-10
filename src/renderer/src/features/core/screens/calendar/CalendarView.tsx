@@ -102,7 +102,7 @@ function eventViewModelFromDetail(
     calendar?.backgroundColor ?? null,
     calendar?.foregroundColor ?? null,
     source.settings.calendarEventColorOverrides,
-    source.activeColorThemeId,
+    source.activeColorTheme,
     source.settings.defaultTimeZone,
     new Map()
   );

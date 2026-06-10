@@ -1,7 +1,7 @@
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
-  resolveAppColorTheme,
-  resolveAppThemeMode,
+  resolveEffectiveColorTheme,
+  resolveEffectiveThemeMode,
   semanticThemeVariables
 } from "@shared/ipc/themeCatalog";
 
@@ -22,11 +22,12 @@ export const fallbackSyncStatusTheme: SyncStatusTheme = {
 };
 
 export function resolveSyncStatusTheme(
-  settings: Pick<SettingsSnapshot, "theme" | "colorTheme">,
+  settings: Pick<SettingsSnapshot, "theme" | "colorTheme"> &
+    Partial<Pick<SettingsSnapshot, "customBackground" | "useInferredBackgroundTheme">>,
   systemPrefersDark: boolean
 ): SyncStatusTheme {
-  const mode = resolveAppThemeMode(settings.theme, systemPrefersDark);
-  const colorTheme = resolveAppColorTheme(settings.colorTheme, mode);
+  const mode = resolveEffectiveThemeMode(settings, systemPrefersDark);
+  const colorTheme = resolveEffectiveColorTheme(settings, mode);
   const variables = semanticThemeVariables(colorTheme);
 
   return {

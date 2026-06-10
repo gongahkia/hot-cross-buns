@@ -458,6 +458,8 @@ describe("shared IPC contracts", () => {
       settingsSnapshotSchema.parse({
         theme: "system",
         colorTheme: "notion",
+        customBackground: null,
+        useInferredBackgroundTheme: true,
         appLanguage: "system",
         uiFontName: null,
         uiTextSizePoints: 13,

@@ -141,6 +141,31 @@ export const calendarEventColorOverrideSchema = z
 export const calendarEventColorOverridesSchema = z
   .record(z.enum(googleCalendarEventColorIds), calendarEventColorOverrideSchema)
   .default({});
+export const customBackgroundPaletteSchema = z
+  .object({
+    isDark: z.boolean(),
+    ember: calendarColorSchema,
+    moss: calendarColorSchema,
+    blue: calendarColorSchema,
+    ink: calendarColorSchema,
+    cream: calendarColorSchema,
+    cardStroke: calendarColorSchema,
+    dominant: calendarColorSchema,
+    accents: z.array(calendarColorSchema).min(1).max(8)
+  })
+  .strict();
+export const customBackgroundSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(240),
+    mimeType: z.string().trim().min(1).max(120),
+    dataBase64: z.string().trim().min(1).max(12_000_000),
+    palette: customBackgroundPaletteSchema,
+    updatedAt: isoDateTimeSchema
+  })
+  .strict()
+  .nullable();
+export type SettingsCustomBackgroundPalette = z.infer<typeof customBackgroundPaletteSchema>;
+export type SettingsCustomBackground = z.infer<typeof customBackgroundSchema>;
 
 export const autoTagRuleMatchKindSchema = z.enum(["prefix", "contains", "regex"]);
 export const autoTagRuleTargetKindSchema = z.enum(["task", "event", "note"]);
@@ -291,6 +316,8 @@ export const settingsSnapshotSchema = z
   .object({
     theme: appThemeSchema,
     colorTheme: appColorThemeSchema,
+    customBackground: customBackgroundSchema,
+    useInferredBackgroundTheme: z.boolean(),
     appLanguage: appLanguageSchema,
     uiFontName: uiFontNameSchema,
     uiTextSizePoints: uiTextSizePointsSchema,
@@ -382,6 +409,8 @@ export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),
     colorTheme: appColorThemeSchema.optional(),
+    customBackground: customBackgroundSchema.optional(),
+    useInferredBackgroundTheme: z.boolean().optional(),
     appLanguage: appLanguageSchema.optional(),
     uiFontName: uiFontNameSchema.optional(),
     uiTextSizePoints: uiTextSizePointsSchema.optional(),

@@ -44,10 +44,10 @@ export const appColorThemeIds = [
 export type AppColorThemeId = (typeof appColorThemeIds)[number];
 export type AppThemePreference = "system" | "light" | "dark";
 export type AppThemeMode = "light" | "dark";
+export const customBackgroundThemeId = "customBackground" as const;
+export type CustomBackgroundThemeId = typeof customBackgroundThemeId;
 
-export interface AppColorThemeDefinition {
-  id: AppColorThemeId;
-  title: string;
+export interface ColorThemePalette {
   isDark: boolean;
   ember: string;
   moss: string;
@@ -55,6 +55,33 @@ export interface AppColorThemeDefinition {
   ink: string;
   cream: string;
   cardStroke: string;
+}
+
+export interface AppColorThemeDefinition extends ColorThemePalette {
+  id: AppColorThemeId;
+  title: string;
+}
+
+export interface CustomBackgroundPalette extends ColorThemePalette {
+  dominant: string;
+  accents: string[];
+}
+
+export interface CustomBackgroundThemeDefinition extends ColorThemePalette {
+  id: CustomBackgroundThemeId;
+  title: string;
+  source: "customBackground";
+  dominant: string;
+  accents: string[];
+}
+
+export type ColorThemeDefinition = AppColorThemeDefinition | CustomBackgroundThemeDefinition;
+
+export interface RgbSample {
+  red: number;
+  green: number;
+  blue: number;
+  alpha?: number;
 }
 
 export const appColorThemes: readonly AppColorThemeDefinition[] = [
@@ -137,7 +164,97 @@ export function resolveAppColorTheme(
   return defaultAppColorTheme(mode);
 }
 
-export function semanticThemeVariables(theme: AppColorThemeDefinition): Record<string, string> {
+export function resolveEffectiveColorTheme(
+  settings: {
+    colorTheme?: string | null;
+    customBackground?: { fileName?: string; palette: CustomBackgroundPalette } | null;
+    useInferredBackgroundTheme?: boolean;
+  },
+  mode: AppThemeMode
+): ColorThemeDefinition {
+  if (settings.useInferredBackgroundTheme && settings.customBackground) {
+    return {
+      ...settings.customBackground.palette,
+      id: customBackgroundThemeId,
+      title: "Inferred from background",
+      source: "customBackground"
+    };
+  }
+
+  return resolveAppColorTheme(settings.colorTheme, mode);
+}
+
+export function resolveEffectiveThemeMode(
+  settings: {
+    theme: AppThemePreference;
+    customBackground?: { palette: CustomBackgroundPalette } | null;
+    useInferredBackgroundTheme?: boolean;
+  },
+  systemPrefersDark: boolean
+): AppThemeMode {
+  if (settings.useInferredBackgroundTheme && settings.customBackground) {
+    return settings.customBackground.palette.isDark ? "dark" : "light";
+  }
+
+  return resolveAppThemeMode(settings.theme, systemPrefersDark);
+}
+
+export function inferColorThemePaletteFromSamples(samples: readonly RgbSample[]): CustomBackgroundPalette {
+  const opaqueSamples = samples
+    .filter((sample) => sample.alpha === undefined || sample.alpha >= 128)
+    .map((sample) => ({
+      red: clampChannel(sample.red),
+      green: clampChannel(sample.green),
+      blue: clampChannel(sample.blue)
+    }));
+
+  if (opaqueSamples.length === 0) {
+    return {
+      isDark: true,
+      ember: "#F97316",
+      moss: "#22C55E",
+      blue: "#38BDF8",
+      ink: "#F8FAFC",
+      cream: "#111827",
+      cardStroke: "#374151",
+      dominant: "#111827",
+      accents: ["#F97316", "#22C55E", "#38BDF8"]
+    };
+  }
+
+  const average = averageRgb(opaqueSamples);
+  const averageHex = rgbToHex(average);
+  const averageHsl = rgbToHsl(average);
+  const isDark = relativeLuminance(averageHex) < 0.42;
+  const cream = hslToHex({
+    hue: averageHsl.hue,
+    saturation: Math.min(0.24, averageHsl.saturation * 0.55),
+    lightness: isDark
+      ? Math.min(0.18, Math.max(0.08, averageHsl.lightness * 0.58))
+      : Math.max(0.9, Math.min(0.98, averageHsl.lightness + 0.36))
+  });
+  const ink = contrastRatio(cream, "#111827") >= contrastRatio(cream, "#F8FAFC") ? "#111827" : "#F8FAFC";
+  const accentHues = distinctAccentHues(opaqueSamples, averageHsl.hue);
+  const accents = [
+    hslToHex({ hue: accentHues[0], saturation: isDark ? 0.82 : 0.72, lightness: isDark ? 0.68 : 0.44 }),
+    hslToHex({ hue: accentHues[1], saturation: isDark ? 0.7 : 0.62, lightness: isDark ? 0.62 : 0.38 }),
+    hslToHex({ hue: accentHues[2], saturation: isDark ? 0.78 : 0.68, lightness: isDark ? 0.66 : 0.42 })
+  ];
+
+  return {
+    isDark,
+    ember: accents[0],
+    moss: accents[1],
+    blue: accents[2],
+    ink,
+    cream,
+    cardStroke: mixHex(cream, ink, isDark ? 0.18 : 0.14),
+    dominant: averageHex,
+    accents
+  };
+}
+
+export function semanticThemeVariables(theme: ColorThemePalette): Record<string, string> {
   const background = normalizeHex(theme.cream);
   const text = normalizeHex(theme.ink);
   const surface0 = theme.isDark ? mixHex(background, "#FFFFFF", 0.08) : mixHex(background, "#000000", 0.04);
@@ -180,6 +297,10 @@ function normalizeHex(value: string): string {
   return `#${raw.toUpperCase()}`;
 }
 
+function clampChannel(value: number): number {
+  return Math.min(255, Math.max(0, Math.round(value)));
+}
+
 function mixHex(left: string, right: string, rightWeight: number): string {
   const a = parseHex(left);
   const b = parseHex(right);
@@ -190,6 +311,23 @@ function mixHex(left: string, right: string, rightWeight: number): string {
     green: Math.round(a.green * (1 - weight) + b.green * weight),
     blue: Math.round(a.blue * (1 - weight) + b.blue * weight)
   });
+}
+
+function averageRgb(values: Array<{ red: number; green: number; blue: number }>): { red: number; green: number; blue: number } {
+  const total = values.reduce(
+    (sum, value) => ({
+      red: sum.red + value.red,
+      green: sum.green + value.green,
+      blue: sum.blue + value.blue
+    }),
+    { red: 0, green: 0, blue: 0 }
+  );
+
+  return {
+    red: Math.round(total.red / values.length),
+    green: Math.round(total.green / values.length),
+    blue: Math.round(total.blue / values.length)
+  };
 }
 
 function parseHex(value: string): { red: number; green: number; blue: number } {
@@ -207,4 +345,120 @@ function rgbToHex(value: { red: number; green: number; blue: number }): string {
     Math.min(255, Math.max(0, next)).toString(16).padStart(2, "0").toUpperCase();
 
   return `#${channel(value.red)}${channel(value.green)}${channel(value.blue)}`;
+}
+
+function rgbToHsl(value: { red: number; green: number; blue: number }): { hue: number; saturation: number; lightness: number } {
+  const red = value.red / 255;
+  const green = value.green / 255;
+  const blue = value.blue / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const lightness = (max + min) / 2;
+
+  if (max === min) {
+    return { hue: 0, saturation: 0, lightness };
+  }
+
+  const delta = max - min;
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let hue = 0;
+
+  if (max === red) {
+    hue = ((green - blue) / delta + (green < blue ? 6 : 0)) * 60;
+  } else if (max === green) {
+    hue = ((blue - red) / delta + 2) * 60;
+  } else {
+    hue = ((red - green) / delta + 4) * 60;
+  }
+
+  return { hue, saturation, lightness };
+}
+
+function hslToHex(value: { hue: number; saturation: number; lightness: number }): string {
+  const hue = ((value.hue % 360) + 360) % 360;
+  const saturation = Math.min(1, Math.max(0, value.saturation));
+  const lightness = Math.min(1, Math.max(0, value.lightness));
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = lightness - chroma / 2;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (hue < 60) {
+    red = chroma;
+    green = x;
+  } else if (hue < 120) {
+    red = x;
+    green = chroma;
+  } else if (hue < 180) {
+    green = chroma;
+    blue = x;
+  } else if (hue < 240) {
+    green = x;
+    blue = chroma;
+  } else if (hue < 300) {
+    red = x;
+    blue = chroma;
+  } else {
+    red = chroma;
+    blue = x;
+  }
+
+  return rgbToHex({
+    red: Math.round((red + match) * 255),
+    green: Math.round((green + match) * 255),
+    blue: Math.round((blue + match) * 255)
+  });
+}
+
+function distinctAccentHues(samples: Array<{ red: number; green: number; blue: number }>, fallbackHue: number): [number, number, number] {
+  const hues: number[] = [];
+  const candidates = samples
+    .map((sample) => rgbToHsl(sample))
+    .filter((sample) => sample.saturation >= 0.18 && sample.lightness >= 0.12 && sample.lightness <= 0.9)
+    .sort((left, right) => right.saturation - left.saturation);
+
+  for (const candidate of candidates) {
+    if (hues.every((hue) => hueDistance(hue, candidate.hue) >= 38)) {
+      hues.push(candidate.hue);
+    }
+
+    if (hues.length === 3) {
+      break;
+    }
+  }
+
+  while (hues.length < 3) {
+    const index = hues.length;
+    hues.push(fallbackHue + [24, 128, 210][index]);
+  }
+
+  return [hues[0], hues[1], hues[2]];
+}
+
+function hueDistance(left: number, right: number): number {
+  const delta = Math.abs((((left - right) % 360) + 360) % 360);
+  return Math.min(delta, 360 - delta);
+}
+
+function contrastRatio(left: string, right: string): number {
+  const leftLuminance = relativeLuminance(left);
+  const rightLuminance = relativeLuminance(right);
+  const light = Math.max(leftLuminance, rightLuminance);
+  const dark = Math.min(leftLuminance, rightLuminance);
+
+  return (light + 0.05) / (dark + 0.05);
+}
+
+function relativeLuminance(color: string): number {
+  const channels = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map((channel) => {
+    const normalized = Number.parseInt(channel, 16) / 255;
+
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }

@@ -39,6 +39,8 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
   return {
     theme: "system",
     colorTheme: "notion",
+    customBackground: null,
+    useInferredBackgroundTheme: true,
     appLanguage: "system",
     uiFontName: null,
     uiTextSizePoints: 13,

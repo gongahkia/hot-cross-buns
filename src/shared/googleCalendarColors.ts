@@ -1,4 +1,8 @@
-import type { AppColorThemeId } from "./ipc/themeCatalog";
+import {
+  customBackgroundThemeId,
+  type AppColorThemeId,
+  type ColorThemeDefinition
+} from "./ipc/themeCatalog";
 
 export const googleCalendarEventColorIds = [
   "1",
@@ -130,22 +134,41 @@ export function themeCalendarEventColor(
   return themeCalendarEventColorMaps[themeId]?.[colorId] ?? null;
 }
 
+export function calendarEventColorForTheme(
+  theme: ColorThemeDefinition | null | undefined,
+  colorId: string | null | undefined
+): CalendarEventColorPair | null {
+  if (!theme || !colorId || !isGoogleCalendarEventColorId(colorId)) {
+    return null;
+  }
+
+  if (theme.id !== customBackgroundThemeId) {
+    return themeCalendarEventColor(theme.id, colorId);
+  }
+
+  return customThemeEventColor(theme, colorId);
+}
+
 export function resolveCalendarEventDisplayColor({
   calendarBackgroundColor,
   calendarForegroundColor,
   colorId,
+  colorTheme,
   colorThemeId,
   overrides
 }: {
   calendarBackgroundColor?: string | null;
   calendarForegroundColor?: string | null;
   colorId: string | null | undefined;
+  colorTheme?: ColorThemeDefinition | null;
   colorThemeId?: AppColorThemeId | null;
   overrides: CalendarEventColorOverrides;
 }): CalendarEventColorPair {
   const googleColor = googleCalendarEventColor(colorId);
   const override = googleColor ? overrides[googleColor.id] : undefined;
-  const themeColor = themeCalendarEventColor(colorThemeId, colorId);
+  const themeColor = colorTheme
+    ? calendarEventColorForTheme(colorTheme, colorId)
+    : themeCalendarEventColor(colorThemeId, colorId);
 
   if (override) {
     return override;
@@ -168,6 +191,28 @@ export function resolveCalendarEventDisplayColor({
   };
 }
 
+function customThemeEventColor(theme: ColorThemeDefinition, colorId: GoogleCalendarEventColorId): CalendarEventColorPair {
+  const colors: Record<GoogleCalendarEventColorId, string> = {
+    "1": mixCalendarHex(theme.blue, theme.ember, 0.35),
+    "2": theme.moss,
+    "3": mixCalendarHex(theme.ember, theme.blue, 0.45),
+    "4": mixCalendarHex(theme.ember, "#DC2626", 0.35),
+    "5": mixCalendarHex(theme.ember, theme.moss, 0.45),
+    "6": theme.ember,
+    "7": mixCalendarHex(theme.blue, theme.moss, 0.4),
+    "8": theme.cardStroke,
+    "9": theme.blue,
+    "10": theme.moss,
+    "11": mixCalendarHex(theme.ember, "#EF4444", 0.45)
+  };
+  const background = normalizeCalendarEventHex(colors[colorId]);
+
+  return {
+    background,
+    foreground: readableCalendarEventTextColor(background)
+  };
+}
+
 function eventColorMap(colors: CalendarEventColorTuple): ThemeCalendarEventColorMap {
   return Object.fromEntries(
     googleCalendarEventColorIds.map((id, index) => {
@@ -182,6 +227,35 @@ function eventColorMap(colors: CalendarEventColorTuple): ThemeCalendarEventColor
       ];
     })
   ) as ThemeCalendarEventColorMap;
+}
+
+function mixCalendarHex(left: string, right: string, rightWeight: number): string {
+  const a = parseCalendarHex(left);
+  const b = parseCalendarHex(right);
+  const weight = Math.min(1, Math.max(0, rightWeight));
+
+  return rgbToCalendarHex({
+    red: Math.round(a.red * (1 - weight) + b.red * weight),
+    green: Math.round(a.green * (1 - weight) + b.green * weight),
+    blue: Math.round(a.blue * (1 - weight) + b.blue * weight)
+  });
+}
+
+function parseCalendarHex(value: string): { red: number; green: number; blue: number } {
+  const raw = normalizeCalendarEventHex(value).slice(1);
+
+  return {
+    red: Number.parseInt(raw.slice(0, 2), 16),
+    green: Number.parseInt(raw.slice(2, 4), 16),
+    blue: Number.parseInt(raw.slice(4, 6), 16)
+  };
+}
+
+function rgbToCalendarHex(value: { red: number; green: number; blue: number }): string {
+  const channel = (next: number): string =>
+    Math.min(255, Math.max(0, next)).toString(16).padStart(2, "0").toUpperCase();
+
+  return `#${channel(value.red)}${channel(value.green)}${channel(value.blue)}`;
 }
 
 function normalizeCalendarEventHex(value: string): string {

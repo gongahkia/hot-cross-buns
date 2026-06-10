@@ -5,7 +5,7 @@ import {
   type SettingsSnapshot,
   type ScheduledTaskBlockSummary
 } from "@shared/ipc/contracts";
-import type { AppColorThemeId } from "@shared/ipc/themeCatalog";
+import type { ColorThemeDefinition } from "@shared/ipc/themeCatalog";
 import type {
   CalendarDayViewModel,
   CalendarEventViewModel,
@@ -30,14 +30,14 @@ export function stableCalendarEventViewModel(
   calendarBackgroundColor: string | null | undefined,
   calendarForegroundColor: string | null | undefined,
   calendarEventColorOverrides: SettingsSnapshot["calendarEventColorOverrides"],
-  colorThemeId: AppColorThemeId,
+  colorTheme: ColorThemeDefinition,
   defaultTimeZone: string,
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const timeZone = event.timeZone?.trim() || calendarTimeZone?.trim() || defaultTimeZone || "UTC";
   const displayColor = resolveCalendarEventDisplayColor({
     colorId: event.colorId,
-    colorThemeId,
+    colorTheme,
     overrides: calendarEventColorOverrides,
     calendarBackgroundColor,
     calendarForegroundColor
@@ -74,7 +74,7 @@ export function stableCalendarEventViewModel(
     calendarTitle ?? "",
     calendarBackgroundColor ?? "",
     calendarForegroundColor ?? "",
-    colorThemeId,
+    colorTheme.id,
     displayColor.background ?? "",
     displayColor.foreground ?? ""
   ].join("\u001c");

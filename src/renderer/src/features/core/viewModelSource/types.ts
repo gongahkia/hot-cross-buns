@@ -41,7 +41,7 @@ import type {
   TaskSummary,
   TaskUpdateRequest
 } from "@shared/ipc/contracts";
-import type { AppColorThemeId } from "@shared/ipc/themeCatalog";
+import type { ColorThemeDefinition } from "@shared/ipc/themeCatalog";
 import type { ParsedLocalSearchQuery } from "@shared/search/localSearch";
 import type {
   CalendarDayViewModel,
@@ -57,7 +57,8 @@ import type {
 } from "../coreViewModels";
 
 export interface CoreViewModelSource {
-  activeColorThemeId: AppColorThemeId;
+  activeColorTheme: ColorThemeDefinition;
+  activeColorThemeId: ColorThemeDefinition["id"];
   appearanceReady: boolean;
   calendarAgendaEvents: CalendarEventViewModel[];
   calendarDayView: CalendarDayViewModel;

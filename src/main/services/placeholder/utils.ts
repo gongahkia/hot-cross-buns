@@ -167,6 +167,14 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.uiTextSizePoints = request.uiTextSizePoints;
   }
 
+  if (request.customBackground !== undefined) {
+    patch.customBackground = request.customBackground;
+  }
+
+  if (request.useInferredBackgroundTheme !== undefined) {
+    patch.useInferredBackgroundTheme = request.useInferredBackgroundTheme;
+  }
+
   if (request.perSurfaceFontOverrides !== undefined) {
     patch.perSurfaceFontOverrides = request.perSurfaceFontOverrides;
   }
