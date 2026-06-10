@@ -246,7 +246,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
     domains: Set<SearchDomain>,
     limit: number,
     mode: "semantic" | "hybrid",
-    request: SearchRepositoryRequest = {}
+    request: Pick<SearchRepositoryRequest, "embeddingModelId" | "semanticInstalled"> = {}
   ): SearchQueryResponse {
     const modelId = request.embeddingModelId ?? "hcb-local-hash-384";
 

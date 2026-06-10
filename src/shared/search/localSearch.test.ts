@@ -36,6 +36,15 @@ describe("local search query DSL", () => {
       "List: Inbox Planning",
       "Body: yes"
     ]);
+    expect(parsed.explain).toEqual([
+      "Text: triage",
+      "Source: tasks",
+      "Status: active",
+      "Due: today",
+      "Priority: high",
+      "List: Inbox Planning",
+      "Body: yes"
+    ]);
   });
 
   it("parses calendar date ranges and source aliases", () => {

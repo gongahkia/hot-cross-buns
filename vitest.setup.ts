@@ -146,34 +146,6 @@ const hcbApi: HcbApi = {
           tasks: 0
         }
       })
-    ),
-    listModels: vi.fn(async () =>
-      ok({
-        models: defaultSemanticSearchModels,
-        selectedModelId: "Xenova/all-MiniLM-L6-v2",
-        enabled: false
-      })
-    ),
-    installModel: vi.fn(async (request) =>
-      ok({
-        model: { ...defaultSemanticSearchModels[0], id: request.modelId, installed: true, installState: "installed" as const, updatedAt: now },
-        selectedModelId: request.modelId,
-        enabled: true
-      })
-    ),
-    uninstallModel: vi.fn(async (request) =>
-      ok({
-        model: { ...defaultSemanticSearchModels[0], id: request.modelId, installed: false, installState: "not-installed" as const, updatedAt: now },
-        selectedModelId: "hcb-local-hash-384",
-        enabled: false
-      })
-    ),
-    rebuildIndex: vi.fn(async (request = {}) =>
-      ok({
-        modelId: request.modelId ?? "Xenova/all-MiniLM-L6-v2",
-        indexedCount: 0,
-        staleCount: 0
-      })
     )
   },
   tasks: {
@@ -594,6 +566,34 @@ const hcbApi: HcbApi = {
           modelId: "hcb-local-hash-384"
         }
       })
+    ),
+    listModels: vi.fn(async () =>
+      ok({
+        models: defaultSemanticSearchModels,
+        selectedModelId: "hcb-local-hash-384",
+        enabled: false
+      })
+    ),
+    installModel: vi.fn(async (request) =>
+      ok({
+        model: { ...defaultSemanticSearchModels[0], id: request.modelId, installed: true, installState: "installed" as const, updatedAt: now },
+        selectedModelId: request.modelId,
+        enabled: true
+      })
+    ),
+    uninstallModel: vi.fn(async (request) =>
+      ok({
+        model: { ...defaultSemanticSearchModels[0], id: request.modelId, installed: false, installState: "not-installed" as const, updatedAt: now },
+        selectedModelId: "hcb-local-hash-384",
+        enabled: false
+      })
+    ),
+    rebuildIndex: vi.fn(async (request = {}) =>
+      ok({
+        modelId: request.modelId ?? "hcb-local-hash-384",
+        indexedCount: 0,
+        staleCount: 0
+      })
     )
   },
   duplicates: {
@@ -781,7 +781,7 @@ const hcbApi: HcbApi = {
         savedTaskViews: [],
         semanticSearchEnabled: false,
         semanticSearchMode: "lexical" as const,
-        embeddingModelId: "Xenova/all-MiniLM-L6-v2",
+        embeddingModelId: "hcb-local-hash-384",
         semanticSearchModels: defaultSemanticSearchModels,
         agentActionTrayEnabled: true,
         webhooksEnabled: false

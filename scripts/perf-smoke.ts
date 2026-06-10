@@ -354,6 +354,9 @@ function collectSqliteBaseline(userDataDir: string): SqliteBaselineResult {
     measure(measurements, `sqlite.notes.recent.${fixtureSize}`, () =>
       plannerRepository.listNotes({ limit: 50 })
     );
+    measure(measurements, `sqlite.tag-analytics.${fixtureSize}`, () =>
+      plannerRepository.tagAnalytics()
+    );
     measure(measurements, `search.${fixtureSize}-local`, () =>
       plannerRepository.search({
         query: "generated",

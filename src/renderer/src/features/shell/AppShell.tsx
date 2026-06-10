@@ -1042,6 +1042,7 @@ export function AppShell(): JSX.Element {
               canRedo: source.undoStatus.canRedo
             }}
             initialQuery={commandPaletteInitialQuery}
+            mode={commandPaletteMode}
             onCommand={handlePaletteCommand}
             onNavigate={navigateOrOpenSettings}
             onOpenChange={setCommandPaletteOpen}
@@ -1082,6 +1083,34 @@ export function AppShell(): JSX.Element {
           onOpenDiagnostics={openDiagnosticsPanel}
           onClose={() => setSettingsOpen(false)}
         />
+      ) : null}
+      {leaderActive ? (
+        <div
+          aria-label="Leader key commands"
+          className="fixed bottom-4 left-1/2 z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 rounded-hcbLg border border-border bg-bg-secondary p-3 shadow-2xl"
+          role="dialog"
+        >
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="text-[var(--text-sm)] font-semibold text-text-primary">
+              {displayAccelerator(source.settings.leaderKey)}...
+            </div>
+            <div className="text-[var(--text-xs)] text-text-muted">Esc cancels</div>
+          </div>
+          <div className="grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2">
+            {leaderEntries.map((entry) => (
+              <div
+                className={cx(
+                  "grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 rounded-hcbMd px-2 py-1.5 text-[var(--text-sm)]",
+                  entry.conflict ? "text-warning" : "text-text-secondary"
+                )}
+                key={entry.id}
+              >
+                <span className="font-mono text-[var(--text-xs)]">{displayAccelerator(entry.accelerator)}</span>
+                <span className="truncate">{entry.label}{entry.conflict ? " conflict" : ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
       <AgentActionTray enabled={source.settings.agentActionTrayEnabled} />
     </div>

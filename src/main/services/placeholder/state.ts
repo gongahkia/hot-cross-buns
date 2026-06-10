@@ -265,7 +265,7 @@ export function createPlaceholderState(): PlaceholderState {
       savedTaskViews: [],
       semanticSearchEnabled: false,
       semanticSearchMode: "lexical",
-      embeddingModelId: "Xenova/all-MiniLM-L6-v2",
+      embeddingModelId: "hcb-local-hash-384",
       semanticSearchModels: defaultSemanticSearchModels,
       agentActionTrayEnabled: true,
       webhooksEnabled: false

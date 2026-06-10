@@ -199,7 +199,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     savedTaskViews: [],
     semanticSearchEnabled: false,
     semanticSearchMode: "lexical",
-    embeddingModelId: "Xenova/all-MiniLM-L6-v2",
+    embeddingModelId: "hcb-local-hash-384",
     semanticSearchModels: defaultSemanticSearchModels,
     agentActionTrayEnabled: true,
     webhooksEnabled: false,
@@ -1016,7 +1016,7 @@ export function seededHcb(): HcbApi {
       listModels: vi.fn(async () =>
         ok({
           models: defaultSemanticSearchModels,
-          selectedModelId: "Xenova/all-MiniLM-L6-v2",
+          selectedModelId: "hcb-local-hash-384",
           enabled: false
         })
       ),
@@ -1036,7 +1036,7 @@ export function seededHcb(): HcbApi {
       ),
       rebuildIndex: vi.fn(async (request = {}) =>
         ok({
-          modelId: request.modelId ?? "Xenova/all-MiniLM-L6-v2",
+          modelId: request.modelId ?? "hcb-local-hash-384",
           indexedCount: 0,
           staleCount: 0
         })

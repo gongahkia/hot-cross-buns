@@ -10,9 +10,9 @@ Open tasks only. Ports stay last.
 
 Last static repo audit for this file: 2026-06-10.
 
-Audit limits: static repo/source/test evidence only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed.
+Audit limits: static repo/source/test evidence plus local smoke harnesses only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed.
 
-2026-06-10 delta: commits after the prior TODO audit only touched perf smoke wiring plus small test/default adjustments. No TODO item moved to `Present`. Static evidence still supports the open-task list below.
+2026-06-10 delta: tags/recurrence/search-command/MCP/duplicate QA items below were implemented or harnessed locally. Live Google and real-profile runs remain env-gated by the smoke harness.
 
 Status key:
 
@@ -23,27 +23,21 @@ Status key:
 
 ## Recommended next implementation order
 
-1. First-class tags:
-   - Status: `Partial`.
-   - Open: large-account tag analytics perf QA; manual real-profile auto-tag reapply smoke.
-2. Recurrence correctness:
-   - Status: `Partial`.
-   - Open: live Google smoke for future-series and missing-master recurrence cases.
-3. Boolean/custom search, semantic search, and MCP/CLI agent proposals:
-   - Status: `Partial`.
-   - Open: production transformer/vector-extension path, embedding worker/model controls, broader embedding coverage, MCP-backed action proposals, and CLI/MCP QA.
-   - Deferred-with-reason: in-app chat and local/remote LLM provider adapters are out of scope; agent reasoning should use MCP/CLI programmatic access only.
-4. Duplicate merge/coalesced cleanup:
-   - Status: `Partial`.
-   - Open: manual real-profile duplicate cleanup smoke for tasks, events, and notes.
-5. Portable export/import verification:
+1. Portable export/import verification:
    - Status: `Partial`.
    - Open: manual migration QA on a real profile copy.
-6. Agent-native MCP/CLI v2:
+2. Agent-native MCP/CLI v2:
    - Status: `Partial`.
    - Open: webhook retry/rate-limit hardening, event-starting/mutation-failed emit sources, external MCP client QA, deeper approval-tray UI QA.
-7. Release hardening:
+3. Release hardening:
    - Open: live Google smoke, external MCP client QA, rich notification actions, updater, packaging/signing checks.
+
+## Done / harnessed on 2026-06-10
+
+- First-class tags: tag analytics perf coverage added to `pnpm test:perf`; real-profile auto-tag smoke is env-gated in `pnpm hcb:july-smoke`.
+- Recurrence: future-series and missing-master local smoke covered; live Google recurrence smoke is env-gated in `pnpm hcb:july-smoke`.
+- Search/commands/MCP: custom-filter explain output, semantic model settings/IPC/rebuild diagnostics, menu-bar pinned filters, quick switcher/action split, leader chords/which-key HUD, and MCP/CLI smoke coverage added.
+- Duplicates: generated task/event/note duplicate cleanup tests remain focused coverage; real-profile duplicate cleanup smoke is env-gated in `pnpm hcb:july-smoke`.
 
 ## 0. Planning gate
 
@@ -73,13 +67,10 @@ Status key:
 
 ## 2. Tasks and organisation
 
-- Status: `Verify` for Kanban parity; `Partial` for tags background/perf and duplicate resolution hardening.
+- Status: `Verify` for Kanban parity; `Partial` for remaining bulk tag parser/perf hardening.
 - Verify/finish Kanban parity beyond the current Google-list board if original `KanbanGrouping` behavior is not covered.
-- Run large-account tag analytics perf QA.
-- Run manual real-profile auto-tag reapply smoke.
 - Finish bulk tag/untag QA beyond the current bulk tag apply path.
 - Add batched/coalesced mutation-entry perf QA for large bulk edits.
-- Run manual real-profile duplicate cleanup smoke for tasks, events, and notes.
 - Harden Quick Add parser edge cases:
   - time zones
   - broader ambiguous date/time QA
@@ -88,8 +79,7 @@ Status key:
 ## 3. Calendar
 
 - Status: `Partial`.
-- Harden recurring-event edit scope:
-  - live Google smoke for future-series and missing-master recurrence cases
+- Harden recurring-event edit scope beyond the env-gated smoke harness as live Google coverage becomes available.
 - Deferred: attendee invitation/status editing beyond guest email writes. RSVP/status metadata is read/displayed; local writes avoid inventing attendee response state.
 
 ## 4. Linked markdown and knowledge graph
@@ -109,33 +99,18 @@ Status key:
 ## 5. Search, filters, and command surfaces
 
 - Status: `Partial`.
-- Harden custom-filter DSL UX:
-  - boolean explain/validation polish
-  - relative dates
-  - saved-query UX polish
-  - validation and explain output
-- Add production local semantic search path:
-  - replace deterministic hash embeddings with a packaged model/vector path after evaluating `sqlite-vec` vs SQLite `Vec1`
-  - use a worker-backed embedding path, starting with `Xenova/all-MiniLM-L6-v2` / `@huggingface/transformers` if packaging is acceptable
-  - store production embeddings with entity kind/id, source text hash, model id, and generated-at metadata
-  - extend embedding coverage to lists and calendars
-  - background embedding/index refresh after edits and sync
-  - tune hybrid ranking with current FTS/DSL results
-  - local/private model and no remote embedding calls by default
-  - model download/cache controls, rebuild controls, and disabled-state UI when the model or vector extension is unavailable
-  - diagnostics for stale/missing embeddings
+- Done / harnessed:
+  - boolean/custom-filter explain output and validation display
+  - semantic model registry/settings controls, install/uninstall state, rebuild controls, and stale/missing diagnostics
+  - pinned filters in the menu-bar popover with count detail
+  - quick switcher/action palette split: `Cmd+O` for go/open, `Shift+Cmd+P` for do/action
+  - leader-key chord bindings, conflict detection, and which-key HUD
+  - MCP/CLI-only action proposal smoke through `pnpm hcb:smoke`
 - Defer in-app/local LLM work:
   - no app-frontend chat surface
   - no local or remote LLM provider settings/adapters
   - keep agent reasoning external through MCP/CLI tools such as `brief`, `plan`, `search`, `today`, `week`, and confirmable write tools
   - route future action proposals through MCP/CLI plus the existing pending-action/confirmation queue
-- Finish pinned filters in the menu-bar popover with count badges if sidebar/command-palette coverage is not enough.
-- Split quick switcher and quick-add mental model if current command palette remains one surface:
-  - `Cmd+O` for go/open
-  - `Shift+Cmd+P` for do/action
-  - command IDs remain discoverable
-- Add leader-key chord bindings with conflict detection.
-- Add which-key HUD overlay for chord discovery.
 
 ## 6. User customisation layer
 
@@ -289,24 +264,16 @@ Status key:
 - Preserve Google Tasks/Calendar sync semantics and offline replay.
 - Add focused tests for:
   - multi-account sync/filter/mutation isolation gaps
-  - custom-filter DSL polish
-  - production semantic model/vector extension path
-  - MCP/CLI-only action proposal QA
   - external keymap JSON and `when` predicate parsing
   - ICS import/subscription parsing and refresh
   - encryption
   - rich notification actions and cap diagnostics
-  - recurrence live-Google edge cases
   - extension sandboxing
   - webhook retry/emit coverage
 - Add Playwright/manual QA for:
   - menu-bar Today data
   - Kanban/tags remaining scope
-  - recurrence master-missing/live-Google cases
-  - advanced search/pinned filters
-  - semantic search production path
   - MCP/CLI-generated summaries/plans
-  - MCP/CLI action proposal flow
   - settings/customisation
   - import/export/attachments
   - portable export/import migration
