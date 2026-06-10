@@ -50,6 +50,7 @@ const accountId = "perf-generated-account";
 const fixtureSize = parsePerfFixtureSize(process.env.HCB_PERF_FIXTURE_SIZE);
 const perfFixture = generatePerfFixtureSet(fixtureSize);
 const skipUiFlows = process.env.HCB_PERF_SKIP_UI_FLOWS === "1";
+const skipElectronLaunch = process.env.HCB_PERF_SKIP_ELECTRON === "1";
 const appShellTimeoutMs = parsePositiveInteger(process.env.HCB_PERF_APP_SHELL_TIMEOUT_MS) ?? 45_000;
 type DiagnosticsHealthResult = HcbResult<DiagnosticsHealthResponse> | null;
 
@@ -772,6 +773,27 @@ async function collectLaunchTiming(
   }
 }
 
+function skippedLaunchTiming(
+  name: PerfLaunchCapture["name"],
+  reason: string
+): {
+  launch: PerfLaunchCapture;
+  measurements: PerfMeasurement[];
+  ipcRoutes: PerfIpcRouteReport[];
+  performanceTimings: LocalPerformanceTiming[];
+} {
+  return {
+    launch: {
+      name,
+      status: "skipped",
+      reason
+    },
+    measurements: launchSkippedMeasurements(name, reason),
+    ipcRoutes: [],
+    performanceTimings: []
+  };
+}
+
 async function waitForAppShellWindow(
   electronApp: ElectronApplication,
   timeoutMs = 45_000
@@ -1157,8 +1179,13 @@ async function main(): Promise<void> {
     const fixtureGenerationMs = roundMs(performance.now() - fixtureStartedAt);
     const seedResult = seedPerfFixtureDatabase(temp.userDataDir);
     const sqlite = collectSqliteBaseline(temp.userDataDir);
-    const cold = await collectLaunchTiming("cold", temp.userDataDir);
-    const warm = await collectLaunchTiming("warm", temp.userDataDir);
+    const launchSkipReason = "Electron launch skipped by HCB_PERF_SKIP_ELECTRON=1.";
+    const cold = skipElectronLaunch
+      ? skippedLaunchTiming("cold", launchSkipReason)
+      : await collectLaunchTiming("cold", temp.userDataDir);
+    const warm = skipElectronLaunch
+      ? skippedLaunchTiming("warm", launchSkipReason)
+      : await collectLaunchTiming("warm", temp.userDataDir);
     const launches = [cold.launch, warm.launch];
     const report: PerfReport = {
       schemaVersion: 1,
@@ -1207,6 +1234,7 @@ async function main(): Promise<void> {
         "Fixture data is generated locally and deterministically; the harness does not call Google or read user app data.",
         `The ${fixtureSize} fixture is seeded into a temporary app data path before launch and deleted after reporting.`,
         skipUiFlows ? "Renderer UI flow measurements were skipped for this run." : "Renderer UI flow measurements were enabled for this run.",
+        skipElectronLaunch ? "Electron launch measurements were skipped for this run." : "Electron launch measurements were enabled for this run.",
         `App shell wait timeout: ${appShellTimeoutMs}ms.`,
         "Electron security settings and renderer isolation are left unchanged for measurement.",
         `Temporary database path during run: ${redactSensitiveText(seedResult.databasePath)}`
