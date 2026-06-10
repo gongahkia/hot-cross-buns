@@ -61,7 +61,15 @@ export function createSqliteDomainServices(
           tasks: options.syncTasksWriteTransport,
           calendar: options.syncCalendarWriteTransport,
           onMutationFailed: (event) => {
-            void webhooks.emit("mutation.failed", event);
+            void webhooks.emit("mutation.failed", {
+              id: event.id,
+              operation: event.operation,
+              resourceType: event.resourceType,
+              resourceId: event.resourceId,
+              errorCode: event.errorCode,
+              attemptCount: event.attemptCount,
+              ...(event.nextRetryAt === undefined ? {} : { nextRetryAt: event.nextRetryAt })
+            });
           }
         })
       : undefined;

@@ -57,7 +57,7 @@ describe("LocalWebhookRepository", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("", { status: 503 }))
-      .mockResolvedValueOnce(new Response("", { status: 204 }));
+      .mockResolvedValueOnce(new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await repository.emit({
@@ -81,7 +81,7 @@ describe("LocalWebhookRepository", () => {
     expect(deliveryRows()[0]).toMatchObject({
       status: "delivered",
       attemptCount: 2,
-      responseStatus: 204,
+      responseStatus: 200,
       nextAttemptAt: null,
       errorMessage: null
     });
@@ -98,7 +98,7 @@ describe("LocalWebhookRepository", () => {
       enabled: true,
       includePrivateBodies: false
     });
-    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 204 }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await repository.emit({
@@ -133,7 +133,7 @@ describe("LocalWebhookRepository", () => {
       events: ["task.created"],
       enabled: true
     });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 204 })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 200 })));
     connection.run(
       `INSERT INTO local_webhook_deliveries (
          id, subscription_id, event, status, attempt_count, payload_json,
