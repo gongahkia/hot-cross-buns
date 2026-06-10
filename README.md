@@ -29,9 +29,6 @@
   <img src="https://img.shields.io/badge/Distribution-Unsigned%20DMG-orange" alt="Unsigned DMG distribution" />
 </p>
 
-> [!NOTE]
-> This repository was archived on 2026-06-10. GitHub Pages, CI, issue tracking, and active release work are disabled. The code and docs remain as historical reference.
-
 > [!IMPORTANT]
 > Public downloads currently ship as an unsigned DMG. On first launch, macOS may ask the user to allow the app once from `System Settings > Privacy & Security > Open Anyway`.
 
