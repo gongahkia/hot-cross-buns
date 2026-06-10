@@ -518,6 +518,58 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_local_ics_subscriptions_url
 CREATE INDEX IF NOT EXISTS idx_local_ics_subscriptions_visible
   ON local_ics_subscriptions(deleted_at, enabled, updated_at DESC);
 `
+  },
+  {
+    version: 19,
+    name: "webhook delivery retries",
+    operations: (connection) => {
+      if (!tableExists(connection, "local_webhook_deliveries")) {
+        return [];
+      }
+
+      const columns = new Set(
+        connection
+          .query<{ name: string }>("PRAGMA table_info(local_webhook_deliveries);")
+          .map((row) => row.name)
+      );
+      const operations: SqliteWriteOperation[] = [];
+
+      if (!columns.has("payload_json")) {
+        operations.push({
+          kind: "run",
+          sql: "ALTER TABLE local_webhook_deliveries ADD COLUMN payload_json TEXT NOT NULL DEFAULT '{}';"
+        });
+      }
+
+      if (!columns.has("next_attempt_at")) {
+        operations.push({
+          kind: "run",
+          sql: "ALTER TABLE local_webhook_deliveries ADD COLUMN next_attempt_at TEXT;"
+        });
+      }
+
+      if (!columns.has("last_attempt_at")) {
+        operations.push({
+          kind: "run",
+          sql: "ALTER TABLE local_webhook_deliveries ADD COLUMN last_attempt_at TEXT;"
+        });
+      }
+
+      operations.push({
+        kind: "run",
+        sql: `UPDATE local_webhook_deliveries
+              SET next_attempt_at = created_at
+              WHERE status = 'pending'
+                AND next_attempt_at IS NULL;`
+      });
+      operations.push({
+        kind: "run",
+        sql: `CREATE INDEX IF NOT EXISTS idx_local_webhook_deliveries_due
+              ON local_webhook_deliveries(status, next_attempt_at, created_at);`
+      });
+
+      return operations;
+    }
   }
 ];
 
