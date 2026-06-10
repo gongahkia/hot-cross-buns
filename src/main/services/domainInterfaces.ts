@@ -434,6 +434,7 @@ export interface WebhookDomainService {
   delete: (request: WebhookDeleteRequest) => MaybePromise<WebhookMutationResponse>;
   test: (request: WebhookTestRequest) => MaybePromise<WebhookMutationResponse>;
   emit: (event: WebhookEvent, payload: DomainJsonObject) => MaybePromise<void>;
+  drainDue: () => MaybePromise<void>;
 }
 
 export interface NativeDomainService {

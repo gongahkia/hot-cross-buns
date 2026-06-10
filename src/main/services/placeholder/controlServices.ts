@@ -356,7 +356,8 @@ export function createPlaceholderControlServices(
       }),
       delete: (request) => ({ id: request.id, queued: false, revision: new Date().toISOString() }),
       test: (request) => ({ id: request.id, queued: false, revision: new Date().toISOString() }),
-      emit: () => undefined
+      emit: () => undefined,
+      drainDue: () => undefined
     }
   };
 }

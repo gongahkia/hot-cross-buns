@@ -33,6 +33,7 @@ export class LocalSyncControlService implements SyncControlDomainService {
   private readonly historyRepository: LocalHistoryRepository | undefined;
   private readonly readSync: GoogleReadSyncService;
   private readonly mutationWorker: GooglePendingMutationWorker | undefined;
+  private readonly afterRun: (() => void | Promise<void>) | undefined;
   private readonly listeners = new Set<SyncStatusListener>();
   private running = false;
 
@@ -43,11 +44,13 @@ export class LocalSyncControlService implements SyncControlDomainService {
     tasksTransport: GoogleTasksReadTransport;
     calendarTransport: GoogleCalendarReadTransport;
     mutationWorker?: GooglePendingMutationWorker;
+    afterRun?: () => void | Promise<void>;
   }) {
     this.repository = options.repository;
     this.settingsRepository = options.settingsRepository;
     this.historyRepository = options.historyRepository;
     this.mutationWorker = options.mutationWorker;
+    this.afterRun = options.afterRun;
     this.readSync = new GoogleReadSyncService({
       repository: options.repository,
       tasks: options.tasksTransport,
@@ -118,6 +121,7 @@ export class LocalSyncControlService implements SyncControlDomainService {
         });
         this.recordSyncHistory(result.summaries, result.ok);
       }
+      await this.afterRun?.();
     } finally {
       this.running = false;
       this.emit();

@@ -8,6 +8,11 @@ import {
   type GoogleTasksWriteTransport
 } from "../google";
 import { appLogger } from "../diagnostics/appLogger";
+import {
+  backoffConstraintMultiplier,
+  defaultBackoffConstraintState,
+  type BackoffConstraintState
+} from "./backoffPolicy";
 import type {
   CalendarEventMutationTarget,
   GoogleSyncRepository,
@@ -20,6 +25,7 @@ export interface MutationBackoffPolicyOptions {
   maxDelayMs?: number;
   jitterMs?: number;
   random?: () => number;
+  constraintState?: () => BackoffConstraintState;
 }
 
 export class MutationBackoffPolicy {
@@ -27,12 +33,14 @@ export class MutationBackoffPolicy {
   private readonly maxDelayMs: number;
   private readonly jitterMs: number;
   private readonly random: () => number;
+  private readonly constraintState: () => BackoffConstraintState;
 
   constructor(options: MutationBackoffPolicyOptions = {}) {
     this.baseDelayMs = options.baseDelayMs ?? 60_000;
     this.maxDelayMs = options.maxDelayMs ?? 15 * 60_000;
     this.jitterMs = options.jitterMs ?? 10_000;
     this.random = options.random ?? Math.random;
+    this.constraintState = options.constraintState ?? defaultBackoffConstraintState;
   }
 
   retryDelayMs(error: unknown, attemptCount: number): number | undefined {
@@ -41,15 +49,28 @@ export class MutationBackoffPolicy {
     }
 
     if (error instanceof GoogleApiError && error.retryAfterMs !== undefined) {
-      return error.retryAfterMs;
+      return Math.round(error.retryAfterMs * backoffConstraintMultiplier(this.constraintState()));
     }
 
     const attempt = Math.max(0, Math.min(Math.floor(attemptCount), 10));
     const exponentialDelay = this.baseDelayMs * 2 ** attempt;
     const jitter = Math.round(this.jitterMs * Math.min(1, Math.max(0, this.random())));
 
-    return Math.min(exponentialDelay + jitter, this.maxDelayMs + this.jitterMs);
+    return Math.round(
+      Math.min(exponentialDelay + jitter, this.maxDelayMs + this.jitterMs) *
+        backoffConstraintMultiplier(this.constraintState())
+    );
   }
+}
+
+export interface MutationFailedEvent {
+  id: string;
+  operation: string;
+  resourceType: string;
+  resourceId: string;
+  errorCode: HcbErrorCode;
+  attemptCount: number;
+  nextRetryAt?: string;
 }
 
 export interface GooglePendingMutationWorkerOptions {
@@ -59,6 +80,7 @@ export interface GooglePendingMutationWorkerOptions {
   backoffPolicy?: MutationBackoffPolicy;
   now?: () => Date;
   batchSize?: number;
+  onMutationFailed?: (event: MutationFailedEvent) => void | Promise<void>;
 }
 
 export interface GooglePendingMutationWorkerRunResult {
@@ -87,6 +109,7 @@ export class GooglePendingMutationWorker {
   private readonly backoffPolicy: MutationBackoffPolicy;
   private readonly now: () => Date;
   private readonly batchSize: number;
+  private readonly onMutationFailed: ((event: MutationFailedEvent) => void | Promise<void>) | undefined;
   private running = false;
 
   constructor(options: GooglePendingMutationWorkerOptions) {
@@ -96,6 +119,7 @@ export class GooglePendingMutationWorker {
     this.backoffPolicy = options.backoffPolicy ?? new MutationBackoffPolicy();
     this.now = options.now ?? (() => new Date());
     this.batchSize = Math.max(1, Math.min(100, options.batchSize ?? 25));
+    this.onMutationFailed = options.onMutationFailed;
   }
 
   async drainDue(limit = this.batchSize): Promise<GooglePendingMutationWorkerRunResult> {
@@ -173,6 +197,19 @@ export class GooglePendingMutationWorker {
             resourceId: mutation.resourceId,
             errorCode: failure.code,
             attemptCount: mutation.attemptCount + 1
+          });
+          void Promise.resolve(this.onMutationFailed?.({
+            id: mutation.id,
+            operation: mutation.operation,
+            resourceType: mutation.resourceType,
+            resourceId: mutation.resourceId,
+            errorCode: failure.code,
+            attemptCount: mutation.attemptCount + 1,
+            ...(failure.nextRetryAt === undefined ? {} : { nextRetryAt: failure.nextRetryAt })
+          })).catch((error) => {
+            appLogger.warn("mutation failed webhook emit failed", "webhook", {
+              message: error instanceof Error ? error.message : String(error)
+            });
           });
 
           if (failure.nextRetryAt !== undefined) {

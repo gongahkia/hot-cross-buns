@@ -53,12 +53,16 @@ export interface SqliteDomainServiceOptions {
 export function createSqliteDomainServices(
   options: SqliteDomainServiceOptions
 ): AppDomainServices {
+  const webhooks = createSqliteWebhookDomainService(options.webhookRepository, options.settingsRepository);
   const mutationWorker =
     options.syncTasksWriteTransport && options.syncCalendarWriteTransport
       ? new GooglePendingMutationWorker({
           repository: options.syncRepository,
           tasks: options.syncTasksWriteTransport,
-          calendar: options.syncCalendarWriteTransport
+          calendar: options.syncCalendarWriteTransport,
+          onMutationFailed: (event) => {
+            void webhooks.emit("mutation.failed", event);
+          }
         })
       : undefined;
   const sync = new LocalSyncControlService({
@@ -67,7 +71,8 @@ export function createSqliteDomainServices(
     historyRepository: options.historyRepository,
     tasksTransport: options.syncTasksTransport ?? noopTasksTransport,
     calendarTransport: options.syncCalendarTransport ?? noopCalendarTransport,
-    mutationWorker
+    mutationWorker,
+    afterRun: () => webhooks.drainDue()
   });
   const mcpState = createInitialMcpState(options.settingsRepository);
   const undo = createSqliteUndoDomainService(options.undoRepository);
@@ -97,7 +102,7 @@ export function createSqliteDomainServices(
       settingsRepository: options.settingsRepository
     }),
     agent: createSqliteAgentDomainService(options.agentRepository),
-    webhooks: createSqliteWebhookDomainService(options.webhookRepository, options.settingsRepository),
+    webhooks,
     native: createSqliteNativeDomainService(),
     mcpTools: createMcpDomainServices({
       plannerRepository: options.plannerRepository,

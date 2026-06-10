@@ -6,7 +6,7 @@ import type {
   SettingsSnapshot
 } from "@shared/ipc/contracts";
 import type { GoogleAccountConnectionStatusDto } from "../google";
-import type { NativeDomainService } from "../services/domainInterfaces";
+import type { DomainJsonObject, NativeDomainService, WebhookDomainService } from "../services/domainInterfaces";
 import { parseHotCrossBunsDeepLink } from "./deepLinks";
 import { normalizeFontFamilies } from "./fontFamilies";
 import { buildNativeMenuBarSnapshot } from "./menuBarSnapshot";
@@ -43,6 +43,7 @@ export interface NativeShellServiceOptions {
   settings: NativeSettingsSource;
   windows: NativeShellWindowActions;
   sync: NativeShellSyncActions;
+  webhooks?: Pick<WebhookDomainService, "emit">;
   now?: () => Date;
 }
 
@@ -50,6 +51,7 @@ export class NativeShellService implements NativeDomainService {
   private readonly now: () => Date;
   private status: NativeCapabilitiesResponse;
   private deferredStarted = false;
+  private readonly eventStartingWebhookKeys = new Set<string>();
 
   constructor(private readonly options: NativeShellServiceOptions) {
     this.now = options.now ?? (() => new Date());
@@ -352,6 +354,7 @@ export class NativeShellService implements NativeDomainService {
 
       if (scheduled) {
         scheduledCount += 1;
+        this.emitEventStartingWebhook(request);
       }
     }
 
@@ -438,5 +441,32 @@ export class NativeShellService implements NativeDomainService {
         enabled ? "Open-at-login is enabled." : "Open-at-login is disabled."
       )
     };
+  }
+
+  private emitEventStartingWebhook(request: { id: string; body: string; deliveryDate: Date }): void {
+    if (!request.id.startsWith("event:")) {
+      return;
+    }
+
+    const eventId = request.id.slice("event:".length);
+    const deliveryAt = request.deliveryDate.toISOString();
+    const key = `${eventId}:${deliveryAt}`;
+
+    if (this.eventStartingWebhookKeys.has(key)) {
+      return;
+    }
+
+    this.eventStartingWebhookKeys.add(key);
+    const payload: DomainJsonObject = {
+      id: eventId,
+      title: request.body,
+      notificationDeliveryAt: deliveryAt
+    };
+
+    void Promise.resolve(this.options.webhooks?.emit("event.starting", payload)).catch((error) => {
+      appLogger.warn("event starting webhook emit failed", "webhook", {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    });
   }
 }

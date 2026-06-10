@@ -17,6 +17,11 @@ export function createSqliteWebhookDomainService(
     delete: (request: WebhookDeleteRequest) => repository.delete(request),
     test: (request: WebhookTestRequest) => repository.test(request.id),
     emit: (event, payload: DomainJsonObject) =>
-      repository.emit({ event, payload }, settingsRepository.get().webhooksEnabled)
+      repository.emit({ event, payload }, settingsRepository.get().webhooksEnabled),
+    drainDue: async () => {
+      if (settingsRepository.get().webhooksEnabled) {
+        await repository.deliverDue();
+      }
+    }
   };
 }
