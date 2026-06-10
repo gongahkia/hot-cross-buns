@@ -215,6 +215,10 @@ export class LocalSettingsSupportRepository {
       throw validationFailure("Attachment file is missing.");
     }
 
+    if (typeof shell?.openPath !== "function") {
+      return { path, message: "Attachment path resolved." };
+    }
+
     const message = await shell.openPath(path);
     if (message) {
       throw validationFailure(message);
@@ -882,8 +886,18 @@ export class LocalSettingsSupportRepository {
       id: string;
       accountId: string | null;
       notes: string | null;
+      parentId: string | null;
+      dueAt: string | null;
+      status: string;
+      isHidden: number;
     }>(
-      `SELECT id, account_id AS accountId, notes
+      `SELECT id,
+              account_id AS accountId,
+              notes,
+              parent_task_id AS parentId,
+              due_at AS dueAt,
+              status,
+              is_hidden AS isHidden
        FROM google_tasks
        WHERE deleted_at IS NULL AND notes LIKE ?
        LIMIT 1;`,
@@ -1158,8 +1172,11 @@ function isLocalIcsAccount(accountId: string | null): boolean {
   return accountId === LOCAL_ICS_ACCOUNT_ID;
 }
 
-function noteLikeTask(row: { notes: string | null }): boolean {
-  return Boolean(row.notes);
+function noteLikeTask(row: { dueAt: string | null; isHidden: number; parentId: string | null; status: string }): boolean {
+  return row.isHidden !== 1 &&
+    row.status !== "completed" &&
+    row.parentId === null &&
+    row.dueAt === null;
 }
 
 function normalizeIcsUrl(value: string): string {

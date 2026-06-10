@@ -64,7 +64,7 @@ export const defaultKeybindings: Record<HotkeyActionId, string | null> = {
   "note.create": "CmdOrCtrl+Shift+N",
   "calendar.create": "CmdOrCtrl+Shift+E",
   "quickAdd.open": null,
-  "commandPalette.open": "CmdOrCtrl+O",
+  "commandPalette.open": "CmdOrCtrl+P",
   "actionPalette.open": "CmdOrCtrl+Shift+P",
   "print.today": null,
   "sync.refresh": "CmdOrCtrl+R",

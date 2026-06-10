@@ -64,6 +64,7 @@ export function CustomizationRuntime(): JSX.Element | null {
             {extension.name}
           </div>
           <iframe
+            className="h-40 w-80 border-0"
             sandbox="allow-scripts"
             srcDoc={extensionHtml(extension)}
             title={`Extension ${extension.name}`}

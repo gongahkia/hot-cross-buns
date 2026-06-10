@@ -39,7 +39,7 @@ function commandMatches(command: PlannerAction, query: string): boolean {
 
 function commandAllowedInMode(command: PlannerAction, mode: "open" | "action"): boolean {
   if (mode === "open") {
-    return command.category === "Navigate" || command.category === "Calendar";
+    return true;
   }
 
   return command.category !== "Navigate";
@@ -272,7 +272,7 @@ export function CommandPalette({
         <div className="flex h-11 items-center gap-3 border-b border-border px-3">
           <Command aria-hidden="true" className="text-accent" size={17} />
           <h2 className="min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
-            {mode === "open" ? "Quick Switcher" : "Action Palette"}
+            {mode === "open" ? t("command.title") : "Action Palette"}
           </h2>
           <IconButton icon={X} label={t("command.close")} onClick={closePalette} variant="ghost" />
         </div>

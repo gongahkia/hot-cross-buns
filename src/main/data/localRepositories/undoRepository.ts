@@ -176,6 +176,7 @@ export interface UndoChangeInput {
 export class LocalUndoRepository {
   readonly sessionId = `session:${randomUUID()}`;
   private readonly history: LocalHistoryRepository;
+  private lastTimestampMs = 0;
 
   constructor(private readonly connection: SqliteConnection) {
     this.history = new LocalHistoryRepository(connection);
@@ -198,7 +199,7 @@ export class LocalUndoRepository {
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = this.nextTimestamp();
     const undoPayload = payloadFromChange(input, input.before, input.after);
     const redoPayload = payloadFromChange(input, input.after, input.before);
 
@@ -242,7 +243,7 @@ export class LocalUndoRepository {
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = this.nextTimestamp();
     const undoPayload: UndoGroupPayload = {
       version: 2,
       actionKind: input.actionKind,
@@ -526,7 +527,7 @@ export class LocalUndoRepository {
     const payload = parsePayload(stack === "undo" ? entry.undoPayloadJson : entry.redoPayloadJson);
     this.assertNoConflict(payload, stack);
 
-    const now = new Date().toISOString();
+    const now = this.nextTimestamp();
     const nextStack: UndoStack = stack === "undo" ? "redo" : "undo";
     const operations = [
       ...this.operationsForPayload(payload, now),
@@ -654,6 +655,12 @@ export class LocalUndoRepository {
        LIMIT 1;`,
       [this.sessionId, stack]
     ) ?? null;
+  }
+
+  private nextTimestamp(): string {
+    const next = Math.max(Date.now(), this.lastTimestampMs + 1);
+    this.lastTimestampMs = next;
+    return new Date(next).toISOString();
   }
 
   private recordApplyHistory(stack: UndoStack, entry: UndoEntryRow, payload: UndoPayload): void {
