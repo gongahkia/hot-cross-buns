@@ -489,11 +489,13 @@ export {
   nativeFontFamiliesResponseSchema,
   nativeImportMenuBarIconRequestSchema,
   nativeImportMenuBarIconResponseSchema,
+  nativeOpenExternalUrlRequestSchema,
   nativeNotificationPermissionRequestSchema,
   nativeNotificationPermissionResponseSchema,
   nativeNotificationStatusSchema,
   nativePathCapabilitySchema,
   nativeRouteSchema,
+  nativeUpdaterStatusSchema,
   type NativeAction,
   type NativeCapabilitiesResponse,
   type NativeCapabilityDescriptor,
@@ -508,10 +510,12 @@ export {
   type NativeFontFamiliesResponse,
   type NativeImportMenuBarIconRequest,
   type NativeImportMenuBarIconResponse,
+  type NativeOpenExternalUrlRequest,
   type NativeNotificationPermissionResponse,
   type NativeNotificationStatus,
   type NativePathCapability,
-  type NativeRoute
+  type NativeRoute,
+  type NativeUpdaterStatus
 } from "./contracts/native";
 
 export {

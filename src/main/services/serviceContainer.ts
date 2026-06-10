@@ -210,6 +210,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     settings: {
       get: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get())
     },
+    recordUpdateCheck: (checkedAt) => {
+      settingsRepository.update({ lastUpdateCheckAt: checkedAt });
+    },
     windows: options.nativeWindows ?? noopWindowActions,
     sync: {
       runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))

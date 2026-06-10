@@ -346,6 +346,83 @@ describe("App settings and onboarding", () => {
     expect(within(dialog).getByText("1 updated.")).toBeInTheDocument();
   });
 
+  it("edits task and event templates from settings dialogs", async () => {
+    const api = seededHcb();
+    let settings = testSettings({ taskTemplates: [], eventTemplates: [] });
+    api.settings.get = vi.fn(async () => ok(settings));
+    api.settings.update = vi.fn(async (request) => {
+      settings = testSettings({ ...settings, ...request });
+      return ok(settings);
+    });
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Settings");
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Advanced" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "New Task Template" }));
+    const taskDialog = await screen.findByRole("dialog", { name: "Edit task template" });
+    const taskTitle = within(taskDialog).getByRole("textbox", { name: "Task template title" });
+    await user.clear(taskTitle);
+    await user.type(taskTitle, "Ship title");
+    fireEvent.change(within(taskDialog).getByRole("textbox", { name: "Task template due expression" }), {
+      target: { value: "{{today}} 18:00" }
+    });
+    await user.click(within(taskDialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+      expect(settings.taskTemplates[0]).toEqual(expect.objectContaining({
+        title: "Ship title",
+        dueExpression: "{{today}} 18:00"
+      }));
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "New Event Template" }));
+    const eventDialog = await screen.findByRole("dialog", { name: "Edit event template" });
+    const eventTitle = within(eventDialog).getByRole("textbox", { name: "Event template title" });
+    await user.clear(eventTitle);
+    await user.type(eventTitle, "Review topic");
+    fireEvent.change(within(eventDialog).getByRole("textbox", { name: "Event template attendees" }), {
+      target: { value: "ada@example.com, bad" }
+    });
+    await user.click(within(eventDialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+      expect(settings.eventTemplates[0]).toEqual(expect.objectContaining({
+        title: "Review topic",
+        attendeeEmails: ["ada@example.com"]
+      }));
+    });
+  });
+
+  it("hides signed-out local Google account rows and empty account filters", async () => {
+    const api = seededHcb();
+    const google = connectedGoogleStatus({
+      accounts: [
+        connectedGoogleStatus().accounts[0],
+        {
+          accountId: "local-google-account",
+          connectionState: "signed_out",
+          grantedScopes: [],
+          missingScopes: [],
+          updatedAt: now
+        }
+      ]
+    });
+    api.google.status = vi.fn(async () => ok(google));
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Settings");
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Profile" }));
+
+    expect(within(dialog).getByText("Planner Test")).toBeInTheDocument();
+    expect(within(dialog).queryByText("signed_out")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Account" })).not.toBeInTheDocument();
+  });
+
   it("shows onboarding for a fresh database and completes setup through settings IPC", async () => {
     const { api, getSettings } = onboardingHcb();
     api.google.status = vi.fn(async () => ok(connectedGoogleStatus()));

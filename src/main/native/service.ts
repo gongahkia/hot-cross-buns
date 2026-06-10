@@ -42,6 +42,7 @@ export interface NativeShellServiceOptions {
     latest: () => GoogleAccountConnectionStatusDto | null;
   };
   settings: NativeSettingsSource;
+  recordUpdateCheck?: (checkedAt: string) => void;
   windows: NativeShellWindowActions;
   sync: NativeShellSyncActions;
   webhooks?: Pick<WebhookDomainService, "emit">;
@@ -162,6 +163,9 @@ export class NativeShellService implements NativeDomainService {
     const result = this.options.adapter.checkForUpdates();
     const resolved = isPromise(result) ? await result : result;
     this.applyUpdateStatus(resolved);
+    if (resolved.checkedAt) {
+      this.options.recordUpdateCheck?.(resolved.checkedAt);
+    }
     return structuredClone(this.status.updaterStatus);
   }
 
@@ -221,7 +225,20 @@ export class NativeShellService implements NativeDomainService {
       const settings = this.options.settings.get();
       this.registerProtocolClient();
       this.scheduleNotificationsFromCache();
-      await this.checkForUpdates();
+      if (shouldRunAutomaticUpdateCheck(settings, this.now())) {
+        await this.checkForUpdates();
+      } else {
+        this.status = {
+          ...this.status,
+          updaterStatus: {
+            state: settings.lastUpdateCheckAt === null ? "disabled" : "ready",
+            ...(settings.lastUpdateCheckAt ? { checkedAt: settings.lastUpdateCheckAt } : {}),
+            message: settings.lastUpdateCheckAt === null
+              ? "Automatic GitHub release checks are disabled."
+              : "Automatic GitHub release check skipped; last check was within 24 hours."
+          }
+        };
+      }
       this.applyAutostartSetting(settings.startOnLogin);
       this.updateMcpDeferredStatus(settings);
       this.status = {
@@ -476,4 +493,14 @@ export class NativeShellService implements NativeDomainService {
       });
     });
   }
+}
+
+function shouldRunAutomaticUpdateCheck(settings: SettingsSnapshot, now: Date): boolean {
+  if (settings.lastUpdateCheckAt === null) {
+    return false;
+  }
+
+  const last = new Date(settings.lastUpdateCheckAt).getTime();
+
+  return !Number.isFinite(last) || now.getTime() - last >= 24 * 60 * 60 * 1000;
 }

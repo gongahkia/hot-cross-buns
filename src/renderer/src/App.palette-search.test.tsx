@@ -31,6 +31,7 @@ describe("Command palette search", () => {
 
     expect(await within(dialog).findByRole("option", { name: /Renderer acceptance review/ })).toBeInTheDocument();
     expect(api.search.query).toHaveBeenCalledWith({ query: "review", limit: 30 });
+    expect(within(dialog).queryByText("Text: review")).not.toBeInTheDocument();
   });
 
   it("shows task snooze metadata in palette search results", async () => {
@@ -223,6 +224,7 @@ describe("Command palette search", () => {
     });
 
     expect(await within(dialog).findByRole("option", { name: /Draft inbox triage rules/ })).toBeInTheDocument();
+    expect(within(dialog).getByText("Source: tasks")).toBeInTheDocument();
     await waitFor(() => {
       expect(api.search.query).toHaveBeenCalledWith({ query, limit: 30 });
     });

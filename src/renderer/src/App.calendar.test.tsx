@@ -1359,7 +1359,8 @@ describe("App calendar", () => {
     await user.type(screen.getByRole("textbox", { name: "Event guests" }), "ada@example.com");
     await user.selectOptions(screen.getByLabelText("Event color"), "9");
     await user.selectOptions(screen.getByLabelText("Event reminder mode"), "custom");
-    fireEvent.change(screen.getByLabelText("Reminder 1 minutes"), { target: { value: "15" } });
+    expect(screen.getByLabelText("Reminder 1 offset")).toHaveValue("10 mins");
+    fireEvent.change(screen.getByLabelText("Reminder 1 offset"), { target: { value: "15 mins" } });
     await user.selectOptions(screen.getByLabelText("Event repeat frequency"), "custom");
     await user.selectOptions(screen.getByLabelText("Repeat unit"), "weekly");
     fireEvent.change(screen.getByLabelText("Repeat interval"), { target: { value: "2" } });

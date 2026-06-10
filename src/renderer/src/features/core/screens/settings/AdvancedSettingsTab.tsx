@@ -2133,43 +2133,49 @@ function TaskTemplateDialog({
   taskLists: TaskListSummary[];
   template: SettingsSnapshot["taskTemplates"][number];
 }): JSX.Element {
+  const [draft, setDraft] = useState(template);
+
+  useEffect(() => {
+    setDraft(template);
+  }, [template]);
+
   return (
     <TemplateDialogFrame onClose={onClose} title="Edit task template">
       <div className="grid gap-3">
         <Input
           aria-label="Task template name"
           label="Name"
-          onChange={(event) => onUpdate({ name: event.currentTarget.value || "Task Template" })}
-          value={template.name}
+          onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
+          value={draft.name}
         />
         <Input
           aria-label="Task template title"
           label="Title"
-          onChange={(event) => onUpdate({ title: event.currentTarget.value || "Untitled task" })}
-          value={template.title}
+          onChange={(event) => setDraft({ ...draft, title: event.currentTarget.value })}
+          value={draft.title}
         />
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Notes</span>
           <textarea
             aria-label="Task template notes"
             className="min-h-24 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => onUpdate({ notes: event.currentTarget.value || null })}
-            value={template.notes ?? ""}
+            onChange={(event) => setDraft({ ...draft, notes: event.currentTarget.value || null })}
+            value={draft.notes ?? ""}
           />
         </label>
         <Input
           aria-label="Task template due expression"
           label="Due expression"
-          onChange={(event) => onUpdate({ dueExpression: event.currentTarget.value || null })}
-          value={template.dueExpression ?? ""}
+          onChange={(event) => setDraft({ ...draft, dueExpression: event.currentTarget.value || null })}
+          value={draft.dueExpression ?? ""}
         />
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Task list</span>
           <select
             aria-label="Task template list"
             className={settingsSelectClass}
-            onChange={(event) => onUpdate({ listId: event.currentTarget.value || null })}
-            value={template.listId ?? ""}
+            onChange={(event) => setDraft({ ...draft, listId: event.currentTarget.value || null })}
+            value={draft.listId ?? ""}
           >
             <option value="">Default list</option>
             {taskLists.map((taskList) => (
@@ -2184,7 +2190,19 @@ function TaskTemplateDialog({
             <Trash2 aria-hidden="true" size={14} />
             Delete template
           </Button>
-          <Button onClick={onClose} variant="primary">
+          <Button
+            onClick={() => {
+              onUpdate({
+                dueExpression: draft.dueExpression,
+                listId: draft.listId,
+                name: draft.name.trim() || "Task Template",
+                notes: draft.notes,
+                title: draft.title.trim() || "Untitled task"
+              });
+              onClose();
+            }}
+            variant="primary"
+          >
             Done
           </Button>
         </div>
@@ -2206,48 +2224,56 @@ function EventTemplateDialog({
   onUpdate: (patch: Partial<SettingsSnapshot["eventTemplates"][number]>) => void;
   template: SettingsSnapshot["eventTemplates"][number];
 }): JSX.Element {
+  const [draft, setDraft] = useState(template);
+  const [attendeeText, setAttendeeText] = useState(template.attendeeEmails.join(", "));
+
+  useEffect(() => {
+    setDraft(template);
+    setAttendeeText(template.attendeeEmails.join(", "));
+  }, [template]);
+
   return (
     <TemplateDialogFrame onClose={onClose} title="Edit event template">
       <div className="grid gap-3">
         <Input
           aria-label="Event template name"
           label="Name"
-          onChange={(event) => onUpdate({ name: event.currentTarget.value || "Event Template" })}
-          value={template.name}
+          onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
+          value={draft.name}
         />
         <Input
           aria-label="Event template title"
           label="Title"
-          onChange={(event) => onUpdate({ title: event.currentTarget.value || "Untitled event" })}
-          value={template.title}
+          onChange={(event) => setDraft({ ...draft, title: event.currentTarget.value })}
+          value={draft.title}
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             aria-label="Event template start expression"
             label="Start expression"
-            onChange={(event) => onUpdate({ startExpression: event.currentTarget.value || null })}
-            value={template.startExpression ?? ""}
+            onChange={(event) => setDraft({ ...draft, startExpression: event.currentTarget.value || null })}
+            value={draft.startExpression ?? ""}
           />
           <Input
             aria-label="Event template end expression"
             label="End expression"
-            onChange={(event) => onUpdate({ endExpression: event.currentTarget.value || null })}
-            value={template.endExpression ?? ""}
+            onChange={(event) => setDraft({ ...draft, endExpression: event.currentTarget.value || null })}
+            value={draft.endExpression ?? ""}
           />
         </div>
         <Input
           aria-label="Event template location"
           label="Location"
-          onChange={(event) => onUpdate({ location: event.currentTarget.value || null })}
-          value={template.location ?? ""}
+          onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value || null })}
+          value={draft.location ?? ""}
         />
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Calendar</span>
           <select
             aria-label="Event template calendar"
             className={settingsSelectClass}
-            onChange={(event) => onUpdate({ calendarId: event.currentTarget.value || null })}
-            value={template.calendarId ?? ""}
+            onChange={(event) => setDraft({ ...draft, calendarId: event.currentTarget.value || null })}
+            value={draft.calendarId ?? ""}
           >
             <option value="">Default calendar</option>
             {calendars.map((calendar) => (
@@ -2260,16 +2286,16 @@ function EventTemplateDialog({
         <Input
           aria-label="Event template attendees"
           label="Attendees"
-          onChange={(event) => onUpdate({ attendeeEmails: parseTemplateEmails(event.currentTarget.value) })}
-          value={template.attendeeEmails.join(", ")}
+          onChange={(event) => setAttendeeText(event.currentTarget.value)}
+          value={attendeeText}
         />
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Notes</span>
           <textarea
             aria-label="Event template notes"
             className="min-h-24 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => onUpdate({ notes: event.currentTarget.value || null })}
-            value={template.notes ?? ""}
+            onChange={(event) => setDraft({ ...draft, notes: event.currentTarget.value || null })}
+            value={draft.notes ?? ""}
           />
         </label>
         <div className="flex justify-between gap-2 pt-2">
@@ -2277,7 +2303,22 @@ function EventTemplateDialog({
             <Trash2 aria-hidden="true" size={14} />
             Delete template
           </Button>
-          <Button onClick={onClose} variant="primary">
+          <Button
+            onClick={() => {
+              onUpdate({
+                attendeeEmails: parseTemplateEmails(attendeeText),
+                calendarId: draft.calendarId,
+                endExpression: draft.endExpression,
+                location: draft.location,
+                name: draft.name.trim() || "Event Template",
+                notes: draft.notes,
+                startExpression: draft.startExpression,
+                title: draft.title.trim() || "Untitled event"
+              });
+              onClose();
+            }}
+            variant="primary"
+          >
             Done
           </Button>
         </div>

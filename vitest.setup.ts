@@ -1172,6 +1172,12 @@ const hcbApi: HcbApi = {
         updatedAt: "2026-01-01T00:00:00.000Z"
       })
     ),
+    openExternalUrl: vi.fn(async () =>
+      ok({
+        state: "ready" as const,
+        message: "External URL opened."
+      })
+    ),
     subscribeAction: vi.fn(() => () => undefined)
   },
   diagnostics: {
