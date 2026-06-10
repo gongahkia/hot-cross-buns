@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://gongahkia.github.io/hot-cross-buns/">
+  <a href="https://github.com/gongahkia/hot-cross-buns">
     <img src="docs/logo.png" alt="Hot Cross Buns logo" width="144" />
   </a>
 </p>
@@ -9,9 +9,7 @@
 <h3 align="center">Keyboard-first planning for macOS, backed by Google Tasks and Google Calendar.</h3>
 
 <p align="center">
-  <a href="https://gongahkia.github.io/hot-cross-buns/">Website</a> ·
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">Latest Release</a> ·
-  <a href="https://gongahkia.github.io/hot-cross-buns/privacy.html">Privacy</a> ·
+  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">Release Archive</a> ·
   <a href="apps/apple/README.md">Apple App</a> ·
   <a href="docs/mcp.md">MCP</a> ·
   <a href="reference/architecture/ARCHITECTURE.md">Architecture</a>
@@ -19,23 +17,20 @@
 
 <p align="center">
   <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg">
-    <img src="https://img.shields.io/badge/Download-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="Download DMG" />
-  </a>
-  <a href="https://gongahkia.github.io/hot-cross-buns/">
-    <img src="https://img.shields.io/badge/Open-Docsite-6E89FF?style=for-the-badge&logo=githubpages&logoColor=white&labelColor=1f2430" alt="Open docsite" />
+    <img src="https://img.shields.io/badge/Release-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="Release DMG" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/actions/workflows/ci.yml">
-    <img src="https://github.com/gongahkia/hot-cross-buns/actions/workflows/ci.yml/badge.svg" alt="CI status" />
-  </a>
   <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">
     <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns?display_name=tag" alt="Latest release" />
   </a>
   <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
   <img src="https://img.shields.io/badge/Distribution-Unsigned%20DMG-orange" alt="Unsigned DMG distribution" />
 </p>
+
+> [!NOTE]
+> This repository was archived on 2026-06-10. GitHub Pages, CI, issue tracking, and active release work are disabled. The code and docs remain as historical reference.
 
 > [!IMPORTANT]
 > Public downloads currently ship as an unsigned DMG. On first launch, macOS may ask the user to allow the app once from `System Settings > Privacy & Security > Open Anyway`.
@@ -45,11 +40,11 @@
 - [Highlights](#highlights)
 - [Demo](#demo)
 - [Install](#install)
-- [Current Status](#current-status)
+- [Archived Status](#archived-status)
 - [Architecture](#architecture)
 - [Repository Layout](#repository-layout)
 - [Build From Source](#build-from-source)
-- [Release Flow](#release-flow)
+- [Historical Release Artifacts](#historical-release-artifacts)
 - [Testing](#testing)
 - [Additional Documentation](#additional-documentation)
 
@@ -79,18 +74,10 @@ Around those core surfaces, the app also includes:
 
 ## Install
 
-**Direct download**
+**Historical downloads**
 
 - DMG: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg`
 - Release page: `https://github.com/gongahkia/hot-cross-buns/releases/latest`
-
-**One-line terminal install**
-
-```bash
-curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash
-```
-
-The installer downloads the latest DMG from GitHub Releases, verifies the matching `.sha256`, and installs the app into `/Applications` or `~/Applications`.
 
 **First launch on macOS**
 
@@ -100,14 +87,16 @@ The installer downloads the latest DMG from GitHub Releases, verifies the matchi
 
 You should only need to do that once per Mac.
 
-## Current Status
+## Archived Status
 
-- `apps/apple` is the canonical product. Older Tauri and self-hosted sync-server work has been removed from the active repo path.
+- This repository is archived and no longer maintained.
+- GitHub Pages and the one-line installer have been disabled.
+- All open GitHub issues were closed during archival.
+- `apps/apple` is the final product path. Older Tauri and self-hosted sync-server work has been removed from the repo.
 - Google Tasks and Google Calendar are the source of truth.
 - Google OAuth is bring-your-own-client. Downloaded DMGs can use a user-supplied Google Cloud Desktop OAuth client at runtime; source builds can still embed a native Google Sign-In client.
-- The website and installer both target the stable latest-release DMG alias: `HotCrossBuns-macOS.dmg`.
-- The in-app updater checks GitHub Releases for newer DMGs and guides the user through a manual replace.
-- The public path is a real unsigned DMG release flow, not a signed/notarized consumer release.
+- Historical GitHub Releases use the stable DMG alias: `HotCrossBuns-macOS.dmg`.
+- The public path ended as an unsigned DMG release flow, not a signed/notarized consumer release.
 
 ## Architecture
 
@@ -134,14 +123,11 @@ flowchart TD
         calendarClient --> calendarApi["Google Calendar API"]
     end
 
-    subgraph distribution["Distribution"]
-        repo["GitHub repo"] --> automation["GitHub Actions CI / Release"]
-        automation --> releases["GitHub Releases<br>unsigned DMG + SHA-256"]
-        automation --> site["GitHub Pages docsite<br>and install script"]
+    subgraph distribution["Historical distribution"]
+        repo["Archived GitHub repo"] --> releases["GitHub Releases<br>unsigned DMG + SHA-256"]
     end
 
     releases --> user
-    site --> user
 ```
 
 ## Build From Source
@@ -205,15 +191,9 @@ GOOGLE_MAPS_EMBED_API_KEY =
 
 Do not distribute a build that embeds your personal native OAuth client for other people's accounts.
 
-## Release Flow
+## Historical Release Artifacts
 
-- Build release DMGs locally; this repository no longer uses GitHub Actions to package macOS releases.
-- Personal release builds may use `apps/apple/Configuration/GoogleOAuth.local.xcconfig` with `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`.
-- Public release builds can omit embedded OAuth values because users can add their own Desktop OAuth client at runtime. Only embed a shared production OAuth client if you intend to complete Google's public OAuth verification path for that client.
-- `GOOGLE_MAPS_EMBED_API_KEY` is optional. When omitted, the app falls back to MapKit instead of the embedded Google Maps iframe.
-- Upload the versioned DMG, stable `HotCrossBuns-macOS.dmg` alias, and matching `.sha256` files to GitHub Releases.
-- The website download button, one-line installer, and in-app updater all target the stable latest-release asset.
-- See [reference/release/RELEASING.md](reference/release/RELEASING.md) for the exact local release commands.
+No release flow is maintained after archival. Existing GitHub Release assets remain historical downloads.
 
 ## Testing
 
@@ -228,14 +208,10 @@ The current suite is strongest on pure logic and sync-domain behavior:
 - transport-level Google Tasks client behavior
 - GitHub release updater behavior
 
-CI builds and runs the macOS test suite on every push and pull request.
-
-The next highest-value gaps are Google Calendar transport edge cases, local notification scheduling edge cases, and more live integration smoke testing against real Google accounts.
+The CI workflow was removed during archival. The commands above remain available for local verification.
 
 ## Additional Documentation
 
 - [Apple app README](apps/apple/README.md)
-- [Contributing](docs/CONTRIBUTING.md)
 - [Local MCP agent access](docs/mcp.md)
 - [Architecture reference](reference/architecture/ARCHITECTURE.md)
-- [Docsite](https://gongahkia.github.io/hot-cross-buns/)

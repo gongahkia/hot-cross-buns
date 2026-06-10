@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
-<title>Hot Cross Buns - Planner App for macOS</title>
-<meta name="description" content="A keyboard-first, macOS-native planner for tasks, calendars, notes, and multiple Google account workspaces.">
+<title>Hot Cross Buns - Archived Planner App for macOS</title>
+<meta name="description" content="Archived source snapshot for a keyboard-first macOS planner backed by Google Tasks and Google Calendar.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
@@ -25,20 +25,20 @@
     <a href="#keys">Keyboard</a>
     <a href="#menubar">Menu Bar</a>
     <a href="#reviews">Reviews</a>
-    <a href="#updates">Updates</a>
+    <a href="#updates">Changelog</a>
     <button id="theme-toggle" aria-label="Toggle theme">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
-    <a class="nav-cta" href="#download">Download</a>
+    <a class="nav-cta" href="#archive">Archive</a>
   </div>
 </nav>
 
 <header class="hero">
   <div class="hero-copy">
-    <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns is a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar, now with separate Google account workspaces and faster large-calendar rendering.</p>
+    <h1>An archived planner<br>for busy people<br>with a <em>system</em>.</h1>
+    <p class="deck">Hot Cross Buns was a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar. This source snapshot is archived and no longer maintained.</p>
     <div class="hero-ctas">
-      <a class="cta-primary" href="#download">Download for macOS</a>
+      <a class="cta-primary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">View archived repo</a>
       <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
     </div>
   </div>
@@ -190,82 +190,20 @@
   <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">See the repository →</a>
 </section>
 
-	<section id="download" class="download">
+	<section id="archive" class="download">
 	  <div class="download-inner">
-	    <p class="eyebrow">Ready when you are</p>
-	    <h2>Get Hot Cross Buns.</h2>
-	    <p class="lede">Free. macOS 14 Sonoma and up. Google sync uses your own Google Cloud Desktop OAuth client, which can connect multiple Google accounts one at a time.</p>
+	    <p class="eyebrow">Archived</p>
+	    <h2>Source snapshot only.</h2>
+	    <p class="lede">This repository was archived on 2026-06-10. GitHub Pages, issue tracking, CI, and active release work are disabled.</p>
 
 	    <div class="download-cta">
-	      <button
-	        class="cta-primary big"
-	        type="button"
-	        data-download-trigger
-	        data-download-url="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg"
-	      >
-	        Download DMG
-	      </button>
+	      <a class="cta-primary big" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">Open repository</a>
 	      <p class="download-meta">
-	        <span>Latest GitHub release asset with published SHA-256 checksum. Add your OAuth client in the app.</span>
+	        <span>Historical release assets may remain available on GitHub Releases.</span>
 	      </p>
 	    </div>
-
-	    <details class="brew brew-terminal">
-	      <summary>Prefer Terminal?</summary>
-	      <div class="brew-panel">
-	        <pre><code>curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash</code></pre>
-	      </div>
-	    </details>
 	  </div>
 	</section>
-
-	<div id="download-modal" class="download-modal" hidden aria-hidden="true">
-	  <div class="download-modal-backdrop" data-modal-close></div>
-	  <div
-	    class="download-modal-card"
-	    role="dialog"
-	    aria-modal="true"
-	    aria-labelledby="download-modal-title"
-	    aria-describedby="download-modal-copy"
-	  >
-	    <button class="download-modal-close" type="button" aria-label="Close" data-modal-close>×</button>
-	    <p class="eyebrow">First launch on macOS</p>
-	    <h3 id="download-modal-title">One quick thing before you download.</h3>
-	    <p id="download-modal-copy" class="download-modal-copy">
-	      Preview DMGs are unsigned for now, so macOS may ask you to approve Hot Cross Buns once before it opens normally. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
-	    </p>
-	    <figure class="download-modal-warning">
-	      <img
-	        class="download-modal-warning-dialog"
-	        src="assets/macos-not-opened-warning.jpeg"
-	        alt="macOS warning dialog saying Hot Cross Buns was not opened because Apple could not verify it is free of malware."
-	      >
-	      <img
-	        class="download-modal-warning-settings"
-	        src="assets/macos-open-anyway-warning.jpeg"
-	        alt="macOS Privacy and Security row saying Hot Cross Buns was blocked to protect your Mac, with an Open Anyway button."
-	      >
-	    </figure>
-	    <ul class="download-modal-list">
-	      <li>Move Hot Cross Buns into your Applications folder after opening the DMG.</li>
-	      <li>Try opening the app once.</li>
-	      <li>If macOS blocks it, go to System Settings &gt; Privacy &amp; Security and click Open Anyway.</li>
-	      <li>You should only need to do this once per Mac.</li>
-	    </ul>
-	    <p class="download-modal-footnote">You&apos;ll download the latest DMG directly.</p>
-        <p class="download-modal-footnote">Checksums are published for each release. See <a href="privacy.html">Privacy and Trust</a> and the GitHub README for OAuth setup.</p>
-	    <div class="download-modal-actions">
-	      <button class="cta-secondary download-modal-cancel" type="button" data-modal-close>Not now</button>
-	      <a
-	        id="download-modal-continue"
-	        class="cta-primary"
-	        href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg"
-	      >
-	        Download DMG
-	      </a>
-	    </div>
-	  </div>
-	</div>
 
 	<section id="updates" class="updates">
   <div class="updates-head">
@@ -534,9 +472,8 @@
       </div>
       <div class="foot-links">
         <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
-        <a href="#download">Download</a>
+        <a href="#archive">Archive</a>
         <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/CONTRIBUTING.md">Contribute</a>
         <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
       </div>
     </div>

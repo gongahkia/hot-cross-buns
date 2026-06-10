@@ -143,6 +143,6 @@ The Calendar section includes online timed and all-day event create, edit, and d
 
 ## Distribution And Updates
 
-Preview DMGs are distributed through GitHub Releases. Each release publishes a matching SHA-256 checksum file alongside the DMG, and `docs/install-macos-preview.sh` verifies that checksum before installing.
+Preview DMGs were distributed through GitHub Releases. Each release published a matching SHA-256 checksum file alongside the DMG.
 
-Unsigned preview builds should not promise in-place auto-updates. Hot Cross Buns can check GitHub Releases for a newer DMG and open the download for you, but installation still remains a manual replace until the app gains a separate in-place updater.
+Unsigned preview builds do not support in-place auto-updates. Hot Cross Buns can check GitHub Releases for a newer DMG and open the download, but installation remains a manual replace.

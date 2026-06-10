@@ -4,7 +4,7 @@ Hot Cross Buns is a macOS-native Google Tasks and Google Calendar client.
 
 The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. Both have been removed — the Tauri prototype at `apps/desktop/` was deleted once the SwiftUI app reached feature parity and diverged. iOS/iPadOS targets have also been removed; this product is Mac-only.
 
-## Target Architecture
+## Final Architecture
 
 ```text
 apps/apple SwiftUI app
@@ -19,7 +19,7 @@ apps/apple SwiftUI app
 
 The target product is strongest when understood as:
 
-- Apple-first: iOS, iPadOS, and macOS are the supported platforms.
+- Apple-first: macOS is the supported platform.
 - Google-native: Google Tasks and Google Calendar are the source of truth.
 - Offline-capable: local data is a cache, not a separate canonical database.
 - Single-user first: personal/internal use before public distribution.
@@ -88,7 +88,7 @@ Google Calendar should back scheduled data:
 - calendar selection and visibility
 - app metadata for calendar events via private extended properties when useful
 
-Calendar supports incremental sync tokens, so the app should avoid full calendar reloads after the initial sync.
+Calendar supports incremental sync tokens, so the app avoids full calendar reloads after the initial sync where supported.
 
 ## Sync Model
 
@@ -98,13 +98,10 @@ Baseline sync should be configurable:
 - Balanced: refresh on app launch, foreground activation, pull-to-refresh, and periodic foreground timers.
 - Near real-time: shorter foreground polling intervals plus background refresh where Apple permits it.
 
-True push is not fully serverless:
+True push was not implemented because it is not fully serverless:
 
 - Google Calendar push notifications require an HTTPS webhook receiver.
 - Google Tasks does not expose the same Calendar-style webhook flow in the public Tasks API documentation.
-- iOS apps cannot receive Google webhook POSTs directly, so a future push path would need a small webhook relay that sends APNs notifications to devices.
-
-That relay should be considered notification infrastructure only, not a resurrection of the old data sync server.
 
 ## Historical Reference (removed)
 

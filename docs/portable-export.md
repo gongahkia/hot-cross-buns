@@ -2,8 +2,7 @@
 
 Portable exports use a directory package with the `.hcbexport` extension. The
 format is intended for lossless migration between Macs while Hot Cross Buns is
-still Google-backed. It is not the future local-first source-of-truth backend
-tracked in #12.
+still Google-backed. It is not a local-first source-of-truth backend.
 
 ## Layout
 
@@ -103,4 +102,4 @@ does not provide:
 - CLI parity
 - Syncthing/iCloud/rsync transport adapters
 
-Those belong to the broader local-first backend tracked in #12.
+Those were outside the archived implementation.

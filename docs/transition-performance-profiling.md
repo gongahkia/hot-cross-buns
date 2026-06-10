@@ -14,9 +14,8 @@ As of 2026-05-21, the daily-use local diagnostics snapshot was:
 - 10 sync checkpoints
 - 0 pending writes
 
-Future calendar, sidebar, menu bar, command palette, sync-apply, and local-cache
-benchmarks should include a 14k+ event workload. When the maintainer reports
-calendar lag, assume the complaint is about this scale unless stated otherwise.
+Archived calendar, sidebar, menu bar, command palette, sync-apply, and
+local-cache benchmarks used this as the large-account workload.
 
 ## What is instrumented
 

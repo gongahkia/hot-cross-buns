@@ -138,16 +138,15 @@ Evidence:
 
 - The updater checks GitHub latest release metadata and selects `HotCrossBuns-macOS.dmg` or the first `.dmg`: `apps/apple/HotCrossBuns/Services/Updates/UpdaterController.swift:150-151`, `540-545`.
 - It downloads the selected asset to Downloads and marks it ready without fetching or verifying `.sha256`: `apps/apple/HotCrossBuns/Services/Updates/UpdaterController.swift:445-474`, `615-645`, `664-680`.
-- The shell installer does verify a `.sha256`, but the checksum is downloaded from the same release URL path: `docs/install-macos-preview.sh:90-107`.
 - Release packaging is unsigned by default unless `CODE_SIGN_IDENTITY` is supplied: `scripts/package-macos-dmg.sh:14-21`, `154-187`.
 
 Exploit scenario:
 
-If a GitHub release asset, maintainer token, or release upload path is compromised, the in-app updater will download and present the DMG as ready. The shell installer checksum helps detect accidental corruption, but not a malicious replacement when both DMG and `.sha256` come from the same compromised release.
+If a GitHub release asset, maintainer token, or release upload path is compromised, the in-app updater will download and present the DMG as ready.
 
 Impact:
 
-Supply-chain compromise path for users who trust the in-app updater or one-line installer. The current unsigned-DMG model means macOS Gatekeeper friction exists, but users are already instructed how to bypass the first-launch block.
+Supply-chain compromise path for users who trust the in-app updater. The current unsigned-DMG model means macOS Gatekeeper friction exists, but users are already instructed how to bypass the first-launch block.
 
 Recommended fix:
 
@@ -293,7 +292,7 @@ Evidence:
 
 Exploit scenario:
 
-Future edits update the extension writer but not the main-app trust checks, or vice versa. This can accidentally drop valid shares or loosen validation.
+Edits that update the extension writer but not the main-app trust checks, or vice versa, can accidentally drop valid shares or loosen validation.
 
 Impact:
 
@@ -318,7 +317,6 @@ Verification:
 - App-group shared inbox consumption rejects missing/untrusted source, stale items, future-skewed items, and text over 8 KiB: `apps/apple/HotCrossBuns/Services/SharedInbox/SharedInboxItem.swift:21-77`.
 - Google API transport redacts request paths and summarizes JSON rather than logging raw bodies unless raw diagnostics are enabled: `apps/apple/HotCrossBuns/Services/Google/GoogleDiagnostics.swift:22-39`, `111-125`, `191-221`.
 - Console logging uses private metadata for OSLog while local file logs retain full metadata for diagnostics: `apps/apple/HotCrossBuns/Services/Logging/AppLogger.swift:161-196`.
-- The CLI installer verifies `.sha256` before installing, which catches corruption and accidental mismatch: `docs/install-macos-preview.sh:90-107`.
 
 ## Dependency Posture
 
@@ -374,31 +372,24 @@ xcodebuild -project apps/apple/HotCrossBuns.xcodeproj \
 
 Result: failed during build before tests ran. `xcodebuild` reported `Cannot find type 'HCBTransitionMeasurement' in scope`. `rg` shows `HCBTransitionProfiler.swift` defines the type, but `git ls-files` does not list that file, and the generated Xcode project used by the command does not currently compile with the existing uncommitted references.
 
-## Hardening Backlog
+## Unresolved Findings At Archival
 
-Immediate:
+Open at archival:
 
 - Fix MCP confirmation issuance so confirmation IDs are created only by explicit dry-runs.
 - Add MCP aggregate request/header/body limits and `413` handling before auth/JSON parsing.
 - Encrypt backups when cache encryption is enabled, and add a migration path for existing plaintext backups.
 - Repair the current compile/test blocker so the security-surface test suites can run again.
-
-Next release:
-
 - Add checksum verification to in-app updater downloads.
 - Move custom OAuth Keychain entries to `ThisDeviceOnly` accessibility and migrate old entries.
 - Escape OAuth loopback callback text and render generic failure pages for untrusted callback parameters.
 - Improve diagnostic bundle redaction or require explicit raw-payload inclusion at export time.
 - Add markdown-to-HTML escaping and URL scheme allowlisting.
-
-Optional future work:
-
 - Sign and notarize release DMGs, then verify expected Team ID before presenting updates as ready.
 - Publish detached release signatures or signed checksums from a separate trust root.
 - Parse system crash report metadata to verify bundle ID before displaying contents.
 - Remove shared-inbox DTO duplication by compiling one shared source into both targets.
-- Add a scheduled dependency audit job or Dependabot/Renovate rule for SwiftPM packages and GitHub Actions.
 
 ## Residual Risk
 
-The app's serverless design avoids backend compromise and analytics exfiltration risks, but it concentrates trust on the local Mac, Keychain, Google OAuth project, and GitHub release channel. For the current personal-use distribution model, the highest-value hardening work is to make "local-only" artifacts consistently encrypted when users opt into encryption, and to make MCP confirmation and update-download integrity match the app's own trust messaging.
+The app's serverless design avoids backend compromise and analytics exfiltration risks, but it concentrates trust on the local Mac, Keychain, Google OAuth project, and GitHub release channel. At archival, the highest residual risks were local-only artifact encryption, MCP confirmation handling, and update-download integrity.

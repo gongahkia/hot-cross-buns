@@ -116,14 +116,14 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 - Files: `apps/apple/HotCrossBuns/Design/DesignTokens.swift:33-54`
 - Deviation: `CardSurface` defaults to 28pt radius, much rounder than most macOS utility/content cards.
 - Native convention: macOS productivity surfaces usually use smaller radii unless the design deliberately calls for a custom card identity.
-- Proposed fix: lower the default radius if future card work touches these surfaces.
+- Archived note: lower the default radius if card work resumes elsewhere.
 
 ### L3. Some text uses rounded font design in utility search rows
 
 - Files: `apps/apple/HotCrossBuns/App/CommandPaletteView.swift:503-595`
 - Deviation: command/entity rows use rounded fonts. This is a stylistic choice, but it differs from standard Spotlight/Shortcuts list typography.
 - Native convention: system font defaults are more common for command surfaces.
-- Proposed fix: consider returning these rows to the default system design in a future command palette pass.
+- Archived note: consider returning these rows to the default system design if command palette work resumes elsewhere.
 
 ## Deferred
 

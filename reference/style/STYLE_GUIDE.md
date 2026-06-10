@@ -2,7 +2,7 @@
 
 Code conventions for Hot Cross Buns.
 
-See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md](./ARCHITECTURE.md) for project structure.
+See also: [ARCHITECTURE.md](./ARCHITECTURE.md) for project structure.
 
 ---
 
@@ -56,7 +56,7 @@ See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md]
 - Code should be self-documenting; avoid redundant comments
 - Add `WHY:` comments for non-obvious decisions (matches PRD style)
 - Swift: document public types and non-obvious sync behavior.
-- No `TODO` comments in committed code — track in issues instead
+- No `TODO` comments in committed code
 
 ---
 
