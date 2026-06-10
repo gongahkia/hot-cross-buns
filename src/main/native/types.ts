@@ -7,6 +7,7 @@ import type {
   NativeNotificationPermissionResponse,
   NativeRoute,
   SettingsSnapshot,
+  SearchQueryResponse,
   SyncRunNowRequest,
   TaskSummary
 } from "@shared/ipc/contracts";
@@ -163,6 +164,7 @@ export interface NativePlannerSnapshotSource {
     end: string;
     limit: number;
   }) => { items: CalendarEventSummary[] };
+  search?: (request: { query: string; limit: number }) => SearchQueryResponse;
 }
 
 export interface NativeSettingsSource {

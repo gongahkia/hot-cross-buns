@@ -54,6 +54,7 @@ export interface ParsedLocalSearchQuery {
   filters: LocalSearchFilters;
   chips: LocalSearchFilterChip[];
   errors: LocalSearchQueryIssue[];
+  explain: string[];
   boolean?: LocalSearchBooleanNode;
 }
 
@@ -414,8 +415,42 @@ export function parseLocalSearchQuery(
     filters,
     chips,
     errors,
+    explain: explainLocalSearch(textTerms, chips, boolean),
     ...(boolean === undefined ? {} : { boolean })
   };
+}
+
+function explainLocalSearch(
+  textTerms: readonly string[],
+  chips: readonly LocalSearchFilterChip[],
+  boolean: LocalSearchBooleanNode | undefined
+): string[] {
+  const explain: string[] = [];
+  const text = textTerms.join(" ").trim();
+
+  if (boolean) {
+    explain.push(`Boolean: ${booleanLabel(boolean)}`);
+  } else if (text) {
+    explain.push(`Text: ${text}`);
+  }
+
+  for (const chip of chips) {
+    explain.push(`${chip.label}: ${chip.value}`);
+  }
+
+  return explain;
+}
+
+function booleanLabel(node: LocalSearchBooleanNode): string {
+  if (node.kind === "term") {
+    return node.token;
+  }
+
+  if (node.kind === "not") {
+    return `NOT ${booleanLabel(node.child)}`;
+  }
+
+  return `(${booleanLabel(node.left)} ${node.kind.toUpperCase()} ${booleanLabel(node.right)})`;
 }
 
 export function hasRunnableLocalSearch(parsed: ParsedLocalSearchQuery): boolean {

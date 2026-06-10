@@ -63,6 +63,7 @@ export function buildNativeMenuBarSnapshot(
     todayEvents,
     tomorrowEvents
   });
+  const pinnedFilters = menuBarPinnedFilterItems(planner, settings);
   const todayCount = todayTasks.length + todayEvents.length;
   const calendar =
     settings.menuBarPanelStyle === "calendar"
@@ -115,10 +116,41 @@ export function buildNativeMenuBarSnapshot(
     badgeLabel,
     dockBadgeLabel,
     tooltip,
-    sections,
+    sections: pinnedFilters.length > 0
+      ? [{ title: "Pinned filters", items: pinnedFilters }, ...sections]
+      : sections,
     calendar,
     account: accountSnapshot
   };
+}
+
+function menuBarPinnedFilterItems(
+  planner: NativePlannerSnapshotSource,
+  settings: SettingsSnapshot
+): NativeMenuBarSnapshot["sections"][number]["items"] {
+  if (!planner.search || settings.pinnedSavedSearchViewIds.length === 0) {
+    return [];
+  }
+
+  const pinnedIds = new Set(settings.pinnedSavedSearchViewIds);
+  return settings.savedSearchViews
+    .filter((filter) => pinnedIds.has(filter.id))
+    .slice(0, 6)
+    .map((filter) => {
+      let count = 0;
+
+      try {
+        count = planner.search?.({ query: filter.query, limit: 1 }).page.totalKnown ?? 0;
+      } catch {
+        count = 0;
+      }
+
+      return {
+        label: truncateMenuLabel(filter.name),
+        detail: `${count} match${count === 1 ? "" : "es"}`,
+        route: { kind: "search", query: filter.query.slice(0, 200) } as const
+      };
+    });
 }
 
 function activeTasks(planner: NativePlannerSnapshotSource): TaskSummary[] {

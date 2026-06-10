@@ -302,6 +302,19 @@ export function CommandPalette({
               ))}
             </div>
           ) : null}
+          {search.parsed.explain.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Search query explanation">
+              {search.parsed.explain.map((item) => (
+                <span
+                  className="max-w-full truncate rounded-hcbMd border border-border bg-surface-0 px-2 py-1 text-[var(--text-xs)] text-text-muted"
+                  key={item}
+                  title={item}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="max-h-[360px] overflow-y-auto p-2" id="command-palette-options" role="listbox">
@@ -343,7 +356,7 @@ export function CommandPalette({
               className="rounded-hcbMd border border-warning bg-bg-tertiary px-3 py-2 text-[var(--text-sm)] text-warning"
               role="alert"
             >
-              {search.parsed.errors[0]?.message ?? "Invalid search query."}
+              {search.parsed.errors.map((error) => error.message).join(" ")}
             </div>
           ) : search.state === "loading" || search.state === "stale" ? (
             <div className="grid min-h-28 place-items-center text-center">
