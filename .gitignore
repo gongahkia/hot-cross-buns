@@ -20,3 +20,4 @@ artifacts/screenshots
 *.log
 AGENTS.md
 CLAUDE.md
+.playwright-cli
