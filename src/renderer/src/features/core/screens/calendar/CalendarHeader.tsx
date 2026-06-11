@@ -118,7 +118,7 @@ export function CalendarHeader({
           aria-expanded={shareAvailabilityOpen}
           onClick={onToggleShareAvailability}
           size="sm"
-          variant={shareAvailabilityOpen ? "secondary" : "ghost"}
+          variant="primary"
         >
           <CalendarPlus aria-hidden="true" size={14} />
           Share availability
