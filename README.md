@@ -1,3 +1,4 @@
+
 <p align="center">
   <a href="https://github.com/gongahkia/hot-cross-buns">
     <img src="docs/logo.png" alt="Hot Cross Buns logo" width="144" />
@@ -28,6 +29,11 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
   <img src="https://img.shields.io/badge/Distribution-Unsigned%20DMG-orange" alt="Unsigned DMG distribution" />
 </p>
+
+> [!WARNING]  
+> [Hot Cross Buns](https://github.com/gongahkia/hot-cross-buns)'s deployment is inactive as of 11 June 2026.
+>
+> For those still interested, ***check out [Hot Cross Buns 2](https://github.com/gongahkia/hot-cross-buns-2)***!
 
 > [!IMPORTANT]
 > Public downloads currently ship as an unsigned DMG. On first launch, macOS may ask the user to allow the app once from `System Settings > Privacy & Security > Open Anyway`.
