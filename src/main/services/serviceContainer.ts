@@ -75,7 +75,7 @@ export interface ServiceContainer {
   mcpTools: McpToolRegistry;
   nativeShell: NativeShellService;
   startDeferredRuntime: () => void;
-  close: () => void;
+  close: () => Promise<void>;
 }
 
 export interface ServiceContainerOptions {
@@ -361,10 +361,10 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
 
       syncScheduler?.start();
     },
-    close: () => {
+    close: async () => {
       syncScheduler?.stop();
-      mcpController.dispose();
-      void googleLoopback.stop();
+      await mcpController.dispose();
+      await googleLoopback.stop();
       nativeShell.dispose();
       connection.close();
     }

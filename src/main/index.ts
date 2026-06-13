@@ -368,7 +368,7 @@ app.whenReady().then(async () => {
     message: error instanceof Error ? error.message : String(error)
   });
   quittingAfterSync = true;
-  services?.close();
+  void services?.close();
   services = null;
   app.quit();
 });
@@ -396,6 +396,6 @@ app.on("before-quit", (event) => {
     return;
   }
 
-  services?.close();
+  void services?.close();
   services = null;
 });

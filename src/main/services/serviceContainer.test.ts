@@ -92,7 +92,7 @@ describe("service container integration", () => {
       expect(JSON.stringify(parsed)).not.toMatch(/token|secret|bearer/i);
       expect(token).toEqual(expect.any(String));
     } finally {
-      services.close();
+      await services.close();
       rmSync(root, { recursive: true, force: true });
     }
   });
@@ -143,7 +143,7 @@ describe("service container integration", () => {
         })
       );
     } finally {
-      services.close();
+      await services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }
   });
@@ -239,7 +239,7 @@ describe("service container integration", () => {
       ).toEqual({ status: "applied" });
     } finally {
       vi.unstubAllGlobals();
-      services.close();
+      await services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }
   });
@@ -320,7 +320,7 @@ describe("service container integration", () => {
         )
       ).toEqual({ status: "pending" });
     } finally {
-      services.close();
+      await services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }
   });
@@ -434,7 +434,7 @@ describe("service container integration", () => {
         )
       ).toEqual({ status: "applied" });
     } finally {
-      services.close();
+      await services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }
   });

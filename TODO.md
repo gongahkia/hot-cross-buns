@@ -649,6 +649,33 @@ Acceptance criteria:
 
 ## Phase 11: Linux QA Matrix
 
+Status: Automated Linux preview gate pass complete as of 2026-06-13. The
+standard unit suite passes when allowed to run through the long
+`sqliteDomainServices.test.ts` file, the production build passes, release bundle
+review passes, AppImage checksum and metadata smoke pass, the opt-in isolated
+AppImage launch smoke passes, Playwright Electron launch/navigation smoke
+passes on Linux, and the local performance smoke writes a fresh report. The
+Playwright smoke was made platform-aware for native text undo shortcuts so Linux
+uses `Control+Z` while macOS continues to use `Meta+Z`.
+
+Verification completed:
+
+- `pnpm typecheck`
+- `pnpm test` (`61` Vitest files, `479` tests)
+- `pnpm build`
+- `pnpm release:review-bundle`
+- `(cd release && sha256sum -c SHASUMS256.txt)`
+- `pnpm release:smoke-appimage`
+- `HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage`
+- `pnpm test:smoke`
+- `pnpm test:perf`
+
+Remaining manual release gates: Ubuntu GNOME terminal and file-manager launch,
+real desktop icon/window grouping, OAuth browser round trip, Secret Service
+ready/missing/locked checks, live MCP CLI smoke against the packaged AppImage,
+GNOME/KDE notification delivery, X11/Wayland shortcut behavior, and macOS
+packaging smoke on a macOS host before shipping.
+
 Required automated gates before any Linux preview release:
 
 - `pnpm typecheck`

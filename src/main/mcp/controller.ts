@@ -91,9 +91,8 @@ export class LocalMcpServerController {
     return this.lastError;
   }
 
-  dispose(): void {
-    this.removeRuntimeFile();
-    void this.stop();
+  async dispose(): Promise<void> {
+    await this.stop();
   }
 
   private writeRuntimeFile(port: number): void {

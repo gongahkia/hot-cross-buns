@@ -115,6 +115,7 @@ test("launches, navigates, opens command palette, and creates core items", async
   let electronApp: ElectronApplication | undefined;
   const tempRoot = mkdtempSync(join(tmpdir(), "hcb2-smoke-"));
   const userDataDir = join(tempRoot, "user-data");
+  const platformShortcut = process.platform === "darwin" ? "Meta" : "Control";
 
   try {
     seedSmokeDatabase(userDataDir);
@@ -181,7 +182,7 @@ test("launches, navigates, opens command palette, and creates core items", async
     await page.getByRole("button", { name: /^Seeded smoke task Existing/ }).click();
     await page.getByTestId("inspector-actions").getByRole("button", { name: "Edit" }).click();
     await page.getByRole("textbox", { name: "Task title" }).click();
-    await page.keyboard.press("Meta+A");
+    await page.keyboard.press(`${platformShortcut}+A`);
     await page.keyboard.type("Smoke UI task");
     await page.getByRole("button", { name: /^Save$/ }).click();
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
@@ -199,9 +200,9 @@ test("launches, navigates, opens command palette, and creates core items", async
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
 
     await page.getByRole("button", { name: /Smoke UI task/ }).first().focus();
-    await page.keyboard.press("Meta+Z");
+    await page.keyboard.press(`${platformShortcut}+Z`);
     await expect(page.getByRole("button", { name: /Seeded smoke task/ }).first()).toBeVisible();
-    await page.keyboard.press("Meta+Shift+Z");
+    await page.keyboard.press(`${platformShortcut}+Shift+Z`);
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Add a task" }).click();
@@ -209,7 +210,7 @@ test("launches, navigates, opens command palette, and creates core items", async
     await taskTitle.click();
     await page.keyboard.type("Native text undo");
     await expect(taskTitle).toHaveValue("Native text undo");
-    await page.keyboard.press("Meta+Z");
+    await page.keyboard.press(`${platformShortcut}+Z`);
     await expect(taskTitle).toHaveValue("");
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
