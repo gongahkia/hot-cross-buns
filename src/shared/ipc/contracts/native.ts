@@ -284,6 +284,11 @@ export const nativeActionSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("openQuickAdd")
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("openRoute"),
       route: nativeRouteSchema
     })

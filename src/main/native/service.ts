@@ -54,6 +54,7 @@ export class NativeShellService implements NativeDomainService {
   private status: NativeCapabilitiesResponse;
   private deferredStarted = false;
   private readonly eventStartingWebhookKeys = new Set<string>();
+  private registeredGlobalShortcut: string | null = null;
 
   constructor(private readonly options: NativeShellServiceOptions) {
     this.now = options.now ?? (() => new Date());
@@ -119,6 +120,7 @@ export class NativeShellService implements NativeDomainService {
     }
 
     if (this.deferredStarted) {
+      this.syncGlobalShortcut(snapshot);
       this.applyAutostartSetting(snapshot.startOnLogin);
     }
 
@@ -227,6 +229,10 @@ export class NativeShellService implements NativeDomainService {
   }
 
   dispose(): void {
+    if (this.registeredGlobalShortcut) {
+      this.options.adapter.unregisterGlobalShortcut(this.registeredGlobalShortcut);
+      this.registeredGlobalShortcut = null;
+    }
     this.options.adapter.dispose();
   }
 
@@ -235,6 +241,7 @@ export class NativeShellService implements NativeDomainService {
       this.setupTray();
       const settings = this.options.settings.get();
       this.registerProtocolClient();
+      this.syncGlobalShortcut(settings);
       this.scheduleNotificationsFromCache();
       if (shouldRunAutomaticUpdateCheck(settings, this.now())) {
         await this.checkForUpdates();
@@ -349,6 +356,74 @@ export class NativeShellService implements NativeDomainService {
             (result.ok ? "Protocol handler is registered." : "Protocol handler registration failed.")
         )
       }
+    };
+  }
+
+  private syncGlobalShortcut(settings: SettingsSnapshot): void {
+    const accelerator = settings.keybindings["quickAdd.open"]?.trim() || null;
+
+    if (this.registeredGlobalShortcut && this.registeredGlobalShortcut !== accelerator) {
+      this.options.adapter.unregisterGlobalShortcut(this.registeredGlobalShortcut);
+      this.registeredGlobalShortcut = null;
+    }
+
+    if (!this.status.globalShortcuts) {
+      this.status = {
+        ...this.status,
+        capabilityReport: updateCapabilityReportStatus(
+          this.status.capabilityReport,
+          "globalShortcuts",
+          {
+            ok: false,
+            state: "unsupported",
+            message: "Global shortcuts are not supported by this platform adapter."
+          },
+          "Global shortcuts are ready."
+        )
+      };
+      return;
+    }
+
+    if (!accelerator) {
+      if (this.registeredGlobalShortcut) {
+        this.options.adapter.unregisterGlobalShortcut(this.registeredGlobalShortcut);
+        this.registeredGlobalShortcut = null;
+      }
+
+      this.status = {
+        ...this.status,
+        capabilityReport: updateCapabilityReportStatus(
+          this.status.capabilityReport,
+          "globalShortcuts",
+          {
+            ok: false,
+            state: "disabled",
+            message: "Global quick add shortcut is not configured."
+          },
+          "Global quick add shortcut is registered."
+        )
+      };
+      return;
+    }
+
+    if (this.registeredGlobalShortcut === accelerator) {
+      return;
+    }
+
+    const result = this.options.adapter.registerGlobalShortcut(accelerator, () => {
+      this.options.windows.showMainWindow();
+      this.options.windows.dispatchAction({ type: "openQuickAdd" });
+    });
+
+    this.registeredGlobalShortcut = result.ok ? accelerator : null;
+    this.status = {
+      ...this.status,
+      capabilityReport: updateCapabilityReportStatus(
+        this.status.capabilityReport,
+        "globalShortcuts",
+        result,
+        `${accelerator} is registered for global quick add.`
+      )
     };
   }
 

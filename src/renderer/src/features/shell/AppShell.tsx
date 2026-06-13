@@ -305,6 +305,11 @@ export function AppShell(): JSX.Element {
         return;
       }
 
+      if (action.type === "openQuickAdd") {
+        openQuickAdd();
+        return;
+      }
+
       if (action.route.kind === "search") {
         openCommandPalette(action.route.query ?? "");
         return;
@@ -332,7 +337,7 @@ export function AppShell(): JSX.Element {
 
       navigateToSection("calendar");
     },
-    [navigateToSection, openCommandPalette, openSettingsPanel, source.refresh]
+    [navigateToSection, openCommandPalette, openQuickAdd, openSettingsPanel, source.refresh]
   );
 
   const handlePaletteCommand = useCallback(

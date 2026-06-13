@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { NativeAction } from "@shared/ipc/contracts";
 import { err, ok } from "@shared/ipc/result";
 import App from "./App";
 import {
@@ -140,6 +141,26 @@ describe("App shell", () => {
 
     expect(await screen.findByRole("textbox", { name: "Event title" })).toHaveValue("Lunch with Bob");
     expect(screen.getByRole("textbox", { name: "Event location" })).toHaveValue("Philz");
+  });
+
+  it("opens quick add from a native global shortcut action", async () => {
+    const api = seededHcb();
+    let nativeActionListener: ((action: NativeAction) => void) | undefined;
+    api.native = {
+      ...api.native,
+      subscribeAction: vi.fn((listener) => {
+        nativeActionListener = listener;
+        return vi.fn();
+      })
+    };
+
+    installHcb(api);
+    render(<App />);
+
+    await screen.findByText("Planner shell standup");
+    nativeActionListener?.({ type: "openQuickAdd" });
+
+    expect(await screen.findByRole("dialog", { name: "Quick Add" })).toBeInTheDocument();
   });
 
   it("opens a split view chooser for other app tabs", async () => {

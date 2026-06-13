@@ -379,14 +379,17 @@ Acceptance criteria:
 Goal: support quick capture/global shortcuts where Linux desktop infrastructure
 allows it, while treating denial and unsupported sessions as normal outcomes.
 
-Status: Adapter-level implementation complete as of 2026-06-13. Linux startup
-enables Electron's `GlobalShortcutsPortal` feature switch before app ready, the
-Linux adapter detects X11 versus Wayland with `XDG_SESSION_TYPE`, probes XDG
-Desktop Portal GlobalShortcuts availability for Wayland sessions, exposes
+Status: Implementation complete as of 2026-06-13. Linux startup enables
+Electron's `GlobalShortcutsPortal` feature switch before app ready, the Linux
+adapter detects X11 versus Wayland with `XDG_SESSION_TYPE`, probes XDG Desktop
+Portal GlobalShortcuts availability for Wayland sessions, exposes
 Wayland/portal diagnostics in the native capability report, attempts
 `globalShortcut.register()` only for supported sessions, and returns conflict or
-unsupported recovery guidance without crashing. The in-app quick add path
-remains available when global registration is unavailable or denied.
+unsupported recovery guidance without crashing. `NativeShellService` now wires
+the configured `quickAdd.open` keybinding into the native adapter after
+deferred startup, unregisters stale shortcuts when settings change, dispatches a
+typed `openQuickAdd` native action to the renderer, and keeps the in-app quick
+add path available when global registration is unavailable or denied.
 
 Verification completed:
 
@@ -394,6 +397,7 @@ Verification completed:
 - `pnpm typecheck`
 - `pnpm build`
 - `pnpm test` (`60` Vitest files, `471` tests)
+- `pnpm exec vitest run --config vitest.config.ts src/main/native/service.test.ts src/renderer/src/App.shell.test.tsx src/shared/ipc/contracts.test.ts`
 
 Remaining manual release gates: Ubuntu GNOME Wayland portal registration and
 denial, Ubuntu GNOME X11 registration/conflict behavior, KDE Plasma Wayland

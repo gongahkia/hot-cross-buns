@@ -184,6 +184,7 @@ class FakeNativeAdapter implements NativePlatformAdapter {
   appMenuActions: NativeTrayActions | undefined;
   registeredShortcuts: string[] = [];
   unregisteredShortcuts: string[] = [];
+  shortcutActions = new Map<string, () => void>();
   protocolSchemes: string[] = [];
   scheduledNotifications: NativeNotificationRequest[] = [];
   notificationFailureCallbacks: Array<(message: string) => void> = [];
@@ -223,14 +224,16 @@ class FakeNativeAdapter implements NativePlatformAdapter {
     this.trayDestroyCount += 1;
   }
 
-  registerGlobalShortcut(accelerator: string): NativeOperationResult {
+  registerGlobalShortcut(accelerator: string, action: () => void): NativeOperationResult {
     this.registeredShortcuts.push(accelerator);
+    this.shortcutActions.set(accelerator, action);
     return this.shortcutResult;
   }
 
   unregisterGlobalShortcut(accelerator?: string): void {
     if (accelerator) {
       this.unregisteredShortcuts.push(accelerator);
+      this.shortcutActions.delete(accelerator);
     }
   }
 
@@ -315,6 +318,7 @@ class FakeNativeAdapter implements NativePlatformAdapter {
 
   dispose(): void {
     this.registeredShortcuts = [];
+    this.shortcutActions.clear();
     this.scheduledNotifications = [];
     this.notificationFailureCallbacks = [];
   }
@@ -332,6 +336,7 @@ function createService(input: {
   const adapter = input.adapter ?? new FakeNativeAdapter();
   const settings = { current: input.settings ?? defaultSettings() };
   const dispatch = input.dispatch ?? vi.fn();
+  const showMainWindow = vi.fn();
   const sync = vi.fn();
   const service = new NativeShellService({
     adapter,
@@ -344,7 +349,7 @@ function createService(input: {
     },
     recordUpdateCheck: input.recordUpdateCheck,
     windows: {
-      showMainWindow: vi.fn(),
+      showMainWindow,
       hideMainWindow: vi.fn(),
       showOrHideMainWindow: vi.fn(),
       quit: vi.fn(),
@@ -363,7 +368,7 @@ function createService(input: {
     now: () => now
   });
 
-  return { adapter, service, settings, dispatch, sync };
+  return { adapter, service, settings, dispatch, showMainWindow, sync };
 }
 
 describe("native shell service", () => {
@@ -446,6 +451,72 @@ describe("native shell service", () => {
         state: "ready"
       }
     });
+  });
+
+  it("registers configured global quick add shortcut and dispatches native action", async () => {
+    const quickAddShortcut = "CommandOrControl+Shift+Space";
+    const replacementShortcut = "CommandOrControl+Alt+Space";
+    const { adapter, dispatch, service, settings, showMainWindow } = createService({
+      settings: defaultSettings({
+        keybindings: {
+          ...defaultKeybindings,
+          "quickAdd.open": quickAddShortcut
+        }
+      })
+    });
+    adapter.shortcutResult = {
+      ok: true,
+      state: "ready"
+    };
+
+    service.startDeferredStartup();
+    await flushNativeStartup();
+
+    expect(adapter.registeredShortcuts).toEqual([quickAddShortcut]);
+    expect(
+      service.capabilities().capabilityReport.capabilities.find(
+        (capability) => capability.key === "globalShortcuts"
+      )
+    ).toMatchObject({
+      state: "ready",
+      message: `${quickAddShortcut} is registered for global quick add.`
+    });
+
+    adapter.shortcutActions.get(quickAddShortcut)?.();
+    expect(showMainWindow).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({ type: "openQuickAdd" });
+
+    settings.current = defaultSettings({
+      keybindings: {
+        ...defaultKeybindings,
+        "quickAdd.open": replacementShortcut
+      }
+    });
+    service.applySettings(settings.current);
+
+    expect(adapter.unregisteredShortcuts).toContain(quickAddShortcut);
+    expect(adapter.registeredShortcuts).toEqual([quickAddShortcut, replacementShortcut]);
+
+    settings.current = defaultSettings({
+      keybindings: {
+        ...defaultKeybindings,
+        "quickAdd.open": null
+      }
+    });
+    service.applySettings(settings.current);
+
+    expect(adapter.unregisteredShortcuts).toContain(replacementShortcut);
+    expect(
+      service.capabilities().capabilityReport.capabilities.find(
+        (capability) => capability.key === "globalShortcuts"
+      )
+    ).toMatchObject({
+      state: "disabled",
+      message: "Global quick add shortcut is not configured."
+    });
+
+    service.dispose();
+    expect(adapter.shortcutActions.size).toBe(0);
   });
 
   it("emits event-starting webhooks when event notifications are scheduled", async () => {
