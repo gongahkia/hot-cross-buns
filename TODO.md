@@ -28,12 +28,20 @@ claims until the implementation phases and release gates below are complete.
 ## Current Repo State
 
 - The app is an Electron, Vite, React, TypeScript, and SQLite desktop app.
-- `electron-builder.yml` currently defines macOS DMG/zip packaging only.
-- `package.json` release scripts are macOS-focused:
+- `electron-builder.yml` defines macOS DMG/zip packaging and a Linux AppImage
+  technical preview target. Linux protocol metadata remains omitted until the
+  deep-link release gate is validated.
+- `package.json` keeps the existing macOS release scripts and also defines
+  Linux preview scripts:
   - `build:release:mac`
+  - `build:release:linux`
   - `pack:mac:preview`
+  - `pack:linux:preview`
   - `release:mac:preview`
+  - `release:linux:preview`
+  - `release:linux-artifacts`
   - `release:smoke-dmg`
+  - `release:smoke-appimage`
 - `src/main/index.ts` selects native behavior through `createNativeAdapter()`.
   Linux startup uses `electron-linux-preview` and does not instantiate
   mac-specific native code.
@@ -215,6 +223,29 @@ Acceptance criteria:
 
 Goal: produce a signed-status-neutral Linux AppImage preview artifact with
 correct desktop metadata and no changes to macOS packaging.
+
+Status: Implementation complete as of 2026-06-13 in commit `7b8c000`. The repo
+now has Linux PNG icon assets, a Linux AppImage target in `electron-builder.yml`,
+stable AppImage alias generation, an AppImage artifact smoke script, packaging
+config coverage, release distribution docs, and Linux preview support docs.
+Linux protocol metadata remains intentionally absent until the deep-link phase.
+
+Verification completed:
+
+- `pnpm exec electron-builder --linux AppImage --dir --publish never`
+- `pnpm release:linux-artifacts`
+- `pnpm release:checksums`
+- `(cd release && sha256sum -c SHASUMS256.txt)`
+- `pnpm release:smoke-appimage`
+- `pnpm typecheck`
+- `pnpm exec vitest run --config vitest.config.ts scripts/linux-packaging-config.test.ts`
+- `pnpm test` (`60` Vitest files, `464` tests)
+- `pnpm build`
+
+Remaining manual release gates: launch the AppImage from terminal and file
+manager, run the opt-in isolated launch smoke with
+`HCB_APPIMAGE_SMOKE_LAUNCH=1`, confirm icon/window grouping on the supported
+desktop matrix, and re-run macOS package smoke on a macOS host before shipping.
 
 Implementation tasks:
 
@@ -555,8 +586,8 @@ Acceptance criteria:
 - [x] Linux capability report is schema-valid.
 - [x] Linux credential storage uses Secret Service/libsecret and no plaintext
       fallback.
-- [ ] AppImage builds on a Linux host or Linux CI runner.
-- [ ] AppImage checksum is generated and verified.
+- [x] AppImage builds on a Linux host or Linux CI runner.
+- [x] AppImage checksum is generated and verified.
 - [ ] OAuth browser round trip works on Ubuntu GNOME.
 - [ ] MCP binds to `127.0.0.1` and uses OS-backed bearer token storage.
 - [ ] Notifications are either validated or explicitly unsupported.
@@ -566,7 +597,7 @@ Acceptance criteria:
       unsupported.
 - [ ] Deep links are either package-validated or explicitly unsupported.
 - [ ] Linux manual QA matrix is complete.
-- [ ] Linux support docs are written.
+- [x] Linux support docs are written.
 - [ ] README/public copy is updated only with accurate preview claims.
 
 ## External References
