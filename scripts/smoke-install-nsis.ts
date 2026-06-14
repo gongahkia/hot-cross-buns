@@ -78,6 +78,7 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     const mcpSmoke = options.mcpSmoke ?? packagedMcpSmokeRequested(process.env);
     messages.push(...await launchInstalledApp(appExe, userDataDir, {
       mcpSmoke,
+      phase: "seeded MCP token launch",
       waitMs: options.launchWaitMs ?? 8_000
     }));
     messages.push(`${installedExecutableName} launched from the installed path with isolated user data.`);
@@ -85,6 +86,7 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     if (mcpSmoke) {
       messages.push(...await launchInstalledApp(appExe, userDataDir, {
         mcpSmoke: true,
+        phase: "persisted MCP token relaunch",
         persistedMcpToken: true,
         waitMs: options.launchWaitMs ?? 8_000
       }));
@@ -227,7 +229,7 @@ async function readShortcutMetadata(shortcutPath: string): Promise<ShortcutMetad
 async function launchInstalledApp(
   appExe: string,
   userDataDir: string,
-  options: { mcpSmoke: boolean; persistedMcpToken?: boolean; waitMs: number }
+  options: { mcpSmoke: boolean; persistedMcpToken?: boolean; phase: string; waitMs: number }
 ): Promise<string[]> {
   const baseEnv = {
     ...process.env,
@@ -259,17 +261,25 @@ async function launchInstalledApp(
     exited = true;
     exitCode = code;
   });
+  const exitedEarly = new Promise<never>((_resolve, reject) => {
+    child.once("exit", (code) => {
+      reject(new Error(launchFailure(options.phase, code, stdout, stderr)));
+    });
+  });
 
   try {
-    const messages = options.mcpSmoke
-      ? await runPackagedMcpSmoke({
+    const smoke = options.mcpSmoke
+      ? runPackagedMcpSmoke({
           env: childEnv,
           platform: "win32"
+        }).catch((error: unknown) => {
+          throw new Error(`${options.phase} failed: ${error instanceof Error ? error.message : String(error)}${launchOutput(stdout, stderr)}`);
         })
       : await new Promise<string[]>((resolveWait) => setTimeout(() => resolveWait([]), options.waitMs));
+    const messages = options.mcpSmoke ? await Promise.race([smoke, exitedEarly]) : smoke;
 
     if (exited) {
-      throw new Error(`${installedExecutableName} exited during launch smoke with code ${exitCode ?? "unknown"}: ${firstOutputLine(stderr || stdout)}`);
+      throw new Error(launchFailure(options.phase, exitCode, stdout, stderr));
     }
 
     return messages;
@@ -295,7 +305,31 @@ async function killProcessTree(pid: number | undefined): Promise<void> {
     return;
   }
 
-  await runProcess("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeoutMs: 30_000 }).catch(() => undefined);
+  await runProcess("taskkill.exe", ["/PID", String(pid), "/T"], { timeoutMs: 30_000 }).catch(() => undefined);
+  await waitForPidToExit(pid, 5_000);
+
+  if (await pidExists(pid)) {
+    await runProcess("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeoutMs: 30_000 }).catch(() => undefined);
+    await waitForPidToExit(pid, 5_000);
+  }
+}
+
+async function waitForPidToExit(pid: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (await pidExists(pid)) {
+    if (Date.now() >= deadline) {
+      return;
+    }
+
+    await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+  }
+}
+
+async function pidExists(pid: number): Promise<boolean> {
+  return runProcess("tasklist.exe", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], { timeoutMs: 10_000 })
+    .then((result) => result.stdout.includes(`"${pid}"`))
+    .catch(() => false);
 }
 
 async function waitForPathToDisappear(path: string, timeoutMs: number): Promise<void> {
@@ -381,6 +415,15 @@ function runProcess(command: string, args: string[], options: { timeoutMs: numbe
 
 function firstOutputLine(text: string): string {
   return text.trim().split(/\r?\n/, 1)[0]?.slice(0, 500) ?? "";
+}
+
+function launchFailure(phase: string, code: number | null, stdout: string, stderr: string): string {
+  return `${installedExecutableName} exited during ${phase} with code ${code ?? "unknown"}${launchOutput(stdout, stderr)}`;
+}
+
+function launchOutput(stdout: string, stderr: string): string {
+  const output = firstOutputLine(stderr || stdout);
+  return output ? `: ${output}` : ".";
 }
 
 async function main(): Promise<void> {
