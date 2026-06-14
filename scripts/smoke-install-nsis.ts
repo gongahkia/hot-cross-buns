@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, extname, join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   packagedMcpSmokeChildEnv,
@@ -13,6 +13,7 @@ import {
 const DEFAULT_RELEASE_DIR = "release";
 const stableX64InstallerName = "Hot-Cross-Buns-2-windows-x64.exe";
 const installedExecutableName = "Hot Cross Buns 2.exe";
+const shortcutName = "Hot Cross Buns 2.lnk";
 const versionedInstallerPattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-x64\.exe$/;
 
 interface SmokeInstallOptions {
@@ -26,6 +27,12 @@ interface SmokeInstallOptions {
 interface ProcessResult {
   stdout: string;
   stderr: string;
+}
+
+interface ShortcutMetadata {
+  iconLocation: string;
+  targetPath: string;
+  workingDirectory: string;
 }
 
 function argValue(name: string, fallback: string): string {
@@ -53,6 +60,8 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     : await mkdtemp(join(tmpdir(), "hcb2-nsis-install-smoke-"));
   const installDir = resolve(options.installDir ?? join(tempRoot ?? tmpdir(), "app"));
   const userDataDir = join(tempRoot ?? installDir, "user-data");
+  const shortcutPaths = windowsShortcutPaths(process.env);
+  const preexistingShortcuts = new Set(shortcutPaths.filter((shortcutPath) => existsSync(shortcutPath)));
   const messages: string[] = [];
 
   try {
@@ -64,6 +73,7 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     }
 
     messages.push(`${basename(installer)} installed to ${installDir}.`);
+    messages.push(...await verifyInstalledShortcuts(shortcutPaths, appExe));
     messages.push(...await launchInstalledApp(appExe, userDataDir, {
       mcpSmoke: options.mcpSmoke ?? packagedMcpSmokeRequested(process.env),
       waitMs: options.launchWaitMs ?? 8_000
@@ -73,8 +83,9 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     const uninstaller = await findUninstaller(installDir);
     await runProcess(uninstaller, ["/S"], { timeoutMs: 120_000 });
     await waitForPathToDisappear(appExe, 30_000);
+    await waitForNewShortcutsToDisappear(shortcutPaths, preexistingShortcuts, 30_000);
 
-    messages.push(`${basename(uninstaller)} completed and removed the installed app executable.`);
+    messages.push(`${basename(uninstaller)} completed; installed executable and new shortcuts are absent.`);
     return messages;
   } finally {
     if (tempRoot) {
@@ -92,6 +103,29 @@ export function nsisSilentInstallArgs(installDir: string): string[] {
 
 export function installedExecutablePath(installDir: string): string {
   return join(installDir, installedExecutableName);
+}
+
+export function windowsShortcutPaths(env: NodeJS.ProcessEnv): string[] {
+  const appData = requiredEnv(env, "APPDATA");
+  const userProfile = requiredEnv(env, "USERPROFILE");
+
+  return [
+    win32.join(appData, "Microsoft", "Windows", "Start Menu", "Programs", shortcutName),
+    win32.join(userProfile, "Desktop", shortcutName)
+  ];
+}
+
+export function shortcutMetadataPowerShell(shortcutPath: string): string {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    "$shell = New-Object -ComObject WScript.Shell",
+    `$shortcut = $shell.CreateShortcut(${powerShellSingleQuoted(shortcutPath)})`,
+    "[pscustomobject]@{",
+    "  TargetPath = $shortcut.TargetPath",
+    "  WorkingDirectory = $shortcut.WorkingDirectory",
+    "  IconLocation = $shortcut.IconLocation",
+    "} | ConvertTo-Json -Compress"
+  ].join("\n");
 }
 
 export async function findUninstaller(installDir: string): Promise<string> {
@@ -140,6 +174,43 @@ async function findInstaller(releaseDir: string): Promise<string> {
   }
 
   return latest.filePath;
+}
+
+async function verifyInstalledShortcuts(shortcutPaths: string[], appExe: string): Promise<string[]> {
+  const messages: string[] = [];
+
+  for (const shortcutPath of shortcutPaths) {
+    if (!existsSync(shortcutPath)) {
+      throw new Error(`NSIS shortcut missing at ${shortcutPath}`);
+    }
+
+    const metadata = await readShortcutMetadata(shortcutPath);
+
+    if (!sameWindowsPath(metadata.targetPath, appExe)) {
+      throw new Error(`${basename(shortcutPath)} targets ${metadata.targetPath || "<empty>"} instead of ${appExe}`);
+    }
+
+    messages.push(`${basename(shortcutPath)} points to the installed app executable.`);
+  }
+
+  return messages;
+}
+
+async function readShortcutMetadata(shortcutPath: string): Promise<ShortcutMetadata> {
+  const result = await runProcess("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    shortcutMetadataPowerShell(shortcutPath)
+  ], { timeoutMs: 30_000 });
+  const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+
+  return {
+    iconLocation: stringValue(parsed, "IconLocation", "iconLocation"),
+    targetPath: stringValue(parsed, "TargetPath", "targetPath"),
+    workingDirectory: stringValue(parsed, "WorkingDirectory", "workingDirectory")
+  };
 }
 
 async function launchInstalledApp(
@@ -192,6 +263,18 @@ async function launchInstalledApp(
   }
 }
 
+async function waitForNewShortcutsToDisappear(
+  shortcutPaths: string[],
+  preexistingShortcuts: Set<string>,
+  timeoutMs: number
+): Promise<void> {
+  for (const shortcutPath of shortcutPaths) {
+    if (!preexistingShortcuts.has(shortcutPath)) {
+      await waitForPathToDisappear(shortcutPath, timeoutMs);
+    }
+  }
+}
+
 async function killProcessTree(pid: number | undefined): Promise<void> {
   if (!pid) {
     return;
@@ -210,6 +293,30 @@ async function waitForPathToDisappear(path: string, timeoutMs: number): Promise<
   if (existsSync(path)) {
     throw new Error(`${basename(path)} still exists after silent uninstall.`);
   }
+}
+
+function requiredEnv(env: NodeJS.ProcessEnv, name: "APPDATA" | "USERPROFILE"): string {
+  const value = env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`${name} is required for Windows NSIS shortcut smoke.`);
+  }
+
+  return value;
+}
+
+function powerShellSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function sameWindowsPath(left: string, right: string): boolean {
+  return win32.normalize(left).toLowerCase() === win32.normalize(right).toLowerCase();
+}
+
+function stringValue(record: Record<string, unknown>, pascalKey: string, camelKey: string): string {
+  const value = record[pascalKey] ?? record[camelKey];
+
+  return typeof value === "string" ? value : "";
 }
 
 function runProcess(command: string, args: string[], options: { timeoutMs: number }): Promise<ProcessResult> {
