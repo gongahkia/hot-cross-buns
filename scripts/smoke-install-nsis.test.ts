@@ -53,6 +53,7 @@ describe("Windows NSIS install smoke helpers", () => {
     const appExe = "C:\\Users\\O'Hara\\App\\Hot Cross Buns 2.exe";
 
     expect(installedAppProcessIdsPowerShell(appExe)).toContain("$target = 'C:\\Users\\O''Hara\\App\\Hot Cross Buns 2.exe'");
+    expect(installedAppProcessIdsPowerShell(appExe)).toContain("$_.CommandLine -like '*--disable-gpu*'");
     expect(stopInstalledAppProcessesPowerShell(appExe)).toContain("Stop-Process -Id $processIds -Force");
   });
 });

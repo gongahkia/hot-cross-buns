@@ -369,8 +369,9 @@ export function installedAppProcessIdsPowerShell(appExe: string): string {
   return [
     "$ErrorActionPreference = 'Stop'",
     `$target = ${powerShellSingleQuoted(appExe)}`,
+    "$targetName = Split-Path -Leaf $target",
     "Get-CimInstance Win32_Process |",
-    "  Where-Object { $_.ExecutablePath -eq $target } |",
+    "  Where-Object { $_.Name -eq $targetName -and ($_.ExecutablePath -eq $target -or $_.CommandLine -like '*--disable-gpu*') } |",
     "  Select-Object -ExpandProperty ProcessId"
   ].join("\n");
 }
@@ -379,9 +380,10 @@ export function stopInstalledAppProcessesPowerShell(appExe: string): string {
   return [
     "$ErrorActionPreference = 'Stop'",
     `$target = ${powerShellSingleQuoted(appExe)}`,
+    "$targetName = Split-Path -Leaf $target",
     "$processIds = @(",
     "  Get-CimInstance Win32_Process |",
-    "    Where-Object { $_.ExecutablePath -eq $target } |",
+    "    Where-Object { $_.Name -eq $targetName -and ($_.ExecutablePath -eq $target -or $_.CommandLine -like '*--disable-gpu*') } |",
     "    Select-Object -ExpandProperty ProcessId",
     ")",
     "if ($processIds.Count -gt 0) {",
