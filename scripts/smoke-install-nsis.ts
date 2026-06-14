@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -186,7 +186,7 @@ async function verifyInstalledShortcuts(shortcutPaths: string[], appExe: string)
 
     const metadata = await readShortcutMetadata(shortcutPath);
 
-    if (!sameWindowsPath(metadata.targetPath, appExe)) {
+    if (!await sameWindowsPath(metadata.targetPath, appExe)) {
       throw new Error(`${basename(shortcutPath)} targets ${metadata.targetPath || "<empty>"} instead of ${appExe}`);
     }
 
@@ -309,14 +309,23 @@ function powerShellSingleQuoted(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function sameWindowsPath(left: string, right: string): boolean {
-  return win32.normalize(left).toLowerCase() === win32.normalize(right).toLowerCase();
+async function sameWindowsPath(left: string, right: string): Promise<boolean> {
+  const [resolvedLeft, resolvedRight] = await Promise.all([
+    realWindowsPath(left),
+    realWindowsPath(right)
+  ]);
+
+  return win32.normalize(resolvedLeft).toLowerCase() === win32.normalize(resolvedRight).toLowerCase();
 }
 
 function stringValue(record: Record<string, unknown>, pascalKey: string, camelKey: string): string {
   const value = record[pascalKey] ?? record[camelKey];
 
   return typeof value === "string" ? value : "";
+}
+
+async function realWindowsPath(path: string): Promise<string> {
+  return realpath(path).catch(() => path);
 }
 
 function runProcess(command: string, args: string[], options: { timeoutMs: number }): Promise<ProcessResult> {
