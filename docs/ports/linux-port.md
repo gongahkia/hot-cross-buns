@@ -219,13 +219,15 @@ Remaining release gates:
 - Firewall/security-tool behavior on the supported Ubuntu path.
 - Token refresh after app restart with Secret Service ready, missing, and locked
   states.
-- External CLI MCP smoke against a packaged AppImage.
+- External CLI MCP smoke against a packaged AppImage on Ubuntu GNOME.
 - Optional packaged MCP smoke automation now exists:
   `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
   release:smoke-appimage` enables read-only MCP on a random loopback port,
   verifies unauthorized `401` rejection, and runs `hcb doctor` through CLI
-  runtime discovery with a seeded smoke token. It still requires Ubuntu GNOME
-  Secret Service/keyring validation before the manual MCP gate is complete.
+  runtime discovery with a seeded smoke token. `Linux AppImage Preview
+  Validation` run `27499256281` passed this path under a hosted DBus
+  GNOME/libsecret keyring session. Ubuntu GNOME ready, missing, and locked
+  Secret Service checks remain manual gates.
 
 ## Performance Checks
 

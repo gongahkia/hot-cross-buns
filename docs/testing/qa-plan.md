@@ -128,7 +128,8 @@ CI smoke artifact policy:
 - The manual `Linux AppImage Preview Validation` workflow runs on
   `ubuntu-latest` and uploads Linux AppImage, checksum, bundle-review,
   performance, and Playwright artifacts. Its AppImage launch smoke uses an
-  explicit CI-only `--no-sandbox` gate for hosted-runner sandbox limitations.
+  explicit CI-only `--no-sandbox` gate for hosted-runner sandbox limitations,
+  and its packaged MCP smoke uses a hosted DBus GNOME/libsecret keyring session.
 - The manual `Windows Preview Validation` workflow runs on `windows-2022` and
   uploads Windows installer, checksum, bundle-review, performance, and
   Playwright artifacts.

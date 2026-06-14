@@ -895,7 +895,8 @@ release gates.
 Linux CI gate hardening on 2026-06-14: `.github/workflows/linux-preview.yml`
 adds a manual `Linux AppImage Preview Validation` workflow on `ubuntu-latest`
 that runs `pnpm release:linux:preview`, checksum verification, AppImage metadata
-and launch smoke under Xvfb, Electron smoke, performance smoke, and artifact
+and launch smoke under Xvfb, packaged AppImage MCP smoke under a DBus
+GNOME/libsecret keyring session, Electron smoke, performance smoke, and artifact
 upload. Ubuntu GNOME desktop/manual QA remains a separate release gate.
 
 Linux AppImage smoke hardening on 2026-06-14: `pnpm release:smoke-appimage`
@@ -918,10 +919,11 @@ install because `windows-latest` redirected to the Windows Server 2025 / Visual
 Studio 2026 image and `node-gyp` could not detect that toolchain for
 `better-sqlite3`; the Windows preview workflow now pins `windows-2022`.
 Follow-up MCP-gated automated validation on 2026-06-14: Linux run
-`27488238932` passed on commit `121dfbf`; Windows run `27498800502` passed on
+`27499256281` passed on commit `df19162`; Windows run `27498800502` passed on
 commit `a93e1f2`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
 `sha256sum -c SHASUMS256.txt`, AppImage metadata smoke, AppImage launch smoke
-under `xvfb`, Electron smoke, performance smoke, and artifact upload. Windows
+under `xvfb`, packaged AppImage MCP smoke under a hosted GNOME/libsecret keyring
+session, Electron smoke, performance smoke, and artifact upload. Windows
 completed `pnpm hcb:smoke`, `pnpm release:win:preview`,
 `pnpm release:smoke-nsis`, PowerShell `Get-FileHash` checksum verification,
 silent NSIS install/launch/uninstall plus installed MCP smoke, Electron smoke,
@@ -964,7 +966,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/support/windows-preview-support.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
-blockers. They record Linux run `27488238932`, Windows run `27498800502`, and
+blockers. They record Linux run `27499256281`, Windows run `27498800502`, and
 keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
 manual QA.
 
@@ -981,9 +983,10 @@ MCP loopback binding, bearer-token rejection/acceptance, resource reads, prompts
 and representative read/write tool calls. The workflows also set
 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub JavaScript actions use the
 Node 24 action runtime while the project still installs and builds with Node 20.
-MCP-gated reruns passed on Linux run `27488238932` at commit `121dfbf` and
-Windows run `27498800502` at commit `a93e1f2`. This does not replace
-packaged-AppImage live MCP manual QA or Windows 11 installed-app manual QA.
+MCP-gated reruns passed on Linux run `27499256281` at commit `df19162` and
+Windows run `27498800502` at commit `a93e1f2`. This does not replace Ubuntu
+GNOME ready/missing/locked Secret Service manual QA or Windows 11 installed-app
+manual QA.
 
 Cross-platform CLI MCP token discovery on 2026-06-14: `pnpm hcb -- ...` now
 discovers the Linux runtime file at the actual Linux adapter config path,
@@ -1014,10 +1017,12 @@ real CLI runtime discovery path with a seeded smoke token that is also persisted
 through the packaged app's MCP credential adapter. The smoke sets
 `HCB_MCP_SAFE_STORAGE_BINARY` for platforms where packaged-app decryption is
 needed outside the seeded-token path. The Windows preview workflow now opts the
-silent NSIS install smoke into this gate. Linux hosted CI still leaves it default-off until
-a verified Secret Service/keyring session is available; Ubuntu GNOME manual QA
-can run `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
-release:smoke-appimage`.
+silent NSIS install smoke into this gate. The Linux preview workflow now opts
+the AppImage launch smoke into this gate under `dbus-run-session` with
+GNOME/libsecret selected through Electron's `--password-store=gnome-libsecret`
+flag. Linux run `27499256281` passed this hosted CI path at commit `df19162`.
+Ubuntu GNOME manual QA still needs ready, missing, and locked Secret Service
+states before the manual MCP gate is complete.
 
 Implementation tasks:
 
@@ -1138,6 +1143,7 @@ Linux remaining work:
       `(cd release && sha256sum -c SHASUMS256.txt)`,
       `pnpm release:smoke-appimage`,
       `HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage`,
+      `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-appimage`,
       `pnpm test:smoke`, and `pnpm test:perf`.
 - [x] Re-dispatch the `Linux AppImage Preview Validation` workflow on GitHub
       Actions after the CI AppImage launch-smoke fix is pushed.

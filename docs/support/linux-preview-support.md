@@ -5,6 +5,12 @@ The first preview artifact is an AppImage. Other distributions and desktop
 environments are secondary validation targets until the Linux QA matrix is
 complete.
 
+Linux AppImage Preview Validation run `27499256281` passed HCB CLI MCP smoke,
+AppImage packaging/checksum/metadata/launch smoke, packaged AppImage MCP smoke
+under a hosted GNOME/libsecret keyring session, Electron smoke, performance
+smoke, and artifact upload on 2026-06-14 at commit `df19162`. Ubuntu GNOME
+manual QA remains required before uploading public Linux artifacts.
+
 ## Install And Run
 
 1. Download `Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage`,
@@ -55,8 +61,8 @@ Install it alongside the existing FUSE setup.
   as GNOME Keyring/libsecret or KWallet. The app refuses Electron's
   `basic_text` plaintext fallback.
 - Google OAuth and local MCP use loopback-only listeners. OAuth and external MCP
-  CLI smoke still require release validation on Ubuntu GNOME before public
-  preview claims expand beyond the technical preview.
+  CLI smoke still require Ubuntu GNOME ready/missing/locked Secret Service
+  validation before public preview claims expand beyond the technical preview.
 
 ## Diagnostics
 

@@ -169,14 +169,15 @@ The manual GitHub Actions gate is `.github/workflows/linux-preview.yml`. Run
 `Linux AppImage Preview Validation` from GitHub Actions after the workflow file
 is on a branch GitHub can see. The workflow builds the AppImage, verifies
 checksums, runs AppImage metadata and launch smoke under Xvfb, runs the HCB CLI
-MCP loopback smoke, runs Electron smoke, runs performance smoke, and uploads
-preview artifacts for review. It does not replace Ubuntu GNOME desktop manual
-QA. The workflow installs the Ubuntu FUSE 2 compatibility package needed for
-AppImage launch smoke. The AppImage launch smoke passes `--no-sandbox` through
-an explicit CI-only environment gate because the hosted runner cannot set the
-extracted AppImage `chrome-sandbox` helper to root-owned mode `4755`; do not
-treat that CI flag as user install guidance. Run `27488238932` passed this gate
-on 2026-06-14 at commit `121dfbf`.
+MCP loopback smoke, runs packaged AppImage MCP smoke under a DBus
+GNOME/libsecret keyring session, runs Electron smoke, runs performance smoke,
+and uploads preview artifacts for review. It does not replace Ubuntu GNOME
+desktop manual QA. The workflow installs the Ubuntu FUSE 2 compatibility package
+needed for AppImage launch smoke. The AppImage launch smoke passes
+`--no-sandbox` through an explicit CI-only environment gate because the hosted
+runner cannot set the extracted AppImage `chrome-sandbox` helper to root-owned
+mode `4755`; do not treat that CI flag as user install guidance. Run
+`27499256281` passed this gate on 2026-06-14 at commit `df19162`.
 
 That command runs:
 
