@@ -1,4 +1,6 @@
 import type { McpSetEnabledRequest, McpStatusResponse } from "@shared/ipc/contracts";
+import { existsSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { appLogger } from "./diagnostics/appLogger";
 import type { MaybePromise } from "./services/domainInterfaces";
 
@@ -28,6 +30,40 @@ export function packagedMcpSmokeTokenSeed(env: NodeJS.ProcessEnv, isPackaged: bo
   }
 
   return env.HCB_PACKAGED_MCP_SMOKE_TOKEN?.trim() || undefined;
+}
+
+export function packagedMcpSmokeExitFile(env: NodeJS.ProcessEnv, isPackaged: boolean): string | undefined {
+  if (!shouldEnablePackagedMcpSmoke(env, isPackaged)) {
+    return undefined;
+  }
+
+  const exitFile = env.HCB_PACKAGED_MCP_SMOKE_EXIT_FILE?.trim();
+  return exitFile && isAbsolute(exitFile) ? exitFile : undefined;
+}
+
+export function startPackagedMcpSmokeExitWatcher(
+  env: NodeJS.ProcessEnv,
+  isPackaged: boolean,
+  quit: () => void,
+  intervalMs = 250
+): boolean {
+  const exitFile = packagedMcpSmokeExitFile(env, isPackaged);
+
+  if (!exitFile) {
+    return false;
+  }
+
+  const timer = setInterval(() => {
+    if (!existsSync(exitFile)) {
+      return;
+    }
+
+    clearInterval(timer);
+    quit();
+  }, intervalMs);
+
+  timer.unref?.();
+  return true;
 }
 
 export async function applyPackagedMcpSmokeSettings(

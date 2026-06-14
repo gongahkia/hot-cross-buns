@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, realpath, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -234,6 +234,7 @@ async function launchInstalledApp(
   const baseEnv = {
     ...process.env,
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+    ...(options.mcpSmoke ? { HCB_PACKAGED_MCP_SMOKE_EXIT_FILE: join(userDataDir, `${options.persistedMcpToken ? "persisted" : "seeded"}-mcp-smoke.exit`) } : {}),
     HCB_USER_DATA_DIR: userDataDir
   };
   const childEnv = options.mcpSmoke
@@ -250,6 +251,10 @@ async function launchInstalledApp(
   let exitCode: number | null = null;
   let stdout = "";
   let stderr = "";
+  let resolveChildExited: () => void = () => undefined;
+  const childExited = new Promise<void>((resolve) => {
+    resolveChildExited = resolve;
+  });
 
   child.stdout?.on("data", (chunk) => {
     stdout += String(chunk);
@@ -260,6 +265,7 @@ async function launchInstalledApp(
   child.once("exit", (code) => {
     exited = true;
     exitCode = code;
+    resolveChildExited();
   });
   const exitedEarly = new Promise<never>((_resolve, reject) => {
     child.once("exit", (code) => {
@@ -284,8 +290,35 @@ async function launchInstalledApp(
 
     return messages;
   } finally {
+    await requestPackagedMcpSmokeExit(childEnv, childExited, () => exited);
     await killInstalledApp(appExe, child.pid);
   }
+}
+
+async function requestPackagedMcpSmokeExit(
+  env: NodeJS.ProcessEnv,
+  childExited: Promise<void>,
+  exited: () => boolean
+): Promise<void> {
+  const exitFile = env.HCB_PACKAGED_MCP_SMOKE_EXIT_FILE?.trim();
+
+  if (!exitFile || exited()) {
+    return;
+  }
+
+  await writeFile(exitFile, "done\n", "utf8").catch(() => undefined);
+  await waitForChildExit(childExited, exited, 10_000);
+}
+
+async function waitForChildExit(childExited: Promise<void>, exited: () => boolean, timeoutMs: number): Promise<void> {
+  if (exited()) {
+    return;
+  }
+
+  await Promise.race([
+    childExited,
+    new Promise<void>((resolveWait) => setTimeout(resolveWait, timeoutMs))
+  ]);
 }
 
 async function waitForNewShortcutsToDisappear(
