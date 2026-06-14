@@ -919,16 +919,16 @@ install because `windows-latest` redirected to the Windows Server 2025 / Visual
 Studio 2026 image and `node-gyp` could not detect that toolchain for
 `better-sqlite3`; the Windows preview workflow now pins `windows-2022`.
 Follow-up MCP-gated automated validation on 2026-06-14: Linux run
-`27499256281` passed on commit `df19162`; Windows run `27499932682` passed on
-commit `965babf`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
+`27499256281` passed on commit `df19162`; Windows run `27501043773` passed on
+commit `5e248b4`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
 `sha256sum -c SHASUMS256.txt`, AppImage metadata smoke, AppImage launch smoke
 under `xvfb`, packaged AppImage MCP smoke under a hosted GNOME/libsecret keyring
 session, Electron smoke, performance smoke, and artifact upload. Windows
 completed `pnpm hcb:smoke`, `pnpm release:win:preview`,
 `pnpm release:smoke-nsis`, PowerShell `Get-FileHash` checksum verification,
 silent NSIS install/launch/uninstall plus Start Menu/desktop shortcut
-target/removal checks, installed MCP smoke, Electron smoke, performance smoke,
-and artifact upload.
+target/removal checks, installed MCP smoke, persisted MCP token relaunch through
+Windows safeStorage, Electron smoke, performance smoke, and artifact upload.
 
 Stable artifact alias hardening on 2026-06-14: Linux AppImage and Windows NSIS
 smoke tests now reject stable aliases that have internally valid checksums but do
@@ -967,7 +967,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/support/windows-preview-support.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
-blockers. They record Linux run `27499256281`, Windows run `27499932682`, and
+blockers. They record Linux run `27499256281`, Windows run `27501043773`, and
 keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
 manual QA.
 
@@ -985,7 +985,7 @@ and representative read/write tool calls. The workflows also set
 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub JavaScript actions use the
 Node 24 action runtime while the project still installs and builds with Node 20.
 MCP-gated reruns passed on Linux run `27499256281` at commit `df19162` and
-Windows run `27499932682` at commit `965babf`. This does not replace Ubuntu
+Windows run `27501043773` at commit `5e248b4`. This does not replace Ubuntu
 GNOME ready/missing/locked Secret Service manual QA or Windows 11 installed-app
 manual QA.
 
@@ -1007,7 +1007,7 @@ verify the installed executable plus newly-created shortcuts are removed. The
 Windows preview workflow runs this after checksum verification. This still does
 not replace manual Start Menu/desktop launch, protocol, notification,
 SmartScreen, retained-data, or interactive uninstall QA. Windows Preview
-Validation run `27499932682` passed this gate at commit `965babf`.
+Validation run `27501043773` passed this gate at commit `5e248b4`.
 
 Packaged MCP smoke automation on 2026-06-14: packaged app startup now has a
 fail-closed `HCB_PACKAGED_MCP_SMOKE=1` test gate that only works when packaged
@@ -1018,11 +1018,15 @@ unauthorized loopback request returns `401`, and runs `hcb doctor` through the
 real CLI runtime discovery path with a seeded smoke token that is also persisted
 through the packaged app's MCP credential adapter. The smoke sets
 `HCB_MCP_SAFE_STORAGE_BINARY` for platforms where packaged-app decryption is
-needed outside the seeded-token path. The Windows preview workflow now opts the
-silent NSIS install smoke into this gate. The Linux preview workflow now opts
+needed outside the seeded-token path. The Windows NSIS install smoke also
+relaunches the installed app without seeded token env and verifies `hcb doctor`
+authenticates through the persisted Windows safeStorage bearer token. The
+Windows preview workflow now opts the silent NSIS install smoke into this gate.
+The Linux preview workflow now opts
 the AppImage launch smoke into this gate under `dbus-run-session` with
 GNOME/libsecret selected through Electron's `--password-store=gnome-libsecret`
 flag. Linux run `27499256281` passed this hosted CI path at commit `df19162`.
+Windows run `27501043773` passed this hosted CI path at commit `5e248b4`.
 Ubuntu GNOME manual QA still needs ready, missing, and locked Secret Service
 states before the manual MCP gate is complete.
 
@@ -1071,7 +1075,7 @@ Required Windows manual checks:
 - Diagnostics report platform `win32`, adapter `electron-windows-preview`, and
   package format `nsis`.
 - Google OAuth browser round trip.
-- Token refresh after app restart using Windows safeStorage.
+- Google OAuth token refresh after app restart using Windows safeStorage.
 - MCP localhost smoke against installed app.
 - Tray menu show/hide, quick capture, refresh, settings, and quit.
 - Global shortcut success and conflict handling.
@@ -1179,8 +1183,10 @@ Windows remaining work:
       planner CRUD flows work.
 - [ ] Complete Google OAuth browser round trip on Windows and note any Defender
       or firewall prompts.
-- [ ] Restart the app and confirm Windows safeStorage persists Google OAuth and
-      MCP bearer tokens without plaintext fallback.
+- [ ] Restart the app and confirm Windows safeStorage persists Google OAuth
+      tokens without plaintext fallback. Automated Windows Preview Validation
+      run `27501043773` already verifies MCP bearer-token persistence across an
+      installed-app relaunch.
 - [ ] Run a live MCP localhost smoke against the installed Windows app. Windows
       CI now runs the automated installed-NSIS MCP smoke with
       `HCB_PACKAGED_MCP_SMOKE=1`; Windows 11 installed-app manual QA is still

@@ -52,19 +52,20 @@ validation:
 
 Windows CI evidence:
 
-- `Windows Preview Validation` run `27499932682` passed on 2026-06-14 at
-  commit `965babf`.
+- `Windows Preview Validation` run `27501043773` passed on 2026-06-14 at
+  commit `5e248b4`.
 - The run completed `pnpm release:win:preview`, `pnpm release:smoke-nsis`,
   HCB CLI MCP smoke, PowerShell `Get-FileHash` verification for
   `Hot-Cross-Buns-2-windows-x64.exe`, silent NSIS install/launch/uninstall plus
   Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
-  Electron smoke, performance smoke, and artifact upload.
+  persisted MCP token relaunch through Windows safeStorage, Electron smoke,
+  performance smoke, and artifact upload.
 
 Remaining release blockers require a Windows 11 x64 installed-app QA pass:
 
 - installed app launch from installer finish, Start Menu, and desktop shortcut
 - AppUserModelID and taskbar grouping
-- Windows safeStorage token persistence after restart
+- Google OAuth Windows safeStorage token persistence after restart
 - OAuth browser round trip and Windows Defender/firewall behavior
 - MCP localhost smoke against the installed app
 - tray, global shortcut, notification, protocol, and autostart behavior

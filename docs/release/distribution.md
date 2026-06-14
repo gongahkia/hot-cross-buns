@@ -262,9 +262,10 @@ toolchain instead of the Windows Server 2025 / Visual Studio 2026 image currentl
 behind `windows-latest`. The workflow also runs the HCB CLI MCP loopback smoke
 before packaging and sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub's
 JavaScript actions use the upcoming Node 24 action runtime while the project
-still builds/tests with Node 20. Run `27499932682` passed this gate on
-2026-06-14 at commit `965babf`, including silent NSIS install/launch/uninstall,
-Start Menu/desktop shortcut target/removal checks, and installed MCP smoke.
+still builds/tests with Node 20. Run `27501043773` passed this gate on
+2026-06-14 at commit `5e248b4`, including silent NSIS install/launch/uninstall,
+Start Menu/desktop shortcut target/removal checks, installed MCP smoke, and
+persisted MCP token relaunch through Windows safeStorage.
 
 Linux cross-packaging for the Windows NSIS target requires Wine. A Linux host
 without Wine can still complete the release build and `win-unpacked` step, but
@@ -563,9 +564,9 @@ Still required before publishing a Windows preview:
 - installed app launch from installer, Start Menu, and desktop shortcut if
   created
 - AppUserModelID and taskbar grouping verified
-- Windows safeStorage token persistence verified across restart
+- Google OAuth Windows safeStorage token persistence verified across restart
 - OAuth browser round trip verified
-- MCP localhost smoke verified
+- MCP localhost smoke verified manually against Windows 11 installed app
 - tray, global shortcut, notification, protocol registration/routing, and
   autostart behavior tested
 - update-check UI verified against Windows assets
