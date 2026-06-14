@@ -226,7 +226,7 @@ async function verifyDesktopEntry(workDir: string): Promise<void> {
 
 async function launchAppImage(artifact: string, workDir: string): Promise<string[]> {
   const userDataDir = join(workDir, "user-data");
-  const launchArgs = process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX === "1" ? ["--no-sandbox"] : [];
+  const launchArgs = appImageLaunchArgs(process.env);
   const launchEnv = {
     ...process.env,
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
@@ -341,6 +341,25 @@ async function launchAppImage(artifact: string, workDir: string): Promise<string
   }
 
   return messages;
+}
+
+function appImageLaunchArgs(env: NodeJS.ProcessEnv): string[] {
+  const args: string[] = [];
+  const passwordStore = env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE?.trim();
+
+  if (env.HCB_APPIMAGE_SMOKE_NO_SANDBOX === "1") {
+    args.push("--no-sandbox");
+  }
+
+  if (passwordStore) {
+    if (!/^(basic|gnome-libsecret|kwallet|kwallet5|kwallet6)$/.test(passwordStore)) {
+      throw new Error("HCB_APPIMAGE_SMOKE_PASSWORD_STORE must be basic, gnome-libsecret, kwallet, kwallet5, or kwallet6.");
+    }
+
+    args.push(`--password-store=${passwordStore}`);
+  }
+
+  return args;
 }
 
 function launchOutputSuffix(output: Buffer[]): string {

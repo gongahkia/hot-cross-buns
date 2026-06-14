@@ -10,10 +10,12 @@ const stableAppImage = "Hot-Cross-Buns-2-linux.AppImage";
 const stableX64AppImage = "Hot-Cross-Buns-2-linux-x64.AppImage";
 const originalNoSandbox = process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX;
 const originalPackagedMcpSmoke = process.env.HCB_PACKAGED_MCP_SMOKE;
+const originalPasswordStore = process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE;
 const describeAppImageSmoke = process.platform === "win32" ? describe.skip : describe;
 
 beforeEach(() => {
   delete process.env.HCB_PACKAGED_MCP_SMOKE;
+  delete process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE;
 });
 
 afterEach(() => {
@@ -27,6 +29,12 @@ afterEach(() => {
     delete process.env.HCB_PACKAGED_MCP_SMOKE;
   } else {
     process.env.HCB_PACKAGED_MCP_SMOKE = originalPackagedMcpSmoke;
+  }
+
+  if (originalPasswordStore === undefined) {
+    delete process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE;
+  } else {
+    process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE = originalPasswordStore;
   }
 });
 
@@ -173,6 +181,23 @@ echo "Hot Cross Buns 2 startup"`);
     await writeValidArtifacts(releaseDir, "", `if [ "$1" != "--no-sandbox" ]; then
   echo "missing no-sandbox smoke arg" >&2
   exit 22
+fi
+echo "Hot Cross Buns 2 startup"`);
+
+    await expect(smokeLinuxAppImageArtifact({ launch: true, minimumBytes: 1, releaseDir })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(`${versionedAppImage} exists`)
+      ])
+    );
+  });
+
+  it("passes the requested Linux password-store backend to the AppImage", async () => {
+    const releaseDir = await createReleaseDir();
+    process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE = "gnome-libsecret";
+
+    await writeValidArtifacts(releaseDir, "", `if [ "$1" != "--password-store=gnome-libsecret" ]; then
+  echo "missing password-store smoke arg" >&2
+  exit 23
 fi
 echo "Hot Cross Buns 2 startup"`);
 
