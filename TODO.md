@@ -1214,6 +1214,15 @@ Windows remaining work:
       packaging, checksum verification, installer smoke, and manual installed
       app QA pass.
 
+Current handoff note, 2026-06-14:
+
+- Automated Linux/Windows CI evidence is current through Linux run
+  `27499256281`, Windows run `27501043773`, CI run `27501276218`, and Pages run
+  `27501275680`.
+- The current remaining Linux/Windows items are target-OS manual QA, release
+  asset/update-check validation, and post-manual-QA docs/upload work.
+- Do not mark the Linux or Windows release gates complete from hosted CI alone.
+
 Completion definition for the next agent:
 
 - Linux can be called rounded out only when the Ubuntu GNOME manual matrix is
