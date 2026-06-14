@@ -63,10 +63,7 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
 
     const uninstaller = await findUninstaller(installDir);
     await runProcess(uninstaller, ["/S"], { timeoutMs: 120_000 });
-
-    if (existsSync(appExe)) {
-      throw new Error(`${installedExecutableName} still exists after silent uninstall.`);
-    }
+    await waitForPathToDisappear(appExe, 30_000);
 
     messages.push(`${basename(uninstaller)} completed and removed the installed app executable.`);
     return messages;
@@ -177,6 +174,18 @@ async function killProcessTree(pid: number | undefined): Promise<void> {
   }
 
   await runProcess("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeoutMs: 30_000 }).catch(() => undefined);
+}
+
+async function waitForPathToDisappear(path: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (existsSync(path) && Date.now() < deadline) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+  }
+
+  if (existsSync(path)) {
+    throw new Error(`${basename(path)} still exists after silent uninstall.`);
+  }
 }
 
 function runProcess(command: string, args: string[], options: { timeoutMs: number }): Promise<ProcessResult> {
