@@ -143,12 +143,14 @@ Do not hardcode POSIX paths or assume case-sensitive filesystem behavior.
 
 ## Credential Storage
 
-Preferred credential strategy:
+Implemented credential strategy:
 
-- Use a maintained keychain abstraction backed by Windows Credential Manager or equivalent secure storage.
+- Use Electron `safeStorage` through the shared `SecretStore` abstraction.
+- Persist encrypted metadata under the Windows app config path and hash
+  service/account storage keys.
+- Do not fall back to plaintext token storage.
 - Test token save/load/delete across restart.
 - Test behavior when credential storage fails.
-- Do not fall back to plaintext token storage without a separate explicit security decision.
 
 ## Tray And Taskbar
 

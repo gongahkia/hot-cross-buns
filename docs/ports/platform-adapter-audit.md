@@ -1,25 +1,28 @@
 # Platform Adapter Audit
 
-This audit prepares the shared adapter boundary before Linux and Windows port work. It does not claim Linux or Windows support.
+This audit prepared the shared adapter boundary before Linux and Windows port
+work. It is historical; current Linux and Windows preview status lives in
+[Linux Port](linux-port.md), [Windows Port](windows-port.md), and the release
+docs. It does not claim Linux or Windows support.
 
 ## Mac-Only Assumptions Found
 
-| Area | Current assumption | Port impact |
+| Area | Original assumption | Current port status |
 |---|---|---|
-| Paths | Main startup used Electron `userData` directly for the SQLite app-support root. | Paths now have adapter-owned roles for config, data, cache, logs, diagnostics, and temp. Linux still needs XDG verification. |
-| Credentials | Google tokens use an in-memory adapter in tests/scaffolding, and MCP stores token revision state without OS-backed bearer-token persistence. | Linux is blocked until Secret Service/libsecret behavior is chosen and tested. Windows is blocked until Credential Manager behavior is chosen and tested. |
+| Paths | Main startup used Electron `userData` directly for the SQLite app-support root. | Paths now have adapter-owned roles for config, data, cache, logs, diagnostics, and temp. Target-OS path QA remains part of manual validation. |
+| Credentials | Google tokens used an in-memory adapter in tests/scaffolding, and MCP stored token revision state without OS-backed bearer-token persistence. | Linux now uses Secret Service/libsecret or KWallet through Electron `safeStorage` and rejects `basic_text`; Windows uses Electron `safeStorage` with encrypted metadata. Restart, locked, and failure-state checks remain manual release gates. |
 | Tray/status area | The implemented adapter is macOS menu-bar oriented. | Linux tray behavior needs GNOME/KDE caveat handling. Windows notification-area semantics need separate behavior. |
 | App menu | The current menu template is macOS-oriented. | Linux/Windows need adapter-owned menu templates and shortcut conventions. |
 | Shortcuts | Global quick capture currently assumes Electron global shortcut registration works like macOS. | Linux Wayland/X11 and portal support must be reported as capabilities and failures, not assumed. |
 | Notifications | Notification scheduling uses Electron notification support from the macOS adapter. | Linux libnotify and Windows AppUserModelID behavior need platform adapters and manual QA. |
-| Custom protocol | macOS `open-url` and `setAsDefaultProtocolClient` are wired. | Linux desktop-file registration and Windows installer registration remain packaging work. |
-| Autostart | `startOnLogin` existed as a setting but was not routed through an adapter. | The setting now calls adapter autostart methods; Linux/Windows implementations remain unsupported. |
+| Custom protocol | macOS `open-url` and `setAsDefaultProtocolClient` were wired. | Linux still omits protocol metadata until desktop integration is validated; Windows installer registration is configured and still needs installed-app QA. |
+| Autostart | `startOnLogin` existed as a setting but was not routed through an adapter. | The setting now calls adapter autostart methods; Linux remains unsupported for the preview, and Windows needs installed-app QA. |
 | Updater | Preview builds return unsupported update status. | Linux/Windows preview should keep check-for-new-version first; no in-place auto-update is claimed. |
 | Diagnostics | Diagnostics did not expose native capability detail. | Diagnostics now include a redacted native capability report. |
-| OAuth | Shared OAuth loopback behavior exists conceptually, but browser handoff and token storage are not platform-proven. | Linux is blocked on browser/firewall checks and OS credential storage. |
-| MCP | Shared MCP contracts exist, but native lifecycle and persistent bearer-token storage are not complete. | Linux is blocked on localhost smoke tests and OS-backed token storage. |
-| Packaging | `electron-builder.yml` is macOS DMG/zip only and unsigned. | Linux AppImage and Windows NSIS are deliberately out of scope for this audit. |
-| Tests | Native tests focused on service behavior, not the full adapter contract. | Host-only contract tests now validate unsupported Linux/Windows reports without needing those OSes. |
+| OAuth | Shared OAuth loopback behavior existed conceptually, but browser handoff and token storage were not platform-proven. | Shared OAuth loopback is wired; Ubuntu GNOME and Windows browser/firewall/manual account checks remain release gates. |
+| MCP | Shared MCP contracts existed, but native lifecycle and persistent bearer-token storage were not complete. | MCP runtime files, OS-backed token storage, CLI discovery, and packaged smoke automation are wired. Hosted Linux and Windows preview workflows passed MCP smoke; target desktop manual MCP checks remain release gates. |
+| Packaging | `electron-builder.yml` was macOS DMG/zip only and unsigned. | Linux AppImage and Windows NSIS preview packaging are implemented and validated in manual GitHub Actions workflows; public upload remains gated by target-OS manual QA. |
+| Tests | Native tests focused on service behavior, not the full adapter contract. | Contract, packaging, smoke, performance, and platform preview CI now cover the automated gates; manual QA remains required for OS shell behavior. |
 
 ## Adapter Contract
 
@@ -67,14 +70,15 @@ The noop adapter is the portable contract fixture. It reports unsupported native
 | `05-general-parity-and-release-polish` | Asset and localization parity | Backlog |
 | `05-general-parity-and-release-polish` | Manual QA and support readiness | Manual QA |
 
-## Linux Blockers
+## Remaining Linux Release Gates
 
-- Secret Service/libsecret credential adapter and locked/missing-service diagnostics.
 - Supported Ubuntu GNOME matrix and secondary Fedora/KDE manual checks.
-- Tray/status-area adapter with GNOME and KDE caveats.
-- Global shortcut strategy for X11 and Wayland portal sessions.
-- Linux notification detection and failure reporting.
-- AppImage metadata, desktop file, icon, `StartupWMClass`, and protocol registration.
+- Secret Service ready, missing, and locked manual checks.
 - OAuth browser handoff and localhost callback verification.
-- MCP localhost smoke test with OS-backed bearer-token storage.
-- Package-aware update-check stance without in-place auto-update claims.
+- Packaged AppImage MCP localhost smoke on Ubuntu GNOME.
+- Packaged AppImage terminal/file-manager launch, icon, and window grouping.
+- Confirmation that tray/status-area, global shortcuts, notifications,
+  protocol registration, autostart, and in-place update remain unsupported by
+  design for the technical preview.
+- Settings update-check validation once a draft or published release contains
+  Linux AppImage assets.
