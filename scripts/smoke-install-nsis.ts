@@ -72,7 +72,10 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     return messages;
   } finally {
     if (tempRoot) {
-      await rm(tempRoot, { recursive: true, force: true });
+      await rm(tempRoot, { recursive: true, force: true }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Windows NSIS install smoke temp cleanup skipped: ${message}`);
+      });
     }
   }
 }
