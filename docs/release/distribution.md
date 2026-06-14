@@ -227,6 +227,15 @@ agree. It also verifies that the AppImage is executable, can be extracted with
 HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage
 ```
 
+On a Linux desktop with a verified Secret Service/keyring session, add
+`HCB_PACKAGED_MCP_SMOKE=1` to make the launch smoke enable read-only MCP on a
+random loopback port, reject an unauthorized request, and run `hcb doctor`
+through the real CLI runtime/token discovery path:
+
+```sh
+HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-appimage
+```
+
 Verify checksums locally:
 
 ```sh
@@ -314,6 +323,11 @@ isolated temporary directory, launches `Hot Cross Buns 2.exe` with isolated user
 data, kills the process tree, runs the NSIS uninstaller silently, and verifies
 the installed app executable was removed. It does not replace manual Start Menu,
 desktop shortcut, protocol, notification, SmartScreen, or retained-data checks.
+Set `HCB_PACKAGED_MCP_SMOKE=1` for the installed-app MCP variant; it enables
+read-only MCP on a random loopback port, verifies unauthorized requests return
+`401`, and runs `hcb doctor` through the real CLI runtime/token discovery path.
+The Windows Preview Validation workflow runs the silent install smoke with this
+flag enabled.
 
 Windows preview support and uninstall/data-retention policy live in
 [Windows Preview Support](../support/windows-preview-support.md).

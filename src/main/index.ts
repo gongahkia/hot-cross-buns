@@ -8,6 +8,7 @@ import { createNativeAdapter } from "./native/createNativeAdapter";
 import { extractHotCrossBunsDeepLinksFromArgv } from "./native/deepLinkLaunchArgs";
 import { applyWindowsAppIdentity } from "./native/electronWindows/identity";
 import type { NativePlatformAdapter } from "./native/types";
+import { applyPackagedMcpSmokeSettings } from "./packagedMcpSmoke";
 import {
   configureEmbeddedWebContentsLockdown,
   configureEmbeddedWebviewLockdown,
@@ -376,6 +377,7 @@ if (hasSingleInstanceLock) {
         dispatchAction: dispatchNativeAction
       }
     });
+    await applyPackagedMcpSmokeSettings(services, process.env, app.isPackaged);
     services.nativeShell.installAppMenu();
     registerHcbIpc(services, {
       onShellVisible: handleRendererShellVisible

@@ -5,6 +5,11 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  packagedMcpSmokeChildEnv,
+  packagedMcpSmokeRequested,
+  runPackagedMcpSmoke
+} from "./packaged-mcp-smoke";
 
 const DEFAULT_RELEASE_DIR = "release";
 const stableAppImageName = "Hot-Cross-Buns-2-linux.AppImage";
@@ -110,7 +115,7 @@ export async function smokeLinuxAppImageArtifact(options: SmokeOptions = {}): Pr
     await verifyDesktopEntry(workDir);
 
     if (options.launch) {
-      await launchAppImage(versionedAppImage, workDir);
+      messages.push(...await launchAppImage(versionedAppImage, workDir));
     } else {
       messages.push("Skipped AppImage launch; set HCB_APPIMAGE_SMOKE_LAUNCH=1 to launch with isolated user data.");
     }
@@ -219,21 +224,27 @@ async function verifyDesktopEntry(workDir: string): Promise<void> {
   }
 }
 
-async function launchAppImage(artifact: string, workDir: string): Promise<void> {
+async function launchAppImage(artifact: string, workDir: string): Promise<string[]> {
   const userDataDir = join(workDir, "user-data");
   const launchArgs = process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX === "1" ? ["--no-sandbox"] : [];
+  const launchEnv = {
+    ...process.env,
+    HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+    HCB_USER_DATA_DIR: userDataDir,
+    ELECTRON_ENABLE_LOGGING: "1"
+  };
+  const childEnv = packagedMcpSmokeRequested(process.env)
+    ? packagedMcpSmokeChildEnv(userDataDir, launchEnv)
+    : launchEnv;
+  const mcpSmoke = packagedMcpSmokeRequested(childEnv);
+  const messages: string[] = [];
 
   await mkdir(userDataDir, { recursive: true });
 
   const child = spawn(artifact, launchArgs, {
     cwd: workDir,
     detached: true,
-    env: {
-      ...process.env,
-      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
-      HCB_USER_DATA_DIR: userDataDir,
-      ELECTRON_ENABLE_LOGGING: "1"
-    },
+    env: childEnv,
     stdio: ["ignore", "pipe", "pipe"]
   });
   const output: Buffer[] = [];
@@ -279,13 +290,26 @@ async function launchAppImage(artifact: string, workDir: string): Promise<void> 
         settle();
       }, 1_500);
     };
-    const timeout = setTimeout(stopApp, launchTimeoutMs);
+    const failAndStop = (error: Error) => {
+      stopping = true;
+      signalAppImage(child.pid, "SIGTERM");
+      signalAppImage(child.pid, "SIGKILL");
+      reject(error);
+    };
+    const timeout = setTimeout(() => {
+      if (mcpSmoke) {
+        failAndStop(new Error("Packaged AppImage MCP smoke timed out."));
+        return;
+      }
+
+      stopApp();
+    }, mcpSmoke ? 35_000 : launchTimeoutMs);
 
     child.on("error", (error) => {
       reject(error);
     });
     child.on("close", (code, signal) => {
-      if (!stopping && code !== 0) {
+      if (!stopping && (code !== 0 || mcpSmoke)) {
         reject(new Error(
           `AppImage launch exited with ${code ?? signal ?? "unknown"} before smoke timeout.${launchOutputSuffix(output)}`
         ));
@@ -294,6 +318,20 @@ async function launchAppImage(artifact: string, workDir: string): Promise<void> 
 
       settle();
     });
+
+    if (mcpSmoke) {
+      void runPackagedMcpSmoke({
+        env: childEnv,
+        platform: "linux"
+      })
+        .then((smokeMessages) => {
+          messages.push(...smokeMessages);
+          stopApp();
+        })
+        .catch((error: unknown) => {
+          failAndStop(error instanceof Error ? error : new Error(String(error)));
+        });
+    }
   });
 
   const logs = Buffer.concat(output).toString("utf8");
@@ -301,6 +339,8 @@ async function launchAppImage(artifact: string, workDir: string): Promise<void> 
   if (!logs.trim()) {
     throw new Error("AppImage launch produced no startup logs.");
   }
+
+  return messages;
 }
 
 function launchOutputSuffix(output: Buffer[]): string {

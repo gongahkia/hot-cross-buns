@@ -34,6 +34,8 @@ Confirm the current release candidate already passed:
 - `(cd release && sha256sum -c SHASUMS256.txt)`
 - `pnpm release:smoke-appimage`
 - `HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage`
+- `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-appimage`
+  on a desktop session with Secret Service/keyring available
 - `pnpm test:smoke`
 - `pnpm test:perf`
 

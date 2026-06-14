@@ -2,20 +2,31 @@ import { createHash } from "node:crypto";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { smokeLinuxAppImageArtifact } from "./smoke-test-appimage";
 
 const versionedAppImage = "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage";
 const stableAppImage = "Hot-Cross-Buns-2-linux.AppImage";
 const stableX64AppImage = "Hot-Cross-Buns-2-linux-x64.AppImage";
 const originalNoSandbox = process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX;
+const originalPackagedMcpSmoke = process.env.HCB_PACKAGED_MCP_SMOKE;
 const describeAppImageSmoke = process.platform === "win32" ? describe.skip : describe;
+
+beforeEach(() => {
+  delete process.env.HCB_PACKAGED_MCP_SMOKE;
+});
 
 afterEach(() => {
   if (originalNoSandbox === undefined) {
     delete process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX;
   } else {
     process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX = originalNoSandbox;
+  }
+
+  if (originalPackagedMcpSmoke === undefined) {
+    delete process.env.HCB_PACKAGED_MCP_SMOKE;
+  } else {
+    process.env.HCB_PACKAGED_MCP_SMOKE = originalPackagedMcpSmoke;
   }
 });
 

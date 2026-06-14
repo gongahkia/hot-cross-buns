@@ -220,6 +220,12 @@ Remaining release gates:
 - Token refresh after app restart with Secret Service ready, missing, and locked
   states.
 - External CLI MCP smoke against a packaged AppImage.
+- Optional packaged MCP smoke automation now exists:
+  `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
+  release:smoke-appimage` enables read-only MCP on a random loopback port,
+  verifies unauthorized `401` rejection, and runs `hcb doctor` through CLI
+  runtime/token discovery. It still requires Ubuntu GNOME Secret Service/keyring
+  validation before the manual MCP gate is complete.
 
 ## Performance Checks
 

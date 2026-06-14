@@ -29,6 +29,10 @@ The installer artifact smoke now verifies versioned and stable Windows x64 insta
 QA starts. A Windows-only silent install smoke installs the stable x64 alias to
 an isolated temp directory, launches the installed executable with isolated user
 data, and runs the NSIS uninstaller before manual installed-app QA starts. The
+silent install smoke can also set `HCB_PACKAGED_MCP_SMOKE=1` to enable
+read-only MCP in the installed app, verify unauthorized `401` rejection, and run
+`hcb doctor` through CLI runtime/token discovery; the Windows Preview Validation
+workflow uses this MCP variant. The
 main process also applies the stable AppUserModelID during
 top-level Windows startup before `app.whenReady()`, while installed Start Menu,
 taskbar, and notification identity remain manual Windows 11 QA items. The main

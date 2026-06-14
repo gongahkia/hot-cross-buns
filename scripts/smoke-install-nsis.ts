@@ -4,6 +4,11 @@ import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  packagedMcpSmokeChildEnv,
+  packagedMcpSmokeRequested,
+  runPackagedMcpSmoke
+} from "./packaged-mcp-smoke";
 
 const DEFAULT_RELEASE_DIR = "release";
 const stableX64InstallerName = "Hot-Cross-Buns-2-windows-x64.exe";
@@ -13,6 +18,7 @@ const versionedInstallerPattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z
 interface SmokeInstallOptions {
   artifact?: string;
   installDir?: string;
+  mcpSmoke?: boolean;
   releaseDir?: string;
   launchWaitMs?: number;
 }
@@ -58,7 +64,10 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
     }
 
     messages.push(`${basename(installer)} installed to ${installDir}.`);
-    await launchInstalledApp(appExe, userDataDir, options.launchWaitMs ?? 8_000);
+    messages.push(...await launchInstalledApp(appExe, userDataDir, {
+      mcpSmoke: options.mcpSmoke ?? packagedMcpSmokeRequested(process.env),
+      waitMs: options.launchWaitMs ?? 8_000
+    }));
     messages.push(`${installedExecutableName} launched from the installed path with isolated user data.`);
 
     const uninstaller = await findUninstaller(installDir);
@@ -133,13 +142,19 @@ async function findInstaller(releaseDir: string): Promise<string> {
   return latest.filePath;
 }
 
-async function launchInstalledApp(appExe: string, userDataDir: string, waitMs: number): Promise<void> {
+async function launchInstalledApp(
+  appExe: string,
+  userDataDir: string,
+  options: { mcpSmoke: boolean; waitMs: number }
+): Promise<string[]> {
+  const baseEnv = {
+    ...process.env,
+    HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+    HCB_USER_DATA_DIR: userDataDir
+  };
+  const childEnv = options.mcpSmoke ? packagedMcpSmokeChildEnv(userDataDir, baseEnv) : baseEnv;
   const child = spawn(appExe, ["--disable-gpu"], {
-    env: {
-      ...process.env,
-      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
-      HCB_USER_DATA_DIR: userDataDir
-    },
+    env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
   });
@@ -159,13 +174,22 @@ async function launchInstalledApp(appExe: string, userDataDir: string, waitMs: n
     exitCode = code;
   });
 
-  await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+  try {
+    const messages = options.mcpSmoke
+      ? await runPackagedMcpSmoke({
+          env: childEnv,
+          platform: "win32"
+        })
+      : await new Promise<string[]>((resolveWait) => setTimeout(() => resolveWait([]), options.waitMs));
 
-  if (exited) {
-    throw new Error(`${installedExecutableName} exited during launch smoke with code ${exitCode ?? "unknown"}: ${firstOutputLine(stderr || stdout)}`);
+    if (exited) {
+      throw new Error(`${installedExecutableName} exited during launch smoke with code ${exitCode ?? "unknown"}: ${firstOutputLine(stderr || stdout)}`);
+    }
+
+    return messages;
+  } finally {
+    await killProcessTree(child.pid);
   }
-
-  await killProcessTree(child.pid);
 }
 
 async function killProcessTree(pid: number | undefined): Promise<void> {
@@ -235,10 +259,12 @@ async function main(): Promise<void> {
   const artifact = argValue("--artifact", "");
   const installDir = argValue("--install-dir", "");
   const launchWaitMs = Number.parseInt(argValue("--launch-wait-ms", "8000"), 10);
+  const mcpSmoke = process.env.HCB_PACKAGED_MCP_SMOKE === "1";
   const messages = await smokeInstallWindowsNsis({
     releaseDir,
     ...(artifact ? { artifact } : {}),
     ...(installDir ? { installDir } : {}),
+    mcpSmoke,
     launchWaitMs: Number.isFinite(launchWaitMs) ? launchWaitMs : 8_000
   });
 

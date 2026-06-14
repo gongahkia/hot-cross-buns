@@ -1004,6 +1004,18 @@ Menu, desktop shortcut, protocol, notification, SmartScreen, retained-data, or
 interactive uninstall QA. Windows Preview Validation run `27497122768` passed
 this gate at commit `7e620a5`.
 
+Packaged MCP smoke automation on 2026-06-14: packaged app startup now has a
+fail-closed `HCB_PACKAGED_MCP_SMOKE=1` test gate that only works when packaged
+user-data override is also allowed. The gate enables read-only MCP on port `0`.
+`pnpm release:smoke-appimage` and `pnpm release:smoke-nsis-install` can now opt
+into a live packaged MCP smoke that waits for the runtime file, verifies an
+unauthorized loopback request returns `401`, and runs `hcb doctor` through the
+real CLI discovery path. The Windows preview workflow now opts the silent NSIS
+install smoke into this gate. Linux hosted CI still leaves it default-off until
+a verified Secret Service/keyring session is available; Ubuntu GNOME manual QA
+can run `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
+release:smoke-appimage`.
+
 Implementation tasks:
 
 - [x] Decide preview scope: Windows 11 x64 first, NSIS installer first,
@@ -1103,7 +1115,10 @@ Linux remaining work:
       plaintext token fallback.
 - [ ] Run a live MCP localhost smoke against the packaged AppImage. Confirm it
       binds to `127.0.0.1`, requires the OS-backed bearer token, and rejects
-      unauthorized requests.
+      unauthorized requests. The opt-in automation command is
+      `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
+      release:smoke-appimage`, but it still requires Ubuntu GNOME Secret
+      Service validation before this manual gate is complete.
 - [ ] Open Settings diagnostics from the packaged AppImage and confirm paths,
       adapter id, package format, credential status, and redaction are accurate.
 - [ ] Confirm packaged Linux notifications remain explicitly unsupported in
@@ -1155,7 +1170,10 @@ Windows remaining work:
       or firewall prompts.
 - [ ] Restart the app and confirm Windows safeStorage persists Google OAuth and
       MCP bearer tokens without plaintext fallback.
-- [ ] Run a live MCP localhost smoke against the installed Windows app.
+- [ ] Run a live MCP localhost smoke against the installed Windows app. Windows
+      CI now runs the automated installed-NSIS MCP smoke with
+      `HCB_PACKAGED_MCP_SMOKE=1`; Windows 11 installed-app manual QA is still
+      required before this release gate is complete.
 - [ ] Validate Windows tray menu: show/hide, quick capture, refresh, settings,
       and quit.
 - [ ] Validate global shortcut success path and conflict handling.
