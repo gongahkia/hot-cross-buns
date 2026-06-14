@@ -261,9 +261,9 @@ toolchain instead of the Windows Server 2025 / Visual Studio 2026 image currentl
 behind `windows-latest`. The workflow also runs the HCB CLI MCP loopback smoke
 before packaging and sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub's
 JavaScript actions use the upcoming Node 24 action runtime while the project
-still builds/tests with Node 20. Run `27497122768` passed this gate on
-2026-06-14 at commit `7e620a5`, including silent NSIS
-install/launch/uninstall smoke.
+still builds/tests with Node 20. Run `27498800502` passed this gate on
+2026-06-14 at commit `a93e1f2`, including silent NSIS
+install/launch/uninstall plus installed MCP smoke.
 
 Linux cross-packaging for the Windows NSIS target requires Wine. A Linux host
 without Wine can still complete the release build and `win-unpacked` step, but
@@ -548,8 +548,8 @@ Automated Windows preview gates passed on 2026-06-14:
 - Manual run of the `Windows Preview Validation` GitHub Actions workflow
 - HCB CLI MCP loopback smoke with `pnpm hcb:smoke`
 - NSIS installer smoke with `pnpm release:smoke-nsis`
-- silent NSIS install/launch/uninstall smoke with
-  `pnpm release:smoke-nsis-install`
+- silent NSIS install/launch/uninstall plus installed MCP smoke with
+  `HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-nsis-install`
 - PowerShell checksum verification with `Get-FileHash`
 - Electron smoke and performance smoke
 
