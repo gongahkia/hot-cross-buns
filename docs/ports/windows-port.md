@@ -28,8 +28,10 @@ The installer artifact smoke now verifies versioned and stable Windows x64 insta
 `SHASUMS256.txt` and per-artifact `.sha256` sidecars before manual installed-app
 QA starts. A Windows-only silent install smoke installs the stable x64 alias to
 an isolated temp directory, launches the installed executable with isolated user
-data, and runs the NSIS uninstaller before manual installed-app QA starts. The
-silent install smoke can also set `HCB_PACKAGED_MCP_SMOKE=1` to enable
+data, verifies Start Menu and desktop shortcuts target the installed executable,
+and runs the NSIS uninstaller before confirming newly-created shortcuts and the
+installed executable are absent. The silent install smoke can also set
+`HCB_PACKAGED_MCP_SMOKE=1` to enable
 read-only MCP in the installed app, verify unauthorized `401` rejection, and run
 `hcb doctor` through CLI runtime discovery with a seeded smoke token; the Windows Preview Validation
 workflow uses this MCP variant. The
@@ -50,12 +52,13 @@ validation:
 
 Windows CI evidence:
 
-- `Windows Preview Validation` run `27498800502` passed on 2026-06-14 at
-  commit `a93e1f2`.
+- `Windows Preview Validation` run `27499932682` passed on 2026-06-14 at
+  commit `965babf`.
 - The run completed `pnpm release:win:preview`, `pnpm release:smoke-nsis`,
   HCB CLI MCP smoke, PowerShell `Get-FileHash` verification for
   `Hot-Cross-Buns-2-windows-x64.exe`, silent NSIS install/launch/uninstall plus
-  installed MCP smoke, Electron smoke, performance smoke, and artifact upload.
+  Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
+  Electron smoke, performance smoke, and artifact upload.
 
 Remaining release blockers require a Windows 11 x64 installed-app QA pass:
 
@@ -65,7 +68,7 @@ Remaining release blockers require a Windows 11 x64 installed-app QA pass:
 - OAuth browser round trip and Windows Defender/firewall behavior
 - MCP localhost smoke against the installed app
 - tray, global shortcut, notification, protocol, and autostart behavior
-- uninstall and retained-user-data behavior
+- interactive uninstall and retained-user-data behavior
 - SmartScreen/code-signing decision for anything beyond internal preview
 
 Windows preview support guidance lives in

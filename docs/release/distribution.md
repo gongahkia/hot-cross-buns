@@ -262,9 +262,9 @@ toolchain instead of the Windows Server 2025 / Visual Studio 2026 image currentl
 behind `windows-latest`. The workflow also runs the HCB CLI MCP loopback smoke
 before packaging and sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub's
 JavaScript actions use the upcoming Node 24 action runtime while the project
-still builds/tests with Node 20. Run `27498800502` passed this gate on
-2026-06-14 at commit `a93e1f2`, including silent NSIS
-install/launch/uninstall plus installed MCP smoke.
+still builds/tests with Node 20. Run `27499932682` passed this gate on
+2026-06-14 at commit `965babf`, including silent NSIS install/launch/uninstall,
+Start Menu/desktop shortcut target/removal checks, and installed MCP smoke.
 
 Linux cross-packaging for the Windows NSIS target requires Wine. A Linux host
 without Wine can still complete the release build and `win-unpacked` step, but
@@ -321,9 +321,11 @@ pnpm release:smoke-nsis-install
 
 The install smoke silently installs the stable x64 installer alias to an
 isolated temporary directory, launches `Hot Cross Buns 2.exe` with isolated user
-data, kills the process tree, runs the NSIS uninstaller silently, and verifies
-the installed app executable was removed. It does not replace manual Start Menu,
-desktop shortcut, protocol, notification, SmartScreen, or retained-data checks.
+data, verifies Start Menu and desktop shortcuts target the installed executable,
+kills the process tree, runs the NSIS uninstaller silently, and verifies the
+installed app executable plus newly-created shortcuts were removed. It does not
+replace manual Start Menu/desktop launch, protocol, notification, SmartScreen,
+or retained-data checks.
 Set `HCB_PACKAGED_MCP_SMOKE=1` for the installed-app MCP variant; it enables
 read-only MCP on a random loopback port, verifies unauthorized requests return
 `401`, and runs `hcb doctor` through CLI runtime discovery with a seeded smoke
@@ -551,6 +553,8 @@ Automated Windows preview gates passed on 2026-06-14:
 - NSIS installer smoke with `pnpm release:smoke-nsis`
 - silent NSIS install/launch/uninstall plus installed MCP smoke with
   `HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-nsis-install`
+- Start Menu/desktop shortcut target and removal checks inside
+  `pnpm release:smoke-nsis-install`
 - PowerShell checksum verification with `Get-FileHash`
 - Electron smoke and performance smoke
 
@@ -565,7 +569,7 @@ Still required before publishing a Windows preview:
 - tray, global shortcut, notification, protocol registration/routing, and
   autostart behavior tested
 - update-check UI verified against Windows assets
-- uninstall behavior documented and tested
+- interactive uninstall and retained-data behavior documented and tested
 - code signing plan and SmartScreen expectations documented
 - Windows preview support and retained-data policy documented
 

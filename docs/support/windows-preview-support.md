@@ -2,10 +2,10 @@
 
 Hot Cross Buns 2 Windows support is a technical preview for Windows 11 x64.
 The first preview artifact is an NSIS installer. Windows Preview Validation run
-`27498800502` passed HCB CLI MCP smoke, packaging, installer artifact smoke,
-checksum, silent install/launch/uninstall plus installed MCP smoke, Electron
-smoke, performance smoke, and artifact upload on 2026-06-14. Do not
-publish Windows
+`27499932682` passed HCB CLI MCP smoke, packaging, installer artifact smoke,
+checksum, silent install/launch/uninstall, Start Menu/desktop shortcut
+target/removal checks, installed MCP smoke, Electron smoke, performance smoke,
+and artifact upload on 2026-06-14 at commit `965babf`. Do not publish Windows
 artifacts until the Windows 11 installed-app manual QA checklist passes.
 
 ## Install And Run
@@ -71,6 +71,8 @@ Before deleting retained data manually:
 - disconnect accounts if you are testing credential cleanup;
 - record the exact app data paths from Diagnostics.
 
-Manual Windows QA must confirm the uninstaller behavior, retained data paths,
-Start Menu/desktop shortcut cleanup, protocol cleanup, and open-at-login cleanup
-on Windows 11 before release notes claim the uninstall policy is verified.
+Windows Preview Validation run `27499932682` verified that newly-created Start
+Menu and desktop shortcuts target the installed executable and are absent after
+silent uninstall. Manual Windows QA must still confirm interactive uninstall
+behavior, retained data paths, protocol cleanup, and open-at-login cleanup on
+Windows 11 before release notes claim the uninstall policy is verified.

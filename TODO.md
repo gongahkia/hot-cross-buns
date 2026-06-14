@@ -919,15 +919,16 @@ install because `windows-latest` redirected to the Windows Server 2025 / Visual
 Studio 2026 image and `node-gyp` could not detect that toolchain for
 `better-sqlite3`; the Windows preview workflow now pins `windows-2022`.
 Follow-up MCP-gated automated validation on 2026-06-14: Linux run
-`27499256281` passed on commit `df19162`; Windows run `27498800502` passed on
-commit `a93e1f2`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
+`27499256281` passed on commit `df19162`; Windows run `27499932682` passed on
+commit `965babf`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
 `sha256sum -c SHASUMS256.txt`, AppImage metadata smoke, AppImage launch smoke
 under `xvfb`, packaged AppImage MCP smoke under a hosted GNOME/libsecret keyring
 session, Electron smoke, performance smoke, and artifact upload. Windows
 completed `pnpm hcb:smoke`, `pnpm release:win:preview`,
 `pnpm release:smoke-nsis`, PowerShell `Get-FileHash` checksum verification,
-silent NSIS install/launch/uninstall plus installed MCP smoke, Electron smoke,
-performance smoke, and artifact upload.
+silent NSIS install/launch/uninstall plus Start Menu/desktop shortcut
+target/removal checks, installed MCP smoke, Electron smoke, performance smoke,
+and artifact upload.
 
 Stable artifact alias hardening on 2026-06-14: Linux AppImage and Windows NSIS
 smoke tests now reject stable aliases that have internally valid checksums but do
@@ -966,7 +967,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/support/windows-preview-support.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
-blockers. They record Linux run `27499256281`, Windows run `27498800502`, and
+blockers. They record Linux run `27499256281`, Windows run `27499932682`, and
 keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
 manual QA.
 
@@ -984,7 +985,7 @@ and representative read/write tool calls. The workflows also set
 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub JavaScript actions use the
 Node 24 action runtime while the project still installs and builds with Node 20.
 MCP-gated reruns passed on Linux run `27499256281` at commit `df19162` and
-Windows run `27498800502` at commit `a93e1f2`. This does not replace Ubuntu
+Windows run `27499932682` at commit `965babf`. This does not replace Ubuntu
 GNOME ready/missing/locked Secret Service manual QA or Windows 11 installed-app
 manual QA.
 
@@ -1001,11 +1002,12 @@ Windows NSIS install smoke hardening on 2026-06-14: `pnpm
 release:smoke-nsis-install` now runs on Windows to silently install the stable
 x64 installer alias into an isolated temp directory, launch the installed app
 with isolated user data, kill the process tree, run the silent NSIS uninstaller,
-and verify the installed executable is removed. The Windows preview workflow
-runs this after checksum verification. This still does not replace manual Start
-Menu, desktop shortcut, protocol, notification, SmartScreen, retained-data, or
-interactive uninstall QA. Windows Preview Validation run `27498800502` passed
-this gate at commit `a93e1f2`.
+verify Start Menu and desktop shortcuts target the installed executable, and
+verify the installed executable plus newly-created shortcuts are removed. The
+Windows preview workflow runs this after checksum verification. This still does
+not replace manual Start Menu/desktop launch, protocol, notification,
+SmartScreen, retained-data, or interactive uninstall QA. Windows Preview
+Validation run `27499932682` passed this gate at commit `965babf`.
 
 Packaged MCP smoke automation on 2026-06-14: packaged app startup now has a
 fail-closed `HCB_PACKAGED_MCP_SMOKE=1` test gate that only works when packaged
