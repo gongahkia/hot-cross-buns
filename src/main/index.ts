@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, session } from "electron";
+import { app, BrowserWindow, nativeTheme, safeStorage, session } from "electron";
 import { join } from "node:path";
 import { IPC_CHANNELS, type NativeAction } from "@shared/ipc/contracts";
 import { appLogger } from "./diagnostics/appLogger";
@@ -16,6 +16,11 @@ import {
   configureSessionHardening
 } from "./security";
 import { createServiceContainer, type ServiceContainer } from "./services/serviceContainer";
+import {
+  parseSafeStorageTokenHelperArgv,
+  readMcpTokenFromSafeStorageFile,
+  type SafeStorageTokenHelperRequest
+} from "./mcp/safeStorageTokenHelper";
 import {
   fallbackSyncStatusTheme,
   resolveSyncStatusTheme,
@@ -53,17 +58,23 @@ applyWindowsAppIdentity();
 app.setName(macAppDisplayName);
 app.setAboutPanelOptions({ applicationName: macAppDisplayName });
 
-markStartupTiming("processStartedMs");
-appLogger.info("app launch", "misc", {
-  version: app.getVersion(),
-  launchMode: app.isPackaged ? "packaged" : "development"
-});
+const safeStorageTokenHelperRequest = parseSafeStorageTokenHelperArgv(process.argv);
 
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
-
-if (!hasSingleInstanceLock) {
-  app.quit();
+if (safeStorageTokenHelperRequest) {
+  runSafeStorageTokenHelper(safeStorageTokenHelperRequest);
 } else {
+  markStartupTiming("processStartedMs");
+  appLogger.info("app launch", "misc", {
+    version: app.getVersion(),
+    launchMode: app.isPackaged ? "packaged" : "development"
+  });
+}
+
+const hasSingleInstanceLock = safeStorageTokenHelperRequest ? false : app.requestSingleInstanceLock();
+
+if (!safeStorageTokenHelperRequest && !hasSingleInstanceLock) {
+  app.quit();
+} else if (!safeStorageTokenHelperRequest) {
   for (const url of extractHotCrossBunsDeepLinksFromArgv(process.argv)) {
     queueOrHandleDeepLink(url);
   }
@@ -83,6 +94,19 @@ app.on("open-url", (event, url) => {
   event.preventDefault();
   queueOrHandleDeepLink(url);
 });
+
+function runSafeStorageTokenHelper(request: SafeStorageTokenHelperRequest): void {
+  void app.whenReady()
+    .then(async () => {
+      const token = await readMcpTokenFromSafeStorageFile(request, safeStorage);
+      process.stdout.write(token);
+      app.exit(0);
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      app.exit(1);
+    });
+}
 
 function queueOrHandleDeepLink(url: string): void {
   if (!services) {
@@ -357,7 +381,7 @@ function createMainWindow(): BrowserWindow {
   return window;
 }
 
-if (hasSingleInstanceLock) {
+if (!safeStorageTokenHelperRequest && hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     markStartupTiming("appReadyMs");
     const adapter = await createNativeAdapter();

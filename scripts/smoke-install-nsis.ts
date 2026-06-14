@@ -152,7 +152,7 @@ async function launchInstalledApp(
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
     HCB_USER_DATA_DIR: userDataDir
   };
-  const childEnv = options.mcpSmoke ? packagedMcpSmokeChildEnv(userDataDir, baseEnv) : baseEnv;
+  const childEnv = options.mcpSmoke ? packagedMcpSmokeChildEnv(userDataDir, baseEnv, appExe) : baseEnv;
   const child = spawn(appExe, ["--disable-gpu"], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],

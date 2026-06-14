@@ -41,6 +41,7 @@ export interface HcbCliDependencies {
 export interface SafeStorageMcpTokenLoaderInput {
   platform: NodeJS.Platform | string;
   secretStoreFiles: string[];
+  helperBinary?: string;
   helperPath: string;
   env: NodeJS.ProcessEnv;
 }
@@ -3015,6 +3016,7 @@ async function defaultMcpBearerToken(dependencies: HcbCliDependencies): Promise<
     return loader({
       platform,
       secretStoreFiles: mcpSecretStoreFileCandidates(env, platform),
+      helperBinary: safeStorageTokenHelperBinary(env),
       helperPath: safeStorageTokenHelperPath(env),
       env
     });
@@ -3030,12 +3032,16 @@ async function loadSafeStorageMcpBearerToken(input: SafeStorageMcpTokenLoaderInp
     throw new CliError("HCB MCP bearer token storage was not found. Start HCB2 and enable Settings > Local MCP server.");
   }
 
-  const electronBinary = electronBinaryPath();
+  const helperBinary = input.helperBinary;
+  const command = helperBinary ?? electronBinaryPath();
+  const args = helperBinary
+    ? ["--hcb-read-mcp-token-safe-storage", String(input.platform), storageFile]
+    : [input.helperPath, String(input.platform), storageFile];
 
   return new Promise((resolve, reject) => {
     execFile(
-      electronBinary,
-      [input.helperPath, String(input.platform), storageFile],
+      command,
+      args,
       {
         env: input.env,
         maxBuffer: 1024 * 1024,
@@ -3059,6 +3065,10 @@ async function loadSafeStorageMcpBearerToken(input: SafeStorageMcpTokenLoaderInp
       }
     );
   });
+}
+
+function safeStorageTokenHelperBinary(env: NodeJS.ProcessEnv): string | undefined {
+  return env.HCB_MCP_SAFE_STORAGE_BINARY?.trim() || undefined;
 }
 
 function safeStorageTokenHelperPath(env: NodeJS.ProcessEnv): string {

@@ -234,7 +234,7 @@ async function launchAppImage(artifact: string, workDir: string): Promise<string
     ELECTRON_ENABLE_LOGGING: "1"
   };
   const childEnv = packagedMcpSmokeRequested(process.env)
-    ? packagedMcpSmokeChildEnv(userDataDir, launchEnv)
+    ? packagedMcpSmokeChildEnv(userDataDir, launchEnv, artifact)
     : launchEnv;
   const mcpSmoke = packagedMcpSmokeRequested(childEnv);
   const messages: string[] = [];

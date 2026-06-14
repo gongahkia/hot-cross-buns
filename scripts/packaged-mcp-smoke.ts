@@ -19,13 +19,23 @@ export function packagedMcpSmokeRequested(env: NodeJS.ProcessEnv = process.env):
   return env.HCB_PACKAGED_MCP_SMOKE === "1";
 }
 
-export function packagedMcpSmokeChildEnv(userDataDir: string, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return {
+export function packagedMcpSmokeChildEnv(
+  userDataDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+  helperBinary?: string
+): NodeJS.ProcessEnv {
+  const nextEnv: NodeJS.ProcessEnv = {
     ...env,
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
     HCB_PACKAGED_MCP_SMOKE: "1",
     HCB_USER_DATA_DIR: userDataDir
   };
+
+  if (helperBinary) {
+    nextEnv.HCB_MCP_SAFE_STORAGE_BINARY = helperBinary;
+  }
+
+  return nextEnv;
 }
 
 export async function runPackagedMcpSmoke(options: PackagedMcpSmokeOptions): Promise<string[]> {

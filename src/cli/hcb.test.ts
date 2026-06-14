@@ -422,7 +422,12 @@ describe("hcb CLI", () => {
     const stdout = outputBuffer();
     const stderr = outputBuffer();
     const calls: Array<{ authorization?: string }> = [];
-    const loaderInputs: Array<{ secretStoreFiles: string[]; helperPath: string; platform: string }> = [];
+    const loaderInputs: Array<{
+      helperBinary?: string;
+      helperPath: string;
+      platform: string;
+      secretStoreFiles: string[];
+    }> = [];
 
     try {
       writeRuntimeFile(runtimeFile);
@@ -432,6 +437,7 @@ describe("hcb CLI", () => {
         platform: "linux",
         safeStorageTokenLoader: async (input) => {
           loaderInputs.push({
+            helperBinary: input.helperBinary,
             secretStoreFiles: input.secretStoreFiles,
             helperPath: input.helperPath,
             platform: String(input.platform)
@@ -447,6 +453,7 @@ describe("hcb CLI", () => {
       expect(loaderInputs).toEqual([
         {
           platform: "linux",
+          helperBinary: undefined,
           helperPath: expect.stringContaining("read-mcp-token-safe-storage.cjs") as string,
           secretStoreFiles: [
             join(userData, "secrets.safe-storage.json"),
@@ -748,6 +755,41 @@ describe("hcb CLI", () => {
           level: "error"
         }
       ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("passes packaged safeStorage helper binary overrides to Linux and Windows token loading", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-safe-storage-binary-"));
+    const userData = join(directory, "user-data");
+    const runtimeFile = join(userData, "config", "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: Array<{ authorization?: string }> = [];
+    const helperBinaries: Array<string | undefined> = [];
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const exitCode = await runHcbCli(["status"], {
+        env: {
+          HCB_MCP_SAFE_STORAGE_BINARY: "C:\\Program Files\\Hot Cross Buns 2\\Hot Cross Buns 2.exe",
+          HCB_MCP_RUNTIME_FILE: runtimeFile,
+          HCB_USER_DATA_DIR: userData
+        },
+        fetch: statusFetch(calls),
+        platform: "win32",
+        safeStorageTokenLoader: async (input) => {
+          helperBinaries.push(input.helperBinary);
+          return "windows-safe-storage-token";
+        },
+        stdout,
+        stderr
+      });
+
+      expect(exitCode).toBe(0);
+      expect(calls[0].authorization).toBe("Bearer windows-safe-storage-token");
+      expect(helperBinaries).toEqual(["C:\\Program Files\\Hot Cross Buns 2\\Hot Cross Buns 2.exe"]);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

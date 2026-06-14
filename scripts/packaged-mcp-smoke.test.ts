@@ -17,8 +17,9 @@ describe("packaged MCP smoke", () => {
   it("sets the child app env required by packaged smoke startup", () => {
     expect(packagedMcpSmokeRequested({ HCB_PACKAGED_MCP_SMOKE: "1" })).toBe(true);
     expect(packagedMcpSmokeRequested({})).toBe(false);
-    expect(packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" })).toMatchObject({
+    expect(packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" }, "/opt/hcb/Hot Cross Buns 2")).toMatchObject({
       HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns 2",
       HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_USER_DATA_DIR: "/tmp/hcb-smoke",
       PATH: "/usr/bin"

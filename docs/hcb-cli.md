@@ -15,6 +15,9 @@ with an OS-backed provider, or Windows Electron `safeStorage`. Override
 discovery with `HCB_MCP_RUNTIME_FILE`, `HCB_MCP_SECRET_STORE_FILE`,
 `HCB_USER_DATA_DIR`, `HCB_MCP_BEARER_TOKEN`, or
 `HCB_MCP_URL=http://127.0.0.1:<port>`.
+Packaged smoke scripts may also set `HCB_MCP_SAFE_STORAGE_BINARY` to the
+installed app executable so token decryption uses the packaged app's own
+Electron `safeStorage` context.
 
 ## Commands
 
