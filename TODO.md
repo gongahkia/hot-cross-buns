@@ -917,6 +917,14 @@ an explicit CI env gate. Windows run `27486500420` failed during dependency
 install because `windows-latest` redirected to the Windows Server 2025 / Visual
 Studio 2026 image and `node-gyp` could not detect that toolchain for
 `better-sqlite3`; the Windows preview workflow now pins `windows-2022`.
+Follow-up automated validation on 2026-06-14: Linux run `27487088365` and
+Windows run `27487088467` passed on commit `01b6d50`. Linux completed
+`pnpm release:linux:preview`, `sha256sum -c SHASUMS256.txt`,
+AppImage metadata smoke, AppImage launch smoke under `xvfb`, Electron smoke,
+performance smoke, and artifact upload. Windows completed
+`pnpm release:win:preview`, `pnpm release:smoke-nsis`, PowerShell
+`Get-FileHash` checksum verification, Electron smoke, performance smoke, and
+artifact upload.
 
 Stable artifact alias hardening on 2026-06-14: Linux AppImage and Windows NSIS
 smoke tests now reject stable aliases that have internally valid checksums but do
@@ -1056,13 +1064,13 @@ Linux remaining work:
       fresh implementation plus manual QA before any support claim changes.
 - [ ] Verify Settings check-for-updates prefers Linux AppImage assets once a
       draft or published GitHub release contains the Linux artifacts.
-- [ ] Re-run the Linux release gate after manual fixes:
+- [x] Re-run the Linux release gate after manual fixes:
       `pnpm release:linux:preview`,
       `(cd release && sha256sum -c SHASUMS256.txt)`,
       `pnpm release:smoke-appimage`,
       `HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage`,
       `pnpm test:smoke`, and `pnpm test:perf`.
-- [ ] Re-dispatch the `Linux AppImage Preview Validation` workflow on GitHub
+- [x] Re-dispatch the `Linux AppImage Preview Validation` workflow on GitHub
       Actions after the CI AppImage launch-smoke fix is pushed.
 - [ ] Update `docs/release/notes/v5.0.0.md` with the final Linux QA result,
       unsupported feature list, artifact names, and checksum instructions.
@@ -1073,18 +1081,18 @@ Windows remaining work:
 
 - [x] Commit/push the Windows scaffold and `.github/workflows/windows-preview.yml`
       to `main`/`origin/main` so GitHub Actions can see the workflow.
-- [ ] Re-dispatch the `Windows Preview Validation` workflow on GitHub Actions
+- [x] Re-dispatch the `Windows Preview Validation` workflow on GitHub Actions
       after the `windows-2022` runner pin is pushed, or run these commands on
       Windows:
       `pnpm release:win:preview`,
       `pnpm release:smoke-nsis`,
       `pnpm test:smoke`, and `pnpm test:perf`.
-- [ ] Confirm the Windows preview artifacts exist:
+- [x] Confirm the Windows preview artifacts exist:
       `release/Hot-Cross-Buns-2-5.0.0-windows-x64.exe`,
       `release/Hot-Cross-Buns-2-windows.exe`,
       `release/Hot-Cross-Buns-2-windows-x64.exe`,
       matching `.sha256` files, and `release/SHASUMS256.txt`.
-- [ ] Verify the Windows installer checksum with PowerShell:
+- [x] Verify the Windows installer checksum with PowerShell:
       `Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256`.
 - [ ] Install the NSIS preview on Windows 11 x64.
 - [ ] Launch from installer finish action, Start Menu, and desktop shortcut.
