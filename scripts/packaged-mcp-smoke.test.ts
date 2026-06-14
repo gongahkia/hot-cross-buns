@@ -9,6 +9,7 @@ import { createMcpTestDomainServices } from "../src/main/mcp/testDomainDoubles";
 import { McpToolRegistry } from "../src/main/mcp/toolRegistry";
 import {
   packagedMcpSmokeChildEnv,
+  packagedMcpSmokePersistedChildEnv,
   packagedMcpSmokeRequested,
   runPackagedMcpSmoke
 } from "./packaged-mcp-smoke";
@@ -28,6 +29,24 @@ describe("packaged MCP smoke", () => {
     });
     expect(env.HCB_MCP_BEARER_TOKEN).toEqual(expect.any(String));
     expect(env.HCB_PACKAGED_MCP_SMOKE_TOKEN).toBe(env.HCB_MCP_BEARER_TOKEN);
+  });
+
+  it("sets restart env that forces CLI auth through persisted safeStorage", () => {
+    const env = packagedMcpSmokePersistedChildEnv("/tmp/hcb-smoke", {
+      HCB_MCP_BEARER_TOKEN: "seed-token",
+      HCB_PACKAGED_MCP_SMOKE_TOKEN: "seed-token",
+      PATH: "/usr/bin"
+    }, "/opt/hcb/Hot Cross Buns 2");
+
+    expect(env).toMatchObject({
+      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns 2",
+      HCB_PACKAGED_MCP_SMOKE: "1",
+      HCB_USER_DATA_DIR: "/tmp/hcb-smoke",
+      PATH: "/usr/bin"
+    });
+    expect(env.HCB_MCP_BEARER_TOKEN).toBeUndefined();
+    expect(env.HCB_PACKAGED_MCP_SMOKE_TOKEN).toBeUndefined();
   });
 
   it("verifies runtime discovery, unauthorized rejection, and CLI doctor", async () => {

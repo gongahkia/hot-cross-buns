@@ -44,6 +44,28 @@ export function packagedMcpSmokeChildEnv(
   return nextEnv;
 }
 
+export function packagedMcpSmokePersistedChildEnv(
+  userDataDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+  helperBinary?: string
+): NodeJS.ProcessEnv {
+  const nextEnv: NodeJS.ProcessEnv = {
+    ...env,
+    HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+    HCB_PACKAGED_MCP_SMOKE: "1",
+    HCB_USER_DATA_DIR: userDataDir
+  };
+
+  delete nextEnv.HCB_MCP_BEARER_TOKEN;
+  delete nextEnv.HCB_PACKAGED_MCP_SMOKE_TOKEN;
+
+  if (helperBinary) {
+    nextEnv.HCB_MCP_SAFE_STORAGE_BINARY = helperBinary;
+  }
+
+  return nextEnv;
+}
+
 export async function runPackagedMcpSmoke(options: PackagedMcpSmokeOptions): Promise<string[]> {
   const platform = options.platform ?? process.platform;
   const runtime = await waitForRuntime(options.env, platform, options.timeoutMs ?? defaultTimeoutMs);

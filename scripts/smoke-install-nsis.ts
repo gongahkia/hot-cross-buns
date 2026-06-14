@@ -6,6 +6,7 @@ import { basename, extname, join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   packagedMcpSmokeChildEnv,
+  packagedMcpSmokePersistedChildEnv,
   packagedMcpSmokeRequested,
   runPackagedMcpSmoke
 } from "./packaged-mcp-smoke";
@@ -74,11 +75,21 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
 
     messages.push(`${basename(installer)} installed to ${installDir}.`);
     messages.push(...await verifyInstalledShortcuts(shortcutPaths, appExe));
+    const mcpSmoke = options.mcpSmoke ?? packagedMcpSmokeRequested(process.env);
     messages.push(...await launchInstalledApp(appExe, userDataDir, {
-      mcpSmoke: options.mcpSmoke ?? packagedMcpSmokeRequested(process.env),
+      mcpSmoke,
       waitMs: options.launchWaitMs ?? 8_000
     }));
     messages.push(`${installedExecutableName} launched from the installed path with isolated user data.`);
+
+    if (mcpSmoke) {
+      messages.push(...await launchInstalledApp(appExe, userDataDir, {
+        mcpSmoke: true,
+        persistedMcpToken: true,
+        waitMs: options.launchWaitMs ?? 8_000
+      }));
+      messages.push(`${installedExecutableName} relaunched and reused the persisted MCP bearer token through safeStorage.`);
+    }
 
     const uninstaller = await findUninstaller(installDir);
     await runProcess(uninstaller, ["/S"], { timeoutMs: 120_000 });
@@ -216,14 +227,18 @@ async function readShortcutMetadata(shortcutPath: string): Promise<ShortcutMetad
 async function launchInstalledApp(
   appExe: string,
   userDataDir: string,
-  options: { mcpSmoke: boolean; waitMs: number }
+  options: { mcpSmoke: boolean; persistedMcpToken?: boolean; waitMs: number }
 ): Promise<string[]> {
   const baseEnv = {
     ...process.env,
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
     HCB_USER_DATA_DIR: userDataDir
   };
-  const childEnv = options.mcpSmoke ? packagedMcpSmokeChildEnv(userDataDir, baseEnv, appExe) : baseEnv;
+  const childEnv = options.mcpSmoke
+    ? options.persistedMcpToken
+      ? packagedMcpSmokePersistedChildEnv(userDataDir, baseEnv, appExe)
+      : packagedMcpSmokeChildEnv(userDataDir, baseEnv, appExe)
+    : baseEnv;
   const child = spawn(appExe, ["--disable-gpu"], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
