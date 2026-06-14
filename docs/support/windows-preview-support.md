@@ -2,8 +2,9 @@
 
 Hot Cross Buns 2 Windows support is a technical preview for Windows 11 x64.
 The first preview artifact is an NSIS installer. Windows Preview Validation run
-`27488239083` passed HCB CLI MCP smoke, packaging, installer smoke, checksum,
-Electron smoke, performance smoke, and artifact upload on 2026-06-14. Do not
+`27497122768` passed HCB CLI MCP smoke, packaging, installer artifact smoke,
+checksum, silent install/launch/uninstall smoke, Electron smoke, performance
+smoke, and artifact upload on 2026-06-14. Do not
 publish Windows
 artifacts until the Windows 11 installed-app manual QA checklist passes.
 

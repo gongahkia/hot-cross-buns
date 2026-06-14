@@ -918,13 +918,14 @@ install because `windows-latest` redirected to the Windows Server 2025 / Visual
 Studio 2026 image and `node-gyp` could not detect that toolchain for
 `better-sqlite3`; the Windows preview workflow now pins `windows-2022`.
 Follow-up MCP-gated automated validation on 2026-06-14: Linux run
-`27488238932` and Windows run `27488239083` passed on commit `121dfbf`. Linux
-completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
+`27488238932` passed on commit `121dfbf`; Windows run `27497122768` passed on
+commit `7e620a5`. Linux completed `pnpm hcb:smoke`, `pnpm release:linux:preview`,
 `sha256sum -c SHASUMS256.txt`, AppImage metadata smoke, AppImage launch smoke
 under `xvfb`, Electron smoke, performance smoke, and artifact upload. Windows
 completed `pnpm hcb:smoke`, `pnpm release:win:preview`,
 `pnpm release:smoke-nsis`, PowerShell `Get-FileHash` checksum verification,
-Electron smoke, performance smoke, and artifact upload.
+silent NSIS install/launch/uninstall smoke, Electron smoke, performance smoke,
+and artifact upload.
 
 Stable artifact alias hardening on 2026-06-14: Linux AppImage and Windows NSIS
 smoke tests now reject stable aliases that have internally valid checksums but do
@@ -963,7 +964,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/support/windows-preview-support.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
-blockers. They record Linux run `27488238932`, Windows run `27488239083`, and
+blockers. They record Linux run `27488238932`, Windows run `27497122768`, and
 keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
 manual QA.
 
@@ -980,9 +981,9 @@ MCP loopback binding, bearer-token rejection/acceptance, resource reads, prompts
 and representative read/write tool calls. The workflows also set
 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub JavaScript actions use the
 Node 24 action runtime while the project still installs and builds with Node 20.
-MCP-gated reruns passed on Linux run `27488238932` and Windows run
-`27488239083` at commit `121dfbf`. This does not replace packaged-AppImage or
-installed-NSIS live MCP manual QA.
+MCP-gated reruns passed on Linux run `27488238932` at commit `121dfbf` and
+Windows run `27497122768` at commit `7e620a5`. This does not replace
+packaged-AppImage or installed-NSIS live MCP manual QA.
 
 Cross-platform CLI MCP token discovery on 2026-06-14: `pnpm hcb -- ...` now
 discovers the Linux runtime file at the actual Linux adapter config path,
@@ -1000,7 +1001,8 @@ with isolated user data, kill the process tree, run the silent NSIS uninstaller,
 and verify the installed executable is removed. The Windows preview workflow
 runs this after checksum verification. This still does not replace manual Start
 Menu, desktop shortcut, protocol, notification, SmartScreen, retained-data, or
-interactive uninstall QA.
+interactive uninstall QA. Windows Preview Validation run `27497122768` passed
+this gate at commit `7e620a5`.
 
 Implementation tasks:
 
