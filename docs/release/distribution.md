@@ -230,7 +230,7 @@ HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage
 On a Linux desktop with a verified Secret Service/keyring session, add
 `HCB_PACKAGED_MCP_SMOKE=1` to make the launch smoke enable read-only MCP on a
 random loopback port, reject an unauthorized request, and run `hcb doctor`
-through the real CLI runtime/token discovery path:
+through CLI runtime discovery with a seeded smoke token:
 
 ```sh
 HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-appimage
@@ -325,7 +325,8 @@ the installed app executable was removed. It does not replace manual Start Menu,
 desktop shortcut, protocol, notification, SmartScreen, or retained-data checks.
 Set `HCB_PACKAGED_MCP_SMOKE=1` for the installed-app MCP variant; it enables
 read-only MCP on a random loopback port, verifies unauthorized requests return
-`401`, and runs `hcb doctor` through the real CLI runtime/token discovery path.
+`401`, and runs `hcb doctor` through CLI runtime discovery with a seeded smoke
+token.
 The Windows Preview Validation workflow runs the silent install smoke with this
 flag enabled.
 

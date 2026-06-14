@@ -22,6 +22,14 @@ export function shouldEnablePackagedMcpSmoke(env: NodeJS.ProcessEnv, isPackaged:
     env.HCB_ALLOW_PACKAGED_USER_DATA_DIR === "1";
 }
 
+export function packagedMcpSmokeTokenSeed(env: NodeJS.ProcessEnv, isPackaged: boolean): string | undefined {
+  if (!shouldEnablePackagedMcpSmoke(env, isPackaged)) {
+    return undefined;
+  }
+
+  return env.HCB_PACKAGED_MCP_SMOKE_TOKEN?.trim() || undefined;
+}
+
 export async function applyPackagedMcpSmokeSettings(
   services: PackagedMcpSmokeServices,
   env: NodeJS.ProcessEnv,

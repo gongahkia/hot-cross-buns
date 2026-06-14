@@ -224,8 +224,8 @@ Remaining release gates:
   `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
   release:smoke-appimage` enables read-only MCP on a random loopback port,
   verifies unauthorized `401` rejection, and runs `hcb doctor` through CLI
-  runtime/token discovery. It still requires Ubuntu GNOME Secret Service/keyring
-  validation before the manual MCP gate is complete.
+  runtime discovery with a seeded smoke token. It still requires Ubuntu GNOME
+  Secret Service/keyring validation before the manual MCP gate is complete.
 
 ## Performance Checks
 

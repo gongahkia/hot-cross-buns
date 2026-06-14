@@ -8,7 +8,7 @@ import { createNativeAdapter } from "./native/createNativeAdapter";
 import { extractHotCrossBunsDeepLinksFromArgv } from "./native/deepLinkLaunchArgs";
 import { applyWindowsAppIdentity } from "./native/electronWindows/identity";
 import type { NativePlatformAdapter } from "./native/types";
-import { applyPackagedMcpSmokeSettings } from "./packagedMcpSmoke";
+import { applyPackagedMcpSmokeSettings, packagedMcpSmokeTokenSeed } from "./packagedMcpSmoke";
 import {
   configureEmbeddedWebContentsLockdown,
   configureEmbeddedWebviewLockdown,
@@ -399,7 +399,8 @@ if (!safeStorageTokenHelperRequest && hasSingleInstanceLock) {
         showOrHideMainWindow,
         quit: () => app.quit(),
         dispatchAction: dispatchNativeAction
-      }
+      },
+      mcpBearerTokenSeed: packagedMcpSmokeTokenSeed(process.env, app.isPackaged)
     });
     await applyPackagedMcpSmokeSettings(services, process.env, app.isPackaged);
     services.nativeShell.installAppMenu();

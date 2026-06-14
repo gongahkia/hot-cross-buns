@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { discoverRuntime, runHcbCli } from "../src/cli/hcb";
 
@@ -24,10 +25,15 @@ export function packagedMcpSmokeChildEnv(
   env: NodeJS.ProcessEnv = process.env,
   helperBinary?: string
 ): NodeJS.ProcessEnv {
+  const smokeToken = env.HCB_MCP_BEARER_TOKEN?.trim() ||
+    env.HCB_PACKAGED_MCP_SMOKE_TOKEN?.trim() ||
+    randomBytes(32).toString("base64url");
   const nextEnv: NodeJS.ProcessEnv = {
     ...env,
     HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+    HCB_MCP_BEARER_TOKEN: smokeToken,
     HCB_PACKAGED_MCP_SMOKE: "1",
+    HCB_PACKAGED_MCP_SMOKE_TOKEN: smokeToken,
     HCB_USER_DATA_DIR: userDataDir
   };
 
@@ -47,7 +53,7 @@ export async function runPackagedMcpSmoke(options: PackagedMcpSmokeOptions): Pro
   return [
     `Packaged MCP runtime file resolved port ${runtime.port}.`,
     "Packaged MCP rejected an unauthorized request.",
-    "Packaged HCB CLI doctor succeeded through CLI runtime/token discovery."
+    "Packaged HCB CLI doctor succeeded through CLI runtime discovery and smoke token auth."
   ];
 }
 

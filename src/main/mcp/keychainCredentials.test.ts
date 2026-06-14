@@ -22,4 +22,15 @@ describe("Keychain MCP credential adapter", () => {
     expect(rotated).not.toBe(token);
     expect(await adapter.loadBearerToken()).toBe(rotated);
   });
+
+  it("persists a seed token when no bearer token exists", async () => {
+    const store = new MemorySecretStore();
+    const adapter = new KeychainMcpCredentialAdapter(store, { seedToken: "seed-token" });
+
+    await expect(adapter.loadBearerToken()).resolves.toBe("seed-token");
+    await expect(store.read({
+      service: "Hot Cross Buns 2 MCP",
+      account: "loopback-bearer-token"
+    })).resolves.toBe("seed-token");
+  });
 });

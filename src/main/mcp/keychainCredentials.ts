@@ -9,7 +9,10 @@ const MCP_TOKEN_SERVICE = "Hot Cross Buns 2 MCP";
 const MCP_TOKEN_ACCOUNT = "loopback-bearer-token";
 
 export class KeychainMcpCredentialAdapter implements McpCredentialAdapter {
-  constructor(private readonly store: SecretStore) {}
+  constructor(
+    private readonly store: SecretStore,
+    private readonly options: { seedToken?: string } = {}
+  ) {}
 
   async loadBearerToken(): Promise<string> {
     const existing = await this.store.read(tokenKey());
@@ -18,7 +21,7 @@ export class KeychainMcpCredentialAdapter implements McpCredentialAdapter {
       return existing;
     }
 
-    const token = generateMcpBearerToken();
+    const token = this.options.seedToken?.trim() || generateMcpBearerToken();
     await this.store.write(tokenKey(), token);
     return token;
   }

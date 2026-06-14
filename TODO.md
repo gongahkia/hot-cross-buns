@@ -1010,10 +1010,11 @@ user-data override is also allowed. The gate enables read-only MCP on port `0`.
 `pnpm release:smoke-appimage` and `pnpm release:smoke-nsis-install` can now opt
 into a live packaged MCP smoke that waits for the runtime file, verifies an
 unauthorized loopback request returns `401`, and runs `hcb doctor` through the
-real CLI discovery path. The smoke sets `HCB_MCP_SAFE_STORAGE_BINARY` so the CLI
-asks the packaged app binary, not the repo Electron helper, to decrypt the
-OS-backed safeStorage token. The Windows preview workflow now opts the silent
-NSIS install smoke into this gate. Linux hosted CI still leaves it default-off until
+real CLI runtime discovery path with a seeded smoke token that is also persisted
+through the packaged app's MCP credential adapter. The smoke sets
+`HCB_MCP_SAFE_STORAGE_BINARY` for platforms where packaged-app decryption is
+needed outside the seeded-token path. The Windows preview workflow now opts the
+silent NSIS install smoke into this gate. Linux hosted CI still leaves it default-off until
 a verified Secret Service/keyring session is available; Ubuntu GNOME manual QA
 can run `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
 release:smoke-appimage`.

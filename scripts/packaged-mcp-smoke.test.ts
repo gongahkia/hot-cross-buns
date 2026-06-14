@@ -17,13 +17,17 @@ describe("packaged MCP smoke", () => {
   it("sets the child app env required by packaged smoke startup", () => {
     expect(packagedMcpSmokeRequested({ HCB_PACKAGED_MCP_SMOKE: "1" })).toBe(true);
     expect(packagedMcpSmokeRequested({})).toBe(false);
-    expect(packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" }, "/opt/hcb/Hot Cross Buns 2")).toMatchObject({
+    const env = packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" }, "/opt/hcb/Hot Cross Buns 2");
+
+    expect(env).toMatchObject({
       HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
       HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns 2",
       HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_USER_DATA_DIR: "/tmp/hcb-smoke",
       PATH: "/usr/bin"
     });
+    expect(env.HCB_MCP_BEARER_TOKEN).toEqual(expect.any(String));
+    expect(env.HCB_PACKAGED_MCP_SMOKE_TOKEN).toBe(env.HCB_MCP_BEARER_TOKEN);
   });
 
   it("verifies runtime discovery, unauthorized rejection, and CLI doctor", async () => {
@@ -52,7 +56,7 @@ describe("packaged MCP smoke", () => {
       })).resolves.toEqual([
         expect.stringContaining("Packaged MCP runtime file resolved port"),
         "Packaged MCP rejected an unauthorized request.",
-        "Packaged HCB CLI doctor succeeded through CLI runtime/token discovery."
+        "Packaged HCB CLI doctor succeeded through CLI runtime discovery and smoke token auth."
       ]);
     } finally {
       await server.stop();

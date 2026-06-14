@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyPackagedMcpSmokeSettings, shouldEnablePackagedMcpSmoke } from "./packagedMcpSmoke";
+import {
+  applyPackagedMcpSmokeSettings,
+  packagedMcpSmokeTokenSeed,
+  shouldEnablePackagedMcpSmoke
+} from "./packagedMcpSmoke";
 
 describe("packaged MCP smoke startup gate", () => {
   it("requires packaged mode and explicit packaged user-data override", () => {
@@ -44,6 +48,18 @@ describe("packaged MCP smoke startup gate", () => {
       permissionMode: "read-only",
       port: 0
     });
+  });
+
+  it("only exposes a smoke token seed when the packaged gate is enabled", () => {
+    expect(packagedMcpSmokeTokenSeed({
+      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
+      HCB_PACKAGED_MCP_SMOKE: "1",
+      HCB_PACKAGED_MCP_SMOKE_TOKEN: "seed-token"
+    }, true)).toBe("seed-token");
+    expect(packagedMcpSmokeTokenSeed({
+      HCB_PACKAGED_MCP_SMOKE: "1",
+      HCB_PACKAGED_MCP_SMOKE_TOKEN: "seed-token"
+    }, true)).toBeUndefined();
   });
 
   it("fails when the loopback server does not start", async () => {

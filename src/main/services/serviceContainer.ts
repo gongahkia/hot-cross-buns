@@ -93,6 +93,7 @@ export interface ServiceContainerOptions {
   secretStore?: SecretStore;
   linuxSafeStorageBackend?: LinuxSafeStorageBackend;
   windowsSafeStorageBackend?: WindowsSafeStorageBackend;
+  mcpBearerTokenSeed?: string;
   enableRuntimeGoogle?: boolean;
   enableRuntimeGoogleWrites?: boolean;
 }
@@ -210,7 +211,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     new McpConfirmationStore({ repository: agentRepository })
   );
   const mcpController = new LocalMcpServerController({
-    credentialAdapter: new KeychainMcpCredentialAdapter(secretStore),
+    credentialAdapter: new KeychainMcpCredentialAdapter(secretStore, {
+      seedToken: options.mcpBearerTokenSeed
+    }),
     toolRegistry: mcpToolRegistry,
     getSettings: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
     runtimeFilePath: appPaths ? join(appPaths.configDirectory, HCB_MCP_RUNTIME_FILE_NAME) : undefined

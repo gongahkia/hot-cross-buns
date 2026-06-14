@@ -31,7 +31,7 @@ an isolated temp directory, launches the installed executable with isolated user
 data, and runs the NSIS uninstaller before manual installed-app QA starts. The
 silent install smoke can also set `HCB_PACKAGED_MCP_SMOKE=1` to enable
 read-only MCP in the installed app, verify unauthorized `401` rejection, and run
-`hcb doctor` through CLI runtime/token discovery; the Windows Preview Validation
+`hcb doctor` through CLI runtime discovery with a seeded smoke token; the Windows Preview Validation
 workflow uses this MCP variant. The
 main process also applies the stable AppUserModelID during
 top-level Windows startup before `app.whenReady()`, while installed Start Menu,
