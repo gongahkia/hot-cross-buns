@@ -55,6 +55,9 @@ jobs:
           if ($hash -ne $expected) { throw "Windows installer checksum mismatch" }
           Write-Host "$hash  Hot-Cross-Buns-2-windows-x64.exe"
 
+      - name: Silent install Windows preview installer
+        run: pnpm release:smoke-nsis-install
+
       - name: Electron smoke on Windows
         run: pnpm test:smoke
 

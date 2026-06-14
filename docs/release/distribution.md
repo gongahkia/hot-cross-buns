@@ -302,6 +302,18 @@ Windows alias, stable Windows x64 alias, checksum manifest, and per-artifact
 `.sha256` sidecars agree. It does not replace the installed-app manual checks
 in [Manual Windows Native Shell Checklist](../testing/manual-windows-native-shell.md).
 
+On Windows, run the silent install smoke before manual QA:
+
+```powershell
+pnpm release:smoke-nsis-install
+```
+
+The install smoke silently installs the stable x64 installer alias to an
+isolated temporary directory, launches `Hot Cross Buns 2.exe` with isolated user
+data, kills the process tree, runs the NSIS uninstaller silently, and verifies
+the installed app executable was removed. It does not replace manual Start Menu,
+desktop shortcut, protocol, notification, SmartScreen, or retained-data checks.
+
 Windows preview support and uninstall/data-retention policy live in
 [Windows Preview Support](../support/windows-preview-support.md).
 
@@ -522,6 +534,9 @@ Automated Windows preview gates passed on 2026-06-14:
 - NSIS installer smoke with `pnpm release:smoke-nsis`
 - PowerShell checksum verification with `Get-FileHash`
 - Electron smoke and performance smoke
+
+The current Windows preview workflow also runs
+`pnpm release:smoke-nsis-install` after checksum verification.
 
 Still required before publishing a Windows preview:
 

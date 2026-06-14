@@ -26,7 +26,10 @@ Windows Preview Validation GitHub Actions workflow. The Windows preview support
 doc records install, checksum, uninstall, and retained-user-data policy for QA.
 The installer artifact smoke now verifies versioned and stable Windows x64 installers against
 `SHASUMS256.txt` and per-artifact `.sha256` sidecars before manual installed-app
-QA starts. The main process also applies the stable AppUserModelID during
+QA starts. A Windows-only silent install smoke installs the stable x64 alias to
+an isolated temp directory, launches the installed executable with isolated user
+data, and runs the NSIS uninstaller before manual installed-app QA starts. The
+main process also applies the stable AppUserModelID during
 top-level Windows startup before `app.whenReady()`, while installed Start Menu,
 taskbar, and notification identity remain manual Windows 11 QA items. The main
 process now handles validated `hotcrossbuns://` launch argv for cold starts and

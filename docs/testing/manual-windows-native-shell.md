@@ -13,6 +13,7 @@ technical preview release.
 - Run `certutil -hashfile release\Hot-Cross-Buns-2-windows-x64.exe SHA256`
   and compare with `release\SHASUMS256.txt`.
 - Run `pnpm release:smoke-nsis`.
+- Run `pnpm release:smoke-nsis-install`.
 - Install with the NSIS installer.
 - Record SmartScreen/Defender/browser warning text, if any, using
   [Windows Signing And SmartScreen](../release/windows-signing-smartscreen.md).

@@ -993,6 +993,15 @@ adding plaintext fallback. This moves the packaged-AppImage and installed-NSIS
 live MCP smoke blockers closer to direct target-OS validation, but does not mark
 those manual checks complete.
 
+Windows NSIS install smoke hardening on 2026-06-14: `pnpm
+release:smoke-nsis-install` now runs on Windows to silently install the stable
+x64 installer alias into an isolated temp directory, launch the installed app
+with isolated user data, kill the process tree, run the silent NSIS uninstaller,
+and verify the installed executable is removed. The Windows preview workflow
+runs this after checksum verification. This still does not replace manual Start
+Menu, desktop shortcut, protocol, notification, SmartScreen, retained-data, or
+interactive uninstall QA.
+
 Implementation tasks:
 
 - [x] Decide preview scope: Windows 11 x64 first, NSIS installer first,
