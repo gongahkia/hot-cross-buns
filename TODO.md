@@ -1169,10 +1169,12 @@ Windows remaining work:
 - [x] Document expected SmartScreen/signing behavior for unsigned preview
       artifacts. Do not make a public Windows support claim without an explicit
       code-signing plan.
-- [ ] Update `docs/release/notes/v5.0.0.md`,
+- [x] Update `docs/release/notes/v5.0.0.md`,
       `docs/ports/windows-port.md`, `docs/release/distribution.md`, and
       `docs/testing/manual-windows-native-shell.md` with actual Windows runner
-      and manual QA evidence.
+      and automated smoke evidence.
+- [ ] Update those docs with Windows 11 manual QA evidence after the
+      installed-app checklist passes.
 - [ ] Upload Windows NSIS artifacts only after Windows CI or Windows-host
       packaging, checksum verification, installer smoke, and manual installed
       app QA pass.
