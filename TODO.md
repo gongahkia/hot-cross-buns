@@ -984,6 +984,15 @@ MCP-gated reruns passed on Linux run `27488238932` and Windows run
 `27488239083` at commit `121dfbf`. This does not replace packaged-AppImage or
 installed-NSIS live MCP manual QA.
 
+Cross-platform CLI MCP token discovery on 2026-06-14: `pnpm hcb -- ...` now
+discovers the Linux runtime file at the actual Linux adapter config path,
+discovers Windows runtime and safe-storage files under AppData, supports
+`HCB_MCP_SECRET_STORE_FILE` and `HCB_MCP_BEARER_TOKEN` QA overrides, and uses an
+Electron `safeStorage` helper to decrypt Linux/Windows MCP bearer tokens without
+adding plaintext fallback. This moves the packaged-AppImage and installed-NSIS
+live MCP smoke blockers closer to direct target-OS validation, but does not mark
+those manual checks complete.
+
 Implementation tasks:
 
 - [x] Decide preview scope: Windows 11 x64 first, NSIS installer first,

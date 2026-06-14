@@ -9,7 +9,12 @@
 3. Enable Local MCP server.
 4. Run `pnpm hcb -- doctor`.
 
-The CLI discovers the runtime file written by the app and loads the bearer token from the macOS Keychain. Override discovery with `HCB_MCP_RUNTIME_FILE`, `HCB_USER_DATA_DIR`, or `HCB_MCP_URL=http://127.0.0.1:<port>`.
+The CLI discovers the runtime file written by the app and loads the bearer token
+from the platform credential store: macOS Keychain, Linux Electron `safeStorage`
+with an OS-backed provider, or Windows Electron `safeStorage`. Override
+discovery with `HCB_MCP_RUNTIME_FILE`, `HCB_MCP_SECRET_STORE_FILE`,
+`HCB_USER_DATA_DIR`, `HCB_MCP_BEARER_TOKEN`, or
+`HCB_MCP_URL=http://127.0.0.1:<port>`.
 
 ## Commands
 
@@ -79,4 +84,7 @@ This starts an in-process local MCP server, writes a temporary runtime file, run
 
 ## Privacy
 
-The CLI only talks to `127.0.0.1`. It does not print bearer tokens. MCP diagnostics are sanitized by the main app services and must not expose Google OAuth tokens, Keychain material, cache encryption keys, raw credentials, or raw Google payloads.
+The CLI only talks to `127.0.0.1`. It does not print bearer tokens. MCP
+diagnostics are sanitized by the main app services and must not expose Google
+OAuth tokens, platform credential-store material, cache encryption keys, raw
+credentials, or raw Google payloads.

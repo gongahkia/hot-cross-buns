@@ -22,7 +22,9 @@ Requests must include:
 Authorization: Bearer <generated-token>
 ```
 
-The token is stored in the macOS Keychain. Reset it from Settings if a client config is no longer trusted.
+The token is stored in the platform credential store: macOS Keychain, Linux
+Electron `safeStorage` with an OS-backed provider, or Windows Electron
+`safeStorage`. Reset it from Settings if a client config is no longer trusted.
 
 ## Permissions
 
@@ -72,7 +74,7 @@ Tool responses include `applied`, `dryRun`, `requiresConfirmation`, optional `co
 
 ## Privacy
 
-The MCP server binds only to `127.0.0.1`. It rejects non-local connections and unexpected browser origins. It does not return Google OAuth tokens, cache encryption keys, Keychain material, raw credential config, or raw Google diagnostic payloads.
+The MCP server binds only to `127.0.0.1`. It rejects non-local connections and unexpected browser origins. It does not return Google OAuth tokens, cache encryption keys, platform credential-store material, raw credential config, or raw Google diagnostic payloads.
 
 Write attempts are recorded in the encrypted mutation audit log with the MCP client, tool name, outcome, and argument keys only. The audit metadata intentionally excludes task titles, notes, event details, bearer tokens, and full tool arguments. Settings also shows current server status and recent MCP activity for the current launch.
 

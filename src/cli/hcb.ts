@@ -1,6 +1,9 @@
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
+import { fileURLToPath } from "node:url";
 import { HCB_MCP_RUNTIME_FILE_NAME, type HcbMcpRuntimeFile } from "@shared/mcpRuntime";
 import { MacOsKeychainSecretStore } from "@main/credentials/secretStore";
 import { KeychainMcpCredentialAdapter } from "@main/mcp/keychainCredentials";
@@ -29,8 +32,17 @@ export interface HcbCliDependencies {
   stderr?: Output;
   fetch?: FetchLike;
   tokenProvider?: () => Promise<string>;
+  safeStorageTokenLoader?: (input: SafeStorageMcpTokenLoaderInput) => Promise<string>;
   runtimeFilePaths?: string[];
   pidExists?: (pid: number) => boolean;
+  platform?: NodeJS.Platform | string;
+}
+
+export interface SafeStorageMcpTokenLoaderInput {
+  platform: NodeJS.Platform | string;
+  secretStoreFiles: string[];
+  helperPath: string;
+  env: NodeJS.ProcessEnv;
 }
 
 interface ParsedCommand {
@@ -1131,6 +1143,7 @@ async function callMcpToolWithAuth(
 
 export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeTarget {
   const env = dependencies.env ?? process.env;
+  const platform = dependencies.platform ?? process.platform;
   const explicitUrl = env.HCB_MCP_URL?.trim();
 
   if (explicitUrl) {
@@ -1143,7 +1156,7 @@ export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeT
     throw new CliError("HCB_MCP_URL must be http://127.0.0.1:<port>.");
   }
 
-  const files = dependencies.runtimeFilePaths ?? runtimeFileCandidates(env);
+  const files = dependencies.runtimeFilePaths ?? runtimeFileCandidates(env, platform);
 
   for (const file of files) {
     if (!existsSync(file)) {
@@ -1170,7 +1183,10 @@ export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeT
   throw new CliError("HCB MCP server not running. Start HCB2 and enable Settings > Local MCP server.");
 }
 
-export function runtimeFileCandidates(env: NodeJS.ProcessEnv = process.env): string[] {
+export function runtimeFileCandidates(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform | string = process.platform
+): string[] {
   const explicit = env.HCB_MCP_RUNTIME_FILE?.trim();
 
   if (explicit) {
@@ -1180,22 +1196,83 @@ export function runtimeFileCandidates(env: NodeJS.ProcessEnv = process.env): str
   const userData = env.HCB_USER_DATA_DIR?.trim();
 
   if (userData) {
-    return [join(userData, "config", HCB_MCP_RUNTIME_FILE_NAME)];
+    if (platform === "linux") {
+      return [
+        join(userData, HCB_MCP_RUNTIME_FILE_NAME),
+        join(userData, "config", HCB_MCP_RUNTIME_FILE_NAME)
+      ];
+    }
+
+    return [pathJoin(platform, userData, "config", HCB_MCP_RUNTIME_FILE_NAME)];
   }
 
   const home = homedir();
 
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     return [
       join(home, "Library", "Application Support", "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
       join(home, "Library", "Application Support", "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
     ];
   }
 
+  if (platform === "win32") {
+    return windowsAppDataRoots(env, home).flatMap((root) => [
+      win32.join(root, "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
+      win32.join(root, "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
+    ]);
+  }
+
   return [
+    join(home, ".config", "Hot Cross Buns 2", HCB_MCP_RUNTIME_FILE_NAME),
+    join(home, ".config", "hot-cross-buns-2", HCB_MCP_RUNTIME_FILE_NAME),
     join(home, ".config", "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
     join(home, ".config", "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
   ];
+}
+
+export function mcpSecretStoreFileCandidates(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform | string = process.platform
+): string[] {
+  const explicit = env.HCB_MCP_SECRET_STORE_FILE?.trim();
+
+  if (explicit) {
+    return [explicit];
+  }
+
+  const userData = env.HCB_USER_DATA_DIR?.trim();
+
+  if (userData && platform === "linux") {
+    return [
+      join(userData, "secrets.safe-storage.json"),
+      join(userData, "config", "secrets.safe-storage.json")
+    ];
+  }
+
+  if (userData && platform === "win32") {
+    return [
+      win32.join(userData, "config", "secrets.windows-safe-storage.json"),
+      win32.join(userData, "secrets.windows-safe-storage.json")
+    ];
+  }
+
+  const home = homedir();
+
+  if (platform === "linux") {
+    return [
+      join(home, ".config", "Hot Cross Buns 2", "secrets.safe-storage.json"),
+      join(home, ".config", "hot-cross-buns-2", "secrets.safe-storage.json")
+    ];
+  }
+
+  if (platform === "win32") {
+    return windowsAppDataRoots(env, home).flatMap((root) => [
+      win32.join(root, "Hot Cross Buns 2", "config", "secrets.windows-safe-storage.json"),
+      win32.join(root, "hot-cross-buns-2", "config", "secrets.windows-safe-storage.json")
+    ]);
+  }
+
+  return [];
 }
 
 export function parseRuntimeFile(text: string): HcbMcpRuntimeFile {
@@ -2912,8 +2989,120 @@ function listTitle(target: string): string {
 }
 
 function tokenProvider(dependencies: HcbCliDependencies): () => Promise<string> {
-  return dependencies.tokenProvider ?? (() =>
-    new KeychainMcpCredentialAdapter(new MacOsKeychainSecretStore()).loadBearerToken());
+  if (dependencies.tokenProvider) {
+    return dependencies.tokenProvider;
+  }
+
+  return () => defaultMcpBearerToken(dependencies);
+}
+
+async function defaultMcpBearerToken(dependencies: HcbCliDependencies): Promise<string> {
+  const env = dependencies.env ?? process.env;
+  const explicitToken = env.HCB_MCP_BEARER_TOKEN?.trim();
+
+  if (explicitToken) {
+    return explicitToken;
+  }
+
+  const platform = dependencies.platform ?? process.platform;
+
+  if (platform === "darwin") {
+    return new KeychainMcpCredentialAdapter(new MacOsKeychainSecretStore()).loadBearerToken();
+  }
+
+  if (platform === "linux" || platform === "win32") {
+    const loader = dependencies.safeStorageTokenLoader ?? loadSafeStorageMcpBearerToken;
+    return loader({
+      platform,
+      secretStoreFiles: mcpSecretStoreFileCandidates(env, platform),
+      helperPath: safeStorageTokenHelperPath(env),
+      env
+    });
+  }
+
+  throw new CliError("HCB MCP bearer token loading is unsupported on this platform.");
+}
+
+async function loadSafeStorageMcpBearerToken(input: SafeStorageMcpTokenLoaderInput): Promise<string> {
+  const storageFile = input.secretStoreFiles.find((file) => existsSync(file));
+
+  if (!storageFile) {
+    throw new CliError("HCB MCP bearer token storage was not found. Start HCB2 and enable Settings > Local MCP server.");
+  }
+
+  const electronBinary = electronBinaryPath();
+
+  return new Promise((resolve, reject) => {
+    execFile(
+      electronBinary,
+      [input.helperPath, String(input.platform), storageFile],
+      {
+        env: input.env,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          const detail = firstOutputLine(stderr);
+          reject(new CliError(detail ? `HCB MCP bearer token could not be read: ${detail}` : "HCB MCP bearer token could not be read."));
+          return;
+        }
+
+        const token = stdout.trim();
+
+        if (!token) {
+          reject(new CliError("HCB MCP bearer token helper returned an empty token."));
+          return;
+        }
+
+        resolve(token);
+      }
+    );
+  });
+}
+
+function safeStorageTokenHelperPath(env: NodeJS.ProcessEnv): string {
+  const override = env.HCB_MCP_SAFE_STORAGE_HELPER?.trim();
+
+  if (override) {
+    return override;
+  }
+
+  return fileURLToPath(new URL("../../scripts/read-mcp-token-safe-storage.cjs", import.meta.url));
+}
+
+function electronBinaryPath(): string {
+  try {
+    const electron = createRequire(import.meta.url)("electron") as string | object;
+
+    if (typeof electron === "string" && electron.trim()) {
+      return electron;
+    }
+  } catch {
+    // fall through to user-facing CLI error
+  }
+
+  throw new CliError("Electron safeStorage token helper is unavailable. Run from an installed repo dependency set or set HCB_MCP_BEARER_TOKEN.");
+}
+
+function windowsAppDataRoots(env: NodeJS.ProcessEnv, home: string): string[] {
+  const roots = [env.APPDATA, env.LOCALAPPDATA]
+    .map((root) => root?.trim())
+    .filter((root): root is string => Boolean(root));
+
+  if (roots.length > 0) {
+    return roots;
+  }
+
+  return [win32.join(home, "AppData", "Roaming")];
+}
+
+function pathJoin(platform: NodeJS.Platform | string, ...parts: string[]): string {
+  return platform === "win32" ? win32.join(...parts) : join(...parts);
+}
+
+function firstOutputLine(text: string): string {
+  return text.trim().split(/\r?\n/, 1)[0]?.slice(0, 500) ?? "";
 }
 
 function fetchImpl(dependencies: HcbCliDependencies): FetchLike {

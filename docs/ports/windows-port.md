@@ -225,6 +225,8 @@ Required Windows checks:
 - firewall/security prompts are understood and documented if they appear
 - MCP binds only to `127.0.0.1`
 - MCP rejects unauthorized requests
+- HCB CLI discovery reads the Windows runtime file and decrypts the bearer token
+  through an Electron `safeStorage` helper.
 - Windows Defender/SmartScreen behavior is documented for unsigned preview artifacts
 
 ## Performance Checks

@@ -208,6 +208,9 @@ Current implementation:
   listener is reported running.
 - The MCP runtime discovery file is written under the app config directory with
   mode `0600` and contains only non-secret loopback metadata.
+- The HCB CLI discovers the Linux runtime file and uses an Electron
+  `safeStorage` helper to decrypt the OS-backed bearer token, refusing
+  Electron's `basic_text` plaintext fallback.
 - Diagnostics redaction covers bearer/OAuth secrets and Linux `/home/...` paths.
 
 Remaining release gates:

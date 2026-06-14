@@ -1,11 +1,13 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  mcpSecretStoreFileCandidates,
   parseCommand,
   parseRuntimeFile,
   runHcbCli,
+  runtimeFileCandidates,
   type HcbCliDependencies
 } from "./hcb";
 
@@ -385,6 +387,94 @@ describe("hcb CLI", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it("accepts an explicit bearer token env override without printing it", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-token-env-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: Array<{ authorization?: string }> = [];
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const exitCode = await runHcbCli(["status"], {
+        env: { HCB_MCP_BEARER_TOKEN: "env-secret-token" },
+        fetch: statusFetch(calls),
+        runtimeFilePaths: [runtimeFile],
+        stdout,
+        stderr
+      });
+
+      expect(exitCode).toBe(0);
+      expect(calls[0].authorization).toBe("Bearer env-secret-token");
+      expect(stdout.text()).not.toContain("env-secret-token");
+      expect(stderr.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("discovers Linux MCP runtime and safeStorage token files under HCB_USER_DATA_DIR", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-linux-user-data-"));
+    const userData = join(directory, "user-data");
+    const runtimeFile = join(userData, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: Array<{ authorization?: string }> = [];
+    const loaderInputs: Array<{ secretStoreFiles: string[]; helperPath: string; platform: string }> = [];
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const exitCode = await runHcbCli(["status"], {
+        env: { HCB_USER_DATA_DIR: userData },
+        fetch: statusFetch(calls),
+        platform: "linux",
+        safeStorageTokenLoader: async (input) => {
+          loaderInputs.push({
+            secretStoreFiles: input.secretStoreFiles,
+            helperPath: input.helperPath,
+            platform: String(input.platform)
+          });
+          return "linux-safe-storage-token";
+        },
+        stdout,
+        stderr
+      });
+
+      expect(exitCode).toBe(0);
+      expect(calls[0].authorization).toBe("Bearer linux-safe-storage-token");
+      expect(loaderInputs).toEqual([
+        {
+          platform: "linux",
+          helperPath: expect.stringContaining("read-mcp-token-safe-storage.cjs") as string,
+          secretStoreFiles: [
+            join(userData, "secrets.safe-storage.json"),
+            join(userData, "config", "secrets.safe-storage.json")
+          ]
+        }
+      ]);
+      expect(stderr.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("builds platform-specific runtime and secret-store candidates", () => {
+    expect(runtimeFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb2" }, "linux")).toEqual([
+      join("/tmp/hcb2", "mcp-runtime.json"),
+      join("/tmp/hcb2", "config", "mcp-runtime.json")
+    ]);
+    expect(mcpSecretStoreFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb2" }, "linux")).toEqual([
+      join("/tmp/hcb2", "secrets.safe-storage.json"),
+      join("/tmp/hcb2", "config", "secrets.safe-storage.json")
+    ]);
+    expect(runtimeFileCandidates({ APPDATA: "C:\\Users\\qa\\AppData\\Roaming" }, "win32")[0]).toBe(
+      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns 2\\config\\mcp-runtime.json"
+    );
+    expect(mcpSecretStoreFileCandidates({ APPDATA: "C:\\Users\\qa\\AppData\\Roaming" }, "win32")[0]).toBe(
+      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns 2\\config\\secrets.windows-safe-storage.json"
+    );
   });
 
   it("calls MCP doctor and prints agent-friendly findings", async () => {
@@ -2011,6 +2101,52 @@ function responseForDiagnosticsTool(name: string, args: Record<string, unknown>)
         message: `${String(args.level)} log`
       }
     ]
+  };
+}
+
+function writeRuntimeFile(path: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(
+    path,
+    JSON.stringify({
+      running: true,
+      url: "http://127.0.0.1",
+      port: 4777,
+      pid: process.pid,
+      updatedAt: "2026-06-04T00:00:00.000Z"
+    }),
+    "utf8"
+  );
+}
+
+function statusFetch(calls: Array<{ authorization?: string }>): HcbCliDependencies["fetch"] {
+  return async (_url, init) => {
+    calls.push({ authorization: init.headers.Authorization });
+
+    return {
+      status: 200,
+      json: async () => ({
+        jsonrpc: "2.0",
+        id: "id",
+        result: {
+          structuredContent: {
+            applied: false,
+            dryRun: false,
+            requiresConfirmation: false,
+            message: "Read HCB status.",
+            item: {
+              account: { state: "connected" },
+              sync: { state: "idle", mode: "manual", pendingMutationCount: 0 },
+              pendingMutations: { totalCount: 0, failedCount: 0, retryableCount: 0 },
+              cache: { taskCount: 0, eventCount: 0, noteCount: 0 },
+              mcp: { enabled: true, permissionMode: "read-only", configuredPort: 4777 },
+              build: { appName: "hot-cross-buns-2", version: "0.0.0", nodeVersion: "22.0.0" }
+            }
+          }
+        }
+      }),
+      text: async () => ""
+    };
   };
 }
 
