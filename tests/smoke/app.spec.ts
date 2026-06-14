@@ -7,6 +7,11 @@ import { createAppSqliteConnection } from "../../src/main/data/sqliteConnection"
 import { GoogleSyncRepository } from "../../src/main/sync/readSyncRepository";
 
 const now = "2026-05-22T00:00:00.000Z";
+const expectedAdapterIds: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "electron-mac",
+  linux: "electron-linux-preview",
+  win32: "electron-windows-preview"
+};
 
 test.setTimeout(90_000);
 
@@ -231,6 +236,31 @@ test("launches, navigates, opens command palette, and creates core items", async
     const health = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.health());
     expect(health?.ok).toBe(true);
     expect(health?.ok ? health.data.startup.databaseReadyMs : undefined).toBeDefined();
+
+    const summary = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.summary());
+    expect(summary?.ok).toBe(true);
+    if (!summary?.ok) {
+      throw new Error("diagnostics summary failed during smoke");
+    }
+
+    expect(summary.data.cache.taskCount).toBeGreaterThanOrEqual(1);
+    expect(summary.data.native.platform).toBe(process.platform);
+    expect(summary.data.native.adapterId).toBe(expectedAdapterIds[process.platform]);
+    expect(summary.data.native.packageFormat).toBe("development");
+    expect(summary.data.native.flags.supportsDiagnosticsCollection).toBe(true);
+    expect(summary.data.redaction).toEqual({
+      credentials: "redacted",
+      googlePayloads: "omitted",
+      mcpBearerTokens: "redacted",
+      sensitiveBodies: "omitted"
+    });
+    expect(summary.data.native.paths.length).toBeGreaterThan(0);
+    for (const path of summary.data.native.paths) {
+      expect(path.redactedPath).toBeTruthy();
+      expect(path.redactedPath).not.toContain("C:\\Users\\");
+      expect(path.redactedPath).not.toContain("/Users/");
+      expect(path.redactedPath).not.toContain("/home/");
+    }
   } finally {
     await electronApp?.close();
     rmSync(tempRoot, { recursive: true, force: true });

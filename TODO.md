@@ -967,6 +967,13 @@ blockers. They record Linux run `27487088365`, Windows run `27487088467`, and
 keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
 manual QA.
 
+Cross-platform smoke hardening on 2026-06-14: Playwright smoke now asserts the
+seeded SQLite cache is visible through diagnostics, native diagnostics report
+the expected platform adapter and development package format, diagnostics
+collection is supported, redaction guarantees are exposed, and native path
+diagnostics omit raw `/Users`, `/home`, and `C:\Users\...` prefixes. Local
+`pnpm test:smoke` passed after this change.
+
 Implementation tasks:
 
 - [x] Decide preview scope: Windows 11 x64 first, NSIS installer first,
