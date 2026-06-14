@@ -28,6 +28,7 @@ const child = spawn(commandName("pnpm"), ["build"], {
     HCB_BUILD_DATE: buildDate(),
     HCB_PACKAGE_TOOL: "electron-builder"
   },
+  shell: process.platform === "win32",
   stdio: "inherit"
 });
 

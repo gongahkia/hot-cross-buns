@@ -16,6 +16,7 @@ const child = spawn(commandName("electron-builder"), args, {
     ...process.env,
     CSC_IDENTITY_AUTO_DISCOVERY: "false"
   },
+  shell: process.platform === "win32",
   stdio: "inherit"
 });
 

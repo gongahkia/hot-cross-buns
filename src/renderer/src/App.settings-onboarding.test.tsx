@@ -560,7 +560,7 @@ describe("App settings and onboarding", () => {
       expect(within(dialog).getByRole("button", { name: "Connect Google" })).toBeEnabled()
     );
 
-    await user.click(within(dialog).getByRole("button", { name: "Connect Google" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Connect Google" }));
 
     await waitFor(() => {
       expect(api.google.beginOAuth).toHaveBeenCalled();
