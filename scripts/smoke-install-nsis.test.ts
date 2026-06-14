@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import {
   findUninstaller,
   installedExecutablePath,
+  installedAppProcessIdsPowerShell,
   nsisSilentInstallArgs,
   shortcutMetadataPowerShell,
+  stopInstalledAppProcessesPowerShell,
   windowsShortcutPaths
 } from "./smoke-install-nsis";
 
@@ -45,5 +47,12 @@ describe("Windows NSIS install smoke helpers", () => {
     expect(shortcutMetadataPowerShell("C:\\Users\\O'Hara\\Desktop\\Hot Cross Buns 2.lnk")).toContain(
       "$shortcut = $shell.CreateShortcut('C:\\Users\\O''Hara\\Desktop\\Hot Cross Buns 2.lnk')"
     );
+  });
+
+  it("escapes installed app paths in PowerShell process cleanup", () => {
+    const appExe = "C:\\Users\\O'Hara\\App\\Hot Cross Buns 2.exe";
+
+    expect(installedAppProcessIdsPowerShell(appExe)).toContain("$target = 'C:\\Users\\O''Hara\\App\\Hot Cross Buns 2.exe'");
+    expect(stopInstalledAppProcessesPowerShell(appExe)).toContain("Stop-Process -Id $processIds -Force");
   });
 });

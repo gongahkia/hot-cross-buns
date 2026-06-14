@@ -284,7 +284,7 @@ async function launchInstalledApp(
 
     return messages;
   } finally {
-    await killProcessTree(child.pid);
+    await killInstalledApp(appExe, child.pid);
   }
 }
 
@@ -300,25 +300,26 @@ async function waitForNewShortcutsToDisappear(
   }
 }
 
-async function killProcessTree(pid: number | undefined): Promise<void> {
-  if (!pid) {
-    return;
-  }
-
-  await runProcess("taskkill.exe", ["/PID", String(pid), "/T"], { timeoutMs: 30_000 }).catch(() => undefined);
-  await waitForPidToExit(pid, 5_000);
-
-  if (await pidExists(pid)) {
+async function killInstalledApp(appExe: string, pid: number | undefined): Promise<void> {
+  if (pid) {
     await runProcess("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeoutMs: 30_000 }).catch(() => undefined);
-    await waitForPidToExit(pid, 5_000);
   }
+
+  await runProcess("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    stopInstalledAppProcessesPowerShell(appExe)
+  ], { timeoutMs: 30_000 }).catch(() => undefined);
+  await waitForInstalledAppExit(appExe, 10_000);
 }
 
-async function waitForPidToExit(pid: number, timeoutMs: number): Promise<void> {
+async function waitForInstalledAppExit(appExe: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
-  while (await pidExists(pid)) {
-    if (Date.now() >= deadline) {
+  while (Date.now() < deadline) {
+    if (!await installedAppProcessExists(appExe)) {
       return;
     }
 
@@ -326,9 +327,15 @@ async function waitForPidToExit(pid: number, timeoutMs: number): Promise<void> {
   }
 }
 
-async function pidExists(pid: number): Promise<boolean> {
-  return runProcess("tasklist.exe", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], { timeoutMs: 10_000 })
-    .then((result) => result.stdout.includes(`"${pid}"`))
+async function installedAppProcessExists(appExe: string): Promise<boolean> {
+  return runProcess("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    installedAppProcessIdsPowerShell(appExe)
+  ], { timeoutMs: 30_000 })
+    .then((result) => result.stdout.trim().length > 0)
     .catch(() => false);
 }
 
@@ -356,6 +363,31 @@ function requiredEnv(env: NodeJS.ProcessEnv, name: "APPDATA" | "USERPROFILE"): s
 
 function powerShellSingleQuoted(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
+}
+
+export function installedAppProcessIdsPowerShell(appExe: string): string {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    `$target = ${powerShellSingleQuoted(appExe)}`,
+    "Get-CimInstance Win32_Process |",
+    "  Where-Object { $_.ExecutablePath -eq $target } |",
+    "  Select-Object -ExpandProperty ProcessId"
+  ].join("\n");
+}
+
+export function stopInstalledAppProcessesPowerShell(appExe: string): string {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    `$target = ${powerShellSingleQuoted(appExe)}`,
+    "$processIds = @(",
+    "  Get-CimInstance Win32_Process |",
+    "    Where-Object { $_.ExecutablePath -eq $target } |",
+    "    Select-Object -ExpandProperty ProcessId",
+    ")",
+    "if ($processIds.Count -gt 0) {",
+    "  Stop-Process -Id $processIds -Force -ErrorAction SilentlyContinue",
+    "}"
+  ].join("\n");
 }
 
 async function sameWindowsPath(left: string, right: string): Promise<boolean> {
