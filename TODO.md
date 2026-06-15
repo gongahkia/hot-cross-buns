@@ -1223,8 +1223,8 @@ Windows remaining work:
 Current handoff note, 2026-06-15:
 
 - Automated Linux/Windows CI evidence is current through Linux run
-  `27523207023`, Windows run `27523207032`, CI run `27523138829`, and Pages run
-  `27523138337`.
+  `27525193156`, Windows run `27525193372`, CI run `27525188596`, and Pages run
+  `27525187977`.
 - The current remaining Linux/Windows items are target-OS manual QA, release
   asset/update-check validation, and post-manual-QA docs/upload work.
 - Do not mark the Linux or Windows release gates complete from hosted CI alone.
@@ -1371,23 +1371,24 @@ Continuation audit, 2026-06-15:
   artifact integrity a required workflow gate, but still does not complete
   Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or real
   Linux/Windows release-asset update-check validation.
-- After commit `7931fa5bcaeac43453d4848643da24754b069223`, CI run
-  `27523138829` passed typecheck/unit tests and macOS Electron smoke, and Pages
-  run `27523138337` passed. Manual preview workflow reruns also passed the new
-  preview artifact bundle gate: Linux AppImage Preview Validation run
-  `27523207023` completed `pnpm release:artifact-bundle -- --target linux --dir
-  .` before upload; Windows Preview Validation run `27523207032` completed
-  `pnpm release:artifact-bundle -- --target windows --dir .` before upload.
-  GitHub artifact API reported `linux-preview-artifacts-27523207023` as not
-  expired, `349147845` bytes, digest
-  `sha256:2b88908d994ebf209b34496969990dde66f293aaff2fd058f236b2d0bf7facc8`,
-  and `windows-preview-artifacts-27523207032` as not expired, `288987058`
+- After commit `dd2f6073c3fe8854e08f41e6bf9d8b47a9307500`, CI run
+  `27525188596` passed typecheck/unit tests and macOS Electron smoke, and Pages
+  run `27525187977` passed. Manual preview workflow reruns also passed the
+  stricter current-template preview artifact bundle gate: Linux AppImage
+  Preview Validation run `27525193156` completed `pnpm
+  release:artifact-bundle -- --target linux --dir .` before upload; Windows
+  Preview Validation run `27525193372` completed `pnpm release:artifact-bundle
+  -- --target windows --dir .` before upload.
+  GitHub artifact API reported `linux-preview-artifacts-27525193156` as not
+  expired, `349147398` bytes, digest
+  `sha256:c13d516967ee0e659256518e014512a969988aaf6811f96527cc4c18596f5b0c`,
+  and `windows-preview-artifacts-27525193372` as not expired, `288986697`
   bytes, digest
-  `sha256:4b59cc872f5c3b432840ebe863d0c7d060e4480fbfbbc7d1b7e1c31f839839d8`.
+  `sha256:801f4ae4df95ac5878ee105adaa9937d91cf4b83fb88b9587d1732a38674c482`.
   Downloaded artifact verification also passed locally with `pnpm
   release:artifact-bundle -- --target linux --dir
-  /tmp/hcb2-linux-preview-27523207023` and `pnpm release:artifact-bundle --
-  --target windows --dir /tmp/hcb2-windows-preview-27523207032`. This proves
+  /tmp/hcb2-linux-preview-27525193156` and `pnpm release:artifact-bundle --
+  --target windows --dir /tmp/hcb2-windows-preview-27525193372`. This proves
   hosted artifact bundle integrity only and does not complete target-OS manual
   QA or release-upload gates.
 - Manual QA evidence verifier on 2026-06-15: `pnpm qa:evidence:verify` now
@@ -1401,9 +1402,9 @@ Continuation audit, 2026-06-15:
   manual QA items by itself.
 - Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
   support docs, port docs, distribution docs, and manual QA checklists now cite
-  the current bundle-gated preview runs `27523207023` and `27523207032` at
-  commit `7931fa5`. This is documentation evidence freshness only and does not
-  complete target-OS manual QA or release-upload gates.
+  the current-template bundle-gated preview runs `27525193156` and
+  `27525193372` at commit `dd2f607`. This is documentation evidence freshness
+  only and does not complete target-OS manual QA or release-upload gates.
 - Release upload preflight on 2026-06-15: `pnpm release:upload-preflight` now
   blocks Linux/Windows release uploads unless local release files, checksum
   manifest, sidecar hashes, byte-matching aliases, completed pre-upload
@@ -1412,7 +1413,7 @@ Continuation audit, 2026-06-15:
   published release assets exist. This gives the post-manual-QA upload gates a
   local required command, but current manual QA and release uploads remain
   incomplete. Running it against downloaded Linux preview artifact
-  `27523207023` exited `1` because `linux-evidence.md` is still an unchecked
+  `27525193156` exited `1` because `linux-evidence.md` is still an unchecked
   manual QA template.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for

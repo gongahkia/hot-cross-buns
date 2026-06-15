@@ -225,11 +225,11 @@ Remaining release gates:
   release:smoke-appimage` enables read-only MCP on a random loopback port,
   verifies unauthorized `401` rejection, and runs `hcb doctor` through CLI
   runtime discovery with a seeded smoke token. `Linux AppImage Preview
-  Validation` run `27523207023` passed this path under a hosted DBus
+  Validation` run `27525193156` passed this path under a hosted DBus
   GNOME/libsecret keyring session with required Electron launch timing and
-  manual QA evidence-template generation plus preview artifact bundle
-  verification. Ubuntu GNOME ready, missing, and locked Secret Service checks
-  remain manual gates.
+  manual QA evidence-template generation plus current-template preview artifact
+  bundle verification. Ubuntu GNOME ready, missing, and locked Secret Service
+  checks remain manual gates.
 
 ## Performance Checks
 

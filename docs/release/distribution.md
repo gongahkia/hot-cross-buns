@@ -177,9 +177,9 @@ needed for AppImage launch smoke. The AppImage launch smoke passes
 `--no-sandbox` through an explicit CI-only environment gate because the hosted
 runner cannot set the extracted AppImage `chrome-sandbox` helper to root-owned
 mode `4755`; do not treat that CI flag as user install guidance. Run
-`27523207023` passed this gate on 2026-06-15 at commit `7931fa5` with required
-Electron launch timing, manual QA evidence-template generation, and preview
-artifact bundle verification.
+`27525193156` passed this gate on 2026-06-15 at commit `dd2f607` with required
+Electron launch timing, manual QA evidence-template generation, and
+current-template preview artifact bundle verification.
 
 After downloading a Linux preview workflow artifact for target-host QA, verify
 the bundle before copying it to the QA machine:
@@ -278,12 +278,12 @@ toolchain instead of the Windows Server 2025 / Visual Studio 2026 image currentl
 behind `windows-latest`. The workflow also runs the HCB CLI MCP loopback smoke
 before packaging and sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub's
 JavaScript actions use the upcoming Node 24 action runtime while the project
-still builds/tests with Node 20. Run `27523207032` passed this gate on
-2026-06-15 at commit `7931fa5`, including silent NSIS install/launch/uninstall,
+still builds/tests with Node 20. Run `27525193372` passed this gate on
+2026-06-15 at commit `dd2f607`, including silent NSIS install/launch/uninstall,
 Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
 persisted MCP token relaunch through Windows safeStorage, required Electron
-launch timing, manual QA evidence-template generation, and preview artifact
-bundle verification.
+launch timing, manual QA evidence-template generation, and current-template
+preview artifact bundle verification.
 
 After downloading a Windows preview workflow artifact for target-host QA, verify
 the bundle before copying it to the QA machine:

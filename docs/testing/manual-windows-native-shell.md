@@ -5,7 +5,7 @@ technical preview release.
 
 ## Build And Install
 
-- Confirm `Windows Preview Validation` run `27523207032` or a newer run passed
+- Confirm `Windows Preview Validation` run `27525193372` or a newer run passed
   on the commit under test, or run `pnpm release:win:preview` on a Windows host.
 - Verify `release/Hot-Cross-Buns-2-<version>-windows-x64.exe` exists.
 - Verify `release/Hot-Cross-Buns-2-windows.exe` and
