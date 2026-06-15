@@ -829,17 +829,9 @@ async function waitForAppShellWindow(
 
 async function measureCommandPaletteOpen(page: Page): Promise<number> {
   const startedAt = performance.now();
-  await page.keyboard.press("Control+P");
-  const dialog = page.getByRole("dialog", { name: "Command palette" });
-  await dialog.waitFor({ state: "visible", timeout: 5_000 });
+  await openCommandPalette(page);
   const durationMs = roundMs(performance.now() - startedAt);
-  await page.keyboard.press("Escape").catch(() => undefined);
-  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(async () => {
-    await page
-      .getByRole("button", { name: "Close command palette" })
-      .click({ timeout: 1_000 })
-      .catch(() => undefined);
-  });
+  await closeCommandPalette(page);
   return durationMs;
 }
 
@@ -954,21 +946,18 @@ async function collectRendererFlowMeasurements(
       "quick-capture.open",
       async () => {
         await navigateToSection(page, "Tasks");
-        const quickCaptureInput = page.getByRole("textbox", { name: "Quick capture task" });
-        const quickCaptureButton = page.getByRole("button", { name: /^Quick capture$/ }).first();
-
-        if (await quickCaptureInput.count() > 0) {
-          await quickCaptureButton.click({ timeout: 5_000 });
-          await quickCaptureInput.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
-        }
+        await closeQuickAdd(page);
       },
       async () => {
-        const quickCaptureInput = page.getByRole("textbox", { name: "Quick capture task" });
-        const quickCaptureButton = page.getByRole("button", { name: /^Quick capture$/ }).first();
-
-        await quickCaptureButton.click({ timeout: 5_000 });
-        await quickCaptureInput.waitFor({ state: "visible", timeout: 5_000 });
-      }
+        const palette = await openCommandPalette(page);
+        await palette.getByRole("searchbox", { name: "Filter commands" }).fill("quick add");
+        await palette.getByRole("option", { name: /Quick Add/ }).click({ timeout: 5_000 });
+        await page
+          .getByRole("dialog", { name: /Quick add/i })
+          .getByRole("textbox", { name: "Quick add text" })
+          .waitFor({ state: "visible", timeout: 5_000 });
+      },
+      async () => closeQuickAdd(page)
     )
   );
 
@@ -1038,6 +1027,12 @@ async function collectRendererFlowMeasurements(
       "notes.edit",
       async () => {
         await navigateToSection(page, "Notes");
+        await page.getByRole("button", { name: /^Open note / }).first().click({ timeout: 5_000 });
+        const editButton = page.getByTestId("inspector-actions").getByRole("button", { name: "Edit" });
+
+        if (await editButton.count() > 0) {
+          await editButton.click({ timeout: 5_000 });
+        }
         await page.getByRole("textbox", { name: "Note body" }).waitFor({
           state: "visible",
           timeout: 5_000
@@ -1057,19 +1052,58 @@ async function collectRendererFlowMeasurements(
       launchName,
       "search.ui",
       async () => {
-        await navigateToSection(page, "Search");
+        await closeCommandPalette(page);
       },
       async () => {
-        await page.getByRole("textbox", { name: "Search local cache" }).fill("generated");
-        await page
-          .getByText(/Generated (task|event|note)/)
+        const palette = await openCommandPalette(page);
+        await palette.getByRole("searchbox", { name: "Filter commands" }).fill("generated");
+        await palette
+          .getByRole("option", { name: /Generated (task|event|note)/ })
           .first()
           .waitFor({ state: "visible", timeout: 5_000 });
-      }
+      },
+      async () => closeCommandPalette(page)
     )
   );
 
   return measurements;
+}
+
+async function openCommandPalette(page: Page) {
+  await page.keyboard.press("Control+P");
+  const dialog = page.getByRole("dialog", { name: "Command palette" });
+  await dialog.waitFor({ state: "visible", timeout: 5_000 });
+  return dialog;
+}
+
+async function closeCommandPalette(page: Page): Promise<void> {
+  const dialog = page.getByRole("dialog", { name: "Command palette" });
+
+  if (await dialog.count() === 0) {
+    return;
+  }
+
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(async () => {
+    await page
+      .getByRole("button", { name: "Close command palette" })
+      .click({ timeout: 1_000 })
+      .catch(() => undefined);
+  });
+}
+
+async function closeQuickAdd(page: Page): Promise<void> {
+  const dialog = page.getByRole("dialog", { name: /Quick add/i });
+
+  if (await dialog.count() === 0) {
+    return;
+  }
+
+  await page
+    .getByRole("button", { name: "Close quick add" })
+    .click({ timeout: 1_000 })
+    .catch(async () => page.keyboard.press("Escape").catch(() => undefined));
+  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
 }
 
 async function navigateToSection(page: Page, label: string): Promise<void> {
@@ -1084,7 +1118,8 @@ async function measurePageFlow(
   launchName: string,
   flowName: string,
   setup: () => Promise<void>,
-  operation: () => Promise<void>
+  operation: () => Promise<void>,
+  cleanup?: () => Promise<void>
 ): Promise<PerfMeasurement> {
   try {
     await setup();
@@ -1101,6 +1136,8 @@ async function measurePageFlow(
       status: "skipped",
       reason: sanitizeError(error)
     };
+  } finally {
+    await cleanup?.().catch(() => undefined);
   }
 }
 
