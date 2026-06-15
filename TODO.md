@@ -1220,11 +1220,11 @@ Windows remaining work:
       packaging, checksum verification, installer smoke, and manual installed
       app QA pass.
 
-Current handoff note, 2026-06-14:
+Current handoff note, 2026-06-15:
 
 - Automated Linux/Windows CI evidence is current through Linux run
-  `27499256281`, Windows run `27501043773`, CI run `27501276218`, and Pages run
-  `27501275680`.
+  `27521460631`, Windows run `27521460607`, CI run `27521687732`, and Pages run
+  `27521687015`.
 - The current remaining Linux/Windows items are target-OS manual QA, release
   asset/update-check validation, and post-manual-QA docs/upload work.
 - Do not mark the Linux or Windows release gates complete from hosted CI alone.
@@ -1313,6 +1313,11 @@ Continuation audit, 2026-06-15:
   This strengthens automated evidence only and does not complete Ubuntu GNOME
   manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
+- Documentation evidence refresh on 2026-06-15: Linux and Windows support docs,
+  release notes, distribution docs, port docs, and manual QA checklists now
+  cite the stricter successful preview workflow runs `27521460631` and
+  `27521460607`. This is documentation cleanup only and does not complete any
+  unchecked manual QA or upload gate.
 
 Completion definition for the next agent:
 

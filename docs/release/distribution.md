@@ -177,7 +177,8 @@ needed for AppImage launch smoke. The AppImage launch smoke passes
 `--no-sandbox` through an explicit CI-only environment gate because the hosted
 runner cannot set the extracted AppImage `chrome-sandbox` helper to root-owned
 mode `4755`; do not treat that CI flag as user install guidance. Run
-`27499256281` passed this gate on 2026-06-14 at commit `df19162`.
+`27521460631` passed this gate on 2026-06-15 at commit `b415f1e` with required
+Electron launch timing.
 
 That command runs:
 
@@ -264,10 +265,11 @@ toolchain instead of the Windows Server 2025 / Visual Studio 2026 image currentl
 behind `windows-latest`. The workflow also runs the HCB CLI MCP loopback smoke
 before packaging and sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` so GitHub's
 JavaScript actions use the upcoming Node 24 action runtime while the project
-still builds/tests with Node 20. Run `27501043773` passed this gate on
-2026-06-14 at commit `5e248b4`, including silent NSIS install/launch/uninstall,
-Start Menu/desktop shortcut target/removal checks, installed MCP smoke, and
-persisted MCP token relaunch through Windows safeStorage.
+still builds/tests with Node 20. Run `27521460607` passed this gate on
+2026-06-15 at commit `b415f1e`, including silent NSIS install/launch/uninstall,
+Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
+persisted MCP token relaunch through Windows safeStorage, and required Electron
+launch timing.
 
 Linux cross-packaging for the Windows NSIS target requires Wine. A Linux host
 without Wine can still complete the release build and `win-unpacked` step, but

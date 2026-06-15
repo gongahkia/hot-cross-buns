@@ -27,7 +27,7 @@ primary target and the secondary session checks are recorded.
 
 Confirm the current release candidate already passed:
 
-- `Linux AppImage Preview Validation` run `27499256281` or a newer run
+- `Linux AppImage Preview Validation` run `27521460631` or a newer run
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm build`
