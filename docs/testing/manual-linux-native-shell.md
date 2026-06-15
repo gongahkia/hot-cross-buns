@@ -40,6 +40,17 @@ Confirm the current release candidate already passed:
 - `pnpm test:smoke`
 - `pnpm test:perf`
 
+Record this host evidence before the manual pass:
+
+```sh
+date -Iseconds
+uname -a
+cat /etc/os-release
+printf 'desktop=%s\nsession=%s\n' "${XDG_CURRENT_DESKTOP:-unset}" "${XDG_SESSION_TYPE:-unset}"
+gnome-shell --version || true
+sha256sum -c SHASUMS256.txt --ignore-missing
+```
+
 ## AppImage Launch
 
 - Verify the published AppImage checksum against `SHASUMS256.txt`.
@@ -50,6 +61,7 @@ Confirm the current release candidate already passed:
 - Launch from the file manager.
 - Launch once with `HCB_ALLOW_PACKAGED_USER_DATA_DIR=1` and
   `HCB_USER_DATA_DIR` set to an empty absolute temporary directory.
+- Keep the terminal-launch stdout/stderr log with the QA notes.
 - Confirm the main window opens, closes, hides/shows, and quits cleanly.
 - Confirm icon and taskbar/window grouping behavior.
 - Open Settings and Diagnostics.

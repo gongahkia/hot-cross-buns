@@ -22,6 +22,16 @@ technical preview release.
 - Keep [Windows Preview Support](../support/windows-preview-support.md) open
   for install, checksum, and retained-data policy checks.
 
+Record this host evidence before the manual pass:
+
+```powershell
+Get-Date -Format o
+Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, OsBuildNumber, OsArchitecture
+node --version
+pnpm --version
+Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256
+```
+
 ## Launch And Identity
 
 - Launch from installer finish action.
@@ -110,3 +120,9 @@ technical preview release.
 - Task list scroll against large fixture.
 - Calendar month navigation against large fixture.
 - SQLite query-plan report is generated.
+
+## Results
+
+| Date | Build | Windows version | Tester | Result | Notes |
+| --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |
