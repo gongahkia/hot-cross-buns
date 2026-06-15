@@ -1275,6 +1275,11 @@ Continuation audit, 2026-06-15:
   Electron/Vite main, preload, and renderer production builds. This is local
   automated evidence only and does not replace target-OS manual QA or real
   release-asset update-check validation.
+- Local Electron smoke rerun on 2026-06-15 after release-checksum and
+  smoke-manifest hardening passed: `pnpm test:smoke` completed the production
+  build and `1` Playwright Electron smoke test. This is local automated
+  evidence only and does not replace target-OS manual QA or real release-asset
+  update-check validation.
 
 Completion definition for the next agent:
 
