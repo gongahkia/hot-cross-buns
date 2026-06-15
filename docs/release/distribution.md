@@ -472,6 +472,12 @@ manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
 the sidecar `.sha256` files before upload:
 
 ```sh
+pnpm release:upload-preflight -- --target linux \
+  --release-dir release \
+  --evidence artifacts/manual-qa/linux-evidence.md
+```
+
+```sh
 VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 gh release upload "$TAG" \
@@ -502,6 +508,12 @@ draft release or upload these files to the existing `v${VERSION}` draft after
 Windows installed-app QA pass. If any artifact, alias, release note, or
 manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
 the sidecar `.sha256` files before upload:
+
+```sh
+pnpm release:upload-preflight -- --target windows \
+  --release-dir release \
+  --evidence artifacts/manual-qa/windows-evidence.md
+```
 
 ```sh
 VERSION=$(node -p "require('./package.json').version")

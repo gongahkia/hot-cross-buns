@@ -1401,6 +1401,14 @@ Continuation audit, 2026-06-15:
   the current bundle-gated preview runs `27523207023` and `27523207032` at
   commit `7931fa5`. This is documentation evidence freshness only and does not
   complete target-OS manual QA or release-upload gates.
+- Release upload preflight on 2026-06-15: `pnpm release:upload-preflight` now
+  blocks Linux/Windows release uploads unless local release files, checksum
+  manifest, sidecar hashes, byte-matching aliases, and completed target-host
+  manual QA evidence all pass. This gives the post-manual-QA upload gates a
+  local required command, but current manual QA and release uploads remain
+  incomplete. Running it against downloaded Linux preview artifact
+  `27523207023` exited `1` because `linux-evidence.md` is still an unchecked
+  manual QA template.
 
 Completion definition for the next agent:
 
