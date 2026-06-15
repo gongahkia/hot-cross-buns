@@ -1280,6 +1280,14 @@ Continuation audit, 2026-06-15:
   build and `1` Playwright Electron smoke test. This is local automated
   evidence only and does not replace target-OS manual QA or real release-asset
   update-check validation.
+- Local performance smoke rerun on 2026-06-15 after release-checksum and
+  smoke-manifest hardening passed: `pnpm test:perf` exited successfully and
+  wrote `artifacts/perf/latest.json` plus `artifacts/perf/latest.md`.
+  The report mode was `report-only`; it recorded cold shell visible at
+  `4152ms`, warm shell visible at `3901ms`, and skipped the quick-capture,
+  notes-edit, and search UI submeasurements because their locators timed out.
+  This is local automated evidence only and does not replace target-OS manual
+  QA or real release-asset update-check validation.
 
 Completion definition for the next agent:
 
