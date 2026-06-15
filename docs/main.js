@@ -5,6 +5,7 @@
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const saveData = navigator.connection?.saveData === true;
   const canAutoplay = !reduceMotion && !saveData;
+  const visibleVideos = new Set();
 
   const loadVideo = (video) => {
     if (video.dataset.loaded === "true") return;
@@ -32,14 +33,24 @@
       const video = entry.target;
       if (!(video instanceof HTMLVideoElement)) return;
       if (entry.isIntersecting) {
+        visibleVideos.add(video);
         playVideo(video);
       } else {
+        visibleVideos.delete(video);
         video.pause();
       }
     });
   }, { rootMargin: "240px 0px", threshold: 0.2 });
 
   videos.forEach((video) => observer.observe(video));
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      videos.forEach((video) => video.pause());
+      return;
+    }
+    visibleVideos.forEach((video) => playVideo(video));
+  });
 })();
 
 (() => {
