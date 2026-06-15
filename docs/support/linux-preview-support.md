@@ -1,6 +1,6 @@
 # Linux Preview Support
 
-Hot Cross Buns 2 Linux support is a technical preview for Ubuntu LTS on GNOME.
+Hot Cross Buns 2 Linux support is a technical preview for Ubuntu 26.04 LTS on GNOME.
 The first preview artifact is an AppImage. Other distributions and desktop
 environments are secondary validation targets until the Linux QA matrix is
 complete.
@@ -10,7 +10,7 @@ AppImage packaging/checksum/metadata/launch smoke, packaged AppImage MCP smoke
 under a hosted GNOME/libsecret keyring session, Electron smoke, performance
 smoke with required launch timing, manual QA evidence-template generation,
 current-template preview artifact bundle verification, and artifact upload on
-2026-06-15 at commit `dd2f607`. Ubuntu GNOME manual QA remains required before
+2026-06-15 at commit `dd2f607`. Ubuntu 26.04 LTS GNOME manual QA remains required before
 uploading public Linux artifacts.
 
 ## Install And Run
@@ -64,7 +64,7 @@ Install it alongside the existing FUSE setup.
   as GNOME Keyring/libsecret or KWallet. The app refuses Electron's
   `basic_text` plaintext fallback.
 - Google OAuth and local MCP use loopback-only listeners. OAuth and external MCP
-  CLI smoke still require Ubuntu GNOME ready/missing/locked Secret Service
+  CLI smoke still require Ubuntu 26.04 LTS GNOME ready/missing/locked Secret Service
   validation before public preview claims expand beyond the technical preview.
 
 ## Diagnostics

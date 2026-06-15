@@ -6,7 +6,7 @@ Linux is the first non-Mac port for Hot Cross Buns 2. Treat it as a technical pr
 
 Initial supported target:
 
-- Ubuntu LTS on GNOME, current stable release at implementation time.
+- Ubuntu 26.04 LTS on GNOME.
 
 Secondary manual-check targets:
 
@@ -215,11 +215,11 @@ Current implementation:
 
 Remaining release gates:
 
-- OAuth browser round trip on Ubuntu GNOME.
+- OAuth browser round trip on Ubuntu 26.04 LTS GNOME.
 - Firewall/security-tool behavior on the supported Ubuntu path.
 - Token refresh after app restart with Secret Service ready, missing, and locked
   states.
-- External CLI MCP smoke against a packaged AppImage on Ubuntu GNOME.
+- External CLI MCP smoke against a packaged AppImage on Ubuntu 26.04 LTS GNOME.
 - Optional packaged MCP smoke automation now exists:
   `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
   release:smoke-appimage` enables read-only MCP on a random loopback port,
@@ -228,7 +228,7 @@ Remaining release gates:
   Validation` run `27525193156` passed this path under a hosted DBus
   GNOME/libsecret keyring session with required Electron launch timing and
   manual QA evidence-template generation plus current-template preview artifact
-  bundle verification. Ubuntu GNOME ready, missing, and locked Secret Service
+  bundle verification. Ubuntu 26.04 LTS GNOME ready, missing, and locked Secret Service
   checks remain manual gates.
 
 ## Performance Checks

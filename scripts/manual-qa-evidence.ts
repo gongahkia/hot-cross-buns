@@ -152,7 +152,7 @@ async function fileEvidence(releaseDir: string, name: string): Promise<FileEvide
 function preUploadManualChecks(target: ManualQaTarget): string[] {
   if (target === "linux") {
     return [
-      "Ubuntu LTS GNOME version and session type recorded",
+      "Ubuntu 26.04 LTS GNOME version and session type recorded",
       "AppImage terminal launch stdout/stderr and exit behavior recorded",
       "AppImage file-manager launch recorded",
       "icon, window title, and taskbar/window grouping verified",

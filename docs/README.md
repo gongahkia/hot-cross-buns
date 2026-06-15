@@ -17,7 +17,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 
 - Product name: Hot Cross Buns 2
 - Initial platform: macOS
-- Linux status: AppImage technical preview gated on Ubuntu GNOME QA
+- Linux status: AppImage technical preview gated on Ubuntu 26.04 LTS GNOME QA
 - Windows status: NSIS technical preview gated on Windows 11 QA
 - Default stack: Electron, React, TypeScript, Vite, Tailwind, SQLite
 - Source of truth: Google Tasks and Google Calendar

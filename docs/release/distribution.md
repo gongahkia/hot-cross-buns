@@ -171,7 +171,7 @@ is on a branch GitHub can see. The workflow builds the AppImage, verifies
 checksums, runs AppImage metadata and launch smoke under Xvfb, runs the HCB CLI
 MCP loopback smoke, runs packaged AppImage MCP smoke under a DBus
 GNOME/libsecret keyring session, runs Electron smoke, runs performance smoke,
-and uploads preview artifacts for review. It does not replace Ubuntu GNOME
+and uploads preview artifacts for review. It does not replace Ubuntu 26.04 LTS GNOME
 desktop manual QA. The workflow installs the Ubuntu FUSE 2 compatibility package
 needed for AppImage launch smoke. The AppImage launch smoke passes
 `--no-sandbox` through an explicit CI-only environment gate because the hosted
@@ -466,7 +466,7 @@ platform-only manifest.
 
 For the Linux AppImage technical preview artifacts, either create a Linux-only
 draft release or upload these files to the existing `v${VERSION}` draft after
-the Ubuntu GNOME manual matrix, `pnpm release:linux:preview`, checksum
+the Ubuntu 26.04 LTS GNOME manual matrix, `pnpm release:linux:preview`, checksum
 verification, and AppImage smoke pass. If any artifact, alias, release note, or
 manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
 the sidecar `.sha256` files before upload:
@@ -613,7 +613,7 @@ Still required before publishing a Linux preview:
 - distro and desktop-environment support matrix
 - AppImage launch from terminal and file manager
 - app icon and window grouping on the supported desktop matrix
-- OAuth browser round trip on Ubuntu GNOME
+- OAuth browser round trip on Ubuntu 26.04 LTS GNOME
 - Secret Service ready, missing, and locked states
 - live MCP CLI smoke against the packaged AppImage
 - filled target-host evidence template from

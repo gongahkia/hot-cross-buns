@@ -19,7 +19,7 @@ docs. It does not claim Linux or Windows support.
 | Autostart | `startOnLogin` existed as a setting but was not routed through an adapter. | The setting now calls adapter autostart methods; Linux remains unsupported for the preview, and Windows needs installed-app QA. |
 | Updater | Preview builds return unsupported update status. | Linux/Windows preview should keep check-for-new-version first; no in-place auto-update is claimed. |
 | Diagnostics | Diagnostics did not expose native capability detail. | Diagnostics now include a redacted native capability report. |
-| OAuth | Shared OAuth loopback behavior existed conceptually, but browser handoff and token storage were not platform-proven. | Shared OAuth loopback is wired; Ubuntu GNOME and Windows browser/firewall/manual account checks remain release gates. |
+| OAuth | Shared OAuth loopback behavior existed conceptually, but browser handoff and token storage were not platform-proven. | Shared OAuth loopback is wired; Ubuntu 26.04 LTS GNOME and Windows browser/firewall/manual account checks remain release gates. |
 | MCP | Shared MCP contracts existed, but native lifecycle and persistent bearer-token storage were not complete. | MCP runtime files, OS-backed token storage, CLI discovery, and packaged smoke automation are wired. Hosted Linux and Windows preview workflows passed MCP smoke; target desktop manual MCP checks remain release gates. |
 | Packaging | `electron-builder.yml` was macOS DMG/zip only and unsigned. | Linux AppImage and Windows NSIS preview packaging are implemented and validated in manual GitHub Actions workflows; public upload remains gated by target-OS manual QA. |
 | Tests | Native tests focused on service behavior, not the full adapter contract. | Contract, packaging, smoke, performance, and platform preview CI now cover the automated gates; manual QA remains required for OS shell behavior. |
@@ -72,10 +72,10 @@ The noop adapter is the portable contract fixture. It reports unsupported native
 
 ## Remaining Linux Release Gates
 
-- Supported Ubuntu GNOME matrix and secondary Fedora/KDE manual checks.
+- Supported Ubuntu 26.04 LTS GNOME matrix and secondary Fedora/KDE manual checks.
 - Secret Service ready, missing, and locked manual checks.
 - OAuth browser handoff and localhost callback verification.
-- Packaged AppImage MCP localhost smoke on Ubuntu GNOME.
+- Packaged AppImage MCP localhost smoke on Ubuntu 26.04 LTS GNOME.
 - Packaged AppImage terminal/file-manager launch, icon, and window grouping.
 - Confirmation that tray/status-area, global shortcuts, notifications,
   protocol registration, autostart, and in-place update remain unsupported by

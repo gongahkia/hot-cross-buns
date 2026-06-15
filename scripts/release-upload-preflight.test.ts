@@ -112,7 +112,7 @@ async function writeReleaseNotes(notesFile: string, target: "linux" | "windows",
   const targetText = target === "linux"
     ? [
       "# Linux AppImage technical preview",
-      "Ubuntu GNOME manual QA passed.",
+      "Ubuntu 26.04 LTS GNOME manual QA passed.",
       "Hot-Cross-Buns-2-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
       "unsupported notifications, global shortcuts, tray, and hotcrossbuns://"

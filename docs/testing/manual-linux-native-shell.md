@@ -8,7 +8,7 @@ by themselves.
 
 Supported preview target:
 
-- Ubuntu LTS on GNOME.
+- Ubuntu 26.04 LTS on GNOME.
 - AppImage package.
 - Fresh app data path via `HCB_ALLOW_PACKAGED_USER_DATA_DIR=1` and
   `HCB_USER_DATA_DIR=<absolute temp dir>` for at least one packaged-app pass.

@@ -70,7 +70,7 @@ Around those core surfaces, the app also includes:
 **Preview downloads**
 
 - macOS DMG: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg`
-- Linux AppImage technical preview: gated until Ubuntu LTS GNOME QA passes.
+- Linux AppImage technical preview: gated until Ubuntu 26.04 LTS GNOME QA passes.
 - Windows NSIS technical preview: gated until Windows 11 x64 installed-app QA passes.
 - Release page: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest`
 - macOS one-line installer:
@@ -89,7 +89,7 @@ You should only need to do that once per Mac.
 
 **First launch on Linux**
 
-The Linux package is an AppImage technical preview. It is intended first for Ubuntu LTS on GNOME, with secondary manual checks on Fedora GNOME, KDE Plasma, Wayland, and X11 before broader claims. Public upload waits for that manual matrix.
+The Linux package is an AppImage technical preview. It is intended first for Ubuntu 26.04 LTS on GNOME, with secondary manual checks on Fedora GNOME, KDE Plasma, Wayland, and X11 before broader claims. Public upload waits for that manual matrix.
 
 ```bash
 curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
@@ -169,7 +169,7 @@ Start with [docs/README.md](docs/README.md) before changing product, architectur
 **Requirements**
 
 - macOS 14+
-- Linux AppImage technical preview: Ubuntu LTS on GNOME first, Secret Service provider required for credentials
+- Linux AppImage technical preview: Ubuntu 26.04 LTS on GNOME first, Secret Service provider required for credentials
 - Node 20+
 - pnpm 9.15.4 through Corepack
 

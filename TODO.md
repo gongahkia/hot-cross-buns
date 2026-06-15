@@ -9,7 +9,7 @@ claims until the implementation phases and release gates below are complete.
 
 ## Current Decisions
 
-- First Linux target: Ubuntu LTS on GNOME.
+- First Linux target: Ubuntu 26.04 LTS on GNOME.
 - First package target: AppImage technical preview.
 - Secondary manual checks: Fedora Workstation GNOME, KDE Plasma, one Wayland
   session, and one X11 session.
@@ -223,7 +223,7 @@ Implementation tasks:
 
 Manual Linux credential checks:
 
-- Fresh Ubuntu GNOME profile with GNOME Keyring available.
+- Fresh Ubuntu 26.04 LTS GNOME profile with GNOME Keyring available.
 - Profile with Secret Service missing.
 - Profile with Secret Service locked before app launch.
 - Save OAuth client id and optional client secret.
@@ -447,8 +447,8 @@ Implementation tasks:
 
 Manual checks:
 
-- Ubuntu GNOME Wayland with portal support.
-- Ubuntu GNOME X11 where available.
+- Ubuntu 26.04 LTS GNOME Wayland with portal support.
+- Ubuntu 26.04 LTS GNOME X11 where available.
 - KDE Plasma Wayland.
 - Shortcut conflict with an existing desktop shortcut.
 - User denial or missing portal support.
@@ -647,7 +647,7 @@ Verification completed:
 
 - `pnpm exec vitest run --config vitest.config.ts src/main/google/oauthLoopback.test.ts src/main/mcp/server.test.ts src/main/mcp/runtimeFile.test.ts src/main/mcp/keychainCredentials.test.ts src/main/services/serviceContainer.test.ts src/shared/redaction.test.ts src/main/ipc/diagnosticsRedaction.test.ts src/main/native/adapterContract.test.ts`
 
-Remaining manual release gates: Ubuntu GNOME OAuth browser round trip, firewall
+Remaining manual release gates: Ubuntu 26.04 LTS GNOME OAuth browser round trip, firewall
 or security-tool callback behavior on the supported distro path, token refresh
 after an app restart, and external CLI MCP smoke against a packaged AppImage
 with Secret Service ready, missing, and locked states.
@@ -657,7 +657,7 @@ Implementation tasks:
 - Verify default browser handoff from Linux through the native adapter's
   external URL opener.
 - Verify Google OAuth loopback listener on localhost.
-- Verify firewall/security tools do not break the supported Ubuntu GNOME path.
+- Verify firewall/security tools do not break the supported Ubuntu 26.04 LTS GNOME path.
 - Verify MCP binds only to `127.0.0.1`.
 - Verify MCP rejects non-local or unauthorized requests.
 - Verify runtime files are written under Linux config paths and do not contain
@@ -717,7 +717,7 @@ Verification completed:
   script now terminates the packaged app process group after collecting startup
   logs so launch smoke does not leak a running AppImage.
 
-Remaining manual release gates: Ubuntu GNOME terminal and file-manager launch,
+Remaining manual release gates: Ubuntu 26.04 LTS GNOME terminal and file-manager launch,
 real desktop icon/window grouping, OAuth browser round trip, Secret Service
 ready/missing/locked checks, live MCP CLI smoke against the packaged AppImage,
 and confirmation that Linux notifications and global shortcuts are unsupported
@@ -739,8 +739,8 @@ Required automated gates before any Linux preview release:
 
 Required manual Linux checks:
 
-- Ubuntu LTS GNOME AppImage launch from terminal.
-- Ubuntu LTS GNOME AppImage launch from file manager.
+- Ubuntu 26.04 LTS GNOME AppImage launch from terminal.
+- Ubuntu 26.04 LTS GNOME AppImage launch from file manager.
 - AppImage launched with isolated `HCB_ALLOW_PACKAGED_USER_DATA_DIR=1` and
   `HCB_USER_DATA_DIR`.
 - App icon and taskbar grouping.
@@ -824,7 +824,7 @@ Acceptance criteria:
       fallback.
 - [x] AppImage builds on a Linux host or Linux CI runner.
 - [x] AppImage checksum is generated and verified.
-- [ ] OAuth browser round trip works on Ubuntu GNOME.
+- [ ] OAuth browser round trip works on Ubuntu 26.04 LTS GNOME.
 - [x] MCP binds to `127.0.0.1` and uses OS-backed bearer token storage.
 - [x] Notifications are either validated or explicitly unsupported.
 - [x] Global shortcuts are either validated per session type or explicitly
@@ -889,7 +889,7 @@ manual release gates.
 Public copy gate hardening on 2026-06-14: README, docs site copy, privacy copy,
 platform specs, and `v5.0.0` release notes now describe Linux AppImage and
 Windows NSIS artifacts as prepared but gated on target-OS manual QA before
-public upload. This does not complete the Ubuntu GNOME or Windows 11 manual
+public upload. This does not complete the Ubuntu 26.04 LTS GNOME or Windows 11 manual
 release gates.
 
 Linux CI gate hardening on 2026-06-14: `.github/workflows/linux-preview.yml`
@@ -897,7 +897,7 @@ adds a manual `Linux AppImage Preview Validation` workflow on `ubuntu-latest`
 that runs `pnpm release:linux:preview`, checksum verification, AppImage metadata
 and launch smoke under Xvfb, packaged AppImage MCP smoke under a DBus
 GNOME/libsecret keyring session, Electron smoke, performance smoke, and artifact
-upload. Ubuntu GNOME desktop/manual QA remains a separate release gate.
+upload. Ubuntu 26.04 LTS GNOME desktop/manual QA remains a separate release gate.
 
 Linux AppImage smoke hardening on 2026-06-14: `pnpm release:smoke-appimage`
 now verifies the versioned AppImage, stable Linux aliases, executable bits,
@@ -974,7 +974,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
 blockers. They record Linux run `27499256281`, Windows run `27501043773`, and
-keep publish/upload guidance gated on Ubuntu GNOME and Windows 11 installed-app
+keep publish/upload guidance gated on Ubuntu 26.04 LTS GNOME and Windows 11 installed-app
 manual QA.
 
 Cross-platform smoke hardening on 2026-06-14: Playwright smoke now asserts the
@@ -1033,7 +1033,7 @@ the AppImage launch smoke into this gate under `dbus-run-session` with
 GNOME/libsecret selected through Electron's `--password-store=gnome-libsecret`
 flag. Linux run `27499256281` passed this hosted CI path at commit `df19162`.
 Windows run `27501043773` passed this hosted CI path at commit `5e248b4`.
-Ubuntu GNOME manual QA still needs ready, missing, and locked Secret Service
+Ubuntu 26.04 LTS GNOME manual QA still needs ready, missing, and locked Secret Service
 states before the manual MCP gate is complete.
 
 Implementation tasks:
@@ -1119,7 +1119,7 @@ Latest local validation evidence before pause:
 
 Linux remaining work:
 
-- [ ] Run the packaged AppImage on Ubuntu LTS GNOME, not Fedora only.
+- [ ] Run the packaged AppImage on Ubuntu 26.04 LTS GNOME, not Fedora only.
 - [ ] Launch the AppImage from a terminal and record stdout/stderr plus exit
       behavior.
 - [ ] Launch the AppImage from the file manager and verify no shell-only
@@ -1129,15 +1129,15 @@ Linux remaining work:
 - [ ] Run the app with
       `HCB_ALLOW_PACKAGED_USER_DATA_DIR=1 HCB_USER_DATA_DIR=<absolute temp dir>`
       and confirm no real user data is touched during QA.
-- [ ] Complete Google OAuth browser round trip on Ubuntu GNOME.
-- [ ] Validate Secret Service states on Ubuntu GNOME:
+- [ ] Complete Google OAuth browser round trip on Ubuntu 26.04 LTS GNOME.
+- [ ] Validate Secret Service states on Ubuntu 26.04 LTS GNOME:
       ready/unlocked, locked, and missing/unavailable. Confirm there is no
       plaintext token fallback.
 - [ ] Run a live MCP localhost smoke against the packaged AppImage. Confirm it
       binds to `127.0.0.1`, requires the OS-backed bearer token, and rejects
       unauthorized requests. The opt-in automation command is
       `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
-      release:smoke-appimage`, but it still requires Ubuntu GNOME Secret
+      release:smoke-appimage`, but it still requires Ubuntu 26.04 LTS GNOME Secret
       Service validation before this manual gate is complete.
 - [ ] Open Settings diagnostics from the packaged AppImage and confirm paths,
       adapter id, package format, credential status, and redaction are accurate.
@@ -1161,7 +1161,7 @@ Linux remaining work:
       Actions after the CI AppImage launch-smoke fix is pushed.
 - [ ] Update `docs/release/notes/v5.0.0.md` with the final Linux QA result,
       unsupported feature list, artifact names, and checksum instructions.
-- [ ] Upload Linux AppImage artifacts only after the Ubuntu GNOME manual matrix
+- [ ] Upload Linux AppImage artifacts only after the Ubuntu 26.04 LTS GNOME manual matrix
       is complete.
 
 Windows remaining work:
@@ -1310,7 +1310,7 @@ Continuation audit, 2026-06-15:
   smoke, and artifact upload. GitHub artifact API reported
   `linux-preview-artifacts-27521460631` as not expired, `349145395` bytes, and
   `windows-preview-artifacts-27521460607` as not expired, `288984962` bytes.
-  This strengthens automated evidence only and does not complete Ubuntu GNOME
+  This strengthens automated evidence only and does not complete Ubuntu 26.04 LTS GNOME
   manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
 - Documentation evidence refresh on 2026-06-15: Linux and Windows support docs,
@@ -1348,7 +1348,7 @@ Continuation audit, 2026-06-15:
   Workflow logs showed `linux-evidence.md` and `windows-evidence.md` were
   written before upload and that `artifacts/manual-qa/**` was included in the
   upload path. This strengthens handoff artifacts only and does not complete
-  Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or Settings
+  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 installed-app manual QA, or Settings
   update-check verification against real Linux/Windows GitHub Release assets.
 - Release asset preflight helper on 2026-06-15: `pnpm
   release:asset-preflight` now checks a GitHub Release for the required Linux
@@ -1369,7 +1369,7 @@ Continuation audit, 2026-06-15:
   preview workflows now run `pnpm release:artifact-bundle -- --target <target>
   --dir .` before uploading preview artifacts. This makes hosted preview
   artifact integrity a required workflow gate, but still does not complete
-  Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or real
+  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 installed-app manual QA, or real
   Linux/Windows release-asset update-check validation.
 - After commit `dd2f6073c3fe8854e08f41e6bf9d8b47a9307500`, CI run
   `27525188596` passed typecheck/unit tests and macOS Electron smoke, and Pages
@@ -1397,7 +1397,7 @@ Continuation audit, 2026-06-15:
   checkbox marked complete, a pass result without a fail result, and non-empty
   result notes. It supports `--stage pre-upload` for pre-upload target-host
   checks and full/default verification after release assets exist and
-  Settings update-check is verified. This gives future Ubuntu GNOME and Windows
+  Settings update-check is verified. This gives future Ubuntu 26.04 LTS GNOME and Windows
   11 manual QA closure a concrete verifier, but does not complete the unchecked
   manual QA items by itself.
 - Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
@@ -1421,10 +1421,16 @@ Continuation audit, 2026-06-15:
   stable alias digest differs from the versioned artifact. This strengthens the
   post-upload update-check gate only; current `v5.0.0` still lacks Linux and
   Windows release assets.
+- Ubuntu target refresh on 2026-06-15: the official Ubuntu Desktop download page
+  at `https://ubuntu.com/download/desktop` lists Ubuntu 26.04 LTS as the latest
+  desktop LTS, so the Linux primary manual QA target is now explicit as Ubuntu
+  26.04 LTS GNOME across the TODO handoff, support docs, release notes, manual
+  checklist, and evidence template. This removes target ambiguity only and does
+  not complete Ubuntu 26.04 LTS GNOME manual QA.
 
 Completion definition for the next agent:
 
-- Linux can be called rounded out only when the Ubuntu GNOME manual matrix is
+- Linux can be called rounded out only when the Ubuntu 26.04 LTS GNOME manual matrix is
   complete, final Linux release artifacts/checksums are regenerated, and release
   notes accurately describe preview scope and unsupported native features.
 - Windows can be called rounded out only when NSIS artifacts are built on a

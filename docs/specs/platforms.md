@@ -84,7 +84,7 @@ Implemented scaffold:
 
 Required before public Linux preview:
 
-- Ubuntu LTS GNOME AppImage launch from terminal and file manager
+- Ubuntu 26.04 LTS GNOME AppImage launch from terminal and file manager
 - icon/window grouping verification
 - OAuth browser round trip
 - Secret Service ready, locked, and missing-state checks

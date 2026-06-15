@@ -96,7 +96,7 @@ describe("manual QA evidence", () => {
 
     expect(result.missingFiles).toHaveLength(requiredReleaseFiles("linux", "5.0.0").length);
     expect(report).toContain("Release file preflight: fail");
-    expect(report).toContain("- [ ] Ubuntu LTS GNOME version and session type recorded");
+    expect(report).toContain("- [ ] Ubuntu 26.04 LTS GNOME version and session type recorded");
   });
 
   it("verifies completed Linux manual QA evidence", async () => {
