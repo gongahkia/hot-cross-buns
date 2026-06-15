@@ -113,7 +113,7 @@ Implemented scaffold:
 
 Required before public Windows preview:
 
-- Windows 11 x64 NSIS packaging and artifact smoke
+- Windows 11 25H2 x64 NSIS packaging and artifact smoke
 - installed-app launch from installer, Start Menu, and desktop shortcut
 - SQLite, OAuth, MCP, tray, shortcuts, notifications, deep links, autostart,
   and uninstall manual QA

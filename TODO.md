@@ -872,7 +872,7 @@ mismatch instead of only printing hashes.
 Windows identity hardening on 2026-06-14: the app now applies the stable
 AppUserModelID synchronously during main-process startup on `win32`, before
 `app.whenReady()` and before any window or notification setup. Installed-build
-Start Menu/taskbar/notification behavior still requires Windows 11 QA.
+Start Menu/taskbar/notification behavior still requires Windows 11 25H2 QA.
 
 Preview artifact alias hardening on 2026-06-14: Linux and Windows alias helpers
 now only copy versioned Hot Cross Buns release artifact names into stable aliases
@@ -889,7 +889,7 @@ manual release gates.
 Public copy gate hardening on 2026-06-14: README, docs site copy, privacy copy,
 platform specs, and `v5.0.0` release notes now describe Linux AppImage and
 Windows NSIS artifacts as prepared but gated on target-OS manual QA before
-public upload. This does not complete the Ubuntu 26.04 LTS GNOME or Windows 11 manual
+public upload. This does not complete the Ubuntu 26.04 LTS GNOME or Windows 11 25H2 manual
 release gates.
 
 Linux CI gate hardening on 2026-06-14: `.github/workflows/linux-preview.yml`
@@ -958,7 +958,7 @@ release assets and must not be marked complete from mock tests alone.
 Windows SmartScreen documentation on 2026-06-14:
 `docs/release/windows-signing-smartscreen.md` now documents the unsigned
 internal-preview policy, expected Microsoft Defender SmartScreen/browser warning
-classes, signing paths to evaluate, and evidence to capture during Windows 11
+classes, signing paths to evaluate, and evidence to capture during Windows 11 25H2
 manual QA. This does not verify actual SmartScreen behavior for this app's NSIS
 artifact.
 
@@ -966,7 +966,7 @@ Windows preview support documentation on 2026-06-14:
 `docs/support/windows-preview-support.md` now documents checksum verification,
 expected NSIS install path, unsigned-preview warnings, diagnostics expectations,
 and retained user-data policy. Actual Windows uninstall cleanup remains a
-Windows 11 manual QA gate.
+Windows 11 25H2 manual QA gate.
 
 Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/release/distribution.md`, `docs/ports/windows-port.md`,
@@ -974,7 +974,7 @@ Release documentation refresh on 2026-06-14: `docs/release/notes/v5.0.0.md`,
 `docs/testing/manual-windows-native-shell.md`, and `docs/ports/linux-port.md`
 now distinguish Linux/Windows automated CI passes from target-desktop manual QA
 blockers. They record Linux run `27499256281`, Windows run `27501043773`, and
-keep publish/upload guidance gated on Ubuntu 26.04 LTS GNOME and Windows 11 installed-app
+keep publish/upload guidance gated on Ubuntu 26.04 LTS GNOME and Windows 11 25H2 installed-app
 manual QA.
 
 Cross-platform smoke hardening on 2026-06-14: Playwright smoke now asserts the
@@ -992,7 +992,7 @@ and representative read/write tool calls. The workflows also set
 Node 24 action runtime while the project still installs and builds with Node 20.
 MCP-gated reruns passed on Linux run `27499256281` at commit `df19162` and
 Windows run `27501043773` at commit `5e248b4`. This does not replace Ubuntu
-GNOME ready/missing/locked Secret Service manual QA or Windows 11 installed-app
+GNOME ready/missing/locked Secret Service manual QA or Windows 11 25H2 installed-app
 manual QA.
 
 Cross-platform CLI MCP token discovery on 2026-06-14: `pnpm hcb -- ...` now
@@ -1038,7 +1038,7 @@ states before the manual MCP gate is complete.
 
 Implementation tasks:
 
-- [x] Decide preview scope: Windows 11 x64 first, NSIS installer first,
+- [x] Decide preview scope: Windows 11 25H2 x64 first, NSIS installer first,
       unsigned only for internal preview unless signing is configured.
 - [x] Add Windows packaging: `win`/`nsis` electron-builder config, ICO asset,
       `build:release:win`, `pack:win:preview`, `release:win:preview`,
@@ -1181,7 +1181,7 @@ Windows remaining work:
       matching `.sha256` files, and `release/SHASUMS256.txt`.
 - [x] Verify the Windows installer checksum with PowerShell:
       `Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256`.
-- [ ] Install the NSIS preview on Windows 11 x64.
+- [ ] Install the NSIS preview on Windows 11 25H2 x64.
 - [ ] Launch from installer finish action, Start Menu, and desktop shortcut.
 - [ ] Confirm AppUserModelID, app icon, Start Menu identity, and taskbar
       grouping are correct.
@@ -1195,7 +1195,7 @@ Windows remaining work:
       installed-app relaunch.
 - [ ] Run a live MCP localhost smoke against the installed Windows app. Windows
       CI now runs the automated installed-NSIS MCP smoke with
-      `HCB_PACKAGED_MCP_SMOKE=1`; Windows 11 installed-app manual QA is still
+      `HCB_PACKAGED_MCP_SMOKE=1`; Windows 11 25H2 installed-app manual QA is still
       required before this release gate is complete.
 - [ ] Validate Windows tray menu: show/hide, quick capture, refresh, settings,
       and quit.
@@ -1214,7 +1214,7 @@ Windows remaining work:
       `docs/ports/windows-port.md`, `docs/release/distribution.md`, and
       `docs/testing/manual-windows-native-shell.md` with actual Windows runner
       and automated smoke evidence.
-- [ ] Update those docs with Windows 11 manual QA evidence after the
+- [ ] Update those docs with Windows 11 25H2 manual QA evidence after the
       installed-app checklist passes.
 - [ ] Upload Windows NSIS artifacts only after Windows CI or Windows-host
       packaging, checksum verification, installer smoke, and manual installed
@@ -1264,7 +1264,7 @@ Continuation audit, 2026-06-15:
   now also fails if `SHASUMS256.txt` contains nested unpacked-artifact paths,
   with focused coverage in `scripts/smoke-test-nsis.test.ts`.
 - This recheck strengthens automated evidence only. It does not complete Ubuntu
-  GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
+  GNOME manual QA, Windows 11 25H2 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
 - Local full unit rerun on 2026-06-15 after release-checksum and smoke-manifest
   hardening passed: `pnpm test` completed `71` Vitest files and `546` tests.
@@ -1311,7 +1311,7 @@ Continuation audit, 2026-06-15:
   `linux-preview-artifacts-27521460631` as not expired, `349145395` bytes, and
   `windows-preview-artifacts-27521460607` as not expired, `288984962` bytes.
   This strengthens automated evidence only and does not complete Ubuntu 26.04 LTS GNOME
-  manual QA, Windows 11 installed-app manual QA, or Settings update-check
+  manual QA, Windows 11 25H2 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
 - Documentation evidence refresh on 2026-06-15: Linux and Windows support docs,
   release notes, distribution docs, port docs, and manual QA checklists now
@@ -1348,7 +1348,7 @@ Continuation audit, 2026-06-15:
   Workflow logs showed `linux-evidence.md` and `windows-evidence.md` were
   written before upload and that `artifacts/manual-qa/**` was included in the
   upload path. This strengthens handoff artifacts only and does not complete
-  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 installed-app manual QA, or Settings
+  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 25H2 installed-app manual QA, or Settings
   update-check verification against real Linux/Windows GitHub Release assets.
 - Release asset preflight helper on 2026-06-15: `pnpm
   release:asset-preflight` now checks a GitHub Release for the required Linux
@@ -1369,7 +1369,7 @@ Continuation audit, 2026-06-15:
   preview workflows now run `pnpm release:artifact-bundle -- --target <target>
   --dir .` before uploading preview artifacts. This makes hosted preview
   artifact integrity a required workflow gate, but still does not complete
-  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 installed-app manual QA, or real
+  Ubuntu 26.04 LTS GNOME manual QA, Windows 11 25H2 installed-app manual QA, or real
   Linux/Windows release-asset update-check validation.
 - After commit `dd2f6073c3fe8854e08f41e6bf9d8b47a9307500`, CI run
   `27525188596` passed typecheck/unit tests and macOS Electron smoke, and Pages
@@ -1427,6 +1427,15 @@ Continuation audit, 2026-06-15:
   26.04 LTS GNOME across the TODO handoff, support docs, release notes, manual
   checklist, and evidence template. This removes target ambiguity only and does
   not complete Ubuntu 26.04 LTS GNOME manual QA.
+- Windows target refresh on 2026-06-15: Microsoft Learn's Windows 11 release
+  information at
+  `https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information`
+  lists Windows 11 25H2 as a General Availability Channel release and says
+  Windows 11 26H1 is scoped to new devices and is not offered as an in-place
+  update from 24H2 or 25H2. The primary Windows manual QA target is therefore
+  explicit as Windows 11 25H2 x64 unless a separate 26H1 hardware-specific pass
+  is added. This removes target ambiguity only and does not complete the
+  Windows 11 25H2 installed-app manual QA gate.
 
 Completion definition for the next agent:
 
@@ -1434,7 +1443,7 @@ Completion definition for the next agent:
   complete, final Linux release artifacts/checksums are regenerated, and release
   notes accurately describe preview scope and unsupported native features.
 - Windows can be called rounded out only when NSIS artifacts are built on a
-  Windows host or Windows CI runner, installed-app QA passes on Windows 11 x64,
+  Windows host or Windows CI runner, installed-app QA passes on Windows 11 25H2 x64,
   SmartScreen/signing expectations are documented, and release notes accurately
   describe unsigned preview scope.
 - If any feature changes from unsupported to supported, update adapter

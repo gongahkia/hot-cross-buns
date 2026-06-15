@@ -6,7 +6,12 @@ Windows is the second non-Mac port, after the Linux technical preview. Treat it 
 
 Initial supported target:
 
-- Windows 11 current stable release at implementation time.
+- Windows 11 25H2 x64 on general-release hardware.
+
+Windows 11 version 26H1 exists, but Microsoft documents it as scoped to new
+devices that come to market in early 2026 and not offered as an in-place update
+from 24H2 or 25H2. Do not use 26H1 as the primary preview QA target unless a
+separate hardware-specific validation pass is added.
 
 Secondary manual-check target:
 
@@ -17,7 +22,7 @@ Do not claim Windows support until launch, OAuth, SQLite, MCP, tray, notificatio
 ## Current Status
 
 Status: Windows technical preview scaffold and Windows CI release validation
-are implemented. Installed Windows 11 x64 app QA is still required before any
+are implemented. Installed Windows 11 25H2 x64 app QA is still required before any
 public Windows support claim. The repo now has an `electron-windows-preview` native adapter,
 Windows safeStorage-backed credential persistence, NSIS packaging config,
 Windows release scripts, stable installer alias generation, an installer
@@ -37,10 +42,10 @@ read-only MCP in the installed app, verify unauthorized `401` rejection, and run
 workflow uses this MCP variant. The
 main process also applies the stable AppUserModelID during
 top-level Windows startup before `app.whenReady()`, while installed Start Menu,
-taskbar, and notification identity remain manual Windows 11 QA items. The main
+taskbar, and notification identity remain manual Windows 11 25H2 QA items. The main
 process now handles validated `hotcrossbuns://` launch argv for cold starts and
 Electron `second-instance` argv for warm starts; Windows installer protocol
-registration and installed-app routing still require Windows 11 QA.
+registration and installed-app routing still require Windows 11 25H2 QA.
 
 Automated validation that can run off-Windows passed before Windows-host
 validation:
@@ -63,7 +68,7 @@ Windows CI evidence:
   generation, current-template preview artifact bundle verification, and
   artifact upload.
 
-Remaining release blockers require a Windows 11 x64 installed-app QA pass:
+Remaining release blockers require a Windows 11 25H2 x64 installed-app QA pass:
 
 - installed app launch from installer finish, Start Menu, and desktop shortcut
 - AppUserModelID and taskbar grouping

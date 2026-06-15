@@ -1,6 +1,6 @@
 # Manual Windows Native Shell Checklist
 
-Use this checklist on a Windows 11 x64 machine before claiming a Windows
+Use this checklist on a Windows 11 25H2 x64 machine before claiming a Windows
 technical preview release.
 
 ## Build And Install
@@ -40,6 +40,7 @@ Record this host evidence before the manual pass:
 ```powershell
 Get-Date -Format o
 Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, OsBuildNumber, OsArchitecture
+Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' | Select-Object ProductName, DisplayVersion, CurrentBuildNumber, UBR
 node --version
 pnpm --version
 Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256

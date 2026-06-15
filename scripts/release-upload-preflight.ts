@@ -145,7 +145,7 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
     "technical preview",
     "Hot-Cross-Buns-2-windows-x64.exe",
     "Get-FileHash",
-    "Windows 11",
+    "Windows 11 25H2",
     "unsigned",
     "SmartScreen",
     "NSIS"

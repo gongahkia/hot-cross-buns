@@ -71,7 +71,7 @@ Around those core surfaces, the app also includes:
 
 - macOS DMG: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg`
 - Linux AppImage technical preview: gated until Ubuntu 26.04 LTS GNOME QA passes.
-- Windows NSIS technical preview: gated until Windows 11 x64 installed-app QA passes.
+- Windows NSIS technical preview: gated until Windows 11 25H2 x64 installed-app QA passes.
 - Release page: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest`
 - macOS one-line installer:
 

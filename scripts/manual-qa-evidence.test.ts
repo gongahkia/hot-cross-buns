@@ -78,7 +78,7 @@ describe("manual QA evidence", () => {
     expect(report).toContain("# Windows NSIS Manual QA Evidence");
     expect(report).toContain("| git sha | abc123 |");
     expect(report).toContain("Release file preflight: pass.");
-    expect(report).toContain("- [ ] NSIS installer run on Windows 11 x64");
+    expect(report).toContain("- [ ] NSIS installer run on Windows 11 25H2 x64");
   });
 
   it("reports missing release files without losing the manual checklist", async () => {
@@ -177,7 +177,7 @@ describe("manual QA evidence", () => {
     await writeFile(outputFile, source.replace("- [ ] pass", "- [x] pass"));
 
     await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
-      .rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 x64");
+      .rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 25H2 x64");
   });
 
   it("rejects failed manual QA evidence", async () => {

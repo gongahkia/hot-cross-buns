@@ -648,7 +648,7 @@ Still required before publishing a Windows preview:
 - AppUserModelID and taskbar grouping verified
 - Google OAuth Windows safeStorage token persistence verified across restart
 - OAuth browser round trip verified
-- MCP localhost smoke verified manually against Windows 11 installed app
+- MCP localhost smoke verified manually against Windows 11 25H2 installed app
 - tray, global shortcut, notification, protocol registration/routing, and
   autostart behavior tested
 - update-check UI verified against Windows assets

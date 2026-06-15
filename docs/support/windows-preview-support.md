@@ -1,6 +1,6 @@
 # Windows Preview Support
 
-Hot Cross Buns 2 Windows support is a technical preview for Windows 11 x64.
+Hot Cross Buns 2 Windows support is a technical preview for Windows 11 25H2 x64.
 The first preview artifact is an NSIS installer. Windows Preview Validation run
 `27525193372` passed HCB CLI MCP smoke, packaging, installer artifact smoke,
 checksum, silent install/launch/uninstall, Start Menu/desktop shortcut
@@ -8,7 +8,7 @@ target/removal checks, installed MCP smoke, persisted MCP token relaunch through
 Windows safeStorage, Electron smoke, performance smoke with required launch
 timing, manual QA evidence-template generation, current-template preview
 artifact bundle verification, and artifact upload on 2026-06-15 at commit
-`dd2f607`. Do not publish Windows artifacts until the Windows 11 installed-app
+`dd2f607`. Do not publish Windows artifacts until the Windows 11 25H2 installed-app
 manual QA checklist passes.
 
 ## Install And Run
@@ -33,13 +33,13 @@ to make a preview install pass.
 
 ## Known Preview Limits
 
-- Windows artifacts are internal technical previews until Windows 11 installed
-  app QA passes.
+- Windows artifacts are internal technical previews until Windows 11 25H2
+  installed-app QA passes.
 - Public Windows distribution requires a code-signing and SmartScreen plan.
 - In-place auto-update is not enabled. Settings checks GitHub Releases and
   opens a manual download path.
 - Tray, global shortcut, notification, protocol, autostart, OAuth, MCP, and
-  SQLite runtime behavior must be verified on Windows 11 before support claims
+  SQLite runtime behavior must be verified on Windows 11 25H2 before support claims
   expand beyond the technical preview.
 
 ## Diagnostics
@@ -79,5 +79,5 @@ Menu and desktop shortcuts target the installed executable and are absent after
 silent uninstall. It also verified MCP bearer-token persistence across an
 installed-app relaunch through Windows safeStorage. Manual Windows QA must still
 confirm interactive uninstall behavior, retained data paths, protocol cleanup,
-Google OAuth credential persistence, and open-at-login cleanup on Windows 11
+Google OAuth credential persistence, and open-at-login cleanup on Windows 11 25H2
 before release notes claim the uninstall policy is verified.

@@ -1,7 +1,7 @@
 # Windows Signing And SmartScreen
 
 Status: expected policy only. This has not been verified against an installed
-Hot Cross Buns 2 NSIS artifact on Windows 11.
+Hot Cross Buns 2 NSIS artifact on Windows 11 25H2.
 
 ## Unsigned Preview Policy
 
@@ -27,7 +27,7 @@ For this repo, that means:
 - OV/CA signing can identify the publisher and protect integrity, but new signed
   binaries may still need reputation;
 - public Windows distribution requires a signing decision before release;
-- SmartScreen observations must be recorded from a real Windows 11 install run
+- SmartScreen observations must be recorded from a real Windows 11 25H2 install run
   before any Windows support claim.
 
 ## Signing Paths To Evaluate

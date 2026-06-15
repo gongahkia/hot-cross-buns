@@ -119,7 +119,7 @@ async function writeReleaseNotes(notesFile: string, target: "linux" | "windows",
     ]
     : [
       "# Windows NSIS technical preview",
-      "Windows 11 installed-app manual QA passed.",
+      "Windows 11 25H2 installed-app manual QA passed.",
       "Hot-Cross-Buns-2-windows-x64.exe",
       "Get-FileHash",
       "unsigned NSIS SmartScreen expectations recorded."
@@ -169,7 +169,7 @@ describe("release upload preflight", () => {
       releaseDir,
       target: "windows",
       version: "5.0.0"
-    })).rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 x64");
+    })).rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 25H2 x64");
   });
 
   it("allows upload preflight before post-upload Settings update-check evidence exists", async () => {
@@ -248,7 +248,7 @@ describe("release upload preflight", () => {
     await mkdir(releaseDir);
     await writeReleaseFiles(releaseDir, windowsArtifacts);
     await writeEvidenceFile(evidenceFile, "windows");
-    await writeFile(notesFile, "# Windows NSIS technical preview\nWindows 11 unsigned NSIS SmartScreen.\nHot-Cross-Buns-2-windows-x64.exe\n");
+    await writeFile(notesFile, "# Windows NSIS technical preview\nWindows 11 25H2 unsigned NSIS SmartScreen.\nHot-Cross-Buns-2-windows-x64.exe\n");
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,

@@ -167,7 +167,7 @@ function preUploadManualChecks(target: ManualQaTarget): string[] {
   }
 
   return [
-    "NSIS installer run on Windows 11 x64",
+    "NSIS installer run on Windows 11 25H2 x64",
     "launch from installer finish, Start Menu, and desktop shortcut verified",
     "AppUserModelID, icon, Start Menu identity, and taskbar grouping verified",
     "SQLite native module and planner CRUD verified",
