@@ -1323,6 +1323,11 @@ Continuation audit, 2026-06-15:
   required local Linux AppImage or Windows NSIS release files, and is linked
   from the Linux/Windows manual shell checklists. This reduces manual QA
   ambiguity only; it does not complete any unchecked target-OS QA item.
+- Preview workflow evidence packaging on 2026-06-15: Linux and Windows preview
+  workflows now generate the `pnpm qa:evidence` manual QA templates after
+  successful platform smoke/performance gates and include `artifacts/manual-qa/`
+  in uploaded workflow artifacts. This prepares target-host QA handoff only and
+  does not complete any unchecked manual QA or upload gate.
 
 Completion definition for the next agent:
 

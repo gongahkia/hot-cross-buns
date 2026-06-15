@@ -48,7 +48,8 @@ pnpm qa:evidence -- --target linux --dir release
 
 Attach `artifacts/manual-qa/linux-evidence.md` to the release notes draft after
 the checklist is filled in. The command exits nonzero if required local release
-files are missing.
+files are missing. Successful Linux preview workflow artifacts also include this
+template.
 
 Record this host evidence before the manual pass:
 

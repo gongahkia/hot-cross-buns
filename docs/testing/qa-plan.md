@@ -134,6 +134,7 @@ CI smoke artifact policy:
   uploads Windows installer, checksum, bundle-review, performance, and
   Playwright artifacts.
 - On failure or cancellation it uploads Playwright traces, screenshots, and any release diagnostics under `output/playwright/`, `test-results/`, `playwright-report/`, and `artifacts/release/`.
+- Successful Linux/Windows preview runs also upload manual QA evidence templates under `artifacts/manual-qa/`.
 - Smoke artifacts may contain screenshots of local fixture data. Do not upload real user app data paths or private databases.
 
 ## Performance Smoke Tests

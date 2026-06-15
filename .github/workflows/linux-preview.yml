@@ -90,6 +90,9 @@ jobs:
           HCB_PERF_REQUIRE_ELECTRON: "1"
         run: xvfb-run -a pnpm test:perf
 
+      - name: Generate Linux manual QA evidence template
+        run: pnpm qa:evidence -- --target linux --dir release
+
       - name: Upload Linux preview artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -104,6 +107,7 @@ jobs:
             release/SHASUMS256.txt
             release/*.blockmap
             release/*.yml
+            artifacts/manual-qa/**
             artifacts/release/**
             artifacts/perf/**
             output/playwright/**

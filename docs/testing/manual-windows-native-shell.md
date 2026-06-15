@@ -18,7 +18,8 @@ technical preview release.
   running `pnpm release:smoke-nsis-install`.
 - Run `pnpm qa:evidence -- --target windows --dir release` and fill in
   `artifacts/manual-qa/windows-evidence.md` during the manual pass. The command
-  exits nonzero if required local release files are missing.
+  exits nonzero if required local release files are missing. Successful Windows
+  preview workflow artifacts also include this template.
 - Install with the NSIS installer.
 - Record SmartScreen/Defender/browser warning text, if any, using
   [Windows Signing And SmartScreen](../release/windows-signing-smartscreen.md).
