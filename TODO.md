@@ -1223,8 +1223,8 @@ Windows remaining work:
 Current handoff note, 2026-06-15:
 
 - Automated Linux/Windows CI evidence is current through Linux run
-  `27522372430`, Windows run `27522372049`, CI run `27522364295`, and Pages run
-  `27522363764`.
+  `27523207023`, Windows run `27523207032`, CI run `27523138829`, and Pages run
+  `27523138337`.
 - The current remaining Linux/Windows items are target-OS manual QA, release
   asset/update-check validation, and post-manual-QA docs/upload work.
 - Do not mark the Linux or Windows release gates complete from hosted CI alone.
@@ -1371,6 +1371,25 @@ Continuation audit, 2026-06-15:
   artifact integrity a required workflow gate, but still does not complete
   Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or real
   Linux/Windows release-asset update-check validation.
+- After commit `7931fa5bcaeac43453d4848643da24754b069223`, CI run
+  `27523138829` passed typecheck/unit tests and macOS Electron smoke, and Pages
+  run `27523138337` passed. Manual preview workflow reruns also passed the new
+  preview artifact bundle gate: Linux AppImage Preview Validation run
+  `27523207023` completed `pnpm release:artifact-bundle -- --target linux --dir
+  .` before upload; Windows Preview Validation run `27523207032` completed
+  `pnpm release:artifact-bundle -- --target windows --dir .` before upload.
+  GitHub artifact API reported `linux-preview-artifacts-27523207023` as not
+  expired, `349147845` bytes, digest
+  `sha256:2b88908d994ebf209b34496969990dde66f293aaff2fd058f236b2d0bf7facc8`,
+  and `windows-preview-artifacts-27523207032` as not expired, `288987058`
+  bytes, digest
+  `sha256:4b59cc872f5c3b432840ebe863d0c7d060e4480fbfbbc7d1b7e1c31f839839d8`.
+  Downloaded artifact verification also passed locally with `pnpm
+  release:artifact-bundle -- --target linux --dir
+  /tmp/hcb2-linux-preview-27523207023` and `pnpm release:artifact-bundle --
+  --target windows --dir /tmp/hcb2-windows-preview-27523207032`. This proves
+  hosted artifact bundle integrity only and does not complete target-OS manual
+  QA or release-upload gates.
 
 Completion definition for the next agent:
 
