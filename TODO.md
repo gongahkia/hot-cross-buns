@@ -1270,6 +1270,11 @@ Continuation audit, 2026-06-15:
   hardening passed: `pnpm test` completed `71` Vitest files and `546` tests.
   This is local automated evidence only and does not replace target-OS manual
   QA or real release-asset update-check validation.
+- Local production build rerun on 2026-06-15 after release-checksum and
+  smoke-manifest hardening passed: `pnpm build` completed typecheck and
+  Electron/Vite main, preload, and renderer production builds. This is local
+  automated evidence only and does not replace target-OS manual QA or real
+  release-asset update-check validation.
 
 Completion definition for the next agent:
 
