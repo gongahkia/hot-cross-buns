@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { formatManualQaEvidence, requiredReleaseFiles } from "./manual-qa-evidence";
 import { verifyPreviewArtifactBundle } from "./preview-artifact-bundle";
 
 const linuxArtifacts = [
@@ -61,12 +62,34 @@ async function writeBundleRelease(
   await writeFile(join(bundleDir, "release", "SHASUMS256.txt"), `${manifestLines.join("\n")}\n`);
 }
 
-async function writeEvidence(bundleDir: string, target: "linux" | "windows", pass = true): Promise<void> {
-  const title = target === "linux" ? "# Linux AppImage Manual QA Evidence" : "# Windows NSIS Manual QA Evidence";
+function evidenceSource(target: "linux" | "windows", pass = true): string {
+  return formatManualQaEvidence({
+    files: requiredReleaseFiles(target, "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    gitSha: "abc123",
+    host: {
+      arch: "x64",
+      cwd: "/repo",
+      hostname: "qa-host",
+      node: "v20.0.0",
+      osPlatform: target === "linux" ? "linux" : "win32",
+      osRelease: target === "linux" ? "6.8.0" : "10.0.22631",
+      osType: target === "linux" ? "Linux" : "Windows_NT",
+      pnpm: "9.15.4"
+    },
+    releaseDir: "/release",
+    target,
+    version: "5.0.0"
+  }).replace(
+    "Release file preflight: pass.",
+    `Release file preflight: ${pass ? "pass" : "fail"}.`
+  );
+}
 
+async function writeEvidence(bundleDir: string, target: "linux" | "windows", pass = true): Promise<void> {
   await writeFile(
     join(bundleDir, "artifacts", "manual-qa", `${target}-evidence.md`),
-    `${title}\n\nRelease file preflight: ${pass ? "pass" : "fail"}.\n`
+    evidenceSource(target, pass)
   );
 }
 
@@ -80,6 +103,7 @@ describe("preview artifact bundle verifier", () => {
     const messages = await verifyPreviewArtifactBundle({ bundleDir, target: "linux", version: "5.0.0" });
 
     expect(messages.join("\n")).toContain("linux-evidence.md exists");
+    expect(messages.join("\n")).toContain("current manual QA evidence template");
     expect(messages.join("\n")).toContain("Hot-Cross-Buns-2-linux-x64.AppImage exists");
   });
 
@@ -122,7 +146,21 @@ describe("preview artifact bundle verifier", () => {
 
     await expect(
       verifyPreviewArtifactBundle({ bundleDir, target: "windows", version: "5.0.0" })
-    ).rejects.toThrow("did not record a passing release file preflight");
+    ).rejects.toThrow("failed template verification: Manual QA evidence template did not record a passing release file preflight");
+  });
+
+  it("fails when the manual QA evidence template is stale", async () => {
+    const bundleDir = await createBundleDir();
+
+    await writeBundleRelease(bundleDir, linuxArtifacts);
+    await writeFile(
+      join(bundleDir, "artifacts", "manual-qa", "linux-evidence.md"),
+      evidenceSource("linux").replace("- [ ] Google OAuth browser round trip completed\n", "")
+    );
+
+    await expect(
+      verifyPreviewArtifactBundle({ bundleDir, target: "linux", version: "5.0.0" })
+    ).rejects.toThrow("missing current pre-upload check: Google OAuth browser round trip completed");
   });
 
   it("fails when uploaded perf evidence is missing", async () => {

@@ -4,6 +4,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import packageJson from "../package.json";
+import { verifyManualQaEvidenceTemplate } from "./manual-qa-evidence";
 
 const DEFAULT_BUNDLE_DIR = ".";
 const checksumManifestName = "SHASUMS256.txt";
@@ -207,19 +208,16 @@ async function verifyEvidenceTemplate(
   target: PreviewArtifactBundleTarget
 ): Promise<string> {
   const evidence = await readFile(evidencePath, "utf8");
-  const expectedTitle = target === "linux"
-    ? "# Linux AppImage Manual QA Evidence"
-    : "# Windows NSIS Manual QA Evidence";
 
-  if (!evidence.includes(expectedTitle)) {
-    throw new Error(`${relative(process.cwd(), evidencePath)} is not a ${target} manual QA evidence template`);
+  try {
+    verifyManualQaEvidenceTemplate(evidence, target);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    throw new Error(`${relative(process.cwd(), evidencePath)} failed template verification: ${message}`);
   }
 
-  if (!evidence.includes("Release file preflight: pass.")) {
-    throw new Error(`${relative(process.cwd(), evidencePath)} did not record a passing release file preflight`);
-  }
-
-  return `${relative(process.cwd(), evidencePath)} exists and records a passing release file preflight.`;
+  return `${relative(process.cwd(), evidencePath)} exists and contains the current manual QA evidence template.`;
 }
 
 async function verifySupportArtifacts(layout: BundleLayout): Promise<string[]> {

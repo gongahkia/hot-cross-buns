@@ -225,6 +225,12 @@ function checkedLine(source: string, text: string): boolean {
   return new RegExp(`^- \\[x\\] ${escaped}$`, "m").test(source);
 }
 
+function uncheckedLine(source: string, text: string): boolean {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  return new RegExp(`^- \\[ \\] ${escaped}$`, "m").test(source);
+}
+
 function resultNotes(source: string): string {
   const lines = source.split(/\r?\n/);
   const notesIndex = lines.findIndex((line) => /^- notes:/i.test(line));
@@ -368,6 +374,45 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
   messages.push(`${evidenceFile} records a passing release file preflight, pass result, and result notes.`);
 
   return messages;
+}
+
+export function verifyManualQaEvidenceTemplate(source: string, target: ManualQaTarget): string[] {
+  const requiredPreUploadEvidence = section(source, "Required Pre-Upload Manual Evidence");
+  const requiredPostUploadEvidence = section(source, "Required Post-Upload Evidence");
+  const result = section(source, "Result");
+
+  if (!source.includes(targetTitle(target))) {
+    throw new Error(`Manual QA evidence template is not a ${target} template`);
+  }
+
+  if (!source.includes(`| os platform | ${expectedOsPlatform(target)} |`)) {
+    throw new Error(`Manual QA evidence template was not generated on ${expectedOsPlatform(target)}`);
+  }
+
+  if (!source.includes("Release file preflight: pass.")) {
+    throw new Error("Manual QA evidence template did not record a passing release file preflight");
+  }
+
+  for (const check of preUploadManualChecks(target)) {
+    if (!uncheckedLine(requiredPreUploadEvidence, check)) {
+      throw new Error(`Manual QA evidence template is missing current pre-upload check: ${check}`);
+    }
+  }
+
+  for (const check of postUploadManualChecks(target)) {
+    if (!uncheckedLine(requiredPostUploadEvidence, check)) {
+      throw new Error(`Manual QA evidence template is missing current post-upload check: ${check}`);
+    }
+  }
+
+  if (!uncheckedLine(result, "pass") || !uncheckedLine(result, "fail") || !/^- notes:\s*$/m.test(result)) {
+    throw new Error("Manual QA evidence template does not have a blank result section");
+  }
+
+  return [
+    `Manual QA evidence template has ${manualChecks(target).length} current required checks.`,
+    "Manual QA evidence template records a passing release file preflight and blank result section."
+  ];
 }
 
 export async function writeManualQaEvidence(options: ManualQaEvidenceOptions = {}): Promise<{

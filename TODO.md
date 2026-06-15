@@ -1362,9 +1362,9 @@ Continuation audit, 2026-06-15:
   release:artifact-bundle` now verifies a downloaded Linux or Windows preview
   workflow artifact contains the expected release files, matching
   `SHASUMS256.txt` and sidecar checksums, byte-matching stable aliases,
-  non-empty bundle/performance reports, and a passing manual QA evidence
-  template. This improves target-host QA handoff only and does not complete any
-  unchecked manual QA item.
+  non-empty bundle/performance reports, and the current manual QA evidence
+  template with all required sections and checks. This improves target-host QA
+  handoff only and does not complete any unchecked manual QA item.
 - Preview workflow bundle-gate integration on 2026-06-15: Linux and Windows
   preview workflows now run `pnpm release:artifact-bundle -- --target <target>
   --dir .` before uploading preview artifacts. This makes hosted preview
