@@ -5,12 +5,13 @@ The first preview artifact is an AppImage. Other distributions and desktop
 environments are secondary validation targets until the Linux QA matrix is
 complete.
 
-Linux AppImage Preview Validation run `27522372430` passed HCB CLI MCP smoke,
+Linux AppImage Preview Validation run `27523207023` passed HCB CLI MCP smoke,
 AppImage packaging/checksum/metadata/launch smoke, packaged AppImage MCP smoke
 under a hosted GNOME/libsecret keyring session, Electron smoke, performance
-smoke with required launch timing, manual QA evidence-template generation, and
-artifact upload on 2026-06-15 at commit `3e7032d`. Ubuntu GNOME manual QA
-remains required before uploading public Linux artifacts.
+smoke with required launch timing, manual QA evidence-template generation,
+preview artifact bundle verification, and artifact upload on 2026-06-15 at
+commit `7931fa5`. Ubuntu GNOME manual QA remains required before uploading
+public Linux artifacts.
 
 ## Install And Run
 

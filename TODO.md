@@ -1396,6 +1396,11 @@ Continuation audit, 2026-06-15:
   checkbox marked complete, and a pass result without a fail result. This gives
   future Ubuntu GNOME and Windows 11 manual QA closure a concrete verifier, but
   does not complete the unchecked manual QA items by itself.
+- Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
+  support docs, port docs, distribution docs, and manual QA checklists now cite
+  the current bundle-gated preview runs `27523207023` and `27523207032` at
+  commit `7931fa5`. This is documentation evidence freshness only and does not
+  complete target-OS manual QA or release-upload gates.
 
 Completion definition for the next agent:
 
