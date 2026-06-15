@@ -1223,8 +1223,8 @@ Windows remaining work:
 Current handoff note, 2026-06-15:
 
 - Automated Linux/Windows CI evidence is current through Linux run
-  `27521460631`, Windows run `27521460607`, CI run `27521687732`, and Pages run
-  `27521687015`.
+  `27522372430`, Windows run `27522372049`, CI run `27522364295`, and Pages run
+  `27522363764`.
 - The current remaining Linux/Windows items are target-OS manual QA, release
   asset/update-check validation, and post-manual-QA docs/upload work.
 - Do not mark the Linux or Windows release gates complete from hosted CI alone.
@@ -1315,8 +1315,8 @@ Continuation audit, 2026-06-15:
   verification against real Linux/Windows GitHub Release assets.
 - Documentation evidence refresh on 2026-06-15: Linux and Windows support docs,
   release notes, distribution docs, port docs, and manual QA checklists now
-  cite the stricter successful preview workflow runs `27521460631` and
-  `27521460607`. This is documentation cleanup only and does not complete any
+  cite the stricter successful preview workflow runs `27522372430` and
+  `27522372049`. This is documentation cleanup only and does not complete any
   unchecked manual QA or upload gate.
 - Manual QA evidence helper on 2026-06-15: `pnpm qa:evidence` now writes a
   target-host evidence template under `artifacts/manual-qa/`, preflights the
@@ -1328,6 +1328,28 @@ Continuation audit, 2026-06-15:
   successful platform smoke/performance gates and include `artifacts/manual-qa/`
   in uploaded workflow artifacts. This prepares target-host QA handoff only and
   does not complete any unchecked manual QA or upload gate.
+- After commit `3e7032d4eb63990cac8833bbbba99990da62019c`, CI run
+  `27522364295` passed typecheck/unit tests and macOS Electron smoke, and Pages
+  run `27522363764` passed. Manual preview workflow reruns also passed with
+  manual QA evidence-template generation enabled: Linux AppImage Preview
+  Validation run `27522372430` completed HCB CLI MCP smoke, AppImage build,
+  checksum verification, metadata smoke, launch smoke, packaged MCP smoke,
+  Electron smoke, performance smoke, `pnpm qa:evidence -- --target linux --dir
+  release`, and artifact upload; Windows Preview Validation run `27522372049`
+  completed HCB CLI MCP smoke, NSIS build, installer artifact smoke, checksum
+  verification, silent install/MCP smoke, Electron smoke, performance smoke,
+  `pnpm qa:evidence -- --target windows --dir release`, and artifact upload.
+  GitHub artifact API reported `linux-preview-artifacts-27522372430` as not
+  expired, `349147429` bytes, digest
+  `sha256:79b6b7269dfec27acbac8adfd631f12fd98835d4083107e19965a58c2d784cd2`,
+  and `windows-preview-artifacts-27522372049` as not expired, `288986413`
+  bytes, digest
+  `sha256:f5ffce01180332f682a27724aab4bedb9e14558021a50465dcfcf41b3bb2acaf`.
+  Workflow logs showed `linux-evidence.md` and `windows-evidence.md` were
+  written before upload and that `artifacts/manual-qa/**` was included in the
+  upload path. This strengthens handoff artifacts only and does not complete
+  Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or Settings
+  update-check verification against real Linux/Windows GitHub Release assets.
 
 Completion definition for the next agent:
 

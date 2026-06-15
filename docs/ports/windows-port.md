@@ -52,14 +52,15 @@ validation:
 
 Windows CI evidence:
 
-- `Windows Preview Validation` run `27521460607` passed on 2026-06-15 at
-  commit `b415f1e`.
+- `Windows Preview Validation` run `27522372049` passed on 2026-06-15 at
+  commit `3e7032d`.
 - The run completed `pnpm release:win:preview`, `pnpm release:smoke-nsis`,
   HCB CLI MCP smoke, PowerShell `Get-FileHash` verification for
   `Hot-Cross-Buns-2-windows-x64.exe`, silent NSIS install/launch/uninstall plus
   Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
   persisted MCP token relaunch through Windows safeStorage, Electron smoke,
-  performance smoke with required launch timing, and artifact upload.
+  performance smoke with required launch timing, manual QA evidence-template
+  generation, and artifact upload.
 
 Remaining release blockers require a Windows 11 x64 installed-app QA pass:
 
