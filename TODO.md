@@ -948,6 +948,12 @@ assets plus `SHASUMS256.txt` only, so Linux AppImage and Windows `.exe`
 Settings update-check verification remains blocked until a draft or published
 release contains those platform artifacts. No Linux/Windows upload should happen
 before the manual target-OS QA gates pass.
+Live release asset recheck on 2026-06-15: GitHub API and authenticated
+`gh release view v5.0.0 --json isDraft,isPrerelease,tagName,publishedAt,assets`
+still show only macOS DMG/zip assets plus `SHASUMS256.txt`, and
+`gh release list --limit 20` shows no draft release. Linux AppImage and Windows
+`.exe` Settings update-check verification therefore remains blocked by missing
+release assets and must not be marked complete from mock tests alone.
 
 Windows SmartScreen documentation on 2026-06-14:
 `docs/release/windows-signing-smartscreen.md` now documents the unsigned
