@@ -40,7 +40,7 @@
         video.pause();
       }
     });
-  }, { rootMargin: "240px 0px", threshold: 0.2 });
+  }, { rootMargin: "0px", threshold: 0.35 });
 
   videos.forEach((video) => observer.observe(video));
 
