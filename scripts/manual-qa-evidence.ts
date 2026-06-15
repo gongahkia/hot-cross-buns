@@ -189,6 +189,53 @@ function postUploadManualChecks(target: ManualQaTarget): string[] {
     : ["Settings update-check verified only after Windows release assets exist"];
 }
 
+function targetHostDetailFields(target: ManualQaTarget): string[] {
+  return target === "linux"
+    ? ["target os", "desktop", "session", "tester", "evidence attachments"]
+    : ["target windows version", "os build", "arch", "tester", "evidence attachments"];
+}
+
+function targetHostDetailValue(source: string, field: string): string {
+  const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`^- ${escaped}:[ \t]*(.+)$`, "im").exec(source);
+
+  return match?.[1].trim() ?? "";
+}
+
+function verifyTargetHostDetails(source: string, target: ManualQaTarget): void {
+  for (const field of targetHostDetailFields(target)) {
+    if (!targetHostDetailValue(source, field)) {
+      throw new Error(`Manual QA evidence is missing target-host detail: ${field}`);
+    }
+  }
+
+  if (target === "linux") {
+    const os = targetHostDetailValue(source, "target os");
+    const desktop = targetHostDetailValue(source, "desktop");
+
+    if (!/Ubuntu\s+26\.04\s+LTS/i.test(os)) {
+      throw new Error("Manual QA evidence target os is not Ubuntu 26.04 LTS");
+    }
+
+    if (!/GNOME/i.test(desktop)) {
+      throw new Error("Manual QA evidence desktop is not GNOME");
+    }
+
+    return;
+  }
+
+  const version = targetHostDetailValue(source, "target windows version");
+  const arch = targetHostDetailValue(source, "arch");
+
+  if (!/Windows\s+11/i.test(version) || !/25H2/i.test(version)) {
+    throw new Error("Manual QA evidence target windows version is not Windows 11 25H2");
+  }
+
+  if (!/x64|amd64/i.test(arch)) {
+    throw new Error("Manual QA evidence architecture is not x64");
+  }
+}
+
 function manualChecks(target: ManualQaTarget, stage: ManualQaVerificationStage = "full"): string[] {
   const preUploadChecks = preUploadManualChecks(target);
 
@@ -286,11 +333,16 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
   );
   const preUploadChecks = preUploadManualChecks(evidence.target).map((check) => `- [ ] ${check}`);
   const postUploadChecks = postUploadManualChecks(evidence.target).map((check) => `- [ ] ${check}`);
+  const targetHostDetails = targetHostDetailFields(evidence.target).map((field) => `- ${field}:`);
 
   return [
     targetTitle(evidence.target),
     "",
     markdownTable(hostRows),
+    "",
+    "## Target Host Details",
+    "",
+    ...targetHostDetails,
     "",
     "## Release Files",
     "",
@@ -329,6 +381,7 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
   const requiredPostUploadEvidence = source.includes("## Required Post-Upload Evidence\n")
     ? section(source, "Required Post-Upload Evidence")
     : requiredPreUploadEvidence;
+  const targetHostDetails = section(source, "Target Host Details");
   const result = section(source, "Result");
   const messages: string[] = [];
 
@@ -343,6 +396,8 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
   if (!source.includes("Release file preflight: pass.")) {
     throw new Error(`${evidenceFile} did not record a passing release file preflight`);
   }
+
+  verifyTargetHostDetails(targetHostDetails, options.target);
 
   for (const check of preUploadManualChecks(options.target)) {
     if (!checkedLine(requiredPreUploadEvidence, check)) {
@@ -371,7 +426,7 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
   }
 
   messages.push(`${evidenceFile} has all ${manualChecks(options.target, stage).length} required ${stage} manual checks marked pass.`);
-  messages.push(`${evidenceFile} records a passing release file preflight, pass result, and result notes.`);
+  messages.push(`${evidenceFile} records target-host details, a passing release file preflight, pass result, and result notes.`);
 
   return messages;
 }
@@ -379,6 +434,7 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
 export function verifyManualQaEvidenceTemplate(source: string, target: ManualQaTarget): string[] {
   const requiredPreUploadEvidence = section(source, "Required Pre-Upload Manual Evidence");
   const requiredPostUploadEvidence = section(source, "Required Post-Upload Evidence");
+  const targetHostDetails = section(source, "Target Host Details");
   const result = section(source, "Result");
 
   if (!source.includes(targetTitle(target))) {
@@ -391,6 +447,12 @@ export function verifyManualQaEvidenceTemplate(source: string, target: ManualQaT
 
   if (!source.includes("Release file preflight: pass.")) {
     throw new Error("Manual QA evidence template did not record a passing release file preflight");
+  }
+
+  for (const field of targetHostDetailFields(target)) {
+    if (!new RegExp(`^- ${field}:[ \t]*$`, "im").test(targetHostDetails)) {
+      throw new Error(`Manual QA evidence template is missing blank target-host detail: ${field}`);
+    }
   }
 
   for (const check of preUploadManualChecks(target)) {
@@ -411,7 +473,7 @@ export function verifyManualQaEvidenceTemplate(source: string, target: ManualQaT
 
   return [
     `Manual QA evidence template has ${manualChecks(target).length} current required checks.`,
-    "Manual QA evidence template records a passing release file preflight and blank result section."
+    "Manual QA evidence template records blank target-host details, a passing release file preflight, and blank result section."
   ];
 }
 

@@ -26,8 +26,20 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function completeEvidence(source: string): string {
+function completeTargetHostDetails(source: string): string {
   return source
+    .replace("- target os:", "- target os: Ubuntu 26.04 LTS")
+    .replace("- desktop:", "- desktop: GNOME")
+    .replace("- session:", "- session: Wayland")
+    .replace("- target windows version:", "- target windows version: Windows 11 25H2")
+    .replace("- os build:", "- os build: 26200.8655")
+    .replace("- arch:", "- arch: x64")
+    .replace("- tester:", "- tester: qa")
+    .replace("- evidence attachments:", "- evidence attachments: attached logs and screenshots");
+}
+
+function completeEvidence(source: string): string {
+  return completeTargetHostDetails(source)
     .replace(/^- \[ \] /gm, "- [x] ")
     .replace("- [x] fail", "- [ ] fail")
     .replace("- notes:", "- notes: Target-host QA evidence recorded.");
@@ -79,7 +91,14 @@ async function writeEvidenceFile(evidenceFile: string, target: "linux" | "window
     version: "5.0.0"
   });
 
-  await writeFile(evidenceFile, complete ? completeEvidence(source) : source.replace("- [ ] pass", "- [x] pass"));
+  await writeFile(
+    evidenceFile,
+    complete
+      ? completeEvidence(source)
+      : completeTargetHostDetails(source)
+        .replace("- [ ] pass", "- [x] pass")
+        .replace("- notes:", "- notes: Target-host QA evidence recorded.")
+  );
 }
 
 async function writePreUploadEvidenceFile(evidenceFile: string, target: "linux" | "windows"): Promise<void> {

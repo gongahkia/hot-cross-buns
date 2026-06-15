@@ -19,7 +19,9 @@ technical preview release.
 - Run `pnpm qa:evidence -- --target windows --dir release` and fill in
   `artifacts/manual-qa/windows-evidence.md` during the manual pass. The command
   exits nonzero if required local release files are missing. Successful Windows
-  preview workflow artifacts also include this template.
+  preview workflow artifacts also include this template. Fill `Target Host
+  Details` with Windows 11 25H2, OS build, x64 arch, tester, and evidence
+  attachments.
 - Before uploading Windows release assets, run
   `pnpm qa:evidence:verify -- --target windows --stage pre-upload --verify artifacts/manual-qa/windows-evidence.md`.
 - After Windows release assets exist and Settings update-check is verified, run

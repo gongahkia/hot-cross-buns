@@ -1393,11 +1393,13 @@ Continuation audit, 2026-06-15:
   QA or release-upload gates.
 - Manual QA evidence verifier on 2026-06-15: `pnpm qa:evidence:verify` now
   checks a filled Linux or Windows target-host evidence file for target title,
-  expected OS platform, passing release-file preflight, every required manual
-  checkbox marked complete, a pass result without a fail result, and non-empty
-  result notes. It supports `--stage pre-upload` for pre-upload target-host
-  checks and full/default verification after release assets exist and
-  Settings update-check is verified. This gives future Ubuntu 26.04 LTS GNOME and Windows
+  expected OS platform, target-host details, passing release-file preflight,
+  every required manual checkbox marked complete, a pass result without a fail
+  result, and non-empty result notes. The target-host detail check requires
+  Ubuntu 26.04 LTS GNOME for Linux evidence and Windows 11 25H2 x64 for Windows
+  evidence. It supports `--stage pre-upload` for pre-upload target-host checks
+  and full/default verification after release assets exist and Settings
+  update-check is verified. This gives future Ubuntu 26.04 LTS GNOME and Windows
   11 manual QA closure a concrete verifier, but does not complete the unchecked
   manual QA items by itself.
 - Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
