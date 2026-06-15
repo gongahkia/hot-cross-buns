@@ -8,6 +8,7 @@ const DEFAULT_REPO = "gongahkia/hot-cross-buns-2";
 export type ReleaseAssetTarget = "linux" | "windows";
 
 interface ReleaseAsset {
+  digest?: string | null;
   name: string;
 }
 
@@ -18,6 +19,7 @@ interface ReleaseAssetPreflightInput {
 }
 
 export interface ReleaseAssetPreflightResult {
+  digestProblems: string[];
   matchingUpdateAssets: string[];
   missingAssets: string[];
   ok: boolean;
@@ -76,6 +78,70 @@ export function matchesUpdateCheckAsset(assetName: string, target: ReleaseAssetT
   return /windows-(?:x64|x86_64)\.exe$/i.test(assetName);
 }
 
+function releaseArtifacts(target: ReleaseAssetTarget, version = packageJson.version): string[] {
+  if (target === "linux") {
+    return [
+      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-2-linux.AppImage",
+      "Hot-Cross-Buns-2-linux-x64.AppImage"
+    ];
+  }
+
+  return [
+    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-2-windows.exe",
+    "Hot-Cross-Buns-2-windows-x64.exe"
+  ];
+}
+
+function versionedArtifact(target: ReleaseAssetTarget, version = packageJson.version): string {
+  return target === "linux"
+    ? `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`
+    : `Hot-Cross-Buns-2-${version}-windows-x64.exe`;
+}
+
+function stableAliases(target: ReleaseAssetTarget): string[] {
+  return target === "linux"
+    ? ["Hot-Cross-Buns-2-linux.AppImage", "Hot-Cross-Buns-2-linux-x64.AppImage"]
+    : ["Hot-Cross-Buns-2-windows.exe", "Hot-Cross-Buns-2-windows-x64.exe"];
+}
+
+function assetDigestProblems(input: ReleaseAssetPreflightInput): string[] {
+  const assetsByName = new Map(input.assets.map((asset) => [asset.name, asset]));
+  const problems: string[] = [];
+  const versioned = versionedArtifact(input.target, input.version);
+  const versionedDigest = assetsByName.get(versioned)?.digest;
+
+  for (const artifact of releaseArtifacts(input.target, input.version)) {
+    const uploadedAsset = assetsByName.get(artifact);
+    const digest = uploadedAsset?.digest;
+
+    if (!uploadedAsset) {
+      continue;
+    }
+
+    if (!digest) {
+      problems.push(`${artifact} is missing a GitHub SHA-256 digest`);
+    } else if (!digest.startsWith("sha256:")) {
+      problems.push(`${artifact} has unsupported digest metadata: ${digest}`);
+    }
+  }
+
+  if (!versionedDigest) {
+    return problems;
+  }
+
+  for (const alias of stableAliases(input.target)) {
+    const aliasDigest = assetsByName.get(alias)?.digest;
+
+    if (aliasDigest && aliasDigest !== versionedDigest) {
+      problems.push(`${alias} digest does not match ${versioned}`);
+    }
+  }
+
+  return problems;
+}
+
 export function evaluateReleaseAssetPreflight(
   input: ReleaseAssetPreflightInput
 ): ReleaseAssetPreflightResult {
@@ -85,11 +151,13 @@ export function evaluateReleaseAssetPreflight(
   const matchingUpdateAssets = input.assets
     .map((asset) => asset.name)
     .filter((assetName) => matchesUpdateCheckAsset(assetName, input.target));
+  const digestProblems = assetDigestProblems(input);
 
   return {
+    digestProblems,
     matchingUpdateAssets,
     missingAssets,
-    ok: missingAssets.length === 0 && matchingUpdateAssets.length > 0,
+    ok: missingAssets.length === 0 && matchingUpdateAssets.length > 0 && digestProblems.length === 0,
     requiredAssets,
     target: input.target
   };
@@ -101,12 +169,15 @@ function releaseAssetsFromGh(input: { repo: string; tag: string }): ReleaseAsset
     ["release", "view", input.tag, "--repo", input.repo, "--json", "assets"],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   );
-  const parsed = JSON.parse(raw) as { assets?: Array<{ name?: unknown }> };
+  const parsed = JSON.parse(raw) as { assets?: Array<{ digest?: unknown; name?: unknown }> };
 
   return Array.isArray(parsed.assets)
     ? parsed.assets
       .filter((asset) => typeof asset.name === "string")
-      .map((asset) => ({ name: asset.name as string }))
+      .map((asset) => ({
+        digest: typeof asset.digest === "string" ? asset.digest : null,
+        name: asset.name as string
+      }))
     : [];
 }
 
@@ -123,6 +194,12 @@ function printResult(result: ReleaseAssetPreflightResult): void {
     console.log(`missing required asset(s): ${result.missingAssets.join(", ")}`);
   } else {
     console.log("missing required asset(s): none");
+  }
+
+  if (result.digestProblems.length > 0) {
+    console.log(`digest problem(s): ${result.digestProblems.join(", ")}`);
+  } else {
+    console.log("digest problem(s): none");
   }
 }
 

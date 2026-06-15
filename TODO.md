@@ -1409,6 +1409,12 @@ Continuation audit, 2026-06-15:
   and release uploads remain incomplete. Running it against downloaded Linux
   preview artifact `27523207023` exited `1` because `linux-evidence.md` is
   still an unchecked manual QA template.
+- Release asset preflight digest hardening on 2026-06-15: `pnpm
+  release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
+  uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a
+  stable alias digest differs from the versioned artifact. This strengthens the
+  post-upload update-check gate only; current `v5.0.0` still lacks Linux and
+  Windows release assets.
 
 Completion definition for the next agent:
 

@@ -493,8 +493,9 @@ gh release upload "$TAG" \
   --clobber
 ```
 
-After upload, verify that the release contains the required Linux upload files
-and at least one Linux x64 AppImage asset that Settings update-check can prefer:
+After upload, verify that the release contains the required Linux upload files,
+GitHub SHA-256 digest metadata with byte-matching stable aliases, and at least
+one Linux x64 AppImage asset that Settings update-check can prefer:
 
 ```sh
 pnpm release:asset-preflight -- --target linux --tag "$TAG"
@@ -533,8 +534,9 @@ gh release upload "$TAG" \
   --clobber
 ```
 
-After upload, verify that the release contains the required Windows upload files
-and at least one Windows x64 `.exe` asset that Settings update-check can prefer:
+After upload, verify that the release contains the required Windows upload
+files, GitHub SHA-256 digest metadata with byte-matching stable aliases, and at
+least one Windows x64 `.exe` asset that Settings update-check can prefer:
 
 ```sh
 pnpm release:asset-preflight -- --target windows --tag "$TAG"

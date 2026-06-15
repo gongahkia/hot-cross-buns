@@ -6,7 +6,11 @@ import {
 } from "./release-asset-preflight";
 
 function asset(name: string) {
-  return { name };
+  return { digest: "sha256:abc123", name };
+}
+
+function assetWithDigest(name: string, digest: string | null) {
+  return { digest, name };
 }
 
 describe("release asset preflight", () => {
@@ -50,6 +54,7 @@ describe("release asset preflight", () => {
     });
 
     expect(result).toMatchObject({
+      digestProblems: [],
       ok: true,
       missingAssets: [],
       matchingUpdateAssets: [
@@ -73,5 +78,47 @@ describe("release asset preflight", () => {
     expect(result.ok).toBe(false);
     expect(result.matchingUpdateAssets).toEqual([]);
     expect(result.missingAssets).toContain("Hot-Cross-Buns-2-5.0.0-windows-x64.exe");
+  });
+
+  it("fails when a stable Linux alias digest differs from the versioned AppImage", () => {
+    const result = evaluateReleaseAssetPreflight({
+      target: "linux",
+      version: "5.0.0",
+      assets: [
+        assetWithDigest("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage", "sha256:versioned"),
+        asset("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage.sha256"),
+        assetWithDigest("Hot-Cross-Buns-2-linux.AppImage", "sha256:versioned"),
+        asset("Hot-Cross-Buns-2-linux.AppImage.sha256"),
+        assetWithDigest("Hot-Cross-Buns-2-linux-x64.AppImage", "sha256:alias"),
+        asset("Hot-Cross-Buns-2-linux-x64.AppImage.sha256"),
+        asset("SHASUMS256.txt")
+      ]
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.digestProblems).toContain(
+      "Hot-Cross-Buns-2-linux-x64.AppImage digest does not match Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage"
+    );
+  });
+
+  it("fails when uploaded Windows installer digest metadata is absent", () => {
+    const result = evaluateReleaseAssetPreflight({
+      target: "windows",
+      version: "5.0.0",
+      assets: [
+        assetWithDigest("Hot-Cross-Buns-2-5.0.0-windows-x64.exe", null),
+        asset("Hot-Cross-Buns-2-5.0.0-windows-x64.exe.sha256"),
+        assetWithDigest("Hot-Cross-Buns-2-windows.exe", "sha256:abc123"),
+        asset("Hot-Cross-Buns-2-windows.exe.sha256"),
+        assetWithDigest("Hot-Cross-Buns-2-windows-x64.exe", "sha256:abc123"),
+        asset("Hot-Cross-Buns-2-windows-x64.exe.sha256"),
+        asset("SHASUMS256.txt")
+      ]
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.digestProblems).toContain(
+      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe is missing a GitHub SHA-256 digest"
+    );
   });
 });
