@@ -1290,6 +1290,29 @@ Continuation audit, 2026-06-15:
   and command-palette local search path instead of stale removed selectors. This
   is local automated evidence only and does not replace target-OS manual QA or
   real release-asset update-check validation.
+- Performance launch-gate hardening on 2026-06-15: the perf report required
+  Electron gate now treats missing `shellVisibleMs` or `cachedDataRenderedMs` as
+  incomplete launch timing, and the perf smoke harness refreshes diagnostics
+  startup timings after renderer UI flows before writing launch captures.
+  Verification passed locally with
+  `pnpm exec vitest run --config vitest.config.ts scripts/perf/report.test.ts`,
+  `pnpm typecheck`, and `pnpm test:perf`; the local perf report wrote `53`
+  collected measurements, `0` skipped measurements, and complete cold/warm
+  shell-visible plus cached-render timings.
+- After commit `b415f1e10da3711a253437ece67d09806cb91a72`, CI run
+  `27521452175` passed typecheck/unit tests and macOS Electron smoke. Manual
+  preview workflow reruns also passed the stricter perf launch gate: Linux
+  AppImage Preview Validation run `27521460631` completed AppImage build,
+  checksum verification, metadata smoke, launch smoke, packaged MCP smoke,
+  Electron smoke, performance smoke, and artifact upload; Windows Preview
+  Validation run `27521460607` completed NSIS build, installer artifact smoke,
+  checksum verification, silent install/MCP smoke, Electron smoke, performance
+  smoke, and artifact upload. GitHub artifact API reported
+  `linux-preview-artifacts-27521460631` as not expired, `349145395` bytes, and
+  `windows-preview-artifacts-27521460607` as not expired, `288984962` bytes.
+  This strengthens automated evidence only and does not complete Ubuntu GNOME
+  manual QA, Windows 11 installed-app manual QA, or Settings update-check
+  verification against real Linux/Windows GitHub Release assets.
 
 Completion definition for the next agent:
 
