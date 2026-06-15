@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
@@ -16,6 +17,7 @@ interface ChecksumEntry {
 
 interface ReleaseUploadPreflightOptions {
   evidenceFile?: string;
+  expectedGitSha?: string;
   notesFile?: string;
   releaseDir?: string;
   target: ReleaseAssetTarget;
@@ -121,6 +123,20 @@ function defaultEvidenceFile(target: ReleaseAssetTarget): string {
 
 function defaultNotesFile(version: string): string {
   return join("docs", "release", "notes", `v${version}.md`);
+}
+
+function currentGitSha(): string {
+  return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+}
+
+function evidenceGitSha(source: string, evidenceFile: string): string {
+  const match = /^\| git sha \| ([^|]+) \|$/m.exec(source);
+
+  if (!match) {
+    throw new Error(`${evidenceFile} is missing manual QA evidence git sha`);
+  }
+
+  return match[1].trim();
 }
 
 function requiredReleaseNotePhrases(target: ReleaseAssetTarget, version = packageJson.version): string[] {
@@ -239,13 +255,26 @@ async function verifyReleaseNotes(options: Required<Pick<ReleaseUploadPreflightO
   return [`${notesFile} has ${options.target} release-note upload content.`];
 }
 
+async function verifyEvidenceGitSha(options: Required<Pick<ReleaseUploadPreflightOptions, "evidenceFile" | "expectedGitSha">>): Promise<string[]> {
+  const evidenceFile = resolve(options.evidenceFile);
+  const sha = evidenceGitSha(await readFile(evidenceFile, "utf8"), evidenceFile);
+
+  if (sha !== options.expectedGitSha) {
+    throw new Error(`${evidenceFile} manual QA evidence git sha ${sha} does not match expected ${options.expectedGitSha}`);
+  }
+
+  return [`${evidenceFile} was generated from expected git sha ${sha}.`];
+}
+
 export async function verifyReleaseUploadPreflight(options: ReleaseUploadPreflightOptions): Promise<string[]> {
   const target = options.target;
   const releaseDir = options.releaseDir ?? "release";
   const version = options.version ?? packageJson.version;
   const evidenceFile = options.evidenceFile ?? defaultEvidenceFile(target);
+  const expectedGitSha = options.expectedGitSha ?? currentGitSha();
   const notesFile = options.notesFile ?? defaultNotesFile(version);
   const releaseMessages = await verifyReleaseFiles({ releaseDir, target, version });
+  const evidenceGitShaMessages = await verifyEvidenceGitSha({ evidenceFile, expectedGitSha });
   const evidenceMessages = await verifyManualQaEvidence({
     evidenceFile,
     stage: "pre-upload",
@@ -255,6 +284,7 @@ export async function verifyReleaseUploadPreflight(options: ReleaseUploadPreflig
 
   return [
     ...releaseMessages,
+    ...evidenceGitShaMessages,
     ...evidenceMessages,
     ...notesMessages,
     `${target} release upload preflight passed for ${version}.`
@@ -265,6 +295,7 @@ async function main(): Promise<void> {
   const target = normalizeTarget(argValue("--target"));
   const messages = await verifyReleaseUploadPreflight({
     evidenceFile: argValue("--evidence"),
+    expectedGitSha: argValue("--expected-git-sha", currentGitSha()),
     notesFile: argValue("--notes"),
     releaseDir: argValue("--release-dir", "release"),
     target,

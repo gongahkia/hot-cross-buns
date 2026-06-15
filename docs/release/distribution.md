@@ -480,7 +480,9 @@ pnpm release:upload-preflight -- --target linux \
 ```
 
 This preflight checks pre-upload manual QA evidence and requires release notes
-to state that Ubuntu 26.04 LTS GNOME manual QA passed. The Settings update-check
+to state that Ubuntu 26.04 LTS GNOME manual QA passed. It also verifies the
+manual QA evidence git SHA against the current checkout, or against
+`--expected-git-sha <sha>` if that option is provided. The Settings update-check
 item is verified after the draft or published release contains the Linux assets.
 
 ```sh
@@ -525,9 +527,11 @@ pnpm release:upload-preflight -- --target windows \
 ```
 
 This preflight checks pre-upload manual QA evidence and requires release notes
-to state that Windows 11 25H2 installed-app manual QA passed. The Settings
-update-check item is verified after the draft or published release contains the
-Windows assets.
+to state that Windows 11 25H2 installed-app manual QA passed. It also verifies
+the manual QA evidence git SHA against the current checkout, or against
+`--expected-git-sha <sha>` if that option is provided. The Settings update-check
+item is verified after the draft or published release contains the Windows
+assets.
 
 ```sh
 VERSION=$(node -p "require('./package.json').version")

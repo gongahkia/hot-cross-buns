@@ -163,6 +163,7 @@ describe("release upload preflight", () => {
 
     const messages = await verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "linux",
@@ -186,6 +187,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "windows",
@@ -206,6 +208,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "linux",
@@ -233,6 +236,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "windows",
@@ -253,6 +257,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "linux",
@@ -281,6 +286,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "windows",
@@ -307,11 +313,33 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "windows",
       version: "5.0.0"
     })).rejects.toThrow("missing release-note phrase: Get-FileHash");
+  });
+
+  it("fails when manual QA evidence was generated from a different git sha", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "linux-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, linuxArtifacts);
+    await writeEvidenceFile(evidenceFile, "linux");
+    await writeReleaseNotes(notesFile, "linux");
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      expectedGitSha: "def456",
+      notesFile,
+      releaseDir,
+      target: "linux",
+      version: "5.0.0"
+    })).rejects.toThrow("manual QA evidence git sha abc123 does not match expected def456");
   });
 
   it("fails when release notes omit the versioned target artifact", async () => {
@@ -333,6 +361,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "windows",
@@ -360,6 +389,7 @@ describe("release upload preflight", () => {
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      expectedGitSha: "abc123",
       notesFile,
       releaseDir,
       target: "linux",

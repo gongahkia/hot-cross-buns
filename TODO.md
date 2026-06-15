@@ -1450,6 +1450,11 @@ Continuation audit, 2026-06-15:
   name the exact versioned upload artifact as well as the stable x64 alias. This
   blocks upload if final notes only mention aliases, but does not complete
   target-host manual QA or post-upload update-check validation.
+- Manual QA git SHA traceability on 2026-06-15: `pnpm
+  release:upload-preflight` now rejects target-host manual QA evidence whose
+  recorded git SHA differs from the current checkout, or from
+  `--expected-git-sha <sha>` when supplied. This ties upload readiness to the
+  commit under review, but does not complete any manual QA or upload gate.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a
