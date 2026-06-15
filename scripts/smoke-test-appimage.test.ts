@@ -144,6 +144,25 @@ describeAppImageSmoke("Linux AppImage smoke test", () => {
     );
   });
 
+  it("fails when SHASUMS256.txt contains nested unpacked artifacts", async () => {
+    const releaseDir = await createReleaseDir();
+    const { stableHash, stableX64Hash, versionedHash } = await writeValidArtifacts(releaseDir);
+
+    await writeFile(
+      join(releaseDir, "SHASUMS256.txt"),
+      [
+        `${versionedHash}  ${versionedAppImage}`,
+        `${stableHash}  ${stableAppImage}`,
+        `${stableX64Hash}  ${stableX64AppImage}`,
+        `${"0".repeat(64)}  squashfs-root/resources/helper`
+      ].join("\n") + "\n"
+    );
+
+    await expect(smokeLinuxAppImageArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
+      "SHASUMS256.txt contains nested artifact squashfs-root/resources/helper"
+    );
+  });
+
   it("fails if AppImage metadata registers the unsupported Linux protocol", async () => {
     const releaseDir = await createReleaseDir();
 

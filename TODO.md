@@ -1242,7 +1242,10 @@ Continuation audit, 2026-06-15:
   `Hot-Cross-Buns-2-linux.AppImage`, `Hot-Cross-Buns-2-linux-x64.AppImage`,
   sidecar `.sha256` files, `SHASUMS256.txt`, `builder-debug.yml`, and
   `latest-linux.yml`; `sha256sum -c SHASUMS256.txt` passed, and both stable
-  AppImage aliases byte-matched the versioned AppImage.
+  AppImage aliases byte-matched the versioned AppImage. `pnpm
+  release:smoke-appimage` now fails if `SHASUMS256.txt` contains nested
+  unpacked-artifact paths, with focused coverage in
+  `scripts/smoke-test-appimage.test.ts`.
 - Authenticated `gh run view` rechecked Windows run `27501043773`: workflow
   `Windows Preview Validation` completed successfully at commit
   `5e248b4899162e190713ec3057fa9500b667c8de`, including Windows installer
