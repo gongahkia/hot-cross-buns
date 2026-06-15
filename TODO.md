@@ -1257,7 +1257,9 @@ Continuation audit, 2026-06-15:
   stale `win-unpacked` helper entries in `SHASUMS256.txt` that were not present
   in the uploaded artifact ZIP; `scripts/release-checksums.ts` now writes
   checksums only for top-level uploadable release artifacts, with focused
-  coverage in `scripts/release-checksums.test.ts`.
+  coverage in `scripts/release-checksums.test.ts`. `pnpm release:smoke-nsis`
+  now also fails if `SHASUMS256.txt` contains nested unpacked-artifact paths,
+  with focused coverage in `scripts/smoke-test-nsis.test.ts`.
 - This recheck strengthens automated evidence only. It does not complete Ubuntu
   GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.

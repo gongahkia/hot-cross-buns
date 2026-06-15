@@ -85,4 +85,25 @@ describe("Windows NSIS smoke test", () => {
       "Hot-Cross-Buns-2-windows.exe does not match Hot-Cross-Buns-2-5.0.0-windows-x64.exe"
     );
   });
+
+  it("fails when SHASUMS256.txt contains nested unpacked artifacts", async () => {
+    const releaseDir = await createReleaseDir();
+    const versionedHash = await writeArtifact(releaseDir, versionedInstaller, "versioned installer");
+    const stableHash = await writeArtifact(releaseDir, stableInstaller, "versioned installer");
+    const stableX64Hash = await writeArtifact(releaseDir, stableX64Installer, "versioned installer");
+
+    await writeFile(
+      join(releaseDir, "SHASUMS256.txt"),
+      [
+        `${versionedHash}  ${versionedInstaller}`,
+        `${stableHash}  ${stableInstaller}`,
+        `${stableX64Hash}  ${stableX64Installer}`,
+        `${"0".repeat(64)}  win-unpacked\\resources\\elevate.exe`
+      ].join("\n") + "\n"
+    );
+
+    await expect(smokeWindowsNsisArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
+      "SHASUMS256.txt contains nested artifact win-unpacked\\resources\\elevate.exe"
+    );
+  });
 });

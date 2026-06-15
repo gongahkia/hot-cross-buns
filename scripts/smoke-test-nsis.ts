@@ -50,6 +50,8 @@ export async function smokeWindowsNsisArtifact(options: SmokeOptions = {}): Prom
   const artifactHashes = new Map<string, string>();
   const messages: string[] = [];
 
+  verifyManifestContainsOnlyTopLevelArtifacts(manifestEntries);
+
   for (const artifact of requiredArtifacts) {
     const stats = await stat(artifact);
 
@@ -136,6 +138,14 @@ function parseChecksumLine(line: string, sourceName: string): ChecksumEntry {
     hash: match[1].toLowerCase(),
     path: match[2].trim()
   };
+}
+
+function verifyManifestContainsOnlyTopLevelArtifacts(entries: ChecksumEntry[]): void {
+  const nestedEntry = entries.find((entry) => normalizedPath(entry.path).includes("/"));
+
+  if (nestedEntry) {
+    throw new Error(`${checksumManifestName} contains nested artifact ${nestedEntry.path}; regenerate release checksums.`);
+  }
 }
 
 function verifyStableAliasMatchesVersionedArtifact(hashes: Map<string, string>, versionedArtifact: string, aliasArtifact: string): void {
