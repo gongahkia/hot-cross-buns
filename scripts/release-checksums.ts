@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const DEFAULT_RELEASE_DIR = "release";
 const DEFAULT_OUTPUT_FILE = "SHASUMS256.txt";
@@ -52,19 +53,12 @@ function isReleaseArtifact(filePath: string): boolean {
 
 async function listArtifacts(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
-  const results = await Promise.all(
-    entries.map(async (entry) => {
-      const filePath = join(directory, entry.name);
 
-      if (entry.isDirectory()) {
-        return listArtifacts(filePath);
-      }
-
-      return isReleaseArtifact(filePath) ? [filePath] : [];
-    })
-  );
-
-  return results.flat().sort((left, right) => left.localeCompare(right));
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(directory, entry.name))
+    .filter(isReleaseArtifact)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 async function sha256File(filePath: string): Promise<string> {
@@ -94,9 +88,12 @@ async function checksumArtifacts(releaseDir: string): Promise<ChecksumEntry[]> {
   );
 }
 
-async function main(): Promise<void> {
-  const releaseDir = resolve(argValue("--dir", DEFAULT_RELEASE_DIR));
-  const outputFile = resolve(releaseDir, argValue("--out", DEFAULT_OUTPUT_FILE));
+export async function writeReleaseChecksums(options: {
+  outputFile?: string;
+  releaseDir?: string;
+} = {}): Promise<ChecksumEntry[]> {
+  const releaseDir = resolve(options.releaseDir ?? DEFAULT_RELEASE_DIR);
+  const outputFile = resolve(releaseDir, options.outputFile ?? DEFAULT_OUTPUT_FILE);
   const directoryStats = await stat(releaseDir);
 
   if (!directoryStats.isDirectory()) {
@@ -115,13 +112,28 @@ async function main(): Promise<void> {
     )
   );
 
+  return checksums;
+}
+
+async function main(): Promise<void> {
+  const checksums = await writeReleaseChecksums({
+    outputFile: argValue("--out", DEFAULT_OUTPUT_FILE),
+    releaseDir: argValue("--dir", DEFAULT_RELEASE_DIR)
+  });
+  const releaseDir = resolve(argValue("--dir", DEFAULT_RELEASE_DIR));
+  const outputFile = resolve(releaseDir, argValue("--out", DEFAULT_OUTPUT_FILE));
+
   console.log(`Wrote ${checksums.length} checksum(s) to ${outputFile}`);
   for (const entry of checksums) {
     console.log(`${entry.sha256}  ${entry.relativePath}`);
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+const isDirectRun = process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+
+if (isDirectRun) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

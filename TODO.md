@@ -1249,7 +1249,15 @@ Continuation audit, 2026-06-15:
   build, artifact smoke, checksum, silent install/MCP, Electron smoke,
   performance smoke, and artifact upload steps. The GitHub Actions artifact API
   reports `windows-preview-artifacts-27501043773` as not expired, with size
-  `288984166` bytes.
+  `288984166` bytes. Downloading that artifact on 2026-06-15 showed the
+  expected versioned/stable Windows installer files, sidecar `.sha256` files,
+  `.blockmap`, `latest.yml`, `SHASUMS256.txt`, bundle review, and performance
+  reports. The installer entries in `SHASUMS256.txt` matched, and stable
+  installer aliases byte-matched the versioned installer. The same audit found
+  stale `win-unpacked` helper entries in `SHASUMS256.txt` that were not present
+  in the uploaded artifact ZIP; `scripts/release-checksums.ts` now writes
+  checksums only for top-level uploadable release artifacts, with focused
+  coverage in `scripts/release-checksums.test.ts`.
 - This recheck strengthens automated evidence only. It does not complete Ubuntu
   GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
