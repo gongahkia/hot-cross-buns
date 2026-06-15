@@ -820,8 +820,8 @@ kbd {
   gap: 16px;
 }
 .download-platform-icon {
-  width: 88px;
-  height: 88px;
+  width: 76px;
+  height: 76px;
   display: inline-grid;
   place-items: center;
 }
