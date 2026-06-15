@@ -814,14 +814,7 @@ kbd {
 }
 .download-platform h3 {
   font-size: 1rem;
-  margin-bottom: 8px;
-}
-.download-platform p {
-  min-height: 72px;
-  margin: 0 0 14px;
-  color: var(--subtext1);
-  font-size: .9rem;
-  line-height: 1.5;
+  margin-bottom: 14px;
 }
 .download-platform .cta-secondary {
   display: inline-flex;
@@ -871,10 +864,20 @@ kbd {
 .brew-terminal p {
   text-align: center;
 }
+.brew-terminal h3 {
+  margin: 18px 0 0;
+  font-size: .88rem;
+  color: var(--subtext1);
+  font-family: "Geist", sans-serif;
+  font-weight: 500;
+}
+.brew-terminal h3:first-child {
+  margin-top: 18px;
+}
 .brew-terminal pre {
-  width: min(100%, 980px);
+  width: min(100%, 780px);
   display: block;
-  margin: 18px auto 0;
+  margin: 8px auto 0;
   text-align: left;
   overflow-x: hidden;
 }
@@ -1191,9 +1194,6 @@ body.modal-open {
   .download-inner { padding: 0 4px; }
   .download-platforms {
     grid-template-columns: 1fr;
-  }
-  .download-platform p {
-    min-height: 0;
   }
   .download-modal-card {
     padding: 24px 20px 20px;
