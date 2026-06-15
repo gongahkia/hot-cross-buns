@@ -1229,6 +1229,22 @@ Current handoff note, 2026-06-14:
   asset/update-check validation, and post-manual-QA docs/upload work.
 - Do not mark the Linux or Windows release gates complete from hosted CI alone.
 
+Continuation audit, 2026-06-15:
+
+- Authenticated `gh run view` rechecked Linux run `27499256281`: workflow
+  `Linux AppImage Preview Validation` completed successfully at commit
+  `df19162b8e6fb7e5502ebbb9c98835b8a15b7a63`, including AppImage build,
+  checksum, metadata, launch, packaged MCP, Electron smoke, performance smoke,
+  and artifact upload steps.
+- Authenticated `gh run view` rechecked Windows run `27501043773`: workflow
+  `Windows Preview Validation` completed successfully at commit
+  `5e248b4899162e190713ec3057fa9500b667c8de`, including Windows installer
+  build, artifact smoke, checksum, silent install/MCP, Electron smoke,
+  performance smoke, and artifact upload steps.
+- This recheck strengthens automated evidence only. It does not complete Ubuntu
+  GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
+  verification against real Linux/Windows GitHub Release assets.
+
 Completion definition for the next agent:
 
 - Linux can be called rounded out only when the Ubuntu GNOME manual matrix is
