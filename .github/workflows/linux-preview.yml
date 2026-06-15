@@ -93,6 +93,9 @@ jobs:
       - name: Generate Linux manual QA evidence template
         run: pnpm qa:evidence -- --target linux --dir release
 
+      - name: Verify Linux preview artifact bundle
+        run: pnpm release:artifact-bundle -- --target linux --dir .
+
       - name: Upload Linux preview artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -1365,6 +1365,12 @@ Continuation audit, 2026-06-15:
   non-empty bundle/performance reports, and a passing manual QA evidence
   template. This improves target-host QA handoff only and does not complete any
   unchecked manual QA item.
+- Preview workflow bundle-gate integration on 2026-06-15: Linux and Windows
+  preview workflows now run `pnpm release:artifact-bundle -- --target <target>
+  --dir .` before uploading preview artifacts. This makes hosted preview
+  artifact integrity a required workflow gate, but still does not complete
+  Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or real
+  Linux/Windows release-asset update-check validation.
 
 Completion definition for the next agent:
 

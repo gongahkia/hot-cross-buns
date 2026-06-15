@@ -71,6 +71,9 @@ jobs:
       - name: Generate Windows manual QA evidence template
         run: pnpm qa:evidence -- --target windows --dir release
 
+      - name: Verify Windows preview artifact bundle
+        run: pnpm release:artifact-bundle -- --target windows --dir .
+
       - name: Upload Windows preview artifacts
         if: always()
         uses: actions/upload-artifact@v4
