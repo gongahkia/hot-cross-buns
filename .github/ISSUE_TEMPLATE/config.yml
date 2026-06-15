@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/gongahkia/hot-cross-buns-2/security/advisories/new
+    about: Report suspected vulnerabilities privately.
+  - name: Latest release downloads
+    url: https://github.com/gongahkia/hot-cross-buns-2/releases/latest
+    about: Download current macOS, Linux, and Windows builds.
+  - name: Platform support docs
+    url: https://github.com/gongahkia/hot-cross-buns-2/tree/main/docs/support
+    about: Read install and troubleshooting notes before opening an issue.

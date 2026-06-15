@@ -1,0 +1,57 @@
+name: Platform install or update issue
+description: Report a DMG, AppImage, NSIS, checksum, launch, or update-check problem.
+title: "[Platform]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for install, checksum, first launch, update-check, or package identity issues.
+        Do not include credentials, tokens, local databases, or unredacted diagnostics.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - macOS DMG
+        - Linux AppImage
+        - Windows NSIS
+        - source/dev
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "5.0.0"
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version and architecture
+      placeholder: "macOS 14.6 arm64, Ubuntu 26.04 x64, Windows 11 25H2 x64"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks completed
+      options:
+        - label: I downloaded from the latest GitHub release.
+        - label: I verified the SHA-256 checksum where applicable.
+        - label: I checked the platform support docs.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      placeholder: Describe the install, launch, checksum, or update-check failure.
+    validations:
+      required: true
+  - type: textarea
+    id: terminal-output
+    attributes:
+      label: Redacted terminal output or screenshots
+      description: Remove local secrets, account identifiers, tokens, database contents, and raw Google payloads.
+    validations:
+      required: false
