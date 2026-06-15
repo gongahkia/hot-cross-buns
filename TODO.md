@@ -1436,6 +1436,11 @@ Continuation audit, 2026-06-15:
   Windows OS build. This strengthens the future target-host proof only; it does
   not complete any unchecked Ubuntu 26.04 LTS GNOME or Windows 11 25H2 manual
   QA gate.
+- Release-note blocker hardening on 2026-06-15: `pnpm
+  release:upload-preflight` now rejects final release notes that still say
+  Linux/Windows artifacts are `prepared for review` or `prepared but gated`.
+  This prevents upload with pre-QA release-note copy only; it does not complete
+  the target-host manual QA or post-upload update-check gates.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a

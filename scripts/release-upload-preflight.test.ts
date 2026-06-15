@@ -258,6 +258,33 @@ describe("release upload preflight", () => {
     })).rejects.toThrow("still contains release-note blocker phrase");
   });
 
+  it("fails while release notes still say artifacts are prepared for review", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "windows-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, windowsArtifacts);
+    await writeEvidenceFile(evidenceFile, "windows");
+    await writeFile(notesFile, [
+      "# Windows NSIS technical preview",
+      "Windows NSIS artifacts prepared for review.",
+      "Windows 11 25H2 installed-app manual QA passed.",
+      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Get-FileHash",
+      "unsigned NSIS SmartScreen expectations recorded."
+    ].join("\n"));
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      notesFile,
+      releaseDir,
+      target: "windows",
+      version: "5.0.0"
+    })).rejects.toThrow("still contains release-note blocker phrase: prepared for review");
+  });
+
   it("fails when release notes omit target checksum instructions", async () => {
     const root = await tempDir();
     const releaseDir = join(root, "release");

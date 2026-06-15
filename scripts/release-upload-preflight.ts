@@ -153,6 +153,8 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
 
 function releaseNoteBlockers(): string[] {
   return [
+    "prepared for review",
+    "prepared but gated",
     "Publish this artifact only after",
     "Still required before publishing Linux/Windows artifacts"
   ];
