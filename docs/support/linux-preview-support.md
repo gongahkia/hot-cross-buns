@@ -37,7 +37,8 @@ Use a terminal launch for first-run support reports so startup errors are
 visible.
 
 Ubuntu hosts must have a FUSE 2 compatibility package installed to run
-AppImages. On Ubuntu 24.04 use `libfuse2t64`; on Ubuntu 22.04 use `libfuse2`.
+AppImages. On Ubuntu 24.04 or newer use `libfuse2t64`; on Ubuntu 22.04 use
+`libfuse2`.
 Install it alongside the existing FUSE setup.
 
 ## Known Preview Limits

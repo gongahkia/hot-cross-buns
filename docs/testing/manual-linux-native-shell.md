@@ -55,7 +55,7 @@ sha256sum -c SHASUMS256.txt --ignore-missing
 
 - Verify the published AppImage checksum against `SHASUMS256.txt`.
 - Confirm the host has the FUSE 2 compatibility package required for AppImages:
-  `libfuse2t64` on Ubuntu 24.04 or `libfuse2` on Ubuntu 22.04.
+  `libfuse2t64` on Ubuntu 24.04 or newer, or `libfuse2` on Ubuntu 22.04.
 - Run `chmod +x` on the AppImage.
 - Launch from a terminal and record stdout/stderr.
 - Launch from the file manager.
