@@ -551,6 +551,8 @@ Still required before publishing a Linux preview:
 - OAuth browser round trip on Ubuntu GNOME
 - Secret Service ready, missing, and locked states
 - live MCP CLI smoke against the packaged AppImage
+- filled target-host evidence template from
+  `pnpm qa:evidence -- --target linux --dir release`
 - packaged preview confirmation that Linux notifications and global shortcuts
   remain explicitly unsupported
 - Linux manual QA matrix from `TODO.md`
@@ -561,7 +563,7 @@ See [Linux Port](../ports/linux-port.md).
 
 ## Windows Technical Preview Gates
 
-Automated Windows preview gates passed on 2026-06-14:
+Automated Windows preview gates passed on 2026-06-15:
 
 - Windows CI run of `pnpm release:win:preview`
 - Manual run of the `Windows Preview Validation` GitHub Actions workflow
@@ -586,6 +588,8 @@ Still required before publishing a Windows preview:
   autostart behavior tested
 - update-check UI verified against Windows assets
 - interactive uninstall and retained-data behavior documented and tested
+- filled target-host evidence template from
+  `pnpm qa:evidence -- --target windows --dir release`
 - code signing plan and SmartScreen expectations documented
 - Windows preview support and retained-data policy documented
 

@@ -40,6 +40,16 @@ Confirm the current release candidate already passed:
 - `pnpm test:smoke`
 - `pnpm test:perf`
 
+Create the target-host evidence template before the manual pass:
+
+```sh
+pnpm qa:evidence -- --target linux --dir release
+```
+
+Attach `artifacts/manual-qa/linux-evidence.md` to the release notes draft after
+the checklist is filled in. The command exits nonzero if required local release
+files are missing.
+
 Record this host evidence before the manual pass:
 
 ```sh

@@ -1318,6 +1318,11 @@ Continuation audit, 2026-06-15:
   cite the stricter successful preview workflow runs `27521460631` and
   `27521460607`. This is documentation cleanup only and does not complete any
   unchecked manual QA or upload gate.
+- Manual QA evidence helper on 2026-06-15: `pnpm qa:evidence` now writes a
+  target-host evidence template under `artifacts/manual-qa/`, preflights the
+  required local Linux AppImage or Windows NSIS release files, and is linked
+  from the Linux/Windows manual shell checklists. This reduces manual QA
+  ambiguity only; it does not complete any unchecked target-OS QA item.
 
 Completion definition for the next agent:
 

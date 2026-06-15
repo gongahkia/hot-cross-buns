@@ -16,6 +16,9 @@ technical preview release.
 - Run `HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-nsis-install` from a shell
   that supports environment assignment, or set `HCB_PACKAGED_MCP_SMOKE=1` before
   running `pnpm release:smoke-nsis-install`.
+- Run `pnpm qa:evidence -- --target windows --dir release` and fill in
+  `artifacts/manual-qa/windows-evidence.md` during the manual pass. The command
+  exits nonzero if required local release files are missing.
 - Install with the NSIS installer.
 - Record SmartScreen/Defender/browser warning text, if any, using
   [Windows Signing And SmartScreen](../release/windows-signing-smartscreen.md).
