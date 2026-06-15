@@ -49,8 +49,8 @@ pnpm qa:evidence -- --target linux --dir release
 Attach `artifacts/manual-qa/linux-evidence.md` to the release notes draft after
 the checklist is filled in. The command exits nonzero if required local release
 files are missing. Successful Linux preview workflow artifacts also include this
-template. Fill `Target Host Details` with Ubuntu 26.04 LTS, GNOME, session type,
-tester, and evidence attachments.
+template. Fill `Target Host Details` with Ubuntu 26.04 LTS, GNOME, Wayland or
+X11 session type, tester, and concrete evidence attachments.
 
 Before uploading Linux release assets, verify the completed pre-upload evidence.
 The result must include non-empty notes summarizing the QA host and evidence

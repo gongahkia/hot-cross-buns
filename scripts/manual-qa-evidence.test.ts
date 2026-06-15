@@ -279,4 +279,40 @@ describe("manual QA evidence", () => {
     await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
       .rejects.toThrow("target windows version is not Windows 11 25H2");
   });
+
+  it("rejects completed Linux evidence without a concrete session type", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = completeEvidence(formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "linux", osType: "Linux" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    })).replace("- session: Wayland", "- session: GNOME");
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" }))
+      .rejects.toThrow("session is not Wayland or X11");
+  });
+
+  it("rejects completed evidence with placeholder target-host attachments", async () => {
+    const outputFile = join(await tempDir(), "windows-evidence.md");
+    const source = completeEvidence(formatManualQaEvidence({
+      files: requiredReleaseFiles("windows", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host,
+      releaseDir: "/release",
+      target: "windows",
+      version: "5.0.0"
+    })).replace("- evidence attachments: attached logs and screenshots", "- evidence attachments: TBD");
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
+      .rejects.toThrow("target-host detail is not concrete: evidence attachments");
+  });
 });

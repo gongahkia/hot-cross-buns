@@ -1430,6 +1430,12 @@ Continuation audit, 2026-06-15:
   only, with no Linux AppImage or Windows NSIS upload assets. The remaining
   unchecked TODO boxes therefore still require target-host manual QA and
   post-upload release-asset validation.
+- Manual QA evidence concreteness hardening on 2026-06-15: `pnpm
+  qa:evidence:verify` now rejects placeholder target-host details, requires the
+  Linux session detail to name Wayland or X11/Xorg, and requires a numeric
+  Windows OS build. This strengthens the future target-host proof only; it does
+  not complete any unchecked Ubuntu 26.04 LTS GNOME or Windows 11 25H2 manual
+  QA gate.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a

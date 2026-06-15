@@ -202,16 +202,27 @@ function targetHostDetailValue(source: string, field: string): string {
   return match?.[1].trim() ?? "";
 }
 
+function isPlaceholderTargetHostDetail(value: string): boolean {
+  return /^(?:n\/?a|none|pending|tbd|todo|unknown)$/i.test(value.trim());
+}
+
 function verifyTargetHostDetails(source: string, target: ManualQaTarget): void {
   for (const field of targetHostDetailFields(target)) {
-    if (!targetHostDetailValue(source, field)) {
+    const value = targetHostDetailValue(source, field);
+
+    if (!value) {
       throw new Error(`Manual QA evidence is missing target-host detail: ${field}`);
+    }
+
+    if (isPlaceholderTargetHostDetail(value)) {
+      throw new Error(`Manual QA evidence target-host detail is not concrete: ${field}`);
     }
   }
 
   if (target === "linux") {
     const os = targetHostDetailValue(source, "target os");
     const desktop = targetHostDetailValue(source, "desktop");
+    const session = targetHostDetailValue(source, "session");
 
     if (!/Ubuntu\s+26\.04\s+LTS/i.test(os)) {
       throw new Error("Manual QA evidence target os is not Ubuntu 26.04 LTS");
@@ -221,14 +232,23 @@ function verifyTargetHostDetails(source: string, target: ManualQaTarget): void {
       throw new Error("Manual QA evidence desktop is not GNOME");
     }
 
+    if (!/Wayland|X11|Xorg/i.test(session)) {
+      throw new Error("Manual QA evidence session is not Wayland or X11");
+    }
+
     return;
   }
 
   const version = targetHostDetailValue(source, "target windows version");
+  const osBuild = targetHostDetailValue(source, "os build");
   const arch = targetHostDetailValue(source, "arch");
 
   if (!/Windows\s+11/i.test(version) || !/25H2/i.test(version)) {
     throw new Error("Manual QA evidence target windows version is not Windows 11 25H2");
+  }
+
+  if (!/^\d+(?:\.\d+)*$/.test(osBuild)) {
+    throw new Error("Manual QA evidence OS build is not numeric");
   }
 
   if (!/x64|amd64/i.test(arch)) {
