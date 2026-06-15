@@ -430,7 +430,11 @@ The GitHub Release notes must include:
 - manual macOS checks performed
 - signing/notarization status
 
-Do not publish the draft until the uploaded artifact names and checksums match `release/SHASUMS256.txt`.
+Do not publish the draft until the uploaded artifact names and checksums match
+`release/SHASUMS256.txt`. If one GitHub Release contains multiple platform
+families, upload a unified `SHASUMS256.txt` generated from the full final
+artifact set. Do not clobber an existing release checksum manifest with a
+platform-only manifest.
 
 For the Linux AppImage technical preview artifacts, either create a Linux-only
 draft release or upload these files to the existing `v${VERSION}` draft after
