@@ -26,8 +26,8 @@ technical preview release.
   `pnpm qa:evidence:verify -- --target windows --stage pre-upload --verify artifacts/manual-qa/windows-evidence.md`.
 - After Windows release assets exist and Settings update-check is verified, run
   `pnpm qa:evidence:verify -- --target windows --verify artifacts/manual-qa/windows-evidence.md`.
-  Both verifier modes require non-empty notes summarizing the QA host and
-  evidence attachments.
+  Both verifier modes require concrete, non-placeholder notes summarizing the QA
+  host and evidence attachments.
 - If QA starts from a downloaded Windows preview workflow artifact, run
   `pnpm release:artifact-bundle -- --target windows --dir <downloaded-artifact-dir>`
   before copying the installer to the QA machine.

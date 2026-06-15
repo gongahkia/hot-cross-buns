@@ -202,7 +202,7 @@ function targetHostDetailValue(source: string, field: string): string {
   return match?.[1].trim() ?? "";
 }
 
-function isPlaceholderTargetHostDetail(value: string): boolean {
+function isPlaceholderManualQaValue(value: string): boolean {
   return /^(?:n\/?a|none|pending|tbd|todo|unknown)$/i.test(value.trim());
 }
 
@@ -214,7 +214,7 @@ function verifyTargetHostDetails(source: string, target: ManualQaTarget): void {
       throw new Error(`Manual QA evidence is missing target-host detail: ${field}`);
     }
 
-    if (isPlaceholderTargetHostDetail(value)) {
+    if (isPlaceholderManualQaValue(value)) {
       throw new Error(`Manual QA evidence target-host detail is not concrete: ${field}`);
     }
   }
@@ -441,8 +441,14 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
     throw new Error(`${evidenceFile} marks the manual QA result as fail`);
   }
 
-  if (!resultNotes(result)) {
+  const notes = resultNotes(result);
+
+  if (!notes) {
     throw new Error(`${evidenceFile} does not include manual QA result notes`);
+  }
+
+  if (isPlaceholderManualQaValue(notes)) {
+    throw new Error(`${evidenceFile} manual QA result notes are not concrete`);
   }
 
   messages.push(`${evidenceFile} has all ${manualChecks(options.target, stage).length} required ${stage} manual checks marked pass.`);

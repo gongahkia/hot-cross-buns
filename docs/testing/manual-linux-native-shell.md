@@ -53,8 +53,8 @@ template. Fill `Target Host Details` with Ubuntu 26.04 LTS, GNOME, Wayland or
 X11 session type, tester, and concrete evidence attachments.
 
 Before uploading Linux release assets, verify the completed pre-upload evidence.
-The result must include non-empty notes summarizing the QA host and evidence
-attachments:
+The result must include concrete, non-placeholder notes summarizing the QA host
+and evidence attachments:
 
 ```sh
 pnpm qa:evidence:verify -- --target linux --stage pre-upload --verify artifacts/manual-qa/linux-evidence.md

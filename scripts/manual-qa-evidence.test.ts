@@ -244,6 +244,24 @@ describe("manual QA evidence", () => {
       .rejects.toThrow("does not include manual QA result notes");
   });
 
+  it("rejects completed evidence with placeholder result notes", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = completeEvidence(formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "linux", osType: "Linux" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    })).replace("- notes: Target-host QA evidence recorded.", "- notes: TBD");
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" }))
+      .rejects.toThrow("manual QA result notes are not concrete");
+  });
+
   it("rejects completed evidence without target-host details", async () => {
     const outputFile = join(await tempDir(), "linux-evidence.md");
     const source = completeEvidence(formatManualQaEvidence({

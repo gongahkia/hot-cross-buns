@@ -1441,6 +1441,10 @@ Continuation audit, 2026-06-15:
   Linux/Windows artifacts are `prepared for review` or `prepared but gated`.
   This prevents upload with pre-QA release-note copy only; it does not complete
   the target-host manual QA or post-upload update-check gates.
+- Manual QA result-note hardening on 2026-06-15: `pnpm qa:evidence:verify` now
+  rejects placeholder result notes such as `TBD`, `pending`, `unknown`, `none`,
+  or `n/a`. This requires concrete QA-host/evidence notes before pre-upload or
+  full verification can pass, but does not complete any manual QA gate.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a
