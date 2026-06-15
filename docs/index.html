@@ -11,13 +11,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="favicon.ico" sizes="any">
-<link rel="icon" type="image/png" href="logo.png">
+<link rel="icon" type="image/png" href="logo-64.png">
 </head>
 <body>
 
 <nav class="nav">
   <a class="wordmark" href="#">
-    <img src="logo.png" alt="" width="28" height="28">
+    <img src="logo-64.png" alt="" width="28" height="28">
     <span>Hot Cross Buns 2</span>
   </a>
   <div class="nav-links">
@@ -46,8 +46,8 @@
 
   <figure class="hero-shot">
     <div class="media-window">
-      <video autoplay muted loop playsinline preload="metadata" aria-label="Hot Cross Buns 2 landing footage">
-        <source src="assets/landing.mp4" type="video/mp4">
+      <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 landing footage">
+        <source data-src="assets/landing.mp4" type="video/mp4">
       </video>
     </div>
   </figure>
@@ -57,8 +57,8 @@
   <div class="views-layout">
     <figure class="views-single">
       <div class="media-window">
-        <video autoplay muted loop playsinline preload="metadata" aria-label="Hot Cross Buns 2 three views footage">
-          <source src="assets/three-views.mp4" type="video/mp4">
+        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 three views footage">
+          <source data-src="assets/three-views.mp4" type="video/mp4">
         </video>
       </div>
     </figure>
@@ -99,8 +99,8 @@
     </div>
     <figure class="keys-shot">
       <div class="media-window">
-        <video autoplay muted loop playsinline preload="metadata" aria-label="Hot Cross Buns 2 command palette footage">
-          <source src="assets/command-palette.mp4" type="video/mp4">
+        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 command palette footage">
+          <source data-src="assets/command-palette.mp4" type="video/mp4">
         </video>
       </div>
     </figure>
@@ -153,8 +153,8 @@
   <div class="menubar-layout">
     <figure class="menubar-shot">
       <div class="menubar-image-pair" aria-label="Hot Cross Buns 2 menu bar surfaces">
-        <img src="assets/menu-bar-1.png" alt="Hot Cross Buns 2 menu bar agenda panel">
-        <img src="assets/menu-bar-2.png" alt="Hot Cross Buns 2 menu bar calendar panel">
+        <img src="assets/menu-bar-1.png" alt="Hot Cross Buns 2 menu bar agenda panel" width="696" height="818" loading="lazy" decoding="async">
+        <img src="assets/menu-bar-2.png" alt="Hot Cross Buns 2 menu bar calendar panel" width="640" height="962" loading="lazy" decoding="async">
       </div>
     </figure>
 
@@ -210,8 +210,8 @@
 
     <figure class="menubar-shot webviews-shot">
       <div class="media-window">
-        <video autoplay muted loop playsinline preload="metadata" aria-label="Native webpage footage inside Hot Cross Buns 2">
-          <source src="assets/web-view.mp4" type="video/mp4">
+        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Native webpage footage inside Hot Cross Buns 2">
+          <source data-src="assets/web-view.mp4" type="video/mp4">
         </video>
       </div>
     </figure>
@@ -240,14 +240,34 @@
 
 	    <div class="download-platforms" aria-label="Platform downloads">
 	      <article class="download-platform">
+	        <span class="download-platform-icon" aria-hidden="true">
+	          <svg viewBox="0 0 64 64" focusable="false">
+	            <path d="M39.1 8.2c2.2-2.7 3.7-6.3 3.3-9.9-3.2.1-7 2.1-9.2 4.7-2 2.3-3.8 6-3.3 9.5 3.5.3 7-1.8 9.2-4.3Z" transform="translate(0 4)"/>
+	            <path d="M50.2 34.4c-.1-8 6.5-11.9 6.8-12.1-3.8-5.5-9.6-6.3-11.6-6.4-4.9-.5-9.6 2.9-12.1 2.9-2.6 0-6.5-2.8-10.6-2.7-5.4.1-10.5 3.2-13.3 8.1-5.7 9.8-1.5 24.3 4.1 32.2 2.7 3.9 5.9 8.3 10.2 8.1 4.1-.2 5.6-2.6 10.5-2.6 4.9 0 6.3 2.6 10.6 2.5 4.4-.1 7.1-4 9.8-8 3.1-4.5 4.4-8.9 4.5-9.1-.1 0-8.8-3.4-8.9-12.9Z" transform="scale(.84) translate(4 -1)"/>
+	          </svg>
+	        </span>
 	        <h3>macOS</h3>
 	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">Download DMG</a>
 	      </article>
 	      <article class="download-platform">
+	        <span class="download-platform-icon" aria-hidden="true">
+	          <svg viewBox="0 0 64 64" focusable="false">
+	            <path d="M24 17c0-5.5 3.6-9 8-9s8 3.5 8 9v5.5c5.2 3.1 8.5 9.1 8.5 17.1 0 11.7-7.4 18.4-16.5 18.4s-16.5-6.7-16.5-18.4c0-8 3.3-14 8.5-17.1V17Z"/>
+	            <path d="M18.5 51.5 9 57.5M45.5 51.5l9.5 6" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+	            <circle cx="28.5" cy="18" r="2" fill="var(--base)"/>
+	            <circle cx="35.5" cy="18" r="2" fill="var(--base)"/>
+	            <path d="M27.5 25.5h9L32 30Z" fill="var(--base)"/>
+	          </svg>
+	        </span>
 	        <h3>Linux</h3>
 	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">Download AppImage</a>
 	      </article>
 	      <article class="download-platform">
+	        <span class="download-platform-icon" aria-hidden="true">
+	          <svg viewBox="0 0 64 64" focusable="false">
+	            <path d="M7 12.5 29 9v21H7V12.5Zm28-4.4 22-3.5V30H35V8.1ZM7 35h22v20L7 51.5V35Zm28 0h22v24.4l-22-3.5V35Z"/>
+	          </svg>
+	        </span>
 	        <h3>Windows</h3>
 	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">Download EXE</a>
 	      </article>
@@ -305,13 +325,21 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
 	    <figure class="download-modal-warning">
 	      <img
 	        class="download-modal-warning-dialog"
-	        src="assets/macos-not-opened-warning.jpeg"
+	        data-src="assets/macos-not-opened-warning.jpeg"
 	        alt="macOS warning dialog saying Hot Cross Buns 2 was not opened because Apple could not verify it is free of malware."
+	        width="546"
+	        height="516"
+	        loading="lazy"
+	        decoding="async"
 	      >
 	      <img
 	        class="download-modal-warning-settings"
-	        src="assets/macos-open-anyway-warning.jpeg"
+	        data-src="assets/macos-open-anyway-warning.jpeg"
 	        alt="macOS Privacy and Security row saying Hot Cross Buns 2 was blocked to protect your Mac, with an Open Anyway button."
+	        width="928"
+	        height="186"
+	        loading="lazy"
+	        decoding="async"
 	      >
 	    </figure>
 	    <ul class="download-modal-list">
