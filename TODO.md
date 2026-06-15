@@ -1423,6 +1423,13 @@ Continuation audit, 2026-06-15:
   25H2 installed-app manual QA passed` for Windows uploads. This blocks upload
   while notes still only cite automated preview gates, but it does not complete
   the target-host manual QA gates.
+- After commit `afb192d7ba6412707b581a1262df2609e8655a3c`, CI run
+  `27526597651` and Pages run `27526597069` both completed successfully.
+  Re-running `pnpm release:asset-preflight -- --target all --tag v5.0.0` still
+  exited `1`: published `v5.0.0` contains macOS assets plus `SHASUMS256.txt`
+  only, with no Linux AppImage or Windows NSIS upload assets. The remaining
+  unchecked TODO boxes therefore still require target-host manual QA and
+  post-upload release-asset validation.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a
