@@ -16,9 +16,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 ## Current Direction
 
 - Product name: Hot Cross Buns 2
-- Initial platform: macOS
-- Linux status: AppImage technical preview gated on Ubuntu 26.04 LTS GNOME QA
-- Windows status: NSIS technical preview gated on Windows 11 25H2 QA
+- Platforms: macOS DMG, Linux x64 AppImage, Windows x64 NSIS
 - Default stack: Electron, React, TypeScript, Vite, Tailwind, SQLite
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: Google Tasks/Calendar cache, settings, checkpoints, offline mutations, diagnostics
@@ -32,7 +30,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 - Main-side SQLite domain services are shared by UI IPC handlers and MCP tool handlers. Task, note, task-list, note-list, and calendar writes update optimistic local mirror rows and enqueue Google-backed pending mutations.
 - Local data now includes migrations, repositories, temporary-database integration tests, search over current task/event/note state, pending mutation tracking, and sanitized performance timing storage.
 - Performance smoke runs in report-only mode with generated local fixtures and temporary app data paths.
-- Native shell support is adapter-driven. macOS remains the primary preview platform, while Linux has an AppImage technical preview scaffold with Secret Service-backed credentials, AppImage packaging, Linux release checks, and explicit unsupported states for notifications, global shortcuts, tray/status area, deep links, and autostart. Windows has an NSIS preview scaffold pending Windows 11 25H2 installed-app QA.
+- Native shell support is adapter-driven. macOS has menu bar surfaces and DMG packaging. Linux has AppImage packaging, Secret Service-backed credentials, release checks, and explicit unsupported states for notifications, global shortcuts, tray/status area, deep links, and autostart. Windows has NSIS packaging, Windows safeStorage-backed credentials, installer smoke coverage, and manual install/uninstall support guidance.
 
 ## Documentation Map
 

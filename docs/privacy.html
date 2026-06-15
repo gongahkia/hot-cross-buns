@@ -61,7 +61,7 @@
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens stay in the macOS Keychain on macOS. Linux technical preview builds use Electron <code>safeStorage</code> only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet; plaintext fallback is rejected. Windows technical preview builds use Electron <code>safeStorage</code> through the Windows adapter and require Windows 11 25H2 credential persistence QA before public release. For custom Desktop OAuth, the OAuth client configuration is stored once for the app, while token sets are stored separately by Google account ID. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your device; it does not change what Google stores.</p>
+      <p>Google OAuth tokens stay in the macOS Keychain on macOS. Linux builds use Electron <code>safeStorage</code> only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet; plaintext fallback is rejected. Windows builds use Electron <code>safeStorage</code> through the Windows adapter. For custom Desktop OAuth, the OAuth client configuration is stored once for the app, while token sets are stored separately by Google account ID. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your device; it does not change what Google stores.</p>
     </article>
 
     <article class="doc-card">
@@ -82,7 +82,7 @@
 
     <article class="doc-card">
       <h2>Permissions</h2>
-      <p>Notifications are optional and used only for device-local reminders from the active workspace. Linux technical preview builds report notifications and global shortcuts as unsupported until their desktop-environment behavior is manually validated. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns 2 from the app’s Settings window.</p>
+      <p>Notifications are optional and used only for device-local reminders from the active workspace. Linux builds report notifications and global shortcuts as unsupported. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns 2 from the app’s Settings window.</p>
     </article>
 
     <article class="doc-card">
@@ -92,12 +92,12 @@
 
     <article class="doc-card">
       <h2>Release integrity</h2>
-      <p>Each GitHub release publishes SHA-256 checksums for uploaded preview artifacts. The macOS install script downloads both the DMG and checksum, verifies them locally, and refuses to install if they do not match. Linux AppImage and Windows NSIS preview artifacts are uploaded only after their platform QA gates pass, and users should verify them against the release checksum before running them.</p>
+      <p>Each GitHub release publishes SHA-256 checksums for uploaded artifacts. The macOS install script downloads both the DMG and checksum, verifies them locally, and refuses to install if they do not match. Linux AppImage and Windows NSIS users should verify downloads against the release checksum before running them.</p>
     </article>
 
     <article class="doc-card">
       <h2>Distribution model</h2>
-      <p>Preview DMGs are currently distributed outside the Mac App Store. They may be unsigned or not notarized, so macOS can require a one-time manual approval under System Settings &gt; Privacy &amp; Security. Linux AppImage and Windows NSIS builds are technical previews gated by target-OS QA. Hot Cross Buns 2 can check GitHub Releases for a newer platform artifact, but installation is still manual rather than a silent in-place update.</p>
+      <p>Builds are currently distributed outside app stores and may be unsigned or not notarized. macOS can require a one-time manual approval under System Settings &gt; Privacy &amp; Security, and Windows can show SmartScreen warnings for unsigned installers. Hot Cross Buns 2 can check GitHub Releases for a newer platform artifact, but installation is still manual rather than a silent in-place update.</p>
     </article>
   </section>
 </main>

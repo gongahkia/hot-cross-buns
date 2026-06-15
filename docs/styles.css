@@ -799,6 +799,34 @@ kbd {
   align-items: center;
   gap: 18px;
 }
+.download-platforms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 auto 28px;
+  text-align: left;
+}
+.download-platform {
+  border: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
+  border-radius: 8px;
+  padding: 18px;
+  background: color-mix(in srgb, var(--base) 82%, transparent);
+}
+.download-platform h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+.download-platform p {
+  min-height: 72px;
+  margin: 0 0 14px;
+  color: var(--subtext1);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.download-platform .cta-secondary {
+  display: inline-flex;
+  font-size: .88rem;
+}
 .download-meta {
   margin: 0;
   font-family: "Geist", sans-serif;
@@ -1161,6 +1189,12 @@ body.modal-open {
   .update-entry { grid-template-columns: 1fr; gap: 10px; }
 
   .download-inner { padding: 0 4px; }
+  .download-platforms {
+    grid-template-columns: 1fr;
+  }
+  .download-platform p {
+    min-height: 0;
+  }
   .download-modal-card {
     padding: 24px 20px 20px;
   }

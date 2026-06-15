@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
-<title>Hot Cross Buns 2 - Planner App for macOS Preview</title>
-<meta name="description" content="Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks and Google Calendar, with a macOS preview and gated Linux/Windows technical previews.">
+<title>Hot Cross Buns 2 - Planner App for macOS, Linux, and Windows</title>
+<meta name="description" content="Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
@@ -37,9 +37,9 @@
 <header class="hero">
   <div class="hero-copy">
     <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks and Google Calendar, with a macOS preview and gated Linux/Windows technical previews.</p>
+    <p class="deck">Hot Cross Buns 2 is a keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.</p>
     <div class="hero-ctas">
-      <a class="cta-primary" href="#download">Download preview</a>
+      <a class="cta-primary" href="#download">Download</a>
       <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2" target="_blank" rel="noopener">GitHub →</a>
     </div>
   </div>
@@ -236,7 +236,25 @@
 	  <div class="download-inner">
 	    <p class="eyebrow">Ready when you are</p>
 	    <h2>Get Hot Cross Buns 2.</h2>
-	    <p class="lede">Free. macOS 14 Sonoma and up. Linux AppImage and Windows NSIS previews are gated on target-OS QA before public upload.</p>
+	    <p class="lede">Free desktop builds are available for macOS 14+, Linux x64 AppImage, and Windows x64 NSIS. Each release includes SHA-256 checksums.</p>
+
+	    <div class="download-platforms" aria-label="Platform downloads">
+	      <article class="download-platform">
+	        <h3>macOS</h3>
+	        <p>Download the DMG, open it, then move Hot Cross Buns 2 into Applications.</p>
+	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">Download DMG</a>
+	      </article>
+	      <article class="download-platform">
+	        <h3>Linux</h3>
+	        <p>Download the AppImage, verify checksums, mark it executable, then run it directly.</p>
+	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">Download AppImage</a>
+	      </article>
+	      <article class="download-platform">
+	        <h3>Windows</h3>
+	        <p>Download the NSIS installer, verify the checksum, then run the installer.</p>
+	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">Download EXE</a>
+	      </article>
+	    </div>
 
 	    <div class="download-cta">
 	      <a
@@ -248,14 +266,27 @@
 	        Open Releases
 	      </a>
 	      <p class="download-meta">
-	        <span>GitHub Releases hosts preview assets with published SHA-256 checksums after their platform gates pass.</span>
+	        <span>GitHub Releases hosts platform assets and published SHA-256 checksums.</span>
 	      </p>
 	    </div>
 
 	    <details class="brew brew-terminal">
 	      <summary>Prefer Terminal?</summary>
 	      <div class="brew-panel">
-	        <pre><code>curl -fsSL https://raw.githubusercontent.com/gongahkia/hot-cross-buns-2/main/docs/install-macos-preview.sh | bash</code></pre>
+	        <pre><code># macOS
+curl -fsSL https://raw.githubusercontent.com/gongahkia/hot-cross-buns-2/main/docs/install-macos-preview.sh | bash
+
+# Linux
+curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
+curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt
+sha256sum -c SHASUMS256.txt --ignore-missing
+chmod +x Hot-Cross-Buns-2-linux-x64.AppImage
+./Hot-Cross-Buns-2-linux-x64.AppImage
+
+# Windows PowerShell
+Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe -OutFile Hot-Cross-Buns-2-windows-x64.exe
+Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt -OutFile SHASUMS256.txt
+Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
 	      </div>
 	    </details>
 	  </div>
@@ -271,10 +302,10 @@
 	    aria-describedby="download-modal-copy"
 	  >
 	    <button class="download-modal-close" type="button" aria-label="Close" data-modal-close>×</button>
-	    <p class="eyebrow">Preview download notes</p>
+	    <p class="eyebrow">Download notes</p>
 	    <h3 id="download-modal-title">One quick thing before you open releases.</h3>
 	    <p id="download-modal-copy" class="download-modal-copy">
-	      Preview downloads are not final public distribution builds. macOS DMGs are unsigned for now. Linux AppImage and Windows NSIS previews require target-OS QA before public upload, and Linux keeps explicit native-shell limitations. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
+	      Builds are distributed through GitHub Releases and are unsigned for now. macOS may require Open Anyway, Windows may show SmartScreen warnings, and Linux keeps explicit native-shell limitations. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
 	    </p>
 	    <figure class="download-modal-warning">
 	      <img
@@ -293,7 +324,8 @@
 	      <li>Try opening the app once.</li>
 	      <li>If macOS blocks it, go to System Settings &gt; Privacy &amp; Security and click Open Anyway.</li>
 	      <li>For Linux, verify the AppImage checksum, mark it executable, and run it directly.</li>
-	      <li>Linux tray/status-area surfaces, notifications, global shortcuts, deep links, autostart, and in-place auto-update are not supported in the technical preview.</li>
+	      <li>Linux tray/status-area surfaces, notifications, global shortcuts, deep links, autostart, and in-place auto-update are not supported.</li>
+	      <li>For Windows, verify the installer hash before running the unsigned NSIS installer.</li>
 	    </ul>
 	    <p class="download-modal-footnote">You&apos;ll open GitHub Releases.</p>
         <p class="download-modal-footnote">Checksums are published for each release. See <a href="privacy.html">Privacy and Trust</a> and the GitHub README for OAuth setup.</p>
@@ -325,7 +357,7 @@
       <div class="update-copy">
         <ul>
           <li>Declared Hot Cross Buns 2 as the new maintained version, carrying forward the full archived Hot Cross Buns changelog below.</li>
-          <li>Moved the app to an Electron-first desktop build with typed IPC, a hardened preload bridge, native shell adapters, macOS preview packaging, and Linux AppImage technical preview tooling.</li>
+          <li>Moved the app to an Electron-first desktop build with typed IPC, a hardened preload bridge, native shell adapters, macOS DMG packaging, Linux AppImage packaging, and Windows NSIS packaging.</li>
           <li>Expanded Google account handling with account-scoped cache rows, per-account resource filtering, explicit calendar/list destinations, and cleaner signed-out account hiding.</li>
           <li>Added local customization with CSS snippets, external <code>keymap.json</code>, sandboxed extension panels, safe mode, and Settings controls for enabling each item.</li>
           <li>Added portable <code>.hcbexport</code> archives, attachment bundling, local pointer repair, attachment add/open/download/remove flows, ICS imports, ICS subscriptions, and local report exports.</li>

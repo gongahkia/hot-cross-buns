@@ -6,7 +6,7 @@
 
 <h1 align="center">Hot Cross Buns 2</h1>
 
-<h3 align="center">Keyboard-first desktop planner for Google Tasks and Google Calendar, with a macOS preview and gated Linux/Windows technical previews.</h3>
+<h3 align="center">Keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.</h3>
 
 <p align="center">
   <a href="https://gongahkia.github.io/hot-cross-buns-2/">Website</a> ·
@@ -17,10 +17,14 @@
 
 <p align="center">
   <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">
-    <img src="https://img.shields.io/badge/Preview-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="Preview DMG" />
+    <img src="https://img.shields.io/badge/macOS-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="macOS DMG" />
   </a>
-  <img src="https://img.shields.io/badge/Linux-AppImage%20QA%20Gate-5E8C61?style=for-the-badge&logo=linux&logoColor=white&labelColor=1f2430" alt="Linux AppImage QA gate" />
-  <img src="https://img.shields.io/badge/Windows-NSIS%20QA%20Gate-4F7DBD?style=for-the-badge&logo=windows&logoColor=white&labelColor=1f2430" alt="Windows NSIS QA gate" />
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">
+    <img src="https://img.shields.io/badge/Linux-AppImage-5E8C61?style=for-the-badge&logo=linux&logoColor=white&labelColor=1f2430" alt="Linux AppImage" />
+  </a>
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">
+    <img src="https://img.shields.io/badge/Windows-NSIS-4F7DBD?style=for-the-badge&logo=windows&logoColor=white&labelColor=1f2430" alt="Windows NSIS installer" />
+  </a>
 </p>
 
 <p align="center">
@@ -28,12 +32,13 @@
     <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns-2?display_name=tag" alt="Latest release" />
   </a>
   <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
-  <img src="https://img.shields.io/badge/Linux%2FWindows-Preview%20Gated-black" alt="Linux and Windows preview gated" />
-  <img src="https://img.shields.io/badge/Distribution-Unsigned%20Preview-orange" alt="Unsigned preview distribution" />
+  <img src="https://img.shields.io/badge/Linux-x64%20AppImage-black" alt="Linux x64 AppImage" />
+  <img src="https://img.shields.io/badge/Windows-x64%20NSIS-black" alt="Windows x64 NSIS" />
+  <img src="https://img.shields.io/badge/Distribution-Unsigned-orange" alt="Unsigned distribution" />
 </p>
 
 > [!IMPORTANT]
-> Preview downloads are not final public distribution builds. macOS currently ships as an unsigned DMG and may require `System Settings > Privacy & Security > Open Anyway` on first launch. Linux AppImage and Windows NSIS artifacts are gated on target-OS manual QA before public upload; Linux tray/status-area surfaces, deep links, and autostart are intentionally unsupported.
+> Downloads are unsigned. macOS may require `System Settings > Privacy & Security > Open Anyway` on first launch, Windows may show SmartScreen warnings, and Linux tray/status-area surfaces, deep links, notifications, global shortcuts, and autostart are intentionally unsupported.
 
 ## Table of Contents
 
@@ -42,7 +47,7 @@
 - [Architecture](#architecture)
 - [Repository Layout](#repository-layout)
 - [Local Development](#local-development)
-- [Preview Release Checks](#preview-release-checks)
+- [Release Checks](#release-checks)
 - [Testing](#testing)
 - [Additional Documentation](#additional-documentation)
 
@@ -67,11 +72,11 @@ Around those core surfaces, the app also includes:
 
 ## Install
 
-**Preview downloads**
+**Downloads**
 
 - macOS DMG: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg`
-- Linux AppImage technical preview: gated until Ubuntu 26.04 LTS GNOME QA passes.
-- Windows NSIS technical preview: gated until Windows 11 25H2 x64 installed-app QA passes.
+- Linux AppImage: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage`
+- Windows NSIS: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe`
 - Release page: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest`
 - macOS one-line installer:
 
@@ -89,7 +94,7 @@ You should only need to do that once per Mac.
 
 **First launch on Linux**
 
-The Linux package is an AppImage technical preview. It is intended first for Ubuntu 26.04 LTS on GNOME, with secondary manual checks on Fedora GNOME, KDE Plasma, Wayland, and X11 before broader claims. Public upload waits for that manual matrix.
+The Linux package is an x64 AppImage.
 
 ```bash
 curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
@@ -99,16 +104,20 @@ chmod +x Hot-Cross-Buns-2-linux-x64.AppImage
 ./Hot-Cross-Buns-2-linux-x64.AppImage
 ```
 
-Known Linux preview limits:
+Known Linux limits:
 
 - AppImage is the only Linux package format.
 - The app can check GitHub Releases for newer AppImage builds, but does not download or install Linux updates automatically.
-- Tray/status-area surfaces, `hotcrossbuns://` deep links, open-at-login/autostart, local notifications, and global shortcuts are unsupported in the Linux technical preview.
+- Tray/status-area surfaces, `hotcrossbuns://` deep links, open-at-login/autostart, local notifications, and global shortcuts are unsupported on Linux.
 - Google OAuth tokens, OAuth client secrets, and MCP bearer tokens require an OS-backed Secret Service provider such as GNOME Keyring/libsecret or KWallet. Plaintext fallback is rejected.
+
+**First launch on Windows**
+
+Download `Hot-Cross-Buns-2-windows-x64.exe`, verify it against `SHASUMS256.txt`, then run the NSIS installer. The installer is unsigned, so Windows or the browser may show trust warnings.
 
 **Google Cloud OAuth setup**
 
-Preview downloads use a bring-your-own Google Cloud Desktop OAuth client:
+Downloads use a bring-your-own Google Cloud Desktop OAuth client:
 
 1. Create a Google Cloud project.
 2. Enable the Google Tasks API and Google Calendar API.
@@ -116,7 +125,7 @@ Preview downloads use a bring-your-own Google Cloud Desktop OAuth client:
 4. Create a `Desktop app` OAuth client.
 5. Open Hot Cross Buns 2, paste the desktop client ID and optional client secret into setup, then connect Google.
 
-Tokens are stored in macOS Keychain on macOS. On Linux technical preview builds, tokens are stored through Electron `safeStorage` only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet.
+Tokens are stored in macOS Keychain on macOS. On Linux, tokens are stored through Electron `safeStorage` only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet. On Windows, tokens are stored through Electron `safeStorage`.
 
 Do not distribute a build that embeds your personal OAuth client for other people's accounts.
 
@@ -169,7 +178,8 @@ Start with [docs/README.md](docs/README.md) before changing product, architectur
 **Requirements**
 
 - macOS 14+
-- Linux AppImage technical preview: Ubuntu 26.04 LTS on GNOME first, Secret Service provider required for credentials
+- Linux x64 AppImage, with Secret Service provider required for credentials
+- Windows x64 NSIS installer
 - Node 20+
 - pnpm 9.15.4 through Corepack
 
@@ -191,9 +201,9 @@ pnpm test:smoke
 pnpm hcb --help
 ```
 
-## Preview Release Checks
+## Release Checks
 
-Preview packages are unsigned. macOS preview packages are also unnotarized. They are not final public distribution builds.
+Packages are unsigned. macOS packages are also unnotarized.
 
 ```bash
 pnpm release:mac:preview
