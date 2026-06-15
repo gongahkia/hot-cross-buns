@@ -85,6 +85,7 @@ export function sanitizePerformanceReport(report: PerfReport): PerfReport {
 
 export function requiredElectronLaunchFailure(report: PerfReport): string | null {
   const launches = report.launches ?? [];
+  const requiredTimingFields = ["shellVisibleMs", "cachedDataRenderedMs"] as const;
 
   if (launches.length === 0) {
     return "Required Electron launch timings were not captured.";
@@ -93,7 +94,20 @@ export function requiredElectronLaunchFailure(report: PerfReport): string | null
   const skippedLaunches = launches.filter((launch) => launch.status !== "collected" || !launch.timings);
 
   if (skippedLaunches.length === 0) {
-    return null;
+    const incompleteLaunches = launches
+      .map((launch) => ({
+        launch,
+        missing: requiredTimingFields.filter((field) => launch.timings?.[field] === undefined)
+      }))
+      .filter(({ missing }) => missing.length > 0);
+
+    if (incompleteLaunches.length === 0) {
+      return null;
+    }
+
+    return `Required Electron launch timings were incomplete for ${incompleteLaunches
+      .map(({ launch, missing }) => `${launch.name}: missing ${missing.join(", ")}`)
+      .join("; ")}`;
   }
 
   return `Required Electron launch timings were skipped for ${skippedLaunches

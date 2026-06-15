@@ -66,12 +66,12 @@ describe("requiredElectronLaunchFailure", () => {
         {
           name: "cold",
           status: "collected",
-          timings: { shellVisibleMs: 100 }
+          timings: { shellVisibleMs: 100, cachedDataRenderedMs: 120 }
         },
         {
           name: "warm",
           status: "collected",
-          timings: { shellVisibleMs: 80 }
+          timings: { shellVisibleMs: 80, cachedDataRenderedMs: 95 }
         }
       ]
     })).toBeNull();
@@ -89,10 +89,30 @@ describe("requiredElectronLaunchFailure", () => {
         {
           name: "warm",
           status: "collected",
-          timings: { shellVisibleMs: 80 }
+          timings: { shellVisibleMs: 80, cachedDataRenderedMs: 95 }
         }
       ]
     })).toContain("cold: App shell timeout.");
+  });
+
+  it("reports incomplete Electron launch timings", () => {
+    expect(requiredElectronLaunchFailure({
+      ...reportWithSecrets,
+      launches: [
+        {
+          name: "cold",
+          status: "collected",
+          timings: { cachedDataRenderedMs: 120 }
+        },
+        {
+          name: "warm",
+          status: "collected",
+          timings: { shellVisibleMs: 80 }
+        }
+      ]
+    })).toBe(
+      "Required Electron launch timings were incomplete for cold: missing shellVisibleMs; warm: missing cachedDataRenderedMs"
+    );
   });
 
   it("reports missing Electron launch timings", () => {

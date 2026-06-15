@@ -691,25 +691,8 @@ async function collectLaunchTiming(
     });
 
     const page = await waitForAppShellWindow(electronApp, appShellTimeoutMs);
-    await page
-      .waitForFunction(
-        `(async () => {
-          const result = await window.hcb?.diagnostics.health();
-          return Boolean(
-            result?.ok &&
-              result.data.startup.shellVisibleMs !== undefined &&
-              result.data.startup.cachedDataRenderedMs !== undefined
-          );
-        })()`,
-        undefined,
-        { timeout: 10_000 }
-      )
-      .catch(() => undefined);
-
-    const health = (await page.evaluate(`(async () => {
-      const result = await window.hcb?.diagnostics.health();
-      return result ?? null;
-    })()`)) as DiagnosticsHealthResult;
+    await waitForStartupMarks(page);
+    const health = await readDiagnosticsHealth(page);
 
     if (!health?.ok) {
       return {
@@ -732,6 +715,8 @@ async function collectLaunchTiming(
     const rendererFlowMeasurements = skipUiFlows
       ? []
       : await collectRendererFlowMeasurements(page, name);
+    await waitForStartupMarks(page);
+    const latestHealth = await readDiagnosticsHealth(page);
     const ipcMetrics = (await page.evaluate(`(async () => {
       const result = await window.hcb?.diagnostics.ipcMetrics();
       return result?.ok ? result.data : null;
@@ -744,7 +729,7 @@ async function collectLaunchTiming(
     const launch: PerfLaunchCapture = {
       name,
       status: "collected",
-      timings: health.data.startup,
+      timings: latestHealth?.ok ? latestHealth.data.startup : health.data.startup,
       wallClockMs: roundMs(performance.now() - startedAt),
       commandPaletteOpenMs
     };
@@ -801,6 +786,30 @@ function skippedLaunchTiming(
     ipcRoutes: [],
     performanceTimings: []
   };
+}
+
+async function waitForStartupMarks(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      `(async () => {
+        const result = await window.hcb?.diagnostics.health();
+        return Boolean(
+          result?.ok &&
+            result.data.startup.shellVisibleMs !== undefined &&
+            result.data.startup.cachedDataRenderedMs !== undefined
+        );
+      })()`,
+      undefined,
+      { timeout: 10_000 }
+    )
+    .catch(() => undefined);
+}
+
+async function readDiagnosticsHealth(page: Page): Promise<DiagnosticsHealthResult> {
+  return page.evaluate(`(async () => {
+    const result = await window.hcb?.diagnostics.health();
+    return result ?? null;
+  })()`) as Promise<DiagnosticsHealthResult>;
 }
 
 async function waitForAppShellWindow(
