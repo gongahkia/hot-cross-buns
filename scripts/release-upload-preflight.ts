@@ -16,6 +16,7 @@ interface ChecksumEntry {
 
 interface ReleaseUploadPreflightOptions {
   evidenceFile?: string;
+  notesFile?: string;
   releaseDir?: string;
   target: ReleaseAssetTarget;
   version?: string;
@@ -118,6 +119,46 @@ function defaultEvidenceFile(target: ReleaseAssetTarget): string {
   return join("artifacts", "manual-qa", `${target}-evidence.md`);
 }
 
+function defaultNotesFile(version: string): string {
+  return join("docs", "release", "notes", `v${version}.md`);
+}
+
+function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
+  if (target === "linux") {
+    return [
+      "Linux AppImage",
+      "technical preview",
+      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      "sha256sum -c SHASUMS256.txt",
+      "Ubuntu",
+      "GNOME",
+      "unsupported",
+      "notifications",
+      "global shortcuts",
+      "tray",
+      "hotcrossbuns://"
+    ];
+  }
+
+  return [
+    "Windows NSIS",
+    "technical preview",
+    "Hot-Cross-Buns-2-windows-x64.exe",
+    "Get-FileHash",
+    "Windows 11",
+    "unsigned",
+    "SmartScreen",
+    "NSIS"
+  ];
+}
+
+function releaseNoteBlockers(): string[] {
+  return [
+    "Publish this artifact only after",
+    "Still required before publishing Linux/Windows artifacts"
+  ];
+}
+
 async function verifyReleaseFiles(
   options: Required<Pick<ReleaseUploadPreflightOptions, "releaseDir" | "target" | "version">>
 ): Promise<string[]> {
@@ -172,20 +213,46 @@ async function verifyReleaseFiles(
   return messages;
 }
 
+async function verifyReleaseNotes(options: Required<Pick<ReleaseUploadPreflightOptions, "notesFile" | "target">>): Promise<string[]> {
+  const notesFile = resolve(options.notesFile);
+  const source = await readFile(notesFile, "utf8");
+
+  if (source.trim().length === 0) {
+    throw new Error(`${notesFile} is empty`);
+  }
+
+  for (const phrase of requiredReleaseNotePhrases(options.target)) {
+    if (!source.includes(phrase)) {
+      throw new Error(`${notesFile} is missing release-note phrase: ${phrase}`);
+    }
+  }
+
+  for (const phrase of releaseNoteBlockers()) {
+    if (source.includes(phrase)) {
+      throw new Error(`${notesFile} still contains release-note blocker phrase: ${phrase}`);
+    }
+  }
+
+  return [`${notesFile} has ${options.target} release-note upload content.`];
+}
+
 export async function verifyReleaseUploadPreflight(options: ReleaseUploadPreflightOptions): Promise<string[]> {
   const target = options.target;
   const releaseDir = options.releaseDir ?? "release";
   const version = options.version ?? packageJson.version;
   const evidenceFile = options.evidenceFile ?? defaultEvidenceFile(target);
+  const notesFile = options.notesFile ?? defaultNotesFile(version);
   const releaseMessages = await verifyReleaseFiles({ releaseDir, target, version });
   const evidenceMessages = await verifyManualQaEvidence({
     evidenceFile,
     target
   });
+  const notesMessages = await verifyReleaseNotes({ notesFile, target });
 
   return [
     ...releaseMessages,
     ...evidenceMessages,
+    ...notesMessages,
     `${target} release upload preflight passed for ${version}.`
   ];
 }
@@ -194,6 +261,7 @@ async function main(): Promise<void> {
   const target = normalizeTarget(argValue("--target"));
   const messages = await verifyReleaseUploadPreflight({
     evidenceFile: argValue("--evidence"),
+    notesFile: argValue("--notes"),
     releaseDir: argValue("--release-dir", "release"),
     target,
     version: argValue("--version", packageJson.version)

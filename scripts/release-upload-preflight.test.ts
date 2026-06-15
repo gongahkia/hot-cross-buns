@@ -75,18 +75,41 @@ async function writeEvidenceFile(evidenceFile: string, target: "linux" | "window
   await writeFile(evidenceFile, complete ? completeEvidence(source) : source.replace("- [ ] pass", "- [x] pass"));
 }
 
+async function writeReleaseNotes(notesFile: string, target: "linux" | "windows", blocker = false): Promise<void> {
+  const targetText = target === "linux"
+    ? [
+      "# Linux AppImage technical preview",
+      "Ubuntu GNOME manual QA passed.",
+      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      "sha256sum -c SHASUMS256.txt",
+      "unsupported notifications, global shortcuts, tray, and hotcrossbuns://"
+    ]
+    : [
+      "# Windows NSIS technical preview",
+      "Windows 11 installed-app manual QA passed.",
+      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Get-FileHash",
+      "unsigned NSIS SmartScreen expectations recorded."
+    ];
+
+  await writeFile(notesFile, `${targetText.join("\n")}\n${blocker ? "Publish this artifact only after QA.\n" : ""}`);
+}
+
 describe("release upload preflight", () => {
   it("passes with Linux release files and completed manual QA evidence", async () => {
     const root = await tempDir();
     const releaseDir = join(root, "release");
     const evidenceFile = join(root, "linux-evidence.md");
+    const notesFile = join(root, "notes.md");
 
     await mkdir(releaseDir);
     await writeReleaseFiles(releaseDir, linuxArtifacts);
     await writeEvidenceFile(evidenceFile, "linux");
+    await writeReleaseNotes(notesFile, "linux");
 
     const messages = await verifyReleaseUploadPreflight({
       evidenceFile,
+      notesFile,
       releaseDir,
       target: "linux",
       version: "5.0.0"
@@ -100,13 +123,16 @@ describe("release upload preflight", () => {
     const root = await tempDir();
     const releaseDir = join(root, "release");
     const evidenceFile = join(root, "windows-evidence.md");
+    const notesFile = join(root, "notes.md");
 
     await mkdir(releaseDir);
     await writeReleaseFiles(releaseDir, windowsArtifacts);
     await writeEvidenceFile(evidenceFile, "windows", false);
+    await writeReleaseNotes(notesFile, "windows");
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      notesFile,
       releaseDir,
       target: "windows",
       version: "5.0.0"
@@ -117,6 +143,7 @@ describe("release upload preflight", () => {
     const root = await tempDir();
     const releaseDir = join(root, "release");
     const evidenceFile = join(root, "windows-evidence.md");
+    const notesFile = join(root, "notes.md");
     const manifestLines: string[] = [];
 
     await mkdir(releaseDir);
@@ -128,12 +155,54 @@ describe("release upload preflight", () => {
     }
     await writeFile(join(releaseDir, "SHASUMS256.txt"), `${manifestLines.join("\n")}\n`);
     await writeEvidenceFile(evidenceFile, "windows");
+    await writeReleaseNotes(notesFile, "windows");
 
     await expect(verifyReleaseUploadPreflight({
       evidenceFile,
+      notesFile,
       releaseDir,
       target: "windows",
       version: "5.0.0"
     })).rejects.toThrow("Hot-Cross-Buns-2-windows-x64.exe does not match");
+  });
+
+  it("fails while release notes still contain publish blockers", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "linux-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, linuxArtifacts);
+    await writeEvidenceFile(evidenceFile, "linux");
+    await writeReleaseNotes(notesFile, "linux", true);
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      notesFile,
+      releaseDir,
+      target: "linux",
+      version: "5.0.0"
+    })).rejects.toThrow("still contains release-note blocker phrase");
+  });
+
+  it("fails when release notes omit target checksum instructions", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "windows-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, windowsArtifacts);
+    await writeEvidenceFile(evidenceFile, "windows");
+    await writeFile(notesFile, "# Windows NSIS technical preview\nWindows 11 unsigned NSIS SmartScreen.\nHot-Cross-Buns-2-windows-x64.exe\n");
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      notesFile,
+      releaseDir,
+      target: "windows",
+      version: "5.0.0"
+    })).rejects.toThrow("missing release-note phrase: Get-FileHash");
   });
 });

@@ -472,9 +472,11 @@ manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
 the sidecar `.sha256` files before upload:
 
 ```sh
+VERSION=$(node -p "require('./package.json').version")
 pnpm release:upload-preflight -- --target linux \
   --release-dir release \
-  --evidence artifacts/manual-qa/linux-evidence.md
+  --evidence artifacts/manual-qa/linux-evidence.md \
+  --notes "docs/release/notes/v${VERSION}.md"
 ```
 
 ```sh
@@ -510,9 +512,11 @@ manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
 the sidecar `.sha256` files before upload:
 
 ```sh
+VERSION=$(node -p "require('./package.json').version")
 pnpm release:upload-preflight -- --target windows \
   --release-dir release \
-  --evidence artifacts/manual-qa/windows-evidence.md
+  --evidence artifacts/manual-qa/windows-evidence.md \
+  --notes "docs/release/notes/v${VERSION}.md"
 ```
 
 ```sh
