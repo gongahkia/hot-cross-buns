@@ -199,6 +199,35 @@ function checkedLine(source: string, text: string): boolean {
   return new RegExp(`^- \\[x\\] ${escaped}$`, "m").test(source);
 }
 
+function resultNotes(source: string): string {
+  const lines = source.split(/\r?\n/);
+  const notesIndex = lines.findIndex((line) => /^- notes:/i.test(line));
+
+  if (notesIndex < 0) {
+    throw new Error("Manual QA evidence is missing result notes");
+  }
+
+  const inline = /^- notes:\s*(.*)$/i.exec(lines[notesIndex])?.[1].trim() ?? "";
+
+  if (inline.length > 0) {
+    return inline;
+  }
+
+  const body: string[] = [];
+
+  for (const line of lines.slice(notesIndex + 1)) {
+    const trimmed = line.trim();
+
+    if (!trimmed || /^Release file preflight:/i.test(trimmed)) {
+      break;
+    }
+
+    body.push(trimmed);
+  }
+
+  return body.join("\n").trim();
+}
+
 function markdownTable(rows: readonly [string, string][]): string {
   return ["| Field | Value |", "| --- | --- |", ...rows.map(([field, value]) => `| ${field} | ${value} |`)].join("\n");
 }
@@ -286,8 +315,12 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
     throw new Error(`${evidenceFile} marks the manual QA result as fail`);
   }
 
+  if (!resultNotes(result)) {
+    throw new Error(`${evidenceFile} does not include manual QA result notes`);
+  }
+
   messages.push(`${evidenceFile} has all ${manualChecks(options.target).length} required manual checks marked pass.`);
-  messages.push(`${evidenceFile} records a passing release file preflight and pass result.`);
+  messages.push(`${evidenceFile} records a passing release file preflight, pass result, and result notes.`);
 
   return messages;
 }

@@ -26,7 +26,10 @@ async function tempDir(): Promise<string> {
 }
 
 function completeEvidence(source: string): string {
-  return source.replace(/^- \[ \] /gm, "- [x] ").replace("- [x] fail", "- [ ] fail");
+  return source
+    .replace(/^- \[ \] /gm, "- [x] ")
+    .replace("- [x] fail", "- [ ] fail")
+    .replace("- notes:", "- notes: Target-host QA evidence recorded.");
 }
 
 describe("manual QA evidence", () => {
@@ -108,7 +111,7 @@ describe("manual QA evidence", () => {
 
     await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" })).resolves.toEqual([
       `${outputFile} has all 12 required manual checks marked pass.`,
-      `${outputFile} records a passing release file preflight and pass result.`
+      `${outputFile} records a passing release file preflight, pass result, and result notes.`
     ]);
   });
 
@@ -164,5 +167,23 @@ describe("manual QA evidence", () => {
 
     await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" }))
       .rejects.toThrow("was not generated on linux");
+  });
+
+  it("rejects completed evidence without result notes", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "linux", osType: "Linux" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    }).replace(/^- \[ \] /gm, "- [x] ").replace("- [x] fail", "- [ ] fail");
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" }))
+      .rejects.toThrow("does not include manual QA result notes");
   });
 });

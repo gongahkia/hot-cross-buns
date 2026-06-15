@@ -27,7 +27,10 @@ function sha256(value: string): string {
 }
 
 function completeEvidence(source: string): string {
-  return source.replace(/^- \[ \] /gm, "- [x] ").replace("- [x] fail", "- [ ] fail");
+  return source
+    .replace(/^- \[ \] /gm, "- [x] ")
+    .replace("- [x] fail", "- [ ] fail")
+    .replace("- notes:", "- notes: Target-host QA evidence recorded.");
 }
 
 async function writeReleaseArtifact(releaseDir: string, name: string, content: string): Promise<string> {

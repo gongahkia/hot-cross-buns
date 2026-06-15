@@ -22,6 +22,8 @@ technical preview release.
   preview workflow artifacts also include this template.
 - After filling every required target-host item, run
   `pnpm qa:evidence:verify -- --target windows --verify artifacts/manual-qa/windows-evidence.md`.
+  The result must include non-empty notes summarizing the QA host and evidence
+  attachments.
 - If QA starts from a downloaded Windows preview workflow artifact, run
   `pnpm release:artifact-bundle -- --target windows --dir <downloaded-artifact-dir>`
   before copying the installer to the QA machine.

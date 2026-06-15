@@ -1393,9 +1393,10 @@ Continuation audit, 2026-06-15:
 - Manual QA evidence verifier on 2026-06-15: `pnpm qa:evidence:verify` now
   checks a filled Linux or Windows target-host evidence file for target title,
   expected OS platform, passing release-file preflight, every required manual
-  checkbox marked complete, and a pass result without a fail result. This gives
-  future Ubuntu GNOME and Windows 11 manual QA closure a concrete verifier, but
-  does not complete the unchecked manual QA items by itself.
+  checkbox marked complete, a pass result without a fail result, and non-empty
+  result notes. This gives future Ubuntu GNOME and Windows 11 manual QA closure
+  a concrete verifier, but does not complete the unchecked manual QA items by
+  itself.
 - Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
   support docs, port docs, distribution docs, and manual QA checklists now cite
   the current bundle-gated preview runs `27523207023` and `27523207032` at

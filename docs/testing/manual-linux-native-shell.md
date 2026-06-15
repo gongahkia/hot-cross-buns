@@ -52,7 +52,8 @@ files are missing. Successful Linux preview workflow artifacts also include this
 template.
 
 After filling every required target-host item, verify the completed evidence
-file:
+file. The result must include non-empty notes summarizing the QA host and
+evidence attachments:
 
 ```sh
 pnpm qa:evidence:verify -- --target linux --verify artifacts/manual-qa/linux-evidence.md
