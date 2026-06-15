@@ -1235,12 +1235,16 @@ Continuation audit, 2026-06-15:
   `Linux AppImage Preview Validation` completed successfully at commit
   `df19162b8e6fb7e5502ebbb9c98835b8a15b7a63`, including AppImage build,
   checksum, metadata, launch, packaged MCP, Electron smoke, performance smoke,
-  and artifact upload steps.
+  and artifact upload steps. The GitHub Actions artifact API reports
+  `linux-preview-artifacts-27499256281` as not expired, with size
+  `349144466` bytes.
 - Authenticated `gh run view` rechecked Windows run `27501043773`: workflow
   `Windows Preview Validation` completed successfully at commit
   `5e248b4899162e190713ec3057fa9500b667c8de`, including Windows installer
   build, artifact smoke, checksum, silent install/MCP, Electron smoke,
-  performance smoke, and artifact upload steps.
+  performance smoke, and artifact upload steps. The GitHub Actions artifact API
+  reports `windows-preview-artifacts-27501043773` as not expired, with size
+  `288984166` bytes.
 - This recheck strengthens automated evidence only. It does not complete Ubuntu
   GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
