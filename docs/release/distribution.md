@@ -459,6 +459,13 @@ gh release upload "$TAG" \
   --clobber
 ```
 
+After upload, verify that the release contains the required Linux upload files
+and at least one Linux x64 AppImage asset that Settings update-check can prefer:
+
+```sh
+pnpm release:asset-preflight -- --target linux --tag "$TAG"
+```
+
 The Linux release notes must clearly say AppImage technical preview, list the
 unsupported Linux native features, and use `sha256sum -c SHASUMS256.txt` for
 checksum verification.
@@ -482,6 +489,13 @@ gh release upload "$TAG" \
   release/Hot-Cross-Buns-2-windows-x64.exe.sha256 \
   release/SHASUMS256.txt \
   --clobber
+```
+
+After upload, verify that the release contains the required Windows upload files
+and at least one Windows x64 `.exe` asset that Settings update-check can prefer:
+
+```sh
+pnpm release:asset-preflight -- --target windows --tag "$TAG"
 ```
 
 The Windows release notes must clearly say unsigned NSIS technical preview

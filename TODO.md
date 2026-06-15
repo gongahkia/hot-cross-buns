@@ -1350,6 +1350,14 @@ Continuation audit, 2026-06-15:
   upload path. This strengthens handoff artifacts only and does not complete
   Ubuntu GNOME manual QA, Windows 11 installed-app manual QA, or Settings
   update-check verification against real Linux/Windows GitHub Release assets.
+- Release asset preflight helper on 2026-06-15: `pnpm
+  release:asset-preflight` now checks a GitHub Release for the required Linux
+  AppImage or Windows NSIS upload files plus the platform-specific x64 asset
+  that Settings update-check should prefer. This gives the Linux and Windows
+  update-check gates a concrete post-upload command, but current `v5.0.0`
+  remains macOS-only, so those unchecked gates remain incomplete. Live command
+  `pnpm release:asset-preflight -- --target all --tag v5.0.0` exited `1` and
+  reported no matching Linux or Windows update assets.
 
 Completion definition for the next agent:
 

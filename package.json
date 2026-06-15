@@ -33,6 +33,7 @@
     "release:smoke-appimage": "tsx scripts/smoke-test-appimage.ts release",
     "release:smoke-nsis": "tsx scripts/smoke-test-nsis.ts release",
     "release:smoke-nsis-install": "tsx scripts/smoke-install-nsis.ts release",
+    "release:asset-preflight": "tsx scripts/release-asset-preflight.ts",
     "qa:evidence": "tsx scripts/manual-qa-evidence.ts",
     "pack:mac:preview": "pnpm build:release:mac && tsx scripts/electron-builder-preview.ts --mac --publish never && pnpm release:mac-artifacts && pnpm release:checksums",
     "pack:linux:preview": "pnpm build:release:linux && tsx scripts/electron-builder-preview.ts --linux AppImage --publish never && pnpm release:linux-artifacts && pnpm release:checksums",

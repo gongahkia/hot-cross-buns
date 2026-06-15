@@ -150,6 +150,8 @@ For each unsupported feature:
 ## Updates
 
 - Open the in-app update check.
+- Run `pnpm release:asset-preflight -- --target linux --tag v<version>` after
+  Linux artifacts are uploaded to a draft or published release.
 - Confirm it points users to GitHub Releases.
 - Confirm it prefers the AppImage asset when one exists.
 - Confirm it does not download, replace, or install the AppImage automatically.

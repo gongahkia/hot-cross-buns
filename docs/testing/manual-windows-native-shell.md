@@ -107,6 +107,8 @@ Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256
 
 ## Update Check And Uninstall
 
+- Run `pnpm release:asset-preflight -- --target windows --tag v<version>` after
+  Windows artifacts are uploaded to a draft or published release.
 - Confirm Settings check-for-updates finds Windows installer assets from GitHub
   Releases when a newer release exists.
 - Confirm the app does not claim in-place auto-update.
