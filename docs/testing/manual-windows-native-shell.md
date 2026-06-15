@@ -20,6 +20,9 @@ technical preview release.
   `artifacts/manual-qa/windows-evidence.md` during the manual pass. The command
   exits nonzero if required local release files are missing. Successful Windows
   preview workflow artifacts also include this template.
+- If QA starts from a downloaded Windows preview workflow artifact, run
+  `pnpm release:artifact-bundle -- --target windows --dir <downloaded-artifact-dir>`
+  before copying the installer to the QA machine.
 - Install with the NSIS installer.
 - Record SmartScreen/Defender/browser warning text, if any, using
   [Windows Signing And SmartScreen](../release/windows-signing-smartscreen.md).

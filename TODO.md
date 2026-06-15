@@ -1358,6 +1358,13 @@ Continuation audit, 2026-06-15:
   remains macOS-only, so those unchecked gates remain incomplete. Live command
   `pnpm release:asset-preflight -- --target all --tag v5.0.0` exited `1` and
   reported no matching Linux or Windows update assets.
+- Preview artifact bundle verifier on 2026-06-15: `pnpm
+  release:artifact-bundle` now verifies a downloaded Linux or Windows preview
+  workflow artifact contains the expected release files, matching
+  `SHASUMS256.txt` and sidecar checksums, byte-matching stable aliases,
+  non-empty bundle/performance reports, and a passing manual QA evidence
+  template. This improves target-host QA handoff only and does not complete any
+  unchecked manual QA item.
 
 Completion definition for the next agent:
 

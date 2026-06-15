@@ -51,6 +51,13 @@ the checklist is filled in. The command exits nonzero if required local release
 files are missing. Successful Linux preview workflow artifacts also include this
 template.
 
+If QA starts from a downloaded Linux preview workflow artifact, verify the
+downloaded bundle first:
+
+```sh
+pnpm release:artifact-bundle -- --target linux --dir <downloaded-artifact-dir>
+```
+
 Record this host evidence before the manual pass:
 
 ```sh

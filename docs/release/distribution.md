@@ -180,6 +180,18 @@ mode `4755`; do not treat that CI flag as user install guidance. Run
 `27522372430` passed this gate on 2026-06-15 at commit `3e7032d` with required
 Electron launch timing and manual QA evidence-template generation.
 
+After downloading a Linux preview workflow artifact for target-host QA, verify
+the bundle before copying it to the QA machine:
+
+```sh
+RUN_ID=<linux-preview-run-id>
+rm -rf "artifacts/qa/linux-preview-${RUN_ID}"
+gh run download "$RUN_ID" \
+  --name "linux-preview-artifacts-${RUN_ID}" \
+  --dir "artifacts/qa/linux-preview-${RUN_ID}"
+pnpm release:artifact-bundle -- --target linux --dir "artifacts/qa/linux-preview-${RUN_ID}"
+```
+
 That command runs:
 
 ```sh
@@ -270,6 +282,18 @@ still builds/tests with Node 20. Run `27522372049` passed this gate on
 Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
 persisted MCP token relaunch through Windows safeStorage, required Electron
 launch timing, and manual QA evidence-template generation.
+
+After downloading a Windows preview workflow artifact for target-host QA, verify
+the bundle before copying it to the QA machine:
+
+```sh
+RUN_ID=<windows-preview-run-id>
+rm -rf "artifacts/qa/windows-preview-${RUN_ID}"
+gh run download "$RUN_ID" \
+  --name "windows-preview-artifacts-${RUN_ID}" \
+  --dir "artifacts/qa/windows-preview-${RUN_ID}"
+pnpm release:artifact-bundle -- --target windows --dir "artifacts/qa/windows-preview-${RUN_ID}"
+```
 
 Linux cross-packaging for the Windows NSIS target requires Wine. A Linux host
 without Wine can still complete the release build and `win-unpacked` step, but
