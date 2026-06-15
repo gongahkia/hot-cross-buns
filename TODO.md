@@ -1266,6 +1266,10 @@ Continuation audit, 2026-06-15:
 - This recheck strengthens automated evidence only. It does not complete Ubuntu
   GNOME manual QA, Windows 11 installed-app manual QA, or Settings update-check
   verification against real Linux/Windows GitHub Release assets.
+- Local full unit rerun on 2026-06-15 after release-checksum and smoke-manifest
+  hardening passed: `pnpm test` completed `71` Vitest files and `546` tests.
+  This is local automated evidence only and does not replace target-OS manual
+  QA or real release-asset update-check validation.
 
 Completion definition for the next agent:
 
