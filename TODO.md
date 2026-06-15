@@ -1394,9 +1394,11 @@ Continuation audit, 2026-06-15:
   checks a filled Linux or Windows target-host evidence file for target title,
   expected OS platform, passing release-file preflight, every required manual
   checkbox marked complete, a pass result without a fail result, and non-empty
-  result notes. This gives future Ubuntu GNOME and Windows 11 manual QA closure
-  a concrete verifier, but does not complete the unchecked manual QA items by
-  itself.
+  result notes. It supports `--stage pre-upload` for pre-upload target-host
+  checks and full/default verification after release assets exist and
+  Settings update-check is verified. This gives future Ubuntu GNOME and Windows
+  11 manual QA closure a concrete verifier, but does not complete the unchecked
+  manual QA items by itself.
 - Documentation evidence refresh on 2026-06-15: Linux/Windows release notes,
   support docs, port docs, distribution docs, and manual QA checklists now cite
   the current bundle-gated preview runs `27523207023` and `27523207032` at
@@ -1404,12 +1406,14 @@ Continuation audit, 2026-06-15:
   complete target-OS manual QA or release-upload gates.
 - Release upload preflight on 2026-06-15: `pnpm release:upload-preflight` now
   blocks Linux/Windows release uploads unless local release files, checksum
-  manifest, sidecar hashes, byte-matching aliases, completed target-host manual
-  QA evidence, and final target release-note content all pass. This gives the
-  post-manual-QA upload gates a local required command, but current manual QA
-  and release uploads remain incomplete. Running it against downloaded Linux
-  preview artifact `27523207023` exited `1` because `linux-evidence.md` is
-  still an unchecked manual QA template.
+  manifest, sidecar hashes, byte-matching aliases, completed pre-upload
+  target-host manual QA evidence, and final target release-note content all
+  pass. Settings update-check evidence remains a post-upload gate after draft or
+  published release assets exist. This gives the post-manual-QA upload gates a
+  local required command, but current manual QA and release uploads remain
+  incomplete. Running it against downloaded Linux preview artifact
+  `27523207023` exited `1` because `linux-evidence.md` is still an unchecked
+  manual QA template.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a

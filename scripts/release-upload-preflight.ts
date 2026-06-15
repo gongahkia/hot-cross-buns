@@ -245,6 +245,7 @@ export async function verifyReleaseUploadPreflight(options: ReleaseUploadPreflig
   const releaseMessages = await verifyReleaseFiles({ releaseDir, target, version });
   const evidenceMessages = await verifyManualQaEvidence({
     evidenceFile,
+    stage: "pre-upload",
     target
   });
   const notesMessages = await verifyReleaseNotes({ notesFile, target });

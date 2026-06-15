@@ -9,6 +9,7 @@ const DEFAULT_RELEASE_DIR = "release";
 const DEFAULT_OUTPUT_DIR = join("artifacts", "manual-qa");
 
 export type ManualQaTarget = "linux" | "windows";
+export type ManualQaVerificationStage = "full" | "pre-upload";
 
 interface FileEvidence {
   bytes: number | null;
@@ -48,6 +49,7 @@ export interface ManualQaEvidenceOptions {
 
 export interface VerifyManualQaEvidenceOptions {
   evidenceFile: string;
+  stage?: ManualQaVerificationStage;
   target: ManualQaTarget;
 }
 
@@ -106,6 +108,18 @@ function defaultTarget(): ManualQaTarget {
   return normalizeManualQaTarget(process.platform);
 }
 
+function normalizeVerificationStage(value: string | undefined): ManualQaVerificationStage {
+  if (!value || value === "full") {
+    return "full";
+  }
+
+  if (value === "pre-upload") {
+    return "pre-upload";
+  }
+
+  throw new Error(`Unsupported manual QA verification stage: ${value}`);
+}
+
 function defaultHostEvidence(): HostEvidence {
   return {
     arch: arch(),
@@ -135,7 +149,7 @@ async function fileEvidence(releaseDir: string, name: string): Promise<FileEvide
   }
 }
 
-function manualChecks(target: ManualQaTarget): string[] {
+function preUploadManualChecks(target: ManualQaTarget): string[] {
   if (target === "linux") {
     return [
       "Ubuntu LTS GNOME version and session type recorded",
@@ -148,8 +162,7 @@ function manualChecks(target: ManualQaTarget): string[] {
       "packaged AppImage MCP localhost smoke verified",
       "Settings diagnostics paths, adapter id, package format, credential state, and redaction verified",
       "notifications and global shortcuts confirmed explicitly unsupported",
-      "tray/status-area, protocol, autostart, and in-place update support claims unchanged or separately verified",
-      "Settings update-check verified only after Linux release assets exist"
+      "tray/status-area, protocol, autostart, and in-place update support claims unchanged or separately verified"
     ];
   }
 
@@ -166,9 +179,22 @@ function manualChecks(target: ManualQaTarget): string[] {
     "notifications display and click-through verified",
     "hotcrossbuns:// warm-start and cold-start deep links verified",
     "open-at-login enable/disable persistence verified",
-    "Settings update-check verified only after Windows release assets exist",
     "interactive uninstall cleanup and retained user-data paths documented"
   ];
+}
+
+function postUploadManualChecks(target: ManualQaTarget): string[] {
+  return target === "linux"
+    ? ["Settings update-check verified only after Linux release assets exist"]
+    : ["Settings update-check verified only after Windows release assets exist"];
+}
+
+function manualChecks(target: ManualQaTarget, stage: ManualQaVerificationStage = "full"): string[] {
+  const preUploadChecks = preUploadManualChecks(target);
+
+  return stage === "pre-upload"
+    ? preUploadChecks
+    : [...preUploadChecks, ...postUploadManualChecks(target)];
 }
 
 function targetTitle(target: ManualQaTarget): string {
@@ -252,7 +278,8 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
     (file) =>
       `| ${file.name} | ${file.status} | ${file.bytes === null ? "" : String(file.bytes)} |`
   );
-  const checks = manualChecks(evidence.target).map((check) => `- [ ] ${check}`);
+  const preUploadChecks = preUploadManualChecks(evidence.target).map((check) => `- [ ] ${check}`);
+  const postUploadChecks = postUploadManualChecks(evidence.target).map((check) => `- [ ] ${check}`);
 
   return [
     targetTitle(evidence.target),
@@ -265,9 +292,13 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
     "| --- | --- | --- |",
     ...fileRows,
     "",
-    "## Required Manual Evidence",
+    "## Required Pre-Upload Manual Evidence",
     "",
-    ...checks,
+    ...preUploadChecks,
+    "",
+    "## Required Post-Upload Evidence",
+    "",
+    ...postUploadChecks,
     "",
     "## Result",
     "",
@@ -284,8 +315,14 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
 
 export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOptions): Promise<string[]> {
   const evidenceFile = resolve(options.evidenceFile);
+  const stage = options.stage ?? "full";
   const source = await readFile(evidenceFile, "utf8");
-  const requiredManualEvidence = section(source, "Required Manual Evidence");
+  const requiredPreUploadEvidence = source.includes("## Required Pre-Upload Manual Evidence\n")
+    ? section(source, "Required Pre-Upload Manual Evidence")
+    : section(source, "Required Manual Evidence");
+  const requiredPostUploadEvidence = source.includes("## Required Post-Upload Evidence\n")
+    ? section(source, "Required Post-Upload Evidence")
+    : requiredPreUploadEvidence;
   const result = section(source, "Result");
   const messages: string[] = [];
 
@@ -301,9 +338,17 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
     throw new Error(`${evidenceFile} did not record a passing release file preflight`);
   }
 
-  for (const check of manualChecks(options.target)) {
-    if (!checkedLine(requiredManualEvidence, check)) {
+  for (const check of preUploadManualChecks(options.target)) {
+    if (!checkedLine(requiredPreUploadEvidence, check)) {
       throw new Error(`${evidenceFile} has incomplete manual check: ${check}`);
+    }
+  }
+
+  if (stage === "full") {
+    for (const check of postUploadManualChecks(options.target)) {
+      if (!checkedLine(requiredPostUploadEvidence, check)) {
+        throw new Error(`${evidenceFile} has incomplete post-upload check: ${check}`);
+      }
     }
   }
 
@@ -319,7 +364,7 @@ export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOpti
     throw new Error(`${evidenceFile} does not include manual QA result notes`);
   }
 
-  messages.push(`${evidenceFile} has all ${manualChecks(options.target).length} required manual checks marked pass.`);
+  messages.push(`${evidenceFile} has all ${manualChecks(options.target, stage).length} required ${stage} manual checks marked pass.`);
   messages.push(`${evidenceFile} records a passing release file preflight, pass result, and result notes.`);
 
   return messages;
@@ -360,7 +405,8 @@ async function main(): Promise<void> {
 
   if (verifyFile) {
     const target = normalizeManualQaTarget(targetArg ?? defaultTarget());
-    const messages = await verifyManualQaEvidence({ evidenceFile: verifyFile, target });
+    const stage = normalizeVerificationStage(argValue("--stage"));
+    const messages = await verifyManualQaEvidence({ evidenceFile: verifyFile, stage, target });
 
     for (const message of messages) {
       console.log(message);

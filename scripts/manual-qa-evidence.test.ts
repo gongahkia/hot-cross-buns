@@ -32,6 +32,10 @@ function completeEvidence(source: string): string {
     .replace("- notes:", "- notes: Target-host QA evidence recorded.");
 }
 
+function completePreUploadEvidence(source: string, postUploadCheck: string): string {
+  return completeEvidence(source).replace(`- [x] ${postUploadCheck}`, `- [ ] ${postUploadCheck}`);
+}
+
 describe("manual QA evidence", () => {
   it("normalizes supported targets", () => {
     expect(normalizeManualQaTarget("linux")).toBe("linux");
@@ -110,9 +114,52 @@ describe("manual QA evidence", () => {
     await writeFile(outputFile, completeEvidence(source));
 
     await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" })).resolves.toEqual([
-      `${outputFile} has all 12 required manual checks marked pass.`,
+      `${outputFile} has all 12 required full manual checks marked pass.`,
       `${outputFile} records a passing release file preflight, pass result, and result notes.`
     ]);
+  });
+
+  it("allows pre-upload verification before release assets exist for update-check QA", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "linux", osType: "Linux" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    });
+
+    await writeFile(
+      outputFile,
+      completePreUploadEvidence(source, "Settings update-check verified only after Linux release assets exist")
+    );
+
+    await expect(
+      verifyManualQaEvidence({ evidenceFile: outputFile, stage: "pre-upload", target: "linux" })
+    ).resolves.toContain(`${outputFile} has all 11 required pre-upload manual checks marked pass.`);
+  });
+
+  it("requires post-upload update-check evidence for full verification", async () => {
+    const outputFile = join(await tempDir(), "windows-evidence.md");
+    const source = formatManualQaEvidence({
+      files: requiredReleaseFiles("windows", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host,
+      releaseDir: "/release",
+      target: "windows",
+      version: "5.0.0"
+    });
+
+    await writeFile(
+      outputFile,
+      completePreUploadEvidence(source, "Settings update-check verified only after Windows release assets exist")
+    );
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
+      .rejects.toThrow("has incomplete post-upload check: Settings update-check verified only after Windows release assets exist");
   });
 
   it("rejects unchecked manual QA evidence", async () => {

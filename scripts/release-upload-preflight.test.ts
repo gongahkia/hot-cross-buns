@@ -33,6 +33,10 @@ function completeEvidence(source: string): string {
     .replace("- notes:", "- notes: Target-host QA evidence recorded.");
 }
 
+function completePreUploadEvidence(source: string, postUploadCheck: string): string {
+  return completeEvidence(source).replace(`- [x] ${postUploadCheck}`, `- [ ] ${postUploadCheck}`);
+}
+
 async function writeReleaseArtifact(releaseDir: string, name: string, content: string): Promise<string> {
   const hash = sha256(content);
   const filePath = join(releaseDir, name);
@@ -76,6 +80,32 @@ async function writeEvidenceFile(evidenceFile: string, target: "linux" | "window
   });
 
   await writeFile(evidenceFile, complete ? completeEvidence(source) : source.replace("- [ ] pass", "- [x] pass"));
+}
+
+async function writePreUploadEvidenceFile(evidenceFile: string, target: "linux" | "windows"): Promise<void> {
+  const postUploadCheck = target === "linux"
+    ? "Settings update-check verified only after Linux release assets exist"
+    : "Settings update-check verified only after Windows release assets exist";
+  const source = formatManualQaEvidence({
+    files: requiredReleaseAssets(target, "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    gitSha: "abc123",
+    host: {
+      arch: "x64",
+      cwd: "/repo",
+      hostname: "qa-host",
+      node: "v20.0.0",
+      osPlatform: target === "linux" ? "linux" : "win32",
+      osRelease: target === "linux" ? "6.8.0" : "10.0.22631",
+      osType: target === "linux" ? "Linux" : "Windows_NT",
+      pnpm: "9.15.4"
+    },
+    releaseDir: "/release",
+    target,
+    version: "5.0.0"
+  });
+
+  await writeFile(evidenceFile, completePreUploadEvidence(source, postUploadCheck));
 }
 
 async function writeReleaseNotes(notesFile: string, target: "linux" | "windows", blocker = false): Promise<void> {
@@ -140,6 +170,26 @@ describe("release upload preflight", () => {
       target: "windows",
       version: "5.0.0"
     })).rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 x64");
+  });
+
+  it("allows upload preflight before post-upload Settings update-check evidence exists", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "linux-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, linuxArtifacts);
+    await writePreUploadEvidenceFile(evidenceFile, "linux");
+    await writeReleaseNotes(notesFile, "linux");
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      notesFile,
+      releaseDir,
+      target: "linux",
+      version: "5.0.0"
+    })).resolves.toContain("linux release upload preflight passed for 5.0.0.");
   });
 
   it("fails when a stable alias differs from the versioned artifact", async () => {

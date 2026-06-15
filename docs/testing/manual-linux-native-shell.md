@@ -51,9 +51,16 @@ the checklist is filled in. The command exits nonzero if required local release
 files are missing. Successful Linux preview workflow artifacts also include this
 template.
 
-After filling every required target-host item, verify the completed evidence
-file. The result must include non-empty notes summarizing the QA host and
-evidence attachments:
+Before uploading Linux release assets, verify the completed pre-upload evidence.
+The result must include non-empty notes summarizing the QA host and evidence
+attachments:
+
+```sh
+pnpm qa:evidence:verify -- --target linux --stage pre-upload --verify artifacts/manual-qa/linux-evidence.md
+```
+
+After Linux release assets exist and Settings update-check is verified, run the
+full evidence verifier:
 
 ```sh
 pnpm qa:evidence:verify -- --target linux --verify artifacts/manual-qa/linux-evidence.md
