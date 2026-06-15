@@ -277,4 +277,30 @@ describe("release upload preflight", () => {
       version: "5.0.0"
     })).rejects.toThrow("missing release-note phrase: Get-FileHash");
   });
+
+  it("fails when release notes omit final target manual QA wording", async () => {
+    const root = await tempDir();
+    const releaseDir = join(root, "release");
+    const evidenceFile = join(root, "linux-evidence.md");
+    const notesFile = join(root, "notes.md");
+
+    await mkdir(releaseDir);
+    await writeReleaseFiles(releaseDir, linuxArtifacts);
+    await writeEvidenceFile(evidenceFile, "linux");
+    await writeFile(notesFile, [
+      "# Linux AppImage technical preview",
+      "Ubuntu 26.04 LTS GNOME automated preview gates passed.",
+      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      "sha256sum -c SHASUMS256.txt",
+      "unsupported notifications, global shortcuts, tray, and hotcrossbuns://"
+    ].join("\n"));
+
+    await expect(verifyReleaseUploadPreflight({
+      evidenceFile,
+      notesFile,
+      releaseDir,
+      target: "linux",
+      version: "5.0.0"
+    })).rejects.toThrow("missing release-note phrase: Ubuntu 26.04 LTS GNOME manual QA passed");
+  });
 });

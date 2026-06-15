@@ -130,8 +130,7 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
       "technical preview",
       "Hot-Cross-Buns-2-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
-      "Ubuntu",
-      "GNOME",
+      "Ubuntu 26.04 LTS GNOME manual QA passed",
       "unsupported",
       "notifications",
       "global shortcuts",
@@ -145,7 +144,7 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
     "technical preview",
     "Hot-Cross-Buns-2-windows-x64.exe",
     "Get-FileHash",
-    "Windows 11 25H2",
+    "Windows 11 25H2 installed-app manual QA passed",
     "unsigned",
     "SmartScreen",
     "NSIS"

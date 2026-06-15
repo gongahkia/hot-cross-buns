@@ -1417,6 +1417,12 @@ Continuation audit, 2026-06-15:
   incomplete. Running it against downloaded Linux preview artifact
   `27525193156` exited `1` because `linux-evidence.md` is still an unchecked
   manual QA template.
+- Release upload preflight note hardening on 2026-06-15: `pnpm
+  release:upload-preflight` now also requires final release notes to state
+  `Ubuntu 26.04 LTS GNOME manual QA passed` for Linux uploads or `Windows 11
+  25H2 installed-app manual QA passed` for Windows uploads. This blocks upload
+  while notes still only cite automated preview gates, but it does not complete
+  the target-host manual QA gates.
 - Release asset preflight digest hardening on 2026-06-15: `pnpm
   release:asset-preflight` now also checks GitHub `sha256:` digest metadata for
   uploaded Linux/Windows versioned artifacts and stable aliases, and fails if a
