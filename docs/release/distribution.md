@@ -221,7 +221,9 @@ The smoke script verifies that the versioned Linux AppImage, stable Linux alias,
 stable Linux x64 alias, checksum manifest, and per-artifact `.sha256` sidecars
 agree. It also verifies that the AppImage is executable, can be extracted with
 `--appimage-extract`, contains expected desktop metadata, and does not register
-`hotcrossbuns://`. To also launch the AppImage with the gated packaged
+`hotcrossbuns://`. The checksum manifest must contain only top-level uploaded
+release artifacts; nested extracted or unpacked helper paths fail the smoke.
+To also launch the AppImage with the gated packaged
 `HCB_USER_DATA_DIR` override and require startup logs, run:
 
 ```sh
@@ -311,8 +313,10 @@ pnpm release:smoke-nsis
 
 The smoke script verifies that the versioned Windows x64 installer, stable
 Windows alias, stable Windows x64 alias, checksum manifest, and per-artifact
-`.sha256` sidecars agree. It does not replace the installed-app manual checks
-in [Manual Windows Native Shell Checklist](../testing/manual-windows-native-shell.md).
+`.sha256` sidecars agree. The checksum manifest must contain only top-level
+uploaded release artifacts; nested `win-unpacked` helper paths fail the smoke.
+It does not replace the installed-app manual checks in
+[Manual Windows Native Shell Checklist](../testing/manual-windows-native-shell.md).
 
 On Windows, run the silent install smoke before manual QA:
 
