@@ -51,6 +51,13 @@ the checklist is filled in. The command exits nonzero if required local release
 files are missing. Successful Linux preview workflow artifacts also include this
 template.
 
+After filling every required target-host item, verify the completed evidence
+file:
+
+```sh
+pnpm qa:evidence:verify -- --target linux --verify artifacts/manual-qa/linux-evidence.md
+```
+
 If QA starts from a downloaded Linux preview workflow artifact, verify the
 downloaded bundle first:
 

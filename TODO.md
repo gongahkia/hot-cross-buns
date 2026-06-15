@@ -1390,6 +1390,12 @@ Continuation audit, 2026-06-15:
   --target windows --dir /tmp/hcb2-windows-preview-27523207032`. This proves
   hosted artifact bundle integrity only and does not complete target-OS manual
   QA or release-upload gates.
+- Manual QA evidence verifier on 2026-06-15: `pnpm qa:evidence:verify` now
+  checks a filled Linux or Windows target-host evidence file for target title,
+  expected OS platform, passing release-file preflight, every required manual
+  checkbox marked complete, and a pass result without a fail result. This gives
+  future Ubuntu GNOME and Windows 11 manual QA closure a concrete verifier, but
+  does not complete the unchecked manual QA items by itself.
 
 Completion definition for the next agent:
 

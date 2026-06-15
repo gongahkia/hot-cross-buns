@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { arch, hostname, platform as osPlatform, release, type } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +44,11 @@ export interface ManualQaEvidenceOptions {
   outputFile?: string;
   releaseDir?: string;
   target?: ManualQaTarget;
+}
+
+export interface VerifyManualQaEvidenceOptions {
+  evidenceFile: string;
+  target: ManualQaTarget;
 }
 
 function argValue(name: string, fallback?: string): string | undefined {
@@ -166,13 +171,40 @@ function manualChecks(target: ManualQaTarget): string[] {
   ];
 }
 
+function targetTitle(target: ManualQaTarget): string {
+  return target === "linux" ? "# Linux AppImage Manual QA Evidence" : "# Windows NSIS Manual QA Evidence";
+}
+
+function expectedOsPlatform(target: ManualQaTarget): string {
+  return target === "linux" ? "linux" : "win32";
+}
+
+function section(source: string, heading: string): string {
+  const marker = `## ${heading}\n`;
+  const start = source.indexOf(marker);
+
+  if (start < 0) {
+    throw new Error(`Manual QA evidence is missing section: ${heading}`);
+  }
+
+  const contentStart = start + marker.length;
+  const next = source.indexOf("\n## ", contentStart);
+
+  return next < 0 ? source.slice(contentStart) : source.slice(contentStart, next);
+}
+
+function checkedLine(source: string, text: string): boolean {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  return new RegExp(`^- \\[x\\] ${escaped}$`, "m").test(source);
+}
+
 function markdownTable(rows: readonly [string, string][]): string {
   return ["| Field | Value |", "| --- | --- |", ...rows.map(([field, value]) => `| ${field} | ${value} |`)].join("\n");
 }
 
 export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
   const missingFiles = evidence.files.filter((file) => file.status === "missing");
-  const targetName = evidence.target === "linux" ? "Linux AppImage" : "Windows NSIS";
   const hostRows: [string, string][] = [
     ["generated at", evidence.generatedAt],
     ["git sha", evidence.gitSha],
@@ -194,7 +226,7 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
   const checks = manualChecks(evidence.target).map((check) => `- [ ] ${check}`);
 
   return [
-    `# ${targetName} Manual QA Evidence`,
+    targetTitle(evidence.target),
     "",
     markdownTable(hostRows),
     "",
@@ -219,6 +251,45 @@ export function formatManualQaEvidence(evidence: ManualQaEvidence): string {
       : `Release file preflight: fail, ${missingFiles.length} missing file(s).`,
     ""
   ].join("\n");
+}
+
+export async function verifyManualQaEvidence(options: VerifyManualQaEvidenceOptions): Promise<string[]> {
+  const evidenceFile = resolve(options.evidenceFile);
+  const source = await readFile(evidenceFile, "utf8");
+  const requiredManualEvidence = section(source, "Required Manual Evidence");
+  const result = section(source, "Result");
+  const messages: string[] = [];
+
+  if (!source.includes(targetTitle(options.target))) {
+    throw new Error(`${evidenceFile} is not a ${options.target} manual QA evidence file`);
+  }
+
+  if (!source.includes(`| os platform | ${expectedOsPlatform(options.target)} |`)) {
+    throw new Error(`${evidenceFile} was not generated on ${expectedOsPlatform(options.target)}`);
+  }
+
+  if (!source.includes("Release file preflight: pass.")) {
+    throw new Error(`${evidenceFile} did not record a passing release file preflight`);
+  }
+
+  for (const check of manualChecks(options.target)) {
+    if (!checkedLine(requiredManualEvidence, check)) {
+      throw new Error(`${evidenceFile} has incomplete manual check: ${check}`);
+    }
+  }
+
+  if (!checkedLine(result, "pass")) {
+    throw new Error(`${evidenceFile} does not mark the manual QA result as pass`);
+  }
+
+  if (checkedLine(result, "fail")) {
+    throw new Error(`${evidenceFile} marks the manual QA result as fail`);
+  }
+
+  messages.push(`${evidenceFile} has all ${manualChecks(options.target).length} required manual checks marked pass.`);
+  messages.push(`${evidenceFile} records a passing release file preflight and pass result.`);
+
+  return messages;
 }
 
 export async function writeManualQaEvidence(options: ManualQaEvidenceOptions = {}): Promise<{
@@ -252,6 +323,19 @@ export async function writeManualQaEvidence(options: ManualQaEvidenceOptions = {
 
 async function main(): Promise<void> {
   const targetArg = argValue("--target");
+  const verifyFile = argValue("--verify");
+
+  if (verifyFile) {
+    const target = normalizeManualQaTarget(targetArg ?? defaultTarget());
+    const messages = await verifyManualQaEvidence({ evidenceFile: verifyFile, target });
+
+    for (const message of messages) {
+      console.log(message);
+    }
+
+    return;
+  }
+
   const result = await writeManualQaEvidence({
     outputFile: argValue("--out"),
     releaseDir: argValue("--dir", DEFAULT_RELEASE_DIR),

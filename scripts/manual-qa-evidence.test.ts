@@ -3,8 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  formatManualQaEvidence,
   normalizeManualQaTarget,
   requiredReleaseFiles,
+  verifyManualQaEvidence,
   writeManualQaEvidence
 } from "./manual-qa-evidence";
 
@@ -21,6 +23,10 @@ const host = {
 
 async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "hcb2-manual-qa-"));
+}
+
+function completeEvidence(source: string): string {
+  return source.replace(/^- \[ \] /gm, "- [x] ").replace("- [x] fail", "- [ ] fail");
 }
 
 describe("manual QA evidence", () => {
@@ -84,5 +90,79 @@ describe("manual QA evidence", () => {
     expect(result.missingFiles).toHaveLength(requiredReleaseFiles("linux", "5.0.0").length);
     expect(report).toContain("Release file preflight: fail");
     expect(report).toContain("- [ ] Ubuntu LTS GNOME version and session type recorded");
+  });
+
+  it("verifies completed Linux manual QA evidence", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "linux", osType: "Linux" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    });
+
+    await writeFile(outputFile, completeEvidence(source));
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" })).resolves.toEqual([
+      `${outputFile} has all 12 required manual checks marked pass.`,
+      `${outputFile} records a passing release file preflight and pass result.`
+    ]);
+  });
+
+  it("rejects unchecked manual QA evidence", async () => {
+    const outputFile = join(await tempDir(), "windows-evidence.md");
+    const source = formatManualQaEvidence({
+      files: requiredReleaseFiles("windows", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host,
+      releaseDir: "/release",
+      target: "windows",
+      version: "5.0.0"
+    });
+
+    await writeFile(outputFile, source.replace("- [ ] pass", "- [x] pass"));
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
+      .rejects.toThrow("has incomplete manual check: NSIS installer run on Windows 11 x64");
+  });
+
+  it("rejects failed manual QA evidence", async () => {
+    const outputFile = join(await tempDir(), "windows-evidence.md");
+    const source = completeEvidence(formatManualQaEvidence({
+      files: requiredReleaseFiles("windows", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host,
+      releaseDir: "/release",
+      target: "windows",
+      version: "5.0.0"
+    })).replace("- [ ] fail", "- [x] fail");
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "windows" }))
+      .rejects.toThrow("marks the manual QA result as fail");
+  });
+
+  it("rejects evidence generated on the wrong target OS", async () => {
+    const outputFile = join(await tempDir(), "linux-evidence.md");
+    const source = completeEvidence(formatManualQaEvidence({
+      files: requiredReleaseFiles("linux", "5.0.0").map((name) => ({ bytes: 12, name, status: "present" })),
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      gitSha: "abc123",
+      host: { ...host, osPlatform: "darwin", osType: "Darwin" },
+      releaseDir: "/release",
+      target: "linux",
+      version: "5.0.0"
+    }));
+
+    await writeFile(outputFile, source);
+
+    await expect(verifyManualQaEvidence({ evidenceFile: outputFile, target: "linux" }))
+      .rejects.toThrow("was not generated on linux");
   });
 });

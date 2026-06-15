@@ -36,6 +36,7 @@
     "release:asset-preflight": "tsx scripts/release-asset-preflight.ts",
     "release:artifact-bundle": "tsx scripts/preview-artifact-bundle.ts",
     "qa:evidence": "tsx scripts/manual-qa-evidence.ts",
+    "qa:evidence:verify": "tsx scripts/manual-qa-evidence.ts",
     "pack:mac:preview": "pnpm build:release:mac && tsx scripts/electron-builder-preview.ts --mac --publish never && pnpm release:mac-artifacts && pnpm release:checksums",
     "pack:linux:preview": "pnpm build:release:linux && tsx scripts/electron-builder-preview.ts --linux AppImage --publish never && pnpm release:linux-artifacts && pnpm release:checksums",
     "pack:win:preview": "pnpm build:release:win && tsx scripts/electron-builder-preview.ts --win nsis --x64 --publish never && pnpm release:win-artifacts && pnpm release:checksums",

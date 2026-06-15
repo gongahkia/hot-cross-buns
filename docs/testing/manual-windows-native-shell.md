@@ -20,6 +20,8 @@ technical preview release.
   `artifacts/manual-qa/windows-evidence.md` during the manual pass. The command
   exits nonzero if required local release files are missing. Successful Windows
   preview workflow artifacts also include this template.
+- After filling every required target-host item, run
+  `pnpm qa:evidence:verify -- --target windows --verify artifacts/manual-qa/windows-evidence.md`.
 - If QA starts from a downloaded Windows preview workflow artifact, run
   `pnpm release:artifact-bundle -- --target windows --dir <downloaded-artifact-dir>`
   before copying the installer to the QA machine.
