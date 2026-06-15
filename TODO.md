@@ -1237,7 +1237,12 @@ Continuation audit, 2026-06-15:
   checksum, metadata, launch, packaged MCP, Electron smoke, performance smoke,
   and artifact upload steps. The GitHub Actions artifact API reports
   `linux-preview-artifacts-27499256281` as not expired, with size
-  `349144466` bytes.
+  `349144466` bytes. Downloading that artifact on 2026-06-15 showed
+  `Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage`,
+  `Hot-Cross-Buns-2-linux.AppImage`, `Hot-Cross-Buns-2-linux-x64.AppImage`,
+  sidecar `.sha256` files, `SHASUMS256.txt`, `builder-debug.yml`, and
+  `latest-linux.yml`; `sha256sum -c SHASUMS256.txt` passed, and both stable
+  AppImage aliases byte-matched the versioned AppImage.
 - Authenticated `gh run view` rechecked Windows run `27501043773`: workflow
   `Windows Preview Validation` completed successfully at commit
   `5e248b4899162e190713ec3057fa9500b667c8de`, including Windows installer
