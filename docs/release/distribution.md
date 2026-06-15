@@ -434,7 +434,10 @@ Do not publish the draft until the uploaded artifact names and checksums match `
 
 For the Linux AppImage technical preview artifacts, either create a Linux-only
 draft release or upload these files to the existing `v${VERSION}` draft after
-`pnpm release:linux:preview`, checksum verification, and AppImage smoke pass:
+the Ubuntu GNOME manual matrix, `pnpm release:linux:preview`, checksum
+verification, and AppImage smoke pass. If any artifact, alias, release note, or
+manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
+the sidecar `.sha256` files before upload:
 
 ```sh
 VERSION=$(node -p "require('./package.json').version")
@@ -457,7 +460,9 @@ checksum verification.
 For the Windows NSIS technical preview artifacts, either create a Windows-only
 draft release or upload these files to the existing `v${VERSION}` draft after
 `pnpm release:win:preview`, checksum verification, installer smoke, and manual
-Windows installed-app QA pass:
+Windows installed-app QA pass. If any artifact, alias, release note, or
+manual-QA fix changes after the preview build, regenerate `SHASUMS256.txt` and
+the sidecar `.sha256` files before upload:
 
 ```sh
 VERSION=$(node -p "require('./package.json').version")
