@@ -123,11 +123,12 @@ function defaultNotesFile(version: string): string {
   return join("docs", "release", "notes", `v${version}.md`);
 }
 
-function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
+function requiredReleaseNotePhrases(target: ReleaseAssetTarget, version = packageJson.version): string[] {
   if (target === "linux") {
     return [
       "Linux AppImage",
       "technical preview",
+      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
       "Hot-Cross-Buns-2-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
       "Ubuntu 26.04 LTS GNOME manual QA passed",
@@ -142,6 +143,7 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget): string[] {
   return [
     "Windows NSIS",
     "technical preview",
+    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
     "Hot-Cross-Buns-2-windows-x64.exe",
     "Get-FileHash",
     "Windows 11 25H2 installed-app manual QA passed",
@@ -214,7 +216,7 @@ async function verifyReleaseFiles(
   return messages;
 }
 
-async function verifyReleaseNotes(options: Required<Pick<ReleaseUploadPreflightOptions, "notesFile" | "target">>): Promise<string[]> {
+async function verifyReleaseNotes(options: Required<Pick<ReleaseUploadPreflightOptions, "notesFile" | "target" | "version">>): Promise<string[]> {
   const notesFile = resolve(options.notesFile);
   const source = await readFile(notesFile, "utf8");
 
@@ -222,7 +224,7 @@ async function verifyReleaseNotes(options: Required<Pick<ReleaseUploadPreflightO
     throw new Error(`${notesFile} is empty`);
   }
 
-  for (const phrase of requiredReleaseNotePhrases(options.target)) {
+  for (const phrase of requiredReleaseNotePhrases(options.target, options.version)) {
     if (!source.includes(phrase)) {
       throw new Error(`${notesFile} is missing release-note phrase: ${phrase}`);
     }
@@ -249,7 +251,7 @@ export async function verifyReleaseUploadPreflight(options: ReleaseUploadPreflig
     stage: "pre-upload",
     target
   });
-  const notesMessages = await verifyReleaseNotes({ notesFile, target });
+  const notesMessages = await verifyReleaseNotes({ notesFile, target, version });
 
   return [
     ...releaseMessages,
