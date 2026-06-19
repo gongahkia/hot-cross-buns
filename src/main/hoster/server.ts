@@ -3,6 +3,7 @@ import { createServer, type Server, type Socket } from "node:net";
 import {
   localHosterSignalPayloadSchema,
   localHosterSignalRequestSchema,
+  localHosterProtocolCompatibility,
   type LocalHosterCapability,
   type LocalHosterProfile,
   type LocalHosterSignalPayload
@@ -124,6 +125,7 @@ export class LocalHosterServer {
       }
       return McpHttpResponse.json(200, {
         kind: "localHosterInfo",
+        protocol: localHosterProtocolCompatibility(),
         profiles
       });
     }

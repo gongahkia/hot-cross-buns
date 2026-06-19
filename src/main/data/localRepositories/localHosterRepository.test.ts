@@ -39,10 +39,39 @@ describe("local hoster repository", () => {
       formatVersion: 1,
       kind: "hot-cross-buns-2-local-hoster",
       hosterId: created.id,
-      payloadFile: "payload.hcbenc"
+      payloadFile: "payload.hcbenc",
+      manifestSignature: {
+        algorithm: "HMAC-SHA256",
+        signedFields: "manifest-without-manifestSignature"
+      }
     });
     expect(readFileSync(join(exported.path ?? "", "payload.hcbenc"), "utf8")).not.toContain("Terminal host");
     expect(imported.profile).toMatchObject({ id: created.id, name: "Terminal host" });
+  });
+
+  it("rejects signed manifest tampering while accepting unsigned v1 legacy packages", async () => {
+    const repository = testRepository();
+    directory = mkdtempSync(join(tmpdir(), "hcbhost-"));
+    const created = await repository.create(
+      { name: "Signed host" },
+      "http://127.0.0.1:4777/hcb/v1/signal",
+      "2026-06-19T00:00:00.000Z"
+    );
+    const exported = await repository.export({
+      id: created.id,
+      out: join(directory, "signed.hcbhost")
+    });
+    const manifestPath = join(exported.path ?? "", "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+
+    writeFileSync(manifestPath, `${JSON.stringify({ ...manifest, name: "Tampered host" }, null, 2)}\n`, "utf8");
+    await expect(repository.import({ path: exported.path ?? "" })).rejects.toThrow("manifest signature mismatch");
+
+    const { manifestSignature: _signature, ...legacyManifest } = manifest;
+    writeFileSync(manifestPath, `${JSON.stringify(legacyManifest, null, 2)}\n`, "utf8");
+    await expect(repository.import({ path: exported.path ?? "" })).resolves.toMatchObject({
+      profile: { id: created.id, name: "Signed host" }
+    });
   });
 
   it("imports passphrase-wrapped .hcbhost packages into a fresh secret store", async () => {

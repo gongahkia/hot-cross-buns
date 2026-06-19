@@ -124,8 +124,15 @@ describe("local hoster server", () => {
       name: "Full",
       capabilities: ["host.info", "signal.send", "planner.read", "planner.write"]
     }, "http://127.0.0.1:0/hcb/v1/signal");
+    const info = await post(server, "/hcb/v1/info", JSON.stringify({ profileId: full.id }), authHeaders());
+    const infoBody = JSON.parse(info.body.toString("utf8")) as Record<string, unknown>;
 
     expect((await post(server, "/hcb/v1/info", JSON.stringify({ profileId: noInfo.id }), authHeaders())).status).toBe(403);
+    expect(infoBody.protocol).toMatchObject({
+      kind: "localHosterProtocolCompatibility",
+      hcbhostFormatVersions: [1],
+      routes: ["/hcb/v1/info", "/hcb/v1/signal"]
+    });
     expect((await post(server, "/hcb/v1/signal", JSON.stringify({
       profileId: noSignal.id,
       payload: signalPayload("request-no-signal", "hcb_status")

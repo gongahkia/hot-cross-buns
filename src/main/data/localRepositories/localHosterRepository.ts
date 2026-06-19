@@ -9,6 +9,8 @@ import {
   localHosterRemoveRequestSchema,
   localHosterSignalPayloadSchema,
   localHosterTestRequestSchema,
+  LOCAL_HOSTER_HCBHOST_FORMAT_VERSION,
+  LOCAL_HOSTER_KIND,
   type LocalHosterCapability,
   type LocalHosterCreateRequest,
   type LocalHosterExportRequest,
@@ -29,8 +31,10 @@ import {
   decryptSignalEnvelope,
   encryptHosterPayload,
   encryptSignalEnvelope,
+  signHosterManifest,
   sha256Hex,
   unwrapHosterPackageKey,
+  verifyHosterManifestSignature,
   wrapHosterPackageKey,
   type LocalHosterEncryptedPayload,
   type LocalHosterSecret
@@ -39,8 +43,7 @@ import type { SqliteConnection } from "../sqliteConnection";
 import { validationFailure } from "./shared";
 
 const HOSTER_SECRET_SERVICE = "Hot Cross Buns 2 Local Hosters";
-const HOSTER_KIND = "hot-cross-buns-2-local-hoster";
-const HCBHOST_FORMAT_VERSION = 1;
+const HCBHOST_FORMAT_VERSION = LOCAL_HOSTER_HCBHOST_FORMAT_VERSION;
 const PAYLOAD_FILE = "payload.hcbenc";
 const replayPastWindowMs = 5 * 60 * 1000;
 const replayFutureWindowMs = 60 * 1000;
@@ -123,9 +126,9 @@ export class LocalHosterRepository {
       profile.id
     );
     const payloadText = `${JSON.stringify(payload, null, 2)}\n`;
-    const manifest: LocalHosterManifest = {
+    const manifest = signHosterManifest({
       formatVersion: HCBHOST_FORMAT_VERSION,
-      kind: HOSTER_KIND,
+      kind: LOCAL_HOSTER_KIND,
       createdAt: now,
       appVersion: packageJson.version,
       hosterId: profile.id,
@@ -139,7 +142,7 @@ export class LocalHosterRepository {
       ...(request.passphrase === undefined
         ? {}
         : { keyWrap: wrapHosterPackageKey(secret.packageKeyBase64, request.passphrase, profile.id) })
-    };
+    }, secret.packageKeyBase64, profile.id);
 
     rmSync(outPath, { recursive: true, force: true });
     mkdirSync(outPath, { recursive: true });
@@ -173,6 +176,9 @@ export class LocalHosterRepository {
         : undefined;
     if (!packageKey) {
       throw validationFailure("Local hoster package can only be imported after its key is present in this OS credential store.");
+    }
+    if (!verifyHosterManifestSignature(manifest, packageKey, manifest.hosterId)) {
+      throw validationFailure("Local hoster manifest signature mismatch.");
     }
 
     const payload = decryptHosterPayload<HosterPackagePayload>(

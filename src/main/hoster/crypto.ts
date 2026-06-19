@@ -2,6 +2,7 @@ import {
   createCipheriv,
   createDecipheriv,
   createHash,
+  createHmac,
   createPrivateKey,
   createPublicKey,
   type CipherGCM,
@@ -10,7 +11,8 @@ import {
   generateKeyPairSync,
   hkdfSync,
   randomBytes,
-  scryptSync
+  scryptSync,
+  timingSafeEqual
 } from "node:crypto";
 import type { LocalHosterManifest, LocalHosterSignalEnvelope } from "@shared/ipc/contracts";
 
@@ -37,6 +39,7 @@ export interface LocalHosterEncryptedPayload {
 }
 
 export type LocalHosterKeyWrap = NonNullable<LocalHosterManifest["keyWrap"]>;
+type SignableHosterManifest = Omit<LocalHosterManifest, "manifestSignature">;
 
 export function createLocalHosterSecret(): LocalHosterSecret {
   const pair = generateKeyPairSync("x25519");
@@ -215,8 +218,69 @@ export function unwrapHosterPackageKey(
   return packageKey.toString("base64");
 }
 
+export function signHosterManifest(
+  manifest: SignableHosterManifest,
+  packageKeyBase64: string,
+  aad = manifest.hosterId
+): LocalHosterManifest {
+  return {
+    ...manifest,
+    manifestSignature: {
+      algorithm: "HMAC-SHA256",
+      signedFields: "manifest-without-manifestSignature",
+      valueBase64Url: hosterManifestSignature(manifest, packageKeyBase64, aad)
+    }
+  };
+}
+
+export function verifyHosterManifestSignature(
+  manifest: LocalHosterManifest,
+  packageKeyBase64: string,
+  aad = manifest.hosterId
+): boolean {
+  if (!manifest.manifestSignature) {
+    return true;
+  }
+  const expected = hosterManifestSignature(unsignedHosterManifest(manifest), packageKeyBase64, aad);
+  const actual = manifest.manifestSignature.valueBase64Url;
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const actualBuffer = Buffer.from(actual, "utf8");
+  return expectedBuffer.byteLength === actualBuffer.byteLength && timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
 export function sha256Hex(value: Buffer | string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function hosterManifestSignature(
+  manifest: SignableHosterManifest,
+  packageKeyBase64: string,
+  aad: string
+): string {
+  return createHmac("sha256", keyFromBase64(packageKeyBase64))
+    .update(aad, "utf8")
+    .update("\0")
+    .update(canonicalJson(manifest), "utf8")
+    .digest("base64url");
+}
+
+function unsignedHosterManifest(manifest: LocalHosterManifest): SignableHosterManifest {
+  const { manifestSignature: _signature, ...unsigned } = manifest;
+  return unsigned;
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  return `{${Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+    .join(",")}}`;
 }
 
 function keyFromBase64(value: string): Buffer {

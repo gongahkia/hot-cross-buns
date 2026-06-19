@@ -469,6 +469,13 @@ export {
 } from "./contracts/settings";
 
 export {
+  LOCAL_HOSTER_HCBHOST_FORMAT_VERSION,
+  LOCAL_HOSTER_KEY_WRAP_ALGORITHM,
+  LOCAL_HOSTER_KIND,
+  LOCAL_HOSTER_PAYLOAD_ALGORITHM,
+  LOCAL_HOSTER_PROTOCOL_VERSION,
+  LOCAL_HOSTER_SIGNAL_ALGORITHM,
+  LOCAL_HOSTER_SIGNAL_FORMAT_VERSION,
   localHosterCapabilitySchema,
   localHosterCreateRequestSchema,
   localHosterExportRequestSchema,
@@ -476,6 +483,8 @@ export {
   localHosterManifestSchema,
   localHosterMutationResponseSchema,
   localHosterProfileSchema,
+  localHosterProtocolCompatibility,
+  localHosterProtocolCompatibilitySchema,
   localHosterRemoveRequestSchema,
   localHosterSignalEnvelopeSchema,
   localHosterSignalPayloadSchema,
@@ -489,6 +498,7 @@ export {
   type LocalHosterManifest,
   type LocalHosterMutationResponse,
   type LocalHosterProfile,
+  type LocalHosterProtocolCompatibility,
   type LocalHosterRemoveRequest,
   type LocalHosterSignalEnvelope,
   type LocalHosterSignalPayload,

@@ -18,7 +18,10 @@ not open LAN listeners or introduce a separate mutation path.
   and sanitized bind errors such as `EADDRINUSE`.
 
 `/hcb/v1/info` returns hoster profiles visible to the caller. A profile must
-have `host.info` to be returned for a profile-specific info request.
+have `host.info` to be returned for a profile-specific info request. The
+response also includes `protocol` compatibility metadata: protocol version,
+supported `.hcbhost` format versions, signal versions, algorithms, and route
+names. v1 supports only `.hcbhost` format `1` and signal format `1`.
 
 `/hcb/v1/signal` dispatches a strict signal payload through existing MCP tool
 handlers. It accepts either raw `payload` or encrypted `envelope`; private
@@ -80,7 +83,12 @@ example.hcbhost/
   "endpoint": "http://127.0.0.1:4778/hcb/v1/signal",
   "keyFingerprint": "<sha256 hex>",
   "payloadFile": "payload.hcbenc",
-  "payloadSha256": "<sha256 hex>"
+  "payloadSha256": "<sha256 hex>",
+  "manifestSignature": {
+    "algorithm": "HMAC-SHA256",
+    "signedFields": "manifest-without-manifestSignature",
+    "valueBase64Url": "..."
+  }
 }
 ```
 
@@ -91,7 +99,22 @@ record, or logs.
 
 `payload.hcbenc` is AES-256-GCM JSON containing encrypted profile and key
 material. The payload is authenticated with the hoster id as AAD. Tampering with
-the payload, checksum, key wrap, or profile fingerprint rejects import.
+the payload, checksum, key wrap, signed manifest, or profile fingerprint rejects
+import. v1 import still accepts older unsigned v1 manifests when the package key
+is already available, but new exports include `manifestSignature`.
+
+## Compatibility Policy
+
+- v1 clients should call `/hcb/v1/info` and compare `protocol` before assuming
+  package or signal compatibility.
+- Unsupported `.hcbhost` `formatVersion` and signal `formatVersion` values are
+  rejected before import or dispatch.
+- Additive manifest fields require a new compatible schema field and golden
+  fixture update.
+- Breaking payload, key-wrap, or signal changes require a new format or signal
+  version and migration tests for old fixtures.
+- Golden fixtures live under `tests/fixtures/local-hoster/` and are parsed by
+  unit tests.
 
 ## Signal Encryption
 
