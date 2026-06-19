@@ -39,7 +39,8 @@ installed executable are absent. The silent install smoke can also set
 `HCB_PACKAGED_MCP_SMOKE=1` to enable
 read-only MCP in the installed app, verify unauthorized `401` rejection, and run
 `hcb doctor` through CLI runtime discovery with a seeded smoke token; the Windows Preview Validation
-workflow uses this MCP variant. The
+workflow uses this MCP variant. Adding `HCB_PACKAGED_HOSTER_SMOKE=1` also runs
+the packaged local-hoster create/status/signal smoke. The
 main process also applies the stable AppUserModelID during
 top-level Windows startup before `app.whenReady()`, while installed Start Menu,
 taskbar, and notification identity remain manual Windows 11 25H2 QA items. The main

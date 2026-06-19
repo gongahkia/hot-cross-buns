@@ -6,6 +6,7 @@ import {
   applyPackagedMcpSmokeSettings,
   packagedMcpSmokeExitFile,
   packagedMcpSmokeTokenSeed,
+  shouldEnablePackagedHosterSmoke,
   shouldEnablePackagedMcpSmoke,
   startPackagedMcpSmokeExitWatcher
 } from "./packagedMcpSmoke";
@@ -24,6 +25,15 @@ describe("packaged MCP smoke startup gate", () => {
       HCB_PACKAGED_MCP_SMOKE: "1"
     }, true)).toBe(false);
     expect(shouldEnablePackagedMcpSmoke({
+      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1"
+    }, true)).toBe(false);
+    expect(shouldEnablePackagedHosterSmoke({
+      HCB_PACKAGED_MCP_SMOKE: "1",
+      HCB_PACKAGED_HOSTER_SMOKE: "1",
+      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1"
+    }, true)).toBe(true);
+    expect(shouldEnablePackagedHosterSmoke({
+      HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1"
     }, true)).toBe(false);
   });
@@ -51,6 +61,34 @@ describe("packaged MCP smoke startup gate", () => {
     expect(setEnabled).toHaveBeenCalledWith({
       enabled: true,
       permissionMode: "read-only",
+      port: 0
+    });
+  });
+
+  it("uses confirm-writes only for packaged hoster smoke runs", async () => {
+    const setEnabled = vi.fn().mockResolvedValue({
+      enabled: true,
+      running: true,
+      readOnly: false,
+      confirmationRequired: true,
+      permissionMode: "confirm-writes",
+      port: 49210,
+      tokenState: "configured",
+      url: "http://127.0.0.1"
+    });
+
+    await expect(applyPackagedMcpSmokeSettings({
+      domain: {
+        mcp: { setEnabled }
+      }
+    }, {
+      HCB_PACKAGED_MCP_SMOKE: "1",
+      HCB_PACKAGED_HOSTER_SMOKE: "1",
+      HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1"
+    }, true)).resolves.toBe(true);
+    expect(setEnabled).toHaveBeenCalledWith({
+      enabled: true,
+      permissionMode: "confirm-writes",
       port: 0
     });
   });

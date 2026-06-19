@@ -20,6 +20,10 @@ export function packagedMcpSmokeRequested(env: NodeJS.ProcessEnv = process.env):
   return env.HCB_PACKAGED_MCP_SMOKE === "1";
 }
 
+export function packagedHosterSmokeRequested(env: NodeJS.ProcessEnv = process.env): boolean {
+  return packagedMcpSmokeRequested(env) && env.HCB_PACKAGED_HOSTER_SMOKE === "1";
+}
+
 export function packagedMcpSmokeChildEnv(
   userDataDir: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -71,12 +75,17 @@ export async function runPackagedMcpSmoke(options: PackagedMcpSmokeOptions): Pro
   const runtime = await waitForRuntime(options.env, platform, options.timeoutMs ?? defaultTimeoutMs);
   await expectUnauthorizedRejected(runtime);
   await expectHcbDoctor(options.env, platform);
-
-  return [
+  const messages = [
     `Packaged MCP runtime file resolved port ${runtime.port}.`,
     "Packaged MCP rejected an unauthorized request.",
     "Packaged HCB CLI doctor succeeded through CLI runtime discovery and smoke token auth."
   ];
+
+  if (packagedHosterSmokeRequested(options.env)) {
+    messages.push(...await expectHcbHoster(options.env, platform));
+  }
+
+  return messages;
 }
 
 async function waitForRuntime(
@@ -119,9 +128,81 @@ async function expectUnauthorizedRejected(runtime: RuntimeTarget): Promise<void>
 }
 
 async function expectHcbDoctor(env: NodeJS.ProcessEnv, platform: NodeJS.Platform | string): Promise<void> {
+  const result = await runCliJson(["doctor"], env, platform);
+  if (!JSON.stringify(result).includes("doctor")) {
+    throw new Error("Packaged HCB CLI doctor JSON did not include doctor output.");
+  }
+}
+
+async function expectHcbHoster(env: NodeJS.ProcessEnv, platform: NodeJS.Platform | string): Promise<string[]> {
+  const patch = JSON.stringify({ localHostersEnabled: true, localHosterPort: 0 });
+  const settingsPreview = await runCliJson(["settings", "update", "--patch-json", patch], env, platform);
+  const settingsConfirmationId = stringField(settingsPreview, "confirmationId");
+  await runCliJson([
+    "settings",
+    "update",
+    "--patch-json",
+    patch,
+    "--apply",
+    "--confirmation-id",
+    settingsConfirmationId
+  ], env, platform);
+
+  const createPreview = await runCliJson([
+    "hoster",
+    "create",
+    "--name",
+    "Packaged smoke hoster",
+    "--permission-mode",
+    "read-only"
+  ], env, platform);
+  const createConfirmationId = stringField(createPreview, "confirmationId");
+  const created = await runCliJson([
+    "hoster",
+    "create",
+    "--name",
+    "Packaged smoke hoster",
+    "--permission-mode",
+    "read-only",
+    "--apply",
+    "--confirmation-id",
+    createConfirmationId
+  ], env, platform);
+  const createdItem = objectField(created, "item");
+  const profile = objectField(createdItem, "profile");
+  const hosterId = stringField(profile, "id");
+  const status = await runCliJson(["hoster", "status"], env, platform);
+  const statusItem = objectField(status, "item");
+  if (statusItem.running !== true || typeof statusItem.endpoint !== "string") {
+    throw new Error(`Packaged hoster did not report a running endpoint: ${JSON.stringify(statusItem)}`);
+  }
+  await runCliJson([
+    "hoster",
+    "signal",
+    hosterId,
+    "--tool",
+    "hcb_status",
+    "--arguments-json",
+    "{}",
+    "--request-id",
+    `packaged-hoster:${Date.now()}`
+  ], env, platform);
+
+  return [
+    `Packaged hoster started on port ${String(statusItem.port)}.`,
+    "Packaged HCB CLI created a hoster profile through MCP confirmation.",
+    "Packaged HCB CLI sent a loopback hoster signal."
+  ];
+}
+
+async function runCliJson(
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform | string
+): Promise<Record<string, unknown>> {
   let stdoutText = "";
   let stderrText = "";
-  const exitCode = await runHcbCli(["doctor"], {
+  const exitCode = await runHcbCli([...args, "--json"], {
     env,
     platform,
     stdout: {
@@ -138,7 +219,32 @@ async function expectHcbDoctor(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
     }
   });
 
-  if (exitCode !== 0 || !stdoutText.includes("HCB doctor:")) {
-    throw new Error(`Packaged HCB CLI doctor failed: ${stderrText || stdoutText}`);
+  if (exitCode !== 0) {
+    throw new Error(`Packaged HCB CLI ${args.join(" ")} failed: ${stderrText || stdoutText}`);
   }
+  try {
+    const parsed = JSON.parse(stdoutText) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // handled below
+  }
+  throw new Error(`Packaged HCB CLI ${args.join(" ")} returned invalid JSON: ${stdoutText}`);
+}
+
+function objectField(value: Record<string, unknown>, field: string): Record<string, unknown> {
+  const item = value[field];
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error(`Expected object field ${field}.`);
+  }
+  return item as Record<string, unknown>;
+}
+
+function stringField(value: Record<string, unknown>, field: string): string {
+  const item = value[field];
+  if (typeof item !== "string" || item.length === 0) {
+    throw new Error(`Expected string field ${field}.`);
+  }
+  return item;
 }

@@ -253,6 +253,11 @@ through CLI runtime discovery with a seeded smoke token:
 HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-appimage
 ```
 
+Add `HCB_PACKAGED_HOSTER_SMOKE=1` to the same command to run the packaged
+local-hoster variant. That variant uses the isolated smoke token to confirm a
+settings write, starts local hosters from the packaged main process, creates a
+hoster profile, and sends a loopback `hcb_status` signal through `hcb`.
+
 Verify checksums locally:
 
 ```sh
@@ -363,6 +368,8 @@ Set `HCB_PACKAGED_MCP_SMOKE=1` for the installed-app MCP variant; it enables
 read-only MCP on a random loopback port, verifies unauthorized requests return
 `401`, and runs `hcb doctor` through CLI runtime discovery with a seeded smoke
 token.
+Set `HCB_PACKAGED_HOSTER_SMOKE=1` as well to add the installed-app local-hoster
+create/status/signal flow.
 The Windows Preview Validation workflow runs the silent install smoke with this
 flag enabled.
 

@@ -12,16 +12,15 @@ interface PackagedMcpSmokeServices {
   };
 }
 
-const smokeRequest: McpSetEnabledRequest = {
-  enabled: true,
-  permissionMode: "read-only",
-  port: 0
-};
-
 export function shouldEnablePackagedMcpSmoke(env: NodeJS.ProcessEnv, isPackaged: boolean): boolean {
   return isPackaged &&
     env.HCB_PACKAGED_MCP_SMOKE === "1" &&
     env.HCB_ALLOW_PACKAGED_USER_DATA_DIR === "1";
+}
+
+export function shouldEnablePackagedHosterSmoke(env: NodeJS.ProcessEnv, isPackaged: boolean): boolean {
+  return shouldEnablePackagedMcpSmoke(env, isPackaged) &&
+    env.HCB_PACKAGED_HOSTER_SMOKE === "1";
 }
 
 export function packagedMcpSmokeTokenSeed(env: NodeJS.ProcessEnv, isPackaged: boolean): string | undefined {
@@ -75,7 +74,11 @@ export async function applyPackagedMcpSmokeSettings(
     return false;
   }
 
-  const status = await services.domain.mcp.setEnabled(smokeRequest);
+  const status = await services.domain.mcp.setEnabled({
+    enabled: true,
+    permissionMode: shouldEnablePackagedHosterSmoke(env, isPackaged) ? "confirm-writes" : "read-only",
+    port: 0
+  } satisfies McpSetEnabledRequest);
 
   if (!status.running || !status.url) {
     throw new Error("Packaged MCP smoke could not start the local loopback server.");

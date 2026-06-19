@@ -224,7 +224,9 @@ Remaining release gates:
   `HCB_APPIMAGE_SMOKE_LAUNCH=1 HCB_PACKAGED_MCP_SMOKE=1 pnpm
   release:smoke-appimage` enables read-only MCP on a random loopback port,
   verifies unauthorized `401` rejection, and runs `hcb doctor` through CLI
-  runtime discovery with a seeded smoke token. `Linux AppImage Preview
+  runtime discovery with a seeded smoke token. Add
+  `HCB_PACKAGED_HOSTER_SMOKE=1` to confirm settings/profile writes and send a
+  packaged local-hoster loopback signal. `Linux AppImage Preview
   Validation` run `27525193156` passed this path under a hosted DBus
   GNOME/libsecret keyring session with required Electron launch timing and
   manual QA evidence-template generation plus current-template preview artifact
