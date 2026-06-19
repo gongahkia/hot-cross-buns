@@ -24,7 +24,6 @@
     <a href="#keys">Keyboard</a>
     <a href="#menubar">Menu Bar</a>
     <a href="#webviews">Web</a>
-    <a href="#local">Local</a>
     <a href="#reviews">Reviews</a>
     <a href="#updates">Updates</a>
     <button id="theme-toggle" aria-label="Toggle theme">
@@ -218,45 +217,6 @@
   </div>
 </section>
 
-<section id="local" class="menubar">
-  <div class="menubar-layout">
-    <div class="menubar-copy">
-      <p class="eyebrow">Local backend and Terminal</p>
-      <h2>Use HCB without<br><em>Google as the backend</em>.</h2>
-      <p class="lede">First-run setup and Settings expose Google, HCB local vault, and HCB local hoster backend choices. Settings and the CLI can now inspect, push, and pull encrypted HCB vaults for local hosting.</p>
-
-      <div class="menubar-list">
-        <article class="menubar-item">
-          <h3>Local vault</h3>
-          <p>HCB local mode seeds a local task list and calendar, suppresses Google mutation queueing, and exports/imports encrypted <code>.hcbvault</code> archives.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Local hoster</h3>
-          <p>Vault hosts run on loopback, a trusted laptop, or a Raspberry Pi and store encrypted <code>.hcbvault</code> packages instead of polling Google.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>CLI/TUI</h3>
-          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, vault import/export, remote vault push/pull, and saved-credential vault host controls.</p>
-        </article>
-      </div>
-    </div>
-
-    <figure class="menubar-shot">
-      <div class="brew-panel">
-        <pre><code>hcb backend status
-hcb backend set hcb-local --apply
-HCB_VAULT_PASSPHRASE='replace-me' hcb vault export --passphrase-env HCB_VAULT_PASSPHRASE --apply
-hcb vault serve --path /srv/hcb/current.hcbvault --host 0.0.0.0 --token-env HCB_VAULT_HOST_TOKEN
-hcb vault push --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply
-hcb tui
-view backend</code></pre>
-      </div>
-    </figure>
-  </div>
-</section>
-
 <section id="reviews" class="reviews">
   <p class="eyebrow">What people* are saying</p>
   <h2>The reviews are <em>in</em>.</h2>
@@ -396,13 +356,13 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v5.0.0</em>.</h2>
+    <h2>Latest changes in <em>v5.0.1</em>.</h2>
   </div>
 
   <div class="updates-list">
     <article class="update-entry">
       <div class="update-meta">
-        <h3>Local backend + CLI/TUI</h3>
+        <h3>v5.0.1</h3>
         <p>19 Jun 2026</p>
       </div>
       <div class="update-copy">
