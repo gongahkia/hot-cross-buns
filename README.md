@@ -66,7 +66,7 @@ Around those core surfaces, the app also includes:
 - Smart rescheduling, task/event/note conversion, reminders, recurrence, templates, and saved views
 - Native shell surfaces where supported, including macOS menu bar panels for glanceable calendar, compact capture, and fast return to the main app
 - Local customization with CSS snippets, keymaps, extension panels, custom backgrounds, and inferred color themes
-- Portable `.hcbexport` archives, encrypted `.hcbvault` archives, trusted vault-host push/pull, local attachments, ICS import/subscription support, and local report exports
+- Portable `.hcbexport` archives, encrypted `.hcbvault` archives, trusted vault-host status/push/pull from Settings or CLI, local attachments, ICS import/subscription support, and local report exports
 - Optional local MCP server, local hoster signal server, CLI/TUI, webhook, and dry-run/write-policy surfaces for user-configured agent clients
 - Typed IPC, hardened preload bridge, diagnostics, recovery tools, and native capability reporting
 
@@ -155,7 +155,7 @@ flowchart TD
 
     subgraph localBackend["Local HCB backend option"]
         main --> vault["Encrypted .hcbvault export/import"]
-        main --> vaultHost["Trusted vault host push/pull"]
+        main --> vaultHost["Trusted vault host status/push/pull"]
         main --> hoster["Loopback local hoster signals"]
     end
 

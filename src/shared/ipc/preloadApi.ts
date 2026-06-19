@@ -54,6 +54,12 @@ import type {
   HcbVaultExportResponse,
   HcbVaultImportRequest,
   HcbVaultImportResponse,
+  HcbVaultRemotePullRequest,
+  HcbVaultRemotePullResponse,
+  HcbVaultRemotePushRequest,
+  HcbVaultRemotePushResponse,
+  HcbVaultRemoteStatusRequest,
+  HcbVaultRemoteStatusResponse,
   McpSetEnabledRequest,
   McpStatusResponse,
   MutationAck,
@@ -289,6 +295,15 @@ export interface HcbApi {
     importHcbVault: (
       request: HcbVaultImportRequest
     ) => Promise<HcbResult<HcbVaultImportResponse>>;
+    hcbVaultRemoteStatus: (
+      request: HcbVaultRemoteStatusRequest
+    ) => Promise<HcbResult<HcbVaultRemoteStatusResponse>>;
+    pushHcbVaultRemote: (
+      request: HcbVaultRemotePushRequest
+    ) => Promise<HcbResult<HcbVaultRemotePushResponse>>;
+    pullHcbVaultRemote: (
+      request: HcbVaultRemotePullRequest
+    ) => Promise<HcbResult<HcbVaultRemotePullResponse>>;
     listLocalPointers: (
       request?: LocalPointerListRequest
     ) => Promise<HcbResult<LocalPointerListResponse>>;

@@ -9,6 +9,9 @@ import {
   calendarEventUpdateRequestSchema,
   calendarRangeRequestSchema,
   hcbDomainSchema,
+  hcbVaultRemotePullRequestSchema,
+  hcbVaultRemotePushRequestSchema,
+  hcbVaultRemoteStatusResponseSchema,
   ipcContracts,
   nativeCapabilitiesResponseSchema,
   noteLinkSuggestRequestSchema,
@@ -646,6 +649,40 @@ describe("shared IPC contracts", () => {
     expect(settingsRecoveryActionRequestSchema.parse({ action: "resetOnboarding" })).toEqual({
       action: "resetOnboarding"
     });
+  });
+
+  it("validates HCB vault host requests without persistent secret settings", () => {
+    expect(
+      hcbVaultRemotePushRequestSchema.parse({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "remote-host-token",
+        passphrase: "vault-passphrase"
+      })
+    ).toMatchObject({
+      endpoint: "https://pi.local/hcb/v1/vault",
+      token: "remote-host-token"
+    });
+    expect(
+      hcbVaultRemotePullRequestSchema.safeParse({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "remote-host-token",
+        passphrase: "vault-passphrase"
+      }).success
+    ).toBe(false);
+    expect(
+      hcbVaultRemoteStatusResponseSchema.parse({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        remote: {
+          kind: "hcbVaultHostInfo",
+          protocolVersion: 1,
+          hcbVaultFormatVersions: [1],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: false,
+          vaultName: "remote.hcbvault",
+          maxPackageBytes: 134217728
+        }
+      }).remote.hasVault
+    ).toBe(false);
   });
 
   it("keeps Google OAuth secrets out of settings and status contracts", () => {

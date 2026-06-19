@@ -1014,6 +1014,96 @@ const hcbApi: HcbApi = {
         }
       })
     ),
+    hcbVaultRemoteStatus: vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        remote: {
+          kind: "hcbVaultHostInfo" as const,
+          protocolVersion: 1 as const,
+          hcbVaultFormatVersions: [1 as const],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: true,
+          vaultName: "test.hcbvault",
+          maxPackageBytes: 134217728
+        }
+      })
+    ),
+    pushHcbVaultRemote: vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        exportedAt: now,
+        path: request.out ?? "/tmp/hcb-test.hcbvault",
+        manifest: {
+          formatVersion: 1 as const,
+          kind: "hot-cross-buns-2-vault" as const,
+          exportedAt: now,
+          appVersion: "0.0.0",
+          stateEncoding: "hcb-portable-state-json" as const,
+          stateSha256: "0".repeat(64),
+          payloadFile: "payload.hcbenc" as const,
+          payloadSha256: "1".repeat(64),
+          encryption: {
+            algorithm: "scrypt-AES-256-GCM" as const,
+            kdf: "scrypt" as const,
+            saltBase64: "salt",
+            ivBase64: "iv",
+            tagBase64: "tag",
+            keyLength: 32 as const,
+            cost: 32768,
+            blockSize: 8,
+            parallelization: 1
+          },
+          notes: ["Test vault."]
+        },
+        remote: {
+          kind: "hcbVaultHostInfo" as const,
+          protocolVersion: 1 as const,
+          hcbVaultFormatVersions: [1 as const],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: true,
+          vaultName: "test.hcbvault",
+          maxPackageBytes: 134217728
+        }
+      })
+    ),
+    pullHcbVaultRemote: vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        importedAt: now,
+        backupPath: "/tmp/hcb-test-backup.sqlite3",
+        manifest: {
+          formatVersion: 1 as const,
+          kind: "hot-cross-buns-2-vault" as const,
+          exportedAt: now,
+          appVersion: "0.0.0",
+          stateEncoding: "hcb-portable-state-json" as const,
+          stateSha256: "0".repeat(64),
+          payloadFile: "payload.hcbenc" as const,
+          payloadSha256: "1".repeat(64),
+          encryption: {
+            algorithm: "scrypt-AES-256-GCM" as const,
+            kdf: "scrypt" as const,
+            saltBase64: "salt",
+            ivBase64: "iv",
+            tagBase64: "tag",
+            keyLength: 32 as const,
+            cost: 32768,
+            blockSize: 8,
+            parallelization: 1
+          },
+          notes: ["Test vault."]
+        },
+        remote: {
+          kind: "hcbVaultHostInfo" as const,
+          protocolVersion: 1 as const,
+          hcbVaultFormatVersions: [1 as const],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: true,
+          vaultName: "test.hcbvault",
+          maxPackageBytes: 134217728
+        }
+      })
+    ),
     listLocalPointers: vi.fn(async () => ok({ items: [], totalKnown: 0 })),
     repairLocalPointer: vi.fn(async (request) =>
       ok({

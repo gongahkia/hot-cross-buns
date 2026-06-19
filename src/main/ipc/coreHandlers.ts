@@ -24,6 +24,9 @@ import {
   type GoogleSaveOAuthClientRequest,
   type HcbVaultExportRequest,
   type HcbVaultImportRequest,
+  type HcbVaultRemotePullRequest,
+  type HcbVaultRemotePushRequest,
+  type HcbVaultRemoteStatusRequest,
   type McpSetEnabledRequest,
   type NativeCapabilitiesResponse,
   type NativeImportMenuBarIconRequest,
@@ -507,6 +510,21 @@ export function createCoreIpcHandlers(
     {
       contract: ipcContracts.settings.importHcbVault,
       handle: (request) => services.settings.importHcbVault(request as HcbVaultImportRequest)
+    },
+    {
+      contract: ipcContracts.settings.hcbVaultRemoteStatus,
+      handle: (request) =>
+        services.settings.hcbVaultRemoteStatus(request as HcbVaultRemoteStatusRequest)
+    },
+    {
+      contract: ipcContracts.settings.pushHcbVaultRemote,
+      handle: (request) =>
+        services.settings.pushHcbVaultRemote(request as HcbVaultRemotePushRequest)
+    },
+    {
+      contract: ipcContracts.settings.pullHcbVaultRemote,
+      handle: (request) =>
+        services.settings.pullHcbVaultRemote(request as HcbVaultRemotePullRequest)
     },
     {
       contract: ipcContracts.settings.listLocalPointers,

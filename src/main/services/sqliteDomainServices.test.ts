@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
+import { HcbVaultHostServer } from "../hoster/vaultServer";
 import {
   LocalAgentRepository,
   LocalPerformanceRepository,
@@ -185,6 +186,48 @@ function seedGoogleMirrors(syncRepository: GoogleSyncRepository): void {
 }
 
 describe("SQLite-backed domain services", () => {
+  it("pushes and pulls encrypted HCB vaults through a trusted vault host", async () => {
+    const { domain } = createTestServices();
+    const token = "domain-vault-host-token";
+    const passphrase = "domain-vault-passphrase";
+    const remotePath = join(temp?.directory ?? "", "remote.hcbvault");
+    const server = new HcbVaultHostServer({ vaultPath: remotePath, token });
+    const started = await server.start({ port: 0 });
+    const endpoint = `${started.protocol}://${started.host}:${started.port}/hcb/v1/vault`;
+
+    try {
+      await domain.settings.update({
+        storageBackend: "hcb-hoster",
+        hcbHosterEndpoint: endpoint
+      });
+
+      const pushed = await domain.settings.pushHcbVaultRemote({
+        token,
+        passphrase
+      });
+      expect(pushed.endpoint).toBe(endpoint);
+      expect(pushed.remote.hasVault).toBe(true);
+      expect(pushed.manifest.kind).toBe("hot-cross-buns-2-vault");
+
+      const status = await domain.settings.hcbVaultRemoteStatus({ token });
+      expect(status.remote.manifest?.payloadSha256).toBe(pushed.manifest.payloadSha256);
+
+      const pulled = await domain.settings.pullHcbVaultRemote({
+        token,
+        passphrase,
+        confirm: true
+      });
+      expect(pulled.endpoint).toBe(endpoint);
+      expect(pulled.manifest.payloadSha256).toBe(pushed.manifest.payloadSha256);
+
+      const settings = await domain.settings.get();
+      expect(settings.storageBackend).toBe("hcb-hoster");
+      expect(settings.hcbHosterEndpoint).toBe(endpoint);
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("renders empty bounded responses from a fresh migrated database", async () => {
     const { domain } = createTestServices();
 

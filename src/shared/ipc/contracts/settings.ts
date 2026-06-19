@@ -478,6 +478,73 @@ export const hcbVaultImportResponseSchema = z
   .strict();
 export type HcbVaultImportResponse = z.infer<typeof hcbVaultImportResponseSchema>;
 
+export const hcbVaultRemoteBaseRequestSchema = z
+  .object({
+    endpoint: z.string().url().max(500).optional(),
+    token: z.string().min(8).max(4_096),
+    allowInsecureHttp: z.boolean().optional()
+  })
+  .strict();
+
+export const hcbVaultRemoteStatusRequestSchema = hcbVaultRemoteBaseRequestSchema;
+export type HcbVaultRemoteStatusRequest = z.input<typeof hcbVaultRemoteStatusRequestSchema>;
+
+export const hcbVaultRemoteInfoSchema = z
+  .object({
+    kind: z.literal("hcbVaultHostInfo"),
+    protocolVersion: z.literal(1),
+    hcbVaultFormatVersions: z.array(z.literal(HCB_VAULT_FORMAT_VERSION)).max(4),
+    routes: z.array(z.string().min(1).max(120)).max(8),
+    hasVault: z.boolean(),
+    vaultName: z.string().min(1).max(500),
+    maxPackageBytes: z.number().int().min(1),
+    manifest: hcbVaultManifestSchema.optional()
+  })
+  .strict();
+export type HcbVaultRemoteInfo = z.infer<typeof hcbVaultRemoteInfoSchema>;
+
+export const hcbVaultRemoteStatusResponseSchema = z
+  .object({
+    endpoint: z.string().url().max(500),
+    remote: hcbVaultRemoteInfoSchema
+  })
+  .strict();
+export type HcbVaultRemoteStatusResponse = z.infer<typeof hcbVaultRemoteStatusResponseSchema>;
+
+export const hcbVaultRemotePushRequestSchema = hcbVaultRemoteBaseRequestSchema.extend({
+  passphrase: z.string().min(8).max(4_096),
+  out: z.string().trim().min(1).max(4_096).optional()
+}).strict();
+export type HcbVaultRemotePushRequest = z.input<typeof hcbVaultRemotePushRequestSchema>;
+
+export const hcbVaultRemotePushResponseSchema = z
+  .object({
+    endpoint: z.string().url().max(500),
+    exportedAt: isoDateTimeSchema,
+    path: z.string().min(1).max(4_096),
+    manifest: hcbVaultManifestSchema,
+    remote: hcbVaultRemoteInfoSchema
+  })
+  .strict();
+export type HcbVaultRemotePushResponse = z.infer<typeof hcbVaultRemotePushResponseSchema>;
+
+export const hcbVaultRemotePullRequestSchema = hcbVaultRemoteBaseRequestSchema.extend({
+  passphrase: z.string().min(8).max(4_096),
+  confirm: z.literal(true)
+}).strict();
+export type HcbVaultRemotePullRequest = z.input<typeof hcbVaultRemotePullRequestSchema>;
+
+export const hcbVaultRemotePullResponseSchema = z
+  .object({
+    endpoint: z.string().url().max(500),
+    importedAt: isoDateTimeSchema,
+    backupPath: z.string().min(1).max(4_096),
+    manifest: hcbVaultManifestSchema,
+    remote: hcbVaultRemoteInfoSchema
+  })
+  .strict();
+export type HcbVaultRemotePullResponse = z.infer<typeof hcbVaultRemotePullResponseSchema>;
+
 export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),

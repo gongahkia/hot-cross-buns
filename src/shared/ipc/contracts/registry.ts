@@ -158,6 +158,12 @@ import {
   hcbVaultExportResponseSchema,
   hcbVaultImportRequestSchema,
   hcbVaultImportResponseSchema,
+  hcbVaultRemotePullRequestSchema,
+  hcbVaultRemotePullResponseSchema,
+  hcbVaultRemotePushRequestSchema,
+  hcbVaultRemotePushResponseSchema,
+  hcbVaultRemoteStatusRequestSchema,
+  hcbVaultRemoteStatusResponseSchema,
   icsImportRequestSchema,
   icsImportResponseSchema,
   icsSubscriptionActionRequestSchema,
@@ -552,6 +558,24 @@ export const ipcContracts = {
       "importHcbVault",
       hcbVaultImportRequestSchema,
       hcbVaultImportResponseSchema
+    ),
+    hcbVaultRemoteStatus: defineIpcContract(
+      "settings",
+      "hcbVaultRemoteStatus",
+      hcbVaultRemoteStatusRequestSchema,
+      hcbVaultRemoteStatusResponseSchema
+    ),
+    pushHcbVaultRemote: defineIpcContract(
+      "settings",
+      "pushHcbVaultRemote",
+      hcbVaultRemotePushRequestSchema,
+      hcbVaultRemotePushResponseSchema
+    ),
+    pullHcbVaultRemote: defineIpcContract(
+      "settings",
+      "pullHcbVaultRemote",
+      hcbVaultRemotePullRequestSchema,
+      hcbVaultRemotePullResponseSchema
     ),
     listLocalPointers: defineIpcContract(
       "settings",

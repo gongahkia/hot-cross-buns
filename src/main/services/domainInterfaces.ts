@@ -30,6 +30,12 @@ import type {
   HcbVaultExportResponse,
   HcbVaultImportRequest,
   HcbVaultImportResponse,
+  HcbVaultRemotePullRequest,
+  HcbVaultRemotePullResponse,
+  HcbVaultRemotePushRequest,
+  HcbVaultRemotePushResponse,
+  HcbVaultRemoteStatusRequest,
+  HcbVaultRemoteStatusResponse,
   LocalHosterCreateRequest,
   LocalHosterExportRequest,
   LocalHosterImportRequest,
@@ -378,6 +384,15 @@ export interface SettingsDomainService {
   ) => MaybePromise<PortableImportResponse>;
   exportHcbVault: (request: HcbVaultExportRequest) => MaybePromise<HcbVaultExportResponse>;
   importHcbVault: (request: HcbVaultImportRequest) => MaybePromise<HcbVaultImportResponse>;
+  hcbVaultRemoteStatus: (
+    request: HcbVaultRemoteStatusRequest
+  ) => MaybePromise<HcbVaultRemoteStatusResponse>;
+  pushHcbVaultRemote: (
+    request: HcbVaultRemotePushRequest
+  ) => MaybePromise<HcbVaultRemotePushResponse>;
+  pullHcbVaultRemote: (
+    request: HcbVaultRemotePullRequest
+  ) => MaybePromise<HcbVaultRemotePullResponse>;
   listLocalPointers: (request: LocalPointerListRequest) => MaybePromise<LocalPointerListResponse>;
   repairLocalPointer: (
     request: LocalPointerRepairRequest

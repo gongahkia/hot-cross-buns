@@ -291,6 +291,94 @@ describe("App settings and onboarding", () => {
     });
   });
 
+  it("checks and pushes a configured HCB vault host from Settings", async () => {
+    const api = seededHcb();
+    let settings = testSettings({
+      storageBackend: "hcb-hoster",
+      hcbHosterEndpoint: "https://pi.local/hcb/v1/vault"
+    });
+    const manifest = {
+      formatVersion: 1 as const,
+      kind: "hot-cross-buns-2-vault" as const,
+      exportedAt: "2026-05-22T00:00:00.000Z",
+      appVersion: "0.0.0",
+      stateEncoding: "hcb-portable-state-json" as const,
+      stateSha256: "0".repeat(64),
+      payloadFile: "payload.hcbenc" as const,
+      payloadSha256: "1".repeat(64),
+      encryption: {
+        algorithm: "scrypt-AES-256-GCM" as const,
+        kdf: "scrypt" as const,
+        saltBase64: "salt",
+        ivBase64: "iv",
+        tagBase64: "tag",
+        keyLength: 32 as const,
+        cost: 32768,
+        blockSize: 8,
+        parallelization: 1
+      },
+      notes: ["Test vault."]
+    };
+    const remote = {
+      kind: "hcbVaultHostInfo" as const,
+      protocolVersion: 1 as const,
+      hcbVaultFormatVersions: [1 as const],
+      routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+      hasVault: true,
+      vaultName: "current.hcbvault",
+      maxPackageBytes: 134217728,
+      manifest
+    };
+    api.settings.get = vi.fn(async () => ok(settings));
+    api.settings.update = vi.fn(async (request) => {
+      settings = testSettings({ ...settings, ...request });
+      return ok(settings);
+    });
+    api.settings.hcbVaultRemoteStatus = vi.fn(async (request) =>
+      ok({ endpoint: request.endpoint ?? settings.hcbHosterEndpoint ?? "", remote })
+    );
+    api.settings.pushHcbVaultRemote = vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? settings.hcbHosterEndpoint ?? "",
+        exportedAt: manifest.exportedAt,
+        path: "/tmp/hcb-test.hcbvault",
+        manifest,
+        remote
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Settings");
+    await user.type(screen.getByLabelText("HCB vault host token"), "remote-host-token");
+    await user.type(screen.getByLabelText("HCB vault passphrase"), "vault-passphrase");
+    await user.click(screen.getByRole("button", { name: "Check" }));
+
+    await waitFor(() => {
+      expect(api.settings.hcbVaultRemoteStatus).toHaveBeenCalledWith({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "remote-host-token",
+        allowInsecureHttp: false
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: /Push/ }));
+
+    await waitFor(() => {
+      expect(api.settings.pushHcbVaultRemote).toHaveBeenCalledWith({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "remote-host-token",
+        passphrase: "vault-passphrase",
+        allowInsecureHttp: false
+      });
+      expect(api.settings.update).toHaveBeenCalledWith({
+        storageBackend: "hcb-hoster",
+        hcbHosterEndpoint: "https://pi.local/hcb/v1/vault"
+      });
+    });
+  });
+
   it("shows auto-tag regex validation, preview output, and rule conflicts", async () => {
     const api = seededHcb();
     let settings = testSettings({

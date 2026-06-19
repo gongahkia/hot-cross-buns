@@ -283,6 +283,15 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     },
     webhooks: sqliteDomain.webhooks
   });
+  const applySettingsSideEffects = async () => {
+    const snapshot = await sqliteDomain.settings.get();
+    historyRepository.enforceRetention(snapshot.historyStorageCap);
+    nativeShell.applySettings(snapshot);
+    syncScheduler?.applySettings(snapshot);
+    await mcpController.applySettings(snapshot);
+    await hosterController.applySettings(snapshot);
+    return snapshot;
+  };
   const domain: AppDomainServices = {
     ...sqliteDomain,
     settings: {
@@ -328,7 +337,22 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       previewPortableImport: (request) => sqliteDomain.settings.previewPortableImport(request),
       importPortableArchive: (request) => sqliteDomain.settings.importPortableArchive(request),
       exportHcbVault: (request) => sqliteDomain.settings.exportHcbVault(request),
-      importHcbVault: (request) => sqliteDomain.settings.importHcbVault(request),
+      importHcbVault: async (request) => {
+        const response = await sqliteDomain.settings.importHcbVault(request);
+        await applySettingsSideEffects();
+        return response;
+      },
+      hcbVaultRemoteStatus: (request) => sqliteDomain.settings.hcbVaultRemoteStatus(request),
+      pushHcbVaultRemote: async (request) => {
+        const response = await sqliteDomain.settings.pushHcbVaultRemote(request);
+        await applySettingsSideEffects();
+        return response;
+      },
+      pullHcbVaultRemote: async (request) => {
+        const response = await sqliteDomain.settings.pullHcbVaultRemote(request);
+        await applySettingsSideEffects();
+        return response;
+      },
       listLocalPointers: (request) => sqliteDomain.settings.listLocalPointers(request),
       repairLocalPointer: (request) => sqliteDomain.settings.repairLocalPointer(request),
       customizationStatus: () => sqliteDomain.settings.customizationStatus(),

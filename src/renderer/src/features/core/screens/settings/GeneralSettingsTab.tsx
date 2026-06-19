@@ -3,7 +3,10 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
+import { useState } from "react";
 import {
+  CloudDownload,
+  CloudUpload,
   HardDrive,
   FileSearch,
   Languages,
@@ -47,6 +50,11 @@ export function GeneralSettingsTab({
   updateSettings
 }: GeneralSettingsTabProps): JSX.Element {
   const { t } = useI18n();
+  const [vaultHostToken, setVaultHostToken] = useState("");
+  const [vaultPassphrase, setVaultPassphrase] = useState("");
+  const [vaultAllowInsecureHttp, setVaultAllowInsecureHttp] = useState(false);
+  const [vaultHostStatus, setVaultHostStatus] = useState("");
+  const [vaultHostPending, setVaultHostPending] = useState(false);
 
   function retentionPresetValue(daysBack: number): string {
     return retentionOptions.some((option) => option.value === daysBack) ? String(daysBack) : "custom";
@@ -73,6 +81,86 @@ export function GeneralSettingsTab({
       eventRetentionDaysBack: days,
       completedTaskRetentionDaysBack: days
     });
+  }
+
+  async function runVaultHostAction(action: "status" | "push" | "pull"): Promise<void> {
+    const endpoint = settings.hcbHosterEndpoint?.trim();
+    const token = vaultHostToken.trim();
+    const passphrase = vaultPassphrase;
+
+    if (!endpoint) {
+      setVaultHostStatus("Set a vault host endpoint first.");
+      return;
+    }
+
+    if (!token) {
+      setVaultHostStatus("Enter the vault host token.");
+      return;
+    }
+
+    if (action !== "status" && passphrase.length < 8) {
+      setVaultHostStatus("Enter the vault passphrase.");
+      return;
+    }
+
+    if (action === "pull" && !window.confirm("Pulling replaces local HCB state after creating a backup.")) {
+      return;
+    }
+
+    setVaultHostPending(true);
+    setVaultHostStatus("Working.");
+
+    try {
+      if (action === "status") {
+        const result = await window.hcb?.settings.hcbVaultRemoteStatus({
+          endpoint,
+          token,
+          allowInsecureHttp: vaultAllowInsecureHttp
+        });
+        setVaultHostStatus(
+          result?.ok
+            ? `Host reachable. Vault ${result.data.remote.hasVault ? "present" : "empty"}.`
+            : result?.error.message ?? "Vault host status failed."
+        );
+        return;
+      }
+
+      if (action === "push") {
+        const result = await window.hcb?.settings.pushHcbVaultRemote({
+          endpoint,
+          token,
+          passphrase,
+          allowInsecureHttp: vaultAllowInsecureHttp
+        });
+        if (result?.ok) {
+          updateSettings({ storageBackend: "hcb-hoster", hcbHosterEndpoint: result.data.endpoint });
+        }
+        setVaultHostStatus(
+          result?.ok
+            ? `Pushed vault ${new Date(result.data.exportedAt).toLocaleString()}.`
+            : result?.error.message ?? "Vault push failed."
+        );
+        return;
+      }
+
+      const result = await window.hcb?.settings.pullHcbVaultRemote({
+        endpoint,
+        token,
+        passphrase,
+        allowInsecureHttp: vaultAllowInsecureHttp,
+        confirm: true
+      });
+      if (result?.ok) {
+        updateSettings({ storageBackend: "hcb-hoster", hcbHosterEndpoint: result.data.endpoint });
+      }
+      setVaultHostStatus(
+        result?.ok
+          ? `Pulled vault. Backup: ${result.data.backupPath}`
+          : result?.error.message ?? "Vault pull failed."
+      );
+    } finally {
+      setVaultHostPending(false);
+    }
   }
 
   return (
@@ -128,24 +216,86 @@ export function GeneralSettingsTab({
           </select>
         </SettingsControlRow>
         {settings.storageBackend === "hcb-hoster" ? (
-          <SettingsControlRow
-            description="HTTPS endpoint for a trusted HCB vault host. Loopback HTTP is accepted for local testing."
-            label="Vault host endpoint"
-          >
-            <Input
-              aria-label="HCB vault host endpoint"
-              defaultValue={settings.hcbHosterEndpoint ?? ""}
-              onBlur={(event) =>
-                updateSettings({
-                  hcbHosterEndpoint:
-                    event.currentTarget.value.trim().length > 0
-                      ? event.currentTarget.value.trim()
-                      : null
-                })
-              }
-              placeholder="http://127.0.0.1:7419"
+          <>
+            <SettingsControlRow
+              description="HTTPS endpoint for a trusted HCB vault host. Loopback HTTP is accepted for local testing."
+              label="Vault host endpoint"
+            >
+              <Input
+                aria-label="HCB vault host endpoint"
+                defaultValue={settings.hcbHosterEndpoint ?? ""}
+                onBlur={(event) =>
+                  updateSettings({
+                    hcbHosterEndpoint:
+                      event.currentTarget.value.trim().length > 0
+                        ? event.currentTarget.value.trim()
+                        : null
+                  })
+                }
+                placeholder="https://pi.local/hcb/v1/vault"
+              />
+            </SettingsControlRow>
+            <SettingsControlRow
+              description="Token is used for this action only and is not saved."
+              label="Vault host token"
+            >
+              <Input
+                aria-label="HCB vault host token"
+                onChange={(event) => setVaultHostToken(event.currentTarget.value)}
+                placeholder="host token"
+                type="password"
+                value={vaultHostToken}
+              />
+            </SettingsControlRow>
+            <SettingsControlRow
+              description="Passphrase encrypts and decrypts the .hcbvault payload on this device."
+              label="Vault passphrase"
+            >
+              <Input
+                aria-label="HCB vault passphrase"
+                onChange={(event) => setVaultPassphrase(event.currentTarget.value)}
+                placeholder="vault passphrase"
+                type="password"
+                value={vaultPassphrase}
+              />
+            </SettingsControlRow>
+            <SettingsSwitch
+              checked={vaultAllowInsecureHttp}
+              description="Only use for trusted LAN or tunnel endpoints."
+              label="Allow non-loopback HTTP"
+              onChange={setVaultAllowInsecureHttp}
             />
-          </SettingsControlRow>
+            <SettingsControlRow
+              description={vaultHostStatus || "Status, push, and pull operate on encrypted .hcbvault packages."}
+              label="Vault host"
+            >
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                <Button
+                  disabled={vaultHostPending}
+                  onClick={() => void runVaultHostAction("status")}
+                  variant="secondary"
+                >
+                  Check
+                </Button>
+                <Button
+                  disabled={vaultHostPending}
+                  onClick={() => void runVaultHostAction("push")}
+                  variant="secondary"
+                >
+                  <CloudUpload aria-hidden="true" size={14} />
+                  Push
+                </Button>
+                <Button
+                  disabled={vaultHostPending}
+                  onClick={() => void runVaultHostAction("pull")}
+                  variant="danger"
+                >
+                  <CloudDownload aria-hidden="true" size={14} />
+                  Pull
+                </Button>
+              </div>
+            </SettingsControlRow>
+          </>
         ) : null}
         <SettingsControlRow
           description="Export/import encrypted HCB vaults locally, or push/pull them with the CLI vault host commands."

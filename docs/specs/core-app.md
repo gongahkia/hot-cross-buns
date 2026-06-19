@@ -174,7 +174,7 @@ Current Mac v1 setup behavior:
 - The app shows a first-run setup modal when local settings have no `setupCompletedAt` timestamp.
 - Setup writes normal local settings through the existing typed preload IPC: backend choice, selected task lists, selected calendars, sync mode, notification preference, optional MCP enablement/permission mode, and the setup completion timestamp.
 - Google setup is represented as runtime/OAuth readiness and current sanitized account state only. The flow does not collect OAuth client secrets and does not create new Google transports.
-- Users can choose Google, HCB local vault, or HCB local hoster setup. Local backend choices can finish without Google, seed a local inbox/calendar when needed, and stop Google pending-mutation queueing. HCB hoster mode stores an endpoint for encrypted `.hcbvault` push/pull; v1 pull replaces local HCB state rather than merging concurrent writers.
+- Users can choose Google, HCB local vault, or HCB local hoster setup. Local backend choices can finish without Google, seed a local inbox/calendar when needed, and stop Google pending-mutation queueing. HCB hoster mode stores an endpoint for encrypted `.hcbvault` push/pull from Settings or CLI; v1 pull replaces local HCB state rather than merging concurrent writers.
 - Settings includes a reset onboarding action that clears only the setup completion timestamp. It does not delete planner rows, Google cache rows, checkpoints, or pending mutations.
 
 Remaining Mac v1 blockers:

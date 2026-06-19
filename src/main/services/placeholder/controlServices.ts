@@ -108,6 +108,24 @@ export function createPlaceholderControlServices(
         backupPath: "",
         manifest: {}
       }) as never,
+      hcbVaultRemoteStatus: () => ({
+        endpoint: "",
+        remote: {}
+      }) as never,
+      pushHcbVaultRemote: () => ({
+        endpoint: "",
+        exportedAt: new Date().toISOString(),
+        path: "",
+        manifest: {},
+        remote: {}
+      }) as never,
+      pullHcbVaultRemote: () => ({
+        endpoint: "",
+        importedAt: new Date().toISOString(),
+        backupPath: "",
+        manifest: {},
+        remote: {}
+      }) as never,
       recoveryAction: (request) => {
         if (request.action !== "refresh" && request.action !== "resetOnboarding") {
           const phrase = recoveryPhrase(request.action);

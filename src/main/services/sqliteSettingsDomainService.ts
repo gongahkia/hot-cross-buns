@@ -1,15 +1,31 @@
 import type {
   HcbVaultExportRequest,
   HcbVaultImportRequest,
+  HcbVaultRemotePullRequest,
+  HcbVaultRemotePushRequest,
+  HcbVaultRemoteStatusRequest,
   McpStatusResponse,
   PortableArchivePathRequest,
   PortableImportRequest,
   SettingsRecoveryActionRequest,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
+import {
+  hcbVaultRemotePullRequestSchema,
+  hcbVaultRemotePushRequestSchema,
+  hcbVaultRemoteStatusRequestSchema
+} from "@shared/ipc/contracts";
 import { HcbPublicError } from "@shared/ipc/result";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { LocalSettingsRepository } from "../data/localRepositories";
 import type { LocalSettingsSupportRepository } from "../data/localRepositories";
+import {
+  downloadHcbVaultPackage,
+  fetchHcbVaultHostInfo,
+  uploadHcbVaultPackage
+} from "../hoster/vaultServer";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { SettingsDomainService, SyncControlDomainService } from "./domainInterfaces";
 import { applyMcpSettings } from "./sqliteMcpControlService";
@@ -163,6 +179,69 @@ export function createSqliteSettingsDomainService({
       settingsRepository.exportHcbVault(request),
     importHcbVault: (request: HcbVaultImportRequest) =>
       settingsRepository.importHcbVault(request),
+    hcbVaultRemoteStatus: async (request: HcbVaultRemoteStatusRequest) => {
+      const parsed = hcbVaultRemoteStatusRequestSchema.parse(request);
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const remote = await fetchHcbVaultHostInfo(endpoint, parsed.token, {
+        allowInsecureHttp: parsed.allowInsecureHttp === true
+      });
+
+      return { endpoint, remote };
+    },
+    pushHcbVaultRemote: async (request: HcbVaultRemotePushRequest) => {
+      const parsed = hcbVaultRemotePushRequestSchema.parse(request);
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const exported = settingsRepository.exportHcbVault({
+        ...(parsed.out === undefined ? {} : { out: parsed.out }),
+        passphrase: parsed.passphrase
+      });
+      const remote = await uploadHcbVaultPackage(endpoint, parsed.token, exported.path, {
+        allowInsecureHttp: parsed.allowInsecureHttp === true
+      });
+      settingsRepository.update({
+        storageBackend: "hcb-hoster",
+        hcbHosterEndpoint: endpoint
+      });
+
+      return {
+        endpoint,
+        exportedAt: exported.exportedAt,
+        path: exported.path,
+        manifest: exported.manifest,
+        remote
+      };
+    },
+    pullHcbVaultRemote: async (request: HcbVaultRemotePullRequest) => {
+      const parsed = hcbVaultRemotePullRequestSchema.parse(request);
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const temporary = temporaryVaultPath("hcb-vault-app-pull-");
+      try {
+        const pkg = await downloadHcbVaultPackage(endpoint, parsed.token, temporary.path, {
+          allowInsecureHttp: parsed.allowInsecureHttp === true
+        });
+        const imported = settingsRepository.importHcbVault({
+          path: temporary.path,
+          passphrase: parsed.passphrase
+        });
+        settingsRepository.update({
+          storageBackend: "hcb-hoster",
+          hcbHosterEndpoint: endpoint
+        });
+        const remote = await fetchHcbVaultHostInfo(endpoint, parsed.token, {
+          allowInsecureHttp: parsed.allowInsecureHttp === true
+        });
+
+        return {
+          endpoint,
+          importedAt: imported.importedAt,
+          backupPath: imported.backupPath,
+          manifest: pkg.manifest,
+          remote
+        };
+      } finally {
+        rmSync(temporary.dir, { recursive: true, force: true });
+      }
+    },
     listLocalPointers: (request) => settingsRepository.listLocalPointers(request),
     repairLocalPointer: (request) => settingsRepository.repairLocalPointer(request),
     customizationStatus: () => settingsSupportRepository.customizationStatus(),
@@ -197,4 +276,22 @@ function requireRecoveryConfirmation(
     message: `Type ${phrase} to confirm this destructive recovery action.`,
     recoverable: true
   });
+}
+
+function remoteVaultEndpoint(endpoint: string | undefined, fallback: string | null): string {
+  const resolved = endpoint ?? fallback ?? "";
+  if (!resolved) {
+    throw new HcbPublicError({
+      code: "VALIDATION_ERROR",
+      message: "Configure an HCB vault host endpoint first.",
+      recoverable: true
+    });
+  }
+
+  return resolved;
+}
+
+function temporaryVaultPath(prefix: string): { dir: string; path: string } {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  return { dir, path: join(dir, "vault.hcbvault") };
 }

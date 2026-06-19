@@ -402,6 +402,27 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           request,
           "HCB vault import failed"
         ),
+      hcbVaultRemoteStatus: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.hcbVaultRemoteStatus,
+          request,
+          "HCB vault host status failed"
+        ),
+      pushHcbVaultRemote: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.pushHcbVaultRemote,
+          request,
+          "HCB vault host push failed"
+        ),
+      pullHcbVaultRemote: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.pullHcbVaultRemote,
+          request,
+          "HCB vault host pull failed"
+        ),
       listLocalPointers: (request = {}) =>
         invokeContract(
           ipc,
