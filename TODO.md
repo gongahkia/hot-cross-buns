@@ -19,6 +19,12 @@ Current audit, 2026-06-19:
   vitest run --config vitest.config.ts src/main/native/githubReleaseUpdates.test.ts
   scripts/release-asset-preflight.test.ts` (`15` tests).
 - Checklist count after that recheck: 28 complete, 34 incomplete, 62 total.
+- 2026-06-19 manual QA evidence audit: local `artifacts/` contains no filled
+  Linux or Windows manual QA evidence file, and published `v5.0.0` release notes
+  cite automated preview runs only. I cannot verify workflow artifact contents
+  from this session because the GitHub artifact API escalation was denied.
+  Linux/Windows upload and manual QA boxes therefore remain unchecked even
+  though public Linux/Windows assets now exist.
 - No unchecked manual QA or release-upload item is marked complete without
   target-host evidence.
 
