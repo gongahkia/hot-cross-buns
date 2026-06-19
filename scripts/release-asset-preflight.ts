@@ -5,7 +5,7 @@ import packageJson from "../package.json";
 
 const DEFAULT_REPO = "gongahkia/hot-cross-buns-2";
 
-export type ReleaseAssetTarget = "linux" | "windows";
+export type ReleaseAssetTarget = "mac" | "linux" | "windows";
 
 interface ReleaseAsset {
   digest?: string | null;
@@ -39,7 +39,7 @@ function argValue(name: string, fallback?: string): string | undefined {
 }
 
 function normalizeTarget(value: string): ReleaseAssetTarget | "all" {
-  if (value === "linux" || value === "windows" || value === "all") {
+  if (value === "mac" || value === "linux" || value === "windows" || value === "all") {
     return value;
   }
 
@@ -47,6 +47,18 @@ function normalizeTarget(value: string): ReleaseAssetTarget | "all" {
 }
 
 export function requiredReleaseAssets(target: ReleaseAssetTarget, version = packageJson.version): string[] {
+  if (target === "mac") {
+    return [
+      "Hot-Cross-Buns-2-macOS.dmg",
+      "Hot-Cross-Buns-2-macOS.dmg.sha256",
+      "Hot-Cross-Buns-2-macOS.zip",
+      "Hot-Cross-Buns-2-macOS.zip.sha256",
+      "SHASUMS256.txt",
+      `one of Hot-Cross-Buns-2-${version}-mac-<arch>.dmg`,
+      `one of Hot-Cross-Buns-2-${version}-mac-<arch>.zip`
+    ];
+  }
+
   if (target === "linux") {
     return [
       `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
@@ -71,6 +83,11 @@ export function requiredReleaseAssets(target: ReleaseAssetTarget, version = pack
 }
 
 export function matchesUpdateCheckAsset(assetName: string, target: ReleaseAssetTarget): boolean {
+  if (target === "mac") {
+    return /^Hot-Cross-Buns-2-macOS\.dmg$/i.test(assetName) ||
+      /^Hot-Cross-Buns-2-\d+\.\d+\.\d+-mac-(?:arm64|x64)\.dmg$/i.test(assetName);
+  }
+
   if (target === "linux") {
     return /linux-(?:x64|x86_64)\.AppImage$/i.test(assetName);
   }
@@ -79,6 +96,13 @@ export function matchesUpdateCheckAsset(assetName: string, target: ReleaseAssetT
 }
 
 function releaseArtifacts(target: ReleaseAssetTarget, version = packageJson.version): string[] {
+  if (target === "mac") {
+    return [
+      "Hot-Cross-Buns-2-macOS.dmg",
+      "Hot-Cross-Buns-2-macOS.zip"
+    ];
+  }
+
   if (target === "linux") {
     return [
       `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
@@ -95,12 +119,20 @@ function releaseArtifacts(target: ReleaseAssetTarget, version = packageJson.vers
 }
 
 function versionedArtifact(target: ReleaseAssetTarget, version = packageJson.version): string {
+  if (target === "mac") {
+    return `Hot-Cross-Buns-2-${version}-mac-<arch>.dmg`;
+  }
+
   return target === "linux"
     ? `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`
     : `Hot-Cross-Buns-2-${version}-windows-x64.exe`;
 }
 
 function stableAliases(target: ReleaseAssetTarget): string[] {
+  if (target === "mac") {
+    return ["Hot-Cross-Buns-2-macOS.dmg", "Hot-Cross-Buns-2-macOS.zip"];
+  }
+
   return target === "linux"
     ? ["Hot-Cross-Buns-2-linux.AppImage", "Hot-Cross-Buns-2-linux-x64.AppImage"]
     : ["Hot-Cross-Buns-2-windows.exe", "Hot-Cross-Buns-2-windows-x64.exe"];
@@ -147,7 +179,16 @@ export function evaluateReleaseAssetPreflight(
 ): ReleaseAssetPreflightResult {
   const assetNames = new Set(input.assets.map((asset) => asset.name));
   const requiredAssets = requiredReleaseAssets(input.target, input.version);
-  const missingAssets = requiredAssets.filter((asset) => !assetNames.has(asset));
+  const missingAssets = requiredAssets.filter((asset) => {
+    if (input.target === "mac" && asset.includes("<arch>")) {
+      const extension = asset.endsWith(".zip") ? "zip" : "dmg";
+      return !input.assets.some((candidate) =>
+        new RegExp(`^Hot-Cross-Buns-2-${escapeRegExp(input.version ?? packageJson.version)}-mac-(?:arm64|x64)\\.${extension}$`, "i")
+          .test(candidate.name)
+      );
+    }
+    return !assetNames.has(asset);
+  });
   const matchingUpdateAssets = input.assets
     .map((asset) => asset.name)
     .filter((assetName) => matchesUpdateCheckAsset(assetName, input.target));
@@ -208,7 +249,7 @@ async function main(): Promise<void> {
   const tag = argValue("--tag", `v${packageJson.version}`) ?? `v${packageJson.version}`;
   const repo = argValue("--repo", DEFAULT_REPO) ?? DEFAULT_REPO;
   const assets = releaseAssetsFromGh({ repo, tag });
-  const targets: ReleaseAssetTarget[] = target === "all" ? ["linux", "windows"] : [target];
+  const targets: ReleaseAssetTarget[] = target === "all" ? ["mac", "linux", "windows"] : [target];
   const results = targets.map((targetName) =>
     evaluateReleaseAssetPreflight({ assets, target: targetName })
   );
@@ -224,6 +265,10 @@ async function main(): Promise<void> {
 }
 
 const isDirectRun = process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 if (isDirectRun) {
   main().catch((error: unknown) => {

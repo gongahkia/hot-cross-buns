@@ -246,6 +246,54 @@ describe("McpToolRegistry doctor", () => {
     });
   });
 
+  it("flags local hoster health problems", async () => {
+    const disabled = await callDoctor({
+      status: healthyStatus(),
+      mutations: [],
+      logs: [],
+      hosters: {
+        enabled: false,
+        running: false,
+        port: 0,
+        profiles: [{ id: "hoster:test" }]
+      }
+    });
+    const failed = await callDoctor({
+      status: healthyStatus(),
+      mutations: [],
+      logs: [],
+      hosters: {
+        enabled: true,
+        running: false,
+        health: "error",
+        port: 4778,
+        lastError: "Local hoster port 4778 is already in use.",
+        profiles: []
+      }
+    });
+
+    expect(disabled).toMatchObject({
+      status: "warning",
+      findings: [
+        {
+          level: "warning",
+          title: "Local hoster profiles disabled"
+        }
+      ],
+      suggestedCommands: ["pnpm hcb -- hoster status"]
+    });
+    expect(failed).toMatchObject({
+      status: "error",
+      findings: [
+        {
+          level: "error",
+          title: "Local hoster not running"
+        }
+      ],
+      suggestedCommands: ["pnpm hcb -- hoster status"]
+    });
+  });
+
   it("passes doctor inspection limits to diagnostics services", async () => {
     const calls: JsonObject[] = [];
     await callDoctor({
@@ -749,6 +797,7 @@ async function callDoctor(input: {
   status: JsonObject;
   mutations: JsonObject[];
   logs: JsonObject[];
+  hosters?: JsonObject;
   args?: JsonObject;
   calls?: JsonObject[];
 }): Promise<JsonObject> {
@@ -774,7 +823,24 @@ async function callDoctor(input: {
     show: () => ({})
   };
 
-  const response = await new McpToolRegistry(services).callTool("hcb_doctor", input.args ?? {}, context);
+  const registry = new McpToolRegistry(services);
+  if (input.hosters) {
+    registry.setAdminServices({
+      settings: {} as never,
+      google: {} as never,
+      mcp: {} as never,
+      hosters: {
+        status: () => input.hosters as never,
+        create: () => ({} as never),
+        export: () => ({} as never),
+        import: () => ({} as never),
+        remove: () => ({} as never),
+        test: () => ({} as never)
+      }
+    });
+  }
+
+  const response = await registry.callTool("hcb_doctor", input.args ?? {}, context);
   return response.item ?? {};
 }
 

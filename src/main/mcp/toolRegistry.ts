@@ -458,15 +458,16 @@ export class McpToolRegistry {
       case "hcb_doctor": {
         const logLimit = optionalNumber(argumentsObject, "logLimit") ?? 20;
         const mutationLimit = optionalNumber(argumentsObject, "mutationLimit") ?? 20;
-        const [status, mutations, logs] = await Promise.all([
+        const [status, mutations, logs, hosters] = await Promise.all([
           this.services.diagnostics.status(),
           this.services.diagnostics.diff({ limit: mutationLimit }),
-          this.services.diagnostics.logs({ limit: logLimit, level: "warn" })
+          this.services.diagnostics.logs({ limit: logLimit, level: "warn" }),
+          Promise.resolve(this.adminServices?.hosters.status()).catch(() => undefined)
         ]);
 
         return success({
           message: "Ran HCB doctor.",
-          item: doctorItem(status, mutations, logs)
+          item: doctorItem(status, mutations, logs, hosters as JsonObject | undefined)
         });
       }
       case "hcb_status":
@@ -1519,13 +1520,14 @@ function enumSchema(values: string[]): JsonObject {
   return { type: "string", enum: values };
 }
 
-function doctorItem(status: JsonObject, mutations: JsonObject[], logs: JsonObject[]): JsonObject {
+function doctorItem(status: JsonObject, mutations: JsonObject[], logs: JsonObject[], hosterStatus?: JsonObject): JsonObject {
   const findings: JsonObject[] = [];
   const suggestedCommands: string[] = [];
   const account = objectValue(status.account);
   const sync = objectValue(status.sync);
   const pending = objectValue(status.pendingMutations);
   const mcp = objectValue(status.mcp);
+  const hosters = objectValue(hosterStatus ?? {});
   const accountState = stringValue(account.state);
   const syncState = stringValue(sync.state);
   const failedCount = numberValue(pending.failedCount);
@@ -1581,6 +1583,19 @@ function doctorItem(status: JsonObject, mutations: JsonObject[], logs: JsonObjec
     findings.push(finding("warning", "MCP write access enabled", `MCP permission mode is ${permissionMode}.`));
   }
 
+  if (booleanValue(hosters.enabled)) {
+    if (!booleanValue(hosters.running)) {
+      findings.push(finding("error", "Local hoster not running", stringValue(hosters.lastError) || "Local hosters are enabled but the loopback server is not running."));
+      suggestedCommands.push("pnpm hcb -- hoster status");
+    } else if (stringValue(hosters.health) && stringValue(hosters.health) !== "running") {
+      findings.push(finding("warning", "Local hoster health degraded", `Local hoster health is ${stringValue(hosters.health)}.`));
+      suggestedCommands.push("pnpm hcb -- hoster status");
+    }
+  } else if (jsonArray(hosters, "profiles").length > 0) {
+    findings.push(finding("warning", "Local hoster profiles disabled", `${jsonArray(hosters, "profiles").length} local hoster profile(s) exist while local hosters are disabled.`));
+    suggestedCommands.push("pnpm hcb -- hoster status");
+  }
+
   if (errorLogs.length > 0) {
     findings.push(finding("error", "Recent error logs", `${errorLogs.length} recent error log(s) found.`));
     suggestedCommands.push("pnpm hcb -- log --level error");
@@ -1590,7 +1605,7 @@ function doctorItem(status: JsonObject, mutations: JsonObject[], logs: JsonObjec
   }
 
   if (findings.length === 0) {
-    findings.push(finding("ok", "No issues found", "Account, sync, queue, MCP, and recent logs look healthy."));
+    findings.push(finding("ok", "No issues found", "Account, sync, queue, MCP, local hosters, and recent logs look healthy."));
   }
 
   return {

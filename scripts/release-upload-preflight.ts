@@ -20,9 +20,11 @@ interface ReleaseUploadPreflightOptions {
   expectedGitSha?: string;
   notesFile?: string;
   releaseDir?: string;
-  target: ReleaseAssetTarget;
+  target: ReleaseUploadTarget;
   version?: string;
 }
+
+type ReleaseUploadTarget = Extract<ReleaseAssetTarget, "linux" | "windows">;
 
 function argValue(name: string, fallback?: string): string | undefined {
   const prefix = `${name}=`;
@@ -35,7 +37,7 @@ function argValue(name: string, fallback?: string): string | undefined {
   return process.argv.find((argument) => argument.startsWith(prefix))?.slice(prefix.length) ?? fallback;
 }
 
-function normalizeTarget(value: string | undefined): ReleaseAssetTarget {
+function normalizeTarget(value: string | undefined): ReleaseUploadTarget {
   if (value === "linux" || value === "windows") {
     return value;
   }
@@ -43,7 +45,7 @@ function normalizeTarget(value: string | undefined): ReleaseAssetTarget {
   throw new Error(`Unsupported release upload preflight target: ${value ?? "missing"}`);
 }
 
-function releaseArtifacts(target: ReleaseAssetTarget, version = packageJson.version): string[] {
+function releaseArtifacts(target: ReleaseUploadTarget, version = packageJson.version): string[] {
   if (target === "linux") {
     return [
       `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,

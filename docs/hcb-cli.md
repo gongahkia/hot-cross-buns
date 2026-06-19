@@ -19,6 +19,20 @@ Packaged smoke scripts may also set `HCB_MCP_SAFE_STORAGE_BINARY` to the
 installed app executable so token decryption uses the packaged app's own
 Electron `safeStorage` context.
 
+## Install And Completion
+
+The package exposes `bin/hcb.js` as the `hcb` binary. From a checkout, use
+`pnpm hcb -- <command>` or `pnpm exec hcb <command>`. From an installed package,
+run `hcb <command>`.
+
+Shell completion is generated without reading local planner data:
+
+```sh
+hcb completion zsh > "${fpath[1]}/_hcb"
+hcb completion bash > ~/.local/share/bash-completion/completions/hcb
+hcb completion fish > ~/.config/fish/completions/hcb.fish
+```
+
 ## Commands
 
 - `hcb completion zsh`: print shell completion for bash, zsh, or fish.

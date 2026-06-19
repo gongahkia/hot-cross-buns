@@ -14,6 +14,18 @@ function assetWithDigest(name: string, digest: string | null) {
 }
 
 describe("release asset preflight", () => {
+  it("lists required macOS release assets with flexible arch placeholders", () => {
+    expect(requiredReleaseAssets("mac", "5.0.0")).toEqual([
+      "Hot-Cross-Buns-2-macOS.dmg",
+      "Hot-Cross-Buns-2-macOS.dmg.sha256",
+      "Hot-Cross-Buns-2-macOS.zip",
+      "Hot-Cross-Buns-2-macOS.zip.sha256",
+      "SHASUMS256.txt",
+      "one of Hot-Cross-Buns-2-5.0.0-mac-<arch>.dmg",
+      "one of Hot-Cross-Buns-2-5.0.0-mac-<arch>.zip"
+    ]);
+  });
+
   it("lists required Linux release assets", () => {
     expect(requiredReleaseAssets("linux", "5.0.0")).toEqual([
       "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
@@ -39,11 +51,40 @@ describe("release asset preflight", () => {
   });
 
   it("matches update-check assets for each target", () => {
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-macOS.dmg", "mac")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg", "mac")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-mac-arm64.zip", "mac")).toBe(false);
     expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-linux-x64.AppImage", "linux")).toBe(true);
     expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage", "linux")).toBe(true);
     expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-linux-arm64.AppImage", "linux")).toBe(false);
     expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-windows-x64.exe", "windows")).toBe(true);
     expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-windows.exe", "windows")).toBe(false);
+  });
+
+  it("passes when macOS stable aliases and one arch-specific pair are present", () => {
+    const result = evaluateReleaseAssetPreflight({
+      target: "mac",
+      version: "5.0.0",
+      assets: [
+        asset("Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg"),
+        asset("Hot-Cross-Buns-2-5.0.0-mac-arm64.zip"),
+        asset("Hot-Cross-Buns-2-macOS.dmg"),
+        asset("Hot-Cross-Buns-2-macOS.dmg.sha256"),
+        asset("Hot-Cross-Buns-2-macOS.zip"),
+        asset("Hot-Cross-Buns-2-macOS.zip.sha256"),
+        asset("SHASUMS256.txt")
+      ]
+    });
+
+    expect(result).toMatchObject({
+      digestProblems: [],
+      ok: true,
+      missingAssets: [],
+      matchingUpdateAssets: [
+        "Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg",
+        "Hot-Cross-Buns-2-macOS.dmg"
+      ]
+    });
   });
 
   it("passes when Linux upload and update-check assets are present", () => {

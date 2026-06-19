@@ -109,6 +109,10 @@ shasum -a 256 -c SHASUMS256.txt
 cd -
 ```
 
+Before upload, `pnpm release:asset-preflight -- --target mac` verifies the
+macOS stable DMG/ZIP aliases, per-asset sidecars, `SHASUMS256.txt`, and at
+least one arch-specific versioned DMG/ZIP pair.
+
 Optional install helper after downloading or building both an artifact and `SHASUMS256.txt`:
 
 ```sh
