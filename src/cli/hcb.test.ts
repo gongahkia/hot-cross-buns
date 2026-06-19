@@ -267,6 +267,42 @@ describe("hcb CLI", () => {
       action: "set-enabled",
       enabled: true
     });
+    expect(parseCommand(["hoster", "status"])).toMatchObject({
+      command: "hoster",
+      action: "status"
+    });
+    expect(parseCommand(["hoster", "create", "--name", "Terminal", "--permission-mode", "confirm-writes"])).toMatchObject({
+      command: "hoster",
+      action: "create",
+      name: "Terminal",
+      permissionMode: "confirm-writes"
+    });
+    expect(parseCommand(["hoster", "export", "hoster-1", "--out", "/tmp/host.hcbhost", "--passphrase-env", "HCB_HOSTER_PASSPHRASE"])).toMatchObject({
+      command: "hoster",
+      action: "export",
+      id: "hoster-1",
+      out: "/tmp/host.hcbhost",
+      passphraseEnv: "HCB_HOSTER_PASSPHRASE"
+    });
+    expect(parseCommand(["hoster", "import", "/tmp/host.hcbhost"])).toMatchObject({
+      command: "hoster",
+      action: "import",
+      path: "/tmp/host.hcbhost"
+    });
+    expect(parseCommand(["hoster", "remove", "hoster-1"])).toMatchObject({
+      command: "hoster",
+      action: "remove",
+      id: "hoster-1"
+    });
+    expect(parseCommand(["hoster", "test", "hoster-1", "--private"])).toMatchObject({
+      command: "hoster",
+      action: "test",
+      id: "hoster-1",
+      privatePayload: true
+    });
+    expect(parseCommand(["tui"])).toMatchObject({
+      command: "tui"
+    });
     expect(() => parseCommand(["search", "launch", "--scope", "invalid"])).toThrow("Scope");
     expect(() => parseCommand(["week", "--start-date", "not-a-date"])).toThrow("Start date");
     expect(() => parseCommand(["status", "--scope", "tasks"])).toThrow("--scope");
@@ -307,6 +343,12 @@ describe("hcb CLI", () => {
     expect(() => parseCommand(["settings", "update", "--patch-json", "[]"])).toThrow("--patch-json");
     expect(() => parseCommand(["google", "save-oauth-client"])).toThrow("--client-id");
     expect(() => parseCommand(["mcp", "set-enabled"])).toThrow("enabled");
+    expect(() => parseCommand(["hoster", "create"])).toThrow("--name");
+    expect(() => parseCommand(["hoster", "export", "hoster-1"])).toThrow("--out");
+    expect(() => parseCommand(["hoster", "import"])).toThrow("Usage");
+    expect(() => parseCommand(["hoster", "remove"])).toThrow("Usage");
+    expect(() => parseCommand(["hoster", "status", "--apply"])).toThrow("--apply");
+    expect(() => parseCommand(["tui", "extra"])).toThrow("Usage");
   });
 
   it("calls MCP status through the runtime file without exposing the bearer token", async () => {
@@ -1776,6 +1818,138 @@ describe("hcb CLI", () => {
   it("validates runtime file contents", () => {
     expect(() => parseRuntimeFile("{}")).toThrow("invalid");
   });
+
+  it("formats local hoster status and dry-run create output", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-hoster-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: string[] = [];
+    const fetch: HcbCliDependencies["fetch"] = async (_url, init) => {
+      const body = JSON.parse(init.body) as { params: { name: string; arguments: Record<string, unknown> } };
+      calls.push(body.params.name);
+
+      return {
+        status: 200,
+        json: async () => rpcResponse(body.params.name === "hcb_hoster_status"
+          ? {
+              applied: false,
+              dryRun: false,
+              requiresConfirmation: false,
+              message: "Read local hoster status.",
+              item: {
+                enabled: true,
+                running: true,
+                port: 4778,
+                profiles: [
+                  {
+                    id: "hoster-1",
+                    name: "Terminal",
+                    capabilities: ["host.info"],
+                    permissionMode: "confirm-writes",
+                    endpoint: "http://127.0.0.1:4778/hcb/v1/signal",
+                    keyFingerprint: "0".repeat(64),
+                    createdAt: "2026-06-19T00:00:00.000Z",
+                    updatedAt: "2026-06-19T00:00:00.000Z"
+                  }
+                ]
+              }
+            }
+          : {
+              applied: false,
+              dryRun: true,
+              requiresConfirmation: true,
+              confirmationId: "confirm-hoster",
+              message: "Dry-run ready. Pass confirmationId to apply.",
+              item: { kind: "localHosterProfile", name: "Terminal" }
+            }),
+        text: async () => ""
+      };
+    };
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      expect(await runHcbCli(["hoster", "status"], {
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch
+      })).toBe(0);
+      expect(await runHcbCli(["hoster", "create", "--name", "Terminal"], {
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch
+      })).toBe(0);
+
+      expect(calls).toEqual(["hcb_hoster_status", "hcb_hoster_create"]);
+      expect(stdout.text()).toContain("HCB local hosters");
+      expect(stdout.text()).toContain("hoster-1 Terminal");
+      expect(stdout.text()).toContain("HCB hoster create: dry-run");
+      expect(stdout.text()).toContain("Confirmation id: confirm-hoster");
+      expect(stderr.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects missing hoster passphrase env values before calling MCP", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-hoster-passphrase-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    let called = false;
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const exitCode = await runHcbCli(["hoster", "export", "hoster-1", "--out", "/tmp/host.hcbhost", "--passphrase-env", "HCB_HOSTER_PASSPHRASE"], {
+        env: {},
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch: async () => {
+          called = true;
+          throw new Error("unexpected fetch");
+        }
+      });
+
+      expect(exitCode).toBe(2);
+      expect(called).toBe(false);
+      expect(stderr.text()).toContain("HCB_HOSTER_PASSPHRASE");
+      expect(stdout.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("renders TUI once for non-interactive terminal sessions", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-tui-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const exitCode = await runHcbCli(["tui"], {
+        env: { ...process.env, HCB_TUI_ONCE: "1" },
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch: tuiFetch()
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout.text()).toContain("Hot Cross Buns 2 TUI");
+      expect(stdout.text()).toContain("Today: 1 tasks, 1 events");
+      expect(stderr.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 function rpcResponse(structuredContent: Record<string, unknown>): Record<string, unknown> {
@@ -2189,6 +2363,66 @@ function statusFetch(calls: Array<{ authorization?: string }>): HcbCliDependenci
       }),
       text: async () => ""
     };
+  };
+}
+
+function tuiFetch(): HcbCliDependencies["fetch"] {
+  return async (_url, init) => {
+    const body = JSON.parse(init.body) as { params: { name: string } };
+    const structured = tuiStructuredResponse(body.params.name);
+
+    return {
+      status: 200,
+      json: async () => rpcResponse(structured),
+      text: async () => ""
+    };
+  };
+}
+
+function tuiStructuredResponse(name: string): Record<string, unknown> {
+  if (name === "hcb_status") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read HCB status.",
+      item: {
+        account: { state: "connected" },
+        sync: { state: "idle" },
+        cache: { taskCount: 1, eventCount: 1, noteCount: 0 }
+      }
+    };
+  }
+
+  if (name === "hcb_today") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read today.",
+      item: {
+        tasks: [{ kind: "task", id: "task-1", title: "Ship TUI" }],
+        events: [{ kind: "event", id: "event-1", title: "Review" }]
+      }
+    };
+  }
+
+  if (name === "hcb_week") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read week.",
+      item: { tasks: [], events: [] }
+    };
+  }
+
+  return {
+    applied: false,
+    dryRun: false,
+    requiresConfirmation: false,
+    message: "Read items.",
+    items: []
   };
 }
 

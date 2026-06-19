@@ -3,6 +3,12 @@ import { basename, dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   localHosterManifestSchema,
+  localHosterCreateRequestSchema,
+  localHosterExportRequestSchema,
+  localHosterImportRequestSchema,
+  localHosterRemoveRequestSchema,
+  localHosterSignalPayloadSchema,
+  localHosterTestRequestSchema,
   type LocalHosterCapability,
   type LocalHosterCreateRequest,
   type LocalHosterExportRequest,
@@ -11,9 +17,11 @@ import {
   type LocalHosterMutationResponse,
   type LocalHosterProfile,
   type LocalHosterRemoveRequest,
+  type LocalHosterSignalPayload,
   type LocalHosterStatusResponse,
   type LocalHosterTestRequest
 } from "@shared/ipc/contracts";
+import packageJson from "../../../../package.json";
 import type { SecretStore } from "../../credentials/secretStore";
 import {
   createLocalHosterSecret,
@@ -22,6 +30,8 @@ import {
   encryptHosterPayload,
   encryptSignalEnvelope,
   sha256Hex,
+  unwrapHosterPackageKey,
+  wrapHosterPackageKey,
   type LocalHosterEncryptedPayload,
   type LocalHosterSecret
 } from "../../hoster/crypto";
@@ -32,6 +42,8 @@ const HOSTER_SECRET_SERVICE = "Hot Cross Buns 2 Local Hosters";
 const HOSTER_KIND = "hot-cross-buns-2-local-hoster";
 const HCBHOST_FORMAT_VERSION = 1;
 const PAYLOAD_FILE = "payload.hcbenc";
+const replayPastWindowMs = 5 * 60 * 1000;
+const replayFutureWindowMs = 60 * 1000;
 const defaultCapabilities: LocalHosterCapability[] = ["host.info", "signal.send", "planner.read"];
 
 interface LocalHosterRow extends Record<string, unknown> {
@@ -73,6 +85,7 @@ export class LocalHosterRepository {
   }
 
   async create(request: LocalHosterCreateRequest, endpoint: string, now = new Date().toISOString()): Promise<LocalHosterMutationResponse> {
+    request = localHosterCreateRequestSchema.parse(request);
     assertLoopbackEndpoint(endpoint);
     const id = `hoster:${randomUUID()}`;
     const secret = createLocalHosterSecret();
@@ -96,6 +109,7 @@ export class LocalHosterRepository {
   }
 
   async export(request: LocalHosterExportRequest, now = new Date().toISOString()): Promise<LocalHosterMutationResponse> {
+    request = localHosterExportRequestSchema.parse(request);
     const profile = this.requireProfile(request.id);
     const secret = await this.requireSecret(profile.id);
     const outPath = normalizedHosterPath(request.out, profile.id);
@@ -113,7 +127,7 @@ export class LocalHosterRepository {
       formatVersion: HCBHOST_FORMAT_VERSION,
       kind: HOSTER_KIND,
       createdAt: now,
-      appVersion: "0.0.0",
+      appVersion: packageJson.version,
       hosterId: profile.id,
       name: profile.name,
       capabilities: profile.capabilities,
@@ -121,7 +135,10 @@ export class LocalHosterRepository {
       endpoint: profile.endpoint,
       keyFingerprint: profile.keyFingerprint,
       payloadFile: PAYLOAD_FILE,
-      payloadSha256: sha256Hex(payloadText)
+      payloadSha256: sha256Hex(payloadText),
+      ...(request.passphrase === undefined
+        ? {}
+        : { keyWrap: wrapHosterPackageKey(secret.packageKeyBase64, request.passphrase, profile.id) })
     };
 
     rmSync(outPath, { recursive: true, force: true });
@@ -139,6 +156,7 @@ export class LocalHosterRepository {
   }
 
   async import(request: LocalHosterImportRequest, now = new Date().toISOString()): Promise<LocalHosterMutationResponse> {
+    request = localHosterImportRequestSchema.parse(request);
     const manifest = localHosterManifestSchema.parse(
       JSON.parse(readFileSync(join(request.path, "manifest.json"), "utf8"))
     );
@@ -148,17 +166,26 @@ export class LocalHosterRepository {
     }
 
     const existingSecret = await this.secretStore.read(secretKey(manifest.hosterId));
-    if (!existingSecret) {
+    const packageKey = existingSecret
+      ? parseSecret(existingSecret).packageKeyBase64
+      : manifest.keyWrap && request.passphrase
+        ? unwrapHosterPackageKey(manifest.keyWrap, request.passphrase, manifest.hosterId)
+        : undefined;
+    if (!packageKey) {
       throw validationFailure("Local hoster package can only be imported after its key is present in this OS credential store.");
     }
 
     const payload = decryptHosterPayload<HosterPackagePayload>(
       JSON.parse(payloadText) as LocalHosterEncryptedPayload,
-      parseSecret(existingSecret).packageKeyBase64,
+      packageKey,
       manifest.hosterId
     );
 
-    if (payload.version !== HCBHOST_FORMAT_VERSION || payload.profile.keyFingerprint !== manifest.keyFingerprint) {
+    if (
+      payload.version !== HCBHOST_FORMAT_VERSION ||
+      payload.profile.keyFingerprint !== manifest.keyFingerprint ||
+      payload.secret.packageKeyBase64 !== packageKey
+    ) {
       throw validationFailure("Local hoster package metadata does not match its encrypted payload.");
     }
 
@@ -198,6 +225,7 @@ export class LocalHosterRepository {
   }
 
   async remove(request: LocalHosterRemoveRequest, now = new Date().toISOString()): Promise<LocalHosterMutationResponse> {
+    request = localHosterRemoveRequestSchema.parse(request);
     const profile = this.requireProfile(request.id);
     this.connection.run(
       "UPDATE local_hoster_profiles SET deleted_at = ?, updated_at = ? WHERE id = ?;",
@@ -213,6 +241,7 @@ export class LocalHosterRepository {
   }
 
   async test(request: LocalHosterTestRequest): Promise<LocalHosterMutationResponse> {
+    request = localHosterTestRequestSchema.parse(request);
     const profile = request.id ? this.requireProfile(request.id) : this.listProfiles()[0];
     if (!profile) {
       throw validationFailure("Create a local hoster before testing signal encryption.");
@@ -243,6 +272,34 @@ export class LocalHosterRepository {
       envelope as Parameters<typeof decryptSignalEnvelope>[0],
       secret.privateKeyDerBase64
     );
+  }
+
+  recordSignalReceipt(
+    profileId: string,
+    payload: LocalHosterSignalPayload,
+    now = new Date()
+  ): void {
+    const createdAtMs = Date.parse(payload.createdAt);
+    if (!Number.isFinite(createdAtMs)) {
+      throw validationFailure("Local hoster signal timestamp is invalid.");
+    }
+    if (createdAtMs < now.getTime() - replayPastWindowMs) {
+      throw validationFailure("Local hoster signal timestamp is stale.");
+    }
+    if (createdAtMs > now.getTime() + replayFutureWindowMs) {
+      throw validationFailure("Local hoster signal timestamp is in the future.");
+    }
+
+    const parsed = localHosterSignalPayloadSchema.parse(payload);
+    const result = this.connection.run(
+      `INSERT OR IGNORE INTO local_hoster_signal_receipts (
+         profile_id, request_id, created_at, received_at, tool_name
+       ) VALUES (?, ?, ?, ?, ?);`,
+      [profileId, parsed.requestId, parsed.createdAt, now.toISOString(), parsed.toolName]
+    );
+    if (result.changes !== 1) {
+      throw validationFailure("Local hoster signal request was already processed.");
+    }
   }
 
   private requireProfile(id: string): LocalHosterProfile {

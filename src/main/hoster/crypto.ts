@@ -4,15 +4,22 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
+  type CipherGCM,
+  type DecipherGCM,
   diffieHellman,
   generateKeyPairSync,
   hkdfSync,
-  randomBytes
+  randomBytes,
+  scryptSync
 } from "node:crypto";
-import type { LocalHosterSignalEnvelope } from "@shared/ipc/contracts";
+import type { LocalHosterManifest, LocalHosterSignalEnvelope } from "@shared/ipc/contracts";
 
 const packageAlgorithm = "AES-256-GCM";
 const signalAlgorithm = "X25519-HKDF-SHA256-AES-256-GCM";
+const keyWrapAlgorithm = "scrypt-AES-256-GCM";
+const keyWrapCost = 16384;
+const keyWrapBlockSize = 8;
+const keyWrapParallelization = 1;
 
 export interface LocalHosterSecret {
   packageKeyBase64: string;
@@ -28,6 +35,8 @@ export interface LocalHosterEncryptedPayload {
   tagBase64: string;
   ciphertextBase64: string;
 }
+
+export type LocalHosterKeyWrap = NonNullable<LocalHosterManifest["keyWrap"]>;
 
 export function createLocalHosterSecret(): LocalHosterSecret {
   const pair = generateKeyPairSync("x25519");
@@ -48,7 +57,7 @@ export function encryptHosterPayload(
   aad = "hcbhost-v1"
 ): LocalHosterEncryptedPayload {
   const iv = randomBytes(12);
-  const cipher = createCipheriv(packageAlgorithm, keyFromBase64(keyBase64), iv);
+  const cipher = createCipheriv(packageAlgorithm, keyFromBase64(keyBase64), iv) as CipherGCM;
   cipher.setAAD(Buffer.from(aad, "utf8"));
   const plaintext = Buffer.from(JSON.stringify(value), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
@@ -74,7 +83,7 @@ export function decryptHosterPayload<T>(
     packageAlgorithm,
     keyFromBase64(keyBase64),
     Buffer.from(encrypted.ivBase64, "base64")
-  );
+  ) as DecipherGCM;
   decipher.setAAD(Buffer.from(aad, "utf8"));
   decipher.setAuthTag(Buffer.from(encrypted.tagBase64, "base64"));
   const plaintext = Buffer.concat([
@@ -102,7 +111,7 @@ export function encryptSignalEnvelope(
   const salt = randomBytes(16);
   const key = Buffer.from(hkdfSync("sha256", shared, salt, "hcb2-signal-v1", 32));
   const iv = randomBytes(12);
-  const cipher = createCipheriv(packageAlgorithm, key, iv);
+  const cipher = createCipheriv(packageAlgorithm, key, iv) as CipherGCM;
   const plaintext = Buffer.from(JSON.stringify(value), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
 
@@ -138,7 +147,7 @@ export function decryptSignalEnvelope<T>(
   const key = Buffer.from(
     hkdfSync("sha256", shared, Buffer.from(envelope.saltBase64, "base64"), "hcb2-signal-v1", 32)
   );
-  const decipher = createDecipheriv(packageAlgorithm, key, Buffer.from(envelope.ivBase64, "base64"));
+  const decipher = createDecipheriv(packageAlgorithm, key, Buffer.from(envelope.ivBase64, "base64")) as DecipherGCM;
   decipher.setAuthTag(Buffer.from(envelope.tagBase64, "base64"));
   const plaintext = Buffer.concat([
     decipher.update(Buffer.from(envelope.ciphertextBase64, "base64")),
@@ -146,6 +155,64 @@ export function decryptSignalEnvelope<T>(
   ]);
 
   return JSON.parse(plaintext.toString("utf8")) as T;
+}
+
+export function wrapHosterPackageKey(
+  packageKeyBase64: string,
+  passphrase: string,
+  aad = "hcbhost-keywrap-v1"
+): LocalHosterKeyWrap {
+  const packageKey = keyFromBase64(packageKeyBase64);
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const wrappingKey = derivePassphraseKey(passphrase, salt);
+  const cipher = createCipheriv(packageAlgorithm, wrappingKey, iv) as CipherGCM;
+  cipher.setAAD(Buffer.from(aad, "utf8"));
+  const wrapped = Buffer.concat([cipher.update(packageKey), cipher.final()]);
+
+  return {
+    algorithm: keyWrapAlgorithm,
+    kdf: "scrypt",
+    saltBase64: salt.toString("base64"),
+    ivBase64: iv.toString("base64"),
+    tagBase64: cipher.getAuthTag().toString("base64"),
+    wrappedKeyBase64: wrapped.toString("base64"),
+    keyLength: 32,
+    cost: keyWrapCost,
+    blockSize: keyWrapBlockSize,
+    parallelization: keyWrapParallelization
+  };
+}
+
+export function unwrapHosterPackageKey(
+  keyWrap: LocalHosterKeyWrap,
+  passphrase: string,
+  aad = "hcbhost-keywrap-v1"
+): string {
+  if (
+    keyWrap.algorithm !== keyWrapAlgorithm ||
+    keyWrap.kdf !== "scrypt" ||
+    keyWrap.keyLength !== 32 ||
+    keyWrap.cost !== keyWrapCost ||
+    keyWrap.blockSize !== keyWrapBlockSize ||
+    keyWrap.parallelization !== keyWrapParallelization
+  ) {
+    throw new Error("Unsupported hoster key wrap.");
+  }
+  const salt = Buffer.from(keyWrap.saltBase64, "base64");
+  const wrappingKey = derivePassphraseKey(passphrase, salt);
+  const decipher = createDecipheriv(packageAlgorithm, wrappingKey, Buffer.from(keyWrap.ivBase64, "base64")) as DecipherGCM;
+  decipher.setAAD(Buffer.from(aad, "utf8"));
+  decipher.setAuthTag(Buffer.from(keyWrap.tagBase64, "base64"));
+  const packageKey = Buffer.concat([
+    decipher.update(Buffer.from(keyWrap.wrappedKeyBase64, "base64")),
+    decipher.final()
+  ]);
+  if (packageKey.byteLength !== 32) {
+    throw new Error("Invalid wrapped hoster package key.");
+  }
+
+  return packageKey.toString("base64");
 }
 
 export function sha256Hex(value: Buffer | string): string {
@@ -158,4 +225,13 @@ function keyFromBase64(value: string): Buffer {
     throw new Error("Hoster encryption key must be 32 bytes.");
   }
   return key;
+}
+
+function derivePassphraseKey(passphrase: string, salt: Buffer): Buffer {
+  return scryptSync(passphrase, salt, 32, {
+    N: keyWrapCost,
+    r: keyWrapBlockSize,
+    p: keyWrapParallelization,
+    maxmem: 32 * 1024 * 1024
+  });
 }

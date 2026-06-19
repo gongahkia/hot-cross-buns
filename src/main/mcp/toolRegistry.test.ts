@@ -701,6 +701,14 @@ describe("McpToolRegistry advanced writes", () => {
           enabledValues.push(request.enabled);
           return { enabled: request.enabled } as never;
         }
+      },
+      hosters: {
+        status: () => ({ enabled: false, running: false, port: 0, profiles: [] }),
+        create: () => ({ id: "hoster:test", message: "created" }),
+        export: () => ({ id: "hoster:test", path: "/tmp/test.hcbhost", message: "exported" }),
+        import: () => ({ id: "hoster:test", path: "/tmp/test.hcbhost", message: "imported" }),
+        remove: () => ({ id: "hoster:test", message: "removed" }),
+        test: () => ({ id: "hoster:test", message: "tested" })
       }
     };
     registry.setAdminServices(admin);

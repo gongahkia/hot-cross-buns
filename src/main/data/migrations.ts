@@ -590,6 +590,23 @@ CREATE TABLE IF NOT EXISTS local_hoster_profiles (
 CREATE INDEX IF NOT EXISTS idx_local_hoster_profiles_active
   ON local_hoster_profiles(deleted_at, updated_at DESC, id DESC);
 `
+  },
+  {
+    version: 21,
+    name: "local hoster signal receipts",
+    sql: `
+CREATE TABLE IF NOT EXISTS local_hoster_signal_receipts (
+  profile_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  PRIMARY KEY (profile_id, request_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_hoster_signal_receipts_received
+  ON local_hoster_signal_receipts(received_at);
+`
   }
 ];
 

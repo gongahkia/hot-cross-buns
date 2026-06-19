@@ -1,5 +1,13 @@
 import { Buffer } from "node:buffer";
 import { createServer, type Server, type Socket } from "node:net";
+import {
+  localHosterSignalPayloadSchema,
+  localHosterSignalRequestSchema,
+  type LocalHosterCapability,
+  type LocalHosterProfile,
+  type LocalHosterSignalPayload
+} from "@shared/ipc/contracts";
+import { appLogger } from "../diagnostics/appLogger";
 import { bearerAuthorizationMatches } from "../mcp/credentials";
 import {
   MCP_MAX_HTTP_REQUEST_BYTES,
@@ -8,7 +16,8 @@ import {
   type ParsedMcpHttpRequest
 } from "../mcp/http";
 import { defaultMcpRateLimit, McpRateLimiter } from "../mcp/rateLimiter";
-import type { McpCredentialAdapter } from "../mcp/types";
+import type { JsonObject, McpCredentialAdapter, McpPermissionMode, MaybePromise } from "../mcp/types";
+import { MCP_READ_TOOL_NAMES, MCP_WRITE_TOOL_NAMES } from "../mcp/toolRegistry";
 import type { LocalHosterRepository } from "../data/localRepositories";
 
 export const LOCAL_HOSTER_INFO_PATH = "/hcb/v1/info";
@@ -17,6 +26,13 @@ export const LOCAL_HOSTER_SIGNAL_PATH = "/hcb/v1/signal";
 export interface LocalHosterServerOptions {
   credentialAdapter: McpCredentialAdapter;
   repository: LocalHosterRepository;
+  dispatchSignal?: (request: LocalHosterSignalDispatchRequest) => MaybePromise<JsonObject>;
+}
+
+export interface LocalHosterSignalDispatchRequest {
+  profileId: string;
+  permissionMode: McpPermissionMode;
+  payload: LocalHosterSignalPayload;
 }
 
 export class LocalHosterServer {
@@ -97,26 +113,126 @@ export class LocalHosterServer {
 
   private async dispatch(request: ParsedMcpHttpRequest): Promise<McpHttpResponse> {
     if (request.path === LOCAL_HOSTER_INFO_PATH) {
+      const body = parseJson(request.body) ?? {};
+      const profileId = typeof body.profileId === "string" ? body.profileId : undefined;
+      const profiles = this.options.repository.listProfiles()
+        .filter((profile) => hasCapability(profile, "host.info"))
+        .filter((profile) => profileId === undefined || profile.id === profileId);
+      if (profileId !== undefined && profiles.length === 0) {
+        appLogger.warn("local hoster info denied", "hoster", { profileId, outcome: "capability_denied" });
+        return McpHttpResponse.plain(403, "Hoster profile lacks host.info capability.");
+      }
       return McpHttpResponse.json(200, {
         kind: "localHosterInfo",
-        profiles: this.options.repository.listProfiles()
+        profiles
       });
     }
     const body = parseJson(request.body);
     if (!body) {
       return McpHttpResponse.plain(400, "Bad Request");
     }
-    if (body.private === true && !body.envelope) {
+    const signalRequest = localHosterSignalRequestSchema.safeParse(body);
+    if (!signalRequest.success) {
+      return McpHttpResponse.plain(400, "Invalid signal request.");
+    }
+    if (signalRequest.data.private === true && !signalRequest.data.envelope) {
       return McpHttpResponse.plain(400, "Private signal payloads require encryption.");
     }
-    if (typeof body.profileId !== "string" || !body.envelope) {
-      return McpHttpResponse.plain(400, "Signal requires profileId and envelope.");
+    const profile = this.options.repository.listProfiles().find((item) => item.id === signalRequest.data.profileId);
+    if (!profile) {
+      return McpHttpResponse.plain(404, "Hoster profile not found.");
     }
-    const payload = await this.options.repository.decryptSignal(body.profileId, body.envelope);
+    if (!hasCapability(profile, "signal.send")) {
+      this.auditSignal(profile.id, undefined, undefined, "capability_denied", 403);
+      return McpHttpResponse.plain(403, "Hoster profile lacks signal.send capability.");
+    }
+    const payload = await this.signalPayload(signalRequest.data, profile.id);
+    if (!payload) {
+      this.auditSignal(profile.id, undefined, undefined, "invalid", 400);
+      return McpHttpResponse.plain(400, "Invalid signal payload.");
+    }
+    const capabilityDecision = capabilityDecisionForTool(profile, payload.toolName);
+    if (capabilityDecision !== "allowed") {
+      this.auditSignal(profile.id, payload.requestId, payload.toolName, capabilityDecision, 403);
+      return McpHttpResponse.plain(403, signalCapabilityMessage(capabilityDecision));
+    }
+    try {
+      this.options.repository.recordSignalReceipt(profile.id, payload, new Date());
+    } catch (error) {
+      this.auditSignal(profile.id, payload.requestId, payload.toolName, "replay_rejected", 409);
+      return McpHttpResponse.plain(409, error instanceof Error ? error.message : "Signal replay rejected.");
+    }
+    let result: JsonObject | undefined;
+    try {
+      result = await this.dispatchSignal(profile.id, profile.permissionMode, payload);
+    } catch (error) {
+      this.auditSignal(profile.id, payload.requestId, payload.toolName, "dispatch_failed", 400);
+      return McpHttpResponse.json(400, {
+        kind: "localHosterSignalError",
+        profileId: profile.id,
+        requestId: payload.requestId,
+        message: error instanceof Error ? error.message : "Signal dispatch failed."
+      });
+    }
+    this.auditSignal(profile.id, payload.requestId, payload.toolName, "allowed", 200);
+
     return McpHttpResponse.json(200, {
       kind: "localHosterSignal",
-      profileId: body.profileId,
+      profileId: profile.id,
+      requestId: payload.requestId,
+      payload: jsonObject(payload) ?? {},
+      ...(result === undefined ? {} : { result })
+    });
+  }
+
+  private async signalPayload(
+    body: { payload?: unknown; envelope?: unknown },
+    profileId: string
+  ): Promise<LocalHosterSignalPayload | undefined> {
+    let candidate: unknown;
+    if (body.envelope) {
+      try {
+        candidate = await this.options.repository.decryptSignal(profileId, body.envelope);
+      } catch {
+        return undefined;
+      }
+    } else {
+      candidate = body.payload;
+    }
+
+    const parsed = localHosterSignalPayloadSchema.safeParse(candidate);
+    return parsed.success ? parsed.data : undefined;
+  }
+
+  private async dispatchSignal(
+    profileId: string,
+    permissionMode: McpPermissionMode,
+    payload: LocalHosterSignalPayload
+  ): Promise<JsonObject | undefined> {
+    if (!this.options.dispatchSignal) {
+      return undefined;
+    }
+
+    return await this.options.dispatchSignal({
+      profileId,
+      permissionMode,
       payload
+    });
+  }
+
+  private auditSignal(
+    profileId: string,
+    requestId: string | undefined,
+    toolName: string | undefined,
+    outcome: string,
+    status: number
+  ): void {
+    appLogger.info("local hoster signal", "hoster", {
+      profileId,
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(toolName === undefined ? {} : { toolName }),
+      outcome,
+      status: String(status)
     });
   }
 
@@ -135,6 +251,8 @@ export class LocalHosterServer {
       }
       void this.handleRawHttpRequest(buffer, remoteAddress).then((response) => {
         socket.end(response.toBuffer());
+      }).catch((error) => {
+        socket.end(McpHttpResponse.plain(500, error instanceof Error ? error.message : "Internal Server Error").toBuffer());
       });
     });
     socket.on("error", () => socket.destroy());
@@ -205,8 +323,66 @@ function parseJson(body: Buffer): Record<string, unknown> | undefined {
   }
 }
 
+function jsonObject(value: unknown): JsonObject | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? JSON.parse(JSON.stringify(value)) as JsonObject
+    : undefined;
+}
+
 function originIsAllowed(origin: string | undefined): boolean {
   return origin === undefined || origin.trim().length === 0;
+}
+
+const deniedHosterTools = new Set([
+  "hcb_doctor",
+  "hcb_log",
+  "hcb_tail",
+  "hcb_settings_update",
+  "hcb_google_save_oauth_client",
+  "hcb_google_begin_oauth",
+  "hcb_mcp_set_enabled",
+  "hcb_hoster_status",
+  "hcb_hoster_create",
+  "hcb_hoster_export",
+  "hcb_hoster_import",
+  "hcb_hoster_remove",
+  "hcb_hoster_test"
+]);
+
+function capabilityDecisionForTool(
+  profile: LocalHosterProfile,
+  toolName: string
+): "allowed" | "tool_denied" | "read_capability_denied" | "write_capability_denied" | "unknown_tool" {
+  if (deniedHosterTools.has(toolName)) {
+    return "tool_denied";
+  }
+  if (MCP_READ_TOOL_NAMES.has(toolName)) {
+    return hasCapability(profile, "planner.read") ? "allowed" : "read_capability_denied";
+  }
+  if (MCP_WRITE_TOOL_NAMES.has(toolName)) {
+    return hasCapability(profile, "planner.write") ? "allowed" : "write_capability_denied";
+  }
+
+  return "unknown_tool";
+}
+
+function signalCapabilityMessage(decision: ReturnType<typeof capabilityDecisionForTool>): string {
+  switch (decision) {
+    case "tool_denied":
+      return "Hoster dispatch cannot call admin or security tools.";
+    case "read_capability_denied":
+      return "Hoster profile lacks planner.read capability.";
+    case "write_capability_denied":
+      return "Hoster profile lacks planner.write capability.";
+    case "unknown_tool":
+      return "Unknown hoster signal tool.";
+    case "allowed":
+      return "Allowed.";
+  }
+}
+
+function hasCapability(profile: LocalHosterProfile, capability: LocalHosterCapability): boolean {
+  return profile.capabilities.includes(capability);
 }
 
 function remoteAddressIsLocal(remoteAddress: string | undefined): boolean {

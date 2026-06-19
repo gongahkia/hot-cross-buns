@@ -52,7 +52,7 @@ export interface SqliteDomainServiceOptions {
 
 export function createSqliteDomainServices(
   options: SqliteDomainServiceOptions
-): AppDomainServices {
+): Omit<AppDomainServices, "hosters"> {
   const webhooks = createSqliteWebhookDomainService(options.webhookRepository, options.settingsRepository);
   const mutationWorker =
     options.syncTasksWriteTransport && options.syncCalendarWriteTransport

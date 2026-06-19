@@ -341,11 +341,13 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   writeTool("hcb_hoster_export", "Export a local hoster profile as an encrypted .hcbhost package.", false, {
     id: stringSchema("Hoster profile id."),
     out: stringSchema("Output .hcbhost directory path."),
+    passphrase: stringSchema("Optional passphrase for portable package key wrapping."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "out"]),
   writeTool("hcb_hoster_import", "Import an encrypted .hcbhost package.", false, {
     path: stringSchema("Input .hcbhost directory path."),
+    passphrase: stringSchema("Optional passphrase for portable package key wrapping."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["path"]),
@@ -898,7 +900,9 @@ export class McpToolRegistry {
         preview: (args) => ({
           kind: "localHosterProfile",
           name: requiredString(args, "name"),
-          capabilities: optionalHosterCapabilities(args),
+          ...(optionalHosterCapabilities(args) === undefined
+            ? {}
+            : { capabilities: optionalHosterCapabilities(args) }),
           permissionMode: optionalPermissionMode(args) ?? "confirm-writes"
         }),
         apply: (args) => this.requireAdminServices().hosters.create({
@@ -915,20 +919,28 @@ export class McpToolRegistry {
         preview: (args) => ({
           kind: "localHosterExport",
           id: requiredString(args, "id"),
-          out: requiredString(args, "out")
+          out: requiredString(args, "out"),
+          hasPassphrase: optionalString(args, "passphrase") !== undefined
         }),
         apply: (args) => this.requireAdminServices().hosters.export({
           id: requiredString(args, "id"),
-          out: requiredString(args, "out")
+          out: requiredString(args, "out"),
+          ...(optionalString(args, "passphrase") === undefined
+            ? {}
+            : { passphrase: optionalString(args, "passphrase") })
         })
       },
       hcb_hoster_import: {
         preview: (args) => ({
           kind: "localHosterImport",
-          path: requiredString(args, "path")
+          path: requiredString(args, "path"),
+          hasPassphrase: optionalString(args, "passphrase") !== undefined
         }),
         apply: (args) => this.requireAdminServices().hosters.import({
-          path: requiredString(args, "path")
+          path: requiredString(args, "path"),
+          ...(optionalString(args, "passphrase") === undefined
+            ? {}
+            : { passphrase: optionalString(args, "passphrase") })
         })
       },
       hcb_hoster_remove: {

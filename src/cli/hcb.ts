@@ -142,6 +142,7 @@ interface ParsedCommand {
   out?: string;
   path?: string;
   privatePayload?: boolean;
+  passphraseEnv?: string;
 }
 
 interface RuntimeTarget {
@@ -322,6 +323,13 @@ export function parseCommand(argv: string[]): ParsedCommand {
 
     if (arg === "--private") {
       parsed.privatePayload = true;
+      continue;
+    }
+
+    if (arg === "--passphrase-env") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.passphraseEnv = optionValue(value, "--passphrase-env");
       continue;
     }
 
@@ -822,10 +830,11 @@ export function parseCommand(argv: string[]): ParsedCommand {
       parsed.permissionMode !== undefined ||
       parsed.out !== undefined ||
       parsed.path !== undefined ||
-      parsed.privatePayload !== undefined) &&
+      parsed.privatePayload !== undefined ||
+      parsed.passphraseEnv !== undefined) &&
     command !== "hoster"
   ) {
-    throw new CliError("--name, --permission-mode, --out, --path, and --private are only supported by hoster.", 2);
+    throw new CliError("--name, --permission-mode, --out, --path, --private, and --passphrase-env are only supported by hoster.", 2);
   }
 
   if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command) && !isHosterWriteCommand(parsed)) {
@@ -1141,6 +1150,10 @@ export async function callCommand(
     if (command.privatePayload === true) {
       args.privatePayload = true;
     }
+
+    if (command.passphraseEnv !== undefined) {
+      args.passphrase = passphraseFromEnv(command.passphraseEnv, dependencies.env ?? process.env);
+    }
   }
 
   return callMcpTool(tool, args, dependencies);
@@ -1189,6 +1202,60 @@ async function callDiagnosticsExport(
       errorLogs: errorLogs.items ?? []
     }
   };
+}
+
+async function runHcbTui(
+  _command: ParsedCommand,
+  dependencies: HcbCliDependencies = {}
+): Promise<void> {
+  const stdout = dependencies.stdout ?? process.stdout;
+  const env = dependencies.env ?? process.env;
+  const target = discoverRuntime(dependencies);
+  const token = await tokenProvider(dependencies)();
+  const call = (name: string, args: JsonObject) =>
+    callMcpToolWithAuth(name, args, dependencies, target, token);
+  const [status, today, week, mutations, logs] = await Promise.all([
+    call("hcb_status", {}),
+    call("hcb_today", {}),
+    call("hcb_week", {}),
+    call("hcb_pending_mutations", { limit: 20 }),
+    call("hcb_log", { limit: 12, level: "warn" })
+  ]);
+  const screen = formatTuiScreen({
+    status: status.item ?? {},
+    today: today.item ?? {},
+    week: week.item ?? {},
+    mutations: mutations.items ?? [],
+    logs: logs.items ?? []
+  });
+
+  stdout.write(`\x1b[2J\x1b[H${screen}`);
+
+  if (env.HCB_TUI_ONCE === "1" || !process.stdin.isTTY) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const stdin = process.stdin;
+    const onData = (chunk: Buffer) => {
+      const value = chunk.toString("utf8");
+      if (value === "q" || value === "\u0003") {
+        cleanup();
+        resolve();
+      }
+    };
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdout.write("\x1b[?25h\x1b[0m\n");
+    };
+
+    stdout.write("\x1b[?25l");
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on("data", onData);
+  });
 }
 
 async function callMcpToolWithAuth(
@@ -1249,6 +1316,44 @@ async function callMcpToolWithAuth(
   }
 
   return structured as unknown as McpToolResponse;
+}
+
+function formatTuiScreen(input: {
+  status: JsonObject;
+  today: JsonObject;
+  week: JsonObject;
+  mutations: JsonObject[];
+  logs: JsonObject[];
+}): string {
+  const account = asObject(input.status.account) ?? {};
+  const sync = asObject(input.status.sync) ?? {};
+  const cache = asObject(input.status.cache) ?? {};
+  const todayTasks = objectArray(input.today.tasks);
+  const todayEvents = objectArray(input.today.events);
+  const weekTasks = objectArray(input.week.tasks);
+  const weekEvents = objectArray(input.week.events);
+  const lines = [
+    "Hot Cross Buns 2 TUI",
+    "q quit | commands: doctor status today week search diff log hoster",
+    "",
+    `Account ${text(account.state)} | Sync ${text(sync.state)} | Cache tasks=${text(cache.taskCount)} events=${text(cache.eventCount)} notes=${text(cache.noteCount)}`,
+    "",
+    `Today: ${todayTasks.length} tasks, ${todayEvents.length} events`,
+    ...todayTasks.slice(0, 8).map((item) => `  [task] ${formatCompactItem(item)}`),
+    ...todayEvents.slice(0, 8).map((item) => `  [event] ${formatCompactItem(item)}`),
+    "",
+    `Week: ${weekTasks.length} tasks, ${weekEvents.length} events`,
+    ...weekTasks.slice(0, 8).map((item) => `  [task] ${formatCompactItem(item)}`),
+    ...weekEvents.slice(0, 8).map((item) => `  [event] ${formatCompactItem(item)}`),
+    "",
+    `Pending mutations: ${input.mutations.length}`,
+    ...input.mutations.slice(0, 8).map((item) => `  ${formatCompactItem(item)}`),
+    "",
+    `Warnings: ${input.logs.length}`,
+    ...input.logs.slice(0, 8).map((item) => `  ${text(item.formattedLine)}`)
+  ];
+
+  return `${lines.join("\n")}\n`;
 }
 
 export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeTarget {
@@ -1630,6 +1735,8 @@ function formatWrite(command: ParsedCommand, response: McpToolResponse): string 
   const target = command.target ?? "item";
   const label = command.command === "sync-now" || command.command === "retry-mutation" || command.command === "cancel-mutation"
     ? command.command
+    : command.command === "hoster"
+    ? `hoster ${command.action ?? "status"}`
     : command.target === undefined && (command.command === "undo" || command.command === "redo")
     ? command.command
     : `${command.command} ${target}`;
@@ -1669,7 +1776,7 @@ function writeJsonOutput(command: ParsedCommand, response: McpToolResponse): Rec
 }
 
 function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): string | undefined {
-  if (!isWriteCommand(command.command) || !response.dryRun || command.apply === true) {
+  if ((!isWriteCommand(command.command) && !isHosterWriteCommand(command)) || !response.dryRun || command.apply === true) {
     return undefined;
   }
 
@@ -1782,6 +1889,16 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlag(args, "--enabled", command.enabled === undefined ? undefined : String(command.enabled));
   }
 
+  if (command.command === "hoster") {
+    pushFlag(args, "--name", command.name);
+    pushFlag(args, "--permission-mode", command.permissionMode);
+    pushFlag(args, "--out", command.out);
+    if (command.action !== "import") {
+      pushFlag(args, "--path", command.path);
+    }
+    pushFlag(args, "--passphrase-env", command.passphraseEnv);
+  }
+
   if (command.command === "sync-now") {
     pushFlag(args, "--resources", command.resources?.join(","));
 
@@ -1806,6 +1923,17 @@ function writeCommandPrefix(command: ParsedCommand): string[] {
 
   if (command.command === "mcp") {
     return ["pnpm", "hcb", "--", "mcp", command.action ?? "set-enabled"];
+  }
+
+  if (command.command === "hoster") {
+    const prefix = ["pnpm", "hcb", "--", "hoster", command.action ?? "status"];
+    if ((command.action === "export" || command.action === "remove") && command.id) {
+      prefix.push(command.id);
+    }
+    if (command.action === "import" && command.path) {
+      prefix.push(command.path);
+    }
+    return prefix;
   }
 
   if (command.command === "undo" || command.command === "redo") {
@@ -1947,6 +2075,13 @@ function helpText(): string {
     "  google save-oauth-client [options]      dry-run save Google OAuth client config",
     "  google begin-oauth                      dry-run start Google OAuth",
     "  mcp set-enabled <true|false>            dry-run enable or disable MCP",
+    "  hoster status                           show local hoster status",
+    "  hoster create --name <name>             dry-run create local hoster profile",
+    "  hoster export <id> --out <path>         dry-run export encrypted .hcbhost",
+    "  hoster import <path>                    dry-run import encrypted .hcbhost",
+    "  hoster remove <id>                      dry-run remove local hoster profile",
+    "  hoster test [id]                        test signal encryption round-trip",
+    "  tui                                     open terminal dashboard",
     "  log [-n <limit>] [--level <level>]      show sanitized recent logs",
     "  diff [--limit <limit>] [--json]         show pending local-to-Google mutations",
     "  show <kind> [id] [--json]               show task, event, note, mutation, or diagnostics",
@@ -1990,6 +2125,10 @@ function helpText(): string {
     "  pnpm hcb -- settings update --patch-json '{\"mcpEnabled\":true}'",
     "  pnpm hcb -- google begin-oauth --apply",
     "  pnpm hcb -- mcp set-enabled true",
+    "  pnpm hcb -- hoster status",
+    "  pnpm hcb -- hoster create --name local --permission-mode confirm-writes",
+    "  pnpm hcb -- hoster export hoster-id --out /tmp/local.hcbhost --passphrase-env HCB_HOSTER_PASSPHRASE",
+    "  pnpm hcb -- tui",
     "  pnpm hcb -- status",
     "  pnpm hcb -- log -n 20 --level warn",
     "  pnpm hcb -- diff --json",
@@ -2617,6 +2756,18 @@ function optionValue(value: string | undefined, flag: string): string {
   return value;
 }
 
+function passphraseFromEnv(name: string, env: NodeJS.ProcessEnv): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new CliError("--passphrase-env must name an environment variable.", 2);
+  }
+  const value = env[name];
+  if (!value || value.length < 8) {
+    throw new CliError(`Environment variable ${name} must contain a passphrase with at least 8 characters.`, 2);
+  }
+
+  return value;
+}
+
 function parseNullableId(value: string | undefined, flag: string): string | null {
   const text = optionValue(value, flag).trim();
   return text === "null" ? null : text;
@@ -2687,6 +2838,15 @@ function isWriteCommand(command: ParsedCommand["command"]): boolean {
     command === "settings" ||
     command === "google" ||
     command === "mcp"
+  );
+}
+
+function isHosterWriteCommand(command: ParsedCommand): boolean {
+  return command.command === "hoster" && (
+    command.action === "create" ||
+    command.action === "export" ||
+    command.action === "import" ||
+    command.action === "remove"
   );
 }
 
@@ -2869,12 +3029,12 @@ function validateHosterCommand(command: ParsedCommand): void {
   rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
 
   if (command.action === "status") {
-    rejectUnsupportedOptions(command, "hoster status", ["name", "permissionMode", "out", "path", "privatePayload", "apply", "confirmationId"]);
+    rejectUnsupportedOptions(command, "hoster status", ["name", "permissionMode", "out", "path", "privatePayload", "passphraseEnv", "apply", "confirmationId"]);
   } else if (command.action === "create") {
     if (command.name === undefined) {
       throw new CliError("Missing required --name for hoster create.", 2);
     }
-    rejectUnsupportedOptions(command, "hoster create", ["id", "out", "path", "privatePayload"]);
+    rejectUnsupportedOptions(command, "hoster create", ["id", "out", "path", "privatePayload", "passphraseEnv"]);
   } else if (command.action === "export") {
     if (command.id === undefined || command.out === undefined) {
       throw new CliError("Usage: pnpm hcb -- hoster export <id> --out <path>", 2);
@@ -2889,9 +3049,9 @@ function validateHosterCommand(command: ParsedCommand): void {
     if (command.id === undefined) {
       throw new CliError("Usage: pnpm hcb -- hoster remove <id>", 2);
     }
-    rejectUnsupportedOptions(command, "hoster remove", ["name", "permissionMode", "out", "path", "privatePayload"]);
+    rejectUnsupportedOptions(command, "hoster remove", ["name", "permissionMode", "out", "path", "privatePayload", "passphraseEnv"]);
   } else if (command.action === "test") {
-    rejectUnsupportedOptions(command, "hoster test", ["name", "permissionMode", "out", "path", "apply", "confirmationId"]);
+    rejectUnsupportedOptions(command, "hoster test", ["name", "permissionMode", "out", "path", "passphraseEnv", "apply", "confirmationId"]);
   }
 }
 
@@ -3190,6 +3350,12 @@ function flagForKey(key: keyof ParsedCommand): string {
       return "--client-id";
     case "clientSecret":
       return "--client-secret";
+    case "permissionMode":
+      return "--permission-mode";
+    case "privatePayload":
+      return "--private";
+    case "passphraseEnv":
+      return "--passphrase-env";
     case "confirmationId":
       return "--confirmation-id";
     default:

@@ -478,6 +478,8 @@ export {
   localHosterProfileSchema,
   localHosterRemoveRequestSchema,
   localHosterSignalEnvelopeSchema,
+  localHosterSignalPayloadSchema,
+  localHosterSignalRequestSchema,
   localHosterStatusResponseSchema,
   localHosterTestRequestSchema,
   type LocalHosterCapability,
@@ -489,6 +491,8 @@ export {
   type LocalHosterProfile,
   type LocalHosterRemoveRequest,
   type LocalHosterSignalEnvelope,
+  type LocalHosterSignalPayload,
+  type LocalHosterSignalRequest,
   type LocalHosterStatusResponse,
   type LocalHosterTestRequest
 } from "./contracts/hosters";

@@ -2,6 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runHcbCli } from "../src/cli/hcb";
+import { MemorySecretStore } from "../src/main/credentials/secretStore";
+import { runLocalDataMigrations } from "../src/main/data/migrations";
+import { LocalHosterRepository } from "../src/main/data/localRepositories";
+import { createTemporarySqliteConnection } from "../src/main/data/sqliteConnection";
+import { createSqliteHosterDomainService } from "../src/main/services/sqliteHosterDomainService";
 import { StaticMcpCredentialAdapter } from "../src/main/mcp/credentials";
 import { writeMcpRuntimeFile } from "../src/main/mcp/runtimeFile";
 import { LocalMcpServer } from "../src/main/mcp/server";
@@ -12,12 +17,49 @@ async function main(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), "hcb-cli-smoke-"));
   const runtimeFile = join(directory, "config", "mcp-runtime.json");
   const token = "hcb-smoke-token";
+  const connection = createTemporarySqliteConnection("hcb-cli-smoke-hoster-");
+  runLocalDataMigrations(connection.connection);
+  const hosterRepository = new LocalHosterRepository(connection.connection, new MemorySecretStore());
+  const hosters = createSqliteHosterDomainService({
+    repository: hosterRepository,
+    statusBase: () => ({
+      enabled: true,
+      running: true,
+      port: 4778,
+      url: "http://127.0.0.1"
+    }),
+    endpoint: () => "http://127.0.0.1:4778/hcb/v1/signal"
+  });
+  const registry = new McpToolRegistry(createMcpTestDomainServices());
+  registry.setAdminServices({
+    settings: {
+      get: () => ({}) as never,
+      update: (request) => ({ kind: "settings", ...request }) as never
+    },
+    google: {
+      status: () => ({}) as never,
+      saveOAuthClient: (request) => ({ oauthClientConfigured: true, ...request }) as never,
+      beginOAuth: () => ({
+        accepted: true,
+        openedExternalBrowser: true,
+        expiresAt: "2026-06-04T01:00:00.000Z",
+        scopes: [],
+        redirectUri: "http://127.0.0.1:4777/oauth",
+        message: "OAuth started."
+      })
+    },
+    mcp: {
+      status: () => ({}) as never,
+      setEnabled: (request) => ({ enabled: request.enabled }) as never
+    },
+    hosters
+  });
   const server = new LocalMcpServer({
     credentialAdapter: new StaticMcpCredentialAdapter(token, "smoke"),
     permissionProvider: {
       getMode: () => "confirm-writes"
     },
-    toolRegistry: new McpToolRegistry(createMcpTestDomainServices())
+    toolRegistry: registry
   });
 
   try {
@@ -58,10 +100,26 @@ async function main(): Promise<void> {
     const updatePreview = await expectCommand(["update", "note", "note-1", "--title", "Smoke updated note"], "HCB update note: dry-run", runtimeFile, token);
     const updateConfirmationId = confirmationIdFromOutput(updatePreview);
     await expectCommand(["update", "note", "note-1", "--title", "Smoke updated note", "--apply", "--confirmation-id", updateConfirmationId], "HCB update note: applied", runtimeFile, token);
+    await expectCommand(["hoster", "status"], "HCB local hosters", runtimeFile, token);
+    const hosterPreview = await expectCommand(["hoster", "create", "--name", "Smoke hoster"], "HCB hoster create: dry-run", runtimeFile, token);
+    const hosterConfirmationId = confirmationIdFromOutput(hosterPreview);
+    const hosterCreated = await expectCommand(["hoster", "create", "--name", "Smoke hoster", "--apply", "--confirmation-id", hosterConfirmationId], "HCB hoster create: applied", runtimeFile, token);
+    const hosterId = hosterIdFromOutput(hosterCreated);
+    await expectCommand(["hoster", "test", hosterId, "--private"], "signal encryption", runtimeFile, token);
+    const hosterExportPath = join(directory, "smoke.hcbhost");
+    const passphraseEnv = { HCB_HOSTER_PASSPHRASE: "smoke portable passphrase" };
+    const exportPreview = await expectCommand(["hoster", "export", hosterId, "--out", hosterExportPath, "--passphrase-env", "HCB_HOSTER_PASSPHRASE"], "HCB hoster export: dry-run", runtimeFile, token, passphraseEnv);
+    const exportConfirmationId = confirmationIdFromOutput(exportPreview);
+    await expectCommand(["hoster", "export", hosterId, "--out", hosterExportPath, "--passphrase-env", "HCB_HOSTER_PASSPHRASE", "--apply", "--confirmation-id", exportConfirmationId], "HCB hoster export: applied", runtimeFile, token, passphraseEnv);
+    await hosterRepository.remove({ id: hosterId });
+    const importPreview = await expectCommand(["hoster", "import", hosterExportPath, "--passphrase-env", "HCB_HOSTER_PASSPHRASE"], "HCB hoster import: dry-run", runtimeFile, token, passphraseEnv);
+    const importConfirmationId = confirmationIdFromOutput(importPreview);
+    await expectCommand(["hoster", "import", hosterExportPath, "--passphrase-env", "HCB_HOSTER_PASSPHRASE", "--apply", "--confirmation-id", importConfirmationId], "HCB hoster import: applied", runtimeFile, token, passphraseEnv);
 
     process.stdout.write("hcb cli smoke passed\n");
   } finally {
     await server.stop();
+    connection.cleanup();
     rmSync(directory, { recursive: true, force: true });
   }
 }
@@ -70,11 +128,13 @@ async function expectCommand(
   argv: string[],
   expectedOutput: string,
   runtimeFile: string,
-  token: string
+  token: string,
+  env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
   const stdout = outputBuffer();
   const stderr = outputBuffer();
   const exitCode = await runHcbCli(argv, {
+    env,
     runtimeFilePaths: [runtimeFile],
     tokenProvider: async () => token,
     stdout,
@@ -128,6 +188,16 @@ function confirmationIdFromOutput(output: string): string {
   }
 
   return match[1].trim();
+}
+
+function hosterIdFromOutput(output: string): string {
+  const match = /\bid=(hoster:[^\s]+)/.exec(output);
+
+  if (!match) {
+    throw new Error(`hoster id was missing: ${output}`);
+  }
+
+  return match[1];
 }
 
 function outputBuffer(): NodeJS.WritableStream & { text: () => string } {

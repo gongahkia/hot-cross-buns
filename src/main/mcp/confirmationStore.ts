@@ -125,6 +125,7 @@ function normalizedArguments(argumentsObject: Record<string, unknown>): Record<s
   const clone = { ...argumentsObject };
   delete clone.dryRun;
   delete clone.confirmationId;
+  delete clone.passphrase;
   return clone;
 }
 

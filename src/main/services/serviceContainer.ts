@@ -41,6 +41,7 @@ import { LocalHosterServerController } from "../hoster/server";
 import { KeychainMcpCredentialAdapter } from "../mcp/keychainCredentials";
 import { McpConfirmationStore } from "../mcp/confirmationStore";
 import { McpToolRegistry } from "../mcp/toolRegistry";
+import type { JsonObject } from "../mcp/types";
 import { createNoopNativeAdapter } from "../native/noopAdapter";
 import { NativeShellService } from "../native/service";
 import type { NativeAppPaths, NativePlatformAdapter, NativeShellWindowActions } from "../native/types";
@@ -226,7 +227,23 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   });
   const hosterController = new LocalHosterServerController({
     credentialAdapter: mcpCredentialAdapter,
-    repository: hosterRepository
+    repository: hosterRepository,
+    dispatchSignal: async ({ profileId, permissionMode, payload }) => {
+      const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
+      const credentialRevision =
+        (await mcpCredentialAdapter.credentialRevision?.()) ?? "unknown";
+
+      return await mcpToolRegistry.callTool(
+        toolName,
+        recordValue(payload.arguments),
+        {
+          permissionMode,
+          credentialRevision,
+          clientKey: `hoster:${profileId}`,
+          now: new Date()
+        }
+      ) as unknown as JsonObject;
+    }
   });
   const hosters = createSqliteHosterDomainService({
     repository: hosterRepository,
@@ -409,6 +426,12 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       connection.close();
     }
   };
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 export function defaultSecretStoreForPlatform(input: {

@@ -48,14 +48,16 @@ export type LocalHosterCreateRequest = z.input<typeof localHosterCreateRequestSc
 export const localHosterExportRequestSchema = z
   .object({
     id: idSchema,
-    out: z.string().trim().min(1).max(4_096)
+    out: z.string().trim().min(1).max(4_096),
+    passphrase: z.string().min(8).max(4_096).optional()
   })
   .strict();
 export type LocalHosterExportRequest = z.input<typeof localHosterExportRequestSchema>;
 
 export const localHosterImportRequestSchema = z
   .object({
-    path: z.string().trim().min(1).max(4_096)
+    path: z.string().trim().min(1).max(4_096),
+    passphrase: z.string().min(8).max(4_096).optional()
   })
   .strict();
 export type LocalHosterImportRequest = z.input<typeof localHosterImportRequestSchema>;
@@ -88,7 +90,22 @@ export const localHosterManifestSchema = z
     endpoint: z.string().url().max(500),
     keyFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     payloadFile: z.literal("payload.hcbenc"),
-    payloadSha256: z.string().regex(/^[0-9a-f]{64}$/)
+    payloadSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    keyWrap: z
+      .object({
+        algorithm: z.literal("scrypt-AES-256-GCM"),
+        kdf: z.literal("scrypt"),
+        saltBase64: z.string().min(1).max(256),
+        ivBase64: z.string().min(1).max(256),
+        tagBase64: z.string().min(1).max(256),
+        wrappedKeyBase64: z.string().min(1).max(512),
+        keyLength: z.literal(32),
+        cost: z.number().int().min(16_384).max(1_048_576),
+        blockSize: z.number().int().min(1).max(64),
+        parallelization: z.number().int().min(1).max(16)
+      })
+      .strict()
+      .optional()
   })
   .strict();
 export type LocalHosterManifest = z.infer<typeof localHosterManifestSchema>;
@@ -116,3 +133,27 @@ export const localHosterSignalEnvelopeSchema = z
   })
   .strict();
 export type LocalHosterSignalEnvelope = z.infer<typeof localHosterSignalEnvelopeSchema>;
+
+export const localHosterSignalPayloadSchema = z
+  .object({
+    formatVersion: z.literal(1),
+    requestId: z.string().trim().regex(/^[A-Za-z0-9:_-]{8,120}$/),
+    createdAt: isoDateTimeSchema,
+    toolName: z.string().trim().min(1).max(120),
+    arguments: z.record(z.unknown()).default({})
+  })
+  .strict();
+export type LocalHosterSignalPayload = z.infer<typeof localHosterSignalPayloadSchema>;
+
+export const localHosterSignalRequestSchema = z
+  .object({
+    profileId: idSchema,
+    private: z.boolean().optional(),
+    payload: localHosterSignalPayloadSchema.optional(),
+    envelope: localHosterSignalEnvelopeSchema.optional()
+  })
+  .strict()
+  .refine((value) => value.payload !== undefined || value.envelope !== undefined, {
+    message: "payload or envelope is required"
+  });
+export type LocalHosterSignalRequest = z.infer<typeof localHosterSignalRequestSchema>;

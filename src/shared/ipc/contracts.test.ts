@@ -527,6 +527,8 @@ describe("shared IPC contracts", () => {
         mcpEnabled: false,
         mcpPermissionMode: "confirm-writes",
         mcpPort: 0,
+        localHostersEnabled: false,
+        localHosterPort: 0,
         defaultTimeZone: "UTC",
         todayCapacityMinutes: 480,
         todayWorkingHoursStart: 6,
