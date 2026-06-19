@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { createServer } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemorySecretStore } from "../credentials/secretStore";
 import { runLocalDataMigrations } from "../data/migrations";
@@ -7,7 +8,7 @@ import { createTemporarySqliteConnection, type TemporarySqliteConnection } from 
 import { StaticMcpCredentialAdapter } from "../mcp/credentials";
 import type { JsonObject } from "../mcp/types";
 import { encryptSignalEnvelope, type LocalHosterSecret } from "./crypto";
-import { LocalHosterServer, type LocalHosterSignalDispatchRequest } from "./server";
+import { LocalHosterServer, LocalHosterServerController, type LocalHosterSignalDispatchRequest } from "./server";
 
 const token = "hoster-token";
 let temp: TemporarySqliteConnection | undefined;
@@ -138,6 +139,50 @@ describe("local hoster server", () => {
       payload: signalPayload("request-admin", "hcb_hoster_status")
     }), authHeaders())).status).toBe(403);
   });
+
+  it("reports lifecycle health and rebinding errors", async () => {
+    const { repository } = testFixture();
+    const controller = new LocalHosterServerController({
+      credentialAdapter: new StaticMcpCredentialAdapter(token),
+      repository
+    });
+    const blocker = createServer();
+
+    try {
+      await controller.applySettings({ localHostersEnabled: true, localHosterPort: 0 });
+      const started = controller.status({ localHostersEnabled: true, localHosterPort: 0 });
+      expect(started).toMatchObject({
+        enabled: true,
+        running: true,
+        health: "running",
+        configuredPort: 0,
+        url: "http://127.0.0.1"
+      });
+      expect(started.endpoint).toBe(`http://127.0.0.1:${started.port}/hcb/v1/signal`);
+
+      const nextPort = await availablePort();
+      await controller.applySettings({ localHostersEnabled: true, localHosterPort: nextPort });
+      expect(controller.status({ localHostersEnabled: true, localHosterPort: nextPort })).toMatchObject({
+        running: true,
+        port: nextPort,
+        configuredPort: nextPort
+      });
+
+      await controller.stop();
+      const blockedPort = await listen(blocker, 0);
+      await controller.applySettings({ localHostersEnabled: true, localHosterPort: blockedPort });
+      expect(controller.status({ localHostersEnabled: true, localHosterPort: blockedPort })).toMatchObject({
+        running: false,
+        health: "error",
+        configuredPort: blockedPort,
+        lastErrorCode: "EADDRINUSE",
+        lastError: `Local hoster port ${blockedPort} is already in use. Choose another port or set localHosterPort to 0.`
+      });
+    } finally {
+      blocker.close();
+      await controller.dispose();
+    }
+  });
 });
 
 function testServer(): LocalHosterServer {
@@ -198,4 +243,26 @@ function request(path: string, body: string, headers: Record<string, string>): B
   ];
 
   return Buffer.concat([Buffer.from(lines.join("\r\n"), "utf8"), bodyBuffer]);
+}
+
+async function availablePort(): Promise<number> {
+  const server = createServer();
+  const port = await listen(server, 0);
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+  return port;
+}
+
+async function listen(server: ReturnType<typeof createServer>, port: number): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.once("listening", resolve);
+    server.listen({ host: "127.0.0.1", port });
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("server did not bind tcp");
+  }
+  return address.port;
 }

@@ -263,41 +263,78 @@ export class LocalHosterServerController {
   private readonly server: LocalHosterServer;
   private runningPort: number | undefined;
   private lastError: string | undefined;
+  private lastErrorCode: string | undefined;
+  private health: "disabled" | "stopped" | "starting" | "running" | "error" = "stopped";
+  private configuredPort = 0;
+  private startedAt: string | undefined;
+  private stoppedAt: string | undefined;
 
   constructor(options: LocalHosterServerOptions) {
     this.server = new LocalHosterServer(options);
   }
 
   async applySettings(settings: { localHostersEnabled: boolean; localHosterPort: number }): Promise<void> {
+    this.configuredPort = clampPort(settings.localHosterPort);
     if (!settings.localHostersEnabled) {
       await this.stop();
       this.lastError = undefined;
+      this.lastErrorCode = undefined;
+      this.health = "disabled";
       return;
     }
-    await this.start(settings.localHosterPort);
+    await this.start(this.configuredPort);
   }
 
   async start(port: number): Promise<void> {
+    const requestedPort = clampPort(port);
+    this.configuredPort = requestedPort;
+    if (this.runningPort !== undefined && requestedPort !== 0 && this.runningPort !== requestedPort) {
+      await this.stop();
+    }
+    this.health = "starting";
     try {
-      this.runningPort = await this.server.start(port);
+      this.runningPort = await this.server.start(requestedPort);
       this.lastError = undefined;
+      this.lastErrorCode = undefined;
+      this.health = "running";
+      this.startedAt = new Date().toISOString();
     } catch (error) {
+      const details = localHosterStartError(error, requestedPort);
       this.runningPort = undefined;
-      this.lastError = error instanceof Error ? error.message : "Local hoster failed to start.";
+      this.lastError = details.message;
+      this.lastErrorCode = details.code;
+      this.health = "error";
+      appLogger.warn("local hoster start failed", "hoster", {
+        port: String(requestedPort),
+        ...(details.code === undefined ? {} : { code: details.code }),
+        message: details.message
+      });
     }
   }
 
   async stop(): Promise<void> {
     await this.server.stop();
     this.runningPort = undefined;
+    this.health = this.health === "disabled" ? "disabled" : "stopped";
+    this.stoppedAt = new Date().toISOString();
   }
 
   status(settings: { localHostersEnabled: boolean; localHosterPort: number }) {
+    const configuredPort = clampPort(settings.localHosterPort);
+    const endpoint = this.runningPort === undefined
+      ? undefined
+      : `http://127.0.0.1:${this.runningPort}/hcb/v1/signal`;
     return {
       enabled: settings.localHostersEnabled,
       running: this.runningPort !== undefined,
-      port: this.runningPort ?? settings.localHosterPort,
+      health: settings.localHostersEnabled ? this.health : "disabled",
+      port: this.runningPort ?? configuredPort,
+      configuredPort,
       ...(this.runningPort === undefined ? {} : { url: "http://127.0.0.1" as const }),
+      ...(endpoint === undefined ? {} : { endpoint }),
+      ...(this.startedAt === undefined ? {} : { startedAt: this.startedAt }),
+      ...(this.stoppedAt === undefined ? {} : { stoppedAt: this.stoppedAt }),
+      ...(this.lastErrorCode === undefined ? {} : { lastErrorCode: this.lastErrorCode }),
       ...(this.lastError === undefined ? {} : { lastError: this.lastError })
     };
   }
@@ -310,6 +347,28 @@ export class LocalHosterServerController {
   async dispose(): Promise<void> {
     await this.stop();
   }
+}
+
+function clampPort(port: number): number {
+  return Math.max(0, Math.min(65535, Math.trunc(port)));
+}
+
+function localHosterStartError(error: unknown, port: number): { code?: string; message: string } {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code ?? "")
+    : undefined;
+  if (code === "EADDRINUSE") {
+    return {
+      code,
+      message: port === 0
+        ? "Local hoster failed to bind an available loopback port."
+        : `Local hoster port ${port} is already in use. Choose another port or set localHosterPort to 0.`
+    };
+  }
+  return {
+    ...(code ? { code } : {}),
+    message: error instanceof Error ? error.message : "Local hoster failed to start."
+  };
 }
 
 function parseJson(body: Buffer): Record<string, unknown> | undefined {

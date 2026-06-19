@@ -28,10 +28,16 @@ export const localHosterStatusResponseSchema = z
   .object({
     enabled: z.boolean(),
     running: z.boolean(),
+    health: z.enum(["disabled", "stopped", "starting", "running", "error"]).optional(),
     port: z.number().int().min(0).max(65535),
+    configuredPort: z.number().int().min(0).max(65535).optional(),
     url: z.literal("http://127.0.0.1").optional(),
+    endpoint: z.string().url().max(500).optional(),
     profiles: z.array(localHosterProfileSchema).max(200),
-    lastError: z.string().min(1).max(500).optional()
+    startedAt: isoDateTimeSchema.optional(),
+    stoppedAt: isoDateTimeSchema.optional(),
+    lastError: z.string().min(1).max(500).optional(),
+    lastErrorCode: z.string().min(1).max(80).optional()
   })
   .strict();
 export type LocalHosterStatusResponse = z.infer<typeof localHosterStatusResponseSchema>;

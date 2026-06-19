@@ -12,6 +12,10 @@ not open LAN listeners or introduce a separate mutation path.
 - Origin: browser origins are rejected; CLI/no-origin requests are accepted.
 - Body: JSON only, bounded by the same local HTTP request size posture as MCP.
 - Rate limit: loopback requests are rate-limited per remote address.
+- Lifecycle: persisted `localHostersEnabled`/`localHosterPort` settings are
+  applied during main-process startup. Status reports `health`,
+  `configuredPort`, effective `port`, live `endpoint`, start/stop timestamps,
+  and sanitized bind errors such as `EADDRINUSE`.
 
 `/hcb/v1/info` returns hoster profiles visible to the caller. A profile must
 have `host.info` to be returned for a profile-specific info request.

@@ -2127,8 +2127,12 @@ function formatHosterStatus(item: JsonObject): string {
   const profiles = objectArray(item.profiles);
   const lines = [
     "HCB local hosters",
-    `Server: enabled=${text(item.enabled)} running=${text(item.running)} port=${text(item.port)}`
+    `Server: enabled=${text(item.enabled)} running=${text(item.running)} health=${text(item.health)} port=${text(item.port)} configured=${text(item.configuredPort)}`
   ];
+
+  if (item.endpoint) {
+    lines.push(`Endpoint: ${text(item.endpoint)}`);
+  }
 
   if (profiles.length === 0) {
     lines.push("Profiles: 0");

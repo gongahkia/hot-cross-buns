@@ -81,6 +81,7 @@ export interface ServiceContainer {
   performance: LocalPerformanceRepository;
   mcpTools: McpToolRegistry;
   nativeShell: NativeShellService;
+  startHosterRuntime: () => Promise<void>;
   startDeferredRuntime: () => void;
   close: () => Promise<void>;
 }
@@ -245,6 +246,20 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       ) as unknown as JsonObject;
     }
   });
+  let hosterRuntimeStarted = false;
+  const startHosterRuntime = async () => {
+    if (hosterRuntimeStarted) {
+      return;
+    }
+    hosterRuntimeStarted = true;
+    try {
+      await hosterController.applySettings(settingsRepository.get());
+    } catch (error) {
+      appLogger.warn("hoster startup settings apply failed", "hoster", {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
   const hosters = createSqliteHosterDomainService({
     repository: hosterRepository,
     statusBase: () => hosterController.status(settingsSupportRepository.applyExternalSettings(settingsRepository.get())),
@@ -390,6 +405,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     performance: performanceRepository,
     mcpTools: mcpToolRegistry,
     nativeShell,
+    startHosterRuntime,
     startDeferredRuntime: () => {
       try {
         void mcpController.applySettings(settingsRepository.get()).catch((error) => {
@@ -403,17 +419,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         });
       }
 
-      try {
-        void hosterController.applySettings(settingsRepository.get()).catch((error) => {
-          appLogger.warn("deferred hoster settings apply failed", "hoster", {
-            message: error instanceof Error ? error.message : String(error)
-          });
-        });
-      } catch (error) {
-        appLogger.warn("deferred hoster settings load failed", "hoster", {
-          message: error instanceof Error ? error.message : String(error)
-        });
-      }
+      void startHosterRuntime();
 
       syncScheduler?.start();
     },

@@ -99,6 +99,35 @@ describe("service container integration", () => {
     }
   });
 
+  it("starts the local hoster from persisted settings before deferred runtime", async () => {
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-hoster-startup-"));
+    const services = createServiceContainer({
+      appSupportDirectory,
+      secretStore: new MemorySecretStore()
+    });
+
+    try {
+      services.localData.settingsRepository.update({
+        localHostersEnabled: true,
+        localHosterPort: 0
+      });
+      await services.startHosterRuntime();
+      const status = await services.domain.hosters.status();
+
+      expect(status).toMatchObject({
+        enabled: true,
+        running: true,
+        health: "running",
+        configuredPort: 0,
+        url: "http://127.0.0.1"
+      });
+      expect(status.endpoint).toBe(`http://127.0.0.1:${status.port}/hcb/v1/signal`);
+    } finally {
+      await services.close();
+      rmSync(appSupportDirectory, { recursive: true, force: true });
+    }
+  });
+
   it("shares domain services between MCP tool handlers and planner IPC services", async () => {
     const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-container-"));
     const services = createServiceContainer({

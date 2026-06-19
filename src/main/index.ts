@@ -407,6 +407,7 @@ if (!safeStorageTokenHelperRequest && hasSingleInstanceLock) {
       mcpBearerTokenSeed: packagedMcpSmokeTokenSeed(process.env, app.isPackaged)
     });
     await applyPackagedMcpSmokeSettings(services, process.env, app.isPackaged);
+    void services.startHosterRuntime();
     startPackagedMcpSmokeExitWatcher(process.env, app.isPackaged, () => app.quit());
     services.nativeShell.installAppMenu();
     registerHcbIpc(services, {
