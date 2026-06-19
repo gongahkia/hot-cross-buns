@@ -50,6 +50,7 @@ Subsystem specs:
 - [Google Sync](specs/google-sync.md)
 - [Local Data](specs/local-data.md)
 - [MCP Agent Access](specs/mcp-agent-access.md)
+- [Local Hoster Protocol](specs/local-hoster.md)
 - [Platform Strategy](specs/platforms.md)
 - [Native Parity](specs/native-parity.md)
 - [Design System](design/design-system.md)

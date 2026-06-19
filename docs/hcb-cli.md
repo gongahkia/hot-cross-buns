@@ -1,13 +1,13 @@
 # HCB CLI
 
-`pnpm hcb -- <command>` talks to the local Hot Cross Buns 2 MCP server. It is intended for agents and CLI users who need Git-like diagnostics against the running local app.
+`hcb <command>` or `pnpm hcb -- <command>` talks to the local Hot Cross Buns 2 MCP server. It is intended for agents and CLI users who need Git-like diagnostics against the running local app.
 
 ## Setup
 
 1. Start Hot Cross Buns 2.
 2. Open Settings -> General -> Agent access.
 3. Enable Local MCP server.
-4. Run `pnpm hcb -- doctor`.
+4. Run `hcb doctor`.
 
 The CLI discovers the runtime file written by the app and loads the bearer token
 from the platform credential store: macOS Keychain, Linux Electron `safeStorage`
@@ -21,6 +21,8 @@ Electron `safeStorage` context.
 
 ## Commands
 
+- `hcb completion zsh`: print shell completion for bash, zsh, or fish.
+- `hcb tui`: open the terminal dashboard with status, agenda, search, logs, pending mutations, hosters, detail panes, and hoster dry-run/apply commands.
 - `pnpm hcb -- doctor`: run read-only diagnostics and show suggested next commands.
 - `pnpm hcb -- status`: show account, sync, cache, pending mutation, MCP, and build state.
 - `pnpm hcb -- search <query> --scope tasks`: search tasks, notes, events, lists, or calendars.
@@ -53,8 +55,14 @@ Electron `safeStorage` context.
 - `pnpm hcb -- show note <id>`: show one note.
 - `pnpm hcb -- show mutation <id>`: show one pending mutation.
 - `pnpm hcb -- show diagnostics`: show a diagnostics snapshot.
+- `hcb hoster status`: show local hoster server/profile status.
+- `hcb hoster create --name Terminal`: dry-run a local hoster profile create.
+- `hcb hoster export <id> --out /tmp/local.hcbhost --passphrase-env HCB_HOSTER_PASSPHRASE`: dry-run an encrypted portable `.hcbhost` export.
+- `hcb hoster import /tmp/local.hcbhost --passphrase-env HCB_HOSTER_PASSPHRASE`: dry-run importing a portable `.hcbhost`.
+- `hcb hoster test <id> --private`: run the encrypted signal round-trip test.
+- `hcb hoster signal <id> --tool hcb_status --arguments-json '{}'`: send a raw loopback hoster signal for development/testing.
 
-All commands accept `--json` for structured output. `doctor` and `export-diagnostics` also accept `--log-limit <n>` and `--mutation-limit <n>`. `export-diagnostics` prints JSON by default.
+All commands accept `--json` for structured output. Write JSON output includes `kind: "hcbCliResult"` and `schemaVersion: 1` while preserving the command, tool, target, dry-run, confirmation, apply command, and item fields. `doctor` and `export-diagnostics` also accept `--log-limit <n>` and `--mutation-limit <n>`. `export-diagnostics` prints JSON by default.
 
 ## Create Workflow
 
@@ -84,6 +92,12 @@ pnpm hcb:smoke
 ```
 
 This starts an in-process local MCP server, writes a temporary runtime file, runs read/create behavior through the CLI entry point, and removes the temp files.
+
+## Local Hosters
+
+The local hoster protocol is documented in [Local Hoster Protocol](specs/local-hoster.md). Hoster routes bind only to `127.0.0.1`, use the local MCP bearer token, and dispatch through existing MCP/domain services.
+
+Passphrase-portable packages use `--passphrase-env <VAR>` only; the passphrase must be supplied through the named environment variable and is not written into command previews, confirmations, or logs.
 
 ## Privacy
 
