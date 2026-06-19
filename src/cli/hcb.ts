@@ -1970,15 +1970,6 @@ async function runTuiCommand(
     state.message = `view ${view}`;
     return;
   }
-  if (isTuiView(name)) {
-    state.view = name;
-    state.message = `view ${name}`;
-    return;
-  }
-  if (name === "apply") {
-    await runTuiApply(rest[0], state, call);
-    return;
-  }
   if (name === "backend") {
     await runTuiBackendCommand(rest, state, call);
     return;
@@ -1989,6 +1980,15 @@ async function runTuiCommand(
   }
   if (name === "hoster") {
     await runTuiHosterCommand(rest, state, call, env);
+    return;
+  }
+  if (isTuiView(name)) {
+    state.view = name;
+    state.message = `view ${name}`;
+    return;
+  }
+  if (name === "apply") {
+    await runTuiApply(rest[0], state, call);
     return;
   }
 
