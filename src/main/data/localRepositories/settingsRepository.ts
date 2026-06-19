@@ -1,9 +1,28 @@
-import { createHash, randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  randomUUID,
+  scryptSync
+} from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   portableArchiveManifestSchema,
+  hcbVaultExportRequestSchema,
+  hcbVaultImportRequestSchema,
+  hcbVaultManifestSchema,
+  HCB_VAULT_ALGORITHM,
+  HCB_VAULT_FORMAT_VERSION,
+  HCB_VAULT_KIND,
+  HCB_VAULT_PAYLOAD_FILE,
+  type HcbVaultExportRequest,
+  type HcbVaultExportResponse,
+  type HcbVaultImportRequest,
+  type HcbVaultImportResponse,
+  type HcbVaultManifest,
   defaultSemanticSearchModels,
   type LocalPointerListRequest,
   type LocalPointerListResponse,
@@ -26,11 +45,14 @@ import {
   hotkeyActionIds
 } from "@shared/settingsCatalog";
 import type { SqliteConnection } from "../sqliteConnection";
+import { remoteMutationOperationsForConnection, shouldQueueRemoteMutationsForConnection } from "./plannerBase";
 import { systemTimeZone, uniqueIds, validationFailure } from "./shared";
 
 const PORTABLE_FORMAT_VERSION = 1;
 const PORTABLE_STATE_FILE = "hot-cross-buns-2-state.json";
 const PORTABLE_ATTACHMENT_DIR = "Attachments";
+const HCB_VAULT_AAD = "hot-cross-buns-2:vault:v1";
+const HCB_VAULT_SCRYPT = { cost: 32_768, blockSize: 8, parallelization: 1 } as const;
 const PORTABLE_TABLES = [
   "google_accounts",
   "google_task_lists",
@@ -89,6 +111,9 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   selectedTaskListIds: [],
   selectedCalendarIds: [],
   setupCompletedAt: null,
+  storageBackend: "google",
+  hcbHosterEndpoint: null,
+  hcbVaultPath: null,
   syncMode: "balanced",
   syncTasksEnabled: true,
   syncCalendarEventsEnabled: true,
@@ -299,6 +324,13 @@ export class LocalSettingsRepository {
         "setupCompletedAt",
         DEFAULT_SETTINGS.setupCompletedAt
       ),
+      storageBackend: this.readSetting("storage", "backend", DEFAULT_SETTINGS.storageBackend),
+      hcbHosterEndpoint: this.readSetting(
+        "storage",
+        "hosterEndpoint",
+        DEFAULT_SETTINGS.hcbHosterEndpoint
+      ),
+      hcbVaultPath: this.readSetting("storage", "vaultPath", DEFAULT_SETTINGS.hcbVaultPath),
       syncMode: this.readSetting("sync", "mode", DEFAULT_SETTINGS.syncMode),
       syncTasksEnabled: this.readSetting("sync", "tasksEnabled", DEFAULT_SETTINGS.syncTasksEnabled),
       syncCalendarEventsEnabled: this.readSetting(
@@ -677,6 +709,18 @@ export class LocalSettingsRepository {
       this.writeSetting("app", "setupCompletedAt", request.setupCompletedAt, now);
     }
 
+    if (request.storageBackend !== undefined) {
+      this.writeSetting("storage", "backend", request.storageBackend, now);
+    }
+
+    if (request.hcbHosterEndpoint !== undefined) {
+      this.writeSetting("storage", "hosterEndpoint", request.hcbHosterEndpoint, now);
+    }
+
+    if (request.hcbVaultPath !== undefined) {
+      this.writeSetting("storage", "vaultPath", request.hcbVaultPath, now);
+    }
+
     if (request.syncMode !== undefined) {
       this.writeSetting("sync", "mode", request.syncMode, now);
     }
@@ -919,6 +963,74 @@ export class LocalSettingsRepository {
     return this.get();
   }
 
+  ensureLocalBackendWorkspace(now = new Date().toISOString()): {
+    accountId: string;
+    taskListId: string;
+    calendarId: string;
+  } {
+    const accountId = "hcb-local-account";
+    const taskListId = `${accountId}:task-list:inbox`;
+    const calendarId = `${accountId}:calendar:primary`;
+    const timeZone = systemTimeZone();
+
+    this.connection.executeTransaction([
+      {
+        kind: "run",
+        sql: `INSERT INTO google_accounts (
+          id, google_account_id, email, display_name, avatar_url, locale, time_zone,
+          connection_state, granted_scopes_json, missing_scopes_json,
+          last_authenticated_at, created_at, updated_at, deleted_at
+        ) VALUES (?, NULL, ?, ?, NULL, 'en', ?, 'signed_out', '[]', '[]', NULL, ?, ?, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          email = excluded.email,
+          display_name = excluded.display_name,
+          time_zone = excluded.time_zone,
+          updated_at = excluded.updated_at,
+          deleted_at = NULL;`,
+        params: [accountId, "local@hot-cross-buns.hcb", "HCB Local", timeZone, now, now]
+      },
+      {
+        kind: "run",
+        sql: `INSERT INTO google_task_lists (
+          id, account_id, google_id, title, etag, sort_order, is_selected,
+          sync_status, google_updated_at, created_at, updated_at, deleted_at
+        ) VALUES (?, ?, 'hcb-local-inbox', 'Inbox', NULL, 0, 1, 'synced', NULL, ?, ?, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          is_selected = 1,
+          updated_at = excluded.updated_at,
+          deleted_at = NULL;`,
+        params: [taskListId, accountId, now, now]
+      },
+      {
+        kind: "run",
+        sql: `INSERT INTO google_calendar_lists (
+          id, account_id, google_id, summary, description, time_zone,
+          background_color, foreground_color, access_role, is_selected, is_hidden,
+          is_primary, etag, google_updated_at, created_at, updated_at, deleted_at
+        ) VALUES (?, ?, 'hcb-local-calendar', 'HCB Local', 'Local HCB calendar', ?, '#0f766e', '#ffffff',
+          'owner', 1, 0, 1, NULL, NULL, ?, ?, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          is_selected = 1,
+          is_hidden = 0,
+          updated_at = excluded.updated_at,
+          deleted_at = NULL;`,
+        params: [calendarId, accountId, timeZone, now, now]
+      }
+    ]);
+
+    const settings = this.get();
+    if (settings.selectedTaskListIds.length === 0) {
+      this.writeSetting("google", "selectedTaskListIds", [taskListId], now);
+    }
+    if (settings.selectedCalendarIds.length === 0) {
+      this.writeSetting("google", "selectedCalendarIds", [calendarId], now);
+    }
+    this.cachedSnapshot = null;
+    this.settingsReadCache = null;
+
+    return { accountId, taskListId, calendarId };
+  }
+
   resetMcpTokenRevision(now = new Date().toISOString()): { tokenState: "rotated"; resetAt: string } {
     this.writeSetting("mcp", "tokenRevision", `rev:${randomUUID()}`, now);
     this.writeSetting("mcp", "tokenResetAt", now, now);
@@ -1053,6 +1165,98 @@ export class LocalSettingsRepository {
     };
   }
 
+  exportHcbVault(
+    request: HcbVaultExportRequest,
+    now = new Date().toISOString()
+  ): HcbVaultExportResponse {
+    request = hcbVaultExportRequestSchema.parse(request);
+    const outPath = normalizedVaultPath(
+      request.out,
+      dirname(this.connection.databasePath),
+      now
+    );
+    const stateJson = `${stableJson(this.portableState(now, this.get()))}\n`;
+    const encrypted = encryptVaultPayload(stateJson, request.passphrase);
+    const payloadText = `${JSON.stringify({ ciphertextBase64: encrypted.ciphertextBase64 }, null, 2)}\n`;
+    const manifest: HcbVaultManifest = {
+      formatVersion: HCB_VAULT_FORMAT_VERSION,
+      kind: HCB_VAULT_KIND,
+      exportedAt: now,
+      appVersion: "0.0.0",
+      stateEncoding: "hcb-portable-state-json",
+      stateSha256: sha256Buffer(Buffer.from(stateJson, "utf8")),
+      payloadFile: HCB_VAULT_PAYLOAD_FILE,
+      payloadSha256: sha256Buffer(Buffer.from(payloadText, "utf8")),
+      encryption: {
+        algorithm: HCB_VAULT_ALGORITHM,
+        kdf: "scrypt",
+        saltBase64: encrypted.saltBase64,
+        ivBase64: encrypted.ivBase64,
+        tagBase64: encrypted.tagBase64,
+        keyLength: 32,
+        cost: HCB_VAULT_SCRYPT.cost,
+        blockSize: HCB_VAULT_SCRYPT.blockSize,
+        parallelization: HCB_VAULT_SCRYPT.parallelization
+      },
+      notes: [
+        "HCB vault archive. Payload is encrypted portable state.",
+        "Format is implemented in the open-source repository."
+      ]
+    };
+
+    rmSync(outPath, { recursive: true, force: true });
+    mkdirSync(outPath, { recursive: true });
+    writeFileSync(join(outPath, "manifest.json"), `${stableJson(manifest)}\n`, "utf8");
+    writeFileSync(join(outPath, HCB_VAULT_PAYLOAD_FILE), payloadText, { encoding: "utf8", mode: 0o600 });
+    this.writeSetting("storage", "vaultPath", outPath, now);
+
+    return {
+      path: outPath,
+      exportedAt: now,
+      manifest
+    };
+  }
+
+  importHcbVault(
+    request: HcbVaultImportRequest,
+    now = new Date().toISOString()
+  ): HcbVaultImportResponse {
+    request = hcbVaultImportRequestSchema.parse(request);
+    const manifest = hcbVaultManifestSchema.parse(
+      JSON.parse(readFileSync(join(request.path, "manifest.json"), "utf8"))
+    );
+    const payloadText = readFileSync(join(request.path, manifest.payloadFile), "utf8");
+    if (sha256Buffer(Buffer.from(payloadText, "utf8")) !== manifest.payloadSha256) {
+      throw validationFailure("HCB vault payload checksum mismatch.");
+    }
+
+    const payload = JSON.parse(payloadText) as { ciphertextBase64?: unknown };
+    if (typeof payload.ciphertextBase64 !== "string") {
+      throw validationFailure("HCB vault payload is malformed.");
+    }
+
+    const stateJson = decryptVaultPayload(payload.ciphertextBase64, manifest, request.passphrase);
+    if (sha256Buffer(Buffer.from(stateJson, "utf8")) !== manifest.stateSha256) {
+      throw validationFailure("HCB vault state checksum mismatch.");
+    }
+
+    const state = parsePortableState(JSON.parse(stateJson));
+    const backup = this.createLocalBackup(now);
+    this.connection.executeTransaction(this.portableImportOperations(state));
+    this.rebuildPortableFts();
+    this.writeSetting("storage", "backend", "hcb-local", now);
+    this.writeSetting("storage", "vaultPath", request.path, now);
+    this.ensureLocalBackendWorkspace(now);
+    this.cachedSnapshot = null;
+    this.settingsReadCache = null;
+
+    return {
+      importedAt: now,
+      backupPath: backup.path,
+      manifest
+    };
+  }
+
   listLocalPointers(request: LocalPointerListRequest): LocalPointerListResponse {
     const limit = Math.max(1, Math.min(500, request.limit ?? 100));
     const includeHealthy = request.includeHealthy === true;
@@ -1075,6 +1279,7 @@ export class LocalSettingsRepository {
       : pathToFileURL(request.replacementPath.trim()).href;
     const affected = this.localPointerRows()
       .filter((row) => row.pointer === request.pointer);
+    const queueRemote = shouldQueueRemoteMutationsForConnection(this.connection);
     let updated = 0;
     const operations = [];
 
@@ -1103,7 +1308,7 @@ export class LocalSettingsRepository {
             sql: "UPDATE google_calendar_events SET description = ?, updated_at = ? WHERE id = ?;",
             params: [next, now, row.entityId]
           },
-          pendingMutationOperation({
+          ...remoteMutationOperationsForConnection(this.connection, pendingMutationOperation({
             id: `mutation:event:${randomUUID()}`,
             accountId: event.accountId,
             resourceType: "event",
@@ -1111,7 +1316,7 @@ export class LocalSettingsRepository {
             operation: "calendar.events.update",
             payload: { id: row.entityId, pointerRepair: true },
             now
-          })
+          }))
         );
         updated += 1;
       } else {
@@ -1138,7 +1343,7 @@ export class LocalSettingsRepository {
             sql: "UPDATE google_tasks SET notes = ?, updated_at = ? WHERE id = ?;",
             params: [next, now, row.entityId]
           },
-          pendingMutationOperation({
+          ...remoteMutationOperationsForConnection(this.connection, pendingMutationOperation({
             id: `mutation:task:${randomUUID()}`,
             accountId: task.accountId,
             resourceType: "task",
@@ -1146,7 +1351,7 @@ export class LocalSettingsRepository {
             operation: "task.update",
             payload: { id: row.entityId, pointerRepair: true },
             now
-          })
+          }))
         );
         updated += 1;
       }
@@ -1158,7 +1363,7 @@ export class LocalSettingsRepository {
       pointer: request.pointer,
       replacementPointer,
       updated,
-      queued: updated > 0,
+      queued: updated > 0 && queueRemote,
       revision: now
     };
   }
@@ -1598,6 +1803,72 @@ function stableJson(value: unknown): string {
 
 function sha256Buffer(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function normalizedVaultPath(out: string | undefined, baseDirectory: string, now: string): string {
+  const fileSafeTimestamp = now.replace(/[:.]/g, "-");
+  const candidate = out?.trim()
+    ? out.trim()
+    : join(baseDirectory, "HcbVaults", `hot-cross-buns-2-${fileSafeTimestamp}.hcbvault`);
+  const normalized = normalize(candidate.endsWith(".hcbvault") ? candidate : `${candidate}.hcbvault`);
+
+  return isAbsolute(normalized) ? normalized : join(baseDirectory, normalized);
+}
+
+function encryptVaultPayload(
+  plainText: string,
+  passphrase: string
+): {
+  ciphertextBase64: string;
+  saltBase64: string;
+  ivBase64: string;
+  tagBase64: string;
+} {
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const key = deriveVaultKey(passphrase, salt);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+
+  cipher.setAAD(Buffer.from(HCB_VAULT_AAD, "utf8"));
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(plainText, "utf8")),
+    cipher.final()
+  ]);
+
+  return {
+    ciphertextBase64: ciphertext.toString("base64"),
+    saltBase64: salt.toString("base64"),
+    ivBase64: iv.toString("base64"),
+    tagBase64: cipher.getAuthTag().toString("base64")
+  };
+}
+
+function decryptVaultPayload(
+  ciphertextBase64: string,
+  manifest: HcbVaultManifest,
+  passphrase: string
+): string {
+  const salt = Buffer.from(manifest.encryption.saltBase64, "base64");
+  const iv = Buffer.from(manifest.encryption.ivBase64, "base64");
+  const key = deriveVaultKey(passphrase, salt);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+
+  decipher.setAAD(Buffer.from(HCB_VAULT_AAD, "utf8"));
+  decipher.setAuthTag(Buffer.from(manifest.encryption.tagBase64, "base64"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertextBase64, "base64")),
+    decipher.final()
+  ]).toString("utf8");
+}
+
+function deriveVaultKey(passphrase: string, salt: Buffer): Buffer {
+  return scryptSync(passphrase, salt, 32, {
+    N: HCB_VAULT_SCRYPT.cost,
+    r: HCB_VAULT_SCRYPT.blockSize,
+    p: HCB_VAULT_SCRYPT.parallelization,
+    maxmem: 64 * 1024 * 1024
+  });
 }
 
 function quoteIdent(value: string): string {

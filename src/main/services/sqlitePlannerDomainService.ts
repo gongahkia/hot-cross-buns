@@ -80,6 +80,11 @@ export function createSqlitePlannerDomainService(
     return kind === "event" ? "calendarEvent" as const : "task" as const;
   }
 
+  function queueRemoteMutations(): boolean {
+    const backend = settingsRepository?.get().storageBackend;
+    return backend !== "hcb-local" && backend !== "hcb-hoster";
+  }
+
   return {
     listTaskLists: (request) => repository.listTaskLists(request),
     listTasks: (request) => repository.listTasks(request),
@@ -267,7 +272,7 @@ export function createSqlitePlannerDomainService(
       return {
         ids: updated.map((task) => task.id),
         updatedCount: updated.length,
-        queued: true,
+        queued: updated.length > 0 && queueRemoteMutations(),
         revision: new Date().toISOString()
       } satisfies TaskBulkMutationResponse;
     },
@@ -597,7 +602,7 @@ export function createSqlitePlannerDomainService(
       const cleanupGroupId = `duplicates:${request.kind}:${request.winnerId}:${Date.now()}`;
       const ids = [request.winnerId, ...new Set(request.loserIds)];
       const before = ids.map((id) => ({ id, snapshot: snapshotFor(request.kind, id) }));
-      const result = cleanupDuplicateGroup(repository, request);
+      const result = cleanupDuplicateGroup(repository, request, queueRemoteMutations());
       repository.markDuplicateCleanupMutations({
         kind: request.kind,
         winnerId: request.winnerId,
@@ -776,7 +781,8 @@ function autoTaggedEventUpdate(
 
 function cleanupDuplicateGroup(
   repository: LocalPlannerRepository,
-  request: DuplicateCleanupRequest
+  request: DuplicateCleanupRequest,
+  queued: boolean
 ) {
   if (request.kind === "task") {
     const tasks = [request.winnerId, ...request.loserIds].map((id) => repository.getTask(id));
@@ -792,7 +798,13 @@ function cleanupDuplicateGroup(
     for (const loserId of request.loserIds) {
       repository.deleteTask({ id: loserId });
     }
-    return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+    return {
+      id: winner.id,
+      kind: request.kind,
+      loserIds: request.loserIds,
+      queued,
+      revision: new Date().toISOString()
+    };
   }
 
   if (request.kind === "event") {
@@ -809,7 +821,13 @@ function cleanupDuplicateGroup(
     for (const loserId of request.loserIds) {
       repository.deleteCalendarEvent({ id: loserId });
     }
-    return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+    return {
+      id: winner.id,
+      kind: request.kind,
+      loserIds: request.loserIds,
+      queued,
+      revision: new Date().toISOString()
+    };
   }
 
   const notes = [request.winnerId, ...request.loserIds].map((id) => repository.getNote(id));
@@ -822,7 +840,13 @@ function cleanupDuplicateGroup(
   for (const loserId of request.loserIds) {
     repository.deleteNote({ id: loserId });
   }
-  return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+  return {
+    id: winner.id,
+    kind: request.kind,
+    loserIds: request.loserIds,
+    queued,
+    revision: new Date().toISOString()
+  };
 }
 
 function mergeText(values: readonly string[], maxLength: number): string {

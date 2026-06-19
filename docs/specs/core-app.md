@@ -172,9 +172,9 @@ Settings must not expose raw tokens, secrets, cache encryption keys, or full Goo
 Current Mac v1 setup behavior:
 
 - The app shows a first-run setup modal when local settings have no `setupCompletedAt` timestamp.
-- Setup writes normal local settings through the existing typed preload IPC: selected task lists, selected calendars, sync mode, notification preference, optional MCP enablement/permission mode, and the setup completion timestamp.
+- Setup writes normal local settings through the existing typed preload IPC: backend choice, selected task lists, selected calendars, sync mode, notification preference, optional MCP enablement/permission mode, and the setup completion timestamp.
 - Google setup is represented as runtime/OAuth readiness and current sanitized account state only. The flow does not collect OAuth client secrets and does not create new Google transports.
-- Users can choose local-only setup. That marks setup complete, leaves Google selections empty, uses manual sync, disables notifications/MCP, and keeps cached notes/settings usable.
+- Users can choose Google, HCB local vault, or HCB local hoster setup. Local backend choices can finish without Google, seed a local inbox/calendar when needed, and stop Google pending-mutation queueing.
 - Settings includes a reset onboarding action that clears only the setup completion timestamp. It does not delete planner rows, Google cache rows, checkpoints, or pending mutations.
 
 Remaining Mac v1 blockers:
@@ -194,8 +194,8 @@ Remaining Mac v1 blockers:
 ## Current Implementation Notes
 
 - Core IPC read routes return bounded, paginated SQLite-backed DTOs. Renderer screens load those DTOs through `coreViewModelSource` and keep route-level state small.
-- UI task, task-list, calendar-event, and note commands call typed preload APIs. Task, note, task-list, and event writes optimistically update local mirrors and enqueue Google mutations.
-- MCP task, event, and note tools call the same main-side domain services as UI IPC handlers, including the same validation and mutation queue paths for synced task/event resources.
+- UI task, task-list, calendar-event, and note commands call typed preload APIs. Task, note, task-list, and event writes optimistically update local mirrors and enqueue Google mutations only while Google is the active backend.
+- MCP task, event, and note tools call the same main-side domain services as UI IPC handlers, including the same validation and backend-aware mutation queue paths.
 - Local search is SQLite-backed and capped. It indexes current task title/details/list names, event title/location/description/calendar names, and note title/body; it applies the structured local DSL in main-process SQLite and never calls Google per keystroke.
 - Today's local timeline is grouped into all-day, morning, afternoon, evening, and unscheduled sections using cached events, scheduled task blocks, and existing task rows. Timed tasks are represented as linked Google Calendar blocks plus local metadata; task due dates remain date-only. Today also shows next-up context, linked-block conflict warnings, and earlier/later movement controls.
 - Scheduled task blocks prevent duplicate active blocks for the same task, can surface orphaned links when the backing calendar event disappears, and can repair an orphan by recreating its linked calendar event.

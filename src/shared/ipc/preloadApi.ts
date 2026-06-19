@@ -50,6 +50,10 @@ import type {
   GoogleDisconnectRequest,
   GoogleSaveOAuthClientRequest,
   GoogleStatusResponse,
+  HcbVaultExportRequest,
+  HcbVaultExportResponse,
+  HcbVaultImportRequest,
+  HcbVaultImportResponse,
   McpSetEnabledRequest,
   McpStatusResponse,
   MutationAck,
@@ -279,6 +283,12 @@ export interface HcbApi {
     importPortableArchive: (
       request: PortableImportRequest
     ) => Promise<HcbResult<PortableImportResponse>>;
+    exportHcbVault: (
+      request: HcbVaultExportRequest
+    ) => Promise<HcbResult<HcbVaultExportResponse>>;
+    importHcbVault: (
+      request: HcbVaultImportRequest
+    ) => Promise<HcbResult<HcbVaultImportResponse>>;
     listLocalPointers: (
       request?: LocalPointerListRequest
     ) => Promise<HcbResult<LocalPointerListResponse>>;

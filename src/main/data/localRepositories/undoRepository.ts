@@ -7,6 +7,7 @@ import type {
 } from "@shared/ipc/contracts";
 import type { SqliteConnection, SqliteWriteOperation } from "../sqliteConnection";
 import { LocalHistoryRepository } from "./historyRepository";
+import { shouldQueueRemoteMutationsForConnection } from "./plannerBase";
 
 type UndoStack = "undo" | "redo";
 type UndoResourceKind = NonNullable<UndoApplyResponse["resourceKind"]>;
@@ -553,6 +554,8 @@ export class LocalUndoRepository {
   }
 
   private operationsForPayload(payload: UndoPayload, now: string): SqliteWriteOperation[] {
+    const queueRemote = shouldQueueRemoteMutationsForConnection(this.connection);
+
     if (payload.version === 2) {
       return payload.changes.flatMap((change) => this.operationsForPayload(change, now));
     }
@@ -562,25 +565,29 @@ export class LocalUndoRepository {
         return taskOperations(
           snapshotOrNull<TaskSnapshot>(payload.target),
           snapshotOrNull<TaskSnapshot>(payload.opposite),
-          now
+          now,
+          queueRemote
         );
       case "taskList":
         return taskListOperations(
           snapshotOrNull<TaskListSnapshot>(payload.target),
           snapshotOrNull<TaskListSnapshot>(payload.opposite),
-          now
+          now,
+          queueRemote
         );
       case "calendarEvent":
         return calendarEventOperations(
           snapshotOrNull<CalendarEventSnapshot>(payload.target),
           snapshotOrNull<CalendarEventSnapshot>(payload.opposite),
-          now
+          now,
+          queueRemote
         );
       case "scheduledTaskBlock":
         return scheduledTaskBlockOperations(
           snapshotOrNull<ScheduledTaskBlockSnapshot>(payload.target),
           snapshotOrNull<ScheduledTaskBlockSnapshot>(payload.opposite),
-          now
+          now,
+          queueRemote
         );
       default:
         return [];
@@ -715,6 +722,10 @@ function snapshotOrNull<T>(value: JsonValue): T | null {
 
 function sameJson(left: JsonValue, right: JsonValue): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function remoteMutationOperations(queueRemote: boolean, operation: SqliteWriteOperation): SqliteWriteOperation[] {
+  return queueRemote ? [operation] : [];
 }
 
 function conflictFingerprint(
@@ -924,7 +935,8 @@ function titleFromSnapshot(value: JsonValue): string | undefined {
 function taskOperations(
   target: TaskSnapshot | null,
   opposite: TaskSnapshot | null,
-  now: string
+  now: string,
+  queueRemote: boolean
 ): SqliteWriteOperation[] {
   if (!target) {
     if (!opposite) {
@@ -939,27 +951,27 @@ function taskOperations(
               WHERE id = ?;`,
         params: [now, now, opposite.id]
       },
-      pendingMutationOperation({
-        accountId: opposite.accountId,
-        resourceType: "task",
-        resourceId: opposite.id,
-        operation: "task.delete",
-        payload: {
-          id: opposite.id,
-          googleId: opposite.googleId,
-          taskListId: opposite.taskListId,
-          taskListGoogleId: opposite.taskListGoogleId,
-          etag: opposite.etag
-        },
-        now
-      })
+      ...remoteMutationOperations(queueRemote, pendingMutationOperation({
+          accountId: opposite.accountId,
+          resourceType: "task",
+          resourceId: opposite.id,
+          operation: "task.delete",
+          payload: {
+            id: opposite.id,
+            googleId: opposite.googleId,
+            taskListId: opposite.taskListId,
+            taskListGoogleId: opposite.taskListGoogleId,
+            etag: opposite.etag
+          },
+          now
+        }))
     ];
   }
 
   const operations = [upsertTaskOperation(target, now)];
   const mutation = taskMutationForTarget(target, opposite, now);
 
-  if (mutation) {
+  if (mutation && queueRemote) {
     operations.push(mutation);
   }
 
@@ -1118,7 +1130,8 @@ function taskCreatePayload(task: TaskSnapshot): JsonValue {
 function taskListOperations(
   target: TaskListSnapshot | null,
   opposite: TaskListSnapshot | null,
-  now: string
+  now: string,
+  queueRemote: boolean
 ): SqliteWriteOperation[] {
   if (!target) {
     if (!opposite) {
@@ -1136,18 +1149,18 @@ function taskListOperations(
         sql: "UPDATE google_tasks SET deleted_at = ?, updated_at = ? WHERE task_list_id = ?;",
         params: [now, now, opposite.id]
       },
-      pendingMutationOperation({
-        accountId: opposite.accountId,
-        resourceType: "task_list",
-        resourceId: opposite.id,
-        operation: "task_list.delete",
-        payload: {
-          id: opposite.id,
-          googleId: opposite.googleId,
-          etag: opposite.etag
-        },
-        now
-      })
+      ...remoteMutationOperations(queueRemote, pendingMutationOperation({
+          accountId: opposite.accountId,
+          resourceType: "task_list",
+          resourceId: opposite.id,
+          operation: "task_list.delete",
+          payload: {
+            id: opposite.id,
+            googleId: opposite.googleId,
+            etag: opposite.etag
+          },
+          now
+        }))
     ];
   }
 
@@ -1156,7 +1169,7 @@ function taskListOperations(
     ...target.tasks.map((task) => upsertTaskOperation(task, now))
   ];
 
-  if (!opposite) {
+  if (!opposite && queueRemote) {
     operations.push(
       pendingMutationOperation({
         accountId: target.accountId,
@@ -1182,7 +1195,7 @@ function taskListOperations(
     return operations;
   }
 
-  if (target.title !== opposite.title || target.deletedAt !== opposite.deletedAt) {
+  if (opposite && queueRemote && (target.title !== opposite.title || target.deletedAt !== opposite.deletedAt)) {
     operations.push(
       pendingMutationOperation({
         accountId: target.accountId,
@@ -1241,9 +1254,10 @@ function upsertTaskListOperation(list: TaskListSnapshot, now: string): SqliteWri
 function scheduledTaskBlockOperations(
   target: ScheduledTaskBlockSnapshot | null,
   opposite: ScheduledTaskBlockSnapshot | null,
-  now: string
+  now: string,
+  queueRemote: boolean
 ): SqliteWriteOperation[] {
-  const eventOps = calendarEventOperations(target?.event ?? null, opposite?.event ?? null, now);
+  const eventOps = calendarEventOperations(target?.event ?? null, opposite?.event ?? null, now, queueRemote);
 
   if (!target) {
     return [
@@ -1296,7 +1310,8 @@ function scheduledTaskBlockOperations(
 function calendarEventOperations(
   target: CalendarEventSnapshot | null,
   opposite: CalendarEventSnapshot | null,
-  now: string
+  now: string,
+  queueRemote: boolean
 ): SqliteWriteOperation[] {
   if (!target) {
     if (!opposite) {
@@ -1318,17 +1333,17 @@ function calendarEventOperations(
               WHERE event_id = ? AND deleted_at IS NULL;`,
         params: [now, now, opposite.id]
       },
-      pendingMutationOperation({
-        accountId: opposite.accountId,
-        resourceType: "event",
-        resourceId: opposite.id,
-        operation: "calendar.events.delete",
-        payload: {
-          id: opposite.id,
-          calendarId: opposite.calendarId
-        },
-        now
-      })
+      ...remoteMutationOperations(queueRemote, pendingMutationOperation({
+          accountId: opposite.accountId,
+          resourceType: "event",
+          resourceId: opposite.id,
+          operation: "calendar.events.delete",
+          payload: {
+            id: opposite.id,
+            calendarId: opposite.calendarId
+          },
+          now
+        }))
     ];
   }
 
@@ -1344,7 +1359,7 @@ function calendarEventOperations(
     ...target.instances.map((instance) => upsertCalendarEventInstanceOperation(instance, now))
   ];
 
-  if (!opposite || eventGoogleFieldsChanged(target, opposite)) {
+  if (queueRemote && (!opposite || eventGoogleFieldsChanged(target, opposite))) {
     operations.push(
       pendingMutationOperation({
         accountId: target.accountId,

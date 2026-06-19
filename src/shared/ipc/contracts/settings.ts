@@ -22,6 +22,7 @@ export const appColorThemeSchema = z.enum(appColorThemeIds);
 export const uiTextSizePointsSchema = z.number().min(9).max(24);
 export const uiFontNameSchema = z.string().trim().min(1).max(120).nullable();
 export const syncModeSchema = z.enum(["manual", "balanced", "near-real-time"]);
+export const hcbStorageBackendSchema = z.enum(["google", "hcb-local", "hcb-hoster"]);
 export const semanticSearchModeSettingSchema = z.enum(["lexical", "semantic", "hybrid"]);
 export const appLanguageSchema = z.enum(["system", "en", "zh-Hans", "ta", "ms", "ko", "ja"]);
 export const navigationPlacementSchema = z.enum(["left", "right"]);
@@ -346,6 +347,9 @@ export const settingsSnapshotSchema = z
     selectedTaskListIds: z.array(idSchema).max(100),
     selectedCalendarIds: z.array(idSchema).max(100),
     setupCompletedAt: isoDateTimeSchema.nullable(),
+    storageBackend: hcbStorageBackendSchema,
+    hcbHosterEndpoint: z.string().url().max(500).nullable(),
+    hcbVaultPath: z.string().trim().min(1).max(4_096).nullable(),
     syncMode: syncModeSchema,
     syncTasksEnabled: z.boolean(),
     syncCalendarEventsEnabled: z.boolean(),
@@ -407,6 +411,73 @@ export const settingsSnapshotSchema = z
 
 export type SettingsSnapshot = z.infer<typeof settingsSnapshotSchema>;
 
+export const HCB_VAULT_FORMAT_VERSION = 1;
+export const HCB_VAULT_KIND = "hot-cross-buns-2-vault";
+export const HCB_VAULT_PAYLOAD_FILE = "payload.hcbenc";
+export const HCB_VAULT_ALGORITHM = "scrypt-AES-256-GCM";
+
+export const hcbVaultManifestSchema = z
+  .object({
+    formatVersion: z.literal(HCB_VAULT_FORMAT_VERSION),
+    kind: z.literal(HCB_VAULT_KIND),
+    exportedAt: isoDateTimeSchema,
+    appVersion: z.string().min(1).max(80),
+    stateEncoding: z.literal("hcb-portable-state-json"),
+    stateSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    payloadFile: z.literal(HCB_VAULT_PAYLOAD_FILE),
+    payloadSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    encryption: z
+      .object({
+        algorithm: z.literal(HCB_VAULT_ALGORITHM),
+        kdf: z.literal("scrypt"),
+        saltBase64: z.string().min(1).max(256),
+        ivBase64: z.string().min(1).max(256),
+        tagBase64: z.string().min(1).max(256),
+        keyLength: z.literal(32),
+        cost: z.number().int().min(16_384).max(1_048_576),
+        blockSize: z.number().int().min(1).max(64),
+        parallelization: z.number().int().min(1).max(16)
+      })
+      .strict(),
+    notes: z.array(z.string().min(1).max(500)).max(10)
+  })
+  .strict();
+export type HcbVaultManifest = z.infer<typeof hcbVaultManifestSchema>;
+
+export const hcbVaultExportRequestSchema = z
+  .object({
+    out: z.string().trim().min(1).max(4_096).optional(),
+    passphrase: z.string().min(8).max(4_096)
+  })
+  .strict();
+export type HcbVaultExportRequest = z.input<typeof hcbVaultExportRequestSchema>;
+
+export const hcbVaultImportRequestSchema = z
+  .object({
+    path: z.string().trim().min(1).max(4_096),
+    passphrase: z.string().min(8).max(4_096)
+  })
+  .strict();
+export type HcbVaultImportRequest = z.input<typeof hcbVaultImportRequestSchema>;
+
+export const hcbVaultExportResponseSchema = z
+  .object({
+    path: z.string().min(1).max(4_096),
+    exportedAt: isoDateTimeSchema,
+    manifest: hcbVaultManifestSchema
+  })
+  .strict();
+export type HcbVaultExportResponse = z.infer<typeof hcbVaultExportResponseSchema>;
+
+export const hcbVaultImportResponseSchema = z
+  .object({
+    importedAt: isoDateTimeSchema,
+    backupPath: z.string().min(1).max(4_096),
+    manifest: hcbVaultManifestSchema
+  })
+  .strict();
+export type HcbVaultImportResponse = z.infer<typeof hcbVaultImportResponseSchema>;
+
 export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),
@@ -441,6 +512,9 @@ export const settingsUpdateRequestSchema = z
     selectedTaskListIds: z.array(idSchema).max(100).optional(),
     selectedCalendarIds: z.array(idSchema).max(100).optional(),
     setupCompletedAt: isoDateTimeSchema.nullable().optional(),
+    storageBackend: hcbStorageBackendSchema.optional(),
+    hcbHosterEndpoint: z.string().url().max(500).nullable().optional(),
+    hcbVaultPath: z.string().trim().min(1).max(4_096).nullable().optional(),
     syncMode: syncModeSchema.optional(),
     syncTasksEnabled: z.boolean().optional(),
     syncCalendarEventsEnabled: z.boolean().optional(),

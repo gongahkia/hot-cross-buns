@@ -98,6 +98,16 @@ export function createPlaceholderControlServices(
 
         return { ...state.settings };
       },
+      exportHcbVault: (request) => ({
+        path: request.out ?? "",
+        exportedAt: new Date().toISOString(),
+        manifest: {}
+      }) as never,
+      importHcbVault: () => ({
+        importedAt: new Date().toISOString(),
+        backupPath: "",
+        manifest: {}
+      }) as never,
       recoveryAction: (request) => {
         if (request.action !== "refresh" && request.action !== "resetOnboarding") {
           const phrase = recoveryPhrase(request.action);

@@ -325,6 +325,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       const tags = normalizeLocalTagNames(request.tags ?? []);
       const tagsJson = JSON.stringify(tags);
       const tagEntityKind = request.dueDate === null || request.dueDate === undefined ? "note" : "task";
+      const queued = this.shouldQueueRemoteMutations();
       this.connection.executeTransaction([
         {
           kind: "run",
@@ -362,7 +363,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           tags,
           now
         }),
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId: list.accountId,
           resourceType: "task",
@@ -370,7 +371,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           operation: "task.create",
           payload,
           now
-        })
+        }))
       ]);
       const created = this.requireTaskForMutation(id);
       if (isHistoryNoteTask(created)) {
@@ -380,7 +381,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           kind: "task.create",
           resourceId: id,
           summary: "Created task",
-          metadata: { queued: true, taskListId: list.id }
+          metadata: { queued, taskListId: list.id }
         });
       }
 
@@ -513,7 +514,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
 
       if (googleBackedPatch) {
         operations.push(
-          this.pendingMutationOperation({
+          ...this.remoteMutationOperations(this.pendingMutationOperation({
             id: `mutation:${randomUUID()}`,
             accountId: existing.accountId ?? targetList.accountId,
             resourceType: "task",
@@ -537,7 +538,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
               previousSiblingId: request.previousSiblingId ?? null
             },
             now
-          })
+          }))
         );
       }
 
@@ -548,7 +549,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           kind: "task.edit",
           resourceId: request.id,
           summary: "Edited task",
-          metadata: { queued: googleBackedPatch, taskListId: targetList.id }
+          metadata: { queued: googleBackedPatch && this.shouldQueueRemoteMutations(), taskListId: targetList.id }
         });
       }
 
@@ -579,6 +580,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
     return this.measureSqlite("tasks.delete", () => {
       const existing = this.requireTaskForMutation(request.id);
       const now = new Date().toISOString();
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -589,7 +591,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           params: [now, now, request.id]
         },
         ...this.tagDeleteEntityOperations(isHistoryNoteTask(existing) ? "note" : "task", request.id),
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId: existing.accountId ?? null,
           resourceType: "task",
@@ -603,7 +605,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
             etag: existing.etag ?? null
           },
           now
-        })
+        }))
       ]);
       if (isHistoryNoteTask(existing)) {
         this.recordNoteHistory("note.delete", existing, "Deleted note");
@@ -612,11 +614,11 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           kind: "task.delete",
           resourceId: request.id,
           summary: "Deleted task",
-          metadata: { queued: true, taskListId: existing.listId }
+          metadata: { queued, taskListId: existing.listId }
         });
       }
 
-      return { id: request.id, queued: true, revision: now };
+      return { id: request.id, queued, revision: now };
     });
   }
 
@@ -626,6 +628,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       const accountId = this.latestAccountId() ?? this.ensureLocalQueueAccount(now);
       const id = `${accountId}:task-list:pending:${randomUUID()}`;
       const sortOrder = this.nextTaskListSortOrder();
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -636,7 +639,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           ) VALUES (?, ?, ?, ?, NULL, ?, 1, 'queued', NULL, ?, ?, NULL);`,
           params: [id, accountId, id, request.title.trim(), sortOrder, now, now]
         },
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId,
           resourceType: "task_list",
@@ -647,13 +650,13 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
             title: request.title.trim()
           },
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: "task_list.create",
         resourceId: id,
         summary: "Created task list",
-        metadata: { queued: true }
+        metadata: { queued }
       });
 
       return this.requireTaskListSummary(id);
@@ -664,6 +667,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
     return this.measureSqlite("tasks.renameTaskList", () => {
       const existing = this.requireTaskListForMutation(request.id);
       const now = new Date().toISOString();
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -673,7 +677,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
                 WHERE id = ? AND deleted_at IS NULL;`,
           params: [request.title.trim(), now, request.id]
         },
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId: existing.accountId,
           resourceType: "task_list",
@@ -686,13 +690,13 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
             etag: existing.etag ?? null
           },
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: "task_list.rename",
         resourceId: request.id,
         summary: "Renamed task list",
-        metadata: { queued: true }
+        metadata: { queued }
       });
 
       return this.requireTaskListSummary(request.id);
@@ -704,6 +708,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       const existing = this.requireTaskListForMutation(request.id);
       const noteRows = this.noteHistoryRowsForList(request.id);
       const now = new Date().toISOString();
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -729,7 +734,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
                   );`,
           params: [request.id]
         },
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId: existing.accountId,
           resourceType: "task_list",
@@ -741,19 +746,19 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
             etag: existing.etag ?? null
           },
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: "task_list.delete",
         resourceId: request.id,
         summary: "Deleted task list",
-        metadata: { queued: true }
+        metadata: { queued }
       });
       for (const note of noteRows) {
         this.recordNoteHistory("note.delete", note, "Deleted note");
       }
 
-      return { id: request.id, queued: true, revision: now };
+      return { id: request.id, queued, revision: now };
     });
   }
 
@@ -763,6 +768,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       const now = new Date().toISOString();
       const completedAt = completed ? now : null;
       const status = completed ? "completed" : "needsAction";
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -772,7 +778,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
                 WHERE id = ? AND deleted_at IS NULL;`,
           params: [status, completedAt, now, id]
         },
-        this.pendingMutationOperation({
+        ...this.remoteMutationOperations(this.pendingMutationOperation({
           id: `mutation:${randomUUID()}`,
           accountId: existing.accountId ?? null,
           resourceType: "task",
@@ -787,13 +793,13 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
             etag: existing.etag ?? null
           },
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: completed ? "task.complete" : "task.reopen",
         resourceId: id,
         summary: completed ? "Completed task" : "Reopened task",
-        metadata: { queued: true, taskListId: existing.listId }
+        metadata: { queued, taskListId: existing.listId }
       });
 
       return this.getTask(id);
@@ -828,7 +834,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       resourceId: row.id,
       summary: `${summary} "${row.title}"`,
       metadata: {
-        queued: true,
+        queued: this.shouldQueueRemoteMutations(),
         title: row.title,
         taskListId: row.listId,
         taskListTitle: row.listTitle

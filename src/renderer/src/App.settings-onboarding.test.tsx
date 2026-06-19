@@ -505,13 +505,14 @@ describe("App settings and onboarding", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "First-run setup" });
 
-    expect(within(dialog).getByText("1. Google account")).toBeInTheDocument();
+    expect(within(dialog).getByText("1. Backend")).toBeInTheDocument();
+    expect(within(dialog).getByText("2. Google account")).toBeInTheDocument();
     expect(within(dialog).getByText("Connected as Planner Test.")).toBeInTheDocument();
-    expect(within(dialog).getByText("2. Task lists")).toBeInTheDocument();
-    expect(within(dialog).getByText("3. Calendars")).toBeInTheDocument();
-    expect(within(dialog).getByText("4. Sync mode")).toBeInTheDocument();
-    expect(within(dialog).getByText("5. Notifications")).toBeInTheDocument();
-    expect(within(dialog).getByText("6. MCP access")).toBeInTheDocument();
+    expect(within(dialog).getByText("3. Task lists")).toBeInTheDocument();
+    expect(within(dialog).getByText("4. Calendars")).toBeInTheDocument();
+    expect(within(dialog).getByText("5. Sync mode")).toBeInTheDocument();
+    expect(within(dialog).getByText("6. Notifications")).toBeInTheDocument();
+    expect(within(dialog).getByText("7. MCP access")).toBeInTheDocument();
 
     await user.selectOptions(within(dialog).getByLabelText("Onboarding sync mode"), "near-real-time");
     await user.click(within(dialog).getByLabelText("Local notifications"));
@@ -523,6 +524,7 @@ describe("App settings and onboarding", () => {
         expect.objectContaining({
           selectedTaskListIds: ["list-inbox", "list-planning"],
           selectedCalendarIds: ["cal-product"],
+          storageBackend: "google",
           syncMode: "near-real-time",
           notificationsEnabled: true,
           mcpEnabled: true,
@@ -531,6 +533,31 @@ describe("App settings and onboarding", () => {
       );
       expect(getSettings().setupCompletedAt).toEqual(expect.any(String));
       expect(screen.queryByRole("dialog", { name: "First-run setup" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("allows local backend setup without Google", async () => {
+    const { api } = onboardingHcb();
+    api.google.status = vi.fn(async () => ok(signedOutGoogleStatus()));
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const dialog = await screen.findByRole("dialog", { name: "First-run setup" });
+    expect(within(dialog).getByRole("button", { name: "Finish setup" })).toBeDisabled();
+
+    await user.selectOptions(within(dialog).getByLabelText("Onboarding storage backend"), "hcb-local");
+    expect(within(dialog).getByRole("button", { name: "Finish setup" })).toBeEnabled();
+    await user.click(within(dialog).getByRole("button", { name: "Finish setup" }));
+
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          storageBackend: "hcb-local",
+          hcbHosterEndpoint: null,
+          setupCompletedAt: expect.any(String)
+        })
+      );
     });
   });
 

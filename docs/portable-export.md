@@ -1,9 +1,8 @@
 # Hot Cross Buns 2 Portable Export
 
 Portable exports use a directory package with the `.hcbexport` extension. The
-format is intended for lossless migration between Macs while Hot Cross Buns 2 is
-still Google-backed. It is not the future local-first source-of-truth backend
-tracked in #12.
+format is intended for lossless migration between machines. HCB vault exports
+use `.hcbvault` for encrypted local-backend state snapshots.
 
 ## Layout
 
@@ -99,8 +98,28 @@ does not provide:
 - peer-to-peer sync
 - CRDT or conflict merging
 - append-only logs
-- encrypted local-first payloads
 - CLI parity
 - Syncthing/iCloud/rsync transport adapters
 
-Those belong to the broader local-first backend tracked in #12.
+## HCB Vaults
+
+`.hcbvault` is the encrypted local-backend package. It contains:
+
+- `manifest.json`
+- `payload.hcbenc`
+
+The manifest records format version, state hash, payload hash, and encryption
+parameters. The payload is the portable state JSON encrypted with
+scrypt-derived AES-256-GCM. The passphrase is supplied through CLI/MCP request
+input and should normally come from an environment variable in CLI usage.
+
+Vault import is destructive: it makes a local backup, replaces cached HCB state,
+sets the storage backend to `hcb-local`, and seeds a local inbox/calendar if no
+selected resources exist.
+
+Current non-goals for `.hcbvault`:
+
+- live peer-to-peer sync
+- multi-writer merge/conflict resolution
+- LAN server replication
+- Syncthing/iCloud/rsync transport adapters

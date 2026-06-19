@@ -36,7 +36,7 @@ hcb completion fish > ~/.config/fish/completions/hcb.fish
 ## Commands
 
 - `hcb completion zsh`: print shell completion for bash, zsh, or fish.
-- `hcb tui`: open the terminal dashboard with status, agenda, scoped search, level-filtered logs, pending mutation retry/cancel dry-runs, hosters, detail panes, command history, resize-aware rendering, and dry-run/apply commands.
+- `hcb tui`: open the terminal dashboard with status, agenda, scoped search, level-filtered logs, pending mutation retry/cancel dry-runs, backend, hosters, detail panes, command history, resize-aware rendering, and dry-run/apply commands.
 - `pnpm hcb -- doctor`: run read-only diagnostics and show suggested next commands.
 - `pnpm hcb -- status`: show account, sync, cache, pending mutation, MCP, and build state.
 - `pnpm hcb -- search <query> --scope tasks`: search tasks, notes, events, lists, or calendars.
@@ -64,6 +64,11 @@ hcb completion fish > ~/.config/fish/completions/hcb.fish
 - `pnpm hcb -- move task <id> --task-list-id <id>`: dry-run moving a task.
 - `pnpm hcb -- log -n 20 --level warn`: show sanitized recent logs.
 - `pnpm hcb -- diff --limit 20`: show pending local-to-Google mutations.
+- `pnpm hcb -- backend status`: show active backend, local vault path, hoster endpoint, and Google sync state.
+- `pnpm hcb -- backend set hcb-local`: dry-run switching to local HCB vault mode.
+- `pnpm hcb -- backend set hcb-hoster --endpoint http://127.0.0.1:7419`: dry-run switching to local hoster mode.
+- `pnpm hcb -- vault export --out /tmp/planner.hcbvault --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run encrypted `.hcbvault` export.
+- `pnpm hcb -- vault import /tmp/planner.hcbvault --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run encrypted `.hcbvault` import.
 - `pnpm hcb -- show task <id>`: show one task.
 - `pnpm hcb -- show event <id>`: show one event.
 - `pnpm hcb -- show note <id>`: show one note.
@@ -85,6 +90,14 @@ All commands accept `--json` for structured output. Write JSON output includes `
 3. In `confirm-writes` mode, rerun the shown command with `--apply --confirmation-id <id>`.
 4. In `allow-writes` mode, rerun the shown command with `--apply`.
 5. In `read-only` mode, write commands are rejected.
+
+## Backend And Vault Workflow
+
+1. Run `pnpm hcb -- backend status`.
+2. Preview a switch with `pnpm hcb -- backend set hcb-local`.
+3. Apply with the returned confirmation command.
+4. Export or import encrypted local state with `pnpm hcb -- vault export|import ... --passphrase-env <VAR>`.
+5. In TUI, run `view backend` to inspect the same state.
 
 ## Agent Workflow
 

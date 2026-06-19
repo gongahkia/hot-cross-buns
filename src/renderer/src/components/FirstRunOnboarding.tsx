@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Cloud,
   ExternalLink,
+  HardDrive,
   ListChecks,
   RefreshCw,
   Server
@@ -24,6 +25,9 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       : source.calendarSources.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
   const [selectedTaskListIds, setSelectedTaskListIds] = useState<string[]>(initialTaskListIds);
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>(initialCalendarIds);
+  const [storageBackend, setStorageBackend] =
+    useState<SettingsSnapshot["storageBackend"]>(source.settings.storageBackend);
+  const [hcbHosterEndpoint, setHcbHosterEndpoint] = useState(source.settings.hcbHosterEndpoint ?? "");
   const [syncMode, setSyncMode] = useState<SettingsSnapshot["syncMode"]>(source.settings.syncMode);
   const [notificationsEnabled, setNotificationsEnabled] = useState(source.settings.notificationsEnabled);
   const [mcpEnabled, setMcpEnabled] = useState(source.settings.mcpEnabled);
@@ -41,6 +45,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const accountState = source.diagnosticsSummary?.account.state ?? "signed_out";
   const googleConnected =
     source.googleStatus.account?.connectionState === "connected" || accountState === "connected";
+  const localBackendSelected = storageBackend !== "google";
+  const setupCanFinish = localBackendSelected || googleConnected;
   const googleAccountLabel =
     source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
   const nativeFlags = source.diagnosticsSummary?.native.flags ?? source.native.capabilityReport.flags;
@@ -87,6 +93,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       SettingsSnapshot,
       | "selectedTaskListIds"
       | "selectedCalendarIds"
+      | "storageBackend"
+      | "hcbHosterEndpoint"
       | "syncMode"
       | "notificationsEnabled"
       | "mcpEnabled"
@@ -99,6 +107,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     const saved = await source.updateSettings({
       selectedTaskListIds: overrides.selectedTaskListIds ?? selectedTaskListIds,
       selectedCalendarIds: overrides.selectedCalendarIds ?? selectedCalendarIds,
+      storageBackend: overrides.storageBackend ?? storageBackend,
+      hcbHosterEndpoint:
+        overrides.hcbHosterEndpoint ??
+        (hcbHosterEndpoint.trim().length > 0 ? hcbHosterEndpoint.trim() : null),
       syncMode: overrides.syncMode ?? syncMode,
       notificationsEnabled: overrides.notificationsEnabled ?? notificationsEnabled,
       mcpEnabled: overrides.mcpEnabled ?? mcpEnabled,
@@ -173,37 +185,72 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               First-run setup
             </h2>
             <p className="truncate text-[var(--text-sm)] text-text-muted">
-              Configure Mac v1 preferences and connect Google-backed planner data.
+              Choose planner storage, then finish Google-backed or local-first setup.
             </p>
           </div>
-          <Badge tone={googleConnected ? "success" : "warning"}>
-            Google {googleConnected ? "connected" : "not connected"}
+          <Badge tone={setupCanFinish ? "success" : "warning"}>
+            {localBackendSelected ? "Local backend" : `Google ${googleConnected ? "connected" : "not connected"}`}
           </Badge>
         </header>
 
         <div className="grid min-h-0 gap-3 overflow-y-auto p-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <SetupCard
               description={
-                googleConnected
-                  ? `Connected as ${googleAccountLabel}.`
-                  : !oauthRuntimeReady
-                    ? "Google OAuth browser handoff is unavailable in this runtime."
-                    : googleClientConfigured
-                      ? "Open the browser to authorize Google Tasks and Calendar sync."
-                      : "Save a Desktop OAuth client ID, then connect your Google account."
+                storageBackend === "google"
+                  ? "Use Google Tasks and Calendar as source of truth."
+                  : storageBackend === "hcb-hoster"
+                    ? "Use a local hoster endpoint and stop Google mutation queueing."
+                    : "Use the encrypted HCB local vault and stop Google mutation queueing."
+              }
+              icon={HardDrive}
+              status={storageBackend === "google" ? "Google" : "Local"}
+              title="1. Backend"
+            >
+              <select
+                aria-label="Onboarding storage backend"
+                className={onboardingSelectClass}
+                onChange={(event) => setStorageBackend(event.target.value as SettingsSnapshot["storageBackend"])}
+                value={storageBackend}
+              >
+                <option value="google">Google Tasks/Calendar</option>
+                <option value="hcb-local">HCB local vault</option>
+                <option value="hcb-hoster">HCB local hoster</option>
+              </select>
+              {storageBackend === "hcb-hoster" ? (
+                <Input
+                  aria-label="HCB local hoster endpoint"
+                  onChange={(event) => setHcbHosterEndpoint(event.currentTarget.value)}
+                  placeholder="http://127.0.0.1:7419"
+                  value={hcbHosterEndpoint}
+                />
+              ) : null}
+            </SetupCard>
+            <SetupCard
+              description={
+                localBackendSelected
+                  ? "Optional. Connect later if you want Google sync."
+                  : googleConnected
+                    ? `Connected as ${googleAccountLabel}.`
+                    : !oauthRuntimeReady
+                      ? "Google OAuth browser handoff is unavailable in this runtime."
+                      : googleClientConfigured
+                        ? "Open the browser to authorize Google Tasks and Calendar sync."
+                        : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
               status={
-                googleConnected
-                  ? "Connected"
-                  : !oauthRuntimeReady
-                    ? "Unavailable"
-                    : googleClientConfigured
-                      ? "Ready"
-                      : "Needs client"
+                localBackendSelected
+                  ? "Optional"
+                  : googleConnected
+                    ? "Connected"
+                    : !oauthRuntimeReady
+                      ? "Unavailable"
+                      : googleClientConfigured
+                        ? "Ready"
+                        : "Needs client"
               }
-              title="1. Google account"
+              title="2. Google account"
             >
               {!googleConnected ? (
                 <div className="grid w-full gap-2">
@@ -246,14 +293,14 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             <SetupCard
               description={`${selectedTaskListIds.length} task list${selectedTaskListIds.length === 1 ? "" : "s"} selected`}
               icon={ListChecks}
-              status={source.taskLists.length === 0 ? "None" : "Selected"}
-              title="2. Task lists"
+              status={source.taskLists.length === 0 && !localBackendSelected ? "None" : "Selected"}
+              title="3. Task lists"
             />
             <SetupCard
               description={`${selectedCalendarIds.length} calendar${selectedCalendarIds.length === 1 ? "" : "s"} selected`}
               icon={CalendarDays}
-              status={source.calendarSources.length === 0 ? "None" : "Selected"}
-              title="3. Calendars"
+              status={source.calendarSources.length === 0 && !localBackendSelected ? "None" : "Selected"}
+              title="4. Calendars"
             />
           </div>
 
@@ -261,11 +308,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
-                <p className="text-[var(--text-xs)] text-text-muted">Google Tasks lists</p>
+                <p className="text-[var(--text-xs)] text-text-muted">
+                  {localBackendSelected ? "Local inbox is created if none exist." : "Google Tasks lists"}
+                </p>
               </div>
               <div className="grid max-h-44 gap-2 overflow-y-auto p-3">
                 {source.taskLists.length === 0 ? (
-                  <p className="text-[var(--text-sm)] text-text-muted">No task lists.</p>
+                  <p className="text-[var(--text-sm)] text-text-muted">
+                    {localBackendSelected ? "Local inbox will be created." : "No task lists."}
+                  </p>
                 ) : source.taskLists.map((taskList) => (
                   <label
                     className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
@@ -288,11 +339,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
-                <p className="text-[var(--text-xs)] text-text-muted">Google Calendar lists</p>
+                <p className="text-[var(--text-xs)] text-text-muted">
+                  {localBackendSelected ? "Local calendar is created if none exist." : "Google Calendar lists"}
+                </p>
               </div>
               <div className="grid max-h-44 gap-2 overflow-y-auto p-3">
                 {source.calendarSources.length === 0 ? (
-                  <p className="text-[var(--text-sm)] text-text-muted">No calendars.</p>
+                  <p className="text-[var(--text-sm)] text-text-muted">
+                    {localBackendSelected ? "Local calendar will be created." : "No calendars."}
+                  </p>
                 ) : source.calendarSources.map((calendar) => (
                   <label
                     className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
@@ -314,7 +369,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <SetupOption title="4. Sync mode" icon={RefreshCw}>
+            <SetupOption title="5. Sync mode" icon={RefreshCw}>
               <select
                 aria-label="Onboarding sync mode"
                 className={onboardingSelectClass}
@@ -326,7 +381,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 <option value="near-real-time">Near real time</option>
               </select>
             </SetupOption>
-            <SetupOption title="5. Notifications" icon={Bell}>
+            <SetupOption title="6. Notifications" icon={Bell}>
               <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <input
                   checked={notificationsEnabled}
@@ -337,7 +392,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 Local notifications
               </label>
             </SetupOption>
-            <SetupOption title="6. MCP access" icon={Server}>
+            <SetupOption title="7. MCP access" icon={Server}>
               <div className="grid gap-2">
                 <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                   <input
@@ -376,10 +431,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
         <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
           <p className="text-[var(--text-sm)] text-text-muted">
-            Google connection is required before setup can finish.
+            {localBackendSelected ? "Local setup can finish without Google." : "Google connection is required before setup can finish."}
           </p>
           <Button
-            disabled={submitting || source.settingsMutationPending || !googleConnected}
+            disabled={submitting || source.settingsMutationPending || !setupCanFinish}
             onClick={() => void completeSetup()}
             variant="primary"
           >

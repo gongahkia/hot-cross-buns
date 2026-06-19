@@ -91,6 +91,41 @@ export class PlannerRepositoryBase {
       }
     ];
   }
+
+  protected shouldQueueRemoteMutations(): boolean {
+    return shouldQueueRemoteMutationsForConnection(this.connection);
+  }
+
+  protected remoteMutationOperations(operation: SqliteWriteOperation): SqliteWriteOperation[] {
+    return remoteMutationOperationsForConnection(this.connection, operation);
+  }
+}
+
+export function shouldQueueRemoteMutationsForConnection(connection: SqliteConnection): boolean {
+  const row = connection.get<{ valueJson: string }>(
+    `SELECT value_json AS valueJson
+     FROM local_settings
+     WHERE scope = 'storage' AND key = 'backend'
+     LIMIT 1;`
+  );
+
+  if (!row) {
+    return true;
+  }
+
+  try {
+    const value = JSON.parse(row.valueJson);
+    return value !== "hcb-local" && value !== "hcb-hoster";
+  } catch {
+    return true;
+  }
+}
+
+export function remoteMutationOperationsForConnection(
+  connection: SqliteConnection,
+  operation: SqliteWriteOperation
+): SqliteWriteOperation[] {
+  return shouldQueueRemoteMutationsForConnection(connection) ? [operation] : [];
 }
 
 export function normalizeLocalTagNames(tags: readonly string[]): string[] {

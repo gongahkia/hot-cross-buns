@@ -44,6 +44,7 @@ import {
 } from "@shared/settingsCatalog";
 import type { NativeAppPaths } from "../../native/types";
 import type { SqliteConnection, SqliteWriteOperation } from "../sqliteConnection";
+import { shouldQueueRemoteMutationsForConnection } from "./plannerBase";
 import { boolInt, systemTimeZone, validationFailure } from "./shared";
 
 const MAX_CSS_BYTES = 200_000;
@@ -169,7 +170,7 @@ export class LocalSettingsSupportRepository {
     const pointer = pathToFileURL(path).href;
     const line = `[Attachment: ${request.fileName.trim()}](${pointer})`;
     const nextText = appendAttachmentLine(target.text, line);
-    const queued = !isLocalIcsAccount(target.accountId);
+    const queued = !isLocalIcsAccount(target.accountId) && shouldQueueRemoteMutationsForConnection(this.connection);
     const operations: SqliteWriteOperation[] = [
       target.updateOperation(nextText, now)
     ];
@@ -193,7 +194,7 @@ export class LocalSettingsSupportRepository {
     const now = new Date().toISOString();
     const target = this.attachmentTargetForPointer(request.pointer);
     const nextText = removeAttachmentPointer(target.text, request.pointer);
-    const queued = !isLocalIcsAccount(target.accountId);
+    const queued = !isLocalIcsAccount(target.accountId) && shouldQueueRemoteMutationsForConnection(this.connection);
     const operations: SqliteWriteOperation[] = [target.updateOperation(nextText, now)];
 
     if (queued) {

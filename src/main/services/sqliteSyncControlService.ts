@@ -59,6 +59,17 @@ export class LocalSyncControlService implements SyncControlDomainService {
   }
 
   status(): SyncStatusResponse {
+    const settings = this.settingsRepository.get();
+    if (settings.storageBackend !== "google") {
+      const status = this.repository.syncStatus();
+      return {
+        ...status,
+        state: this.running ? "running" : "idle",
+        offline: false,
+        stale: false
+      };
+    }
+
     const account = this.repository.latestAccountStatus();
     const status = this.repository.syncStatus();
     const offline = account?.connectionState !== "connected";
@@ -74,6 +85,15 @@ export class LocalSyncControlService implements SyncControlDomainService {
   async runNow(request: SyncRunNowRequest): Promise<SyncRunNowResponse> {
     const settings = this.settingsRepository.get();
     const drainOnly = request.drainOnly ?? false;
+    if (settings.storageBackend !== "google") {
+      return {
+        accepted: !this.running,
+        dryRun: request.dryRun ?? false,
+        drainOnly,
+        resources: []
+      };
+    }
+
     const resources = drainOnly
       ? []
       : normalizedResources(request.resources).filter((resource) => {

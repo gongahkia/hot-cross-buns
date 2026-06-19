@@ -6,7 +6,7 @@
 
 <h1 align="center">Hot Cross Buns 2</h1>
 
-<h3 align="center">Keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.</h3>
+<h3 align="center">Keyboard-first desktop planner for Google Tasks, Google Calendar, local HCB vaults, and terminal workflows on macOS, Linux, and Windows.</h3>
 
 <p align="center">
   <a href="https://gongahkia.github.io/hot-cross-buns-2/">Website</a> ·
@@ -55,8 +55,8 @@
 
 Hot Cross Buns 2 is an Electron-first desktop planner built around three everyday surfaces:
 
-- Tasks for inbox capture and day-to-day execution, synced with Google Tasks
-- Calendar views for agenda, day, week, multi-day, month, year, and longer-range planning, synced with Google Calendar
+- Tasks for inbox capture and day-to-day execution, synced with Google Tasks or kept in local HCB storage
+- Calendar views for agenda, day, week, multi-day, month, year, and longer-range planning, synced with Google Calendar or kept in local HCB storage
 - Notes backed by task data for context, drafts, and reference material
 
 Around those core surfaces, the app also includes:
@@ -66,8 +66,8 @@ Around those core surfaces, the app also includes:
 - Smart rescheduling, task/event/note conversion, reminders, recurrence, templates, and saved views
 - Native shell surfaces where supported, including macOS menu bar panels for glanceable calendar, compact capture, and fast return to the main app
 - Local customization with CSS snippets, keymaps, extension panels, custom backgrounds, and inferred color themes
-- Portable `.hcbexport` archives, local attachments, ICS import/subscription support, and local report exports
-- Optional local MCP server, CLI, webhook, and dry-run/write-policy surfaces for user-configured agent clients
+- Portable `.hcbexport` archives, encrypted `.hcbvault` archives, local attachments, ICS import/subscription support, and local report exports
+- Optional local MCP server, local hoster signal server, CLI/TUI, webhook, and dry-run/write-policy surfaces for user-configured agent clients
 - Typed IPC, hardened preload bridge, diagnostics, recovery tools, and native capability reporting
 
 ## Install
@@ -148,9 +148,14 @@ flowchart TD
         main --> files["Application Support files<br>attachments, exports, backups"]
     end
 
-    subgraph google["Google source of truth"]
+    subgraph google["Google sync option"]
         main --> tasksApi["Google Tasks API"]
         main --> calendarApi["Google Calendar API"]
+    end
+
+    subgraph localBackend["Local HCB backend option"]
+        main --> vault["Encrypted .hcbvault export/import"]
+        main --> hoster["Loopback local hoster signals"]
     end
 
     subgraph automation["Automation surfaces"]
@@ -254,6 +259,8 @@ pnpm vitest run --config vitest.config.ts path/to/test.ts
 - [Google sync spec](docs/specs/google-sync.md)
 - [Local data spec](docs/specs/local-data.md)
 - [MCP agent access](docs/specs/mcp-agent-access.md)
+- [HCB CLI](docs/hcb-cli.md)
+- [Local hoster protocol](docs/specs/local-hoster.md)
 - [Customization](docs/customization/theming.md)
 - [Portable export](docs/portable-export.md)
 - [QA plan](docs/testing/qa-plan.md)

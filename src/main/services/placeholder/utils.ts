@@ -403,6 +403,18 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.lastUpdateCheckAt = request.lastUpdateCheckAt;
   }
 
+  if (request.storageBackend !== undefined) {
+    patch.storageBackend = request.storageBackend;
+  }
+
+  if (request.hcbHosterEndpoint !== undefined) {
+    patch.hcbHosterEndpoint = request.hcbHosterEndpoint;
+  }
+
+  if (request.hcbVaultPath !== undefined) {
+    patch.hcbVaultPath = request.hcbVaultPath;
+  }
+
   if (request.mcpEnabled !== undefined) {
     patch.mcpEnabled = request.mcpEnabled;
   }

@@ -206,6 +206,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       const tags = normalizeLocalTagNames(request.tags ?? []);
       const localTagsJson = JSON.stringify(tags);
       const mutationId = `mutation:event:${randomUUID()}`;
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         eventInsertOperation({
@@ -239,20 +240,20 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           status: "confirmed",
           updatedAt: now
         }),
-        mutationInsertOperation({
+        ...this.remoteMutationOperations(mutationInsertOperation({
           id: mutationId,
           accountId: calendar.accountId,
           resourceId: id,
           operation: "calendar.events.create",
           payload: mutationPayload(normalized, request.hcbKind ?? null),
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: "event.create",
         resourceId: id,
         summary: "Created calendar event",
-        metadata: { queued: true, calendarId: calendar.id }
+        metadata: { queued, calendarId: calendar.id }
       });
 
       return this.getCalendarEvent(id);
@@ -362,14 +363,14 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       ];
 
       if (googleBackedPatch) {
-        operations.push(mutationInsertOperation({
+        operations.push(...this.remoteMutationOperations(mutationInsertOperation({
           id: mutationId,
           accountId: targetCalendar.accountId,
           resourceId: existing.eventId,
           operation: "calendar.events.update",
           payload: mutationPayload(normalized, request.hcbKind ?? existing.hcbKind ?? null),
           now
-        }));
+        })));
       }
 
       this.connection.executeTransaction(operations);
@@ -377,7 +378,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         kind: "event.edit",
         resourceId: existing.eventId,
         summary: "Edited calendar event",
-        metadata: { queued: googleBackedPatch, calendarId: targetCalendar.id }
+        metadata: { queued: googleBackedPatch && this.shouldQueueRemoteMutations(), calendarId: targetCalendar.id }
       });
 
       return this.getCalendarEvent(existing.eventId);
@@ -413,6 +414,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       validateRecurringWriteScope(existing, scope);
       const now = new Date().toISOString();
       const mutationId = `mutation:event:${randomUUID()}`;
+      const queued = this.shouldQueueRemoteMutations();
 
       this.connection.executeTransaction([
         {
@@ -424,7 +426,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         },
         ...this.tagDeleteEntityOperations("event", existing.eventId),
         instanceDeleteOperation(existing.eventId, now),
-        mutationInsertOperation({
+        ...this.remoteMutationOperations(mutationInsertOperation({
           id: mutationId,
           accountId: existing.accountId,
           resourceId: existing.eventId,
@@ -434,18 +436,18 @@ export class CalendarLocalRepository extends TaskLocalRepository {
             calendarId: existing.calendarId
           },
           now
-        })
+        }))
       ]);
       this.recordHistory({
         kind: "event.delete",
         resourceId: existing.eventId,
         summary: "Deleted calendar event",
-        metadata: { queued: true, calendarId: existing.calendarId }
+        metadata: { queued, calendarId: existing.calendarId }
       });
 
       return {
         id: existing.eventId,
-        queued: true,
+        queued,
         revision: now
       };
     });
@@ -529,7 +531,9 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       throw validationFailure(futureRecurringEditMissingMasterMessage);
     }
 
-    requireRemoteRecurringMaster(master);
+    if (this.shouldQueueRemoteMutations()) {
+      requireRemoteRecurringMaster(master);
+    }
 
     if (!hasGoogleBackedCalendarPatch(request) && request.tags !== undefined) {
       throw validationFailure("Future-scope local-only tag edits are not supported yet.");
@@ -623,14 +627,14 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         status: "confirmed",
         updatedAt: now
       }),
-      mutationInsertOperation({
+      ...this.remoteMutationOperations(mutationInsertOperation({
         id: `mutation:event:${randomUUID()}`,
         accountId: master.accountId,
         resourceId: master.eventId,
         operation: "calendar.events.update",
         payload: mutationPayload(masterWrite, master.hcbKind ?? null),
         now
-      }),
+      })),
       eventInsertOperation({
         id: futureId,
         accountId: targetCalendar.accountId,
@@ -661,20 +665,21 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         status: "confirmed",
         updatedAt: now
       }),
-      mutationInsertOperation({
+      ...this.remoteMutationOperations(mutationInsertOperation({
         id: `mutation:event:${randomUUID()}`,
         accountId: targetCalendar.accountId,
         resourceId: futureId,
         operation: "calendar.events.create",
         payload: mutationPayload(futureWrite, request.hcbKind ?? master.hcbKind ?? null),
         now
-      })
+      }))
     ]);
+    const queued = this.shouldQueueRemoteMutations();
     this.recordHistory({
       kind: "event.edit",
       resourceId: futureId,
       summary: "Edited future recurring events",
-      metadata: { queued: true, calendarId: targetCalendar.id, scope: "seriesFuture" }
+      metadata: { queued, calendarId: targetCalendar.id, scope: "seriesFuture" }
     });
 
     return this.getCalendarEvent(futureId);
@@ -687,7 +692,9 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       throw validationFailure(futureRecurringDeleteMissingMasterMessage);
     }
 
-    requireRemoteRecurringMaster(master);
+    if (this.shouldQueueRemoteMutations()) {
+      requireRemoteRecurringMaster(master);
+    }
     const split = splitRecurrenceRuleAt(master.recurrenceRule, selected.startsAt, {
       id: master.eventId,
       startsAt: master.startsAt,
@@ -742,25 +749,26 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         status: "confirmed",
         updatedAt: now
       }),
-      mutationInsertOperation({
+      ...this.remoteMutationOperations(mutationInsertOperation({
         id: `mutation:event:${randomUUID()}`,
         accountId: master.accountId,
         resourceId: master.eventId,
         operation: "calendar.events.update",
         payload: mutationPayload(masterWrite, master.hcbKind ?? null),
         now
-      })
+      }))
     ]);
+    const queued = this.shouldQueueRemoteMutations();
     this.recordHistory({
       kind: "event.delete",
       resourceId: master.eventId,
       summary: "Deleted future recurring events",
-      metadata: { queued: true, calendarId: master.calendarId, scope: "seriesFuture" }
+      metadata: { queued, calendarId: master.calendarId, scope: "seriesFuture" }
     });
 
     return {
       id: master.eventId,
-      queued: true,
+      queued,
       revision: now
     };
   }

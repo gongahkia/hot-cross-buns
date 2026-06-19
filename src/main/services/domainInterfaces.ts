@@ -26,6 +26,10 @@ import type {
   GoogleDisconnectRequest,
   GoogleSaveOAuthClientRequest,
   GoogleStatusResponse,
+  HcbVaultExportRequest,
+  HcbVaultExportResponse,
+  HcbVaultImportRequest,
+  HcbVaultImportResponse,
   LocalHosterCreateRequest,
   LocalHosterExportRequest,
   LocalHosterImportRequest,
@@ -257,7 +261,7 @@ export interface McpDomainServices {
 }
 
 export interface McpAdminDomainServices {
-  settings: Pick<SettingsDomainService, "get" | "update">;
+  settings: Pick<SettingsDomainService, "get" | "update" | "exportHcbVault" | "importHcbVault">;
   google: Pick<GoogleControlDomainService, "status" | "saveOAuthClient" | "beginOAuth">;
   mcp: Pick<McpControlDomainService, "status" | "setEnabled">;
   hosters: LocalHosterDomainService;
@@ -372,6 +376,8 @@ export interface SettingsDomainService {
   importPortableArchive: (
     request: PortableImportRequest
   ) => MaybePromise<PortableImportResponse>;
+  exportHcbVault: (request: HcbVaultExportRequest) => MaybePromise<HcbVaultExportResponse>;
+  importHcbVault: (request: HcbVaultImportRequest) => MaybePromise<HcbVaultImportResponse>;
   listLocalPointers: (request: LocalPointerListRequest) => MaybePromise<LocalPointerListResponse>;
   repairLocalPointer: (
     request: LocalPointerRepairRequest

@@ -722,7 +722,9 @@ describe("McpToolRegistry advanced writes", () => {
         update: (patch) => {
           settingsPatches.push(patch);
           return { mcpEnabled: true } as never;
-        }
+        },
+        exportHcbVault: () => ({}) as never,
+        importHcbVault: () => ({}) as never
       },
       google: {
         status: () => ({}) as never,

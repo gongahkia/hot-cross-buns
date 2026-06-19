@@ -39,6 +39,7 @@ const readToolNames = [
   "hcb_list_calendars",
   "hcb_undo_status",
   "hcb_pending_mutations",
+  "hcb_backend_status",
   "hcb_hoster_status",
   "hcb_hoster_test"
 ] as const;
@@ -65,6 +66,9 @@ const writeToolNames = [
   "hcb_move_task",
   "hcb_schedule_task_block",
   "hcb_settings_update",
+  "hcb_backend_set",
+  "hcb_vault_export",
+  "hcb_vault_import",
   "hcb_google_save_oauth_client",
   "hcb_google_begin_oauth",
   "hcb_mcp_set_enabled",
@@ -89,6 +93,7 @@ const destructiveToolNames = new Set<string>([
   "hcb_delete_note_list",
   "hcb_convert_item",
   "hcb_cancel_mutation",
+  "hcb_vault_import",
   "hcb_hoster_remove",
   "hcb_undo",
   "hcb_redo"
@@ -150,6 +155,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   readTool("hcb_pending_mutations", "List pending local-to-Google mutation queue entries.", {
     limit: integerSchema("Maximum pending mutation count.")
   }),
+  readTool("hcb_backend_status", "Read current HCB storage backend and local vault settings.", {}),
   readTool("hcb_hoster_status", "Read local hoster status and configured profiles.", {}),
   readTool("hcb_hoster_test", "Run a local hoster signal encryption round-trip.", {
     id: stringSchema("Optional hoster profile id."),
@@ -316,6 +322,24 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["patch"]),
+  writeTool("hcb_backend_set", "Switch HCB storage backend. hcb-local seeds local planner lists.", false, {
+    backend: enumSchema(["google", "hcb-local", "hcb-hoster"]),
+    endpoint: stringSchema("Optional HCB hoster endpoint URL."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["backend"]),
+  writeTool("hcb_vault_export", "Export encrypted .hcbvault portable state.", false, {
+    out: stringSchema("Optional output path."),
+    passphrase: stringSchema("Vault passphrase."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["passphrase"]),
+  writeTool("hcb_vault_import", "Import encrypted .hcbvault portable state. Always requires confirmation.", true, {
+    path: stringSchema("Vault path."),
+    passphrase: stringSchema("Vault passphrase."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["path", "passphrase"]),
   writeTool("hcb_google_save_oauth_client", "Save Google OAuth client configuration.", false, {
     clientId: stringSchema("Google OAuth client id."),
     clientSecret: stringSchema("Optional Google OAuth client secret."),
@@ -608,6 +632,28 @@ export class McpToolRegistry {
 
         return success({ message: `Read ${items.length} pending mutation${items.length === 1 ? "" : "s"}.`, items });
       }
+      case "hcb_backend_status": {
+        const [settings, syncStatus, taskLists, calendars] = await Promise.all([
+          this.requireAdminServices().settings.get(),
+          this.services.diagnostics.status(),
+          this.services.tasks.listTaskLists(),
+          this.services.calendar.listCalendars()
+        ]);
+
+        return success({
+          message: "Read HCB backend status.",
+          item: {
+            kind: "hcbBackendStatus",
+            storageBackend: settings.storageBackend,
+            hcbHosterEndpoint: settings.hcbHosterEndpoint,
+            hcbVaultPath: settings.hcbVaultPath,
+            googleSyncActive: settings.storageBackend === "google",
+            sync: syncStatus,
+            taskListCount: taskLists.length,
+            calendarCount: calendars.length
+          }
+        });
+      }
       case "hcb_hoster_status":
         return success({
           message: "Read local hoster status.",
@@ -857,6 +903,46 @@ export class McpToolRegistry {
         apply: async (args) => ({
           kind: "settings",
           ...(await this.requireAdminServices().settings.update(requiredObject(args, "patch")))
+        })
+      },
+      hcb_backend_set: {
+        preview: (args) => ({
+          kind: "hcbBackendSettings",
+          storageBackend: requiredBackend(args),
+          ...(optionalString(args, "endpoint") === undefined
+            ? {}
+            : { hcbHosterEndpoint: optionalString(args, "endpoint") })
+        }),
+        apply: async (args) => ({
+          kind: "hcbBackendSettings",
+          ...(await this.requireAdminServices().settings.update({
+            storageBackend: requiredBackend(args),
+            ...(optionalString(args, "endpoint") === undefined
+              ? {}
+              : { hcbHosterEndpoint: optionalString(args, "endpoint") })
+          }))
+        })
+      },
+      hcb_vault_export: {
+        preview: (args) => ({
+          kind: "hcbVaultExport",
+          ...(optionalString(args, "out") === undefined ? {} : { out: optionalString(args, "out") }),
+          hasPassphrase: true
+        }),
+        apply: (args) => this.requireAdminServices().settings.exportHcbVault({
+          ...(optionalString(args, "out") === undefined ? {} : { out: optionalString(args, "out") }),
+          passphrase: requiredString(args, "passphrase")
+        })
+      },
+      hcb_vault_import: {
+        preview: (args) => ({
+          kind: "hcbVaultImport",
+          path: requiredString(args, "path"),
+          hasPassphrase: true
+        }),
+        apply: (args) => this.requireAdminServices().settings.importHcbVault({
+          path: requiredString(args, "path"),
+          passphrase: requiredString(args, "passphrase")
         })
       },
       hcb_google_save_oauth_client: {
@@ -1733,6 +1819,16 @@ function optionalString(args: Record<string, unknown>, key: string): string | un
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function requiredBackend(args: Record<string, unknown>): "google" | "hcb-local" | "hcb-hoster" {
+  const value = requiredString(args, "backend");
+
+  if (value !== "google" && value !== "hcb-local" && value !== "hcb-hoster") {
+    throw new McpToolError("INVALID_ARGUMENTS", "backend must be google, hcb-local, or hcb-hoster.");
+  }
+
+  return value;
 }
 
 function optionalNumber(args: Record<string, unknown>, key: string): number | undefined {

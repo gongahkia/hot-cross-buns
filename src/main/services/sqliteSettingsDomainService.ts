@@ -1,4 +1,6 @@
 import type {
+  HcbVaultExportRequest,
+  HcbVaultImportRequest,
   McpStatusResponse,
   PortableArchivePathRequest,
   PortableImportRequest,
@@ -28,9 +30,14 @@ export function createSqliteSettingsDomainService({
   return {
     get: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
     update: (request: SettingsUpdateRequest) => {
-      const snapshot = settingsSupportRepository.applyExternalSettings(
+      let snapshot = settingsSupportRepository.applyExternalSettings(
         settingsRepository.update(request)
       );
+
+      if (snapshot.storageBackend !== "google") {
+        settingsRepository.ensureLocalBackendWorkspace();
+        snapshot = settingsSupportRepository.applyExternalSettings(settingsRepository.get());
+      }
 
       if (
         request.mcpEnabled !== undefined ||
@@ -152,6 +159,10 @@ export function createSqliteSettingsDomainService({
       settingsRepository.previewPortableImport(request.path),
     importPortableArchive: (request: PortableImportRequest) =>
       settingsRepository.importPortableArchive(request.path),
+    exportHcbVault: (request: HcbVaultExportRequest) =>
+      settingsRepository.exportHcbVault(request),
+    importHcbVault: (request: HcbVaultImportRequest) =>
+      settingsRepository.importHcbVault(request),
     listLocalPointers: (request) => settingsRepository.listLocalPointers(request),
     repairLocalPointer: (request) => settingsRepository.repairLocalPointer(request),
     customizationStatus: () => settingsSupportRepository.customizationStatus(),

@@ -388,6 +388,20 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           request,
           "Portable archive import failed"
         ),
+      exportHcbVault: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.exportHcbVault,
+          request,
+          "HCB vault export failed"
+        ),
+      importHcbVault: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.importHcbVault,
+          request,
+          "HCB vault import failed"
+        ),
       listLocalPointers: (request = {}) =>
         invokeContract(
           ipc,

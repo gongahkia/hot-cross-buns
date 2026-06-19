@@ -188,6 +188,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
       const googleId = `local-${randomUUID()}`;
       const eventId = `${calendar.accountId}:event:${calendar.googleId}:${googleId}`;
       const blockId = `block:${randomUUID()}`;
+      const queued = this.shouldQueueRemoteMutations();
       const normalized = normalizeCalendarWrite({
         title: task.title,
         calendarId: calendar.id,
@@ -224,14 +225,14 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
           status: "confirmed",
           updatedAt: now
         }),
-        mutationInsertOperation({
+        ...this.remoteMutationOperations(mutationInsertOperation({
           id: `mutation:event:${randomUUID()}`,
           accountId: calendar.accountId,
           resourceId: eventId,
           operation: "calendar.events.create",
           payload: mutationPayload(normalized),
           now
-        }),
+        })),
         scheduledTaskBlockInsertOperation({
           id: blockId,
           taskId: task.id,
@@ -247,7 +248,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
         kind: "schedule.create",
         resourceId: blockId,
         summary: "Scheduled task block",
-        metadata: { queued: true, taskId: task.id, calendarId: calendar.id }
+        metadata: { queued, taskId: task.id, calendarId: calendar.id }
       });
 
       return this.requireScheduledTaskBlock(blockId);
@@ -268,6 +269,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
         const targetCalendar = this.requireCalendar(request.calendarId ?? block.calendarId);
         const googleId = `local-${randomUUID()}`;
         const eventId = `${targetCalendar.accountId}:event:${targetCalendar.googleId}:${googleId}`;
+        const queued = this.shouldQueueRemoteMutations();
         const normalized = normalizeCalendarWrite({
           title: task.title,
           calendarId: targetCalendar.id,
@@ -304,14 +306,14 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
             status: "confirmed",
             updatedAt: now
           }),
-          mutationInsertOperation({
+          ...this.remoteMutationOperations(mutationInsertOperation({
             id: `mutation:event:${randomUUID()}`,
             accountId: targetCalendar.accountId,
             resourceId: eventId,
             operation: "calendar.events.create",
             payload: mutationPayload(normalized),
             now
-          }),
+          })),
           {
             kind: "run",
             sql: `UPDATE local_scheduled_task_blocks
@@ -338,13 +340,14 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
           kind: "schedule.repair",
           resourceId: request.id,
           summary: "Repaired scheduled task block",
-          metadata: { queued: true, taskId: task.id, calendarId: targetCalendar.id }
+          metadata: { queued, taskId: task.id, calendarId: targetCalendar.id }
         });
 
         return this.requireScheduledTaskBlock(request.id);
       }
 
       const targetCalendar = this.requireCalendar(request.calendarId ?? event.calendarId);
+      const queued = this.shouldQueueRemoteMutations();
       const normalized = normalizeCalendarWrite({
         title: event.title,
         calendarId: targetCalendar.id,
@@ -379,14 +382,14 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
           status: "confirmed",
           updatedAt: now
         }),
-        mutationInsertOperation({
+        ...this.remoteMutationOperations(mutationInsertOperation({
           id: `mutation:event:${randomUUID()}`,
           accountId: targetCalendar.accountId,
           resourceId: event.eventId,
           operation: "calendar.events.update",
           payload: mutationPayload(normalized),
           now
-        }),
+        })),
         {
           kind: "run",
           sql: `UPDATE local_scheduled_task_blocks
@@ -411,7 +414,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
         kind: "schedule.move",
         resourceId: request.id,
         summary: "Moved scheduled task block",
-        metadata: { queued: true, calendarId: targetCalendar.id }
+        metadata: { queued, calendarId: targetCalendar.id }
       });
 
       return this.requireScheduledTaskBlock(request.id);
@@ -426,6 +429,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
       const event = this.findCalendarEventRow(block.calendarEventId);
       const now = new Date().toISOString();
       const deleteCalendarEvent = request.deleteCalendarEvent ?? true;
+      const queued = deleteCalendarEvent && event !== undefined && this.shouldQueueRemoteMutations();
       const operations: SqliteWriteOperation[] = [
         {
           kind: "run",
@@ -448,7 +452,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
             params: [now, now, event.eventId]
           },
           instanceDeleteOperation(event.eventId, now),
-          mutationInsertOperation({
+          ...this.remoteMutationOperations(mutationInsertOperation({
             id: `mutation:event:${randomUUID()}`,
             accountId: event.accountId,
             resourceId: event.eventId,
@@ -458,7 +462,7 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
               calendarId: event.calendarId
             },
             now
-          })
+          }))
         );
       }
 
@@ -467,12 +471,12 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
         kind: "schedule.delete",
         resourceId: request.id,
         summary: "Unscheduled task block",
-        metadata: { queued: deleteCalendarEvent && event !== undefined }
+        metadata: { queued }
       });
 
       return {
         id: request.id,
-        queued: deleteCalendarEvent && event !== undefined,
+        queued,
         revision: now
       };
     });

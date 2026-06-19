@@ -437,6 +437,8 @@ describe("shared IPC contracts", () => {
         uiTextSizePoints: 15,
         selectedTaskListIds: ["list-inbox"],
         selectedCalendarIds: ["cal-product"],
+        storageBackend: "hcb-local",
+        hcbVaultPath: "/tmp/hot-cross-buns.hcbvault",
         calendarEventColorOverrides: {
           "9": { background: "#123456", foreground: "#abcdef" }
         },
@@ -449,6 +451,8 @@ describe("shared IPC contracts", () => {
       colorTheme: "dracula",
       uiFontName: "Inter",
       uiTextSizePoints: 15,
+      storageBackend: "hcb-local",
+      hcbVaultPath: "/tmp/hot-cross-buns.hcbvault",
       calendarEventColorOverrides: {
         "9": { background: "#123456", foreground: "#abcdef" }
       },
@@ -485,6 +489,9 @@ describe("shared IPC contracts", () => {
         selectedTaskListIds: [],
         selectedCalendarIds: [],
         setupCompletedAt: null,
+        storageBackend: "google",
+        hcbHosterEndpoint: null,
+        hcbVaultPath: null,
         syncMode: "balanced",
         syncTasksEnabled: true,
         syncCalendarEventsEnabled: true,

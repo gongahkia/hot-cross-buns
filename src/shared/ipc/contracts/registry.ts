@@ -154,6 +154,10 @@ import {
   customizationExtensionLogRequestSchema,
   customizationStatusResponseSchema,
   customizationToggleRequestSchema,
+  hcbVaultExportRequestSchema,
+  hcbVaultExportResponseSchema,
+  hcbVaultImportRequestSchema,
+  hcbVaultImportResponseSchema,
   icsImportRequestSchema,
   icsImportResponseSchema,
   icsSubscriptionActionRequestSchema,
@@ -536,6 +540,18 @@ export const ipcContracts = {
       "importPortableArchive",
       portableImportRequestSchema,
       portableImportResponseSchema
+    ),
+    exportHcbVault: defineIpcContract(
+      "settings",
+      "exportHcbVault",
+      hcbVaultExportRequestSchema,
+      hcbVaultExportResponseSchema
+    ),
+    importHcbVault: defineIpcContract(
+      "settings",
+      "importHcbVault",
+      hcbVaultImportRequestSchema,
+      hcbVaultImportResponseSchema
     ),
     listLocalPointers: defineIpcContract(
       "settings",

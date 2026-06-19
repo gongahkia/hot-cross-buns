@@ -726,6 +726,9 @@ const hcbApi: HcbApi = {
         startOnLogin: false,
         selectedTaskListIds: [],
         selectedCalendarIds: [],
+        storageBackend: "google" as const,
+        hcbHosterEndpoint: null,
+        hcbVaultPath: null,
         setupCompletedAt: now,
         syncMode: "balanced" as const,
         syncTasksEnabled: true,
@@ -824,6 +827,9 @@ const hcbApi: HcbApi = {
         startOnLogin: request.startOnLogin ?? false,
         selectedTaskListIds: request.selectedTaskListIds ?? [],
         selectedCalendarIds: request.selectedCalendarIds ?? [],
+        storageBackend: request.storageBackend ?? "google",
+        hcbHosterEndpoint: request.hcbHosterEndpoint ?? null,
+        hcbVaultPath: request.hcbVaultPath ?? null,
         setupCompletedAt: request.setupCompletedAt === undefined ? now : request.setupCompletedAt,
         syncMode: request.syncMode ?? "balanced",
         syncTasksEnabled: request.syncTasksEnabled ?? true,
@@ -949,6 +955,62 @@ const hcbApi: HcbApi = {
           queuedMutationCount: 0,
           attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 },
           items: { tasks: [], events: [], calendars: [], taskLists: [] }
+        }
+      })
+    ),
+    exportHcbVault: vi.fn(async (request) =>
+      ok({
+        path: request.out ?? "/tmp/hcb-test.hcbvault",
+        exportedAt: now,
+        manifest: {
+          formatVersion: 1 as const,
+          kind: "hot-cross-buns-2-vault" as const,
+          exportedAt: now,
+          appVersion: "0.0.0",
+          stateEncoding: "hcb-portable-state-json" as const,
+          stateSha256: "0".repeat(64),
+          payloadFile: "payload.hcbenc" as const,
+          payloadSha256: "1".repeat(64),
+          encryption: {
+            algorithm: "scrypt-AES-256-GCM" as const,
+            kdf: "scrypt" as const,
+            saltBase64: "salt",
+            ivBase64: "iv",
+            tagBase64: "tag",
+            keyLength: 32 as const,
+            cost: 32768,
+            blockSize: 8,
+            parallelization: 1
+          },
+          notes: ["Test vault."]
+        }
+      })
+    ),
+    importHcbVault: vi.fn(async () =>
+      ok({
+        importedAt: now,
+        backupPath: "/tmp/hcb-test-backup.sqlite3",
+        manifest: {
+          formatVersion: 1 as const,
+          kind: "hot-cross-buns-2-vault" as const,
+          exportedAt: now,
+          appVersion: "0.0.0",
+          stateEncoding: "hcb-portable-state-json" as const,
+          stateSha256: "0".repeat(64),
+          payloadFile: "payload.hcbenc" as const,
+          payloadSha256: "1".repeat(64),
+          encryption: {
+            algorithm: "scrypt-AES-256-GCM" as const,
+            kdf: "scrypt" as const,
+            saltBase64: "salt",
+            ivBase64: "iv",
+            tagBase64: "tag",
+            keyLength: 32 as const,
+            cost: 32768,
+            blockSize: 8,
+            parallelization: 1
+          },
+          notes: ["Test vault."]
         }
       })
     ),

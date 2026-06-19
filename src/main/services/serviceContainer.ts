@@ -327,6 +327,8 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       exportPortableArchive: () => sqliteDomain.settings.exportPortableArchive(),
       previewPortableImport: (request) => sqliteDomain.settings.previewPortableImport(request),
       importPortableArchive: (request) => sqliteDomain.settings.importPortableArchive(request),
+      exportHcbVault: (request) => sqliteDomain.settings.exportHcbVault(request),
+      importHcbVault: (request) => sqliteDomain.settings.importHcbVault(request),
       listLocalPointers: (request) => sqliteDomain.settings.listLocalPointers(request),
       repairLocalPointer: (request) => sqliteDomain.settings.repairLocalPointer(request),
       customizationStatus: () => sqliteDomain.settings.customizationStatus(),

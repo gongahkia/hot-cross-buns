@@ -95,6 +95,8 @@ interface ParsedCommand {
     | "redo"
     | "schedule"
     | "settings"
+    | "backend"
+    | "vault"
     | "google"
     | "mcp"
     | "hoster"
@@ -158,6 +160,7 @@ interface ParsedCommand {
   permissionMode?: string;
   out?: string;
   path?: string;
+  endpoint?: string;
   privatePayload?: boolean;
   passphraseEnv?: string;
   shell?: "bash" | "zsh" | "fish";
@@ -344,6 +347,13 @@ export function parseCommand(argv: string[]): ParsedCommand {
       const value = args[index + 1];
       index += 1;
       parsed.path = optionValue(value, "--path");
+      continue;
+    }
+
+    if (arg === "--endpoint") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.endpoint = optionValue(value, "--endpoint");
       continue;
     }
 
@@ -784,6 +794,38 @@ export function parseCommand(argv: string[]): ParsedCommand {
     }
 
     validateSettingsCommand(parsed);
+  } else if (command === "backend") {
+    parsed.action = parseBackendAction(positional[0]);
+    parsed.target = positional[1] ?? "backend";
+
+    const validPositionalCount =
+      parsed.action === "status" ? positional.length === 1 :
+      parsed.action === "set" ? positional.length === 2 :
+      false;
+
+    if (!validPositionalCount) {
+      throw new CliError("Usage: pnpm hcb -- backend <status|set> [google|hcb-local|hcb-hoster] [--endpoint <url>] [--apply]", 2);
+    }
+
+    validateBackendCommand(parsed);
+  } else if (command === "vault") {
+    parsed.action = parseVaultAction(positional[0]);
+    parsed.target = "vault";
+
+    if (parsed.action === "import") {
+      parsed.path = parsed.path ?? positional[1];
+    }
+
+    const validPositionalCount =
+      parsed.action === "export" ? positional.length === 1 :
+      parsed.action === "import" && parsed.path !== undefined ? positional.length === 1 || positional.length === 2 :
+      false;
+
+    if (!validPositionalCount) {
+      throw new CliError("Usage: pnpm hcb -- vault <export|import> --passphrase-env <env> [--out <path>|--path <path>] [--apply]", 2);
+    }
+
+    validateVaultCommand(parsed);
   } else if (command === "google") {
     parsed.action = parseGoogleAction(positional[0]);
     parsed.target = parsed.action;
@@ -887,15 +929,18 @@ export function parseCommand(argv: string[]): ParsedCommand {
       parsed.permissionMode !== undefined ||
       parsed.out !== undefined ||
       parsed.path !== undefined ||
+      parsed.endpoint !== undefined ||
       parsed.privatePayload !== undefined ||
       parsed.passphraseEnv !== undefined) &&
-    command !== "hoster"
+    command !== "hoster" &&
+    command !== "backend" &&
+    command !== "vault"
   ) {
-    throw new CliError("--name, --permission-mode, --out, --path, --private, and --passphrase-env are only supported by hoster.", 2);
+    throw new CliError("--name, --permission-mode, --out, --path, --endpoint, --private, and --passphrase-env are only supported by hoster/backend/vault.", 2);
   }
 
-  if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command) && !isHosterWriteCommand(parsed)) {
-    throw new CliError("Write options are only supported by sync-now, retry-mutation, cancel-mutation, create, update, convert, rename, complete, reopen, move, delete, undo, redo, schedule, settings, google, and mcp.", 2);
+  if (hasWriteOnlyOptions(parsed) && !isCliWriteCommand(parsed)) {
+    throw new CliError("Write options are only supported by sync-now, retry-mutation, cancel-mutation, create, update, convert, rename, complete, reopen, move, delete, undo, redo, schedule, settings, backend, vault, google, and mcp.", 2);
   }
 
   return parsed;
@@ -966,7 +1011,7 @@ export async function callCommand(
     }
   }
 
-  if (isWriteCommand(command.command) || isHosterWriteCommand(command)) {
+  if (isCliWriteCommand(command)) {
     args.dryRun = command.apply !== true;
 
     if (command.confirmationId !== undefined) {
@@ -1171,6 +1216,30 @@ export async function callCommand(
 
   if (command.command === "settings") {
     args.patch = command.patchJson ?? {};
+  }
+
+  if (command.command === "backend") {
+    if (command.action === "set") {
+      args.backend = command.target ?? "google";
+    }
+
+    if (command.endpoint !== undefined) {
+      args.endpoint = command.endpoint;
+    }
+  }
+
+  if (command.command === "vault") {
+    if (command.out !== undefined) {
+      args.out = command.out;
+    }
+
+    if (command.path !== undefined) {
+      args.path = command.path;
+    }
+
+    if (command.passphraseEnv !== undefined) {
+      args.passphrase = passphraseFromEnv(command.passphraseEnv, dependencies.env ?? process.env);
+    }
   }
 
   if (command.command === "google") {
@@ -1390,7 +1459,7 @@ async function runHcbTui(
   });
 }
 
-type TuiView = "status" | "today" | "week" | "search" | "logs" | "mutations" | "hosters";
+type TuiView = "status" | "backend" | "today" | "week" | "search" | "logs" | "mutations" | "hosters";
 type TuiCall = (name: string, args: JsonObject) => Promise<McpToolResponse>;
 
 interface TuiPendingApply {
@@ -1427,18 +1496,20 @@ interface TuiState {
     search: JsonObject[];
     logs: JsonObject[];
     mutations: JsonObject[];
+    backend: JsonObject;
     hosters: JsonObject;
   };
   pendingApply?: TuiPendingApply;
 }
 
 function initialTuiState(): TuiState {
-  const views: TuiView[] = ["status", "today", "week", "search", "logs", "mutations", "hosters"];
+  const views: TuiView[] = ["status", "backend", "today", "week", "search", "logs", "mutations", "hosters"];
   return {
     views,
     view: "status",
     selected: {
       status: 0,
+      backend: 0,
       today: 0,
       week: 0,
       search: 0,
@@ -1463,14 +1534,16 @@ function initialTuiState(): TuiState {
       search: [],
       logs: [],
       mutations: [],
+      backend: {},
       hosters: {}
     }
   };
 }
 
 async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
-  const [status, today, week, mutations, logs, hosters] = await Promise.all([
+  const [status, backend, today, week, mutations, logs, hosters] = await Promise.all([
     call("hcb_status", {}),
+    call("hcb_backend_status", {}),
     call("hcb_today", {}),
     call("hcb_week", {}),
     call("hcb_pending_mutations", { limit: 50 }),
@@ -1478,6 +1551,7 @@ async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
     call("hcb_hoster_status", {})
   ]);
   state.data.status = status.item ?? {};
+  state.data.backend = backend.item ?? {};
   state.data.today = today.item ?? {};
   state.data.week = week.item ?? {};
   state.data.mutations = mutations.items ?? [];
@@ -1635,7 +1709,7 @@ async function runTuiCommand(
   if (name === "view") {
     const view = rest[0];
     if (!isTuiView(view)) {
-      throw new CliError("view requires status, today, week, search, logs, mutations, or hosters.", 2);
+      throw new CliError("view requires status, backend, today, week, search, logs, mutations, or hosters.", 2);
     }
     state.view = view;
     state.message = `view ${view}`;
@@ -1648,6 +1722,10 @@ async function runTuiCommand(
   }
   if (name === "apply") {
     await runTuiApply(rest[0], state, call);
+    return;
+  }
+  if (name === "backend") {
+    await runTuiBackendCommand(rest, state, call);
     return;
   }
   if (name === "hoster") {
@@ -1829,6 +1907,33 @@ async function runTuiHosterCommand(
   throw new CliError("hoster command must be status, create, export, import, remove, or test.", 2);
 }
 
+async function runTuiBackendCommand(
+  args: string[],
+  state: TuiState,
+  call: TuiCall
+): Promise<void> {
+  const action = args[0] ?? "status";
+  if (action === "status") {
+    const response = await call("hcb_backend_status", {});
+    state.data.backend = response.item ?? {};
+    state.view = "backend";
+    state.message = response.message;
+    return;
+  }
+  if (action === "set") {
+    const backend = args[1];
+    if (backend !== "google" && backend !== "hcb-local" && backend !== "hcb-hoster") {
+      throw new CliError("backend set requires google, hcb-local, or hcb-hoster.", 2);
+    }
+    await runTuiDryRun(state, call, `backend set ${backend}`, "hcb_backend_set", {
+      backend,
+      dryRun: true
+    });
+    return;
+  }
+  throw new CliError("backend command must be status or set.", 2);
+}
+
 async function runTuiDryRun(
   state: TuiState,
   call: TuiCall,
@@ -1862,7 +1967,7 @@ function clampTuiSelection(state: TuiState): void {
 }
 
 function isTuiView(value: string): value is TuiView {
-  return ["status", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
+  return ["status", "backend", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
 }
 
 function recordTuiCommand(state: TuiState, command: string): void {
@@ -1976,6 +2081,7 @@ function formatTuiScreen(state: TuiState): string {
   const todayTasks = objectArray(state.data.today.tasks).length;
   const todayEvents = objectArray(state.data.today.events).length;
   const mutationCount = state.data.mutations.length;
+  const backend = text(state.data.backend.storageBackend) || "unknown";
   const hosterCount = objectArray(state.data.hosters.profiles).length;
   const tabs = state.views
     .map((view) => view === state.view ? `[${view}]` : ` ${view} `)
@@ -2000,8 +2106,8 @@ function formatTuiScreen(state: TuiState): string {
     "\x1b[2J\x1b[HHot Cross Buns 2 TUI",
     tabs,
     "keys: tab/arrow switch | j/k move | / search | : command | r refresh | q quit",
-    "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | mutation retry/cancel [id] | hoster ... | apply [id]",
-    `Today: ${todayTasks} tasks, ${todayEvents} events | Pending mutations: ${mutationCount} | Hosters: ${hosterCount}`,
+    "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | backend ... | hoster ... | apply [id]",
+    `Backend: ${backend} | Today: ${todayTasks} tasks, ${todayEvents} events | Pending mutations: ${mutationCount} | Hosters: ${hosterCount}`,
     pending,
     `status: ${state.message}`,
     command,
@@ -2039,6 +2145,15 @@ function tuiRowsForView(state: TuiState, view: TuiView): TuiRow[] {
       tuiRow(`sync ${text(sync.state)} mode=${text(sync.mode)}`, sync),
       tuiRow(`cache tasks=${text(cache.taskCount)} events=${text(cache.eventCount)} notes=${text(cache.noteCount)}`, cache),
       tuiRow(`mcp enabled=${text(mcp.enabled)} mode=${text(mcp.permissionMode)}`, mcp)
+    ];
+  }
+  if (view === "backend") {
+    const backend = state.data.backend;
+    return [
+      tuiRow(`backend ${text(backend.storageBackend)} googleSyncActive=${text(backend.googleSyncActive)}`, backend),
+      tuiRow(`vault ${text(backend.hcbVaultPath) || "unset"}`, backend),
+      tuiRow(`hosterEndpoint ${text(backend.hcbHosterEndpoint) || "unset"}`, backend),
+      tuiRow(`lists task=${text(backend.taskListCount)} calendar=${text(backend.calendarCount)}`, backend)
     ];
   }
   if (view === "today") {
@@ -2247,7 +2362,7 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
   }
 
   if (command.json) {
-    if (isWriteCommand(command.command) || isHosterWriteCommand(command)) {
+    if (isCliWriteCommand(command)) {
       return `${JSON.stringify(writeJsonOutput(command, response), null, 2)}\n`;
     }
 
@@ -2320,6 +2435,16 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
       : formatHosterStatus(response.item ?? {});
   }
 
+  if (command.command === "backend") {
+    return isBackendWriteCommand(command)
+      ? formatWrite(command, response)
+      : formatBackendStatus(response.item ?? {});
+  }
+
+  if (command.command === "vault") {
+    return formatWrite(command, response);
+  }
+
   if (isWriteCommand(command.command)) {
     return formatWrite(command, response);
   }
@@ -2371,6 +2496,18 @@ function formatHosterStatus(item: JsonObject): string {
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function formatBackendStatus(item: JsonObject): string {
+  return [
+    "HCB backend",
+    `Backend: ${text(item.storageBackend)}`,
+    `Google sync active: ${text(item.googleSyncActive)}`,
+    `Vault path: ${text(item.hcbVaultPath) || "unset"}`,
+    `Hoster endpoint: ${text(item.hcbHosterEndpoint) || "unset"}`,
+    `Task lists: ${text(item.taskListCount)}`,
+    `Calendars: ${text(item.calendarCount)}`
+  ].join("\n") + "\n";
 }
 
 function formatLogs(items: JsonObject[]): string {
@@ -2473,6 +2610,8 @@ function formatWrite(command: ParsedCommand, response: McpToolResponse): string 
     ? command.command
     : command.command === "hoster"
     ? `hoster ${command.action ?? "status"}`
+    : command.command === "vault"
+    ? `vault ${command.action ?? "export"}`
     : command.target === undefined && (command.command === "undo" || command.command === "redo")
     ? command.command
     : `${command.command} ${target}`;
@@ -2515,7 +2654,7 @@ function writeJsonOutput(command: ParsedCommand, response: McpToolResponse): Rec
 }
 
 function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): string | undefined {
-  if ((!isWriteCommand(command.command) && !isHosterWriteCommand(command)) || !response.dryRun || command.apply === true) {
+  if (!isCliWriteCommand(command) || !response.dryRun || command.apply === true) {
     return undefined;
   }
 
@@ -2619,6 +2758,18 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlag(args, "--patch-json", command.patchJson === undefined ? undefined : JSON.stringify(command.patchJson));
   }
 
+  if (command.command === "backend") {
+    pushFlag(args, "--endpoint", command.endpoint);
+  }
+
+  if (command.command === "vault") {
+    pushFlag(args, "--out", command.out);
+    if (command.action !== "import") {
+      pushFlag(args, "--path", command.path);
+    }
+    pushFlag(args, "--passphrase-env", command.passphraseEnv);
+  }
+
   if (command.command === "google") {
     pushFlag(args, "--client-id", command.clientId);
     pushFlag(args, "--client-secret", command.clientSecret);
@@ -2669,6 +2820,22 @@ function writeCommandPrefix(command: ParsedCommand): string[] {
     if ((command.action === "export" || command.action === "remove") && command.id) {
       prefix.push(command.id);
     }
+    if (command.action === "import" && command.path) {
+      prefix.push(command.path);
+    }
+    return prefix;
+  }
+
+  if (command.command === "backend") {
+    const prefix = ["pnpm", "hcb", "--", "backend", command.action ?? "status"];
+    if (command.action === "set" && command.target) {
+      prefix.push(command.target);
+    }
+    return prefix;
+  }
+
+  if (command.command === "vault") {
+    const prefix = ["pnpm", "hcb", "--", "vault", command.action ?? "export"];
     if (command.action === "import" && command.path) {
       prefix.push(command.path);
     }
@@ -2811,6 +2978,10 @@ function helpText(): string {
     "  redo                                    dry-run redo latest undone planner write",
     "  schedule task <id> [options]            dry-run create a calendar block for a task",
     "  settings update --patch-json <json>     dry-run update settings",
+    "  backend status                          show HCB storage backend status",
+    "  backend set <backend>                   dry-run switch backend",
+    "  vault export --passphrase-env <env>     dry-run export encrypted .hcbvault",
+    "  vault import <path> --passphrase-env <env> dry-run import encrypted .hcbvault",
     "  google save-oauth-client [options]      dry-run save Google OAuth client config",
     "  google begin-oauth                      dry-run start Google OAuth",
     "  mcp set-enabled <true|false>            dry-run enable or disable MCP",
@@ -2864,6 +3035,9 @@ function helpText(): string {
     "  pnpm hcb -- redo",
     "  pnpm hcb -- schedule task task-id --calendar-id cal-id --start-date 2026-06-04T09:00:00.000Z",
     "  pnpm hcb -- settings update --patch-json '{\"mcpEnabled\":true}'",
+    "  pnpm hcb -- backend status",
+    "  pnpm hcb -- backend set hcb-local --apply --confirmation-id confirm-id",
+    "  HCB_VAULT_PASSPHRASE='change-me-long' pnpm hcb -- vault export --passphrase-env HCB_VAULT_PASSPHRASE",
     "  pnpm hcb -- google begin-oauth --apply",
     "  pnpm hcb -- mcp set-enabled true",
     "  pnpm hcb -- hoster status",
@@ -2885,13 +3059,13 @@ function completionScript(shell: "bash" | "zsh" | "fish"): string {
     "export-diagnostics", "undo-status", "sync-now", "pending-mutations",
     "retry-mutation", "cancel-mutation", "list", "get", "create", "update",
     "convert", "rename", "complete", "reopen", "move", "delete", "undo",
-    "redo", "schedule", "settings", "google", "mcp", "hoster", "tui",
+    "redo", "schedule", "settings", "backend", "vault", "google", "mcp", "hoster", "tui",
     "completion", "help"
   ];
   const hosterActions = ["status", "create", "export", "import", "remove", "test", "signal"];
   const options = [
     "--json", "--limit", "--level", "--scope", "--start-date", "--apply",
-    "--confirmation-id", "--name", "--permission-mode", "--out", "--path",
+    "--confirmation-id", "--name", "--permission-mode", "--out", "--path", "--endpoint",
     "--private", "--passphrase-env", "--tool", "--arguments-json", "--request-id"
   ];
   if (shell === "zsh") {
@@ -3098,6 +3272,26 @@ function toolName(command: ParsedCommand): string {
       return "hcb_schedule_task_block";
     case "settings":
       return "hcb_settings_update";
+    case "backend":
+      if (command.action === "status") {
+        return "hcb_backend_status";
+      }
+
+      if (command.action === "set") {
+        return "hcb_backend_set";
+      }
+
+      throw new CliError("Unknown backend action.", 2);
+    case "vault":
+      if (command.action === "export") {
+        return "hcb_vault_export";
+      }
+
+      if (command.action === "import") {
+        return "hcb_vault_import";
+      }
+
+      throw new CliError("Unknown vault action.", 2);
     case "google":
       if (command.action === "save-oauth-client") {
         return "hcb_google_save_oauth_client";
@@ -3174,6 +3368,8 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "redo" ||
     command === "schedule" ||
     command === "settings" ||
+    command === "backend" ||
+    command === "vault" ||
     command === "google" ||
     command === "mcp" ||
     command === "hoster" ||
@@ -3518,6 +3714,22 @@ function parseSettingsAction(value: string | undefined): string {
   throw new CliError("Settings action must be update.", 2);
 }
 
+function parseBackendAction(value: string | undefined): string {
+  if (value === "status" || value === "set") {
+    return value;
+  }
+
+  throw new CliError("Backend action must be status or set.", 2);
+}
+
+function parseVaultAction(value: string | undefined): string {
+  if (value === "export" || value === "import") {
+    return value;
+  }
+
+  throw new CliError("Vault action must be export or import.", 2);
+}
+
 function parseGoogleAction(value: string | undefined): string {
   if (value === "save-oauth-client" || value === "begin-oauth") {
     return value;
@@ -3668,6 +3880,18 @@ function isHosterWriteCommand(command: ParsedCommand): boolean {
   );
 }
 
+function isBackendWriteCommand(command: ParsedCommand): boolean {
+  return command.command === "backend" && command.action === "set";
+}
+
+function isVaultWriteCommand(command: ParsedCommand): boolean {
+  return command.command === "vault" && (command.action === "export" || command.action === "import");
+}
+
+function isCliWriteCommand(command: ParsedCommand): boolean {
+  return isWriteCommand(command.command) || isHosterWriteCommand(command) || isBackendWriteCommand(command) || isVaultWriteCommand(command);
+}
+
 function validateCreateCommand(command: ParsedCommand): void {
   if (command.limit !== undefined) {
     throw new CliError("--limit is not supported by create.", 2);
@@ -3759,7 +3983,7 @@ function validateRenameCommand(command: ParsedCommand): void {
 
 function validateTaskStateCommand(command: ParsedCommand): void {
   rejectReadOptions(command, command.command);
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "endpoint"]);
 }
 
 function validateMoveCommand(command: ParsedCommand): void {
@@ -3815,7 +4039,39 @@ function validateSettingsCommand(command: ParsedCommand): void {
     throw new CliError("Missing required --patch-json for settings update.", 2);
   }
 
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "clientId", "clientSecret", "enabled"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "clientId", "clientSecret", "enabled", "endpoint", "out", "path", "passphraseEnv"]);
+}
+
+function validateBackendCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "backend");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "out", "path", "privatePayload", "passphraseEnv"]);
+
+  if (command.action === "status") {
+    rejectUnsupportedOptions(command, "backend status", ["endpoint", "apply", "confirmationId"]);
+    return;
+  }
+
+  if (command.target !== "google" && command.target !== "hcb-local" && command.target !== "hcb-hoster") {
+    throw new CliError("Backend must be google, hcb-local, or hcb-hoster.", 2);
+  }
+}
+
+function validateVaultCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "vault");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "endpoint", "privatePayload", "name", "permissionMode"]);
+
+  if (command.passphraseEnv === undefined) {
+    throw new CliError("Missing required --passphrase-env for vault.", 2);
+  }
+
+  if (command.action === "export") {
+    rejectUnsupportedOptions(command, "vault export", ["path"]);
+  } else if (command.action === "import") {
+    if (command.path === undefined) {
+      throw new CliError("Usage: pnpm hcb -- vault import <path> --passphrase-env <env>", 2);
+    }
+    rejectUnsupportedOptions(command, "vault import", ["out"]);
+  }
 }
 
 function validateGoogleCommand(command: ParsedCommand): void {
@@ -4175,6 +4431,8 @@ function flagForKey(key: keyof ParsedCommand): string {
       return "--client-secret";
     case "permissionMode":
       return "--permission-mode";
+    case "endpoint":
+      return "--endpoint";
     case "privatePayload":
       return "--private";
     case "passphraseEnv":

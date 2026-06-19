@@ -22,6 +22,8 @@ import {
   type GoogleDisconnectRequest,
   type GoogleStatusResponse,
   type GoogleSaveOAuthClientRequest,
+  type HcbVaultExportRequest,
+  type HcbVaultImportRequest,
   type McpSetEnabledRequest,
   type NativeCapabilitiesResponse,
   type NativeImportMenuBarIconRequest,
@@ -497,6 +499,14 @@ export function createCoreIpcHandlers(
       contract: ipcContracts.settings.importPortableArchive,
       handle: (request) =>
         services.settings.importPortableArchive(request as PortableImportRequest)
+    },
+    {
+      contract: ipcContracts.settings.exportHcbVault,
+      handle: (request) => services.settings.exportHcbVault(request as HcbVaultExportRequest)
+    },
+    {
+      contract: ipcContracts.settings.importHcbVault,
+      handle: (request) => services.settings.importHcbVault(request as HcbVaultImportRequest)
     },
     {
       contract: ipcContracts.settings.listLocalPointers,

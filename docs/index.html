@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
 <title>Hot Cross Buns 2 - Planner App for macOS, Linux, and Windows</title>
-<meta name="description" content="Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.">
+<meta name="description" content="Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks, Google Calendar, local vault mode, and terminal workflows on macOS, Linux, and Windows.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
@@ -24,6 +24,7 @@
     <a href="#keys">Keyboard</a>
     <a href="#menubar">Menu Bar</a>
     <a href="#webviews">Web</a>
+    <a href="#local">Local</a>
     <a href="#reviews">Reviews</a>
     <a href="#updates">Updates</a>
     <button id="theme-toggle" aria-label="Toggle theme">
@@ -36,7 +37,7 @@
 <header class="hero">
   <div class="hero-copy">
     <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns 2 is a keyboard-first desktop planner for Google Tasks and Google Calendar on macOS, Linux, and Windows.</p>
+    <p class="deck">Hot Cross Buns 2 is a keyboard-first desktop planner for Google Tasks, Google Calendar, encrypted local vault mode, and terminal workflows on macOS, Linux, and Windows.</p>
     <div class="hero-ctas">
       <a class="cta-primary" href="#download">Download</a>
       <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2" target="_blank" rel="noopener">GitHub →</a>
@@ -72,12 +73,12 @@
       <div class="views-list">
         <article class="view-item">
           <h3>Tasks</h3>
-          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks.</p>
+          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks or stays in local HCB storage.</p>
         </article>
 
         <article class="view-item">
           <h3>Calendar</h3>
-          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar.</p>
+          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar or stays in local HCB storage.</p>
         </article>
 
         <article class="view-item">
@@ -212,6 +213,43 @@
         <video class="lazy-video" muted loop playsinline preload="none" aria-label="Native webpage footage inside Hot Cross Buns 2">
           <source data-src="assets/web-view.mp4" type="video/mp4">
         </video>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="local" class="menubar">
+  <div class="menubar-layout">
+    <div class="menubar-copy">
+      <p class="eyebrow">Local backend and Terminal</p>
+      <h2>Use HCB without<br><em>Google as the backend</em>.</h2>
+      <p class="lede">First-run setup and Settings now expose Google, HCB local vault, and HCB local hoster backend choices. The CLI adds backend and vault commands, and the TUI adds a backend view.</p>
+
+      <div class="menubar-list">
+        <article class="menubar-item">
+          <h3>Local vault</h3>
+          <p>HCB local mode seeds a local task list and calendar, suppresses Google mutation queueing, and exports/imports encrypted <code>.hcbvault</code> archives.</p>
+        </article>
+
+        <article class="menubar-item">
+          <h3>Local hoster</h3>
+          <p>The existing loopback hoster server keeps bearer-token auth, origin checks, replay receipts, and encrypted signal payload support.</p>
+        </article>
+
+        <article class="menubar-item">
+          <h3>CLI/TUI</h3>
+          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, and vault import/export for terminal-first users.</p>
+        </article>
+      </div>
+    </div>
+
+    <figure class="menubar-shot">
+      <div class="brew-panel">
+        <pre><code>hcb backend status
+hcb backend set hcb-local --apply
+HCB_VAULT_PASSPHRASE='replace-me' hcb vault export --passphrase-env HCB_VAULT_PASSPHRASE --apply
+hcb tui
+view backend</code></pre>
       </div>
     </figure>
   </div>
@@ -360,6 +398,22 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>Local backend + CLI/TUI</h3>
+        <p>19 Jun 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added first-run and Settings controls for selecting Google, HCB local vault, or HCB local hoster backend mode.</li>
+          <li>Added encrypted <code>.hcbvault</code> export/import contracts and tools using scrypt-derived AES-256-GCM payload encryption.</li>
+          <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
+          <li>Added MCP and CLI commands for backend status, backend switching, vault export, and vault import, plus a TUI backend view.</li>
+          <li>Kept the local hoster signal path on bearer auth, loopback origin checks, replay receipts, rate limiting, and encrypted signal support.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v5.0.0</h3>

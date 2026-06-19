@@ -4,6 +4,7 @@ import type {
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
 import {
+  HardDrive,
   FileSearch,
   Languages,
   Power,
@@ -105,6 +106,81 @@ export function GeneralSettingsTab({
           label="Open Hot Cross Buns at login"
           onChange={(checked) => updateSettings({ startOnLogin: checked })}
         />
+      </SettingsGroup>
+
+      <SettingsGroup title="Storage">
+        <SettingsControlRow
+          description="Switches between Google sync, encrypted local vault mode, and a local hoster endpoint."
+          icon={HardDrive}
+          label="Backend"
+        >
+          <select
+            aria-label="Storage backend"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({ storageBackend: event.target.value as SettingsSnapshot["storageBackend"] })
+            }
+            value={settings.storageBackend}
+          >
+            <option value="google">Google Tasks/Calendar</option>
+            <option value="hcb-local">HCB local vault</option>
+            <option value="hcb-hoster">HCB local hoster</option>
+          </select>
+        </SettingsControlRow>
+        {settings.storageBackend === "hcb-hoster" ? (
+          <SettingsControlRow
+            description="Loopback or LAN endpoint for a trusted HCB local hoster."
+            label="Hoster endpoint"
+          >
+            <Input
+              aria-label="HCB local hoster endpoint"
+              defaultValue={settings.hcbHosterEndpoint ?? ""}
+              onBlur={(event) =>
+                updateSettings({
+                  hcbHosterEndpoint:
+                    event.currentTarget.value.trim().length > 0
+                      ? event.currentTarget.value.trim()
+                      : null
+                })
+              }
+              placeholder="http://127.0.0.1:7419"
+            />
+          </SettingsControlRow>
+        ) : null}
+        <SettingsControlRow
+          description="Export/import encrypted HCB vaults from the CLI or MCP tools."
+          label="Vault path"
+        >
+          <Input
+            aria-label="HCB vault path"
+            defaultValue={settings.hcbVaultPath ?? ""}
+            onBlur={(event) =>
+              updateSettings({
+                hcbVaultPath:
+                  event.currentTarget.value.trim().length > 0
+                    ? event.currentTarget.value.trim()
+                    : null
+              })
+            }
+            placeholder="unset"
+          />
+        </SettingsControlRow>
+        <SettingsSwitch
+          checked={settings.localHostersEnabled}
+          description="Starts the local HCB hoster signal server when the app is running."
+          label="Local hoster server"
+          onChange={(checked) => updateSettings({ localHostersEnabled: checked })}
+        />
+        <SettingsControlRow label="Local hoster port">
+          <Input
+            aria-label="Local hoster port"
+            defaultValue={String(settings.localHosterPort)}
+            max={65535}
+            min={0}
+            onBlur={(event) => updateSettings({ localHosterPort: Number(event.currentTarget.value) || 0 })}
+            type="number"
+          />
+        </SettingsControlRow>
       </SettingsGroup>
 
       <SettingsGroup title={t("diagnostics.title")}>

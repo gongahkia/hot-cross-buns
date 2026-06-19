@@ -34,7 +34,9 @@ async function main(): Promise<void> {
   registry.setAdminServices({
     settings: {
       get: () => ({}) as never,
-      update: (request) => ({ kind: "settings", ...request }) as never
+      update: (request) => ({ kind: "settings", ...request }) as never,
+      exportHcbVault: (request) => ({ kind: "hcbVaultExport", ...request }) as never,
+      importHcbVault: (request) => ({ kind: "hcbVaultImport", ...request }) as never
     },
     google: {
       status: () => ({}) as never,
@@ -75,6 +77,13 @@ async function main(): Promise<void> {
     await expectCommand(["get", "task", "task-1"], "HCB task", runtimeFile, token);
     await expectCommand(["undo-status"], "HCB undo status", runtimeFile, token);
     await expectCommand(["pending-mutations"], "mutation-1", runtimeFile, token);
+    await expectCommand(["backend", "status"], "HCB backend", runtimeFile, token);
+    const backendPreview = await expectCommand(["backend", "set", "hcb-local"], "HCB backend hcb-local: dry-run", runtimeFile, token);
+    const backendConfirmationId = confirmationIdFromOutput(backendPreview);
+    await expectCommand(["backend", "set", "hcb-local", "--apply", "--confirmation-id", backendConfirmationId], "HCB backend hcb-local: applied", runtimeFile, token);
+    const vaultEnv = { HCB_VAULT_PASSPHRASE: "smoke vault passphrase" };
+    await expectCommand(["vault", "export", "--out", join(directory, "smoke.hcbvault"), "--passphrase-env", "HCB_VAULT_PASSPHRASE"], "HCB vault export: dry-run", runtimeFile, token, vaultEnv);
+    await expectCommand(["vault", "import", join(directory, "smoke.hcbvault"), "--passphrase-env", "HCB_VAULT_PASSPHRASE"], "HCB vault import: dry-run", runtimeFile, token, vaultEnv);
     await expectCommand(["sync-now", "--resources", "tasks"], "HCB sync-now: dry-run", runtimeFile, token);
     await expectCommand(["retry-mutation", "mutation-1"], "HCB retry-mutation: dry-run", runtimeFile, token);
     await expectCommand(["cancel-mutation", "mutation-1"], "HCB cancel-mutation: dry-run", runtimeFile, token);
