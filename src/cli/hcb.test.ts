@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -300,8 +300,20 @@ describe("hcb CLI", () => {
       id: "hoster-1",
       privatePayload: true
     });
+    expect(parseCommand(["hoster", "signal", "hoster-1", "--tool", "hcb_status", "--arguments-json", "{\"limit\":1}", "--request-id", "request-1"])).toMatchObject({
+      command: "hoster",
+      action: "signal",
+      id: "hoster-1",
+      toolName: "hcb_status",
+      argumentsJson: { limit: 1 },
+      requestId: "request-1"
+    });
     expect(parseCommand(["tui"])).toMatchObject({
       command: "tui"
+    });
+    expect(parseCommand(["completion", "zsh"])).toMatchObject({
+      command: "completion",
+      shell: "zsh"
     });
     expect(() => parseCommand(["search", "launch", "--scope", "invalid"])).toThrow("Scope");
     expect(() => parseCommand(["week", "--start-date", "not-a-date"])).toThrow("Start date");
@@ -348,7 +360,10 @@ describe("hcb CLI", () => {
     expect(() => parseCommand(["hoster", "import"])).toThrow("Usage");
     expect(() => parseCommand(["hoster", "remove"])).toThrow("Usage");
     expect(() => parseCommand(["hoster", "status", "--apply"])).toThrow("--apply");
+    expect(() => parseCommand(["hoster", "signal", "hoster-1"])).toThrow("--tool");
+    expect(() => parseCommand(["status", "--tool", "hcb_status"])).toThrow("--tool");
     expect(() => parseCommand(["tui", "extra"])).toThrow("Usage");
+    expect(() => parseCommand(["completion", "powershell"])).toThrow("Completion shell");
   });
 
   it("calls MCP status through the runtime file without exposing the bearer token", async () => {
@@ -1920,6 +1935,100 @@ describe("hcb CLI", () => {
       expect(called).toBe(false);
       expect(stderr.text()).toContain("HCB_HOSTER_PASSPHRASE");
       expect(stdout.text()).toBe("");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("prints shell completion and exposes an hcb bin", async () => {
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+
+    expect(await runHcbCli(["completion", "bash"], { stdout, stderr })).toBe(0);
+    expect(stdout.text()).toContain("complete -F _hcb_complete hcb");
+    expect(stdout.text()).toContain("hoster");
+    expect(stderr.text()).toBe("");
+
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<string, unknown>;
+    const bin = packageJson.bin as Record<string, string>;
+    expect(bin.hcb).toBe("bin/hcb.js");
+    expect(existsSync(join(process.cwd(), "bin", "hcb.js"))).toBe(true);
+  });
+
+  it("sends a raw hoster signal through the local hoster endpoint", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-hoster-signal-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (url, init) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      calls.push({ url, body });
+
+      if (url.endsWith("/mcp")) {
+        return {
+          status: 200,
+          json: async () => rpcResponse({
+            applied: false,
+            dryRun: false,
+            requiresConfirmation: false,
+            message: "Read local hoster status.",
+            item: {
+              enabled: true,
+              running: true,
+              port: 4778,
+              profiles: [
+                {
+                  id: "hoster-1",
+                  name: "Terminal",
+                  capabilities: ["host.info", "signal.send", "planner.read"],
+                  permissionMode: "read-only",
+                  endpoint: "http://127.0.0.1:4778/hcb/v1/signal",
+                  keyFingerprint: "0".repeat(64),
+                  createdAt: "2026-06-19T00:00:00.000Z",
+                  updatedAt: "2026-06-19T00:00:00.000Z"
+                }
+              ]
+            }
+          }),
+          text: async () => ""
+        };
+      }
+
+      return {
+        status: 200,
+        json: async () => ({}),
+        text: async () => JSON.stringify({
+          kind: "localHosterSignal",
+          profileId: "hoster-1",
+          requestId: "request-1",
+          result: { message: "ok" }
+        })
+      };
+    };
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      expect(await runHcbCli(["hoster", "signal", "hoster-1", "--tool", "hcb_status", "--arguments-json", "{\"limit\":1}", "--request-id", "request-1"], {
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch
+      })).toBe(0);
+
+      expect(stdout.text()).toContain("hoster signal");
+      expect(calls[1].url).toBe("http://127.0.0.1:4778/hcb/v1/signal");
+      expect(calls[1].body).toMatchObject({
+        profileId: "hoster-1",
+        payload: {
+          formatVersion: 1,
+          requestId: "request-1",
+          toolName: "hcb_status",
+          arguments: { limit: 1 }
+        }
+      });
+      expect(stderr.text()).toBe("");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

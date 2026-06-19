@@ -83,6 +83,7 @@ interface ParsedCommand {
     | "mcp"
     | "hoster"
     | "tui"
+    | "completion"
     | "help";
   json: boolean;
   limit?: number;
@@ -143,6 +144,10 @@ interface ParsedCommand {
   path?: string;
   privatePayload?: boolean;
   passphraseEnv?: string;
+  shell?: "bash" | "zsh" | "fish";
+  toolName?: string;
+  argumentsJson?: JsonObject;
+  requestId?: string;
 }
 
 interface RuntimeTarget {
@@ -170,6 +175,11 @@ export async function runHcbCli(
 
     if (command.command === "help") {
       stdout.write(helpText());
+      return 0;
+    }
+
+    if (command.command === "completion") {
+      stdout.write(completionScript(command.shell ?? "bash"));
       return 0;
     }
 
@@ -544,6 +554,27 @@ export function parseCommand(argv: string[]): ParsedCommand {
       continue;
     }
 
+    if (arg === "--arguments-json") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.argumentsJson = parsePatchJson(value);
+      continue;
+    }
+
+    if (arg === "--tool") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.toolName = optionValue(value, "--tool");
+      continue;
+    }
+
+    if (arg === "--request-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.requestId = optionValue(value, "--request-id");
+      continue;
+    }
+
     if (arg === "--client-id") {
       const value = args[index + 1];
       index += 1;
@@ -763,7 +794,7 @@ export function parseCommand(argv: string[]): ParsedCommand {
     parsed.action = parseHosterAction(positional[0]);
     parsed.target = "hoster";
 
-    if (parsed.action === "export" || parsed.action === "remove" || parsed.action === "test") {
+    if (parsed.action === "export" || parsed.action === "remove" || parsed.action === "test" || parsed.action === "signal") {
       parsed.id = positional[1];
     }
 
@@ -774,6 +805,7 @@ export function parseCommand(argv: string[]): ParsedCommand {
     const validPositionalCount =
       (parsed.action === "status" || parsed.action === "create") ? positional.length === 1 :
       parsed.action === "test" ? positional.length === 1 || positional.length === 2 :
+      parsed.action === "signal" ? positional.length === 2 :
       parsed.action === "import" && parsed.path !== undefined ? positional.length === 1 || positional.length === 2 :
       positional.length === 2;
 
@@ -785,6 +817,11 @@ export function parseCommand(argv: string[]): ParsedCommand {
   } else if (command === "tui") {
     if (positional.length !== 0) {
       throw new CliError("Usage: pnpm hcb -- tui", 2);
+    }
+  } else if (command === "completion") {
+    parsed.shell = parseCompletionShell(positional[0] ?? "bash");
+    if (positional.length > 1) {
+      throw new CliError("Usage: hcb completion [bash|zsh|fish]", 2);
     }
   } else if (positional.length > 0) {
     throw new CliError(`Unexpected argument '${positional[0]}'.`, 2);
@@ -799,6 +836,10 @@ export function parseCommand(argv: string[]): ParsedCommand {
     (command !== "complete" && command !== "reopen" || parsed.target !== "event")
   ) {
     throw new CliError("--scope is only supported by complete/reopen event.", 2);
+  }
+
+  if ((parsed.toolName !== undefined || parsed.argumentsJson !== undefined || parsed.requestId !== undefined) && !(command === "hoster" && parsed.action === "signal")) {
+    throw new CliError("--tool, --arguments-json, and --request-id are only supported by hoster signal.", 2);
   }
 
   if ((parsed.to !== undefined || parsed.sourceAction !== undefined) && command !== "convert") {
@@ -850,6 +891,10 @@ export async function callCommand(
 ): Promise<McpToolResponse> {
   if (command.command === "export-diagnostics") {
     return callDiagnosticsExport(command, dependencies);
+  }
+
+  if (command.command === "hoster" && command.action === "signal") {
+    return callHosterSignal(command, dependencies);
   }
 
   const tool = toolName(command);
@@ -1200,6 +1245,72 @@ async function callDiagnosticsExport(
       pendingMutations: mutations.items ?? [],
       warningLogs: warningLogs.items ?? [],
       errorLogs: errorLogs.items ?? []
+    }
+  };
+}
+
+async function callHosterSignal(
+  command: ParsedCommand,
+  dependencies: HcbCliDependencies = {}
+): Promise<McpToolResponse> {
+  const id = command.id ?? "";
+  const toolName = command.toolName ?? "";
+  if (!id) {
+    throw new CliError("hoster signal requires <id>.", 2);
+  }
+  if (!toolName) {
+    throw new CliError("hoster signal requires --tool <name>.", 2);
+  }
+  const target = discoverRuntime(dependencies);
+  const token = await tokenProvider(dependencies)();
+  const status = await callMcpToolWithAuth("hcb_hoster_status", {}, dependencies, target, token);
+  const hosterStatus = asObject(status.item) ?? {};
+  const profile = objectArray(hosterStatus.profiles).find((item) => item.id === id);
+  const endpoint = typeof profile?.endpoint === "string" ? profile.endpoint : undefined;
+  if (!endpoint) {
+    throw new CliError(`Hoster profile ${id} was not found or has no endpoint.`, 1);
+  }
+  const payload = {
+    formatVersion: 1,
+    requestId: command.requestId ?? `cli:${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    toolName,
+    arguments: command.argumentsJson ?? {}
+  };
+  const response = await fetchImpl(dependencies)(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": "hcb-cli/1.0"
+    },
+    body: JSON.stringify({
+      profileId: id,
+      payload
+    })
+  });
+  const textBody = await response.text();
+  let body: JsonObject = {};
+  try {
+    body = JSON.parse(textBody) as JsonObject;
+  } catch {
+    body = { body: textBody };
+  }
+  if (response.status < 200 || response.status >= 300) {
+    throw new CliError(`Hoster signal failed with HTTP ${response.status}: ${textBody}`, 1);
+  }
+
+  return {
+    applied: false,
+    dryRun: false,
+    requiresConfirmation: false,
+    message: "Sent local hoster signal.",
+    item: {
+      kind: "hosterSignal",
+      status: response.status,
+      profileId: id,
+      requestId: payload.requestId,
+      response: body
     }
   };
 }
@@ -1981,8 +2092,8 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
       return formatWrite(command, response);
     }
 
-    return command.action === "test"
-      ? formatDetail("hoster test", response.item ?? {})
+    return command.action === "test" || command.action === "signal"
+      ? formatDetail(command.action === "signal" ? "hoster signal" : "hoster test", response.item ?? {})
       : formatHosterStatus(response.item ?? {});
   }
 
@@ -2166,6 +2277,9 @@ function writeJsonOutput(command: ParsedCommand, response: McpToolResponse): Rec
   const applyCommand = writeApplyCommand(command, response);
 
   return {
+    kind: "hcbCliResult",
+    schemaVersion: 1,
+    command: command.command,
     tool: toolName(command),
     target: command.target ?? command.command,
     ...response,
@@ -2184,7 +2298,7 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
 
   const args = writeCommandPrefix(command);
 
-  if (command.id !== undefined) {
+  if (command.id !== undefined && command.command !== "hoster") {
     args.push(command.id);
   }
 
@@ -2439,7 +2553,7 @@ function formatCompactItem(item: JsonObject): string {
 
 function helpText(): string {
   return [
-    "Usage: pnpm hcb -- <command> [options]",
+    "Usage: hcb <command> [options]  (or: pnpm hcb -- <command> [options])",
     "",
     "Commands:",
     "  doctor [--json]                         run agent-friendly diagnostics",
@@ -2479,7 +2593,9 @@ function helpText(): string {
     "  hoster import <path>                    dry-run import encrypted .hcbhost",
     "  hoster remove <id>                      dry-run remove local hoster profile",
     "  hoster test [id]                        test signal encryption round-trip",
+    "  hoster signal <id> --tool <name>        send raw local hoster signal",
     "  tui                                     open terminal dashboard",
+    "  completion [bash|zsh|fish]              print shell completion",
     "  log [-n <limit>] [--level <level>]      show sanitized recent logs",
     "  diff [--limit <limit>] [--json]         show pending local-to-Google mutations",
     "  show <kind> [id] [--json]               show task, event, note, mutation, or diagnostics",
@@ -2526,12 +2642,79 @@ function helpText(): string {
     "  pnpm hcb -- hoster status",
     "  pnpm hcb -- hoster create --name local --permission-mode confirm-writes",
     "  pnpm hcb -- hoster export hoster-id --out /tmp/local.hcbhost --passphrase-env HCB_HOSTER_PASSPHRASE",
+    "  hcb hoster signal hoster-id --tool hcb_status --arguments-json '{}'",
+    "  hcb completion zsh > ~/.zsh/completions/_hcb",
     "  pnpm hcb -- tui",
     "  pnpm hcb -- status",
     "  pnpm hcb -- log -n 20 --level warn",
     "  pnpm hcb -- diff --json",
     "  pnpm hcb -- show task task-id"
   ].join("\n") + "\n";
+}
+
+function completionScript(shell: "bash" | "zsh" | "fish"): string {
+  const commands = [
+    "doctor", "status", "search", "today", "week", "brief", "plan", "tail",
+    "export-diagnostics", "undo-status", "sync-now", "pending-mutations",
+    "retry-mutation", "cancel-mutation", "list", "get", "create", "update",
+    "convert", "rename", "complete", "reopen", "move", "delete", "undo",
+    "redo", "schedule", "settings", "google", "mcp", "hoster", "tui",
+    "completion", "help"
+  ];
+  const hosterActions = ["status", "create", "export", "import", "remove", "test", "signal"];
+  const options = [
+    "--json", "--limit", "--level", "--scope", "--start-date", "--apply",
+    "--confirmation-id", "--name", "--permission-mode", "--out", "--path",
+    "--private", "--passphrase-env", "--tool", "--arguments-json", "--request-id"
+  ];
+  if (shell === "zsh") {
+    return [
+      "#compdef hcb",
+      "_hcb() {",
+      "  local -a commands hoster_actions options",
+      `  commands=(${commands.map((item) => `${item}:`).join(" ")})`,
+      `  hoster_actions=(${hosterActions.map((item) => `${item}:`).join(" ")})`,
+      `  options=(${options.map((item) => `${item}`).join(" ")})`,
+      "  if [[ ${words[2]} == hoster ]]; then",
+      "    _describe 'hoster action' hoster_actions && return",
+      "  fi",
+      "  _describe 'command' commands || _values 'option' $options",
+      "}",
+      "_hcb",
+      ""
+    ].join("\n");
+  }
+  if (shell === "fish") {
+    return [
+      ...commands.map((item) => `complete -c hcb -f -n '__fish_use_subcommand' -a '${item}'`),
+      ...hosterActions.map((item) => `complete -c hcb -f -n '__fish_seen_subcommand_from hoster' -a '${item}'`),
+      ...options.map((item) => `complete -c hcb -l ${item.slice(2)}`),
+      ""
+    ].join("\n");
+  }
+
+  return [
+    "_hcb_complete() {",
+    "  local cur prev commands hoster_actions options",
+    "  COMPREPLY=()",
+    "  cur=\"${COMP_WORDS[COMP_CWORD]}\"",
+    "  prev=\"${COMP_WORDS[COMP_CWORD-1]}\"",
+    `  commands=\"${commands.join(" ")}\"`,
+    `  hoster_actions=\"${hosterActions.join(" ")}\"`,
+    `  options=\"${options.join(" ")}\"`,
+    "  if [[ ${COMP_WORDS[1]} == hoster && ${COMP_CWORD} -eq 2 ]]; then",
+    "    COMPREPLY=( $(compgen -W \"$hoster_actions\" -- \"$cur\") )",
+    "    return 0",
+    "  fi",
+    "  if [[ $cur == --* ]]; then",
+    "    COMPREPLY=( $(compgen -W \"$options\" -- \"$cur\") )",
+    "  else",
+    "    COMPREPLY=( $(compgen -W \"$commands\" -- \"$cur\") )",
+    "  fi",
+    "}",
+    "complete -F _hcb_complete hcb",
+    ""
+  ].join("\n");
 }
 
 function toolName(command: ParsedCommand): string {
@@ -2767,7 +2950,8 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "google" ||
     command === "mcp" ||
     command === "hoster" ||
-    command === "tui"
+    command === "tui" ||
+    command === "completion"
   );
 }
 
@@ -3130,12 +3314,21 @@ function parseHosterAction(value: string | undefined): string {
     value === "export" ||
     value === "import" ||
     value === "remove" ||
-    value === "test"
+    value === "test" ||
+    value === "signal"
   ) {
     return value;
   }
 
-  throw new CliError("Hoster action must be one of: status, create, export, import, remove, test.", 2);
+  throw new CliError("Hoster action must be one of: status, create, export, import, remove, test, signal.", 2);
+}
+
+function parseCompletionShell(value: string): "bash" | "zsh" | "fish" {
+  if (value === "bash" || value === "zsh" || value === "fish") {
+    return value;
+  }
+
+  throw new CliError("Completion shell must be bash, zsh, or fish.", 2);
 }
 
 function parsePermissionMode(value: string | undefined): string {
@@ -3450,6 +3643,11 @@ function validateHosterCommand(command: ParsedCommand): void {
     rejectUnsupportedOptions(command, "hoster remove", ["name", "permissionMode", "out", "path", "privatePayload", "passphraseEnv"]);
   } else if (command.action === "test") {
     rejectUnsupportedOptions(command, "hoster test", ["name", "permissionMode", "out", "path", "passphraseEnv", "apply", "confirmationId"]);
+  } else if (command.action === "signal") {
+    if (command.id === undefined || command.toolName === undefined) {
+      throw new CliError("Usage: hcb hoster signal <id> --tool <name> [--arguments-json '{}']", 2);
+    }
+    rejectUnsupportedOptions(command, "hoster signal", ["name", "permissionMode", "out", "path", "passphraseEnv", "privatePayload", "apply", "confirmationId"]);
   }
 }
 

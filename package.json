@@ -5,6 +5,9 @@
   "description": "Electron-first rebuild of Hot Cross Buns.",
   "author": "gongahkia",
   "main": "out/main/index.js",
+  "bin": {
+    "hcb": "bin/hcb.js"
+  },
   "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=20.0.0"
