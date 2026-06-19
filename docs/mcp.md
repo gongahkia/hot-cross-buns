@@ -52,9 +52,12 @@ Read tools:
 - `hcb_list_task_lists`
 - `hcb_list_note_lists`
 - `hcb_list_calendars`
+- `hcb_backend_status`
+- `hcb_vault_remote_status`
 
 Write tools:
 
+- `hcb_sync_now`
 - `hcb_create_task`
 - `hcb_create_note`
 - `hcb_create_event`
@@ -69,6 +72,11 @@ Write tools:
 - `hcb_move_task`
 - `hcb_delete_task`
 - `hcb_delete_event`
+- `hcb_backend_set`
+- `hcb_vault_export`
+- `hcb_vault_import`
+- `hcb_vault_remote_push`
+- `hcb_vault_remote_pull`
 
 Tool responses include `applied`, `dryRun`, `requiresConfirmation`, optional `confirmationId`, `message`, and sanitized `item` or `items`. Task and event responses include `hotcrossbuns://` deep links for review in the app.
 

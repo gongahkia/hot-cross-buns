@@ -199,6 +199,11 @@ hcb tui
 hcb completion zsh
 ```
 
+In `hcb tui`, `view vault`, `vault status`, `vault push`, and `vault pull`
+operate on the configured vault host. Push and pull use the standard dry-run
+then apply flow. When Settings saved vault-host credentials, TUI vault commands
+use those credentials without echoing token or passphrase values in previews.
+
 Writes use the standard dry-run/apply contract. `--passphrase-env` names an
 environment variable; passphrases are not accepted as argv literals.
 

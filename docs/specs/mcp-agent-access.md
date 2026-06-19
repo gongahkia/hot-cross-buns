@@ -41,6 +41,8 @@ Every write tool must accept `dryRun`.
 - `hcb_list_task_lists`
 - `hcb_list_note_lists`
 - `hcb_list_calendars`
+- `hcb_backend_status`
+- `hcb_vault_remote_status`
 
 ## Required Write Tools
 
@@ -57,6 +59,12 @@ Every write tool must accept `dryRun`.
 - `hcb_complete_task`
 - `hcb_reopen_task`
 - `hcb_move_task`
+- `hcb_sync_now`
+- `hcb_backend_set`
+- `hcb_vault_export`
+- `hcb_vault_import`
+- `hcb_vault_remote_push`
+- `hcb_vault_remote_pull`
 - `hcb_delete_task`
 - `hcb_delete_note`
 - `hcb_delete_event`

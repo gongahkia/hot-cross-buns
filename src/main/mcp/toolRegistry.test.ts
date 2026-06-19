@@ -724,7 +724,10 @@ describe("McpToolRegistry advanced writes", () => {
           return { mcpEnabled: true } as never;
         },
         exportHcbVault: () => ({}) as never,
-        importHcbVault: () => ({}) as never
+        importHcbVault: () => ({}) as never,
+        hcbVaultRemoteStatus: () => ({}) as never,
+        pushHcbVaultRemote: () => ({}) as never,
+        pullHcbVaultRemote: () => ({}) as never
       },
       google: {
         status: () => ({}) as never,
@@ -792,6 +795,125 @@ describe("McpToolRegistry advanced writes", () => {
     expect(google.item).toMatchObject({ kind: "googleStatus", hasClientSecret: false });
     expect(oauth.item).toMatchObject({ openedExternalBrowser: true });
     expect(mcp.item).toMatchObject({ kind: "mcpStatus", enabled: true });
+  });
+
+  it("runs remote vault MCP tools without echoing bearer tokens or passphrases", async () => {
+    const remoteCalls: unknown[] = [];
+    const registry = new McpToolRegistry(createMcpTestDomainServices());
+    registry.setAdminServices({
+      settings: {
+        get: () => ({}) as never,
+        update: () => ({}) as never,
+        exportHcbVault: () => ({}) as never,
+        importHcbVault: () => ({}) as never,
+        hcbVaultRemoteStatus: (request) => {
+          remoteCalls.push({ action: "status", request });
+          return {
+            endpoint: request.endpoint ?? "https://pi.local/hcb/v1/vault",
+            remote: {
+              kind: "hcbVaultHostInfo",
+              protocolVersion: 1,
+              hcbVaultFormatVersions: [1],
+              routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+              hasVault: true,
+              vaultName: "current.hcbvault",
+              maxPackageBytes: 134217728
+            }
+          } as never;
+        },
+        pushHcbVaultRemote: (request) => {
+          remoteCalls.push({ action: "push", request });
+          return {
+            endpoint: request.endpoint ?? "https://pi.local/hcb/v1/vault",
+            exportedAt: "2026-06-19T00:00:00.000Z",
+            path: "/tmp/current.hcbvault",
+            manifest: {},
+            remote: {}
+          } as never;
+        },
+        pullHcbVaultRemote: (request) => {
+          remoteCalls.push({ action: "pull", request });
+          return {
+            endpoint: request.endpoint ?? "https://pi.local/hcb/v1/vault",
+            importedAt: "2026-06-19T00:00:00.000Z",
+            backupPath: "/tmp/hcb-backup.sqlite3",
+            manifest: {},
+            remote: {}
+          } as never;
+        }
+      },
+      google: {
+        status: () => ({}) as never,
+        saveOAuthClient: () => ({}) as never,
+        beginOAuth: () => ({}) as never
+      },
+      mcp: {
+        status: () => ({}) as never,
+        setEnabled: () => ({}) as never
+      },
+      hosters: {
+        status: () => ({ enabled: false, running: false, port: 0, profiles: [] }),
+        create: () => ({}) as never,
+        export: () => ({}) as never,
+        import: () => ({}) as never,
+        remove: () => ({}) as never,
+        test: () => ({}) as never
+      }
+    });
+
+    const status = await registry.callTool("hcb_vault_remote_status", {}, allowWritesContext);
+    const pushPreview = await registry.callTool(
+      "hcb_vault_remote_push",
+      {
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "secret-token",
+        passphrase: "secret-passphrase",
+        dryRun: true
+      },
+      confirmWritesContext
+    );
+    const pushApply = await registry.callTool(
+      "hcb_vault_remote_push",
+      { endpoint: "https://pi.local/hcb/v1/vault" },
+      allowWritesContext
+    );
+    const pullPreview = await registry.callTool(
+      "hcb_vault_remote_pull",
+      {
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "secret-token",
+        passphrase: "secret-passphrase",
+        dryRun: true
+      },
+      confirmWritesContext
+    );
+    const pullApply = await registry.callTool(
+      "hcb_vault_remote_pull",
+      {
+        endpoint: "https://pi.local/hcb/v1/vault",
+        confirmationId: pullPreview.confirmationId
+      },
+      confirmWritesContext
+    );
+
+    expect(JSON.stringify(pushPreview)).not.toContain("secret-token");
+    expect(JSON.stringify(pushPreview)).not.toContain("secret-passphrase");
+    expect(JSON.stringify(pullPreview)).not.toContain("secret-token");
+    expect(JSON.stringify(pullPreview)).not.toContain("secret-passphrase");
+    expect(status.item).toMatchObject({ endpoint: "https://pi.local/hcb/v1/vault" });
+    expect(pushApply.applied).toBe(true);
+    expect(pullApply.applied).toBe(true);
+    expect(remoteCalls).toEqual([
+      { action: "status", request: {} },
+      { action: "push", request: { endpoint: "https://pi.local/hcb/v1/vault" } },
+      {
+        action: "pull",
+        request: {
+          endpoint: "https://pi.local/hcb/v1/vault",
+          confirm: true
+        }
+      }
+    ]);
   });
 });
 

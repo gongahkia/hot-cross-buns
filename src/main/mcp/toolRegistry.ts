@@ -40,6 +40,7 @@ const readToolNames = [
   "hcb_undo_status",
   "hcb_pending_mutations",
   "hcb_backend_status",
+  "hcb_vault_remote_status",
   "hcb_hoster_status",
   "hcb_hoster_test"
 ] as const;
@@ -69,6 +70,8 @@ const writeToolNames = [
   "hcb_backend_set",
   "hcb_vault_export",
   "hcb_vault_import",
+  "hcb_vault_remote_push",
+  "hcb_vault_remote_pull",
   "hcb_google_save_oauth_client",
   "hcb_google_begin_oauth",
   "hcb_mcp_set_enabled",
@@ -94,6 +97,7 @@ const destructiveToolNames = new Set<string>([
   "hcb_convert_item",
   "hcb_cancel_mutation",
   "hcb_vault_import",
+  "hcb_vault_remote_pull",
   "hcb_hoster_remove",
   "hcb_undo",
   "hcb_redo"
@@ -156,6 +160,11 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     limit: integerSchema("Maximum pending mutation count.")
   }),
   readTool("hcb_backend_status", "Read current HCB storage backend and local vault settings.", {}),
+  readTool("hcb_vault_remote_status", "Inspect the configured HCB vault host using saved or supplied credentials.", {
+    endpoint: stringSchema("Optional vault host endpoint URL. Defaults to configured HCB hoster endpoint."),
+    token: stringSchema("Optional vault host bearer token. Omit to use saved OS credentials."),
+    allowInsecureHttp: booleanSchema("Allow non-loopback HTTP for trusted LAN testing.")
+  }),
   readTool("hcb_hoster_status", "Read local hoster status and configured profiles.", {}),
   readTool("hcb_hoster_test", "Run a local hoster signal encryption round-trip.", {
     id: stringSchema("Optional hoster profile id."),
@@ -340,6 +349,23 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["path", "passphrase"]),
+  writeTool("hcb_vault_remote_push", "Push the current encrypted .hcbvault to the configured vault host.", false, {
+    endpoint: stringSchema("Optional vault host endpoint URL. Defaults to configured HCB hoster endpoint."),
+    token: stringSchema("Optional vault host bearer token. Omit to use saved OS credentials."),
+    passphrase: stringSchema("Optional vault passphrase. Omit to use saved OS credentials."),
+    out: stringSchema("Optional local .hcbvault output path before upload."),
+    allowInsecureHttp: booleanSchema("Allow non-loopback HTTP for trusted LAN testing."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }),
+  writeTool("hcb_vault_remote_pull", "Pull and import an encrypted .hcbvault from the configured vault host. Always requires confirmation.", true, {
+    endpoint: stringSchema("Optional vault host endpoint URL. Defaults to configured HCB hoster endpoint."),
+    token: stringSchema("Optional vault host bearer token. Omit to use saved OS credentials."),
+    passphrase: stringSchema("Optional vault passphrase. Omit to use saved OS credentials."),
+    allowInsecureHttp: booleanSchema("Allow non-loopback HTTP for trusted LAN testing."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }),
   writeTool("hcb_google_save_oauth_client", "Save Google OAuth client configuration.", false, {
     clientId: stringSchema("Google OAuth client id."),
     clientSecret: stringSchema("Optional Google OAuth client secret."),
@@ -654,6 +680,13 @@ export class McpToolRegistry {
           }
         });
       }
+      case "hcb_vault_remote_status":
+        return success({
+          message: "Read HCB vault host status.",
+          item: await this.requireAdminServices().settings.hcbVaultRemoteStatus(
+            vaultRemoteRequest(argumentsObject)
+          )
+        });
       case "hcb_hoster_status":
         return success({
           message: "Read local hoster status.",
@@ -943,6 +976,26 @@ export class McpToolRegistry {
         apply: (args) => this.requireAdminServices().settings.importHcbVault({
           path: requiredString(args, "path"),
           passphrase: requiredString(args, "passphrase")
+        })
+      },
+      hcb_vault_remote_push: {
+        preview: (args) => ({
+          kind: "hcbVaultRemotePush",
+          ...vaultRemotePreview(args)
+        }),
+        apply: (args) => this.requireAdminServices().settings.pushHcbVaultRemote(
+          vaultRemoteRequest(args)
+        )
+      },
+      hcb_vault_remote_pull: {
+        preview: (args) => ({
+          kind: "hcbVaultRemotePull",
+          destructive: true,
+          ...vaultRemotePreview(args)
+        }),
+        apply: (args) => this.requireAdminServices().settings.pullHcbVaultRemote({
+          ...vaultRemoteRequest(args),
+          confirm: true
         })
       },
       hcb_google_save_oauth_client: {
@@ -1819,6 +1872,28 @@ function optionalString(args: Record<string, unknown>, key: string): string | un
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function vaultRemoteRequest(args: Record<string, unknown>) {
+  return {
+    ...(optionalString(args, "endpoint") === undefined ? {} : { endpoint: optionalString(args, "endpoint") }),
+    ...(optionalString(args, "token") === undefined ? {} : { token: optionalString(args, "token") }),
+    ...(optionalString(args, "passphrase") === undefined ? {} : { passphrase: optionalString(args, "passphrase") }),
+    ...(optionalString(args, "out") === undefined ? {} : { out: optionalString(args, "out") }),
+    ...(optionalBoolean(args, "allowInsecureHttp") === undefined
+      ? {}
+      : { allowInsecureHttp: optionalBoolean(args, "allowInsecureHttp") })
+  };
+}
+
+function vaultRemotePreview(args: Record<string, unknown>): JsonObject {
+  return {
+    ...(optionalString(args, "endpoint") === undefined ? {} : { endpoint: optionalString(args, "endpoint") }),
+    hasToken: optionalString(args, "token") !== undefined,
+    hasPassphrase: optionalString(args, "passphrase") !== undefined,
+    ...(optionalString(args, "out") === undefined ? {} : { out: optionalString(args, "out") }),
+    allowInsecureHttp: optionalBoolean(args, "allowInsecureHttp") === true
+  };
 }
 
 function requiredBackend(args: Record<string, unknown>): "google" | "hcb-local" | "hcb-hoster" {

@@ -37,7 +37,10 @@ async function main(): Promise<void> {
       get: () => ({}) as never,
       update: (request) => ({ kind: "settings", ...request }) as never,
       exportHcbVault: (request) => ({ kind: "hcbVaultExport", ...request }) as never,
-      importHcbVault: (request) => ({ kind: "hcbVaultImport", ...request }) as never
+      importHcbVault: (request) => ({ kind: "hcbVaultImport", ...request }) as never,
+      hcbVaultRemoteStatus: (request) => ({ kind: "hcbVaultRemoteStatus", ...request }) as never,
+      pushHcbVaultRemote: (request) => ({ kind: "hcbVaultRemotePush", ...request }) as never,
+      pullHcbVaultRemote: (request) => ({ kind: "hcbVaultRemotePull", ...request }) as never
     },
     google: {
       status: () => ({}) as never,

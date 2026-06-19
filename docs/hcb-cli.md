@@ -36,7 +36,7 @@ hcb completion fish > ~/.config/fish/completions/hcb.fish
 ## Commands
 
 - `hcb completion zsh`: print shell completion for bash, zsh, or fish.
-- `hcb tui`: open the terminal dashboard with status, agenda, scoped search, level-filtered logs, pending mutation retry/cancel dry-runs, backend, hosters, detail panes, command history, resize-aware rendering, and dry-run/apply commands.
+- `hcb tui`: open the terminal dashboard with status, agenda, scoped search, level-filtered logs, pending mutation retry/cancel dry-runs, backend, vault host, hosters, detail panes, command history, resize-aware rendering, and dry-run/apply commands.
 - `pnpm hcb -- doctor`: run read-only diagnostics and show suggested next commands.
 - `pnpm hcb -- status`: show account, sync, cache, pending mutation, MCP, and build state.
 - `pnpm hcb -- search <query> --scope tasks`: search tasks, notes, events, lists, or calendars.
@@ -102,7 +102,7 @@ All commands accept `--json` for structured output. Write JSON output includes `
 3. Apply with the returned confirmation command.
 4. Export or import encrypted local state with `pnpm hcb -- vault export|import ... --passphrase-env <VAR>`.
 5. Host the encrypted vault on a Pi/laptop with `vault serve`, then `vault push` from one client and `vault pull --apply` on another.
-6. In TUI, run `view backend` to inspect the same state.
+6. In TUI, run `view backend` or `view vault` to inspect the same state. Run `vault status`, `vault push`, or `vault pull`; push/pull use the standard dry-run/apply flow and saved vault-host credentials when available.
 
 ## Agent Workflow
 

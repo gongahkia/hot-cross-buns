@@ -271,7 +271,16 @@ export interface McpDomainServices {
 }
 
 export interface McpAdminDomainServices {
-  settings: Pick<SettingsDomainService, "get" | "update" | "exportHcbVault" | "importHcbVault">;
+  settings: Pick<
+    SettingsDomainService,
+    | "get"
+    | "update"
+    | "exportHcbVault"
+    | "importHcbVault"
+    | "hcbVaultRemoteStatus"
+    | "pushHcbVaultRemote"
+    | "pullHcbVaultRemote"
+  >;
   google: Pick<GoogleControlDomainService, "status" | "saveOAuthClient" | "beginOAuth">;
   mcp: Pick<McpControlDomainService, "status" | "setEnabled">;
   hosters: LocalHosterDomainService;

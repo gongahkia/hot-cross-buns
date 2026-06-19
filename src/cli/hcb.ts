@@ -1700,7 +1700,7 @@ async function runHcbTui(
   });
 }
 
-type TuiView = "status" | "backend" | "today" | "week" | "search" | "logs" | "mutations" | "hosters";
+type TuiView = "status" | "backend" | "vault" | "today" | "week" | "search" | "logs" | "mutations" | "hosters";
 type TuiCall = (name: string, args: JsonObject) => Promise<McpToolResponse>;
 
 interface TuiPendingApply {
@@ -1738,19 +1738,21 @@ interface TuiState {
     logs: JsonObject[];
     mutations: JsonObject[];
     backend: JsonObject;
+    vault: JsonObject;
     hosters: JsonObject;
   };
   pendingApply?: TuiPendingApply;
 }
 
 function initialTuiState(): TuiState {
-  const views: TuiView[] = ["status", "backend", "today", "week", "search", "logs", "mutations", "hosters"];
+  const views: TuiView[] = ["status", "backend", "vault", "today", "week", "search", "logs", "mutations", "hosters"];
   return {
     views,
     view: "status",
     selected: {
       status: 0,
       backend: 0,
+      vault: 0,
       today: 0,
       week: 0,
       search: 0,
@@ -1776,15 +1778,26 @@ function initialTuiState(): TuiState {
       logs: [],
       mutations: [],
       backend: {},
+      vault: {},
       hosters: {}
     }
   };
 }
 
 async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
-  const [status, backend, today, week, mutations, logs, hosters] = await Promise.all([
+  const [status, backend, vault, today, week, mutations, logs, hosters] = await Promise.all([
     call("hcb_status", {}),
     call("hcb_backend_status", {}),
+    call("hcb_vault_remote_status", {}).catch((error) => ({
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: error instanceof Error ? error.message : "HCB vault host status failed.",
+      item: {
+        kind: "hcbVaultRemoteStatus",
+        error: error instanceof Error ? error.message : "HCB vault host status failed."
+      }
+    })),
     call("hcb_today", {}),
     call("hcb_week", {}),
     call("hcb_pending_mutations", { limit: 50 }),
@@ -1793,6 +1806,7 @@ async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
   ]);
   state.data.status = status.item ?? {};
   state.data.backend = backend.item ?? {};
+  state.data.vault = vault.item ?? {};
   state.data.today = today.item ?? {};
   state.data.week = week.item ?? {};
   state.data.mutations = mutations.items ?? [];
@@ -1850,7 +1864,7 @@ async function handleTuiInput(
   if (value === ":") {
     state.commandMode = true;
     state.commandBuffer = "";
-    state.message = "commands: search/logs/mutation/hoster/apply/view";
+    state.message = "commands: search/logs/mutation/backend/vault/hoster/apply/view";
     return;
   }
   if (value === "\r" || value === "\n") {
@@ -1950,7 +1964,7 @@ async function runTuiCommand(
   if (name === "view") {
     const view = rest[0];
     if (!isTuiView(view)) {
-      throw new CliError("view requires status, backend, today, week, search, logs, mutations, or hosters.", 2);
+      throw new CliError("view requires status, backend, vault, today, week, search, logs, mutations, or hosters.", 2);
     }
     state.view = view;
     state.message = `view ${view}`;
@@ -1967,6 +1981,10 @@ async function runTuiCommand(
   }
   if (name === "backend") {
     await runTuiBackendCommand(rest, state, call);
+    return;
+  }
+  if (name === "vault") {
+    await runTuiVaultCommand(rest, state, call);
     return;
   }
   if (name === "hoster") {
@@ -2148,6 +2166,56 @@ async function runTuiHosterCommand(
   throw new CliError("hoster command must be status, create, export, import, remove, or test.", 2);
 }
 
+async function runTuiVaultCommand(
+  args: string[],
+  state: TuiState,
+  call: TuiCall
+): Promise<void> {
+  const action = args[0] ?? "status";
+  const request = parseTuiVaultRemoteArgs(args.slice(1));
+  if (action === "status") {
+    const response = await call("hcb_vault_remote_status", request);
+    state.data.vault = response.item ?? {};
+    state.view = "vault";
+    state.message = response.message;
+    return;
+  }
+  if (action === "push") {
+    await runTuiDryRun(state, call, "vault push", "hcb_vault_remote_push", {
+      ...request,
+      dryRun: true
+    });
+    return;
+  }
+  if (action === "pull") {
+    await runTuiDryRun(state, call, "vault pull", "hcb_vault_remote_pull", {
+      ...request,
+      dryRun: true
+    });
+    return;
+  }
+
+  throw new CliError("vault command must be status, push, or pull.", 2);
+}
+
+function parseTuiVaultRemoteArgs(args: string[]): JsonObject {
+  const request: JsonObject = {};
+
+  for (const arg of args) {
+    if (arg === "--allow-insecure-http") {
+      request.allowInsecureHttp = true;
+      continue;
+    }
+    if (typeof request.endpoint !== "string") {
+      request.endpoint = arg;
+      continue;
+    }
+    throw new CliError(`Unknown vault option '${arg}'.`, 2);
+  }
+
+  return request;
+}
+
 async function runTuiBackendCommand(
   args: string[],
   state: TuiState,
@@ -2208,7 +2276,7 @@ function clampTuiSelection(state: TuiState): void {
 }
 
 function isTuiView(value: string): value is TuiView {
-  return ["status", "backend", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
+  return ["status", "backend", "vault", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
 }
 
 function recordTuiCommand(state: TuiState, command: string): void {
@@ -2347,7 +2415,7 @@ function formatTuiScreen(state: TuiState): string {
     "\x1b[2J\x1b[HHot Cross Buns 2 TUI",
     tabs,
     "keys: tab/arrow switch | j/k move | / search | : command | r refresh | q quit",
-    "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | backend ... | hoster ... | apply [id]",
+    "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | backend ... | vault ... | hoster ... | apply [id]",
     `Backend: ${backend} | Today: ${todayTasks} tasks, ${todayEvents} events | Pending mutations: ${mutationCount} | Hosters: ${hosterCount}`,
     pending,
     `status: ${state.message}`,
@@ -2395,6 +2463,27 @@ function tuiRowsForView(state: TuiState, view: TuiView): TuiRow[] {
       tuiRow(`vault ${text(backend.hcbVaultPath) || "unset"}`, backend),
       tuiRow(`hosterEndpoint ${text(backend.hcbHosterEndpoint) || "unset"}`, backend),
       tuiRow(`lists task=${text(backend.taskListCount)} calendar=${text(backend.calendarCount)}`, backend)
+    ];
+  }
+  if (view === "vault") {
+    const vault = state.data.vault;
+    const remote = asObject(vault.remote) ?? {};
+    const manifest = asObject(remote.manifest) ?? {};
+    const versions = Array.isArray(remote.hcbVaultFormatVersions)
+      ? remote.hcbVaultFormatVersions.map(text).join(",")
+      : text(remote.hcbVaultFormatVersions);
+    if (typeof vault.error === "string") {
+      return [
+        tuiRow(`vault status error=${text(vault.error)}`, vault),
+        tuiRow(`endpoint ${text(vault.endpoint) || text(state.data.backend.hcbHosterEndpoint) || "unset"}`, vault)
+      ];
+    }
+    return [
+      tuiRow(`endpoint ${text(vault.endpoint) || text(state.data.backend.hcbHosterEndpoint) || "unset"}`, vault),
+      tuiRow(`remote hasVault=${text(remote.hasVault)} name=${text(remote.vaultName) || "unset"}`, remote),
+      tuiRow(`format versions=${versions}`, remote),
+      tuiRow(`manifest exportedAt=${text(manifest.exportedAt) || "unset"}`, manifest),
+      tuiRow(`package maxBytes=${text(remote.maxPackageBytes) || "unknown"}`, remote)
     ];
   }
   if (view === "today") {

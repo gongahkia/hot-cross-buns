@@ -2159,6 +2159,12 @@ describe("hcb CLI", () => {
       await delay();
       stdin.send(":apply confirm-mutation\r");
       await delay();
+      stdin.send(":vault status\r");
+      await delay();
+      stdin.send(":vault push\r");
+      await delay();
+      stdin.send(":apply confirm-vault-push\r");
+      await delay();
       stdin.send("q");
 
       expect(await run).toBe(0);
@@ -2166,6 +2172,8 @@ describe("hcb CLI", () => {
       expect(stdout.text()).toContain("logs: level=info limit=7");
       expect(stdout.text()).toContain("search: launch");
       expect(stdout.text()).toContain("Applied mutation retry.");
+      expect(stdout.text()).toContain("Read HCB vault host status.");
+      expect(stdout.text()).toContain("Applied vault remote push.");
       expect(calls.filter((call) => call.name === "hcb_log" && call.args.level === "info" && call.args.limit === 7).length).toBeGreaterThanOrEqual(2);
       expect(calls).toContainEqual({
         name: "hcb_search",
@@ -2178,6 +2186,18 @@ describe("hcb CLI", () => {
       expect(calls).toContainEqual({
         name: "hcb_retry_mutation",
         args: { id: "mutation-1", dryRun: false, confirmationId: "confirm-mutation" }
+      });
+      expect(calls).toContainEqual({
+        name: "hcb_vault_remote_status",
+        args: {}
+      });
+      expect(calls).toContainEqual({
+        name: "hcb_vault_remote_push",
+        args: { dryRun: true }
+      });
+      expect(calls).toContainEqual({
+        name: "hcb_vault_remote_push",
+        args: { dryRun: false, confirmationId: "confirm-vault-push" }
       });
     } finally {
       rmSync(directory, { recursive: true, force: true });
@@ -2731,6 +2751,42 @@ function tuiStructuredResponse(name: string, args: Record<string, unknown> = {})
         health: "running",
         port: 4778,
         profiles: []
+      }
+    };
+  }
+
+  if (name === "hcb_vault_remote_status") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read HCB vault host status.",
+      item: {
+        endpoint: "https://pi.local/hcb/v1/vault",
+        remote: {
+          kind: "hcbVaultHostInfo",
+          protocolVersion: 1,
+          hcbVaultFormatVersions: [1],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: true,
+          vaultName: "current.hcbvault",
+          maxPackageBytes: 134217728
+        }
+      }
+    };
+  }
+
+  if (name === "hcb_vault_remote_push") {
+    const applied = args.dryRun === false;
+    return {
+      applied,
+      dryRun: !applied,
+      requiresConfirmation: !applied,
+      ...(applied ? {} : { confirmationId: "confirm-vault-push" }),
+      message: applied ? "Applied vault remote push." : "Vault remote push dry-run ready.",
+      item: {
+        kind: "hcbVaultRemotePush",
+        endpoint: "https://pi.local/hcb/v1/vault"
       }
     };
   }

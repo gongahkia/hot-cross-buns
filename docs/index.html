@@ -238,7 +238,7 @@
 
         <article class="menubar-item">
           <h3>CLI/TUI</h3>
-          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, vault import/export, and remote vault push/pull.</p>
+          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, vault import/export, remote vault push/pull, and saved-credential vault host controls.</p>
         </article>
       </div>
     </div>
@@ -414,7 +414,7 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
           <li>Added standalone vault hosting for trusted local machines with <code>hcb vault serve</code>, <code>remote-status</code>, <code>push</code>, and <code>pull</code>.</li>
           <li>Remote vault clients require HTTPS outside loopback unless the user explicitly allows insecure HTTP for trusted LAN testing.</li>
           <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
-          <li>Added MCP and CLI commands for backend status, backend switching, vault export, and vault import, plus a TUI backend view.</li>
+          <li>Added MCP and CLI commands for backend status, backend switching, vault export, vault import, remote vault status/push/pull, plus TUI backend and vault host views.</li>
           <li>Kept the local hoster signal path on bearer auth, loopback origin checks, replay receipts, rate limiting, and encrypted signal support.</li>
         </ul>
       </div>
