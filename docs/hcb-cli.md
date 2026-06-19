@@ -22,7 +22,7 @@ Electron `safeStorage` context.
 ## Commands
 
 - `hcb completion zsh`: print shell completion for bash, zsh, or fish.
-- `hcb tui`: open the terminal dashboard with status, agenda, search, logs, pending mutations, hosters, detail panes, and hoster dry-run/apply commands.
+- `hcb tui`: open the terminal dashboard with status, agenda, scoped search, level-filtered logs, pending mutation retry/cancel dry-runs, hosters, detail panes, command history, resize-aware rendering, and dry-run/apply commands.
 - `pnpm hcb -- doctor`: run read-only diagnostics and show suggested next commands.
 - `pnpm hcb -- status`: show account, sync, cache, pending mutation, MCP, and build state.
 - `pnpm hcb -- search <query> --scope tasks`: search tasks, notes, events, lists, or calendars.

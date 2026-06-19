@@ -9,7 +9,22 @@ import { MacOsKeychainSecretStore } from "@main/credentials/secretStore";
 import { KeychainMcpCredentialAdapter } from "@main/mcp/keychainCredentials";
 import type { JsonObject, McpToolResponse } from "@main/mcp/types";
 
-type Output = Pick<typeof process.stdout, "write">;
+interface Output {
+  write: (chunk: string | Uint8Array) => boolean;
+  columns?: number;
+  rows?: number;
+  on?: (event: "resize", listener: () => void) => unknown;
+  off?: (event: "resize", listener: () => void) => unknown;
+}
+
+interface TuiInput {
+  isTTY?: boolean;
+  on: (event: "data", listener: (chunk: Buffer | string) => void) => unknown;
+  off: (event: "data", listener: (chunk: Buffer | string) => void) => unknown;
+  setRawMode?: (enabled: boolean) => unknown;
+  resume: () => unknown;
+  pause: () => unknown;
+}
 
 interface FetchResponseLike {
   status: number;
@@ -30,6 +45,7 @@ export interface HcbCliDependencies {
   env?: NodeJS.ProcessEnv;
   stdout?: Output;
   stderr?: Output;
+  stdin?: TuiInput;
   fetch?: FetchLike;
   tokenProvider?: () => Promise<string>;
   safeStorageTokenLoader?: (input: SafeStorageMcpTokenLoaderInput) => Promise<string>;
@@ -1321,42 +1337,54 @@ async function runHcbTui(
 ): Promise<void> {
   const stdout = dependencies.stdout ?? process.stdout;
   const env = dependencies.env ?? process.env;
+  const stdin = dependencies.stdin ?? process.stdin;
   const target = discoverRuntime(dependencies);
   const token = await tokenProvider(dependencies)();
   const call = (name: string, args: JsonObject) =>
     callMcpToolWithAuth(name, args, dependencies, target, token);
   const state = initialTuiState();
+  state.viewport = tuiViewport(stdout);
   await refreshTuiState(state, call);
   stdout.write(formatTuiScreen(state));
 
-  if (env.HCB_TUI_ONCE === "1" || !process.stdin.isTTY) {
+  if (env.HCB_TUI_ONCE === "1" || !stdin.isTTY) {
     return;
   }
 
   await new Promise<void>((resolve) => {
-    const stdin = process.stdin;
-    const render = () => stdout.write(formatTuiScreen(state));
-    const onData = (chunk: Buffer) => {
-      const value = chunk.toString("utf8");
-      if (value === "q" || value === "\u0003") {
-        cleanup();
-        resolve();
-        return;
-      }
-      void handleTuiInput(value, state, call, env).then(render).catch((error) => {
+    const render = () => {
+      state.viewport = tuiViewport(stdout);
+      stdout.write(formatTuiScreen(state));
+    };
+    const onResize = () => render();
+    const onData = (chunk: Buffer | string) => {
+      const inputs = splitTuiInput(typeof chunk === "string" ? chunk : chunk.toString("utf8"));
+      void (async () => {
+        for (const value of inputs) {
+          if (value === "\u0003" || (!state.commandMode && value === "q")) {
+            cleanup();
+            resolve();
+            return;
+          }
+          await handleTuiInput(value, state, call, env);
+        }
+        render();
+      })().catch((error) => {
         state.message = error instanceof Error ? error.message : String(error);
         render();
       });
     };
     const cleanup = () => {
       stdin.off("data", onData);
-      stdin.setRawMode(false);
+      stdout.off?.("resize", onResize);
+      stdin.setRawMode?.(false);
       stdin.pause();
       stdout.write("\x1b[?25h\x1b[0m\n");
     };
 
     stdout.write("\x1b[?25l");
-    stdin.setRawMode(true);
+    stdout.on?.("resize", onResize);
+    stdin.setRawMode?.(true);
     stdin.resume();
     stdin.on("data", onData);
   });
@@ -1372,14 +1400,26 @@ interface TuiPendingApply {
   confirmationId?: string;
 }
 
+interface TuiViewport {
+  width: number;
+  height: number;
+}
+
 interface TuiState {
   views: TuiView[];
   view: TuiView;
   selected: Record<TuiView, number>;
   commandMode: boolean;
   commandBuffer: string;
+  commandHistory: string[];
+  commandHistoryIndex: number | null;
   message: string;
   searchQuery: string;
+  searchScope?: string;
+  searchLimit: number;
+  logLevel: string;
+  logLimit: number;
+  viewport: TuiViewport;
   data: {
     status: JsonObject;
     today: JsonObject;
@@ -1408,8 +1448,14 @@ function initialTuiState(): TuiState {
     },
     commandMode: false,
     commandBuffer: "",
+    commandHistory: [],
+    commandHistoryIndex: null,
     message: "r refresh | / search | : command | tab switch | enter detail | q quit",
     searchQuery: "",
+    searchLimit: 25,
+    logLevel: "warn",
+    logLimit: 50,
+    viewport: { width: 120, height: 32 },
     data: {
       status: {},
       today: {},
@@ -1428,7 +1474,7 @@ async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
     call("hcb_today", {}),
     call("hcb_week", {}),
     call("hcb_pending_mutations", { limit: 50 }),
-    call("hcb_log", { limit: 50, level: "warn" }),
+    call("hcb_log", { limit: state.logLimit, level: state.logLevel }),
     call("hcb_hoster_status", {})
   ]);
   state.data.status = status.item ?? {};
@@ -1438,7 +1484,11 @@ async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
   state.data.logs = logs.items ?? [];
   state.data.hosters = hosters.item ?? {};
   if (state.searchQuery) {
-    const search = await call("hcb_search", { query: state.searchQuery, limit: 25 });
+    const search = await call("hcb_search", {
+      query: state.searchQuery,
+      limit: state.searchLimit,
+      ...(state.searchScope === undefined ? {} : { scope: state.searchScope })
+    });
     state.data.search = search.items ?? [];
   }
   state.message = `refreshed ${new Date().toLocaleTimeString()}`;
@@ -1485,7 +1535,7 @@ async function handleTuiInput(
   if (value === ":") {
     state.commandMode = true;
     state.commandBuffer = "";
-    state.message = "commands: search, status, today, week, logs, mutations, hosters, hoster ..., apply <id>";
+    state.message = "commands: search/logs/mutation/hoster/apply/view";
     return;
   }
   if (value === "\r" || value === "\n") {
@@ -1503,7 +1553,16 @@ async function handleTuiCommandInput(
   if (value === "\u0003" || value === "\x1b") {
     state.commandMode = false;
     state.commandBuffer = "";
+    state.commandHistoryIndex = null;
     state.message = "command cancelled";
+    return;
+  }
+  if (value === "\x1b[A") {
+    moveTuiCommandHistory(state, -1);
+    return;
+  }
+  if (value === "\x1b[B") {
+    moveTuiCommandHistory(state, 1);
     return;
   }
   if (value === "\u007f" || value === "\b") {
@@ -1514,6 +1573,8 @@ async function handleTuiCommandInput(
     const command = state.commandBuffer.trim();
     state.commandMode = false;
     state.commandBuffer = "";
+    state.commandHistoryIndex = null;
+    recordTuiCommand(state, command);
     await runTuiCommand(command, state, call, env);
     return;
   }
@@ -1533,26 +1594,56 @@ async function runTuiCommand(
     return;
   }
   const [name, ...rest] = command.split(/\s+/);
-  if (isTuiView(name)) {
-    state.view = name;
-    state.message = `view ${name}`;
-    return;
-  }
   if (name === "refresh") {
     await refreshTuiState(state, call);
     return;
   }
-  if (name === "search") {
-    const query = rest.join(" ").trim();
-    if (!query) {
+  if (name === "search" && rest.length > 0) {
+    const search = parseTuiSearchCommand(rest);
+    if (!search.query) {
       throw new CliError("search requires a query.", 2);
     }
-    state.searchQuery = query;
-    const response = await call("hcb_search", { query, limit: 25 });
+    state.searchQuery = search.query;
+    state.searchScope = search.scope;
+    state.searchLimit = search.limit;
+    const response = await call("hcb_search", {
+      query: search.query,
+      limit: search.limit,
+      ...(search.scope === undefined ? {} : { scope: search.scope })
+    });
     state.data.search = response.items ?? [];
     state.view = "search";
     state.selected.search = 0;
-    state.message = `search: ${query}`;
+    state.message = `search: ${search.query}`;
+    return;
+  }
+  if (name === "logs" && rest.length > 0) {
+    const logs = parseTuiLogsCommand(rest);
+    state.logLevel = logs.level;
+    state.logLimit = logs.limit;
+    const response = await call("hcb_log", { level: logs.level, limit: logs.limit });
+    state.data.logs = response.items ?? [];
+    state.view = "logs";
+    state.selected.logs = 0;
+    state.message = `logs: level=${logs.level} limit=${logs.limit}`;
+    return;
+  }
+  if (name === "mutation") {
+    await runTuiMutationCommand(rest, state, call);
+    return;
+  }
+  if (name === "view") {
+    const view = rest[0];
+    if (!isTuiView(view)) {
+      throw new CliError("view requires status, today, week, search, logs, mutations, or hosters.", 2);
+    }
+    state.view = view;
+    state.message = `view ${view}`;
+    return;
+  }
+  if (isTuiView(name)) {
+    state.view = name;
+    state.message = `view ${name}`;
     return;
   }
   if (name === "apply") {
@@ -1585,8 +1676,90 @@ async function runTuiApply(
     confirmationId: id
   });
   state.pendingApply = undefined;
-  state.message = response.message;
   await refreshTuiState(state, call);
+  state.message = response.message;
+}
+
+async function runTuiMutationCommand(
+  args: string[],
+  state: TuiState,
+  call: TuiCall
+): Promise<void> {
+  const action = args[0];
+  if (action !== "retry" && action !== "cancel") {
+    throw new CliError("mutation command must be retry or cancel.", 2);
+  }
+  const id = args[1] ?? selectedTuiMutationId(state);
+  if (!id) {
+    throw new CliError(`mutation ${action} requires an id or selected mutation row.`, 2);
+  }
+  await runTuiDryRun(
+    state,
+    call,
+    `mutation ${action}`,
+    action === "retry" ? "hcb_retry_mutation" : "hcb_cancel_mutation",
+    { id, dryRun: true }
+  );
+  state.view = "mutations";
+}
+
+function selectedTuiMutationId(state: TuiState): string | undefined {
+  const row = state.view === "mutations" ? selectedTuiRow(state)?.item : undefined;
+  return typeof row?.id === "string" ? row.id : undefined;
+}
+
+function parseTuiSearchCommand(args: string[]): { query: string; scope?: string; limit: number } {
+  const rest = [...args];
+  let scope: string | undefined;
+  let limit = 25;
+  const query: string[] = [];
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--scope") {
+      scope = parseScope(optionValue(rest[index + 1], "--scope"));
+      index += 1;
+      continue;
+    }
+    if (arg === "--limit" || arg === "-n") {
+      limit = parseLimit(optionValue(rest[index + 1], "--limit"));
+      index += 1;
+      continue;
+    }
+    query.push(arg);
+  }
+
+  return { query: query.join(" ").trim(), ...(scope === undefined ? {} : { scope }), limit };
+}
+
+function parseTuiLogsCommand(args: string[]): { level: string; limit: number } {
+  let level = "warn";
+  let limit = 50;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--level") {
+      level = parseLevel(optionValue(args[index + 1], "--level"));
+      index += 1;
+      continue;
+    }
+    if (arg === "--limit" || arg === "-n") {
+      limit = parseLimit(optionValue(args[index + 1], "--limit"));
+      index += 1;
+      continue;
+    }
+    if (["debug", "info", "warn", "error"].includes(arg)) {
+      level = parseLevel(arg);
+      continue;
+    }
+    if (/^\d+$/.test(arg)) {
+      limit = parseLimit(arg);
+      continue;
+    }
+    throw new CliError(`Unknown logs option '${arg}'.`, 2);
+  }
+
+  return { level, limit };
 }
 
 async function runTuiHosterCommand(
@@ -1692,6 +1865,48 @@ function isTuiView(value: string): value is TuiView {
   return ["status", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
 }
 
+function recordTuiCommand(state: TuiState, command: string): void {
+  if (!command || state.commandHistory[state.commandHistory.length - 1] === command) {
+    return;
+  }
+  state.commandHistory.push(command);
+  if (state.commandHistory.length > 50) {
+    state.commandHistory.shift();
+  }
+}
+
+function moveTuiCommandHistory(state: TuiState, delta: number): void {
+  if (state.commandHistory.length === 0) {
+    return;
+  }
+  const current = state.commandHistoryIndex ?? state.commandHistory.length;
+  const next = Math.max(0, Math.min(state.commandHistory.length, current + delta));
+  state.commandHistoryIndex = next === state.commandHistory.length ? null : next;
+  state.commandBuffer = state.commandHistoryIndex === null ? "" : state.commandHistory[state.commandHistoryIndex];
+}
+
+function splitTuiInput(value: string): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < value.length;) {
+    const escape = ["\x1b[A", "\x1b[B", "\x1b[C", "\x1b[D"].find((candidate) => value.startsWith(candidate, index));
+    if (escape) {
+      result.push(escape);
+      index += escape.length;
+      continue;
+    }
+    result.push(value[index]);
+    index += 1;
+  }
+  return result;
+}
+
+function tuiViewport(stdout: Output): TuiViewport {
+  return {
+    width: Math.max(80, Math.min(220, stdout.columns ?? 120)),
+    height: Math.max(20, Math.min(80, stdout.rows ?? 32))
+  };
+}
+
 async function callMcpToolWithAuth(
   name: string,
   argumentsObject: JsonObject,
@@ -1755,6 +1970,9 @@ async function callMcpToolWithAuth(
 function formatTuiScreen(state: TuiState): string {
   const rows = tuiRows(state);
   const selected = selectedTuiRow(state);
+  const width = state.viewport.width;
+  const listLimit = Math.max(4, Math.min(rows.length || 4, Math.floor((state.viewport.height - 12) * 0.58)));
+  const detailLimit = Math.max(4, state.viewport.height - 13 - listLimit);
   const todayTasks = objectArray(state.data.today.tasks).length;
   const todayEvents = objectArray(state.data.today.events).length;
   const mutationCount = state.data.mutations.length;
@@ -1766,18 +1984,23 @@ function formatTuiScreen(state: TuiState): string {
     ? `pending: ${state.pendingApply.label}${state.pendingApply.confirmationId ? ` confirmation=${state.pendingApply.confirmationId}` : ""}`
     : "pending: none";
   const command = state.commandMode ? `:${state.commandBuffer}` : "";
+  const selectedIndex = state.selected[state.view];
+  const listStart = Math.max(0, Math.min(selectedIndex - Math.floor(listLimit / 2), Math.max(0, rows.length - listLimit)));
   const listLines = rows.length === 0
     ? ["  No rows."]
-    : rows.slice(0, 18).map((row, index) => `${index === state.selected[state.view] ? ">" : " "} ${row.label}`);
+    : rows.slice(listStart, listStart + listLimit).map((row, offset) => {
+      const index = listStart + offset;
+      return truncateText(`${index === selectedIndex ? ">" : " "} ${row.label}`, width - 2);
+    });
   const detailLines = selected
-    ? renderTuiDetail(selected.item)
+    ? renderTuiDetail(selected.item, detailLimit, width - 2)
     : ["No detail."];
 
   return [
     "\x1b[2J\x1b[HHot Cross Buns 2 TUI",
     tabs,
     "keys: tab/arrow switch | j/k move | / search | : command | r refresh | q quit",
-    "commands: search <q> | hoster create/export/import/remove/test | apply <confirmationId>",
+    "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | mutation retry/cancel [id] | hoster ... | apply [id]",
     `Today: ${todayTasks} tasks, ${todayEvents} events | Pending mutations: ${mutationCount} | Hosters: ${hosterCount}`,
     pending,
     `status: ${state.message}`,
@@ -1842,8 +2065,8 @@ function tuiRowsForView(state: TuiState, view: TuiView): TuiRow[] {
   }
   const profiles = objectArray(state.data.hosters.profiles);
   return [
-    tuiRow(`server enabled=${text(state.data.hosters.enabled)} running=${text(state.data.hosters.running)} port=${text(state.data.hosters.port)}`, state.data.hosters),
-    ...profiles.map((item) => tuiRow(`${text(item.id)} ${text(item.name)} mode=${text(item.permissionMode)}`, item))
+    tuiRow(`server enabled=${text(state.data.hosters.enabled)} running=${text(state.data.hosters.running)} health=${text(state.data.hosters.health)} port=${text(state.data.hosters.port)}`, state.data.hosters),
+    ...profiles.map((item) => tuiRow(`${text(item.id)} ${text(item.name)} mode=${text(item.permissionMode)} endpoint=${text(item.endpoint)}`, item))
   ];
 }
 
@@ -1854,11 +2077,11 @@ function tuiRow(label: string, item: JsonObject): TuiRow {
   };
 }
 
-function renderTuiDetail(item: JsonObject): string[] {
+function renderTuiDetail(item: JsonObject, limit: number, width: number): string[] {
   return JSON.stringify(item, null, 2)
     .split("\n")
-    .slice(0, 18)
-    .map((line) => truncateText(line, 140));
+    .slice(0, limit)
+    .map((line) => truncateText(line, width));
 }
 
 function truncateText(value: string, limit: number): string {

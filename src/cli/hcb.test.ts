@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -2059,6 +2060,64 @@ describe("hcb CLI", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it("handles TUI history, resize, search, logs, mutation dry-run, and apply with fake stdio", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-tui-stdio-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const stdout = tuiOutput(96, 24);
+    const stderr = outputBuffer();
+    const stdin = tuiInput();
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+    try {
+      writeRuntimeFile(runtimeFile);
+      const run = runHcbCli(["tui"], {
+        env: { ...process.env },
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        stdin,
+        fetch: tuiFetch(calls)
+      });
+
+      await delay();
+      stdin.send(":logs info 7\r");
+      await delay();
+      stdin.send(":\x1b[A\r");
+      await delay();
+      stdout.resize(88, 22);
+      await delay();
+      stdin.send(":search launch --scope tasks --limit 3\r");
+      await delay();
+      stdin.send(":mutation retry mutation-1\r");
+      await delay();
+      stdin.send(":apply confirm-mutation\r");
+      await delay();
+      stdin.send("q");
+
+      expect(await run).toBe(0);
+      expect(stderr.text()).toBe("");
+      expect(stdout.text()).toContain("logs: level=info limit=7");
+      expect(stdout.text()).toContain("search: launch");
+      expect(stdout.text()).toContain("Applied mutation retry.");
+      expect(calls.filter((call) => call.name === "hcb_log" && call.args.level === "info" && call.args.limit === 7).length).toBeGreaterThanOrEqual(2);
+      expect(calls).toContainEqual({
+        name: "hcb_search",
+        args: { query: "launch", scope: "tasks", limit: 3 }
+      });
+      expect(calls).toContainEqual({
+        name: "hcb_retry_mutation",
+        args: { id: "mutation-1", dryRun: true }
+      });
+      expect(calls).toContainEqual({
+        name: "hcb_retry_mutation",
+        args: { id: "mutation-1", dryRun: false, confirmationId: "confirm-mutation" }
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 function rpcResponse(structuredContent: Record<string, unknown>): Record<string, unknown> {
@@ -2475,10 +2534,11 @@ function statusFetch(calls: Array<{ authorization?: string }>): HcbCliDependenci
   };
 }
 
-function tuiFetch(): HcbCliDependencies["fetch"] {
+function tuiFetch(calls: Array<{ name: string; args: Record<string, unknown> }> = []): HcbCliDependencies["fetch"] {
   return async (_url, init) => {
-    const body = JSON.parse(init.body) as { params: { name: string } };
-    const structured = tuiStructuredResponse(body.params.name);
+    const body = JSON.parse(init.body) as { params: { name: string; arguments?: Record<string, unknown> } };
+    calls.push({ name: body.params.name, args: body.params.arguments ?? {} });
+    const structured = tuiStructuredResponse(body.params.name, body.params.arguments ?? {});
 
     return {
       status: 200,
@@ -2488,7 +2548,7 @@ function tuiFetch(): HcbCliDependencies["fetch"] {
   };
 }
 
-function tuiStructuredResponse(name: string): Record<string, unknown> {
+function tuiStructuredResponse(name: string, args: Record<string, unknown> = {}): Record<string, unknown> {
   if (name === "hcb_status") {
     return {
       applied: false,
@@ -2526,6 +2586,90 @@ function tuiStructuredResponse(name: string): Record<string, unknown> {
     };
   }
 
+  if (name === "hcb_pending_mutations") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read pending mutations.",
+      items: [
+        {
+          kind: "mutation",
+          id: "mutation-1",
+          operation: "create",
+          resourceType: "task",
+          resourceId: "task-1",
+          status: "failed"
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_log") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read logs.",
+      items: [
+        {
+          kind: "log",
+          id: `log-${String(args.level ?? "warn")}`,
+          level: String(args.level ?? "warn"),
+          message: `${String(args.level ?? "warn")} log`
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_search") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Searched planner.",
+      items: [
+        {
+          kind: "task",
+          id: "task-search",
+          title: `Search ${String(args.query ?? "")}`
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_retry_mutation") {
+    const applied = args.dryRun === false;
+    return {
+      applied,
+      dryRun: !applied,
+      requiresConfirmation: !applied,
+      ...(applied ? {} : { confirmationId: "confirm-mutation" }),
+      message: applied ? "Applied mutation retry." : "Mutation retry dry-run ready.",
+      item: {
+        kind: "mutationAction",
+        id: args.id,
+        action: "retry"
+      }
+    };
+  }
+
+  if (name === "hcb_hoster_status") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read local hoster status.",
+      item: {
+        enabled: true,
+        running: true,
+        health: "running",
+        port: 4778,
+        profiles: []
+      }
+    };
+  }
+
   return {
     applied: false,
     dryRun: false,
@@ -2545,4 +2689,53 @@ function outputBuffer(): NodeJS.WritableStream & { text: () => string } {
     },
     text: () => value
   } as NodeJS.WritableStream & { text: () => string };
+}
+
+function tuiInput() {
+  const emitter = new EventEmitter();
+  return {
+    isTTY: true,
+    on: (event: "data", listener: (chunk: Buffer | string) => void) => {
+      emitter.on(event, listener);
+    },
+    off: (event: "data", listener: (chunk: Buffer | string) => void) => {
+      emitter.off(event, listener);
+    },
+    setRawMode: () => undefined,
+    resume: () => undefined,
+    pause: () => undefined,
+    send: (value: string) => {
+      emitter.emit("data", Buffer.from(value, "utf8"));
+    }
+  };
+}
+
+function tuiOutput(columns: number, rows: number) {
+  const emitter = new EventEmitter();
+  let value = "";
+  const output = {
+    columns,
+    rows,
+    write: (chunk: string | Uint8Array) => {
+      value += String(chunk);
+      return true;
+    },
+    text: () => value,
+    on: (event: "resize", listener: () => void) => {
+      emitter.on(event, listener);
+    },
+    off: (event: "resize", listener: () => void) => {
+      emitter.off(event, listener);
+    },
+    resize: (nextColumns: number, nextRows: number) => {
+      output.columns = nextColumns;
+      output.rows = nextRows;
+      emitter.emit("resize");
+    }
+  };
+  return output;
+}
+
+async function delay(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 5));
 }
