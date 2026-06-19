@@ -38,6 +38,7 @@ import { RepositoryGoogleOAuthAccountStatusStore } from "../google/accountStatus
 import { GoogleRuntimeService } from "../google/runtimeService";
 import { LocalMcpServerController } from "../mcp/controller";
 import { LocalHosterServerController } from "../hoster/server";
+import { HcbVaultHostCredentialStore } from "../hoster/vaultCredentials";
 import { KeychainMcpCredentialAdapter } from "../mcp/keychainCredentials";
 import { McpConfirmationStore } from "../mcp/confirmationStore";
 import { McpToolRegistry } from "../mcp/toolRegistry";
@@ -54,7 +55,8 @@ import type {
   GoogleTasksWriteTransport
 } from "../google";
 import { markStartupTiming } from "../startupTiming";
-import type { AppDomainServices } from "./domainInterfaces";
+import type { AppDomainServices, DomainJsonObject } from "./domainInterfaces";
+import type { SyncRunNowRequest } from "@shared/ipc/contracts";
 import { createSqliteDomainServices } from "./sqliteDomainServices";
 import { createSqliteAgentDomainService } from "./sqliteAgentDomainService";
 import { createSqliteHosterDomainService } from "./sqliteHosterDomainService";
@@ -156,6 +158,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     windowsSafeStorageBackend: options.windowsSafeStorageBackend
   });
   const hosterRepository = new LocalHosterRepository(connection, secretStore);
+  const vaultHostCredentials = new HcbVaultHostCredentialStore(secretStore);
   const googleCredentialAdapter = new KeychainGoogleCredentialAdapter(secretStore);
   const googleClientSecretStore = new KeychainGoogleOAuthClientSecretStore(secretStore);
   const googleConfigStore = new GoogleOAuthClientConfigStore(connection, googleClientSecretStore);
@@ -191,7 +194,8 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     syncTasksTransport: options.syncTasksTransport ?? runtimeTasksTransport,
     syncCalendarTransport: options.syncCalendarTransport ?? runtimeCalendarTransport,
     syncTasksWriteTransport: options.syncTasksWriteTransport ?? runtimeTasksWriteTransport,
-    syncCalendarWriteTransport: options.syncCalendarWriteTransport ?? runtimeCalendarWriteTransport
+    syncCalendarWriteTransport: options.syncCalendarWriteTransport ?? runtimeCalendarWriteTransport,
+    vaultHostCredentials
   });
   let syncScheduler: SyncScheduler | undefined;
   const googleLoopback = new GoogleOAuthLoopbackController({
@@ -265,6 +269,63 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     statusBase: () => hosterController.status(settingsSupportRepository.applyExternalSettings(settingsRepository.get())),
     endpoint: () => hosterController.endpoint()
   });
+  const runConfiguredSyncNow: AppDomainServices["sync"]["runNow"] = async (request) => {
+    const settings = settingsRepository.get();
+    if (settings.storageBackend !== "hcb-hoster" || request.drainOnly === true) {
+      return sqliteDomain.sync.runNow(request);
+    }
+
+    if (request.dryRun === true) {
+      return {
+        accepted: true,
+        dryRun: true,
+        drainOnly: false,
+        resources: ["hcb-vault"]
+      };
+    }
+
+    const pushed = await sqliteDomain.settings.pushHcbVaultRemote({});
+    historyRepository.record({
+      kind: "sync.hcbVault",
+      summary: "Pushed encrypted HCB vault to host",
+      metadata: {
+        endpoint: pushed.endpoint,
+        exportedAt: pushed.exportedAt
+      }
+    });
+
+    return {
+      accepted: true,
+      dryRun: false,
+      drainOnly: false,
+      resources: ["hcb-vault"]
+    };
+  };
+  sqliteDomain.mcpTools.syncQueue.previewRunNow = (input: DomainJsonObject) => {
+    const request = syncRunNowRequestFromDomainInput(input);
+    const settings = settingsRepository.get();
+    if (settings.storageBackend !== "hcb-hoster") {
+      const preview: DomainJsonObject = {
+        kind: "syncRun",
+        ...request,
+        dryRun: true,
+        accepted: true
+      };
+      return preview;
+    }
+
+    return {
+      kind: "syncRun",
+      accepted: true,
+      dryRun: true,
+      drainOnly: false,
+      resources: ["hcb-vault"]
+    };
+  };
+  sqliteDomain.mcpTools.syncQueue.runNow = async (input: DomainJsonObject) => ({
+    kind: "syncRun",
+    ...(await runConfiguredSyncNow(syncRunNowRequestFromDomainInput(input)))
+  });
   const nativeShell = new NativeShellService({
     adapter: options.nativeAdapter ?? createNoopNativeAdapter(),
     planner: plannerRepository,
@@ -279,7 +340,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     },
     windows: options.nativeWindows ?? noopWindowActions,
     sync: {
-      runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))
+      runNow: (request) => Promise.resolve(runConfiguredSyncNow(request))
     },
     webhooks: sqliteDomain.webhooks
   });
@@ -294,6 +355,10 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   };
   const domain: AppDomainServices = {
     ...sqliteDomain,
+    sync: {
+      ...sqliteDomain.sync,
+      runNow: runConfiguredSyncNow
+    },
     settings: {
       get: () => sqliteDomain.settings.get(),
       update: async (request) => {
@@ -343,6 +408,15 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         return response;
       },
       hcbVaultRemoteStatus: (request) => sqliteDomain.settings.hcbVaultRemoteStatus(request),
+      hcbVaultRemoteCredentialStatus: (request) =>
+        sqliteDomain.settings.hcbVaultRemoteCredentialStatus(request),
+      saveHcbVaultRemoteCredentials: async (request) => {
+        const response = await sqliteDomain.settings.saveHcbVaultRemoteCredentials(request);
+        await applySettingsSideEffects();
+        return response;
+      },
+      deleteHcbVaultRemoteCredentials: (request) =>
+        sqliteDomain.settings.deleteHcbVaultRemoteCredentials(request),
       pushHcbVaultRemote: async (request) => {
         const response = await sqliteDomain.settings.pushHcbVaultRemote(request);
         await applySettingsSideEffects();
@@ -397,7 +471,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   });
   syncScheduler = new SyncScheduler({
     getSettings: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
-    runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))
+    runNow: (request) => Promise.resolve(runConfiguredSyncNow(request))
   });
 
   markStartupTiming("databaseReadyMs");
@@ -464,6 +538,21 @@ function recordValue(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function syncRunNowRequestFromDomainInput(input: DomainJsonObject): SyncRunNowRequest {
+  const rawResources = Array.isArray(input.resources) ? input.resources : undefined;
+  const resources = rawResources
+    ?.filter((resource): resource is "tasks" | "calendar" =>
+      resource === "tasks" || resource === "calendar"
+    );
+
+  return {
+    ...(resources === undefined || resources.length === 0 ? {} : { resources }),
+    drainOnly: input.drainOnly === true,
+    full: input.full === true,
+    dryRun: input.dryRun === true
+  };
 }
 
 export function defaultSecretStoreForPlatform(input: {

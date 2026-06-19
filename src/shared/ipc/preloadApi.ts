@@ -54,6 +54,10 @@ import type {
   HcbVaultExportResponse,
   HcbVaultImportRequest,
   HcbVaultImportResponse,
+  HcbVaultRemoteCredentialDeleteRequest,
+  HcbVaultRemoteCredentialSaveRequest,
+  HcbVaultRemoteCredentialStatusRequest,
+  HcbVaultRemoteCredentialStatusResponse,
   HcbVaultRemotePullRequest,
   HcbVaultRemotePullResponse,
   HcbVaultRemotePushRequest,
@@ -304,6 +308,15 @@ export interface HcbApi {
     pullHcbVaultRemote: (
       request: HcbVaultRemotePullRequest
     ) => Promise<HcbResult<HcbVaultRemotePullResponse>>;
+    hcbVaultRemoteCredentialStatus: (
+      request?: HcbVaultRemoteCredentialStatusRequest
+    ) => Promise<HcbResult<HcbVaultRemoteCredentialStatusResponse>>;
+    saveHcbVaultRemoteCredentials: (
+      request: HcbVaultRemoteCredentialSaveRequest
+    ) => Promise<HcbResult<HcbVaultRemoteCredentialStatusResponse>>;
+    deleteHcbVaultRemoteCredentials: (
+      request?: HcbVaultRemoteCredentialDeleteRequest
+    ) => Promise<HcbResult<HcbVaultRemoteCredentialStatusResponse>>;
     listLocalPointers: (
       request?: LocalPointerListRequest
     ) => Promise<HcbResult<LocalPointerListResponse>>;

@@ -1104,6 +1104,39 @@ const hcbApi: HcbApi = {
         }
       })
     ),
+    hcbVaultRemoteCredentialStatus: vi.fn(async (request = {}) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        configured: false,
+        secretStore: {
+          ok: true,
+          state: "ready",
+          message: "Test credential storage is available."
+        }
+      })
+    ),
+    saveHcbVaultRemoteCredentials: vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        configured: true,
+        secretStore: {
+          ok: true,
+          state: "ready",
+          message: "Test credential storage is available."
+        }
+      })
+    ),
+    deleteHcbVaultRemoteCredentials: vi.fn(async (request = {}) =>
+      ok({
+        endpoint: request.endpoint ?? "https://hcb.test/hcb/v1/vault",
+        configured: false,
+        secretStore: {
+          ok: true,
+          state: "ready",
+          message: "Test credential storage is available."
+        }
+      })
+    ),
     listLocalPointers: vi.fn(async () => ok({ items: [], totalKnown: 0 })),
     repairLocalPointer: vi.fn(async (request) =>
       ok({

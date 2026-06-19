@@ -158,6 +158,10 @@ import {
   hcbVaultExportResponseSchema,
   hcbVaultImportRequestSchema,
   hcbVaultImportResponseSchema,
+  hcbVaultRemoteCredentialDeleteRequestSchema,
+  hcbVaultRemoteCredentialSaveRequestSchema,
+  hcbVaultRemoteCredentialStatusRequestSchema,
+  hcbVaultRemoteCredentialStatusResponseSchema,
   hcbVaultRemotePullRequestSchema,
   hcbVaultRemotePullResponseSchema,
   hcbVaultRemotePushRequestSchema,
@@ -576,6 +580,24 @@ export const ipcContracts = {
       "pullHcbVaultRemote",
       hcbVaultRemotePullRequestSchema,
       hcbVaultRemotePullResponseSchema
+    ),
+    hcbVaultRemoteCredentialStatus: defineIpcContract(
+      "settings",
+      "hcbVaultRemoteCredentialStatus",
+      hcbVaultRemoteCredentialStatusRequestSchema,
+      hcbVaultRemoteCredentialStatusResponseSchema
+    ),
+    saveHcbVaultRemoteCredentials: defineIpcContract(
+      "settings",
+      "saveHcbVaultRemoteCredentials",
+      hcbVaultRemoteCredentialSaveRequestSchema,
+      hcbVaultRemoteCredentialStatusResponseSchema
+    ),
+    deleteHcbVaultRemoteCredentials: defineIpcContract(
+      "settings",
+      "deleteHcbVaultRemoteCredentials",
+      hcbVaultRemoteCredentialDeleteRequestSchema,
+      hcbVaultRemoteCredentialStatusResponseSchema
     ),
     listLocalPointers: defineIpcContract(
       "settings",

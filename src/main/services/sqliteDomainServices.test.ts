@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
+import { MemorySecretStore } from "../credentials/secretStore";
+import { HcbVaultHostCredentialStore } from "../hoster/vaultCredentials";
 import { HcbVaultHostServer } from "../hoster/vaultServer";
 import {
   LocalAgentRepository,
@@ -49,6 +51,7 @@ function createTestServices() {
   const agentRepository = new LocalAgentRepository(temp.connection);
   const webhookRepository = new LocalWebhookRepository(temp.connection);
   const syncRepository = new GoogleSyncRepository(temp.connection);
+  const secretStore = new MemorySecretStore();
   const domain = createSqliteDomainServices({
     plannerRepository,
     settingsRepository,
@@ -56,7 +59,8 @@ function createTestServices() {
     undoRepository,
     agentRepository,
     webhookRepository,
-    syncRepository
+    syncRepository,
+    vaultHostCredentials: new HcbVaultHostCredentialStore(secretStore)
   });
 
   return {
@@ -68,7 +72,8 @@ function createTestServices() {
     agentRepository,
     webhookRepository,
     syncRepository,
-    performanceRepository
+    performanceRepository,
+    secretStore
   };
 }
 
@@ -200,21 +205,21 @@ describe("SQLite-backed domain services", () => {
         storageBackend: "hcb-hoster",
         hcbHosterEndpoint: endpoint
       });
-
-      const pushed = await domain.settings.pushHcbVaultRemote({
+      const saved = await domain.settings.saveHcbVaultRemoteCredentials({
         token,
         passphrase
       });
+      expect(saved.configured).toBe(true);
+
+      const pushed = await domain.settings.pushHcbVaultRemote({});
       expect(pushed.endpoint).toBe(endpoint);
       expect(pushed.remote.hasVault).toBe(true);
       expect(pushed.manifest.kind).toBe("hot-cross-buns-2-vault");
 
-      const status = await domain.settings.hcbVaultRemoteStatus({ token });
+      const status = await domain.settings.hcbVaultRemoteStatus({});
       expect(status.remote.manifest?.payloadSha256).toBe(pushed.manifest.payloadSha256);
 
       const pulled = await domain.settings.pullHcbVaultRemote({
-        token,
-        passphrase,
         confirm: true
       });
       expect(pulled.endpoint).toBe(endpoint);

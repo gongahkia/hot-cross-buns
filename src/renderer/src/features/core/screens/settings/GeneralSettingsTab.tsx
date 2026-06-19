@@ -3,7 +3,7 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CloudDownload,
   CloudUpload,
@@ -53,6 +53,7 @@ export function GeneralSettingsTab({
   const [vaultHostToken, setVaultHostToken] = useState("");
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultAllowInsecureHttp, setVaultAllowInsecureHttp] = useState(false);
+  const [vaultCredentialsConfigured, setVaultCredentialsConfigured] = useState(false);
   const [vaultHostStatus, setVaultHostStatus] = useState("");
   const [vaultHostPending, setVaultHostPending] = useState(false);
 
@@ -83,6 +84,26 @@ export function GeneralSettingsTab({
     });
   }
 
+  useEffect(() => {
+    if (settings.storageBackend !== "hcb-hoster" || !settings.hcbHosterEndpoint) {
+      setVaultCredentialsConfigured(false);
+      return;
+    }
+
+    let cancelled = false;
+    void window.hcb?.settings.hcbVaultRemoteCredentialStatus({
+      endpoint: settings.hcbHosterEndpoint
+    }).then((result) => {
+      if (!cancelled && result?.ok) {
+        setVaultCredentialsConfigured(result.data.configured);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.hcbHosterEndpoint, settings.storageBackend]);
+
   async function runVaultHostAction(action: "status" | "push" | "pull"): Promise<void> {
     const endpoint = settings.hcbHosterEndpoint?.trim();
     const token = vaultHostToken.trim();
@@ -93,12 +114,12 @@ export function GeneralSettingsTab({
       return;
     }
 
-    if (!token) {
+    if (!token && !vaultCredentialsConfigured) {
       setVaultHostStatus("Enter the vault host token.");
       return;
     }
 
-    if (action !== "status" && passphrase.length < 8) {
+    if (action !== "status" && passphrase.length < 8 && !vaultCredentialsConfigured) {
       setVaultHostStatus("Enter the vault passphrase.");
       return;
     }
@@ -114,7 +135,7 @@ export function GeneralSettingsTab({
       if (action === "status") {
         const result = await window.hcb?.settings.hcbVaultRemoteStatus({
           endpoint,
-          token,
+          ...(token ? { token } : {}),
           allowInsecureHttp: vaultAllowInsecureHttp
         });
         setVaultHostStatus(
@@ -128,8 +149,8 @@ export function GeneralSettingsTab({
       if (action === "push") {
         const result = await window.hcb?.settings.pushHcbVaultRemote({
           endpoint,
-          token,
-          passphrase,
+          ...(token ? { token } : {}),
+          ...(passphrase ? { passphrase } : {}),
           allowInsecureHttp: vaultAllowInsecureHttp
         });
         if (result?.ok) {
@@ -145,8 +166,8 @@ export function GeneralSettingsTab({
 
       const result = await window.hcb?.settings.pullHcbVaultRemote({
         endpoint,
-        token,
-        passphrase,
+        ...(token ? { token } : {}),
+        ...(passphrase ? { passphrase } : {}),
         allowInsecureHttp: vaultAllowInsecureHttp,
         confirm: true
       });
@@ -158,6 +179,44 @@ export function GeneralSettingsTab({
           ? `Pulled vault. Backup: ${result.data.backupPath}`
           : result?.error.message ?? "Vault pull failed."
       );
+    } finally {
+      setVaultHostPending(false);
+    }
+  }
+
+  async function saveVaultHostCredentials(): Promise<void> {
+    const endpoint = settings.hcbHosterEndpoint?.trim();
+    if (!endpoint || !vaultHostToken.trim() || vaultPassphrase.length < 8) {
+      setVaultHostStatus("Set endpoint, token, and passphrase before saving.");
+      return;
+    }
+
+    setVaultHostPending(true);
+    try {
+      const result = await window.hcb?.settings.saveHcbVaultRemoteCredentials({
+        endpoint,
+        token: vaultHostToken.trim(),
+        passphrase: vaultPassphrase
+      });
+      setVaultCredentialsConfigured(Boolean(result?.ok && result.data.configured));
+      setVaultHostStatus(result?.ok ? "Vault host credentials saved." : result?.error.message ?? "Credential save failed.");
+    } finally {
+      setVaultHostPending(false);
+    }
+  }
+
+  async function deleteVaultHostCredentials(): Promise<void> {
+    const endpoint = settings.hcbHosterEndpoint?.trim();
+    if (!endpoint) {
+      setVaultHostStatus("Set a vault host endpoint first.");
+      return;
+    }
+
+    setVaultHostPending(true);
+    try {
+      const result = await window.hcb?.settings.deleteHcbVaultRemoteCredentials({ endpoint });
+      setVaultCredentialsConfigured(Boolean(result?.ok && result.data.configured));
+      setVaultHostStatus(result?.ok ? "Vault host credentials removed." : result?.error.message ?? "Credential delete failed.");
     } finally {
       setVaultHostPending(false);
     }
@@ -258,6 +317,27 @@ export function GeneralSettingsTab({
                 type="password"
                 value={vaultPassphrase}
               />
+            </SettingsControlRow>
+            <SettingsControlRow
+              description={vaultCredentialsConfigured ? "Saved in OS credential storage for Refresh and scheduled sync." : "Save credentials to let Refresh push the encrypted vault."}
+              label="Saved credentials"
+            >
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                <Button
+                  disabled={vaultHostPending}
+                  onClick={() => void saveVaultHostCredentials()}
+                  variant="secondary"
+                >
+                  Save
+                </Button>
+                <Button
+                  disabled={vaultHostPending || !vaultCredentialsConfigured}
+                  onClick={() => void deleteVaultHostCredentials()}
+                  variant="secondary"
+                >
+                  Forget
+                </Button>
+              </div>
             </SettingsControlRow>
             <SettingsSwitch
               checked={vaultAllowInsecureHttp}

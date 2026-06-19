@@ -9,6 +9,8 @@ import {
   calendarEventUpdateRequestSchema,
   calendarRangeRequestSchema,
   hcbDomainSchema,
+  hcbVaultRemoteCredentialSaveRequestSchema,
+  hcbVaultRemoteCredentialStatusResponseSchema,
   hcbVaultRemotePullRequestSchema,
   hcbVaultRemotePushRequestSchema,
   hcbVaultRemoteStatusResponseSchema,
@@ -655,8 +657,7 @@ describe("shared IPC contracts", () => {
     expect(
       hcbVaultRemotePushRequestSchema.parse({
         endpoint: "https://pi.local/hcb/v1/vault",
-        token: "remote-host-token",
-        passphrase: "vault-passphrase"
+        token: "remote-host-token"
       })
     ).toMatchObject({
       endpoint: "https://pi.local/hcb/v1/vault",
@@ -665,10 +666,34 @@ describe("shared IPC contracts", () => {
     expect(
       hcbVaultRemotePullRequestSchema.safeParse({
         endpoint: "https://pi.local/hcb/v1/vault",
-        token: "remote-host-token",
+        token: "remote-host-token"
+      }).success
+    ).toBe(false);
+    expect(
+      hcbVaultRemoteCredentialSaveRequestSchema.safeParse({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "short",
         passphrase: "vault-passphrase"
       }).success
     ).toBe(false);
+    expect(
+      hcbVaultRemoteCredentialStatusResponseSchema.parse({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        configured: true,
+        secretStore: {
+          ok: true,
+          state: "ready"
+        }
+      }).configured
+    ).toBe(true);
+    expect(
+      ipcContracts.sync.runNow.responseSchema.parse({
+        accepted: true,
+        dryRun: false,
+        drainOnly: false,
+        resources: ["hcb-vault"]
+      }).resources
+    ).toEqual(["hcb-vault"]);
     expect(
       hcbVaultRemoteStatusResponseSchema.parse({
         endpoint: "https://pi.local/hcb/v1/vault",

@@ -18,6 +18,7 @@ import {
   type GoogleTasksReadTransport,
   type GoogleTasksWriteTransport
 } from "../google";
+import { HcbVaultHostServer, readHcbVaultPackage } from "../hoster/vaultServer";
 import { createServiceContainer, defaultSecretStoreForPlatform } from "./serviceContainer";
 
 const fakeLinuxSafeStorageBackend: LinuxSafeStorageBackend = {
@@ -123,6 +124,64 @@ describe("service container integration", () => {
       });
       expect(status.endpoint).toBe(`http://127.0.0.1:${status.port}/hcb/v1/signal`);
     } finally {
+      await services.close();
+      rmSync(appSupportDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("pushes a saved HCB vault host credential during sync.runNow in hoster mode", async () => {
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-vault-sync-"));
+    const secretStore = new MemorySecretStore();
+    const services = createServiceContainer({
+      appSupportDirectory,
+      secretStore
+    });
+    const remotePath = join(appSupportDirectory, "remote.hcbvault");
+    const token = "service-vault-host-token";
+    const passphrase = "service-vault-passphrase";
+    const server = new HcbVaultHostServer({ vaultPath: remotePath, token });
+    const started = await server.start({ port: 0 });
+    const endpoint = `${started.protocol}://${started.host}:${started.port}/hcb/v1/vault`;
+
+    try {
+      await services.domain.settings.update({
+        storageBackend: "hcb-hoster",
+        hcbHosterEndpoint: endpoint
+      });
+      await services.domain.settings.saveHcbVaultRemoteCredentials({
+        token,
+        passphrase
+      });
+
+      const result = await services.domain.sync.runNow({ resources: ["tasks", "calendar"] });
+      const mcpSync = await services.mcpTools.callTool(
+        "hcb_sync_now",
+        { resources: ["tasks"] },
+        {
+          permissionMode: "allow-writes",
+          credentialRevision: "test-revision",
+          clientKey: "test-client",
+          now: new Date("2026-06-19T00:00:00.000Z")
+        }
+      );
+      const hosted = readHcbVaultPackage(remotePath);
+
+      expect(result).toMatchObject({
+        accepted: true,
+        dryRun: false,
+        resources: ["hcb-vault"]
+      });
+      expect(mcpSync).toMatchObject({
+        applied: true,
+        item: {
+          accepted: true,
+          dryRun: false,
+          resources: ["hcb-vault"]
+        }
+      });
+      expect(hosted.manifest.kind).toBe("hot-cross-buns-2-vault");
+    } finally {
+      await server.stop();
       await services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }

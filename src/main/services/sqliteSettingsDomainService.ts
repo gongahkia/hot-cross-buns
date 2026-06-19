@@ -1,6 +1,9 @@
 import type {
   HcbVaultExportRequest,
   HcbVaultImportRequest,
+  HcbVaultRemoteCredentialDeleteRequest,
+  HcbVaultRemoteCredentialSaveRequest,
+  HcbVaultRemoteCredentialStatusRequest,
   HcbVaultRemotePullRequest,
   HcbVaultRemotePushRequest,
   HcbVaultRemoteStatusRequest,
@@ -13,7 +16,10 @@ import type {
 import {
   hcbVaultRemotePullRequestSchema,
   hcbVaultRemotePushRequestSchema,
-  hcbVaultRemoteStatusRequestSchema
+  hcbVaultRemoteStatusRequestSchema,
+  hcbVaultRemoteCredentialDeleteRequestSchema,
+  hcbVaultRemoteCredentialSaveRequestSchema,
+  hcbVaultRemoteCredentialStatusRequestSchema
 } from "@shared/ipc/contracts";
 import { HcbPublicError } from "@shared/ipc/result";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -26,6 +32,10 @@ import {
   fetchHcbVaultHostInfo,
   uploadHcbVaultPackage
 } from "../hoster/vaultServer";
+import type {
+  HcbVaultHostCredentials,
+  HcbVaultHostCredentialStore
+} from "../hoster/vaultCredentials";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { SettingsDomainService, SyncControlDomainService } from "./domainInterfaces";
 import { applyMcpSettings } from "./sqliteMcpControlService";
@@ -35,13 +45,15 @@ export function createSqliteSettingsDomainService({
   settingsRepository,
   settingsSupportRepository,
   sync,
-  syncRepository
+  syncRepository,
+  vaultHostCredentials
 }: {
   mcpState: McpStatusResponse;
   settingsRepository: LocalSettingsRepository;
   settingsSupportRepository: LocalSettingsSupportRepository;
   sync: SyncControlDomainService;
   syncRepository: GoogleSyncRepository;
+  vaultHostCredentials?: HcbVaultHostCredentialStore;
 }): SettingsDomainService {
   return {
     get: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
@@ -182,7 +194,13 @@ export function createSqliteSettingsDomainService({
     hcbVaultRemoteStatus: async (request: HcbVaultRemoteStatusRequest) => {
       const parsed = hcbVaultRemoteStatusRequestSchema.parse(request);
       const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
-      const remote = await fetchHcbVaultHostInfo(endpoint, parsed.token, {
+      const credentials = await resolveVaultHostCredentials({
+        endpoint,
+        token: parsed.token,
+        vaultHostCredentials,
+        requirePassphrase: false
+      });
+      const remote = await fetchHcbVaultHostInfo(endpoint, credentials.token, {
         allowInsecureHttp: parsed.allowInsecureHttp === true
       });
 
@@ -191,11 +209,18 @@ export function createSqliteSettingsDomainService({
     pushHcbVaultRemote: async (request: HcbVaultRemotePushRequest) => {
       const parsed = hcbVaultRemotePushRequestSchema.parse(request);
       const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const credentials = await resolveVaultHostCredentials({
+        endpoint,
+        token: parsed.token,
+        passphrase: parsed.passphrase,
+        vaultHostCredentials,
+        requirePassphrase: true
+      });
       const exported = settingsRepository.exportHcbVault({
         ...(parsed.out === undefined ? {} : { out: parsed.out }),
-        passphrase: parsed.passphrase
+        passphrase: credentials.passphrase
       });
-      const remote = await uploadHcbVaultPackage(endpoint, parsed.token, exported.path, {
+      const remote = await uploadHcbVaultPackage(endpoint, credentials.token, exported.path, {
         allowInsecureHttp: parsed.allowInsecureHttp === true
       });
       settingsRepository.update({
@@ -214,20 +239,27 @@ export function createSqliteSettingsDomainService({
     pullHcbVaultRemote: async (request: HcbVaultRemotePullRequest) => {
       const parsed = hcbVaultRemotePullRequestSchema.parse(request);
       const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const credentials = await resolveVaultHostCredentials({
+        endpoint,
+        token: parsed.token,
+        passphrase: parsed.passphrase,
+        vaultHostCredentials,
+        requirePassphrase: true
+      });
       const temporary = temporaryVaultPath("hcb-vault-app-pull-");
       try {
-        const pkg = await downloadHcbVaultPackage(endpoint, parsed.token, temporary.path, {
+        const pkg = await downloadHcbVaultPackage(endpoint, credentials.token, temporary.path, {
           allowInsecureHttp: parsed.allowInsecureHttp === true
         });
         const imported = settingsRepository.importHcbVault({
           path: temporary.path,
-          passphrase: parsed.passphrase
+          passphrase: credentials.passphrase
         });
         settingsRepository.update({
           storageBackend: "hcb-hoster",
           hcbHosterEndpoint: endpoint
         });
-        const remote = await fetchHcbVaultHostInfo(endpoint, parsed.token, {
+        const remote = await fetchHcbVaultHostInfo(endpoint, credentials.token, {
           allowInsecureHttp: parsed.allowInsecureHttp === true
         });
 
@@ -241,6 +273,33 @@ export function createSqliteSettingsDomainService({
       } finally {
         rmSync(temporary.dir, { recursive: true, force: true });
       }
+    },
+    hcbVaultRemoteCredentialStatus: async (request: HcbVaultRemoteCredentialStatusRequest) => {
+      const parsed = hcbVaultRemoteCredentialStatusRequestSchema.parse(request);
+      const endpoint = optionalRemoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      return credentialStatus(endpoint, vaultHostCredentials);
+    },
+    saveHcbVaultRemoteCredentials: async (request: HcbVaultRemoteCredentialSaveRequest) => {
+      const parsed = hcbVaultRemoteCredentialSaveRequestSchema.parse(request);
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const store = requireVaultHostCredentialStore(vaultHostCredentials);
+      await store.write({
+        endpoint,
+        token: parsed.token,
+        passphrase: parsed.passphrase
+      });
+      settingsRepository.update({
+        storageBackend: "hcb-hoster",
+        hcbHosterEndpoint: endpoint
+      });
+      return credentialStatus(endpoint, vaultHostCredentials);
+    },
+    deleteHcbVaultRemoteCredentials: async (request: HcbVaultRemoteCredentialDeleteRequest) => {
+      const parsed = hcbVaultRemoteCredentialDeleteRequestSchema.parse(request);
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const store = requireVaultHostCredentialStore(vaultHostCredentials);
+      await store.delete(endpoint);
+      return credentialStatus(endpoint, vaultHostCredentials);
     },
     listLocalPointers: (request) => settingsRepository.listLocalPointers(request),
     repairLocalPointer: (request) => settingsRepository.repairLocalPointer(request),
@@ -289,6 +348,92 @@ function remoteVaultEndpoint(endpoint: string | undefined, fallback: string | nu
   }
 
   return resolved;
+}
+
+function optionalRemoteVaultEndpoint(endpoint: string | undefined, fallback: string | null): string | null {
+  const resolved = endpoint ?? fallback ?? "";
+  return resolved || null;
+}
+
+function requireVaultHostCredentialStore(
+  vaultHostCredentials: HcbVaultHostCredentialStore | undefined
+): HcbVaultHostCredentialStore {
+  if (!vaultHostCredentials) {
+    throw new HcbPublicError({
+      code: "VALIDATION_ERROR",
+      message: "HCB vault host credential storage is unavailable.",
+      recoverable: true
+    });
+  }
+
+  return vaultHostCredentials;
+}
+
+async function credentialStatus(
+  endpoint: string | null,
+  vaultHostCredentials: HcbVaultHostCredentialStore | undefined
+) {
+  const rawSecretStore = vaultHostCredentials?.status() ?? {
+    ok: false,
+    state: "unsupported",
+    message: "HCB vault host credential storage is unavailable."
+  };
+  const secretStore = {
+    ok: rawSecretStore.ok,
+    state: rawSecretStore.state ?? (rawSecretStore.ok ? "ready" : "unsupported"),
+    ...(rawSecretStore.message === undefined ? {} : { message: rawSecretStore.message })
+  };
+
+  if (!endpoint || !vaultHostCredentials || !secretStore.ok) {
+    return {
+      endpoint,
+      configured: false,
+      secretStore
+    };
+  }
+
+  const credentials = await vaultHostCredentials.read(endpoint);
+  return {
+    endpoint,
+    configured: credentials !== null,
+    secretStore
+  };
+}
+
+async function resolveVaultHostCredentials(input: {
+  endpoint: string;
+  token?: string;
+  passphrase?: string;
+  vaultHostCredentials?: HcbVaultHostCredentialStore;
+  requirePassphrase: boolean;
+}): Promise<Pick<HcbVaultHostCredentials, "token" | "passphrase">> {
+  if (input.token && (!input.requirePassphrase || input.passphrase)) {
+    return {
+      token: input.token,
+      passphrase: input.passphrase ?? ""
+    };
+  }
+
+  const saved = input.vaultHostCredentials
+    ? await input.vaultHostCredentials.read(input.endpoint)
+    : null;
+  const token = input.token ?? saved?.token;
+  const passphrase = input.passphrase ?? saved?.passphrase;
+
+  if (!token || (input.requirePassphrase && !passphrase)) {
+    throw new HcbPublicError({
+      code: "VALIDATION_ERROR",
+      message: input.requirePassphrase
+        ? "Enter or save the HCB vault host token and vault passphrase."
+        : "Enter or save the HCB vault host token.",
+      recoverable: true
+    });
+  }
+
+  return {
+    token,
+    passphrase: passphrase ?? ""
+  };
 }
 
 function temporaryVaultPath(prefix: string): { dir: string; path: string } {

@@ -120,7 +120,9 @@ selected resources exist.
 `.hcbvault` packages can also be pushed to and pulled from a trusted HCB vault
 host. The host stores only `manifest.json` plus encrypted `payload.hcbenc`; the
 vault passphrase stays on the client. Remote pull uses the same destructive
-import path as local vault import.
+import path as local vault import. The app can save the vault host token and
+passphrase in OS credential storage so Refresh and scheduled sync push the
+current encrypted snapshot while HCB hoster mode is active.
 
 Current non-goals for `.hcbvault`:
 

@@ -35,7 +35,7 @@ export const syncRunNowResponseSchema = z
     accepted: z.boolean(),
     dryRun: z.boolean(),
     drainOnly: z.boolean().default(false),
-    resources: z.array(z.enum(["tasks", "calendar"])).max(2)
+    resources: z.array(z.enum(["tasks", "calendar", "hcb-vault"])).max(3)
   })
   .strict();
 

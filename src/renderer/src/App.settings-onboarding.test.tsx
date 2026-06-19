@@ -346,6 +346,17 @@ describe("App settings and onboarding", () => {
         remote
       })
     );
+    api.settings.saveHcbVaultRemoteCredentials = vi.fn(async (request) =>
+      ok({
+        endpoint: request.endpoint ?? settings.hcbHosterEndpoint ?? "",
+        configured: true,
+        secretStore: {
+          ok: true,
+          state: "ready",
+          message: "Test credential storage is available."
+        }
+      })
+    );
     installHcb(api);
     const user = userEvent.setup();
     render(<App />);
@@ -353,6 +364,16 @@ describe("App settings and onboarding", () => {
     await goToSection("Settings");
     await user.type(screen.getByLabelText("HCB vault host token"), "remote-host-token");
     await user.type(screen.getByLabelText("HCB vault passphrase"), "vault-passphrase");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(api.settings.saveHcbVaultRemoteCredentials).toHaveBeenCalledWith({
+        endpoint: "https://pi.local/hcb/v1/vault",
+        token: "remote-host-token",
+        passphrase: "vault-passphrase"
+      });
+    });
+
     await user.click(screen.getByRole("button", { name: "Check" }));
 
     await waitFor(() => {

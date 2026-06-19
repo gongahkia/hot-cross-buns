@@ -423,6 +423,27 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           request,
           "HCB vault host pull failed"
         ),
+      hcbVaultRemoteCredentialStatus: (request = {}) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.hcbVaultRemoteCredentialStatus,
+          request,
+          "HCB vault host credential status failed"
+        ),
+      saveHcbVaultRemoteCredentials: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.saveHcbVaultRemoteCredentials,
+          request,
+          "HCB vault host credential save failed"
+        ),
+      deleteHcbVaultRemoteCredentials: (request = {}) =>
+        invokeContract(
+          ipc,
+          ipcContracts.settings.deleteHcbVaultRemoteCredentials,
+          request,
+          "HCB vault host credential delete failed"
+        ),
       listLocalPointers: (request = {}) =>
         invokeContract(
           ipc,

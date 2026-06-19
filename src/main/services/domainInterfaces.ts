@@ -30,6 +30,10 @@ import type {
   HcbVaultExportResponse,
   HcbVaultImportRequest,
   HcbVaultImportResponse,
+  HcbVaultRemoteCredentialDeleteRequest,
+  HcbVaultRemoteCredentialSaveRequest,
+  HcbVaultRemoteCredentialStatusRequest,
+  HcbVaultRemoteCredentialStatusResponse,
   HcbVaultRemotePullRequest,
   HcbVaultRemotePullResponse,
   HcbVaultRemotePushRequest,
@@ -393,6 +397,15 @@ export interface SettingsDomainService {
   pullHcbVaultRemote: (
     request: HcbVaultRemotePullRequest
   ) => MaybePromise<HcbVaultRemotePullResponse>;
+  hcbVaultRemoteCredentialStatus: (
+    request: HcbVaultRemoteCredentialStatusRequest
+  ) => MaybePromise<HcbVaultRemoteCredentialStatusResponse>;
+  saveHcbVaultRemoteCredentials: (
+    request: HcbVaultRemoteCredentialSaveRequest
+  ) => MaybePromise<HcbVaultRemoteCredentialStatusResponse>;
+  deleteHcbVaultRemoteCredentials: (
+    request: HcbVaultRemoteCredentialDeleteRequest
+  ) => MaybePromise<HcbVaultRemoteCredentialStatusResponse>;
   listLocalPointers: (request: LocalPointerListRequest) => MaybePromise<LocalPointerListResponse>;
   repairLocalPointer: (
     request: LocalPointerRepairRequest

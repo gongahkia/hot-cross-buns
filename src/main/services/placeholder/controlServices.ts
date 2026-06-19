@@ -126,6 +126,33 @@ export function createPlaceholderControlServices(
         manifest: {},
         remote: {}
       }) as never,
+      hcbVaultRemoteCredentialStatus: () => ({
+        endpoint: null,
+        configured: false,
+        secretStore: {
+          ok: false,
+          state: "unsupported",
+          message: "Placeholder credential storage is unavailable."
+        }
+      }),
+      saveHcbVaultRemoteCredentials: () => ({
+        endpoint: null,
+        configured: false,
+        secretStore: {
+          ok: false,
+          state: "unsupported",
+          message: "Placeholder credential storage is unavailable."
+        }
+      }),
+      deleteHcbVaultRemoteCredentials: () => ({
+        endpoint: null,
+        configured: false,
+        secretStore: {
+          ok: false,
+          state: "unsupported",
+          message: "Placeholder credential storage is unavailable."
+        }
+      }),
       recoveryAction: (request) => {
         if (request.action !== "refresh" && request.action !== "resetOnboarding") {
           const phrase = recoveryPhrase(request.action);

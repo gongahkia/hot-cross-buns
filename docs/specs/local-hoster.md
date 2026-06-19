@@ -59,8 +59,10 @@ hcb vault pull --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HO
 ```
 
 The Settings storage panel exposes the same host check, push, and pull path for
-configured HCB hoster mode. Tokens and passphrases are entered per action and
-are not persisted in local settings.
+configured HCB hoster mode. Tokens and passphrases may be entered per action or
+saved in OS credential storage. They are not persisted in local settings. When
+saved credentials exist, app Refresh, scheduled sync, and CLI/TUI sync push the
+current encrypted `.hcbvault` package to the configured hoster endpoint.
 
 Semantics are snapshot push/pull. Pull is destructive and routes through the
 same `.hcbvault` import path as local import. v1 does not implement CRDT,

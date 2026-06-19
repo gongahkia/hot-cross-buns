@@ -24,6 +24,9 @@ import {
   type GoogleSaveOAuthClientRequest,
   type HcbVaultExportRequest,
   type HcbVaultImportRequest,
+  type HcbVaultRemoteCredentialDeleteRequest,
+  type HcbVaultRemoteCredentialSaveRequest,
+  type HcbVaultRemoteCredentialStatusRequest,
   type HcbVaultRemotePullRequest,
   type HcbVaultRemotePushRequest,
   type HcbVaultRemoteStatusRequest,
@@ -525,6 +528,21 @@ export function createCoreIpcHandlers(
       contract: ipcContracts.settings.pullHcbVaultRemote,
       handle: (request) =>
         services.settings.pullHcbVaultRemote(request as HcbVaultRemotePullRequest)
+    },
+    {
+      contract: ipcContracts.settings.hcbVaultRemoteCredentialStatus,
+      handle: (request) =>
+        services.settings.hcbVaultRemoteCredentialStatus(request as HcbVaultRemoteCredentialStatusRequest)
+    },
+    {
+      contract: ipcContracts.settings.saveHcbVaultRemoteCredentials,
+      handle: (request) =>
+        services.settings.saveHcbVaultRemoteCredentials(request as HcbVaultRemoteCredentialSaveRequest)
+    },
+    {
+      contract: ipcContracts.settings.deleteHcbVaultRemoteCredentials,
+      handle: (request) =>
+        services.settings.deleteHcbVaultRemoteCredentials(request as HcbVaultRemoteCredentialDeleteRequest)
     },
     {
       contract: ipcContracts.settings.listLocalPointers,

@@ -21,6 +21,7 @@ Status: internal review only. No external security review has been completed.
 - Local hoster package keys and X25519 private keys in `SecretStore`.
 - Optional passphrase-derived package key wraps.
 - Vault host bearer tokens supplied through `--token-env`.
+- Optional saved vault host bearer tokens and vault passphrases in OS credential storage.
 - Encrypted `.hcbvault` payloads and manifests stored on user-owned hosts.
 
 ## Main Threats And Controls
@@ -35,7 +36,7 @@ Status: internal review only. No external security review has been completed.
 | Package tampering | Payload checksum, AES-GCM auth tags, profile fingerprint checks, and signed v1 manifests reject modified signed packages. |
 | Vault package tampering | Vault upload/download validates manifest schema and payload SHA-256 before package replacement or import. |
 | Portable package key exposure | Passphrase wraps only the package key with `scrypt` + AES-256-GCM; raw package keys are not written to the manifest. |
-| Secret store outage | Create/export/import fail closed when `SecretStore` read/write fails. |
+| Secret store outage | Create/export/import/saved vault-host sync fail closed when `SecretStore` read/write fails. |
 
 ## Residual Risks
 
@@ -43,6 +44,7 @@ Status: internal review only. No external security review has been completed.
 - Unsigned legacy v1 manifests remain importable when the package key is already present; new exports are signed.
 - This is not the full Signal Protocol and does not provide multi-device identity, deniability, or asynchronous ratcheting.
 - Passphrase strength is user-controlled; weak passphrases reduce portable package protection.
+- Saved vault passphrases are exposed to any local process that can read the user's OS credential store under this app identity.
 - Vault host sync is snapshot push/pull. Pull replaces local HCB state and does
   not merge concurrent writers.
 - Explicit LAN HTTP override protects vault contents through payload encryption

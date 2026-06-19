@@ -481,7 +481,7 @@ export type HcbVaultImportResponse = z.infer<typeof hcbVaultImportResponseSchema
 export const hcbVaultRemoteBaseRequestSchema = z
   .object({
     endpoint: z.string().url().max(500).optional(),
-    token: z.string().min(8).max(4_096),
+    token: z.string().min(8).max(4_096).optional(),
     allowInsecureHttp: z.boolean().optional()
   })
   .strict();
@@ -512,7 +512,7 @@ export const hcbVaultRemoteStatusResponseSchema = z
 export type HcbVaultRemoteStatusResponse = z.infer<typeof hcbVaultRemoteStatusResponseSchema>;
 
 export const hcbVaultRemotePushRequestSchema = hcbVaultRemoteBaseRequestSchema.extend({
-  passphrase: z.string().min(8).max(4_096),
+  passphrase: z.string().min(8).max(4_096).optional(),
   out: z.string().trim().min(1).max(4_096).optional()
 }).strict();
 export type HcbVaultRemotePushRequest = z.input<typeof hcbVaultRemotePushRequestSchema>;
@@ -529,7 +529,7 @@ export const hcbVaultRemotePushResponseSchema = z
 export type HcbVaultRemotePushResponse = z.infer<typeof hcbVaultRemotePushResponseSchema>;
 
 export const hcbVaultRemotePullRequestSchema = hcbVaultRemoteBaseRequestSchema.extend({
-  passphrase: z.string().min(8).max(4_096),
+  passphrase: z.string().min(8).max(4_096).optional(),
   confirm: z.literal(true)
 }).strict();
 export type HcbVaultRemotePullRequest = z.input<typeof hcbVaultRemotePullRequestSchema>;
@@ -544,6 +544,50 @@ export const hcbVaultRemotePullResponseSchema = z
   })
   .strict();
 export type HcbVaultRemotePullResponse = z.infer<typeof hcbVaultRemotePullResponseSchema>;
+
+export const hcbVaultRemoteCredentialStatusRequestSchema = z
+  .object({
+    endpoint: z.string().url().max(500).optional()
+  })
+  .strict();
+export type HcbVaultRemoteCredentialStatusRequest = z.input<
+  typeof hcbVaultRemoteCredentialStatusRequestSchema
+>;
+
+export const hcbVaultRemoteCredentialStoreStatusSchema = z
+  .object({
+    ok: z.boolean(),
+    state: z.string().min(1).max(80),
+    message: z.string().min(1).max(500).optional()
+  })
+  .strict();
+
+export const hcbVaultRemoteCredentialStatusResponseSchema = z
+  .object({
+    endpoint: z.string().url().max(500).nullable(),
+    configured: z.boolean(),
+    secretStore: hcbVaultRemoteCredentialStoreStatusSchema
+  })
+  .strict();
+export type HcbVaultRemoteCredentialStatusResponse = z.infer<
+  typeof hcbVaultRemoteCredentialStatusResponseSchema
+>;
+
+export const hcbVaultRemoteCredentialSaveRequestSchema = z
+  .object({
+    endpoint: z.string().url().max(500).optional(),
+    token: z.string().min(8).max(4_096),
+    passphrase: z.string().min(8).max(4_096)
+  })
+  .strict();
+export type HcbVaultRemoteCredentialSaveRequest = z.input<
+  typeof hcbVaultRemoteCredentialSaveRequestSchema
+>;
+
+export const hcbVaultRemoteCredentialDeleteRequestSchema = hcbVaultRemoteCredentialStatusRequestSchema;
+export type HcbVaultRemoteCredentialDeleteRequest = z.input<
+  typeof hcbVaultRemoteCredentialDeleteRequestSchema
+>;
 
 export const settingsUpdateRequestSchema = z
   .object({

@@ -18,6 +18,7 @@ import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { AppDomainServices } from "./domainInterfaces";
 import { createSqliteAgentDomainService } from "./sqliteAgentDomainService";
 import { createUnavailableGoogleDomainService } from "./sqliteGoogleDomainService";
+import type { HcbVaultHostCredentialStore } from "../hoster/vaultCredentials";
 import { createMcpDomainServices } from "./sqliteMcpDomainServices";
 import {
   createInitialMcpState,
@@ -48,6 +49,7 @@ export interface SqliteDomainServiceOptions {
   syncCalendarTransport?: GoogleCalendarReadTransport;
   syncTasksWriteTransport?: GoogleTasksWriteTransport;
   syncCalendarWriteTransport?: GoogleCalendarWriteTransport;
+  vaultHostCredentials?: HcbVaultHostCredentialStore;
 }
 
 export function createSqliteDomainServices(
@@ -98,7 +100,8 @@ export function createSqliteDomainServices(
       settingsRepository: options.settingsRepository,
       settingsSupportRepository: options.settingsSupportRepository,
       sync,
-      syncRepository: options.syncRepository
+      syncRepository: options.syncRepository,
+      vaultHostCredentials: options.vaultHostCredentials
     }),
     searchModels: createSqliteSearchModelDomainService(
       options.plannerRepository,
