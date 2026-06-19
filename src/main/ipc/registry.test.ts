@@ -171,22 +171,37 @@ describe("IPC dispatcher", () => {
   });
 
   it("rejects invalid service responses with a sanitized error", async () => {
-    const dispatcher = createIpcDispatcher([
-      {
-        contract: ipcContracts.mcp.status,
-        handle: () => ({
-          token: "not allowed"
-        })
-      }
-    ]);
+    const logger = { debug: vi.fn() };
+    const dispatcher = createIpcDispatcher(
+      [
+        {
+          contract: ipcContracts.mcp.status,
+          handle: () => ({
+            token: "not allowed"
+          })
+        }
+      ],
+      { logger }
+    );
 
     const result = await dispatcher(null, envelope("mcp", "status", {}));
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("INTERNAL_ERROR");
+      expect(result.error.details).toMatchObject({
+        paths: "enabled,running,readOnly,confirmationRequired,permissionMode,port,tokenState"
+      });
       expect(JSON.stringify(result.error)).not.toContain("not allowed");
     }
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: "response_error",
+        errorDetails: expect.objectContaining({
+          paths: "enabled,running,readOnly,confirmationRequired,permissionMode,port,tokenState"
+        })
+      })
+    );
   });
 
   it("records timing metrics and logs only route metadata", async () => {

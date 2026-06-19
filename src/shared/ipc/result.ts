@@ -91,11 +91,15 @@ export function ipcError(message = "IPC request failed"): HcbResult<never> {
   });
 }
 
-export function internalError(message = "Internal application error"): HcbResult<never> {
+export function internalError(
+  message = "Internal application error",
+  details?: HcbError["details"]
+): HcbResult<never> {
   return err({
     code: "INTERNAL_ERROR",
     message,
-    recoverable: false
+    recoverable: false,
+    ...(details ? { details } : {})
   });
 }
 

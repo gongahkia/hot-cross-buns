@@ -356,8 +356,11 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const domain: AppDomainServices = {
     ...sqliteDomain,
     sync: {
-      ...sqliteDomain.sync,
-      runNow: runConfiguredSyncNow
+      status: () => sqliteDomain.sync.status(),
+      runNow: runConfiguredSyncNow,
+      ...(sqliteDomain.sync.subscribeStatus === undefined
+        ? {}
+        : { subscribeStatus: (listener) => sqliteDomain.sync.subscribeStatus?.(listener) ?? (() => undefined) })
     },
     settings: {
       get: () => sqliteDomain.settings.get(),

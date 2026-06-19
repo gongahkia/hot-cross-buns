@@ -9,8 +9,7 @@ import { MacOsKeychainSecretStore } from "@main/credentials/secretStore";
 import {
   HcbVaultHostServer,
   downloadHcbVaultPackage,
-  fetchHcbVaultHostInfo,
-  uploadHcbVaultPackage
+  fetchHcbVaultHostInfo
 } from "@main/hoster/vaultServer";
 import { KeychainMcpCredentialAdapter } from "@main/mcp/keychainCredentials";
 import type { JsonObject, McpToolResponse } from "@main/mcp/types";
@@ -1496,53 +1495,23 @@ async function callVaultRemote(
   }
 
   if (command.action === "push") {
-    if (command.apply !== true) {
-      return {
-        applied: false,
-        dryRun: true,
-        requiresConfirmation: false,
-        message: "HCB vault push dry-run. Re-run with --apply to export locally and upload.",
-        item: {
-          kind: "hcbVaultRemotePush",
-          endpoint,
-          out: command.out ?? "temporary .hcbvault",
-          allowInsecureHttp
-        }
-      };
-    }
+    const request: JsonObject = {
+      endpoint,
+      token,
+      passphrase: passphraseFromEnv(requiredPassphraseEnv(command), env),
+      dryRun: command.apply === true ? false : true,
+      ...(command.out === undefined ? {} : { out: command.out }),
+      ...(allowInsecureHttp ? { allowInsecureHttp } : {}),
+      ...(command.confirmationId === undefined ? {} : { confirmationId: command.confirmationId })
+    };
 
-    const target = discoverRuntime(dependencies);
-    const mcpToken = await tokenProvider(dependencies)();
-    const temporary = command.out === undefined ? temporaryVaultPath("hcb-vault-push-") : undefined;
-    const out = command.out ?? temporary?.path ?? "";
-    try {
-      const exportResponse = await callMcpToolWithAuth("hcb_vault_export", {
-        out,
-        passphrase: passphraseFromEnv(requiredPassphraseEnv(command), env),
-        dryRun: false,
-        ...(command.confirmationId === undefined ? {} : { confirmationId: command.confirmationId })
-      }, dependencies, target, mcpToken);
-      const item = asObject(exportResponse.item) ?? {};
-      const vaultPath = typeof item.path === "string" ? item.path : out;
-      const info = await uploadHcbVaultPackage(endpoint, token, vaultPath, { fetch, allowInsecureHttp });
-
-      return {
-        applied: true,
-        dryRun: false,
-        requiresConfirmation: false,
-        message: "Exported and pushed encrypted HCB vault.",
-        item: {
-          kind: "hcbVaultRemotePush",
-          endpoint,
-          ...(command.out === undefined ? { temporary: true } : { path: vaultPath }),
-          remote: info
-        } as unknown as JsonObject
-      };
-    } finally {
-      if (temporary) {
-        rmSync(temporary.dir, { recursive: true, force: true });
-      }
-    }
+    return callMcpToolWithAuth(
+      "hcb_vault_remote_push",
+      request,
+      dependencies,
+      discoverRuntime(dependencies),
+      await tokenProvider(dependencies)()
+    );
   }
 
   if (command.action === "pull") {

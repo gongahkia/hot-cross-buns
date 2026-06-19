@@ -1963,12 +1963,25 @@ describe("hcb CLI", () => {
     }
   });
 
-  it("reads remote vault host status and previews vault push without MCP writes", async () => {
+  it("reads remote vault host status directly and previews vault push through MCP", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-vault-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
     const stdout = outputBuffer();
     const stderr = outputBuffer();
-    const calls: Array<{ url: string; method: string }> = [];
+    const calls: Array<{ url: string; method: string; name?: string; args?: Record<string, unknown> }> = [];
     const fetch: HcbCliDependencies["fetch"] = async (url, init) => {
-      calls.push({ url, method: init.method });
+      const method = init.method;
+      if (url.endsWith("/mcp")) {
+        const body = JSON.parse(init.body) as { params: { name: string; arguments: Record<string, unknown> } };
+        calls.push({ url, method, name: body.params.name, args: body.params.arguments });
+        return {
+          status: 200,
+          json: async () => rpcResponse(tuiStructuredResponse(body.params.name, body.params.arguments)),
+          text: async () => ""
+        };
+      }
+
+      calls.push({ url, method });
       return {
         status: 200,
         json: async () => ({
@@ -1984,25 +1997,45 @@ describe("hcb CLI", () => {
       };
     };
 
-    expect(await runHcbCli(["vault", "remote-status", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN"], {
-      env: { HCB_HOSTER_TOKEN: "remote-token-at-least-16" },
-      stdout,
-      stderr,
-      fetch
-    })).toBe(0);
-    expect(await runHcbCli(["vault", "push", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN", "--passphrase-env", "HCB_VAULT_PASSPHRASE"], {
-      env: {
-        HCB_HOSTER_TOKEN: "remote-token-at-least-16",
-        HCB_VAULT_PASSPHRASE: "correct horse battery"
-      },
-      stdout,
-      stderr,
-      fetch
-    })).toBe(0);
+    try {
+      writeRuntimeFile(runtimeFile);
+      expect(await runHcbCli(["vault", "remote-status", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN"], {
+        env: { HCB_HOSTER_TOKEN: "remote-token-at-least-16" },
+        stdout,
+        stderr,
+        fetch
+      })).toBe(0);
+      expect(await runHcbCli(["vault", "push", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN", "--passphrase-env", "HCB_VAULT_PASSPHRASE"], {
+        env: {
+          HCB_HOSTER_TOKEN: "remote-token-at-least-16",
+          HCB_VAULT_PASSPHRASE: "correct horse battery"
+        },
+        runtimeFilePaths: [runtimeFile],
+        tokenProvider: async () => "secret-token",
+        stdout,
+        stderr,
+        fetch
+      })).toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
 
-    expect(calls).toEqual([{ url: "http://127.0.0.1:7420/hcb/v1/vault/info", method: "GET" }]);
+    expect(calls).toEqual([
+      { url: "http://127.0.0.1:7420/hcb/v1/vault/info", method: "GET" },
+      {
+        url: "http://127.0.0.1:4777/mcp",
+        method: "POST",
+        name: "hcb_vault_remote_push",
+        args: {
+          endpoint: "http://127.0.0.1:7420",
+          token: "remote-token-at-least-16",
+          passphrase: "correct horse battery",
+          dryRun: true
+        }
+      }
+    ]);
     expect(stdout.text()).toContain("HCB vault host");
-    expect(stdout.text()).toContain("HCB vault push: dry-run");
+    expect(stdout.text()).toContain("Vault remote push dry-run ready.");
     expect(stderr.text()).toBe("");
   });
 

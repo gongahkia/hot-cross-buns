@@ -238,9 +238,8 @@ test("launches, navigates, opens command palette, and creates core items", async
     expect(health?.ok ? health.data.startup.databaseReadyMs : undefined).toBeDefined();
 
     const summary = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.summary());
-    expect(summary?.ok).toBe(true);
     if (!summary?.ok) {
-      throw new Error("diagnostics summary failed during smoke");
+      throw new Error(`diagnostics summary failed during smoke: ${JSON.stringify(summary)}`);
     }
 
     expect(summary.data.cache.taskCount).toBeGreaterThanOrEqual(1);

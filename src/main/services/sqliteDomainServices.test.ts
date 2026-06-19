@@ -1449,6 +1449,44 @@ describe("SQLite-backed domain services", () => {
     ]);
   });
 
+  it("does not enqueue Google mutations for local or hoster backend writes", async () => {
+    const cases = [
+      { backend: "google" as const, expectedPending: 3 },
+      { backend: "hcb-local" as const, expectedPending: 0 },
+      { backend: "hcb-hoster" as const, expectedPending: 0 }
+    ];
+
+    for (const { backend, expectedPending } of cases) {
+      const { domain, syncRepository } = createTestServices();
+      seedGoogleMirrors(syncRepository);
+      await domain.settings.update({ storageBackend: backend });
+
+      await domain.planner.createTask({
+        title: `${backend} task`,
+        listId: "acct-1:task-list:inbox"
+      });
+      await domain.planner.createCalendarEvent({
+        title: `${backend} event`,
+        calendarId: "acct-1:calendar:product",
+        startsAt: "2026-05-22T12:00:00.000Z",
+        endsAt: "2026-05-22T12:30:00.000Z"
+      });
+      await domain.planner.createNote({
+        title: `${backend} note`,
+        body: "local backend writes stay local"
+      });
+
+      expect((await domain.sync.status()).pendingMutationCount).toBe(expectedPending);
+      expect(
+        temp!.connection.get<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM google_pending_mutations;"
+        )?.count ?? 0
+      ).toBe(expectedPending);
+      temp?.cleanup();
+      temp = undefined;
+    }
+  });
+
   it("uses task indexes for list, status, due date, parent, and sort-order paths", () => {
     const { syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);

@@ -58,6 +58,7 @@ export interface IpcLogEvent {
   durationMs: number;
   outcome: IpcMetricOutcome;
   errorCode?: HcbErrorCode;
+  errorDetails?: Record<string, string | number | boolean | null>;
 }
 
 export interface IpcDispatcherOptions {
@@ -231,11 +232,13 @@ export function createIpcDispatcher(
   ): HcbResult<T> {
     const durationMs = durationSince(startedAt, now);
     const errorCode = result.ok ? undefined : result.error.code;
+    const errorDetails = result.ok ? undefined : result.error.details;
     const metricEvent = {
       route,
       durationMs,
       outcome,
-      ...(errorCode === undefined ? {} : { errorCode })
+      ...(errorCode === undefined ? {} : { errorCode }),
+      ...(errorDetails === undefined ? {} : { errorDetails })
     };
 
     options.metrics?.record(metricEvent);
@@ -315,7 +318,7 @@ export function createIpcDispatcher(
           route,
           startedAt,
           "response_error",
-          internalError("Invalid IPC response")
+          internalError("Invalid IPC response", validationDetails(response.error))
         );
       }
 

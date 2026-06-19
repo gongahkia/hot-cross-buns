@@ -187,6 +187,29 @@ describe("service container integration", () => {
     }
   });
 
+  it("keeps sync status available after wrapping runNow for hoster mode", async () => {
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-sync-wrapper-"));
+    const services = createServiceContainer({
+      appSupportDirectory,
+      secretStore: new MemorySecretStore()
+    });
+
+    try {
+      const status = await services.domain.sync.status();
+      const unsubscribe = services.domain.sync.subscribeStatus?.(() => undefined);
+
+      expect(status).toMatchObject({
+        state: "idle",
+        pendingMutationCount: 0
+      });
+      expect(unsubscribe).toEqual(expect.any(Function));
+      unsubscribe?.();
+    } finally {
+      await services.close();
+      rmSync(appSupportDirectory, { recursive: true, force: true });
+    }
+  });
+
   it("shares domain services between MCP tool handlers and planner IPC services", async () => {
     const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-container-"));
     const services = createServiceContainer({
