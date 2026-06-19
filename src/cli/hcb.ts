@@ -1214,22 +1214,9 @@ async function runHcbTui(
   const token = await tokenProvider(dependencies)();
   const call = (name: string, args: JsonObject) =>
     callMcpToolWithAuth(name, args, dependencies, target, token);
-  const [status, today, week, mutations, logs] = await Promise.all([
-    call("hcb_status", {}),
-    call("hcb_today", {}),
-    call("hcb_week", {}),
-    call("hcb_pending_mutations", { limit: 20 }),
-    call("hcb_log", { limit: 12, level: "warn" })
-  ]);
-  const screen = formatTuiScreen({
-    status: status.item ?? {},
-    today: today.item ?? {},
-    week: week.item ?? {},
-    mutations: mutations.items ?? [],
-    logs: logs.items ?? []
-  });
-
-  stdout.write(`\x1b[2J\x1b[H${screen}`);
+  const state = initialTuiState();
+  await refreshTuiState(state, call);
+  stdout.write(formatTuiScreen(state));
 
   if (env.HCB_TUI_ONCE === "1" || !process.stdin.isTTY) {
     return;
@@ -1237,12 +1224,18 @@ async function runHcbTui(
 
   await new Promise<void>((resolve) => {
     const stdin = process.stdin;
+    const render = () => stdout.write(formatTuiScreen(state));
     const onData = (chunk: Buffer) => {
       const value = chunk.toString("utf8");
       if (value === "q" || value === "\u0003") {
         cleanup();
         resolve();
+        return;
       }
+      void handleTuiInput(value, state, call, env).then(render).catch((error) => {
+        state.message = error instanceof Error ? error.message : String(error);
+        render();
+      });
     };
     const cleanup = () => {
       stdin.off("data", onData);
@@ -1256,6 +1249,336 @@ async function runHcbTui(
     stdin.resume();
     stdin.on("data", onData);
   });
+}
+
+type TuiView = "status" | "today" | "week" | "search" | "logs" | "mutations" | "hosters";
+type TuiCall = (name: string, args: JsonObject) => Promise<McpToolResponse>;
+
+interface TuiPendingApply {
+  label: string;
+  tool: string;
+  args: JsonObject;
+  confirmationId?: string;
+}
+
+interface TuiState {
+  views: TuiView[];
+  view: TuiView;
+  selected: Record<TuiView, number>;
+  commandMode: boolean;
+  commandBuffer: string;
+  message: string;
+  searchQuery: string;
+  data: {
+    status: JsonObject;
+    today: JsonObject;
+    week: JsonObject;
+    search: JsonObject[];
+    logs: JsonObject[];
+    mutations: JsonObject[];
+    hosters: JsonObject;
+  };
+  pendingApply?: TuiPendingApply;
+}
+
+function initialTuiState(): TuiState {
+  const views: TuiView[] = ["status", "today", "week", "search", "logs", "mutations", "hosters"];
+  return {
+    views,
+    view: "status",
+    selected: {
+      status: 0,
+      today: 0,
+      week: 0,
+      search: 0,
+      logs: 0,
+      mutations: 0,
+      hosters: 0
+    },
+    commandMode: false,
+    commandBuffer: "",
+    message: "r refresh | / search | : command | tab switch | enter detail | q quit",
+    searchQuery: "",
+    data: {
+      status: {},
+      today: {},
+      week: {},
+      search: [],
+      logs: [],
+      mutations: [],
+      hosters: {}
+    }
+  };
+}
+
+async function refreshTuiState(state: TuiState, call: TuiCall): Promise<void> {
+  const [status, today, week, mutations, logs, hosters] = await Promise.all([
+    call("hcb_status", {}),
+    call("hcb_today", {}),
+    call("hcb_week", {}),
+    call("hcb_pending_mutations", { limit: 50 }),
+    call("hcb_log", { limit: 50, level: "warn" }),
+    call("hcb_hoster_status", {})
+  ]);
+  state.data.status = status.item ?? {};
+  state.data.today = today.item ?? {};
+  state.data.week = week.item ?? {};
+  state.data.mutations = mutations.items ?? [];
+  state.data.logs = logs.items ?? [];
+  state.data.hosters = hosters.item ?? {};
+  if (state.searchQuery) {
+    const search = await call("hcb_search", { query: state.searchQuery, limit: 25 });
+    state.data.search = search.items ?? [];
+  }
+  state.message = `refreshed ${new Date().toLocaleTimeString()}`;
+  clampTuiSelection(state);
+}
+
+async function handleTuiInput(
+  value: string,
+  state: TuiState,
+  call: TuiCall,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  if (state.commandMode) {
+    await handleTuiCommandInput(value, state, call, env);
+    return;
+  }
+
+  if (value === "\t" || value === "\x1b[C") {
+    moveTuiView(state, 1);
+    return;
+  }
+  if (value === "\x1b[D") {
+    moveTuiView(state, -1);
+    return;
+  }
+  if (value === "\x1b[A" || value === "k") {
+    state.selected[state.view] = Math.max(0, state.selected[state.view] - 1);
+    return;
+  }
+  if (value === "\x1b[B" || value === "j") {
+    state.selected[state.view] = Math.min(tuiRows(state).length - 1, state.selected[state.view] + 1);
+    return;
+  }
+  if (value === "r") {
+    await refreshTuiState(state, call);
+    return;
+  }
+  if (value === "/") {
+    state.commandMode = true;
+    state.commandBuffer = "search ";
+    state.message = "type search query, enter to run";
+    return;
+  }
+  if (value === ":") {
+    state.commandMode = true;
+    state.commandBuffer = "";
+    state.message = "commands: search, status, today, week, logs, mutations, hosters, hoster ..., apply <id>";
+    return;
+  }
+  if (value === "\r" || value === "\n") {
+    const row = selectedTuiRow(state);
+    state.message = row ? row.label : "No selected row.";
+  }
+}
+
+async function handleTuiCommandInput(
+  value: string,
+  state: TuiState,
+  call: TuiCall,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  if (value === "\u0003" || value === "\x1b") {
+    state.commandMode = false;
+    state.commandBuffer = "";
+    state.message = "command cancelled";
+    return;
+  }
+  if (value === "\u007f" || value === "\b") {
+    state.commandBuffer = state.commandBuffer.slice(0, -1);
+    return;
+  }
+  if (value === "\r" || value === "\n") {
+    const command = state.commandBuffer.trim();
+    state.commandMode = false;
+    state.commandBuffer = "";
+    await runTuiCommand(command, state, call, env);
+    return;
+  }
+  if (/^[\x20-\x7e]$/.test(value)) {
+    state.commandBuffer += value;
+  }
+}
+
+async function runTuiCommand(
+  command: string,
+  state: TuiState,
+  call: TuiCall,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  if (!command) {
+    state.message = "empty command";
+    return;
+  }
+  const [name, ...rest] = command.split(/\s+/);
+  if (isTuiView(name)) {
+    state.view = name;
+    state.message = `view ${name}`;
+    return;
+  }
+  if (name === "refresh") {
+    await refreshTuiState(state, call);
+    return;
+  }
+  if (name === "search") {
+    const query = rest.join(" ").trim();
+    if (!query) {
+      throw new CliError("search requires a query.", 2);
+    }
+    state.searchQuery = query;
+    const response = await call("hcb_search", { query, limit: 25 });
+    state.data.search = response.items ?? [];
+    state.view = "search";
+    state.selected.search = 0;
+    state.message = `search: ${query}`;
+    return;
+  }
+  if (name === "apply") {
+    await runTuiApply(rest[0], state, call);
+    return;
+  }
+  if (name === "hoster") {
+    await runTuiHosterCommand(rest, state, call, env);
+    return;
+  }
+
+  throw new CliError(`Unknown TUI command '${name}'.`, 2);
+}
+
+async function runTuiApply(
+  confirmationId: string | undefined,
+  state: TuiState,
+  call: TuiCall
+): Promise<void> {
+  if (!state.pendingApply) {
+    throw new CliError("No pending dry-run to apply.", 2);
+  }
+  const id = confirmationId ?? state.pendingApply.confirmationId;
+  if (!id) {
+    throw new CliError("Pending action does not have a confirmation id.", 2);
+  }
+  const response = await call(state.pendingApply.tool, {
+    ...state.pendingApply.args,
+    dryRun: false,
+    confirmationId: id
+  });
+  state.pendingApply = undefined;
+  state.message = response.message;
+  await refreshTuiState(state, call);
+}
+
+async function runTuiHosterCommand(
+  args: string[],
+  state: TuiState,
+  call: TuiCall,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  const action = args[0];
+  if (action === "status") {
+    const response = await call("hcb_hoster_status", {});
+    state.data.hosters = response.item ?? {};
+    state.view = "hosters";
+    state.message = response.message;
+    return;
+  }
+  if (action === "test") {
+    const response = await call("hcb_hoster_test", {
+      ...(args[1] ? { id: args[1] } : {}),
+      privatePayload: true
+    });
+    state.message = response.message;
+    return;
+  }
+  if (action === "create") {
+    const name = args.slice(1).join(" ").trim();
+    if (!name) {
+      throw new CliError("hoster create requires a name.", 2);
+    }
+    await runTuiDryRun(state, call, "hoster create", "hcb_hoster_create", { name, dryRun: true });
+    return;
+  }
+  if (action === "export") {
+    const [id, out, passphraseEnv] = args.slice(1);
+    if (!id || !out) {
+      throw new CliError("hoster export requires <id> <path> [passphraseEnv].", 2);
+    }
+    await runTuiDryRun(state, call, "hoster export", "hcb_hoster_export", {
+      id,
+      out,
+      ...(passphraseEnv ? { passphrase: passphraseFromEnv(passphraseEnv, env) } : {}),
+      dryRun: true
+    });
+    return;
+  }
+  if (action === "import") {
+    const [path, passphraseEnv] = args.slice(1);
+    if (!path) {
+      throw new CliError("hoster import requires <path> [passphraseEnv].", 2);
+    }
+    await runTuiDryRun(state, call, "hoster import", "hcb_hoster_import", {
+      path,
+      ...(passphraseEnv ? { passphrase: passphraseFromEnv(passphraseEnv, env) } : {}),
+      dryRun: true
+    });
+    return;
+  }
+  if (action === "remove") {
+    const id = args[1];
+    if (!id) {
+      throw new CliError("hoster remove requires <id>.", 2);
+    }
+    await runTuiDryRun(state, call, "hoster remove", "hcb_hoster_remove", { id, dryRun: true });
+    return;
+  }
+
+  throw new CliError("hoster command must be status, create, export, import, remove, or test.", 2);
+}
+
+async function runTuiDryRun(
+  state: TuiState,
+  call: TuiCall,
+  label: string,
+  tool: string,
+  args: JsonObject
+): Promise<void> {
+  const response = await call(tool, args);
+  state.pendingApply = {
+    label,
+    tool,
+    args,
+    confirmationId: response.confirmationId
+  };
+  state.message = response.confirmationId
+    ? `${label} dry-run ready; :apply ${response.confirmationId}`
+    : `${label} dry-run ready`;
+}
+
+function moveTuiView(state: TuiState, delta: number): void {
+  const index = state.views.indexOf(state.view);
+  const next = (index + delta + state.views.length) % state.views.length;
+  state.view = state.views[next];
+  clampTuiSelection(state);
+}
+
+function clampTuiSelection(state: TuiState): void {
+  for (const view of state.views) {
+    state.selected[view] = Math.max(0, Math.min(tuiRowsForView(state, view).length - 1, state.selected[view]));
+  }
+}
+
+function isTuiView(value: string): value is TuiView {
+  return ["status", "today", "week", "search", "logs", "mutations", "hosters"].includes(value);
 }
 
 async function callMcpToolWithAuth(
@@ -1318,42 +1641,117 @@ async function callMcpToolWithAuth(
   return structured as unknown as McpToolResponse;
 }
 
-function formatTuiScreen(input: {
-  status: JsonObject;
-  today: JsonObject;
-  week: JsonObject;
-  mutations: JsonObject[];
-  logs: JsonObject[];
-}): string {
-  const account = asObject(input.status.account) ?? {};
-  const sync = asObject(input.status.sync) ?? {};
-  const cache = asObject(input.status.cache) ?? {};
-  const todayTasks = objectArray(input.today.tasks);
-  const todayEvents = objectArray(input.today.events);
-  const weekTasks = objectArray(input.week.tasks);
-  const weekEvents = objectArray(input.week.events);
-  const lines = [
-    "Hot Cross Buns 2 TUI",
-    "q quit | commands: doctor status today week search diff log hoster",
-    "",
-    `Account ${text(account.state)} | Sync ${text(sync.state)} | Cache tasks=${text(cache.taskCount)} events=${text(cache.eventCount)} notes=${text(cache.noteCount)}`,
-    "",
-    `Today: ${todayTasks.length} tasks, ${todayEvents.length} events`,
-    ...todayTasks.slice(0, 8).map((item) => `  [task] ${formatCompactItem(item)}`),
-    ...todayEvents.slice(0, 8).map((item) => `  [event] ${formatCompactItem(item)}`),
-    "",
-    `Week: ${weekTasks.length} tasks, ${weekEvents.length} events`,
-    ...weekTasks.slice(0, 8).map((item) => `  [task] ${formatCompactItem(item)}`),
-    ...weekEvents.slice(0, 8).map((item) => `  [event] ${formatCompactItem(item)}`),
-    "",
-    `Pending mutations: ${input.mutations.length}`,
-    ...input.mutations.slice(0, 8).map((item) => `  ${formatCompactItem(item)}`),
-    "",
-    `Warnings: ${input.logs.length}`,
-    ...input.logs.slice(0, 8).map((item) => `  ${text(item.formattedLine)}`)
-  ];
+function formatTuiScreen(state: TuiState): string {
+  const rows = tuiRows(state);
+  const selected = selectedTuiRow(state);
+  const todayTasks = objectArray(state.data.today.tasks).length;
+  const todayEvents = objectArray(state.data.today.events).length;
+  const mutationCount = state.data.mutations.length;
+  const hosterCount = objectArray(state.data.hosters.profiles).length;
+  const tabs = state.views
+    .map((view) => view === state.view ? `[${view}]` : ` ${view} `)
+    .join(" ");
+  const pending = state.pendingApply
+    ? `pending: ${state.pendingApply.label}${state.pendingApply.confirmationId ? ` confirmation=${state.pendingApply.confirmationId}` : ""}`
+    : "pending: none";
+  const command = state.commandMode ? `:${state.commandBuffer}` : "";
+  const listLines = rows.length === 0
+    ? ["  No rows."]
+    : rows.slice(0, 18).map((row, index) => `${index === state.selected[state.view] ? ">" : " "} ${row.label}`);
+  const detailLines = selected
+    ? renderTuiDetail(selected.item)
+    : ["No detail."];
 
-  return `${lines.join("\n")}\n`;
+  return [
+    "\x1b[2J\x1b[HHot Cross Buns 2 TUI",
+    tabs,
+    "keys: tab/arrow switch | j/k move | / search | : command | r refresh | q quit",
+    "commands: search <q> | hoster create/export/import/remove/test | apply <confirmationId>",
+    `Today: ${todayTasks} tasks, ${todayEvents} events | Pending mutations: ${mutationCount} | Hosters: ${hosterCount}`,
+    pending,
+    `status: ${state.message}`,
+    command,
+    "",
+    `${state.view.toUpperCase()} (${rows.length})`,
+    ...listLines,
+    "",
+    "DETAIL",
+    ...detailLines
+  ].join("\n") + "\n";
+}
+
+interface TuiRow {
+  label: string;
+  item: JsonObject;
+}
+
+function tuiRows(state: TuiState): TuiRow[] {
+  return tuiRowsForView(state, state.view);
+}
+
+function selectedTuiRow(state: TuiState): TuiRow | undefined {
+  return tuiRows(state)[state.selected[state.view]];
+}
+
+function tuiRowsForView(state: TuiState, view: TuiView): TuiRow[] {
+  if (view === "status") {
+    const status = state.data.status;
+    const account = asObject(status.account) ?? {};
+    const sync = asObject(status.sync) ?? {};
+    const cache = asObject(status.cache) ?? {};
+    const mcp = asObject(status.mcp) ?? {};
+    return [
+      tuiRow(`account ${text(account.state)}`, account),
+      tuiRow(`sync ${text(sync.state)} mode=${text(sync.mode)}`, sync),
+      tuiRow(`cache tasks=${text(cache.taskCount)} events=${text(cache.eventCount)} notes=${text(cache.noteCount)}`, cache),
+      tuiRow(`mcp enabled=${text(mcp.enabled)} mode=${text(mcp.permissionMode)}`, mcp)
+    ];
+  }
+  if (view === "today") {
+    return [
+      ...objectArray(state.data.today.tasks).map((item) => tuiRow(`[task] ${formatCompactItem(item)}`, item)),
+      ...objectArray(state.data.today.events).map((item) => tuiRow(`[event] ${formatCompactItem(item)}`, item)),
+      ...objectArray(state.data.today.notes).map((item) => tuiRow(`[note] ${formatCompactItem(item)}`, item))
+    ];
+  }
+  if (view === "week") {
+    return [
+      ...objectArray(state.data.week.tasks).map((item) => tuiRow(`[task] ${formatCompactItem(item)}`, item)),
+      ...objectArray(state.data.week.events).map((item) => tuiRow(`[event] ${formatCompactItem(item)}`, item))
+    ];
+  }
+  if (view === "search") {
+    return state.data.search.map((item) => tuiRow(formatCompactItem(item), item));
+  }
+  if (view === "logs") {
+    return state.data.logs.map((item) => tuiRow(text(item.formattedLine) || `${text(item.timestamp)} ${text(item.level)} ${text(item.message)}`, item));
+  }
+  if (view === "mutations") {
+    return state.data.mutations.map((item) => tuiRow(formatCompactItem(item), item));
+  }
+  const profiles = objectArray(state.data.hosters.profiles);
+  return [
+    tuiRow(`server enabled=${text(state.data.hosters.enabled)} running=${text(state.data.hosters.running)} port=${text(state.data.hosters.port)}`, state.data.hosters),
+    ...profiles.map((item) => tuiRow(`${text(item.id)} ${text(item.name)} mode=${text(item.permissionMode)}`, item))
+  ];
+}
+
+function tuiRow(label: string, item: JsonObject): TuiRow {
+  return {
+    label: truncateText(label, 120),
+    item
+  };
+}
+
+function renderTuiDetail(item: JsonObject): string[] {
+  return JSON.stringify(item, null, 2)
+    .split("\n")
+    .slice(0, 18)
+    .map((line) => truncateText(line, 140));
+}
+
+function truncateText(value: string, limit: number): string {
+  return value.length <= limit ? value : `${value.slice(0, Math.max(0, limit - 3))}...`;
 }
 
 export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeTarget {
