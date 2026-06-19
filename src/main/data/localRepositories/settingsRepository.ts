@@ -137,6 +137,8 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   mcpEnabled: false,
   mcpPermissionMode: "confirm-writes",
   mcpPort: 0,
+  localHostersEnabled: false,
+  localHosterPort: 0,
   defaultTimeZone: systemTimeZone(),
   todayCapacityMinutes: 480,
   todayWorkingHoursStart: 6,
@@ -436,6 +438,8 @@ export class LocalSettingsRepository {
         DEFAULT_SETTINGS.mcpPermissionMode
       ),
       mcpPort: this.readSetting("mcp", "port", DEFAULT_SETTINGS.mcpPort),
+      localHostersEnabled: this.readSetting("localHosters", "enabled", DEFAULT_SETTINGS.localHostersEnabled),
+      localHosterPort: this.readSetting("localHosters", "port", DEFAULT_SETTINGS.localHosterPort),
       defaultTimeZone: this.readSetting(
         "calendar",
         "defaultTimeZone",
@@ -832,6 +836,14 @@ export class LocalSettingsRepository {
 
     if (request.mcpPort !== undefined) {
       this.writeSetting("mcp", "port", request.mcpPort, now);
+    }
+
+    if (request.localHostersEnabled !== undefined) {
+      this.writeSetting("localHosters", "enabled", request.localHostersEnabled, now);
+    }
+
+    if (request.localHosterPort !== undefined) {
+      this.writeSetting("localHosters", "port", request.localHosterPort, now);
     }
 
     if (request.defaultTimeZone !== undefined) {

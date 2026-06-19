@@ -415,6 +415,14 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.mcpPort = request.mcpPort;
   }
 
+  if (request.localHostersEnabled !== undefined) {
+    patch.localHostersEnabled = request.localHostersEnabled;
+  }
+
+  if (request.localHosterPort !== undefined) {
+    patch.localHosterPort = request.localHosterPort;
+  }
+
   if (request.defaultTimeZone !== undefined) {
     patch.defaultTimeZone = request.defaultTimeZone;
   }

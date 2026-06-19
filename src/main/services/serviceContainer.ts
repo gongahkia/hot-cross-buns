@@ -15,6 +15,7 @@ import { runLocalDataMigrations, type MigrationResult } from "../data/migrations
 import {
   LocalHistoryRepository,
   LocalAgentRepository,
+  LocalHosterRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository,
@@ -36,6 +37,7 @@ import { LatestGoogleAccountApiTransport } from "../google/accountTransport";
 import { RepositoryGoogleOAuthAccountStatusStore } from "../google/accountStatusStore";
 import { GoogleRuntimeService } from "../google/runtimeService";
 import { LocalMcpServerController } from "../mcp/controller";
+import { LocalHosterServerController } from "../hoster/server";
 import { KeychainMcpCredentialAdapter } from "../mcp/keychainCredentials";
 import { McpConfirmationStore } from "../mcp/confirmationStore";
 import { McpToolRegistry } from "../mcp/toolRegistry";
@@ -54,6 +56,7 @@ import { markStartupTiming } from "../startupTiming";
 import type { AppDomainServices } from "./domainInterfaces";
 import { createSqliteDomainServices } from "./sqliteDomainServices";
 import { createSqliteAgentDomainService } from "./sqliteAgentDomainService";
+import { createSqliteHosterDomainService } from "./sqliteHosterDomainService";
 
 export interface LocalDataService {
   status: "ready";
@@ -66,6 +69,7 @@ export interface LocalDataService {
   historyRepository: LocalHistoryRepository;
   undoRepository: LocalUndoRepository;
   agentRepository: LocalAgentRepository;
+  hosterRepository: LocalHosterRepository;
   webhookRepository: LocalWebhookRepository;
   performanceRepository: LocalPerformanceRepository;
 }
@@ -149,6 +153,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     linuxSafeStorageBackend: options.linuxSafeStorageBackend,
     windowsSafeStorageBackend: options.windowsSafeStorageBackend
   });
+  const hosterRepository = new LocalHosterRepository(connection, secretStore);
   const googleCredentialAdapter = new KeychainGoogleCredentialAdapter(secretStore);
   const googleClientSecretStore = new KeychainGoogleOAuthClientSecretStore(secretStore);
   const googleConfigStore = new GoogleOAuthClientConfigStore(connection, googleClientSecretStore);
@@ -206,17 +211,27 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         loopback: googleLoopback
       })
     : undefined;
+  const mcpCredentialAdapter = new KeychainMcpCredentialAdapter(secretStore, {
+    seedToken: options.mcpBearerTokenSeed
+  });
   const mcpToolRegistry = new McpToolRegistry(
     sqliteDomain.mcpTools,
     new McpConfirmationStore({ repository: agentRepository })
   );
   const mcpController = new LocalMcpServerController({
-    credentialAdapter: new KeychainMcpCredentialAdapter(secretStore, {
-      seedToken: options.mcpBearerTokenSeed
-    }),
+    credentialAdapter: mcpCredentialAdapter,
     toolRegistry: mcpToolRegistry,
     getSettings: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
     runtimeFilePath: appPaths ? join(appPaths.configDirectory, HCB_MCP_RUNTIME_FILE_NAME) : undefined
+  });
+  const hosterController = new LocalHosterServerController({
+    credentialAdapter: mcpCredentialAdapter,
+    repository: hosterRepository
+  });
+  const hosters = createSqliteHosterDomainService({
+    repository: hosterRepository,
+    statusBase: () => hosterController.status(settingsSupportRepository.applyExternalSettings(settingsRepository.get())),
+    endpoint: () => hosterController.endpoint()
   });
   const nativeShell = new NativeShellService({
     adapter: options.nativeAdapter ?? createNoopNativeAdapter(),
@@ -246,6 +261,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         nativeShell.applySettings(snapshot);
         syncScheduler?.applySettings(snapshot);
         await mcpController.applySettings(snapshot);
+        await hosterController.applySettings(snapshot);
         return snapshot;
       },
       recoveryAction: async (request) => {
@@ -306,9 +322,11 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         const settings = settingsRepository.get();
         nativeShell.applySettings(settings);
         await mcpController.applySettings(settings);
+        await hosterController.applySettings(settings);
         return mcpController.status(status);
       }
     },
+    hosters,
     agent: createSqliteAgentDomainService(agentRepository, mcpToolRegistry),
     webhooks: sqliteDomain.webhooks,
     native: nativeShell
@@ -316,7 +334,8 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   mcpToolRegistry.setAdminServices({
     settings: domain.settings,
     google: domain.google,
-    mcp: domain.mcp
+    mcp: domain.mcp,
+    hosters: domain.hosters
   });
   syncScheduler = new SyncScheduler({
     getSettings: () => settingsSupportRepository.applyExternalSettings(settingsRepository.get()),
@@ -347,6 +366,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       historyRepository,
       undoRepository,
       agentRepository,
+      hosterRepository,
       webhookRepository,
       performanceRepository
     },
@@ -366,11 +386,24 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         });
       }
 
+      try {
+        void hosterController.applySettings(settingsRepository.get()).catch((error) => {
+          appLogger.warn("deferred hoster settings apply failed", "hoster", {
+            message: error instanceof Error ? error.message : String(error)
+          });
+        });
+      } catch (error) {
+        appLogger.warn("deferred hoster settings load failed", "hoster", {
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+
       syncScheduler?.start();
     },
     close: async () => {
       syncScheduler?.stop();
       await mcpController.dispose();
+      await hosterController.dispose();
       await googleLoopback.stop();
       nativeShell.dispose();
       connection.close();

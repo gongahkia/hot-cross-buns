@@ -1,6 +1,7 @@
 export type {
   CalendarDomainService,
   DiagnosticsDomainService,
+  LocalHosterDomainService,
   McpAdminDomainServices,
   McpDomainServices,
   McpSyncQueueDomainService,

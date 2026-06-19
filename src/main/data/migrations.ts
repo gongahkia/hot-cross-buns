@@ -570,6 +570,26 @@ CREATE INDEX IF NOT EXISTS idx_local_ics_subscriptions_visible
 
       return operations;
     }
+  },
+  {
+    version: 20,
+    name: "local hoster profiles",
+    sql: `
+CREATE TABLE IF NOT EXISTS local_hoster_profiles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  capabilities_json TEXT NOT NULL,
+  permission_mode TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  key_fingerprint TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_hoster_profiles_active
+  ON local_hoster_profiles(deleted_at, updated_at DESC, id DESC);
+`
   }
 ];
 

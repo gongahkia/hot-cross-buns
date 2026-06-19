@@ -26,6 +26,13 @@ import type {
   GoogleDisconnectRequest,
   GoogleSaveOAuthClientRequest,
   GoogleStatusResponse,
+  LocalHosterCreateRequest,
+  LocalHosterExportRequest,
+  LocalHosterImportRequest,
+  LocalHosterMutationResponse,
+  LocalHosterRemoveRequest,
+  LocalHosterStatusResponse,
+  LocalHosterTestRequest,
   McpSetEnabledRequest,
   McpStatusResponse,
   NativeCapabilitiesResponse,
@@ -253,6 +260,7 @@ export interface McpAdminDomainServices {
   settings: Pick<SettingsDomainService, "get" | "update">;
   google: Pick<GoogleControlDomainService, "status" | "saveOAuthClient" | "beginOAuth">;
   mcp: Pick<McpControlDomainService, "status" | "setEnabled">;
+  hosters: LocalHosterDomainService;
 }
 
 export interface PlannerViewDomainService {
@@ -422,6 +430,15 @@ export interface McpControlDomainService {
   setEnabled: (request: McpSetEnabledRequest) => MaybePromise<McpStatusResponse>;
 }
 
+export interface LocalHosterDomainService {
+  status: () => MaybePromise<LocalHosterStatusResponse>;
+  create: (request: LocalHosterCreateRequest) => MaybePromise<LocalHosterMutationResponse>;
+  export: (request: LocalHosterExportRequest) => MaybePromise<LocalHosterMutationResponse>;
+  import: (request: LocalHosterImportRequest) => MaybePromise<LocalHosterMutationResponse>;
+  remove: (request: LocalHosterRemoveRequest) => MaybePromise<LocalHosterMutationResponse>;
+  test: (request: LocalHosterTestRequest) => MaybePromise<LocalHosterMutationResponse>;
+}
+
 export interface AgentActionDomainService {
   listActions: (request: AgentActionListRequest) => MaybePromise<AgentActionListResponse>;
   applyAction: (request: AgentActionApplyRequest) => MaybePromise<AgentActionApplyResponse>;
@@ -454,6 +471,7 @@ export interface AppDomainServices {
   searchModels: SearchModelDomainService;
   undo: UndoDomainService;
   mcp: McpControlDomainService;
+  hosters: LocalHosterDomainService;
   agent: AgentActionDomainService;
   webhooks: WebhookDomainService;
   native: NativeDomainService;

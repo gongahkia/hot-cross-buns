@@ -469,6 +469,31 @@ export {
 } from "./contracts/settings";
 
 export {
+  localHosterCapabilitySchema,
+  localHosterCreateRequestSchema,
+  localHosterExportRequestSchema,
+  localHosterImportRequestSchema,
+  localHosterManifestSchema,
+  localHosterMutationResponseSchema,
+  localHosterProfileSchema,
+  localHosterRemoveRequestSchema,
+  localHosterSignalEnvelopeSchema,
+  localHosterStatusResponseSchema,
+  localHosterTestRequestSchema,
+  type LocalHosterCapability,
+  type LocalHosterCreateRequest,
+  type LocalHosterExportRequest,
+  type LocalHosterImportRequest,
+  type LocalHosterManifest,
+  type LocalHosterMutationResponse,
+  type LocalHosterProfile,
+  type LocalHosterRemoveRequest,
+  type LocalHosterSignalEnvelope,
+  type LocalHosterStatusResponse,
+  type LocalHosterTestRequest
+} from "./contracts/hosters";
+
+export {
   mcpSetEnabledRequestSchema,
   mcpStatusRequestSchema,
   mcpStatusResponseSchema,

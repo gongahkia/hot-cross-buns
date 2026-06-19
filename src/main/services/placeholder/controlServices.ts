@@ -320,6 +320,46 @@ export function createPlaceholderControlServices(
         return { ...state.mcp };
       }
     },
+    hosters: {
+      status: () => ({
+        enabled: state.settings.localHostersEnabled,
+        running: false,
+        port: state.settings.localHosterPort,
+        profiles: []
+      }),
+      create: (request) => ({
+        id: "hoster:placeholder",
+        profile: {
+          id: "hoster:placeholder",
+          name: request.name,
+          capabilities: request.capabilities ?? ["host.info", "signal.send", "planner.read"],
+          permissionMode: request.permissionMode ?? "confirm-writes",
+          endpoint: "http://127.0.0.1:0/hcb/v1/signal",
+          keyFingerprint: "0".repeat(64),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        message: "Local hoster profile created."
+      }),
+      export: (request) => ({
+        id: request.id,
+        path: request.out,
+        message: `Local hoster exported to ${request.out}.`
+      }),
+      import: (request) => ({
+        id: "hoster:placeholder",
+        path: request.path,
+        message: "Local hoster imported."
+      }),
+      remove: (request) => ({
+        id: request.id,
+        message: "Local hoster removed."
+      }),
+      test: (request) => ({
+        id: request.id ?? "hoster:placeholder",
+        message: "Local hoster signal encryption round-trip passed."
+      })
+    },
     agent: {
       listActions: (request) => ({
         items: [],

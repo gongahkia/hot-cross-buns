@@ -4,6 +4,7 @@ export { LocalPerformanceRepository } from "./localRepositories/performanceRepos
 export { LocalPlannerRepository } from "./localRepositories/plannerRepository";
 export { LocalSettingsRepository } from "./localRepositories/settingsRepository";
 export { LocalSettingsSupportRepository } from "./localRepositories/settingsSupportRepository";
+export { LocalHosterRepository } from "./localRepositories/localHosterRepository";
 export { TagLocalRepository } from "./localRepositories/tagRepository";
 export { LocalUndoRepository } from "./localRepositories/undoRepository";
 export { LocalWebhookRepository } from "./localRepositories/webhookRepository";

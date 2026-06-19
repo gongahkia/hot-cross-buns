@@ -38,7 +38,9 @@ const readToolNames = [
   "hcb_list_note_lists",
   "hcb_list_calendars",
   "hcb_undo_status",
-  "hcb_pending_mutations"
+  "hcb_pending_mutations",
+  "hcb_hoster_status",
+  "hcb_hoster_test"
 ] as const;
 
 const writeToolNames = [
@@ -66,6 +68,10 @@ const writeToolNames = [
   "hcb_google_save_oauth_client",
   "hcb_google_begin_oauth",
   "hcb_mcp_set_enabled",
+  "hcb_hoster_create",
+  "hcb_hoster_export",
+  "hcb_hoster_import",
+  "hcb_hoster_remove",
   "hcb_delete_task",
   "hcb_delete_note",
   "hcb_delete_event",
@@ -83,6 +89,7 @@ const destructiveToolNames = new Set<string>([
   "hcb_delete_note_list",
   "hcb_convert_item",
   "hcb_cancel_mutation",
+  "hcb_hoster_remove",
   "hcb_undo",
   "hcb_redo"
 ]);
@@ -142,6 +149,11 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   readTool("hcb_undo_status", "Read current undo and redo availability.", {}),
   readTool("hcb_pending_mutations", "List pending local-to-Google mutation queue entries.", {
     limit: integerSchema("Maximum pending mutation count.")
+  }),
+  readTool("hcb_hoster_status", "Read local hoster status and configured profiles.", {}),
+  readTool("hcb_hoster_test", "Run a local hoster signal encryption round-trip.", {
+    id: stringSchema("Optional hoster profile id."),
+    privatePayload: booleanSchema("Whether to test private payload encryption.")
   }),
   writeTool("hcb_sync_now", "Run Google sync now for tasks, calendar, or both.", false, {
     resources: arraySchema("Optional resources to sync: tasks, calendar."),
@@ -319,6 +331,29 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["enabled"]),
+  writeTool("hcb_hoster_create", "Create a local hoster profile.", false, {
+    name: stringSchema("Hoster profile name."),
+    capabilities: arraySchema("Optional hoster capabilities."),
+    permissionMode: enumSchema(["read-only", "confirm-writes", "allow-writes"]),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["name"]),
+  writeTool("hcb_hoster_export", "Export a local hoster profile as an encrypted .hcbhost package.", false, {
+    id: stringSchema("Hoster profile id."),
+    out: stringSchema("Output .hcbhost directory path."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id", "out"]),
+  writeTool("hcb_hoster_import", "Import an encrypted .hcbhost package.", false, {
+    path: stringSchema("Input .hcbhost directory path."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["path"]),
+  writeTool("hcb_hoster_remove", "Remove a local hoster profile. Always requires confirmation.", true, {
+    id: stringSchema("Hoster profile id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
   writeTool("hcb_delete_task", "Delete a task. Always requires confirmation.", true, {
     id: stringSchema("Task id."),
     dryRun: booleanSchema("Preview without applying."),
@@ -570,6 +605,23 @@ export class McpToolRegistry {
 
         return success({ message: `Read ${items.length} pending mutation${items.length === 1 ? "" : "s"}.`, items });
       }
+      case "hcb_hoster_status":
+        return success({
+          message: "Read local hoster status.",
+          item: await this.requireAdminServices().hosters.status()
+        });
+      case "hcb_hoster_test":
+        return success({
+          message: "Tested local hoster signal encryption.",
+          item: await this.requireAdminServices().hosters.test({
+            ...(optionalString(argumentsObject, "id") === undefined
+              ? {}
+              : { id: optionalString(argumentsObject, "id") }),
+            ...(optionalBoolean(argumentsObject, "privatePayload") === undefined
+              ? {}
+              : { privatePayload: optionalBoolean(argumentsObject, "privatePayload") })
+          })
+        });
       default:
         throw new McpToolError("UNKNOWN_TOOL", "Unknown MCP tool.");
     }
@@ -840,6 +892,52 @@ export class McpToolRegistry {
           ...(await this.requireAdminServices().mcp.setEnabled({
             enabled: requiredBoolean(args, "enabled")
           }))
+        })
+      },
+      hcb_hoster_create: {
+        preview: (args) => ({
+          kind: "localHosterProfile",
+          name: requiredString(args, "name"),
+          capabilities: optionalHosterCapabilities(args),
+          permissionMode: optionalPermissionMode(args) ?? "confirm-writes"
+        }),
+        apply: (args) => this.requireAdminServices().hosters.create({
+          name: requiredString(args, "name"),
+          ...(optionalHosterCapabilities(args) === undefined
+            ? {}
+            : { capabilities: optionalHosterCapabilities(args) }),
+          ...(optionalPermissionMode(args) === undefined
+            ? {}
+            : { permissionMode: optionalPermissionMode(args) })
+        })
+      },
+      hcb_hoster_export: {
+        preview: (args) => ({
+          kind: "localHosterExport",
+          id: requiredString(args, "id"),
+          out: requiredString(args, "out")
+        }),
+        apply: (args) => this.requireAdminServices().hosters.export({
+          id: requiredString(args, "id"),
+          out: requiredString(args, "out")
+        })
+      },
+      hcb_hoster_import: {
+        preview: (args) => ({
+          kind: "localHosterImport",
+          path: requiredString(args, "path")
+        }),
+        apply: (args) => this.requireAdminServices().hosters.import({
+          path: requiredString(args, "path")
+        })
+      },
+      hcb_hoster_remove: {
+        preview: (args) => ({
+          kind: "localHosterRemove",
+          id: requiredString(args, "id")
+        }),
+        apply: (args) => this.requireAdminServices().hosters.remove({
+          id: requiredString(args, "id")
         })
       },
       hcb_delete_task: {
@@ -1623,6 +1721,39 @@ function optionalNumber(args: Record<string, unknown>, key: string): number | un
 function optionalBoolean(args: Record<string, unknown>, key: string): boolean | undefined {
   const value = args[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function optionalHosterCapabilities(
+  args: Record<string, unknown>
+): Array<"host.info" | "signal.send" | "planner.read" | "planner.write"> | undefined {
+  const value = args.capabilities;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new McpToolError("INVALID_ARGUMENTS", "capabilities must be an array.");
+  }
+  const allowed = new Set(["host.info", "signal.send", "planner.read", "planner.write"]);
+  const capabilities = [...new Set(value)];
+  if (!capabilities.every((entry): entry is "host.info" | "signal.send" | "planner.read" | "planner.write" =>
+    typeof entry === "string" && allowed.has(entry)
+  )) {
+    throw new McpToolError("INVALID_ARGUMENTS", "Unsupported local hoster capability.");
+  }
+  return capabilities;
+}
+
+function optionalPermissionMode(
+  args: Record<string, unknown>
+): "read-only" | "confirm-writes" | "allow-writes" | undefined {
+  const value = optionalString(args, "permissionMode");
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "read-only" || value === "confirm-writes" || value === "allow-writes") {
+    return value;
+  }
+  throw new McpToolError("INVALID_ARGUMENTS", "permissionMode must be read-only, confirm-writes, or allow-writes.");
 }
 
 function requiredBoolean(args: Record<string, unknown>, key: string): boolean {

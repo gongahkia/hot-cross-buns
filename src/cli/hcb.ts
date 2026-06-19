@@ -81,6 +81,8 @@ interface ParsedCommand {
     | "settings"
     | "google"
     | "mcp"
+    | "hoster"
+    | "tui"
     | "help";
   json: boolean;
   limit?: number;
@@ -135,6 +137,11 @@ interface ParsedCommand {
   clientId?: string;
   clientSecret?: string;
   enabled?: boolean;
+  name?: string;
+  permissionMode?: string;
+  out?: string;
+  path?: string;
+  privatePayload?: boolean;
 }
 
 interface RuntimeTarget {
@@ -162,6 +169,11 @@ export async function runHcbCli(
 
     if (command.command === "help") {
       stdout.write(helpText());
+      return 0;
+    }
+
+    if (command.command === "tui") {
+      await runHcbTui(command, dependencies);
       return 0;
     }
 
@@ -277,6 +289,39 @@ export function parseCommand(argv: string[]): ParsedCommand {
       const value = args[index + 1];
       index += 1;
       parsed.title = optionValue(value, "--title");
+      continue;
+    }
+
+    if (arg === "--name") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.name = optionValue(value, "--name");
+      continue;
+    }
+
+    if (arg === "--permission-mode") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.permissionMode = parsePermissionMode(value);
+      continue;
+    }
+
+    if (arg === "--out") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.out = optionValue(value, "--out");
+      continue;
+    }
+
+    if (arg === "--path") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.path = optionValue(value, "--path");
+      continue;
+    }
+
+    if (arg === "--private") {
+      parsed.privatePayload = true;
       continue;
     }
 
@@ -706,6 +751,33 @@ export function parseCommand(argv: string[]): ParsedCommand {
     }
 
     validateMcpCommand(parsed);
+  } else if (command === "hoster") {
+    parsed.action = parseHosterAction(positional[0]);
+    parsed.target = "hoster";
+
+    if (parsed.action === "export" || parsed.action === "remove" || parsed.action === "test") {
+      parsed.id = positional[1];
+    }
+
+    if (parsed.action === "import") {
+      parsed.path = parsed.path ?? positional[1];
+    }
+
+    const validPositionalCount =
+      (parsed.action === "status" || parsed.action === "create") ? positional.length === 1 :
+      parsed.action === "test" ? positional.length === 1 || positional.length === 2 :
+      parsed.action === "import" && parsed.path !== undefined ? positional.length === 1 || positional.length === 2 :
+      positional.length === 2;
+
+    if (!validPositionalCount) {
+      throw new CliError("Usage: pnpm hcb -- hoster <status|create|export|import|remove|test> [options]", 2);
+    }
+
+    validateHosterCommand(parsed);
+  } else if (command === "tui") {
+    if (positional.length !== 0) {
+      throw new CliError("Usage: pnpm hcb -- tui", 2);
+    }
   } else if (positional.length > 0) {
     throw new CliError(`Unexpected argument '${positional[0]}'.`, 2);
   }
@@ -745,7 +817,18 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError("--full is only supported by sync-now.", 2);
   }
 
-  if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command)) {
+  if (
+    (parsed.name !== undefined ||
+      parsed.permissionMode !== undefined ||
+      parsed.out !== undefined ||
+      parsed.path !== undefined ||
+      parsed.privatePayload !== undefined) &&
+    command !== "hoster"
+  ) {
+    throw new CliError("--name, --permission-mode, --out, --path, and --private are only supported by hoster.", 2);
+  }
+
+  if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command) && !isHosterWriteCommand(parsed)) {
     throw new CliError("Write options are only supported by sync-now, retry-mutation, cancel-mutation, create, update, convert, rename, complete, reopen, move, delete, undo, redo, schedule, settings, google, and mcp.", 2);
   }
 
@@ -813,7 +896,7 @@ export async function callCommand(
     }
   }
 
-  if (isWriteCommand(command.command)) {
+  if (isWriteCommand(command.command) || isHosterWriteCommand(command)) {
     args.dryRun = command.apply !== true;
 
     if (command.confirmationId !== undefined) {
@@ -1032,6 +1115,32 @@ export async function callCommand(
 
   if (command.command === "mcp" && command.enabled !== undefined) {
     args.enabled = command.enabled;
+  }
+
+  if (command.command === "hoster") {
+    if (command.id !== undefined) {
+      args.id = command.id;
+    }
+
+    if (command.name !== undefined) {
+      args.name = command.name;
+    }
+
+    if (command.permissionMode !== undefined) {
+      args.permissionMode = command.permissionMode;
+    }
+
+    if (command.out !== undefined) {
+      args.out = command.out;
+    }
+
+    if (command.path !== undefined) {
+      args.path = command.path;
+    }
+
+    if (command.privatePayload === true) {
+      args.privatePayload = true;
+    }
   }
 
   return callMcpTool(tool, args, dependencies);
@@ -1301,7 +1410,7 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
   }
 
   if (command.json) {
-    if (isWriteCommand(command.command)) {
+    if (isWriteCommand(command.command) || isHosterWriteCommand(command)) {
       return `${JSON.stringify(writeJsonOutput(command, response), null, 2)}\n`;
     }
 
@@ -1364,6 +1473,16 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
     return formatDetail(command.target ?? "item", response.item ?? {});
   }
 
+  if (command.command === "hoster") {
+    if (isHosterWriteCommand(command)) {
+      return formatWrite(command, response);
+    }
+
+    return command.action === "test"
+      ? formatDetail("hoster test", response.item ?? {})
+      : formatHosterStatus(response.item ?? {});
+  }
+
   if (isWriteCommand(command.command)) {
     return formatWrite(command, response);
   }
@@ -1388,6 +1507,29 @@ function formatStatus(item: JsonObject): string {
     `MCP: enabled=${text(mcp.enabled)} mode=${text(mcp.permissionMode)} port=${text(mcp.configuredPort)}`,
     `Build: ${text(build.appName)}@${text(build.version)} node=${text(build.nodeVersion)}`
   ].join("\n") + "\n";
+}
+
+function formatHosterStatus(item: JsonObject): string {
+  const profiles = objectArray(item.profiles);
+  const lines = [
+    "HCB local hosters",
+    `Server: enabled=${text(item.enabled)} running=${text(item.running)} port=${text(item.port)}`
+  ];
+
+  if (profiles.length === 0) {
+    lines.push("Profiles: 0");
+  } else {
+    lines.push(`Profiles: ${profiles.length}`);
+    for (const profile of profiles) {
+      lines.push(`  ${text(profile.id)} ${text(profile.name)} mode=${text(profile.permissionMode)} endpoint=${text(profile.endpoint)}`);
+    }
+  }
+
+  if (item.lastError) {
+    lines.push(`Last error: ${text(item.lastError)}`);
+  }
+
+  return `${lines.join("\n")}\n`;
 }
 
 function formatLogs(items: JsonObject[]): string {
@@ -2021,6 +2163,32 @@ function toolName(command: ParsedCommand): string {
       throw new CliError("Unknown google action.", 2);
     case "mcp":
       return "hcb_mcp_set_enabled";
+    case "hoster":
+      if (command.action === "status") {
+        return "hcb_hoster_status";
+      }
+
+      if (command.action === "create") {
+        return "hcb_hoster_create";
+      }
+
+      if (command.action === "export") {
+        return "hcb_hoster_export";
+      }
+
+      if (command.action === "import") {
+        return "hcb_hoster_import";
+      }
+
+      if (command.action === "remove") {
+        return "hcb_hoster_remove";
+      }
+
+      if (command.action === "test") {
+        return "hcb_hoster_test";
+      }
+
+      throw new CliError("Unknown hoster action.", 2);
     default:
       throw new CliError("Help does not call MCP.");
   }
@@ -2060,7 +2228,9 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "schedule" ||
     command === "settings" ||
     command === "google" ||
-    command === "mcp"
+    command === "mcp" ||
+    command === "hoster" ||
+    command === "tui"
   );
 }
 
@@ -2416,6 +2586,29 @@ function parseMcpAction(value: string | undefined): string {
   throw new CliError("MCP action must be set-enabled.", 2);
 }
 
+function parseHosterAction(value: string | undefined): string {
+  if (
+    value === "status" ||
+    value === "create" ||
+    value === "export" ||
+    value === "import" ||
+    value === "remove" ||
+    value === "test"
+  ) {
+    return value;
+  }
+
+  throw new CliError("Hoster action must be one of: status, create, export, import, remove, test.", 2);
+}
+
+function parsePermissionMode(value: string | undefined): string {
+  if (value === "read-only" || value === "confirm-writes" || value === "allow-writes") {
+    return value;
+  }
+
+  throw new CliError("Permission mode must be read-only, confirm-writes, or allow-writes.", 2);
+}
+
 function optionValue(value: string | undefined, flag: string): string {
   if (!value || value.startsWith("--")) {
     throw new CliError(`Missing value for ${flag}.`, 2);
@@ -2669,6 +2862,37 @@ function validateMcpCommand(command: ParsedCommand): void {
   }
 
   rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret"]);
+}
+
+function validateHosterCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "hoster");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+
+  if (command.action === "status") {
+    rejectUnsupportedOptions(command, "hoster status", ["name", "permissionMode", "out", "path", "privatePayload", "apply", "confirmationId"]);
+  } else if (command.action === "create") {
+    if (command.name === undefined) {
+      throw new CliError("Missing required --name for hoster create.", 2);
+    }
+    rejectUnsupportedOptions(command, "hoster create", ["id", "out", "path", "privatePayload"]);
+  } else if (command.action === "export") {
+    if (command.id === undefined || command.out === undefined) {
+      throw new CliError("Usage: pnpm hcb -- hoster export <id> --out <path>", 2);
+    }
+    rejectUnsupportedOptions(command, "hoster export", ["name", "permissionMode", "path", "privatePayload"]);
+  } else if (command.action === "import") {
+    if (command.path === undefined) {
+      throw new CliError("Usage: pnpm hcb -- hoster import <path>", 2);
+    }
+    rejectUnsupportedOptions(command, "hoster import", ["id", "name", "permissionMode", "out", "privatePayload"]);
+  } else if (command.action === "remove") {
+    if (command.id === undefined) {
+      throw new CliError("Usage: pnpm hcb -- hoster remove <id>", 2);
+    }
+    rejectUnsupportedOptions(command, "hoster remove", ["name", "permissionMode", "out", "path", "privatePayload"]);
+  } else if (command.action === "test") {
+    rejectUnsupportedOptions(command, "hoster test", ["name", "permissionMode", "out", "path", "apply", "confirmationId"]);
+  }
 }
 
 function validateRecurrenceCommand(command: ParsedCommand): void {
