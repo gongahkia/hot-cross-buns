@@ -12,6 +12,13 @@ Current audit, 2026-06-19:
 - `TODO.md` was deleted in commit `e9be152`; this file restores the last
   pre-delete checklist so the release gates below have an authoritative tracker.
 - Restored checklist count: 26 complete, 36 incomplete, 62 total.
+- 2026-06-19 release-asset recheck: GitHub latest release `v5.0.0` is
+  published and contains Linux AppImage plus Windows NSIS assets; `pnpm
+  release:asset-preflight -- --target all --tag v5.0.0` passed after sandbox
+  escalation, and focused updater/preflight coverage passed with `pnpm exec
+  vitest run --config vitest.config.ts src/main/native/githubReleaseUpdates.test.ts
+  scripts/release-asset-preflight.test.ts` (`15` tests).
+- Checklist count after that recheck: 28 complete, 34 incomplete, 62 total.
 - No unchecked manual QA or release-upload item is marked complete without
   target-host evidence.
 
@@ -1156,7 +1163,7 @@ Linux remaining work:
 - [ ] Confirm tray/status-area, `hotcrossbuns://` protocol handling, autostart,
       and in-place auto-update are either still unsupported by design or have
       fresh implementation plus manual QA before any support claim changes.
-- [ ] Verify Settings check-for-updates prefers Linux AppImage assets once a
+- [x] Verify Settings check-for-updates prefers Linux AppImage assets once a
       draft or published GitHub release contains the Linux artifacts.
 - [x] Re-run the Linux release gate after manual fixes:
       `pnpm release:linux:preview`,
@@ -1212,7 +1219,7 @@ Windows remaining work:
       app identity.
 - [ ] Validate `hotcrossbuns://` warm-start and cold-start deep links.
 - [ ] Validate open-at-login enable/disable and persistence across app restart.
-- [ ] Verify Settings check-for-updates prefers Windows `.exe` assets.
+- [x] Verify Settings check-for-updates prefers Windows `.exe` assets.
 - [ ] Uninstall the app and document installer cleanup plus retained user-data
       behavior.
 - [x] Document expected SmartScreen/signing behavior for unsigned preview
