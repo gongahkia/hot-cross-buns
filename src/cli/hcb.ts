@@ -2483,6 +2483,7 @@ function tuiRowsForView(state: TuiState, view: TuiView): TuiRow[] {
       tuiRow(`remote hasVault=${text(remote.hasVault)} name=${text(remote.vaultName) || "unset"}`, remote),
       tuiRow(`format versions=${versions}`, remote),
       tuiRow(`manifest exportedAt=${text(manifest.exportedAt) || "unset"}`, manifest),
+      tuiRow(`package sha256=${text(remote.packageSha256) || "unset"}`, remote),
       tuiRow(`package maxBytes=${text(remote.maxPackageBytes) || "unknown"}`, remote)
     ];
   }
@@ -2851,6 +2852,7 @@ function formatVaultRemoteStatus(item: JsonObject): string {
     `Protocol: ${text(item.protocolVersion)}`,
     `Has vault: ${text(item.hasVault)}`,
     `Vault name: ${text(item.vaultName) || "unset"}`,
+    `Package sha256: ${text(item.packageSha256) || "unset"}`,
     `Max package bytes: ${text(item.maxPackageBytes)}`,
     manifest.exportedAt ? `Exported at: ${text(manifest.exportedAt)}` : "",
     manifest.stateSha256 ? `State sha256: ${text(manifest.stateSha256)}` : ""

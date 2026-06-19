@@ -208,7 +208,8 @@ export function createSqliteSettingsDomainService({
     },
     pushHcbVaultRemote: async (request: HcbVaultRemotePushRequest) => {
       const parsed = hcbVaultRemotePushRequestSchema.parse(request);
-      const endpoint = remoteVaultEndpoint(parsed.endpoint, settingsRepository.get().hcbHosterEndpoint);
+      const settings = settingsRepository.get();
+      const endpoint = remoteVaultEndpoint(parsed.endpoint, settings.hcbHosterEndpoint);
       const credentials = await resolveVaultHostCredentials({
         endpoint,
         token: parsed.token,
@@ -221,11 +222,15 @@ export function createSqliteSettingsDomainService({
         passphrase: credentials.passphrase
       });
       const remote = await uploadHcbVaultPackage(endpoint, credentials.token, exported.path, {
-        allowInsecureHttp: parsed.allowInsecureHttp === true
+        allowInsecureHttp: parsed.allowInsecureHttp === true,
+        ...(settings.hcbHosterLastPackageSha256 === null
+          ? {}
+          : { expectedPackageSha256: settings.hcbHosterLastPackageSha256 })
       });
       settingsRepository.update({
         storageBackend: "hcb-hoster",
-        hcbHosterEndpoint: endpoint
+        hcbHosterEndpoint: endpoint,
+        hcbHosterLastPackageSha256: remote.packageSha256 ?? null
       });
 
       return {
@@ -261,6 +266,9 @@ export function createSqliteSettingsDomainService({
         });
         const remote = await fetchHcbVaultHostInfo(endpoint, credentials.token, {
           allowInsecureHttp: parsed.allowInsecureHttp === true
+        });
+        settingsRepository.update({
+          hcbHosterLastPackageSha256: remote.packageSha256 ?? null
         });
 
         return {

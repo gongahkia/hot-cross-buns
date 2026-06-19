@@ -673,6 +673,7 @@ export class McpToolRegistry {
             storageBackend: settings.storageBackend,
             hcbHosterEndpoint: settings.hcbHosterEndpoint,
             hcbVaultPath: settings.hcbVaultPath,
+            hcbHosterLastPackageSha256: settings.hcbHosterLastPackageSha256,
             googleSyncActive: settings.storageBackend === "google",
             sync: syncStatus,
             taskListCount: taskLists.length,

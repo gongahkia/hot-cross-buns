@@ -36,6 +36,7 @@ export interface HcbVaultHostInfo {
   hasVault: boolean;
   vaultName: string;
   maxPackageBytes: number;
+  packageSha256?: string;
   manifest?: HcbVaultManifest;
 }
 
@@ -141,6 +142,7 @@ export class HcbVaultHostServer {
         return;
       }
       if (request.method === "PUT" || request.method === "POST") {
+        this.assertWritePrecondition(request);
         const body = await readRequestBody(request, this.maxPackageBytes);
         const transport = parseVaultTransport(JSON.parse(body.toString("utf8")));
         writeHcbVaultPackage(this.options.vaultPath, transportPackage(transport));
@@ -180,8 +182,25 @@ export class HcbVaultHostServer {
       hasVault: vault !== undefined,
       vaultName: basename(this.options.vaultPath),
       maxPackageBytes: this.maxPackageBytes,
-      ...(vault === undefined ? {} : { manifest: vault.manifest })
+      ...(vault === undefined
+        ? {}
+        : {
+            packageSha256: hcbVaultPackageSha256(vault),
+            manifest: vault.manifest
+          })
     };
+  }
+
+  private assertWritePrecondition(request: IncomingMessage): void {
+    const expected = ifMatchSha256(request);
+    if (expected === undefined) {
+      return;
+    }
+
+    const current = safeReadHcbVaultPackage(this.options.vaultPath);
+    if (!current || hcbVaultPackageSha256(current) !== expected) {
+      throw new VaultHostHttpError(412, "HCB vault host package precondition failed.");
+    }
   }
 }
 
@@ -207,6 +226,10 @@ export function writeHcbVaultPackage(vaultPath: string, value: HcbVaultPackage):
   writeFileSync(join(staging, value.manifest.payloadFile), value.payloadText, { encoding: "utf8", mode: 0o600 });
   rmSync(vaultPath, { recursive: true, force: true });
   renameSync(staging, vaultPath);
+}
+
+export function hcbVaultPackageSha256(value: HcbVaultPackage): string {
+  return sha256Buffer(Buffer.from(`${stableJson(value.manifest)}\n${value.payloadText}`, "utf8"));
 }
 
 export function vaultPackageToTransport(value: HcbVaultPackage): HcbVaultHostPackageTransport {
@@ -245,7 +268,7 @@ export async function uploadHcbVaultPackage(
   endpoint: string,
   token: string,
   vaultPath: string,
-  input: { fetch?: typeof fetch; allowInsecureHttp?: boolean } = {}
+  input: { fetch?: typeof fetch; allowInsecureHttp?: boolean; expectedPackageSha256?: string } = {}
 ): Promise<HcbVaultHostInfo> {
   const url = vaultHostUrl(endpoint, HCB_VAULT_HOST_PACKAGE_PATH, input.allowInsecureHttp === true);
   const transport = vaultPackageToTransport(readHcbVaultPackage(vaultPath));
@@ -253,7 +276,8 @@ export async function uploadHcbVaultPackage(
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...(input.expectedPackageSha256 === undefined ? {} : { "If-Match": `"${input.expectedPackageSha256}"` })
     },
     body: JSON.stringify(transport)
   });
@@ -325,6 +349,7 @@ function parseVaultInfo(value: unknown): HcbVaultHostInfo {
     hasVault: object.hasVault,
     vaultName: object.vaultName,
     maxPackageBytes: object.maxPackageBytes,
+    ...(typeof object.packageSha256 === "string" ? { packageSha256: object.packageSha256 } : {}),
     ...(object.manifest === undefined
       ? {}
       : { manifest: hcbVaultManifestSchema.parse(object.manifest) })
@@ -357,6 +382,19 @@ function validateVaultPayload(manifest: HcbVaultManifest, payloadText: string): 
   if (sha256Buffer(Buffer.from(payloadText, "utf8")) !== manifest.payloadSha256) {
     throw new Error("HCB vault payload checksum mismatch.");
   }
+}
+
+function ifMatchSha256(request: IncomingMessage): string | undefined {
+  const raw = request.headers["if-match"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim().replace(/^"|"$/g, "");
+  if (!/^[0-9a-f]{64}$/i.test(trimmed)) {
+    throw new VaultHostHttpError(400, "HCB vault host If-Match header is malformed.");
+  }
+  return trimmed.toLowerCase();
 }
 
 async function readRequestBody(request: IncomingMessage, maxBytes: number): Promise<Buffer> {

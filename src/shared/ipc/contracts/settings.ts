@@ -350,6 +350,7 @@ export const settingsSnapshotSchema = z
     storageBackend: hcbStorageBackendSchema,
     hcbHosterEndpoint: z.string().url().max(500).nullable(),
     hcbVaultPath: z.string().trim().min(1).max(4_096).nullable(),
+    hcbHosterLastPackageSha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
     syncMode: syncModeSchema,
     syncTasksEnabled: z.boolean(),
     syncCalendarEventsEnabled: z.boolean(),
@@ -498,6 +499,7 @@ export const hcbVaultRemoteInfoSchema = z
     hasVault: z.boolean(),
     vaultName: z.string().min(1).max(500),
     maxPackageBytes: z.number().int().min(1),
+    packageSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
     manifest: hcbVaultManifestSchema.optional()
   })
   .strict();
@@ -626,6 +628,7 @@ export const settingsUpdateRequestSchema = z
     storageBackend: hcbStorageBackendSchema.optional(),
     hcbHosterEndpoint: z.string().url().max(500).nullable().optional(),
     hcbVaultPath: z.string().trim().min(1).max(4_096).nullable().optional(),
+    hcbHosterLastPackageSha256: z.string().regex(/^[0-9a-f]{64}$/).nullable().optional(),
     syncMode: syncModeSchema.optional(),
     syncTasksEnabled: z.boolean().optional(),
     syncCalendarEventsEnabled: z.boolean().optional(),

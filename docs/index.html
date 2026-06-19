@@ -412,6 +412,7 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
           <li>Added in-app Settings controls to check a vault host, push an encrypted vault, and pull a hosted vault back into local HCB state.</li>
           <li>Added optional OS credential storage for vault host tokens/passphrases so Refresh, scheduled sync, and CLI/TUI sync can push the encrypted vault in hoster mode.</li>
           <li>Added standalone vault hosting for trusted local machines with <code>hcb vault serve</code>, <code>remote-status</code>, <code>push</code>, and <code>pull</code>.</li>
+          <li>Added hosted vault package SHA-256 reporting and stale-upload rejection so app-managed pushes do not silently overwrite a newer vault.</li>
           <li>Remote vault clients require HTTPS outside loopback unless the user explicitly allows insecure HTTP for trusted LAN testing.</li>
           <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
           <li>Added MCP and CLI commands for backend status, backend switching, vault export, vault import, remote vault status/push/pull, plus TUI backend and vault host views.</li>

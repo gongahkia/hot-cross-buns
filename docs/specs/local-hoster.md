@@ -35,7 +35,8 @@ current.hcbvault/
 Routes:
 
 - `GET /hcb/v1/vault/info`: returns protocol version, supported vault format
-  versions, max package bytes, and current manifest metadata when a vault exists.
+  versions, max package bytes, package SHA-256, and current manifest metadata
+  when a vault exists.
 - `GET /hcb/v1/vault`: downloads the manifest plus encrypted payload.
 - `PUT /hcb/v1/vault`: uploads/replaces the manifest plus encrypted payload.
 
@@ -48,6 +49,9 @@ Vault hosts do not receive the passphrase. Clients export/import locally with
 the passphrase, then push/pull the already-encrypted package. Upload validates
 the manifest schema and payload SHA-256 before replacing the hosted package.
 Replacement is atomic at the package-directory level.
+Clients that have a last-seen package SHA-256 send it as `If-Match` on upload;
+the host rejects stale uploads with HTTP 412 instead of overwriting a newer
+hosted vault.
 
 CLI:
 

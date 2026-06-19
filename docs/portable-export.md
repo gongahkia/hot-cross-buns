@@ -122,7 +122,9 @@ host. The host stores only `manifest.json` plus encrypted `payload.hcbenc`; the
 vault passphrase stays on the client. Remote pull uses the same destructive
 import path as local vault import. The app can save the vault host token and
 passphrase in OS credential storage so Refresh and scheduled sync push the
-current encrypted snapshot while HCB hoster mode is active.
+current encrypted snapshot while HCB hoster mode is active. After the app has
+seen a hosted package SHA-256, later app-managed pushes include that hash as a
+precondition so stale clients do not silently overwrite a newer hosted vault.
 
 Current non-goals for `.hcbvault`:
 

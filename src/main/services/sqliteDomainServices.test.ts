@@ -6,7 +6,7 @@ import { defaultKeybindings } from "@shared/settingsCatalog";
 import { runLocalDataMigrations } from "../data/migrations";
 import { MemorySecretStore } from "../credentials/secretStore";
 import { HcbVaultHostCredentialStore } from "../hoster/vaultCredentials";
-import { HcbVaultHostServer } from "../hoster/vaultServer";
+import { HcbVaultHostServer, uploadHcbVaultPackage } from "../hoster/vaultServer";
 import {
   LocalAgentRepository,
   LocalPerformanceRepository,
@@ -214,20 +214,30 @@ describe("SQLite-backed domain services", () => {
       const pushed = await domain.settings.pushHcbVaultRemote({});
       expect(pushed.endpoint).toBe(endpoint);
       expect(pushed.remote.hasVault).toBe(true);
+      expect(pushed.remote.packageSha256).toEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
       expect(pushed.manifest.kind).toBe("hot-cross-buns-2-vault");
 
       const status = await domain.settings.hcbVaultRemoteStatus({});
       expect(status.remote.manifest?.payloadSha256).toBe(pushed.manifest.payloadSha256);
+      expect(status.remote.packageSha256).toBe(pushed.remote.packageSha256);
+
+      const external = await domain.settings.exportHcbVault({
+        out: join(temp?.directory ?? "", "external.hcbvault"),
+        passphrase
+      });
+      await uploadHcbVaultPackage(endpoint, token, external.path);
+      await expect(domain.settings.pushHcbVaultRemote({})).rejects.toThrow("412");
 
       const pulled = await domain.settings.pullHcbVaultRemote({
         confirm: true
       });
       expect(pulled.endpoint).toBe(endpoint);
-      expect(pulled.manifest.payloadSha256).toBe(pushed.manifest.payloadSha256);
+      expect(pulled.manifest.payloadSha256).toBe(external.manifest.payloadSha256);
 
       const settings = await domain.settings.get();
       expect(settings.storageBackend).toBe("hcb-hoster");
       expect(settings.hcbHosterEndpoint).toBe(endpoint);
+      expect(settings.hcbHosterLastPackageSha256).toBe(pulled.remote.packageSha256);
     } finally {
       await server.stop();
     }

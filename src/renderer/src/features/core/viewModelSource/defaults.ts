@@ -114,6 +114,7 @@ export const emptySettings: SettingsSnapshot = {
   storageBackend: "google",
   hcbHosterEndpoint: null,
   hcbVaultPath: null,
+  hcbHosterLastPackageSha256: null,
   mcpEnabled: false,
   mcpPermissionMode: "confirm-writes",
   mcpPort: 0,

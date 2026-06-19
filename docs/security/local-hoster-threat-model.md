@@ -35,6 +35,7 @@ Status: internal review only. No external security review has been completed.
 | Capability escalation | Hoster profiles require `host.info`, `signal.send`, `planner.read`, and `planner.write`; admin/security tools are denied regardless of profile. |
 | Package tampering | Payload checksum, AES-GCM auth tags, profile fingerprint checks, and signed v1 manifests reject modified signed packages. |
 | Vault package tampering | Vault upload/download validates manifest schema and payload SHA-256 before package replacement or import. |
+| Stale vault overwrite | App-managed pushes remember the last hosted package SHA-256 and send it as an upload precondition; mismatches are rejected before replacement. |
 | Portable package key exposure | Passphrase wraps only the package key with `scrypt` + AES-256-GCM; raw package keys are not written to the manifest. |
 | Secret store outage | Create/export/import/saved vault-host sync fail closed when `SecretStore` read/write fails. |
 

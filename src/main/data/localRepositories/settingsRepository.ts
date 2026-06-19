@@ -114,6 +114,7 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   storageBackend: "google",
   hcbHosterEndpoint: null,
   hcbVaultPath: null,
+  hcbHosterLastPackageSha256: null,
   syncMode: "balanced",
   syncTasksEnabled: true,
   syncCalendarEventsEnabled: true,
@@ -331,6 +332,11 @@ export class LocalSettingsRepository {
         DEFAULT_SETTINGS.hcbHosterEndpoint
       ),
       hcbVaultPath: this.readSetting("storage", "vaultPath", DEFAULT_SETTINGS.hcbVaultPath),
+      hcbHosterLastPackageSha256: this.readSetting(
+        "storage",
+        "hosterLastPackageSha256",
+        DEFAULT_SETTINGS.hcbHosterLastPackageSha256
+      ),
       syncMode: this.readSetting("sync", "mode", DEFAULT_SETTINGS.syncMode),
       syncTasksEnabled: this.readSetting("sync", "tasksEnabled", DEFAULT_SETTINGS.syncTasksEnabled),
       syncCalendarEventsEnabled: this.readSetting(
@@ -719,6 +725,10 @@ export class LocalSettingsRepository {
 
     if (request.hcbVaultPath !== undefined) {
       this.writeSetting("storage", "vaultPath", request.hcbVaultPath, now);
+    }
+
+    if (request.hcbHosterLastPackageSha256 !== undefined) {
+      this.writeSetting("storage", "hosterLastPackageSha256", request.hcbHosterLastPackageSha256, now);
     }
 
     if (request.syncMode !== undefined) {

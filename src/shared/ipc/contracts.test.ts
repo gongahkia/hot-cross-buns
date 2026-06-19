@@ -497,6 +497,7 @@ describe("shared IPC contracts", () => {
         storageBackend: "google",
         hcbHosterEndpoint: null,
         hcbVaultPath: null,
+        hcbHosterLastPackageSha256: null,
         syncMode: "balanced",
         syncTasksEnabled: true,
         syncCalendarEventsEnabled: true,

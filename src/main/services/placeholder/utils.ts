@@ -415,6 +415,10 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.hcbVaultPath = request.hcbVaultPath;
   }
 
+  if (request.hcbHosterLastPackageSha256 !== undefined) {
+    patch.hcbHosterLastPackageSha256 = request.hcbHosterLastPackageSha256;
+  }
+
   if (request.mcpEnabled !== undefined) {
     patch.mcpEnabled = request.mcpEnabled;
   }
