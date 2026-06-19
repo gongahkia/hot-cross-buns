@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { MemorySecretStore } from "../../credentials/secretStore";
+import { MemorySecretStore, type SecretStore, type SecretStoreKey } from "../../credentials/secretStore";
 import { runLocalDataMigrations } from "../migrations";
 import { createTemporarySqliteConnection, type TemporarySqliteConnection } from "../sqliteConnection";
 import { LocalHosterRepository } from "./localHosterRepository";
@@ -169,12 +169,72 @@ describe("local hoster repository", () => {
       message: "Local hoster signal encryption round-trip passed."
     });
   });
+
+  it("fails closed when SecretStore create or export operations fail", async () => {
+    const createRepository = testRepository(new FailingSecretStore("write"));
+    await expect(createRepository.create(
+      { name: "No secret" },
+      "http://127.0.0.1:4777/hcb/v1/signal"
+    )).rejects.toThrow("SecretStore write failed");
+    expect(createRepository.listProfiles()).toEqual([]);
+    temp?.cleanup();
+    temp = undefined;
+
+    const exportStore = new MemorySecretStore();
+    const exportRepository = testRepository(exportStore);
+    const created = await exportRepository.create(
+      { name: "Read fail" },
+      "http://127.0.0.1:4777/hcb/v1/signal"
+    );
+    const activeTemp = temp as TemporarySqliteConnection | undefined;
+    if (!activeTemp) {
+      throw new Error("missing test connection");
+    }
+    const readFailRepository = new LocalHosterRepository(activeTemp.connection, new FailingSecretStore("read"));
+    directory = mkdtempSync(join(tmpdir(), "hcbhost-"));
+
+    await expect(readFailRepository.export({
+      id: created.id,
+      out: join(directory, "read-fail.hcbhost")
+    })).rejects.toThrow("SecretStore read failed");
+  });
 });
 
-function testRepository(): LocalHosterRepository {
+function testRepository(secretStore: SecretStore = new MemorySecretStore()): LocalHosterRepository {
   temp = createTemporarySqliteConnection("hcbhost-repo-");
   runLocalDataMigrations(temp.connection);
-  return new LocalHosterRepository(temp.connection, new MemorySecretStore());
+  return new LocalHosterRepository(temp.connection, secretStore);
+}
+
+class FailingSecretStore implements SecretStore {
+  constructor(private readonly operation: "read" | "write" | "delete") {}
+
+  async read(_key: SecretStoreKey): Promise<string | null> {
+    if (this.operation === "read") {
+      throw new Error("SecretStore read failed");
+    }
+    return null;
+  }
+
+  async write(_key: SecretStoreKey, _secret: string): Promise<void> {
+    if (this.operation === "write") {
+      throw new Error("SecretStore write failed");
+    }
+  }
+
+  async delete(_key: SecretStoreKey): Promise<void> {
+    if (this.operation === "delete") {
+      throw new Error("SecretStore delete failed");
+    }
+  }
+
+  status() {
+    return {
+      ok: this.operation === "delete",
+      state: this.operation === "delete" ? "ready" as const : "error" as const,
+      message: `SecretStore ${this.operation} failed`
+    };
+  }
 }
 
 async function sha256(value: string): Promise<string> {

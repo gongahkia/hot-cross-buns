@@ -33,6 +33,9 @@ describe("local hoster server", () => {
     expect((await post(server, "/hcb/v1/signal", "{", {
       Authorization: `Bearer ${token}`
     })).status).toBe(400);
+    expect((await post(server, "/hcb/v1/info", "x".repeat(2_000_000), {
+      Authorization: `Bearer ${token}`
+    })).status).toBe(413);
   });
 
   it("requires encrypted envelopes for private signal payloads", async () => {
@@ -83,6 +86,28 @@ describe("local hoster server", () => {
         payload
       }
     ]);
+  });
+
+  it("rejects malformed encrypted signal envelopes without dispatching", async () => {
+    const calls: LocalHosterSignalDispatchRequest[] = [];
+    const { repository, secretStore, server } = testFixture((request) => {
+      calls.push(request);
+      return { kind: "mcpResult", message: "ok" };
+    });
+    const created = await repository.create({ name: "Malformed" }, "http://127.0.0.1:0/hcb/v1/signal");
+    const secret = JSON.parse(await secretStore.read({
+      service: "Hot Cross Buns 2 Local Hosters",
+      account: created.id
+    }) ?? "{}") as LocalHosterSecret;
+    const envelope = encryptSignalEnvelope(signalPayload("request-bad-envelope", "hcb_status"), secret.publicKeyDerBase64);
+    const response = await post(server, "/hcb/v1/signal", JSON.stringify({
+      profileId: created.id,
+      private: true,
+      envelope: { ...envelope, ciphertextBase64: `${envelope.ciphertextBase64.slice(0, -4)}AAAA` }
+    }), authHeaders());
+
+    expect(response.status).toBe(400);
+    expect(calls).toEqual([]);
   });
 
   it("rejects malformed, stale, and replayed signal payloads", async () => {

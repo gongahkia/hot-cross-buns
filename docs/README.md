@@ -74,6 +74,7 @@ Operational docs:
 
 - [Contributing](CONTRIBUTING.md)
 - [Privacy And Threat Model](security/privacy-and-threat-model.md)
+- [Local Hoster Threat Model](security/local-hoster-threat-model.md)
 - [QA Plan](testing/qa-plan.md)
 - [Distribution](release/distribution.md)
 - [Mac Preview Support](support/mac-preview-support.md)
