@@ -25,7 +25,7 @@
     <p class="eyebrow">Privacy and trust</p>
     <h1>What Hot Cross Buns 2 stores, requests, and does not send.</h1>
     <p class="deck">
-      Hot Cross Buns 2 is a desktop app. It can talk directly to Google Tasks and Google Calendar, or it can run in local HCB storage mode. There is no separate hosted Hot Cross Buns 2 backend.
+      Hot Cross Buns 2 is a desktop app. It can talk directly to Google Tasks and Google Calendar, or it can run in local HCB storage mode. There is no separate hosted Hot Cross Buns 2 backend; optional vault hosts are user-owned endpoints.
     </p>
   </section>
 
@@ -55,7 +55,7 @@
         <li><code>cache-state.salt</code>: encryption salt when cache encryption is enabled</li>
         <li><code>crash.log</code>: local crash note written on certain fatal crashes</li>
       </ul>
-      <p>The cache is replaceable. Google remains the source of truth only when Google sync is the active backend. HCB local vault mode stores planner state locally and can export/import encrypted <code>.hcbvault</code> packages. When multiple Google accounts are connected, each account has its own cached workspace and only the active account is synced or replayed.</p>
+      <p>The cache is replaceable. Google remains the source of truth only when Google sync is the active backend. HCB local vault mode stores planner state locally and can export/import encrypted <code>.hcbvault</code> packages. Vault host mode can push/pull those encrypted packages to a user-owned host. When multiple Google accounts are connected, each account has its own cached workspace and only the active account is synced or replayed.</p>
     </article>
 
     <article class="doc-card">
@@ -65,7 +65,7 @@
 
     <article class="doc-card">
       <h2>Sharing and retention</h2>
-      <p>There is no Hot Cross Buns 2 server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Data is shared with Google only when Google is the storage and sync provider you connect to. Calendar events may also be visible to event attendees or calendar subscribers according to your Google Calendar settings.</p>
+      <p>There is no Hot Cross Buns 2-operated server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Data is shared with Google only when Google is the storage and sync provider you connect to. If you configure a vault host, encrypted <code>.hcbvault</code> packages are sent to the endpoint you provide. Calendar events may also be visible to event attendees or calendar subscribers according to your Google Calendar settings.</p>
       <p>Disconnecting a Google account in the app removes that account's local tokens and workspace on this device. If other accounts remain connected, the app can switch to another account; disconnecting the last account leaves the app signed out locally. You can also revoke the app's access from your Google Account. Data already stored in Google Tasks or Google Calendar remains in your Google account unless you delete it there or delete it through Hot Cross Buns 2.</p>
     </article>
 

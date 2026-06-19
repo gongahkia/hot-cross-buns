@@ -117,9 +117,13 @@ Vault import is destructive: it makes a local backup, replaces cached HCB state,
 sets the storage backend to `hcb-local`, and seeds a local inbox/calendar if no
 selected resources exist.
 
+`.hcbvault` packages can also be pushed to and pulled from a trusted HCB vault
+host. The host stores only `manifest.json` plus encrypted `payload.hcbenc`; the
+vault passphrase stays on the client. Remote pull uses the same destructive
+import path as local vault import.
+
 Current non-goals for `.hcbvault`:
 
 - live peer-to-peer sync
 - multi-writer merge/conflict resolution
-- LAN server replication
 - Syncthing/iCloud/rsync transport adapters

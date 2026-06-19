@@ -110,7 +110,7 @@ export function GeneralSettingsTab({
 
       <SettingsGroup title="Storage">
         <SettingsControlRow
-          description="Switches between Google sync, encrypted local vault mode, and a local hoster endpoint."
+          description="Switches between Google sync, encrypted local vault mode, and a trusted HCB vault host endpoint."
           icon={HardDrive}
           label="Backend"
         >
@@ -129,11 +129,11 @@ export function GeneralSettingsTab({
         </SettingsControlRow>
         {settings.storageBackend === "hcb-hoster" ? (
           <SettingsControlRow
-            description="Loopback or LAN endpoint for a trusted HCB local hoster."
-            label="Hoster endpoint"
+            description="HTTPS endpoint for a trusted HCB vault host. Loopback HTTP is accepted for local testing."
+            label="Vault host endpoint"
           >
             <Input
-              aria-label="HCB local hoster endpoint"
+              aria-label="HCB vault host endpoint"
               defaultValue={settings.hcbHosterEndpoint ?? ""}
               onBlur={(event) =>
                 updateSettings({
@@ -148,7 +148,7 @@ export function GeneralSettingsTab({
           </SettingsControlRow>
         ) : null}
         <SettingsControlRow
-          description="Export/import encrypted HCB vaults from the CLI or MCP tools."
+          description="Export/import encrypted HCB vaults locally, or push/pull them with the CLI vault host commands."
           label="Vault path"
         >
           <Input
@@ -167,13 +167,13 @@ export function GeneralSettingsTab({
         </SettingsControlRow>
         <SettingsSwitch
           checked={settings.localHostersEnabled}
-          description="Starts the local HCB hoster signal server when the app is running."
-          label="Local hoster server"
+          description="Starts the loopback HCB signal hoster for local terminal automation."
+          label="Signal hoster server"
           onChange={(checked) => updateSettings({ localHostersEnabled: checked })}
         />
-        <SettingsControlRow label="Local hoster port">
+        <SettingsControlRow label="Signal hoster port">
           <Input
-            aria-label="Local hoster port"
+            aria-label="Signal hoster port"
             defaultValue={String(settings.localHosterPort)}
             max={65535}
             min={0}

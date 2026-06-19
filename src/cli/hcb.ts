@@ -1,11 +1,17 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HCB_MCP_RUNTIME_FILE_NAME, type HcbMcpRuntimeFile } from "@shared/mcpRuntime";
 import { MacOsKeychainSecretStore } from "@main/credentials/secretStore";
+import {
+  HcbVaultHostServer,
+  downloadHcbVaultPackage,
+  fetchHcbVaultHostInfo,
+  uploadHcbVaultPackage
+} from "@main/hoster/vaultServer";
 import { KeychainMcpCredentialAdapter } from "@main/mcp/keychainCredentials";
 import type { JsonObject, McpToolResponse } from "@main/mcp/types";
 
@@ -35,7 +41,7 @@ interface FetchResponseLike {
 type FetchLike = (
   url: string,
   init: {
-    method: "POST";
+    method: "GET" | "POST" | "PUT";
     headers: Record<string, string>;
     body: string;
   }
@@ -163,6 +169,12 @@ interface ParsedCommand {
   endpoint?: string;
   privatePayload?: boolean;
   passphraseEnv?: string;
+  tokenEnv?: string;
+  host?: string;
+  port?: number;
+  allowInsecureHttp?: boolean;
+  tlsCertPath?: string;
+  tlsKeyPath?: string;
   shell?: "bash" | "zsh" | "fish";
   toolName?: string;
   argumentsJson?: JsonObject;
@@ -204,6 +216,11 @@ export async function runHcbCli(
 
     if (command.command === "tui") {
       await runHcbTui(command, dependencies);
+      return 0;
+    }
+
+    if (command.command === "vault" && command.action === "serve") {
+      await runVaultServe(command, dependencies);
       return 0;
     }
 
@@ -354,6 +371,46 @@ export function parseCommand(argv: string[]): ParsedCommand {
       const value = args[index + 1];
       index += 1;
       parsed.endpoint = optionValue(value, "--endpoint");
+      continue;
+    }
+
+    if (arg === "--token-env") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.tokenEnv = optionValue(value, "--token-env");
+      continue;
+    }
+
+    if (arg === "--host") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.host = optionValue(value, "--host");
+      continue;
+    }
+
+    if (arg === "--port") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.port = parseInteger(value, "--port", 0, 65_535);
+      continue;
+    }
+
+    if (arg === "--allow-insecure-http") {
+      parsed.allowInsecureHttp = true;
+      continue;
+    }
+
+    if (arg === "--tls-cert") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.tlsCertPath = optionValue(value, "--tls-cert");
+      continue;
+    }
+
+    if (arg === "--tls-key") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.tlsKeyPath = optionValue(value, "--tls-key");
       continue;
     }
 
@@ -819,10 +876,14 @@ export function parseCommand(argv: string[]): ParsedCommand {
     const validPositionalCount =
       parsed.action === "export" ? positional.length === 1 :
       parsed.action === "import" && parsed.path !== undefined ? positional.length === 1 || positional.length === 2 :
+      parsed.action === "push" ? positional.length === 1 :
+      parsed.action === "pull" ? positional.length === 1 :
+      parsed.action === "remote-status" ? positional.length === 1 :
+      parsed.action === "serve" ? positional.length === 1 :
       false;
 
     if (!validPositionalCount) {
-      throw new CliError("Usage: pnpm hcb -- vault <export|import> --passphrase-env <env> [--out <path>|--path <path>] [--apply]", 2);
+      throw new CliError("Usage: pnpm hcb -- vault <export|import|push|pull|remote-status|serve> [options]", 2);
     }
 
     validateVaultCommand(parsed);
@@ -930,13 +991,19 @@ export function parseCommand(argv: string[]): ParsedCommand {
       parsed.out !== undefined ||
       parsed.path !== undefined ||
       parsed.endpoint !== undefined ||
+      parsed.tokenEnv !== undefined ||
+      parsed.host !== undefined ||
+      parsed.port !== undefined ||
+      parsed.allowInsecureHttp !== undefined ||
+      parsed.tlsCertPath !== undefined ||
+      parsed.tlsKeyPath !== undefined ||
       parsed.privatePayload !== undefined ||
       parsed.passphraseEnv !== undefined) &&
     command !== "hoster" &&
     command !== "backend" &&
     command !== "vault"
   ) {
-    throw new CliError("--name, --permission-mode, --out, --path, --endpoint, --private, and --passphrase-env are only supported by hoster/backend/vault.", 2);
+    throw new CliError("--name, --permission-mode, --out, --path, --endpoint, --token-env, --host, --port, --allow-insecure-http, --tls-cert, --tls-key, --private, and --passphrase-env are only supported by hoster/backend/vault.", 2);
   }
 
   if (hasWriteOnlyOptions(parsed) && !isCliWriteCommand(parsed)) {
@@ -956,6 +1023,10 @@ export async function callCommand(
 
   if (command.command === "hoster" && command.action === "signal") {
     return callHosterSignal(command, dependencies);
+  }
+
+  if (command.command === "vault" && isVaultRemoteCommand(command)) {
+    return callVaultRemote(command, dependencies);
   }
 
   const tool = toolName(command);
@@ -1398,6 +1469,176 @@ async function callHosterSignal(
       response: body
     }
   };
+}
+
+async function callVaultRemote(
+  command: ParsedCommand,
+  dependencies: HcbCliDependencies = {}
+): Promise<McpToolResponse> {
+  const env = dependencies.env ?? process.env;
+  const fetch = vaultFetchImpl(dependencies);
+  const endpoint = await vaultEndpoint(command, dependencies);
+  const token = remoteTokenFromEnv(requiredTokenEnv(command), env);
+  const allowInsecureHttp = command.allowInsecureHttp === true;
+
+  if (command.action === "remote-status") {
+    const info = await fetchHcbVaultHostInfo(endpoint, token, { fetch, allowInsecureHttp });
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read HCB vault host status.",
+      item: {
+        endpoint,
+        ...info
+      } as unknown as JsonObject
+    };
+  }
+
+  if (command.action === "push") {
+    if (command.apply !== true) {
+      return {
+        applied: false,
+        dryRun: true,
+        requiresConfirmation: false,
+        message: "HCB vault push dry-run. Re-run with --apply to export locally and upload.",
+        item: {
+          kind: "hcbVaultRemotePush",
+          endpoint,
+          out: command.out ?? "temporary .hcbvault",
+          allowInsecureHttp
+        }
+      };
+    }
+
+    const target = discoverRuntime(dependencies);
+    const mcpToken = await tokenProvider(dependencies)();
+    const temporary = command.out === undefined ? temporaryVaultPath("hcb-vault-push-") : undefined;
+    const out = command.out ?? temporary?.path ?? "";
+    try {
+      const exportResponse = await callMcpToolWithAuth("hcb_vault_export", {
+        out,
+        passphrase: passphraseFromEnv(requiredPassphraseEnv(command), env),
+        dryRun: false,
+        ...(command.confirmationId === undefined ? {} : { confirmationId: command.confirmationId })
+      }, dependencies, target, mcpToken);
+      const item = asObject(exportResponse.item) ?? {};
+      const vaultPath = typeof item.path === "string" ? item.path : out;
+      const info = await uploadHcbVaultPackage(endpoint, token, vaultPath, { fetch, allowInsecureHttp });
+
+      return {
+        applied: true,
+        dryRun: false,
+        requiresConfirmation: false,
+        message: "Exported and pushed encrypted HCB vault.",
+        item: {
+          kind: "hcbVaultRemotePush",
+          endpoint,
+          ...(command.out === undefined ? { temporary: true } : { path: vaultPath }),
+          remote: info
+        } as unknown as JsonObject
+      };
+    } finally {
+      if (temporary) {
+        rmSync(temporary.dir, { recursive: true, force: true });
+      }
+    }
+  }
+
+  if (command.action === "pull") {
+    if (command.apply !== true) {
+      return {
+        applied: false,
+        dryRun: true,
+        requiresConfirmation: true,
+        message: "HCB vault pull dry-run. Re-run with --apply to download and destructively import.",
+        item: {
+          kind: "hcbVaultRemotePull",
+          endpoint,
+          out: command.out ?? "temporary .hcbvault",
+          destructive: true,
+          allowInsecureHttp
+        }
+      };
+    }
+
+    const target = discoverRuntime(dependencies);
+    const mcpToken = await tokenProvider(dependencies)();
+    const temporary = command.out === undefined ? temporaryVaultPath("hcb-vault-pull-") : undefined;
+    const out = command.out ?? temporary?.path ?? "";
+    try {
+      const pkg = await downloadHcbVaultPackage(endpoint, token, out, { fetch, allowInsecureHttp });
+      const importResponse = await callMcpToolWithAuth("hcb_vault_import", {
+        path: out,
+        passphrase: passphraseFromEnv(requiredPassphraseEnv(command), env),
+        dryRun: false,
+        ...(command.confirmationId === undefined ? {} : { confirmationId: command.confirmationId })
+      }, dependencies, target, mcpToken);
+
+      return {
+        applied: true,
+        dryRun: false,
+        requiresConfirmation: false,
+        message: "Pulled and imported encrypted HCB vault.",
+        item: {
+          kind: "hcbVaultRemotePull",
+          endpoint,
+          ...(command.out === undefined ? { temporary: true } : { path: out }),
+          imported: importResponse.item ?? {},
+          manifest: pkg.manifest
+        } as unknown as JsonObject
+      };
+    } finally {
+      if (temporary) {
+        rmSync(temporary.dir, { recursive: true, force: true });
+      }
+    }
+  }
+
+  throw new CliError("Unknown vault remote action.", 2);
+}
+
+async function runVaultServe(
+  command: ParsedCommand,
+  dependencies: HcbCliDependencies = {}
+): Promise<void> {
+  const stdout = dependencies.stdout ?? process.stdout;
+  const env = dependencies.env ?? process.env;
+  const path = command.path ?? command.out;
+  if (!path) {
+    throw new CliError("vault serve requires --path <vault-dir>.", 2);
+  }
+  const server = new HcbVaultHostServer({
+    vaultPath: path,
+    token: remoteTokenFromEnv(requiredTokenEnv(command), env)
+  });
+  const started = await server.start({
+    host: command.host ?? "127.0.0.1",
+    port: command.port ?? 7420,
+    tlsCertPath: command.tlsCertPath,
+    tlsKeyPath: command.tlsKeyPath
+  });
+  const endpoint = `${started.protocol}://${started.host}:${started.port}/hcb/v1/vault`;
+  stdout.write(`HCB vault host listening at ${endpoint}\n`);
+  stdout.write(`Vault: ${path}\n`);
+
+  if (env.HCB_VAULT_HOST_ONCE === "1") {
+    await server.stop();
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const stop = () => {
+      void server.stop().finally(resolve);
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+}
+
+function temporaryVaultPath(prefix: string): { dir: string; path: string } {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  return { dir, path: join(dir, "vault.hcbvault") };
 }
 
 async function runHcbTui(
@@ -2442,6 +2683,9 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
   }
 
   if (command.command === "vault") {
+    if (command.action === "remote-status") {
+      return formatVaultRemoteStatus(response.item ?? {});
+    }
     return formatWrite(command, response);
   }
 
@@ -2508,6 +2752,20 @@ function formatBackendStatus(item: JsonObject): string {
     `Task lists: ${text(item.taskListCount)}`,
     `Calendars: ${text(item.calendarCount)}`
   ].join("\n") + "\n";
+}
+
+function formatVaultRemoteStatus(item: JsonObject): string {
+  const manifest = asObject(item.manifest) ?? {};
+  return [
+    "HCB vault host",
+    `Endpoint: ${text(item.endpoint) || "unset"}`,
+    `Protocol: ${text(item.protocolVersion)}`,
+    `Has vault: ${text(item.hasVault)}`,
+    `Vault name: ${text(item.vaultName) || "unset"}`,
+    `Max package bytes: ${text(item.maxPackageBytes)}`,
+    manifest.exportedAt ? `Exported at: ${text(manifest.exportedAt)}` : "",
+    manifest.stateSha256 ? `State sha256: ${text(manifest.stateSha256)}` : ""
+  ].filter(Boolean).join("\n") + "\n";
 }
 
 function formatLogs(items: JsonObject[]): string {
@@ -2767,6 +3025,9 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     if (command.action !== "import") {
       pushFlag(args, "--path", command.path);
     }
+    pushFlag(args, "--endpoint", command.endpoint);
+    pushFlag(args, "--token-env", command.tokenEnv);
+    pushBooleanFlag(args, "--allow-insecure-http", command.allowInsecureHttp);
     pushFlag(args, "--passphrase-env", command.passphraseEnv);
   }
 
@@ -2982,6 +3243,10 @@ function helpText(): string {
     "  backend set <backend>                   dry-run switch backend",
     "  vault export --passphrase-env <env>     dry-run export encrypted .hcbvault",
     "  vault import <path> --passphrase-env <env> dry-run import encrypted .hcbvault",
+    "  vault serve --path <dir> --token-env <env> host an encrypted .hcbvault",
+    "  vault remote-status --endpoint <url> --token-env <env> inspect a vault host",
+    "  vault push --endpoint <url> --token-env <env> --passphrase-env <env> push local vault",
+    "  vault pull --endpoint <url> --token-env <env> --passphrase-env <env> pull and import vault",
     "  google save-oauth-client [options]      dry-run save Google OAuth client config",
     "  google begin-oauth                      dry-run start Google OAuth",
     "  mcp set-enabled <true|false>            dry-run enable or disable MCP",
@@ -3038,6 +3303,10 @@ function helpText(): string {
     "  pnpm hcb -- backend status",
     "  pnpm hcb -- backend set hcb-local --apply --confirmation-id confirm-id",
     "  HCB_VAULT_PASSPHRASE='change-me-long' pnpm hcb -- vault export --passphrase-env HCB_VAULT_PASSPHRASE",
+    "  HCB_HOSTER_TOKEN='change-me-long-token' pnpm hcb -- vault serve --path /srv/hcb/current.hcbvault --host 0.0.0.0 --token-env HCB_HOSTER_TOKEN",
+    "  pnpm hcb -- vault remote-status --endpoint https://pi.local/hcb/v1/vault --token-env HCB_HOSTER_TOKEN",
+    "  pnpm hcb -- vault push --endpoint https://pi.local/hcb/v1/vault --token-env HCB_HOSTER_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply",
+    "  pnpm hcb -- vault pull --endpoint https://pi.local/hcb/v1/vault --token-env HCB_HOSTER_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply",
     "  pnpm hcb -- google begin-oauth --apply",
     "  pnpm hcb -- mcp set-enabled true",
     "  pnpm hcb -- hoster status",
@@ -3063,21 +3332,27 @@ function completionScript(shell: "bash" | "zsh" | "fish"): string {
     "completion", "help"
   ];
   const hosterActions = ["status", "create", "export", "import", "remove", "test", "signal"];
+  const vaultActions = ["export", "import", "serve", "remote-status", "push", "pull"];
   const options = [
     "--json", "--limit", "--level", "--scope", "--start-date", "--apply",
     "--confirmation-id", "--name", "--permission-mode", "--out", "--path", "--endpoint",
+    "--token-env", "--host", "--port", "--allow-insecure-http", "--tls-cert", "--tls-key",
     "--private", "--passphrase-env", "--tool", "--arguments-json", "--request-id"
   ];
   if (shell === "zsh") {
     return [
       "#compdef hcb",
       "_hcb() {",
-      "  local -a commands hoster_actions options",
+      "  local -a commands hoster_actions vault_actions options",
       `  commands=(${commands.map((item) => `${item}:`).join(" ")})`,
       `  hoster_actions=(${hosterActions.map((item) => `${item}:`).join(" ")})`,
+      `  vault_actions=(${vaultActions.map((item) => `${item}:`).join(" ")})`,
       `  options=(${options.map((item) => `${item}`).join(" ")})`,
       "  if [[ ${words[2]} == hoster ]]; then",
       "    _describe 'hoster action' hoster_actions && return",
+      "  fi",
+      "  if [[ ${words[2]} == vault ]]; then",
+      "    _describe 'vault action' vault_actions && return",
       "  fi",
       "  _describe 'command' commands || _values 'option' $options",
       "}",
@@ -3089,6 +3364,7 @@ function completionScript(shell: "bash" | "zsh" | "fish"): string {
     return [
       ...commands.map((item) => `complete -c hcb -f -n '__fish_use_subcommand' -a '${item}'`),
       ...hosterActions.map((item) => `complete -c hcb -f -n '__fish_seen_subcommand_from hoster' -a '${item}'`),
+      ...vaultActions.map((item) => `complete -c hcb -f -n '__fish_seen_subcommand_from vault' -a '${item}'`),
       ...options.map((item) => `complete -c hcb -l ${item.slice(2)}`),
       ""
     ].join("\n");
@@ -3096,15 +3372,20 @@ function completionScript(shell: "bash" | "zsh" | "fish"): string {
 
   return [
     "_hcb_complete() {",
-    "  local cur prev commands hoster_actions options",
+    "  local cur prev commands hoster_actions vault_actions options",
     "  COMPREPLY=()",
     "  cur=\"${COMP_WORDS[COMP_CWORD]}\"",
     "  prev=\"${COMP_WORDS[COMP_CWORD-1]}\"",
     `  commands=\"${commands.join(" ")}\"`,
     `  hoster_actions=\"${hosterActions.join(" ")}\"`,
+    `  vault_actions=\"${vaultActions.join(" ")}\"`,
     `  options=\"${options.join(" ")}\"`,
     "  if [[ ${COMP_WORDS[1]} == hoster && ${COMP_CWORD} -eq 2 ]]; then",
     "    COMPREPLY=( $(compgen -W \"$hoster_actions\" -- \"$cur\") )",
+    "    return 0",
+    "  fi",
+    "  if [[ ${COMP_WORDS[1]} == vault && ${COMP_CWORD} -eq 2 ]]; then",
+    "    COMPREPLY=( $(compgen -W \"$vault_actions\" -- \"$cur\") )",
     "    return 0",
     "  fi",
     "  if [[ $cur == --* ]]; then",
@@ -3289,6 +3570,22 @@ function toolName(command: ParsedCommand): string {
 
       if (command.action === "import") {
         return "hcb_vault_import";
+      }
+
+      if (command.action === "push") {
+        return "hcb_vault_push";
+      }
+
+      if (command.action === "pull") {
+        return "hcb_vault_pull";
+      }
+
+      if (command.action === "remote-status") {
+        return "hcb_vault_remote_status";
+      }
+
+      if (command.action === "serve") {
+        return "hcb_vault_serve";
       }
 
       throw new CliError("Unknown vault action.", 2);
@@ -3723,11 +4020,18 @@ function parseBackendAction(value: string | undefined): string {
 }
 
 function parseVaultAction(value: string | undefined): string {
-  if (value === "export" || value === "import") {
+  if (
+    value === "export" ||
+    value === "import" ||
+    value === "push" ||
+    value === "pull" ||
+    value === "remote-status" ||
+    value === "serve"
+  ) {
     return value;
   }
 
-  throw new CliError("Vault action must be export or import.", 2);
+  throw new CliError("Vault action must be one of: export, import, push, pull, remote-status, serve.", 2);
 }
 
 function parseGoogleAction(value: string | undefined): string {
@@ -3796,6 +4100,51 @@ function passphraseFromEnv(name: string, env: NodeJS.ProcessEnv): string {
   }
 
   return value;
+}
+
+function remoteTokenFromEnv(name: string, env: NodeJS.ProcessEnv): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new CliError("--token-env must name an environment variable.", 2);
+  }
+  const value = env[name];
+  if (!value || value.length < 16) {
+    throw new CliError(`Environment variable ${name} must contain a bearer token with at least 16 characters.`, 2);
+  }
+
+  return value;
+}
+
+function requiredPassphraseEnv(command: ParsedCommand): string {
+  if (!command.passphraseEnv) {
+    throw new CliError("Missing required --passphrase-env for vault.", 2);
+  }
+  return command.passphraseEnv;
+}
+
+function requiredTokenEnv(command: ParsedCommand): string {
+  if (!command.tokenEnv) {
+    throw new CliError("Missing required --token-env for vault remote host.", 2);
+  }
+  return command.tokenEnv;
+}
+
+async function vaultEndpoint(
+  command: ParsedCommand,
+  dependencies: HcbCliDependencies
+): Promise<string> {
+  if (command.endpoint) {
+    return command.endpoint;
+  }
+
+  const target = discoverRuntime(dependencies);
+  const token = await tokenProvider(dependencies)();
+  const status = await callMcpToolWithAuth("hcb_backend_status", {}, dependencies, target, token);
+  const item = asObject(status.item) ?? {};
+  if (typeof item.hcbHosterEndpoint === "string" && item.hcbHosterEndpoint.length > 0) {
+    return item.hcbHosterEndpoint;
+  }
+
+  throw new CliError("Missing --endpoint and no HCB hoster endpoint is configured.", 2);
 }
 
 function parseNullableId(value: string | undefined, flag: string): string | null {
@@ -3885,7 +4234,20 @@ function isBackendWriteCommand(command: ParsedCommand): boolean {
 }
 
 function isVaultWriteCommand(command: ParsedCommand): boolean {
-  return command.command === "vault" && (command.action === "export" || command.action === "import");
+  return command.command === "vault" && (
+    command.action === "export" ||
+    command.action === "import" ||
+    command.action === "push" ||
+    command.action === "pull"
+  );
+}
+
+function isVaultRemoteCommand(command: ParsedCommand): boolean {
+  return command.command === "vault" && (
+    command.action === "push" ||
+    command.action === "pull" ||
+    command.action === "remote-status"
+  );
 }
 
 function isCliWriteCommand(command: ParsedCommand): boolean {
@@ -4039,12 +4401,12 @@ function validateSettingsCommand(command: ParsedCommand): void {
     throw new CliError("Missing required --patch-json for settings update.", 2);
   }
 
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "clientId", "clientSecret", "enabled", "endpoint", "out", "path", "passphraseEnv"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "clientId", "clientSecret", "enabled", "endpoint", "out", "path", "passphraseEnv", "tokenEnv", "host", "port", "allowInsecureHttp", "tlsCertPath", "tlsKeyPath"]);
 }
 
 function validateBackendCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "backend");
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "out", "path", "privatePayload", "passphraseEnv"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "out", "path", "privatePayload", "passphraseEnv", "tokenEnv", "host", "port", "allowInsecureHttp", "tlsCertPath", "tlsKeyPath"]);
 
   if (command.action === "status") {
     rejectUnsupportedOptions(command, "backend status", ["endpoint", "apply", "confirmationId"]);
@@ -4058,19 +4420,53 @@ function validateBackendCommand(command: ParsedCommand): void {
 
 function validateVaultCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "vault");
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "endpoint", "privatePayload", "name", "permissionMode"]);
-
-  if (command.passphraseEnv === undefined) {
-    throw new CliError("Missing required --passphrase-env for vault.", 2);
-  }
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "privatePayload", "name", "permissionMode"]);
 
   if (command.action === "export") {
-    rejectUnsupportedOptions(command, "vault export", ["path"]);
+    if (command.passphraseEnv === undefined) {
+      throw new CliError("Missing required --passphrase-env for vault export.", 2);
+    }
+    rejectUnsupportedOptions(command, "vault export", ["path", "endpoint", "tokenEnv", "host", "port", "allowInsecureHttp", "tlsCertPath", "tlsKeyPath"]);
   } else if (command.action === "import") {
+    if (command.passphraseEnv === undefined) {
+      throw new CliError("Missing required --passphrase-env for vault import.", 2);
+    }
     if (command.path === undefined) {
       throw new CliError("Usage: pnpm hcb -- vault import <path> --passphrase-env <env>", 2);
     }
-    rejectUnsupportedOptions(command, "vault import", ["out"]);
+    rejectUnsupportedOptions(command, "vault import", ["out", "endpoint", "tokenEnv", "host", "port", "allowInsecureHttp", "tlsCertPath", "tlsKeyPath"]);
+  } else if (command.action === "push") {
+    if (command.passphraseEnv === undefined) {
+      throw new CliError("Missing required --passphrase-env for vault push.", 2);
+    }
+    if (command.tokenEnv === undefined) {
+      throw new CliError("Missing required --token-env for vault push.", 2);
+    }
+    rejectUnsupportedOptions(command, "vault push", ["path", "host", "port", "tlsCertPath", "tlsKeyPath"]);
+  } else if (command.action === "pull") {
+    if (command.passphraseEnv === undefined) {
+      throw new CliError("Missing required --passphrase-env for vault pull.", 2);
+    }
+    if (command.tokenEnv === undefined) {
+      throw new CliError("Missing required --token-env for vault pull.", 2);
+    }
+    rejectUnsupportedOptions(command, "vault pull", ["path", "host", "port", "tlsCertPath", "tlsKeyPath"]);
+  } else if (command.action === "remote-status") {
+    if (command.tokenEnv === undefined) {
+      throw new CliError("Missing required --token-env for vault remote-status.", 2);
+    }
+    rejectUnsupportedOptions(command, "vault remote-status", ["out", "path", "passphraseEnv", "apply", "confirmationId", "host", "port", "tlsCertPath", "tlsKeyPath"]);
+  } else if (command.action === "serve") {
+    if (command.path === undefined) {
+      throw new CliError("vault serve requires --path <vault-dir>.", 2);
+    }
+    if (command.tokenEnv === undefined) {
+      throw new CliError("Missing required --token-env for vault serve.", 2);
+    }
+    if ((command.tlsCertPath === undefined) !== (command.tlsKeyPath === undefined)) {
+      throw new CliError("vault serve requires both --tls-cert and --tls-key when TLS is enabled.", 2);
+    }
+    rejectUnsupportedOptions(command, "vault serve", ["out", "endpoint", "passphraseEnv", "allowInsecureHttp", "apply", "confirmationId"]);
   }
 }
 
@@ -4100,7 +4496,7 @@ function validateMcpCommand(command: ParsedCommand): void {
 
 function validateHosterCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "hoster");
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled", "endpoint", "tokenEnv", "host", "port", "allowInsecureHttp", "tlsCertPath", "tlsKeyPath"]);
 
   if (command.action === "status") {
     rejectUnsupportedOptions(command, "hoster status", ["name", "permissionMode", "out", "path", "privatePayload", "passphraseEnv", "apply", "confirmationId"]);
@@ -4433,6 +4829,14 @@ function flagForKey(key: keyof ParsedCommand): string {
       return "--permission-mode";
     case "endpoint":
       return "--endpoint";
+    case "tokenEnv":
+      return "--token-env";
+    case "allowInsecureHttp":
+      return "--allow-insecure-http";
+    case "tlsCertPath":
+      return "--tls-cert";
+    case "tlsKeyPath":
+      return "--tls-key";
     case "privatePayload":
       return "--private";
     case "passphraseEnv":
@@ -4594,6 +4998,26 @@ function fetchImpl(dependencies: HcbCliDependencies): FetchLike {
   }
 
   return fetchLike as FetchLike;
+}
+
+function vaultFetchImpl(dependencies: HcbCliDependencies): typeof globalThis.fetch {
+  if (!dependencies.fetch) {
+    if (!globalThis.fetch) {
+      throw new CliError("Fetch API is unavailable in this Node runtime.");
+    }
+    return globalThis.fetch.bind(globalThis);
+  }
+
+  return (async (url, init = {}) => {
+    const method = (init.method ?? "GET") as "GET" | "POST" | "PUT";
+    const headers = Object.fromEntries(new Headers(init.headers).entries());
+    const body = typeof init.body === "string" ? init.body : "";
+    return await dependencies.fetch?.(String(url), {
+      method,
+      headers,
+      body
+    }) as unknown as Response;
+  }) as typeof globalThis.fetch;
 }
 
 function pidExists(dependencies: HcbCliDependencies): (pid: number) => boolean {

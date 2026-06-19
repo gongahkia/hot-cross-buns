@@ -69,6 +69,10 @@ hcb completion fish > ~/.config/fish/completions/hcb.fish
 - `pnpm hcb -- backend set hcb-hoster --endpoint http://127.0.0.1:7419`: dry-run switching to local hoster mode.
 - `pnpm hcb -- vault export --out /tmp/planner.hcbvault --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run encrypted `.hcbvault` export.
 - `pnpm hcb -- vault import /tmp/planner.hcbvault --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run encrypted `.hcbvault` import.
+- `pnpm hcb -- vault serve --path /srv/hcb/current.hcbvault --host 0.0.0.0 --token-env HCB_VAULT_HOST_TOKEN`: run a standalone HCB vault host on a trusted machine.
+- `pnpm hcb -- vault remote-status --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN`: inspect a remote vault host.
+- `pnpm hcb -- vault push --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run local encrypted vault export and remote upload.
+- `pnpm hcb -- vault pull --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE`: dry-run remote download and destructive import.
 - `pnpm hcb -- show task <id>`: show one task.
 - `pnpm hcb -- show event <id>`: show one event.
 - `pnpm hcb -- show note <id>`: show one note.
@@ -97,7 +101,8 @@ All commands accept `--json` for structured output. Write JSON output includes `
 2. Preview a switch with `pnpm hcb -- backend set hcb-local`.
 3. Apply with the returned confirmation command.
 4. Export or import encrypted local state with `pnpm hcb -- vault export|import ... --passphrase-env <VAR>`.
-5. In TUI, run `view backend` to inspect the same state.
+5. Host the encrypted vault on a Pi/laptop with `vault serve`, then `vault push` from one client and `vault pull --apply` on another.
+6. In TUI, run `view backend` to inspect the same state.
 
 ## Agent Workflow
 
@@ -122,13 +127,15 @@ This starts an in-process local MCP server, writes a temporary runtime file, run
 
 ## Local Hosters
 
-The local hoster protocol is documented in [Local Hoster Protocol](specs/local-hoster.md). Hoster routes bind only to `127.0.0.1`, use the local MCP bearer token, and dispatch through existing MCP/domain services.
+The local hoster protocol is documented in [Local Hoster Protocol](specs/local-hoster.md). Signal hoster routes bind only to `127.0.0.1`, use the local MCP bearer token, and dispatch through existing MCP/domain services. Vault hosting is a separate encrypted `.hcbvault` push/pull endpoint for trusted local machines.
 
 Passphrase-portable packages use `--passphrase-env <VAR>` only; the passphrase must be supplied through the named environment variable and is not written into command previews, confirmations, or logs.
 
+Remote vault endpoints must use HTTPS unless they are loopback. `--allow-insecure-http` exists for explicit trusted LAN/tunnel cases; vault payloads remain encrypted, but bearer tokens are still HTTP credentials.
+
 ## Privacy
 
-The CLI only talks to `127.0.0.1`. It does not print bearer tokens. MCP
+The CLI defaults to `127.0.0.1` for MCP and signal hosters. Remote vault push/pull only talks to the endpoint supplied by the user or stored as the HCB hoster endpoint. It does not print bearer tokens. MCP
 diagnostics are sanitized by the main app services and must not expose Google
 OAuth tokens, platform credential-store material, cache encryption keys, raw
 credentials, or raw Google payloads.

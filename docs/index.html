@@ -223,7 +223,7 @@
     <div class="menubar-copy">
       <p class="eyebrow">Local backend and Terminal</p>
       <h2>Use HCB without<br><em>Google as the backend</em>.</h2>
-      <p class="lede">First-run setup and Settings now expose Google, HCB local vault, and HCB local hoster backend choices. The CLI adds backend and vault commands, and the TUI adds a backend view.</p>
+      <p class="lede">First-run setup and Settings expose Google, HCB local vault, and HCB local hoster backend choices. The CLI can now host, push, and pull encrypted HCB vaults for terminal-first local hosting.</p>
 
       <div class="menubar-list">
         <article class="menubar-item">
@@ -233,12 +233,12 @@
 
         <article class="menubar-item">
           <h3>Local hoster</h3>
-          <p>The existing loopback hoster server keeps bearer-token auth, origin checks, replay receipts, and encrypted signal payload support.</p>
+          <p>Vault hosts run on loopback, a trusted laptop, or a Raspberry Pi and store encrypted <code>.hcbvault</code> packages instead of polling Google.</p>
         </article>
 
         <article class="menubar-item">
           <h3>CLI/TUI</h3>
-          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, and vault import/export for terminal-first users.</p>
+          <p><code>hcb backend</code>, <code>hcb vault</code>, and <code>hcb tui</code> expose backend status, dry-run writes, vault import/export, and remote vault push/pull.</p>
         </article>
       </div>
     </div>
@@ -248,6 +248,8 @@
         <pre><code>hcb backend status
 hcb backend set hcb-local --apply
 HCB_VAULT_PASSPHRASE='replace-me' hcb vault export --passphrase-env HCB_VAULT_PASSPHRASE --apply
+hcb vault serve --path /srv/hcb/current.hcbvault --host 0.0.0.0 --token-env HCB_VAULT_HOST_TOKEN
+hcb vault push --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply
 hcb tui
 view backend</code></pre>
       </div>
@@ -407,6 +409,8 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
         <ul>
           <li>Added first-run and Settings controls for selecting Google, HCB local vault, or HCB local hoster backend mode.</li>
           <li>Added encrypted <code>.hcbvault</code> export/import contracts and tools using scrypt-derived AES-256-GCM payload encryption.</li>
+          <li>Added standalone vault hosting for trusted local machines with <code>hcb vault serve</code>, <code>remote-status</code>, <code>push</code>, and <code>pull</code>.</li>
+          <li>Remote vault clients require HTTPS outside loopback unless the user explicitly allows insecure HTTP for trusted LAN testing.</li>
           <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
           <li>Added MCP and CLI commands for backend status, backend switching, vault export, and vault import, plus a TUI backend view.</li>
           <li>Kept the local hoster signal path on bearer auth, loopback origin checks, replay receipts, rate limiting, and encrypted signal support.</li>

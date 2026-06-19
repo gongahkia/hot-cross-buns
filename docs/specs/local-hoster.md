@@ -1,7 +1,11 @@
 # HCB2 Local Hoster Protocol
 
-Local hosters are opt-in loopback integrations for terminal tools and local
-automation. They reuse the local MCP bearer token and planner services; they do
+Local hosters have two separate surfaces:
+
+- signal hosters: loopback integrations for terminal tools and local automation
+- vault hosts: encrypted `.hcbvault` package storage for trusted local machines
+
+Signal hosters reuse the local MCP bearer token and planner services; they do
 not open LAN listeners or introduce a separate mutation path.
 
 ## Server
@@ -16,6 +20,47 @@ not open LAN listeners or introduce a separate mutation path.
   applied during main-process startup. Status reports `health`,
   `configuredPort`, effective `port`, live `endpoint`, start/stop timestamps,
   and sanitized bind errors such as `EADDRINUSE`.
+
+## Vault Host Server
+
+Vault hosts are standalone CLI servers for a Raspberry Pi, another laptop, NAS,
+or loopback process. They store only `.hcbvault` packages:
+
+```text
+current.hcbvault/
+  manifest.json
+  payload.hcbenc
+```
+
+Routes:
+
+- `GET /hcb/v1/vault/info`: returns protocol version, supported vault format
+  versions, max package bytes, and current manifest metadata when a vault exists.
+- `GET /hcb/v1/vault`: downloads the manifest plus encrypted payload.
+- `PUT /hcb/v1/vault`: uploads/replaces the manifest plus encrypted payload.
+
+Auth is `Authorization: Bearer <host-token>`. The host token is supplied by
+`--token-env`; it is not embedded in the vault package. Clients refuse
+non-loopback HTTP by default. Use HTTPS, a VPN/tunnel, or an explicit
+`--allow-insecure-http` override for trusted LAN tests.
+
+Vault hosts do not receive the passphrase. Clients export/import locally with
+the passphrase, then push/pull the already-encrypted package. Upload validates
+the manifest schema and payload SHA-256 before replacing the hosted package.
+Replacement is atomic at the package-directory level.
+
+CLI:
+
+```sh
+hcb vault serve --path /srv/hcb/current.hcbvault --host 0.0.0.0 --token-env HCB_VAULT_HOST_TOKEN
+hcb vault remote-status --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN
+hcb vault push --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply
+hcb vault pull --endpoint https://pi.local/hcb/v1/vault --token-env HCB_VAULT_HOST_TOKEN --passphrase-env HCB_VAULT_PASSPHRASE --apply
+```
+
+Semantics are snapshot push/pull. Pull is destructive and routes through the
+same `.hcbvault` import path as local import. v1 does not implement CRDT,
+operation-log replication, or multi-writer conflict merging.
 
 `/hcb/v1/info` returns hoster profiles visible to the caller. A profile must
 have `host.info` to be returned for a profile-specific info request. The

@@ -6,6 +6,7 @@ import { MemorySecretStore } from "../src/main/credentials/secretStore";
 import { runLocalDataMigrations } from "../src/main/data/migrations";
 import { LocalHosterRepository } from "../src/main/data/localRepositories";
 import { createTemporarySqliteConnection } from "../src/main/data/sqliteConnection";
+import { HcbVaultHostServer } from "../src/main/hoster/vaultServer";
 import { createSqliteHosterDomainService } from "../src/main/services/sqliteHosterDomainService";
 import { StaticMcpCredentialAdapter } from "../src/main/mcp/credentials";
 import { writeMcpRuntimeFile } from "../src/main/mcp/runtimeFile";
@@ -63,9 +64,16 @@ async function main(): Promise<void> {
     },
     toolRegistry: registry
   });
+  let vaultHost: HcbVaultHostServer | undefined;
 
   try {
     const port = await server.start(0);
+    vaultHost = new HcbVaultHostServer({
+      vaultPath: join(directory, "hosted.hcbvault"),
+      token: "hcb-vault-host-token"
+    });
+    const vaultHostStarted = await vaultHost.start({ port: 0 });
+    const vaultHostEndpoint = `http://127.0.0.1:${vaultHostStarted.port}/hcb/v1/vault`;
     writeMcpRuntimeFile(runtimeFile, port, new Date("2026-06-04T00:00:00.000Z"));
 
     await expectCommand(["doctor"], "HCB doctor:", runtimeFile, token);
@@ -84,6 +92,12 @@ async function main(): Promise<void> {
     const vaultEnv = { HCB_VAULT_PASSPHRASE: "smoke vault passphrase" };
     await expectCommand(["vault", "export", "--out", join(directory, "smoke.hcbvault"), "--passphrase-env", "HCB_VAULT_PASSPHRASE"], "HCB vault export: dry-run", runtimeFile, token, vaultEnv);
     await expectCommand(["vault", "import", join(directory, "smoke.hcbvault"), "--passphrase-env", "HCB_VAULT_PASSPHRASE"], "HCB vault import: dry-run", runtimeFile, token, vaultEnv);
+    const vaultHostEnv = {
+      HCB_VAULT_PASSPHRASE: "smoke vault passphrase",
+      HCB_VAULT_HOST_TOKEN: "hcb-vault-host-token"
+    };
+    await expectCommand(["vault", "remote-status", "--endpoint", vaultHostEndpoint, "--token-env", "HCB_VAULT_HOST_TOKEN"], "HCB vault host", runtimeFile, token, vaultHostEnv);
+    await expectCommand(["vault", "push", "--endpoint", vaultHostEndpoint, "--token-env", "HCB_VAULT_HOST_TOKEN", "--passphrase-env", "HCB_VAULT_PASSPHRASE"], "HCB vault push: dry-run", runtimeFile, token, vaultHostEnv);
     await expectCommand(["sync-now", "--resources", "tasks"], "HCB sync-now: dry-run", runtimeFile, token);
     await expectCommand(["retry-mutation", "mutation-1"], "HCB retry-mutation: dry-run", runtimeFile, token);
     await expectCommand(["cancel-mutation", "mutation-1"], "HCB cancel-mutation: dry-run", runtimeFile, token);
@@ -127,6 +141,7 @@ async function main(): Promise<void> {
 
     process.stdout.write("hcb cli smoke passed\n");
   } finally {
+    await vaultHost?.stop();
     await server.stop();
     connection.cleanup();
     rmSync(directory, { recursive: true, force: true });

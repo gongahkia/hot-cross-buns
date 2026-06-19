@@ -252,6 +252,28 @@ describe("hcb CLI", () => {
         mcpEnabled: true
       }
     });
+    expect(parseCommand(["vault", "serve", "--path", "/srv/hcb/current.hcbvault", "--host", "0.0.0.0", "--port", "7420", "--token-env", "HCB_HOSTER_TOKEN"])).toMatchObject({
+      command: "vault",
+      action: "serve",
+      path: "/srv/hcb/current.hcbvault",
+      host: "0.0.0.0",
+      port: 7420,
+      tokenEnv: "HCB_HOSTER_TOKEN"
+    });
+    expect(parseCommand(["vault", "push", "--endpoint", "https://pi.local/hcb/v1/vault", "--token-env", "HCB_HOSTER_TOKEN", "--passphrase-env", "HCB_VAULT_PASSPHRASE", "--apply"])).toMatchObject({
+      command: "vault",
+      action: "push",
+      endpoint: "https://pi.local/hcb/v1/vault",
+      tokenEnv: "HCB_HOSTER_TOKEN",
+      passphraseEnv: "HCB_VAULT_PASSPHRASE",
+      apply: true
+    });
+    expect(parseCommand(["vault", "remote-status", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN"])).toMatchObject({
+      command: "vault",
+      action: "remote-status",
+      endpoint: "http://127.0.0.1:7420",
+      tokenEnv: "HCB_HOSTER_TOKEN"
+    });
     expect(parseCommand(["google", "save-oauth-client", "--client-id", "client-id-12345", "--client-secret", "secret"])).toMatchObject({
       command: "google",
       action: "save-oauth-client",
@@ -1939,6 +1961,49 @@ describe("hcb CLI", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it("reads remote vault host status and previews vault push without MCP writes", async () => {
+    const stdout = outputBuffer();
+    const stderr = outputBuffer();
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (url, init) => {
+      calls.push({ url, method: init.method });
+      return {
+        status: 200,
+        json: async () => ({
+          kind: "hcbVaultHostInfo",
+          protocolVersion: 1,
+          hcbVaultFormatVersions: [1],
+          routes: ["/hcb/v1/vault/info", "/hcb/v1/vault"],
+          hasVault: true,
+          vaultName: "current.hcbvault",
+          maxPackageBytes: 134217728
+        }),
+        text: async () => ""
+      };
+    };
+
+    expect(await runHcbCli(["vault", "remote-status", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN"], {
+      env: { HCB_HOSTER_TOKEN: "remote-token-at-least-16" },
+      stdout,
+      stderr,
+      fetch
+    })).toBe(0);
+    expect(await runHcbCli(["vault", "push", "--endpoint", "http://127.0.0.1:7420", "--token-env", "HCB_HOSTER_TOKEN", "--passphrase-env", "HCB_VAULT_PASSPHRASE"], {
+      env: {
+        HCB_HOSTER_TOKEN: "remote-token-at-least-16",
+        HCB_VAULT_PASSPHRASE: "correct horse battery"
+      },
+      stdout,
+      stderr,
+      fetch
+    })).toBe(0);
+
+    expect(calls).toEqual([{ url: "http://127.0.0.1:7420/hcb/v1/vault/info", method: "GET" }]);
+    expect(stdout.text()).toContain("HCB vault host");
+    expect(stdout.text()).toContain("HCB vault push: dry-run");
+    expect(stderr.text()).toBe("");
   });
 
   it("prints shell completion and exposes an hcb bin", async () => {
