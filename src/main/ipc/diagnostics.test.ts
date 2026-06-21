@@ -10,7 +10,7 @@ import { createIpcDispatcher, createIpcMetrics } from "./registry";
 
 vi.mock("electron", () => ({
   app: {
-    getName: () => "Hot Cross Buns 2",
+    getName: () => "Hot Cross Buns",
     getVersion: () => "5.0.0",
     isPackaged: false
   },
@@ -24,7 +24,7 @@ vi.mock("electron", () => ({
 
 describe("diagnostics IPC handlers", () => {
   it("returns a typed diagnostics summary through the dispatcher", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-diagnostics-ipc-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-diagnostics-ipc-"));
     const services = createServiceContainer({
       appSupportDirectory,
       secretStore: new MemorySecretStore()

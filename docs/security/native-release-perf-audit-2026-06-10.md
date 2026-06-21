@@ -15,7 +15,7 @@ Scope: static repo audit plus local test/perf harness surfaces. No packaged-app 
 ## MCP Original Parity
 
 - Original Swift/docs tool names are present: `hcb_search`, `hcb_today`, `hcb_week`, `hcb_get_task`, `hcb_get_event`, `hcb_list_task_lists`, `hcb_list_calendars`, `hcb_create_task`, `hcb_create_note`, `hcb_create_event`, `hcb_update_task`, `hcb_update_event`, `hcb_complete_task`, `hcb_reopen_task`, `hcb_move_task`, `hcb_delete_task`, `hcb_delete_event`.
-- HCB2 adds a superset: diagnostics/log/diff/show/tail/brief/plan, notes/lists, sync/mutation controls, undo/redo, settings/OAuth/MCP controls, convert, and event completion tools.
+- HCB adds a superset: diagnostics/log/diff/show/tail/brief/plan, notes/lists, sync/mutation controls, undo/redo, settings/OAuth/MCP controls, convert, and event completion tools.
 - Dry-run / confirmation / allow-write modes are implemented in current MCP tests. Destructive tools still require confirmation in allow-write mode.
 - No explicit alias registry was found in the original Swift MCP surface or current TS tool registry.
 - External MCP client QA remains open.

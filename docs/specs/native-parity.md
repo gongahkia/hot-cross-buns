@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document tracks native behavior from the Swift app that is not part of the first Hot Cross Buns 2 core milestone. These features are documented now so the initial architecture does not block them.
+This document tracks native behavior from the Swift app that is not part of the first Hot Cross Buns core milestone. These features are documented now so the initial architecture does not block them.
 
 ## Included In Core V1
 

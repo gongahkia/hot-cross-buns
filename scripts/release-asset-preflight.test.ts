@@ -16,49 +16,49 @@ function assetWithDigest(name: string, digest: string | null) {
 describe("release asset preflight", () => {
   it("lists required macOS release assets with flexible arch placeholders", () => {
     expect(requiredReleaseAssets("mac", "5.0.0")).toEqual([
-      "Hot-Cross-Buns-2-macOS.dmg",
-      "Hot-Cross-Buns-2-macOS.dmg.sha256",
-      "Hot-Cross-Buns-2-macOS.zip",
-      "Hot-Cross-Buns-2-macOS.zip.sha256",
+      "Hot-Cross-Buns-macOS.dmg",
+      "Hot-Cross-Buns-macOS.dmg.sha256",
+      "Hot-Cross-Buns-macOS.zip",
+      "Hot-Cross-Buns-macOS.zip.sha256",
       "SHASUMS256.txt",
-      "one of Hot-Cross-Buns-2-5.0.0-mac-<arch>.dmg",
-      "one of Hot-Cross-Buns-2-5.0.0-mac-<arch>.zip"
+      "one of Hot-Cross-Buns-5.0.0-mac-<arch>.dmg",
+      "one of Hot-Cross-Buns-5.0.0-mac-<arch>.zip"
     ]);
   });
 
   it("lists required Linux release assets", () => {
     expect(requiredReleaseAssets("linux", "5.0.0")).toEqual([
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage.sha256",
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux.AppImage.sha256",
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage.sha256",
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage.sha256",
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux.AppImage.sha256",
+      "Hot-Cross-Buns-linux-x64.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage.sha256",
       "SHASUMS256.txt"
     ]);
   });
 
   it("lists required Windows release assets", () => {
     expect(requiredReleaseAssets("windows", "5.0.0")).toEqual([
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe.sha256",
-      "Hot-Cross-Buns-2-windows.exe",
-      "Hot-Cross-Buns-2-windows.exe.sha256",
-      "Hot-Cross-Buns-2-windows-x64.exe",
-      "Hot-Cross-Buns-2-windows-x64.exe.sha256",
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe.sha256",
+      "Hot-Cross-Buns-windows.exe",
+      "Hot-Cross-Buns-windows.exe.sha256",
+      "Hot-Cross-Buns-windows-x64.exe",
+      "Hot-Cross-Buns-windows-x64.exe.sha256",
       "SHASUMS256.txt"
     ]);
   });
 
   it("matches update-check assets for each target", () => {
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-macOS.dmg", "mac")).toBe(true);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg", "mac")).toBe(true);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-mac-arm64.zip", "mac")).toBe(false);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-linux-x64.AppImage", "linux")).toBe(true);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage", "linux")).toBe(true);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-linux-arm64.AppImage", "linux")).toBe(false);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-windows-x64.exe", "windows")).toBe(true);
-    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-2-windows.exe", "windows")).toBe(false);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-macOS.dmg", "mac")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-5.0.0-mac-arm64.dmg", "mac")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-5.0.0-mac-arm64.zip", "mac")).toBe(false);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-linux-x64.AppImage", "linux")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage", "linux")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-linux-arm64.AppImage", "linux")).toBe(false);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-windows-x64.exe", "windows")).toBe(true);
+    expect(matchesUpdateCheckAsset("Hot-Cross-Buns-windows.exe", "windows")).toBe(false);
   });
 
   it("passes when macOS stable aliases and one arch-specific pair are present", () => {
@@ -66,12 +66,12 @@ describe("release asset preflight", () => {
       target: "mac",
       version: "5.0.0",
       assets: [
-        asset("Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg"),
-        asset("Hot-Cross-Buns-2-5.0.0-mac-arm64.zip"),
-        asset("Hot-Cross-Buns-2-macOS.dmg"),
-        asset("Hot-Cross-Buns-2-macOS.dmg.sha256"),
-        asset("Hot-Cross-Buns-2-macOS.zip"),
-        asset("Hot-Cross-Buns-2-macOS.zip.sha256"),
+        asset("Hot-Cross-Buns-5.0.0-mac-arm64.dmg"),
+        asset("Hot-Cross-Buns-5.0.0-mac-arm64.zip"),
+        asset("Hot-Cross-Buns-macOS.dmg"),
+        asset("Hot-Cross-Buns-macOS.dmg.sha256"),
+        asset("Hot-Cross-Buns-macOS.zip"),
+        asset("Hot-Cross-Buns-macOS.zip.sha256"),
         asset("SHASUMS256.txt")
       ]
     });
@@ -81,8 +81,8 @@ describe("release asset preflight", () => {
       ok: true,
       missingAssets: [],
       matchingUpdateAssets: [
-        "Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg",
-        "Hot-Cross-Buns-2-macOS.dmg"
+        "Hot-Cross-Buns-5.0.0-mac-arm64.dmg",
+        "Hot-Cross-Buns-macOS.dmg"
       ]
     });
   });
@@ -99,8 +99,8 @@ describe("release asset preflight", () => {
       ok: true,
       missingAssets: [],
       matchingUpdateAssets: [
-        "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-        "Hot-Cross-Buns-2-linux-x64.AppImage"
+        "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+        "Hot-Cross-Buns-linux-x64.AppImage"
       ]
     });
   });
@@ -110,15 +110,15 @@ describe("release asset preflight", () => {
       target: "windows",
       version: "5.0.0",
       assets: [
-        asset("Hot-Cross-Buns-2-5.0.0-mac-arm64.dmg"),
-        asset("Hot-Cross-Buns-2-macOS.dmg"),
+        asset("Hot-Cross-Buns-5.0.0-mac-arm64.dmg"),
+        asset("Hot-Cross-Buns-macOS.dmg"),
         asset("SHASUMS256.txt")
       ]
     });
 
     expect(result.ok).toBe(false);
     expect(result.matchingUpdateAssets).toEqual([]);
-    expect(result.missingAssets).toContain("Hot-Cross-Buns-2-5.0.0-windows-x64.exe");
+    expect(result.missingAssets).toContain("Hot-Cross-Buns-5.0.0-windows-x64.exe");
   });
 
   it("fails when a stable Linux alias digest differs from the versioned AppImage", () => {
@@ -126,19 +126,19 @@ describe("release asset preflight", () => {
       target: "linux",
       version: "5.0.0",
       assets: [
-        assetWithDigest("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage", "sha256:versioned"),
-        asset("Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage.sha256"),
-        assetWithDigest("Hot-Cross-Buns-2-linux.AppImage", "sha256:versioned"),
-        asset("Hot-Cross-Buns-2-linux.AppImage.sha256"),
-        assetWithDigest("Hot-Cross-Buns-2-linux-x64.AppImage", "sha256:alias"),
-        asset("Hot-Cross-Buns-2-linux-x64.AppImage.sha256"),
+        assetWithDigest("Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage", "sha256:versioned"),
+        asset("Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage.sha256"),
+        assetWithDigest("Hot-Cross-Buns-linux.AppImage", "sha256:versioned"),
+        asset("Hot-Cross-Buns-linux.AppImage.sha256"),
+        assetWithDigest("Hot-Cross-Buns-linux-x64.AppImage", "sha256:alias"),
+        asset("Hot-Cross-Buns-linux-x64.AppImage.sha256"),
         asset("SHASUMS256.txt")
       ]
     });
 
     expect(result.ok).toBe(false);
     expect(result.digestProblems).toContain(
-      "Hot-Cross-Buns-2-linux-x64.AppImage digest does not match Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage"
+      "Hot-Cross-Buns-linux-x64.AppImage digest does not match Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage"
     );
   });
 
@@ -147,19 +147,19 @@ describe("release asset preflight", () => {
       target: "windows",
       version: "5.0.0",
       assets: [
-        assetWithDigest("Hot-Cross-Buns-2-5.0.0-windows-x64.exe", null),
-        asset("Hot-Cross-Buns-2-5.0.0-windows-x64.exe.sha256"),
-        assetWithDigest("Hot-Cross-Buns-2-windows.exe", "sha256:abc123"),
-        asset("Hot-Cross-Buns-2-windows.exe.sha256"),
-        assetWithDigest("Hot-Cross-Buns-2-windows-x64.exe", "sha256:abc123"),
-        asset("Hot-Cross-Buns-2-windows-x64.exe.sha256"),
+        assetWithDigest("Hot-Cross-Buns-5.0.0-windows-x64.exe", null),
+        asset("Hot-Cross-Buns-5.0.0-windows-x64.exe.sha256"),
+        assetWithDigest("Hot-Cross-Buns-windows.exe", "sha256:abc123"),
+        asset("Hot-Cross-Buns-windows.exe.sha256"),
+        assetWithDigest("Hot-Cross-Buns-windows-x64.exe", "sha256:abc123"),
+        asset("Hot-Cross-Buns-windows-x64.exe.sha256"),
         asset("SHASUMS256.txt")
       ]
     });
 
     expect(result.ok).toBe(false);
     expect(result.digestProblems).toContain(
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe is missing a GitHub SHA-256 digest"
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe is missing a GitHub SHA-256 digest"
     );
   });
 });

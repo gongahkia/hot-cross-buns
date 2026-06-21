@@ -5,9 +5,9 @@ import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { smokeLinuxAppImageArtifact } from "./smoke-test-appimage";
 
-const versionedAppImage = "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage";
-const stableAppImage = "Hot-Cross-Buns-2-linux.AppImage";
-const stableX64AppImage = "Hot-Cross-Buns-2-linux-x64.AppImage";
+const versionedAppImage = "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage";
+const stableAppImage = "Hot-Cross-Buns-linux.AppImage";
+const stableX64AppImage = "Hot-Cross-Buns-linux-x64.AppImage";
 const originalNoSandbox = process.env.HCB_APPIMAGE_SMOKE_NO_SANDBOX;
 const originalPackagedMcpSmoke = process.env.HCB_PACKAGED_MCP_SMOKE;
 const originalPasswordStore = process.env.HCB_APPIMAGE_SMOKE_PASSWORD_STORE;
@@ -39,24 +39,24 @@ afterEach(() => {
 });
 
 async function createReleaseDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-appimage-smoke-"));
+  return mkdtemp(join(tmpdir(), "hcb-appimage-smoke-"));
 }
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function appImageScript(desktopExtra = "", launchBody = 'echo "Hot Cross Buns 2 startup"'): string {
+function appImageScript(desktopExtra = "", launchBody = 'echo "Hot Cross Buns startup"'): string {
   return `#!/bin/sh
 if [ "$1" = "--appimage-extract" ]; then
   mkdir -p squashfs-root
-  cat > squashfs-root/hot-cross-buns-2.desktop <<'EOF'
-Name=Hot Cross Buns 2
+  cat > squashfs-root/hot-cross-buns.desktop <<'EOF'
+Name=Hot Cross Buns
 Type=Application
 Terminal=false
 Categories=Office;
 GenericName=Planner
-StartupWMClass=hot-cross-buns-2
+StartupWMClass=hot-cross-buns
 ${desktopExtra}EOF
   exit 0
 fi
@@ -120,7 +120,7 @@ describeAppImageSmoke("Linux AppImage smoke test", () => {
     );
 
     await expect(smokeLinuxAppImageArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
-      "SHASUMS256.txt hash does not match Hot-Cross-Buns-2-linux-x64.AppImage"
+      "SHASUMS256.txt hash does not match Hot-Cross-Buns-linux-x64.AppImage"
     );
   });
 
@@ -140,7 +140,7 @@ describeAppImageSmoke("Linux AppImage smoke test", () => {
     );
 
     await expect(smokeLinuxAppImageArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
-      "Hot-Cross-Buns-2-linux.AppImage does not match Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage"
+      "Hot-Cross-Buns-linux.AppImage does not match Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage"
     );
   });
 
@@ -184,7 +184,7 @@ if [ ! -d "$HCB_USER_DATA_DIR" ]; then
   echo "missing user data dir" >&2
   exit 21
 fi
-echo "Hot Cross Buns 2 startup"`);
+echo "Hot Cross Buns startup"`);
 
     await expect(smokeLinuxAppImageArtifact({ launch: true, minimumBytes: 1, releaseDir })).resolves.toEqual(
       expect.arrayContaining([
@@ -201,7 +201,7 @@ echo "Hot Cross Buns 2 startup"`);
   echo "missing no-sandbox smoke arg" >&2
   exit 22
 fi
-echo "Hot Cross Buns 2 startup"`);
+echo "Hot Cross Buns startup"`);
 
     await expect(smokeLinuxAppImageArtifact({ launch: true, minimumBytes: 1, releaseDir })).resolves.toEqual(
       expect.arrayContaining([
@@ -218,7 +218,7 @@ echo "Hot Cross Buns 2 startup"`);
   echo "missing password-store smoke arg" >&2
   exit 23
 fi
-echo "Hot Cross Buns 2 startup"`);
+echo "Hot Cross Buns startup"`);
 
     await expect(smokeLinuxAppImageArtifact({ launch: true, minimumBytes: 1, releaseDir })).resolves.toEqual(
       expect.arrayContaining([

@@ -194,7 +194,7 @@ export function createPlaceholderControlServices(
           formatVersion: 1 as const,
           exportedAt,
           appVersion: "0.0.0",
-          stateFile: "hot-cross-buns-2-state.json" as const,
+          stateFile: "hot-cross-buns-state.json" as const,
           stateSha256: "0".repeat(64),
           attachmentDirectory: "Attachments" as const,
           attachments: [],
@@ -203,7 +203,7 @@ export function createPlaceholderControlServices(
         };
 
         return {
-          path: "/tmp/hot-cross-buns-2-placeholder.hcbexport",
+          path: "/tmp/hot-cross-buns-placeholder.hcbexport",
           exportedAt,
           manifest
         };
@@ -224,7 +224,7 @@ export function createPlaceholderControlServices(
       }),
       importPortableArchive: (request) => ({
         importedAt: new Date().toISOString(),
-        backupPath: "/tmp/hot-cross-buns-2-placeholder-backup.sqlite3",
+        backupPath: "/tmp/hot-cross-buns-placeholder-backup.sqlite3",
         preview: {
           path: request.path,
           exportedAt: new Date().toISOString(),
@@ -270,7 +270,7 @@ export function createPlaceholderControlServices(
       refreshIcsSubscription: () => ({ items: [] }),
       deleteIcsSubscription: () => ({ items: [] }),
       exportLocalReport: (request) => ({
-        path: "/tmp/hot-cross-buns-2-placeholder-report.txt",
+        path: "/tmp/hot-cross-buns-placeholder-report.txt",
         format: request.format ?? "markdown",
         generatedAt: new Date().toISOString(),
         itemCount: 0
@@ -459,14 +459,14 @@ export function createPlaceholderControlServices(
 
 function placeholderCustomizationStatus() {
   return {
-    configDirectory: "/tmp/hot-cross-buns-2",
-    snippetsDirectory: "/tmp/hot-cross-buns-2/snippets",
-    extensionsDirectory: "/tmp/hot-cross-buns-2/extensions",
-    settingsJsonPath: "/tmp/hot-cross-buns-2/settings.json",
-    keymapJsonPath: "/tmp/hot-cross-buns-2/keymap.json",
+    configDirectory: "/tmp/hot-cross-buns",
+    snippetsDirectory: "/tmp/hot-cross-buns/snippets",
+    extensionsDirectory: "/tmp/hot-cross-buns/extensions",
+    settingsJsonPath: "/tmp/hot-cross-buns/settings.json",
+    keymapJsonPath: "/tmp/hot-cross-buns/keymap.json",
     snippets: [],
     externalSettings: {
-      path: "/tmp/hot-cross-buns-2/settings.json",
+      path: "/tmp/hot-cross-buns/settings.json",
       exists: false,
       valid: true,
       appliedKeys: [],
@@ -474,7 +474,7 @@ function placeholderCustomizationStatus() {
       error: null
     },
     externalKeymap: {
-      path: "/tmp/hot-cross-buns-2/keymap.json",
+      path: "/tmp/hot-cross-buns/keymap.json",
       exists: false,
       valid: true,
       appliedKeys: [],

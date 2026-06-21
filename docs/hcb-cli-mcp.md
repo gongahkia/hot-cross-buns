@@ -1,6 +1,6 @@
 # HCB CLI and MCP
 
-This is the agent-facing reference for local HCB2 debugging and cleanup.
+This is the agent-facing reference for local HCB debugging and cleanup.
 
 ## CLI
 

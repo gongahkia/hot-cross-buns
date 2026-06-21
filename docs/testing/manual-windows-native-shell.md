@@ -7,10 +7,10 @@ technical preview release.
 
 - Confirm `Windows Preview Validation` run `27525193372` or a newer run passed
   on the commit under test, or run `pnpm release:win:preview` on a Windows host.
-- Verify `release/Hot-Cross-Buns-2-<version>-windows-x64.exe` exists.
-- Verify `release/Hot-Cross-Buns-2-windows.exe` and
-  `release/Hot-Cross-Buns-2-windows-x64.exe` aliases exist.
-- Run `certutil -hashfile release\Hot-Cross-Buns-2-windows-x64.exe SHA256`
+- Verify `release/Hot-Cross-Buns-<version>-windows-x64.exe` exists.
+- Verify `release/Hot-Cross-Buns-windows.exe` and
+  `release/Hot-Cross-Buns-windows-x64.exe` aliases exist.
+- Run `certutil -hashfile release\Hot-Cross-Buns-windows-x64.exe SHA256`
   and compare with `release\SHASUMS256.txt`.
 - Run `pnpm release:smoke-nsis`.
 - Run `HCB_PACKAGED_MCP_SMOKE=1 pnpm release:smoke-nsis-install` from a shell
@@ -47,7 +47,7 @@ Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, OsBuildNumber, O
 Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' | Select-Object ProductName, DisplayVersion, CurrentBuildNumber, UBR
 node --version
 pnpm --version
-Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256
+Get-FileHash .\release\Hot-Cross-Buns-windows-x64.exe -Algorithm SHA256
 ```
 
 ## Launch And Identity
@@ -56,10 +56,10 @@ Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256
 - Launch from Start Menu.
 - Launch from desktop shortcut if created.
 - Confirm app icon appears in Start Menu, taskbar, and window titlebar.
-- Confirm taskbar grouping uses one Hot Cross Buns 2 identity.
+- Confirm taskbar grouping uses one Hot Cross Buns identity.
 - Confirm Diagnostics reports platform `win32`, adapter
   `electron-windows-preview`, package format `nsis`, and AppUserModelID
-  `dev.hotcrossbuns.hotcrossbuns2`.
+  `dev.hotcrossbuns.hotcrossbuns`.
 
 ## Credentials And OAuth
 

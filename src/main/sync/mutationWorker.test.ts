@@ -42,7 +42,7 @@ function connectedAccount() {
 }
 
 function createHarness() {
-  temp = createTemporarySqliteConnection("hcb2-mutation-worker-");
+  temp = createTemporarySqliteConnection("hcb-mutation-worker-");
   runLocalDataMigrations(temp.connection);
 
   const repository = new GoogleSyncRepository(temp.connection);

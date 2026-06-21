@@ -23,7 +23,7 @@ function expectSupportedAdapter(connection: SqliteConnection): void {
 
 describe("SQLite connection foundation", () => {
   it("creates temporary databases under the OS temp directory and cleans them up", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-test-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-test-");
 
     try {
       expectSupportedAdapter(temporary.connection);
@@ -52,7 +52,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("applies production pragmas and keeps durable pragmas after reopening", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-pragmas-test-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-pragmas-test-");
     const databasePath = temporary.databasePath;
 
     try {
@@ -82,7 +82,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("supports explicit prepared statements for repeated writes and reads", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-prepared-test-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-prepared-test-");
 
     try {
       temporary.connection.exec("CREATE TABLE counters (id TEXT PRIMARY KEY, value INTEGER NOT NULL);");
@@ -98,7 +98,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("runs migrations on the primary SQLite adapter without deprecated note tables", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-migration-test-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-migration-test-");
 
     try {
       const result = runLocalDataMigrations(temporary.connection);
@@ -117,7 +117,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("backfills calendar event local timezone during local migrations", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-event-timezone-migration-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-event-timezone-migration-");
 
     try {
       temporary.connection.exec(`
@@ -148,7 +148,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("forces one calendar full resync when existing events predate color id caching", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-event-color-resync-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-event-color-resync-");
 
     try {
       temporary.connection.exec(`
@@ -198,7 +198,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("adds calendar event recurrence rule during local migrations", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-event-recurrence-migration-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-event-recurrence-migration-");
 
     try {
       temporary.connection.exec(`
@@ -222,7 +222,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("creates app database connections only from caller-supplied temporary roots in tests", () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-app-db-test-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-app-db-test-"));
     let connection: SqliteConnection | undefined;
 
     try {
@@ -247,7 +247,7 @@ describe("SQLite connection foundation", () => {
   });
 
   it("rolls back all writes when a transaction operation fails", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-sqlite-rollback-test-");
+    const temporary = createTemporarySqliteConnection("hcb-sqlite-rollback-test-");
 
     try {
       temporary.connection.exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL);");

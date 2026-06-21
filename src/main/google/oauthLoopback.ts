@@ -101,7 +101,7 @@ export class GoogleOAuthLoopbackController {
       const status = await service.completeAuthorization({ code, state });
       void this.stop();
       await this.options.onConnected?.(status);
-      return callbackPage(200, "Google authorization completed. You can return to Hot Cross Buns 2.");
+      return callbackPage(200, "Google authorization completed. You can return to Hot Cross Buns.");
     } catch (thrown) {
       void this.stop();
       const message = thrown instanceof Error ? thrown.message : "Google authorization failed.";
@@ -185,7 +185,7 @@ function callbackPage(statusCode: number, message: string): { statusCode: number
 }
 
 function renderHtml(message: string): string {
-  return `<!doctype html><meta charset="utf-8"><title>Hot Cross Buns 2</title><body><main style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;line-height:1.5"><h1>Hot Cross Buns 2</h1><p>${escapeHtml(message)}</p></main></body>`;
+  return `<!doctype html><meta charset="utf-8"><title>Hot Cross Buns</title><body><main style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;line-height:1.5"><h1>Hot Cross Buns</h1><p>${escapeHtml(message)}</p></main></body>`;
 }
 
 function escapeHtml(value: string): string {

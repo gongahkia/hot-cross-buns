@@ -256,7 +256,7 @@ async function captureResponsiveScreenshots(): Promise<void> {
   mkdirSync(screenshotDirectory, { recursive: true });
 
   let electronApp: ElectronApplication | undefined;
-  const tempRoot = mkdtempSync(join(tmpdir(), "hcb2-responsive-screenshots-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "hcb-responsive-screenshots-"));
   const userDataDirectory = join(tempRoot, "user-data");
 
   try {

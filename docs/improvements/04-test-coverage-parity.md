@@ -13,7 +13,7 @@ Current Electron rebuild:
 - `tests/smoke/app.spec.ts`
 - `scripts/perf/*.test.ts`
 
-Hot Cross Buns 2 already has useful coverage for IPC contracts, preload boundaries, renderer shell behavior, Google read clients, SQLite repositories, shared domain services, MCP server behavior, diagnostics redaction, native service lifecycle scaffolding, and smoke/performance harnesses. The missing tests are mostly deeper product behavior, long-lived background workflows, derived data correctness, native parity, and release operations.
+Hot Cross Buns already has useful coverage for IPC contracts, preload boundaries, renderer shell behavior, Google read clients, SQLite repositories, shared domain services, MCP server behavior, diagnostics redaction, native service lifecycle scaffolding, and smoke/performance harnesses. The missing tests are mostly deeper product behavior, long-lived background workflows, derived data correctness, native parity, and release operations.
 
 ## Improvements To Add
 

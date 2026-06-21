@@ -22,7 +22,7 @@ const host = {
 };
 
 async function tempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-manual-qa-"));
+  return mkdtemp(join(tmpdir(), "hcb-manual-qa-"));
 }
 
 function completeEvidence(source: string): string {
@@ -55,12 +55,12 @@ describe("manual QA evidence", () => {
   it("lists required Linux release files", () => {
     expect(requiredReleaseFiles("linux", "5.0.0")).toEqual([
       "SHASUMS256.txt",
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage.sha256",
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux.AppImage.sha256",
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage.sha256"
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage.sha256",
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux.AppImage.sha256",
+      "Hot-Cross-Buns-linux-x64.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage.sha256"
     ]);
   });
 

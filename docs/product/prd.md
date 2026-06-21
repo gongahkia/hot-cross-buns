@@ -2,7 +2,7 @@
 
 ## Product Summary
 
-Hot Cross Buns 2 is a keyboard-first desktop planner backed by Google Tasks and Google Calendar. It helps one user capture tasks quickly, plan across tasks and calendar events, keep lightweight notes, and optionally expose controlled local MCP tools to their own agent clients.
+Hot Cross Buns is a keyboard-first desktop planner backed by Google Tasks and Google Calendar. It helps one user capture tasks quickly, plan across tasks and calendar events, keep lightweight notes, and optionally expose controlled local MCP tools to their own agent clients.
 
 The first release is a macOS core app. The product direction must support future Windows and Linux releases without rewriting the app architecture.
 

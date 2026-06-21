@@ -74,7 +74,7 @@ describe("Linux packaging config", () => {
     expect(config.protocols).toBeUndefined();
     expect(config.linux).toMatchObject({
       category: "Office",
-      executableName: "hot-cross-buns-2",
+      executableName: "hot-cross-buns",
       icon: "build/icons"
     });
     expect(config.linux?.target).toEqual([
@@ -83,11 +83,11 @@ describe("Linux packaging config", () => {
         arch: ["x64"]
       }
     ]);
-    expect(config.appImage?.artifactName).toBe("Hot-Cross-Buns-2-${version}-linux-${arch}.${ext}");
+    expect(config.appImage?.artifactName).toBe("Hot-Cross-Buns-${version}-linux-${arch}.${ext}");
     expect(config.linux?.desktop?.entry).toMatchObject({
       GenericName: "Planner",
       Keywords: "tasks;calendar;notes;planner;productivity;",
-      StartupWMClass: "hot-cross-buns-2"
+      StartupWMClass: "hot-cross-buns"
     });
   });
 
@@ -103,7 +103,7 @@ describe("Linux packaging config", () => {
     const config = await loadBuilderConfig();
 
     expect(config.win).toMatchObject({
-      executableName: "Hot Cross Buns 2",
+      executableName: "Hot Cross Buns",
       icon: "build/icon.ico"
     });
     expect(config.win?.target).toEqual([
@@ -114,13 +114,13 @@ describe("Linux packaging config", () => {
     ]);
     expect(config.win?.protocols?.flatMap((protocol) => protocol.schemes ?? [])).toContain("hotcrossbuns");
     expect(config.nsis).toMatchObject({
-      artifactName: "Hot-Cross-Buns-2-${version}-windows-${arch}.${ext}",
+      artifactName: "Hot-Cross-Buns-${version}-windows-${arch}.${ext}",
       allowToChangeInstallationDirectory: true,
       createDesktopShortcut: true,
       createStartMenuShortcut: true,
       oneClick: false,
       perMachine: false,
-      shortcutName: "Hot Cross Buns 2"
+      shortcutName: "Hot Cross Buns"
     });
     await expect(access(resolve("build/icon.ico"))).resolves.toBeUndefined();
   });

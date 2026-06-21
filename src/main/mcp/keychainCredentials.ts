@@ -5,7 +5,7 @@ import {
 } from "./credentials";
 import type { McpCredentialAdapter } from "./types";
 
-const MCP_TOKEN_SERVICE = "Hot Cross Buns 2 MCP";
+const MCP_TOKEN_SERVICE = "Hot Cross Buns MCP";
 const MCP_TOKEN_ACCOUNT = "loopback-bearer-token";
 
 export class KeychainMcpCredentialAdapter implements McpCredentialAdapter {

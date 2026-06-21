@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SecretStore } from "../credentials/secretStore";
 
-const HCB_VAULT_HOST_SECRET_SERVICE = "Hot Cross Buns 2 Vault Hosts";
+const HCB_VAULT_HOST_SECRET_SERVICE = "Hot Cross Buns Vault Hosts";
 
 export interface HcbVaultHostCredentials {
   endpoint: string;

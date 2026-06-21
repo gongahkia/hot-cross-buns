@@ -66,7 +66,7 @@ export class SqliteExecutionError extends Error {
   }
 }
 
-const DEFAULT_DATABASE_FILENAME = "hot-cross-buns-2.sqlite3";
+const DEFAULT_DATABASE_FILENAME = "hot-cross-buns.sqlite3";
 const PYTHON_BINARY = process.env.HCB_SQLITE_PYTHON ?? "python3";
 const nodeRequire = createRequire(__filename);
 
@@ -564,7 +564,7 @@ export function createAppSqliteConnection(
 }
 
 export function createTemporarySqliteConnection(
-  prefix = "hcb2-sqlite-"
+  prefix = "hcb-sqlite-"
 ): TemporarySqliteConnection {
   const directory = mkTemporaryDirectory(prefix);
   const databasePath = join(directory, DEFAULT_DATABASE_FILENAME);

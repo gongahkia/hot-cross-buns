@@ -1,10 +1,10 @@
 # HCB CLI
 
-`hcb <command>` or `pnpm hcb -- <command>` talks to the local Hot Cross Buns 2 MCP server. It is intended for agents and CLI users who need Git-like diagnostics against the running local app.
+`hcb <command>` or `pnpm hcb -- <command>` talks to the local Hot Cross Buns MCP server. It is intended for agents and CLI users who need Git-like diagnostics against the running local app.
 
 ## Setup
 
-1. Start Hot Cross Buns 2.
+1. Start Hot Cross Buns.
 2. Open Settings -> General -> Agent access.
 3. Enable Local MCP server.
 4. Run `hcb doctor`.

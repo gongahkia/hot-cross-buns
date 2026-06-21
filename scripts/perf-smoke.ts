@@ -104,7 +104,7 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
 }
 
 function temporaryUserDataDir(): { root: string; userDataDir: string; cleanup: () => void } {
-  const root = mkdtempSync(join(tmpdir(), "hcb2-perf-"));
+  const root = mkdtempSync(join(tmpdir(), "hcb-perf-"));
   const userDataDir = join(root, "user-data");
 
   return {

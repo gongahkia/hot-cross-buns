@@ -175,7 +175,7 @@ export function generatePerfFixtureSet(size: PerfFixtureSize): PerfFixtureSet {
   return {
     schemaVersion: 1,
     size,
-    seed: `hot-cross-buns-2-perf-${size}-v1`,
+    seed: `hot-cross-buns-perf-${size}-v1`,
     generatedDataOnly: true,
     baseTime: FIXTURE_BASE_TIME,
     counts,

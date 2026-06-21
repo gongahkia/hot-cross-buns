@@ -2,7 +2,7 @@
 
 ## Scope
 
-Hot Cross Buns 2 syncs with Google Tasks and Google Calendar. Google remains the synced source of truth for tasks and events. SQLite stores local mirrors, settings, checkpoints, and pending mutations.
+Hot Cross Buns syncs with Google Tasks and Google Calendar. Google remains the synced source of truth for tasks and events. SQLite stores local mirrors, settings, checkpoints, and pending mutations.
 
 ## OAuth
 
@@ -49,7 +49,7 @@ Local-only fields may include:
 - local mutation metadata
 - local diagnostics metadata
 
-Time-specific task scheduling must be represented as a calendar event, not a Google Task due time. Hot Cross Buns 2 stores a local scheduled-task-block link row so the timed calendar block can remain associated with its source task.
+Time-specific task scheduling must be represented as a calendar event, not a Google Task due time. Hot Cross Buns stores a local scheduled-task-block link row so the timed calendar block can remain associated with its source task.
 
 Scheduled-task-block reconciliation rules:
 

@@ -54,14 +54,14 @@ export function nativePlatform(): NativePlatform {
   return "unknown";
 }
 
-export function defaultNativeAppPaths(baseDirectory = join(tmpdir(), "hot-cross-buns-2")): NativeAppPaths {
+export function defaultNativeAppPaths(baseDirectory = join(tmpdir(), "hot-cross-buns")): NativeAppPaths {
   return {
     configDirectory: join(baseDirectory, "config"),
     dataDirectory: join(baseDirectory, "data"),
     cacheDirectory: join(baseDirectory, "cache"),
     logsDirectory: join(baseDirectory, "logs"),
     diagnosticsDirectory: join(baseDirectory, "diagnostics"),
-    tempDirectory: join(tmpdir(), "hot-cross-buns-2")
+    tempDirectory: join(tmpdir(), "hot-cross-buns")
   };
 }
 

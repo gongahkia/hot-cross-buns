@@ -103,7 +103,7 @@ function extensionHtml(extension: CustomizationExtension): string {
     window.hcbExtension = Object.freeze({
       capabilities: Array.from(caps),
       hostInfo() {
-        return { app: "Hot Cross Buns 2", extensionId };
+        return { app: "Hot Cross Buns", extensionId };
       },
       log(message, level = "info") {
         if (!caps.has("log.write")) return;

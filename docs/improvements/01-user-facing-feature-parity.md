@@ -17,7 +17,7 @@ Current Electron rebuild:
 - `docs/specs/core-app.md`
 - `docs/specs/native-parity.md`
 
-Hot Cross Buns 2 already has a usable shell, command palette, task/event/note CRUD surfaces, local search, settings, diagnostics, tray and hotkey scaffolding, and typed IPC. The gaps below are the user-visible surfaces the legacy macOS app has that are missing or materially thinner here.
+Hot Cross Buns already has a usable shell, command palette, task/event/note CRUD surfaces, local search, settings, diagnostics, tray and hotkey scaffolding, and typed IPC. The gaps below are the user-visible surfaces the legacy macOS app has that are missing or materially thinner here.
 
 ## Improvements To Add
 
@@ -25,7 +25,7 @@ Hot Cross Buns 2 already has a usable shell, command palette, task/event/note CR
 
 Legacy has a first-launch onboarding flow for Google sign-in, sync mode, task-list/calendar selection, and local reminders.
 
-Add a Hot Cross Buns 2 onboarding route/modal that appears when local settings show no completed setup marker. It should guide the user through runtime Google OAuth client setup, selected task lists, selected calendars, sync mode, notification preference, and optional MCP access. Persist a setup completion timestamp in local settings and keep a Reset onboarding action in Settings.
+Add a Hot Cross Buns onboarding route/modal that appears when local settings show no completed setup marker. It should guide the user through runtime Google OAuth client setup, selected task lists, selected calendars, sync mode, notification preference, and optional MCP access. Persist a setup completion timestamp in local settings and keep a Reset onboarding action in Settings.
 
 Status on 2026-05-22:
 
@@ -116,7 +116,7 @@ Acceptance checks:
 
 Legacy has a menu-bar app, Spotlight indexing, App Shortcuts, share extension, deep links, dock badge, open-at-login, and window restoration.
 
-Hot Cross Buns 2 has tray/hotkey/deep-link scaffolding, but lacks full parity for system-wide discovery and capture. Add Spotlight-equivalent indexing where Electron/macOS permits it, a share-target alternative, dock/taskbar badge counts, durable open-at-login settings, and window restoration. App Shortcuts are native Swift-only, so treat them as a documented non-goal unless a small helper app is approved later.
+Hot Cross Buns has tray/hotkey/deep-link scaffolding, but lacks full parity for system-wide discovery and capture. Add Spotlight-equivalent indexing where Electron/macOS permits it, a share-target alternative, dock/taskbar badge counts, durable open-at-login settings, and window restoration. App Shortcuts are native Swift-only, so treat them as a documented non-goal unless a small helper app is approved later.
 
 Acceptance checks:
 

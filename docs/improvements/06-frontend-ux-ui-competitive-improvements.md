@@ -4,7 +4,7 @@
 
 Competitive references researched on May 22, 2026:
 
-| Product | Source and screenshot reference | Patterns to study | Hot Cross Buns 2 takeaway |
+| Product | Source and screenshot reference | Patterns to study | Hot Cross Buns takeaway |
 |---|---|---|---|
 | Linear | [Concepts](https://linear.app/docs/conceptual-model), [Display options](https://linear.app/docs/display-options), screenshot artifacts in `output/competitive-research/screenshots/linear-*.png` | Command menu, keyboard-first action model, contextual menus, bulk selection, display options, board/list/timeline toggles | Build one consistent action system. Every visible task/event action should also be reachable through command palette, keyboard paths where present, and future context/bulk actions. |
 | Notion | [Views, filters, sorts and groups](https://www.notion.com/help/views-filters-and-sorts), screenshot artifact `output/competitive-research/screenshots/notion-database-views.png` | Saved database views, per-view property visibility, filters, sorts, groups, side peek and center peek editing | Treat planner screens as configurable views over local data, not fixed pages. Editing details should preserve list/calendar context. |
@@ -14,9 +14,9 @@ Competitive references researched on May 22, 2026:
 | OmniFocus 4 | [Perspectives manual](https://support.omnigroup.com/documentation/omnifocus/universal/4.8.10/en/perspectives/), screenshot artifact `output/competitive-research/screenshots/omnifocus-perspectives.png` | Inbox, Projects, Tags, Forecast, Review, perspective bar, Quick Open, outline navigation | Add serious task triage through perspectives, tags/projects, forecast/review flows, and outline/inspector editing. |
 | Obsidian | [Core plugins](https://obsidian.md/help/plugins), [Backlinks](https://obsidian.md/help/plugins/backlinks), [Graph view](https://obsidian.md/help/plugins/graph), [Canvas](https://obsidian.md/help/plugins/canvas), [Properties](https://obsidian.md/help/properties), screenshot artifact `output/competitive-research/screenshots/obsidian-core-plugins.png` | Local-first notes, backlinks, unlinked mentions, graph, canvas, properties, command palette, quick switcher | Notes should become linked planner knowledge. Backlinks and properties come before graph/canvas because they support everyday planning. |
 
-The screenshot artifacts are local research captures only. Do not ship, copy, or restyle competitor screenshots as Hot Cross Buns 2 product assets.
+The screenshot artifacts are local research captures only. Do not ship, copy, or restyle competitor screenshots as Hot Cross Buns product assets.
 
-Current Hot Cross Buns 2 basis:
+Current Hot Cross Buns basis:
 
 - `src/renderer/src/App.tsx`
 - `src/renderer/src/features/core/CoreScreens.tsx`
@@ -26,7 +26,7 @@ Current Hot Cross Buns 2 basis:
 - `src/renderer/src/styles/index.css`
 - `docs/design/design-system.md`
 
-Hot Cross Buns 2 already has a compact Electron/React shell, sidebar navigation, command palette, Today, Tasks, Calendar, Notes, Search, Settings, diagnostics/status states, local cache awareness, typed IPC, and renderer timing hooks. The frontend gap is not another landing page or decorative redesign. It is missing the mature productivity-app interaction model: fast capture, configurable views, inspect-in-place editing, dense timelines, reliable keyboard/mouse parity, and local-first planner context.
+Hot Cross Buns already has a compact Electron/React shell, sidebar navigation, command palette, Today, Tasks, Calendar, Notes, Search, Settings, diagnostics/status states, local cache awareness, typed IPC, and renderer timing hooks. The frontend gap is not another landing page or decorative redesign. It is missing the mature productivity-app interaction model: fast capture, configurable views, inspect-in-place editing, dense timelines, reliable keyboard/mouse parity, and local-first planner context.
 
 ## Competitive UX Principles
 
@@ -34,7 +34,7 @@ Hot Cross Buns 2 already has a compact Electron/React shell, sidebar navigation,
 
 Linear's strongest transferable pattern is not its visual style; it is action consistency. A user can act through buttons, keyboard shortcuts, context menus, bulk selection, or command menu search.
 
-Hot Cross Buns 2 should add an internal action registry that powers:
+Hot Cross Buns should add an internal action registry that powers:
 
 - toolbar buttons
 - row actions
@@ -62,7 +62,7 @@ Status on 2026-05-23:
 
 Notion and Linear both make views configurable: filters, sorts, grouping, layout, visible properties, and per-view display settings. OmniFocus uses perspectives for purposeful slices like Inbox, Forecast, and Review.
 
-Hot Cross Buns 2 should treat Today, Tasks, Calendar, Notes, and Search as view projections over one local planner model. Saved views should be local settings or local database rows, not a second planner data store.
+Hot Cross Buns should treat Today, Tasks, Calendar, Notes, and Search as view projections over one local planner model. Saved views should be local settings or local database rows, not a second planner data store.
 
 Add view settings in this order:
 
@@ -81,7 +81,7 @@ Acceptance checks:
 
 ### 3. Preserve Context While Editing
 
-Notion side peek, OmniFocus inspectors, and Linear side/context panels reduce navigation churn. Hot Cross Buns 2 currently has screen-specific forms and panels, but it needs a consistent detail inspector pattern.
+Notion side peek, OmniFocus inspectors, and Linear side/context panels reduce navigation churn. Hot Cross Buns currently has screen-specific forms and panels, but it needs a consistent detail inspector pattern.
 
 Add a shared inspector shell for selected task, event, note, settings item, and diagnostic item details:
 
@@ -101,7 +101,7 @@ Acceptance checks:
 
 ### 4. Timeline First, Not Card Wall
 
-Sorted3, TickTick, and Notion Calendar all emphasize schedule comprehension. Hot Cross Buns 2 should make Today the main work surface, with a dense unified timeline instead of loosely related panels.
+Sorted3, TickTick, and Notion Calendar all emphasize schedule comprehension. Hot Cross Buns should make Today the main work surface, with a dense unified timeline instead of loosely related panels.
 
 Evolve Today into:
 

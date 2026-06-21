@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { writeReleaseChecksums } from "./release-checksums";
 
 async function createReleaseDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-checksums-"));
+  return mkdtemp(join(tmpdir(), "hcb-checksums-"));
 }
 
 describe("release checksum generation", () => {
@@ -14,18 +14,18 @@ describe("release checksum generation", () => {
     const unpackedDir = join(releaseDir, "win-unpacked", "resources");
 
     await mkdir(unpackedDir, { recursive: true });
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-windows-x64.exe"), "installer");
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-windows-x64.exe.blockmap"), "blockmap");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-windows-x64.exe"), "installer");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-windows-x64.exe.blockmap"), "blockmap");
     await writeFile(join(releaseDir, "latest.yml"), "latest");
     await writeFile(join(unpackedDir, "elevate.exe"), "helper");
 
     const checksums = await writeReleaseChecksums({ releaseDir });
     const manifest = await readFile(join(releaseDir, "SHASUMS256.txt"), "utf8");
 
-    expect(checksums.map((entry) => entry.relativePath)).toEqual(["Hot-Cross-Buns-2-windows-x64.exe"]);
-    expect(manifest).toContain("  Hot-Cross-Buns-2-windows-x64.exe\n");
+    expect(checksums.map((entry) => entry.relativePath)).toEqual(["Hot-Cross-Buns-windows-x64.exe"]);
+    expect(manifest).toContain("  Hot-Cross-Buns-windows-x64.exe\n");
     expect(manifest).not.toContain("win-unpacked");
-    await expect(stat(join(releaseDir, "Hot-Cross-Buns-2-windows-x64.exe.sha256"))).resolves.toMatchObject({
+    await expect(stat(join(releaseDir, "Hot-Cross-Buns-windows-x64.exe.sha256"))).resolves.toMatchObject({
       size: expect.any(Number)
     });
     await expect(stat(join(unpackedDir, "elevate.exe.sha256"))).rejects.toThrow();

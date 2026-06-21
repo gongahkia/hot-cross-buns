@@ -1,6 +1,6 @@
 # Customization: CSS and JSON
 
-Hot Cross Buns 2 reads user customization from the app config directory.
+Hot Cross Buns reads user customization from the app config directory.
 
 - `settings.json`: safe UI overrides such as theme, layout scale, navigation order, visible calendar modes, semantic search, and the agent action tray.
 - `keymap.json`: `keybindings`, `leaderKey`, and `leaderKeybindings`.

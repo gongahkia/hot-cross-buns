@@ -31,7 +31,7 @@ export function appPaths(): NativeAppPaths {
     cacheDirectory: sessionData,
     logsDirectory: logs,
     diagnosticsDirectory: posix.join(userData, "diagnostics"),
-    tempDirectory: posix.join(temp, "hot-cross-buns-2")
+    tempDirectory: posix.join(temp, "hot-cross-buns")
   };
 }
 

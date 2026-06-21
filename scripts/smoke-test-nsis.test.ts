@@ -5,12 +5,12 @@ import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { smokeWindowsNsisArtifact } from "./smoke-test-nsis";
 
-const versionedInstaller = "Hot-Cross-Buns-2-5.0.0-windows-x64.exe";
-const stableInstaller = "Hot-Cross-Buns-2-windows.exe";
-const stableX64Installer = "Hot-Cross-Buns-2-windows-x64.exe";
+const versionedInstaller = "Hot-Cross-Buns-5.0.0-windows-x64.exe";
+const stableInstaller = "Hot-Cross-Buns-windows.exe";
+const stableX64Installer = "Hot-Cross-Buns-windows-x64.exe";
 
 async function createReleaseDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-nsis-smoke-"));
+  return mkdtemp(join(tmpdir(), "hcb-nsis-smoke-"));
 }
 
 function sha256(value: string): string {
@@ -62,7 +62,7 @@ describe("Windows NSIS smoke test", () => {
     );
 
     await expect(smokeWindowsNsisArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
-      "SHASUMS256.txt hash does not match Hot-Cross-Buns-2-windows-x64.exe"
+      "SHASUMS256.txt hash does not match Hot-Cross-Buns-windows-x64.exe"
     );
   });
 
@@ -82,7 +82,7 @@ describe("Windows NSIS smoke test", () => {
     );
 
     await expect(smokeWindowsNsisArtifact({ releaseDir, minimumBytes: 1 })).rejects.toThrow(
-      "Hot-Cross-Buns-2-windows.exe does not match Hot-Cross-Buns-2-5.0.0-windows-x64.exe"
+      "Hot-Cross-Buns-windows.exe does not match Hot-Cross-Buns-5.0.0-windows-x64.exe"
     );
   });
 

@@ -8,7 +8,7 @@ Deliverables:
 
 - Product, architecture, security, testing, release, and subsystem specs.
 - Explicit interface decisions for renderer, preload, main, workers, SQLite, Google sync, and MCP.
-- Clear boundaries with the old Swift repository.
+- Clear boundaries with the historical Swift implementation.
 
 Exit criteria:
 

@@ -1,6 +1,6 @@
 # Windows Preview Support
 
-Hot Cross Buns 2 Windows support is a technical preview for Windows 11 25H2 x64.
+Hot Cross Buns Windows support is a technical preview for Windows 11 25H2 x64.
 The first preview artifact is an NSIS installer. Windows Preview Validation run
 `27525193372` passed HCB CLI MCP smoke, packaging, installer artifact smoke,
 checksum, silent install/launch/uninstall, Start Menu/desktop shortcut
@@ -13,12 +13,12 @@ manual QA checklist passes.
 
 ## Install And Run
 
-1. Download `Hot-Cross-Buns-2-<version>-windows-x64.exe`,
+1. Download `Hot-Cross-Buns-<version>-windows-x64.exe`,
    `SHASUMS256.txt`, and the matching `.sha256` file from the release.
 2. Verify checksums in PowerShell:
 
    ```powershell
-   Get-FileHash .\Hot-Cross-Buns-2-<version>-windows-x64.exe -Algorithm SHA256
+   Get-FileHash .\Hot-Cross-Buns-<version>-windows-x64.exe -Algorithm SHA256
    ```
 
    Compare the hash with `SHASUMS256.txt`.
@@ -54,11 +54,11 @@ Expected installed preview diagnostics:
 - platform: `win32`
 - adapter: `electron-windows-preview`
 - package format: `nsis`
-- AppUserModelID: `dev.hotcrossbuns.hotcrossbuns2`
+- AppUserModelID: `dev.hotcrossbuns.hotcrossbuns`
 
 ## Data And Removal
 
-Use Windows Settings > Apps > Installed apps > Hot Cross Buns 2 > Uninstall for
+Use Windows Settings > Apps > Installed apps > Hot Cross Buns > Uninstall for
 normal removal QA.
 
 The NSIS uninstall path removes the installed application files. It is expected

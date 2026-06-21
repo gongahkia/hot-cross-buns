@@ -79,18 +79,18 @@ export function normalizeManualQaTarget(value: string): ManualQaTarget {
 export function requiredReleaseFiles(target: ManualQaTarget, version = packageJson.version): string[] {
   if (target === "linux") {
     const artifacts = [
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage"
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage"
     ];
 
     return ["SHASUMS256.txt", ...artifacts.flatMap((artifact) => [artifact, `${artifact}.sha256`])];
   }
 
   const artifacts = [
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    "Hot-Cross-Buns-2-windows.exe",
-    "Hot-Cross-Buns-2-windows-x64.exe"
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-windows.exe",
+    "Hot-Cross-Buns-windows-x64.exe"
   ];
 
   return ["SHASUMS256.txt", ...artifacts.flatMap((artifact) => [artifact, `${artifact}.sha256`])];

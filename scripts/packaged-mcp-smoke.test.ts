@@ -25,11 +25,11 @@ describe("packaged MCP smoke", () => {
       HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_PACKAGED_HOSTER_SMOKE: "1"
     })).toBe(true);
-    const env = packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" }, "/opt/hcb/Hot Cross Buns 2");
+    const env = packagedMcpSmokeChildEnv("/tmp/hcb-smoke", { PATH: "/usr/bin" }, "/opt/hcb/Hot Cross Buns");
 
     expect(env).toMatchObject({
       HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
-      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns 2",
+      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns",
       HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_USER_DATA_DIR: "/tmp/hcb-smoke",
       PATH: "/usr/bin"
@@ -43,11 +43,11 @@ describe("packaged MCP smoke", () => {
       HCB_MCP_BEARER_TOKEN: "seed-token",
       HCB_PACKAGED_MCP_SMOKE_TOKEN: "seed-token",
       PATH: "/usr/bin"
-    }, "/opt/hcb/Hot Cross Buns 2");
+    }, "/opt/hcb/Hot Cross Buns");
 
     expect(env).toMatchObject({
       HCB_ALLOW_PACKAGED_USER_DATA_DIR: "1",
-      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns 2",
+      HCB_MCP_SAFE_STORAGE_BINARY: "/opt/hcb/Hot Cross Buns",
       HCB_PACKAGED_MCP_SMOKE: "1",
       HCB_USER_DATA_DIR: "/tmp/hcb-smoke",
       PATH: "/usr/bin"

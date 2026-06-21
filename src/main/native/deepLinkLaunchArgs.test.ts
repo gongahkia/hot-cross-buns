@@ -4,7 +4,7 @@ import { extractHotCrossBunsDeepLinksFromArgv } from "./deepLinkLaunchArgs";
 describe("extractHotCrossBunsDeepLinksFromArgv", () => {
   it("ignores executable paths, app paths, and Chromium flags", () => {
     expect(extractHotCrossBunsDeepLinksFromArgv([
-      "/Applications/Hot Cross Buns 2.app/Contents/MacOS/Hot Cross Buns 2",
+      "/Applications/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns",
       "/Users/alice/hotcrossbuns://task/not-a-link",
       "--original-process-start-time=13213718723637733",
       "--foo=hotcrossbuns://task/task-1"

@@ -915,7 +915,7 @@ const hcbApi: HcbApi = {
           formatVersion: 1 as const,
           exportedAt,
           appVersion: "0.0.0",
-          stateFile: "hot-cross-buns-2-state.json" as const,
+          stateFile: "hot-cross-buns-state.json" as const,
           stateSha256: "0".repeat(64),
           attachmentDirectory: "Attachments" as const,
           attachments: [],
@@ -966,7 +966,7 @@ const hcbApi: HcbApi = {
         exportedAt: now,
         manifest: {
           formatVersion: 1 as const,
-          kind: "hot-cross-buns-2-vault" as const,
+          kind: "hot-cross-buns-vault" as const,
           exportedAt: now,
           appVersion: "0.0.0",
           stateEncoding: "hcb-portable-state-json" as const,
@@ -994,7 +994,7 @@ const hcbApi: HcbApi = {
         backupPath: "/tmp/hcb-test-backup.sqlite3",
         manifest: {
           formatVersion: 1 as const,
-          kind: "hot-cross-buns-2-vault" as const,
+          kind: "hot-cross-buns-vault" as const,
           exportedAt: now,
           appVersion: "0.0.0",
           stateEncoding: "hcb-portable-state-json" as const,
@@ -1037,7 +1037,7 @@ const hcbApi: HcbApi = {
         path: request.out ?? "/tmp/hcb-test.hcbvault",
         manifest: {
           formatVersion: 1 as const,
-          kind: "hot-cross-buns-2-vault" as const,
+          kind: "hot-cross-buns-vault" as const,
           exportedAt: now,
           appVersion: "0.0.0",
           stateEncoding: "hcb-portable-state-json" as const,
@@ -1075,7 +1075,7 @@ const hcbApi: HcbApi = {
         backupPath: "/tmp/hcb-test-backup.sqlite3",
         manifest: {
           formatVersion: 1 as const,
-          kind: "hot-cross-buns-2-vault" as const,
+          kind: "hot-cross-buns-vault" as const,
           exportedAt: now,
           appVersion: "0.0.0",
           stateEncoding: "hcb-portable-state-json" as const,
@@ -1387,7 +1387,7 @@ const hcbApi: HcbApi = {
           processStartedMs: 0
         },
         build: {
-          appName: "Hot Cross Buns 2",
+          appName: "Hot Cross Buns",
           version: "0.0.0-test",
           environment: "test" as const,
           nodeVersion: process.versions.node,
@@ -1513,7 +1513,7 @@ const hcbApi: HcbApi = {
           diagnostics: []
         },
         build: {
-          appName: "Hot Cross Buns 2",
+          appName: "Hot Cross Buns",
           version: "0.0.0-test",
           environment: "test" as const,
           nodeVersion: process.versions.node,
@@ -1560,7 +1560,7 @@ const hcbApi: HcbApi = {
     revealLogsFolder: vi.fn(async () =>
       ok({
         opened: true,
-        path: "/tmp/hot-cross-buns-2-test/logs",
+        path: "/tmp/hot-cross-buns-test/logs",
         message: "Logs folder opened."
       })
     ),
@@ -1591,14 +1591,14 @@ const hcbApi: HcbApi = {
     ),
     copyableSummary: vi.fn(async () =>
       ok({
-        text: "Hot Cross Buns 2 diagnostics\nStatus: ok",
+        text: "Hot Cross Buns diagnostics\nStatus: ok",
         generatedAt: now
       })
     ),
     exportBundle: vi.fn(async () =>
       ok({
         exported: true,
-        path: "/tmp/hot-cross-buns-2-test/diagnostics.txt",
+        path: "/tmp/hot-cross-buns-test/diagnostics.txt",
         message: "Diagnostic bundle exported."
       })
     ),

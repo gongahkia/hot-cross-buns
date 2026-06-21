@@ -46,7 +46,7 @@ let quittingAfterSync = false;
 let startupSyncInProgress = false;
 let startupSyncStarted = false;
 let syncStatusWindow: BrowserWindow | null = null;
-const macAppDisplayName = "Hot Cross Buns 2";
+const macAppDisplayName = "Hot Cross Buns";
 
 const userDataDirectoryOverride = resolveUserDataDirectoryOverride(process.env, app.isPackaged);
 
@@ -221,7 +221,7 @@ function showSyncStatusWindow(pendingMutationCount: number, parent: BrowserWindo
     parent: parent ?? undefined,
     resizable: false,
     show: false,
-    title: "Hot Cross Buns 2",
+    title: "Hot Cross Buns",
     width: 420
   });
   syncStatusWindow.removeMenu();
@@ -327,7 +327,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 620,
     show: false,
-    title: "Hot Cross Buns 2",
+    title: "Hot Cross Buns",
     icon: brandAssetPath("app-icon.png"),
     backgroundColor: "#1e1e2e",
     webPreferences: {

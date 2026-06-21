@@ -1,6 +1,6 @@
 # Performance Strategy
 
-Hot Cross Buns 2 must feel immediate because it is a keyboard-first planning tool. Performance work is not a late cleanup pass; every layer should preserve responsiveness from the first scaffold.
+Hot Cross Buns must feel immediate because it is a keyboard-first planning tool. Performance work is not a late cleanup pass; every layer should preserve responsiveness from the first scaffold.
 
 ## Product-Level Targets
 
@@ -44,7 +44,7 @@ Do not block first paint on Google OAuth refresh, remote sync, full diagnostics,
 
 ## Measurement First
 
-Electron's own performance guidance emphasizes profiling running code and optimizing the actual bottleneck. Hot Cross Buns 2 should keep that discipline:
+Electron's own performance guidance emphasizes profiling running code and optimizing the actual bottleneck. Hot Cross Buns should keep that discipline:
 
 - Add timing spans around startup phases.
 - Measure IPC latency for common calls.

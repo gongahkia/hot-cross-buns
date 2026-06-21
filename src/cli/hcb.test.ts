@@ -419,7 +419,7 @@ describe("hcb CLI", () => {
                 pendingMutations: { totalCount: 2, failedCount: 1, retryableCount: 1 },
                 cache: { taskCount: 4, eventCount: 5, noteCount: 6 },
                 mcp: { enabled: true, permissionMode: "read-only", configuredPort: 4777 },
-                build: { appName: "hot-cross-buns-2", version: "0.0.0", nodeVersion: "22.0.0" }
+                build: { appName: "hot-cross-buns", version: "0.0.0", nodeVersion: "22.0.0" }
               }
             }
           }
@@ -548,19 +548,19 @@ describe("hcb CLI", () => {
   });
 
   it("builds platform-specific runtime and secret-store candidates", () => {
-    expect(runtimeFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb2" }, "linux")).toEqual([
-      join("/tmp/hcb2", "mcp-runtime.json"),
-      join("/tmp/hcb2", "config", "mcp-runtime.json")
+    expect(runtimeFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb" }, "linux")).toEqual([
+      join("/tmp/hcb", "mcp-runtime.json"),
+      join("/tmp/hcb", "config", "mcp-runtime.json")
     ]);
-    expect(mcpSecretStoreFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb2" }, "linux")).toEqual([
-      join("/tmp/hcb2", "secrets.safe-storage.json"),
-      join("/tmp/hcb2", "config", "secrets.safe-storage.json")
+    expect(mcpSecretStoreFileCandidates({ HCB_USER_DATA_DIR: "/tmp/hcb" }, "linux")).toEqual([
+      join("/tmp/hcb", "secrets.safe-storage.json"),
+      join("/tmp/hcb", "config", "secrets.safe-storage.json")
     ]);
     expect(runtimeFileCandidates({ APPDATA: "C:\\Users\\qa\\AppData\\Roaming" }, "win32")[0]).toBe(
-      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns 2\\config\\mcp-runtime.json"
+      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns\\config\\mcp-runtime.json"
     );
     expect(mcpSecretStoreFileCandidates({ APPDATA: "C:\\Users\\qa\\AppData\\Roaming" }, "win32")[0]).toBe(
-      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns 2\\config\\secrets.windows-safe-storage.json"
+      "C:\\Users\\qa\\AppData\\Roaming\\Hot Cross Buns\\config\\secrets.windows-safe-storage.json"
     );
   });
 
@@ -853,7 +853,7 @@ describe("hcb CLI", () => {
       writeRuntimeFile(runtimeFile);
       const exitCode = await runHcbCli(["status"], {
         env: {
-          HCB_MCP_SAFE_STORAGE_BINARY: "C:\\Program Files\\Hot Cross Buns 2\\Hot Cross Buns 2.exe",
+          HCB_MCP_SAFE_STORAGE_BINARY: "C:\\Program Files\\Hot Cross Buns\\Hot Cross Buns.exe",
           HCB_MCP_RUNTIME_FILE: runtimeFile,
           HCB_USER_DATA_DIR: userData
         },
@@ -869,7 +869,7 @@ describe("hcb CLI", () => {
 
       expect(exitCode).toBe(0);
       expect(calls[0].authorization).toBe("Bearer windows-safe-storage-token");
-      expect(helperBinaries).toEqual(["C:\\Program Files\\Hot Cross Buns 2\\Hot Cross Buns 2.exe"]);
+      expect(helperBinaries).toEqual(["C:\\Program Files\\Hot Cross Buns\\Hot Cross Buns.exe"]);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -2151,7 +2151,7 @@ describe("hcb CLI", () => {
       });
 
       expect(exitCode).toBe(0);
-      expect(stdout.text()).toContain("Hot Cross Buns 2 TUI");
+      expect(stdout.text()).toContain("Hot Cross Buns TUI");
       expect(stdout.text()).toContain("Today: 1 tasks, 1 events");
       expect(stderr.text()).toBe("");
     } finally {
@@ -2642,7 +2642,7 @@ function statusFetch(calls: Array<{ authorization?: string }>): HcbCliDependenci
               pendingMutations: { totalCount: 0, failedCount: 0, retryableCount: 0 },
               cache: { taskCount: 0, eventCount: 0, noteCount: 0 },
               mcp: { enabled: true, permissionMode: "read-only", configuredPort: 4777 },
-              build: { appName: "hot-cross-buns-2", version: "0.0.0", nodeVersion: "22.0.0" }
+              build: { appName: "hot-cross-buns", version: "0.0.0", nodeVersion: "22.0.0" }
             }
           }
         }

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 REPO_OWNER="${REPO_OWNER:-gongahkia}"
-REPO_NAME="${REPO_NAME:-hot-cross-buns-2}"
-ASSET_NAME="${ASSET_NAME:-Hot-Cross-Buns-2-macOS.dmg}"
-APP_NAME="${APP_NAME:-Hot Cross Buns 2.app}"
+REPO_NAME="${REPO_NAME:-hot-cross-buns}"
+ASSET_NAME="${ASSET_NAME:-Hot-Cross-Buns-macOS.dmg}"
+APP_NAME="${APP_NAME:-Hot Cross Buns.app}"
 DOWNLOAD_URL="${DOWNLOAD_URL:-https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/${ASSET_NAME}}"
 DOWNLOAD_SHA256_URL="${DOWNLOAD_SHA256_URL:-${DOWNLOAD_URL}.sha256}"
 INSTALL_DIR_OVERRIDE="${INSTALL_DIR:-}"
@@ -77,7 +77,7 @@ require_command hdiutil
 require_command sed
 require_command shasum
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/hot-cross-buns-2-install.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/hot-cross-buns-install.XXXXXX")"
 MOUNT_POINT=""
 trap cleanup EXIT
 

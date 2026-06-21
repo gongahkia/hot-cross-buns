@@ -1,7 +1,7 @@
 import { app } from "electron";
 import type { NativeOperationResult } from "../types";
 
-export const windowsAppUserModelId = "dev.hotcrossbuns.hotcrossbuns2";
+export const windowsAppUserModelId = "dev.hotcrossbuns.hotcrossbuns";
 
 export function applyWindowsAppIdentity(
   platform: NodeJS.Platform | string = process.platform

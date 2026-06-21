@@ -5,7 +5,7 @@ import { mcpPermissionModeSchema } from "./settings";
 export const LOCAL_HOSTER_PROTOCOL_VERSION = 1;
 export const LOCAL_HOSTER_HCBHOST_FORMAT_VERSION = 1;
 export const LOCAL_HOSTER_SIGNAL_FORMAT_VERSION = 1;
-export const LOCAL_HOSTER_KIND = "hot-cross-buns-2-local-hoster";
+export const LOCAL_HOSTER_KIND = "hot-cross-buns-local-hoster";
 export const LOCAL_HOSTER_SIGNAL_ALGORITHM = "X25519-HKDF-SHA256-AES-256-GCM";
 export const LOCAL_HOSTER_PAYLOAD_ALGORITHM = "AES-256-GCM";
 export const LOCAL_HOSTER_KEY_WRAP_ALGORITHM = "scrypt-AES-256-GCM";

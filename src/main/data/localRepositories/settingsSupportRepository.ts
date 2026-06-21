@@ -238,7 +238,7 @@ export class LocalSettingsSupportRepository {
     const downloads = typeof app?.getPath === "function"
       ? app.getPath("downloads")
       : join(this.appPaths.dataDirectory, "Downloads");
-    const targetDirectory = join(downloads, "Hot Cross Buns 2");
+    const targetDirectory = join(downloads, "Hot Cross Buns");
     const targetPath = uniquePath(
       targetDirectory,
       safeFileName(request.displayName ?? basename(sourcePath))
@@ -1495,7 +1495,7 @@ function reportIcs(
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Hot Cross Buns 2//Local Report//EN",
+    "PRODID:-//Hot Cross Buns//Local Report//EN",
     ...events.flatMap((event) => [
       "BEGIN:VEVENT",
       `UID:${escapeIcsText(event.id)}`,

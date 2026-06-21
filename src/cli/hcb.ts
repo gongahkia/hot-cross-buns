@@ -2316,7 +2316,7 @@ async function callMcpToolWithAuth(
   });
 
   if (response.status === 401) {
-    throw new CliError("MCP authentication failed. Reset the MCP token from HCB2 Settings, then retry.", 1);
+    throw new CliError("MCP authentication failed. Reset the MCP token from HCB Settings, then retry.", 1);
   }
 
   if (response.status === 403) {
@@ -2381,7 +2381,7 @@ function formatTuiScreen(state: TuiState): string {
     : ["No detail."];
 
   return [
-    "\x1b[2J\x1b[HHot Cross Buns 2 TUI",
+    "\x1b[2J\x1b[HHot Cross Buns TUI",
     tabs,
     "keys: tab/arrow switch | j/k move | / search | : command | r refresh | q quit",
     "commands: search <q> [--scope s] [--limit n] | logs [level] [n] | backend ... | vault ... | hoster ... | apply [id]",
@@ -2532,7 +2532,7 @@ export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeT
     }
 
     if (!pidExists(dependencies)(runtime.pid)) {
-      throw new CliError("HCB MCP server runtime file is stale. Start HCB2 or toggle Local MCP server.");
+      throw new CliError("HCB MCP server runtime file is stale. Start HCB or toggle Local MCP server.");
     }
 
     return {
@@ -2542,7 +2542,7 @@ export function discoverRuntime(dependencies: HcbCliDependencies = {}): RuntimeT
     };
   }
 
-  throw new CliError("HCB MCP server not running. Start HCB2 and enable Settings > Local MCP server.");
+  throw new CliError("HCB MCP server not running. Start HCB and enable Settings > Local MCP server.");
 }
 
 export function runtimeFileCandidates(
@@ -2572,23 +2572,23 @@ export function runtimeFileCandidates(
 
   if (platform === "darwin") {
     return [
-      join(home, "Library", "Application Support", "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
-      join(home, "Library", "Application Support", "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
+      join(home, "Library", "Application Support", "Hot Cross Buns", "config", HCB_MCP_RUNTIME_FILE_NAME),
+      join(home, "Library", "Application Support", "hot-cross-buns", "config", HCB_MCP_RUNTIME_FILE_NAME)
     ];
   }
 
   if (platform === "win32") {
     return windowsAppDataRoots(env, home).flatMap((root) => [
-      win32.join(root, "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
-      win32.join(root, "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
+      win32.join(root, "Hot Cross Buns", "config", HCB_MCP_RUNTIME_FILE_NAME),
+      win32.join(root, "hot-cross-buns", "config", HCB_MCP_RUNTIME_FILE_NAME)
     ]);
   }
 
   return [
-    join(home, ".config", "Hot Cross Buns 2", HCB_MCP_RUNTIME_FILE_NAME),
-    join(home, ".config", "hot-cross-buns-2", HCB_MCP_RUNTIME_FILE_NAME),
-    join(home, ".config", "Hot Cross Buns 2", "config", HCB_MCP_RUNTIME_FILE_NAME),
-    join(home, ".config", "hot-cross-buns-2", "config", HCB_MCP_RUNTIME_FILE_NAME)
+    join(home, ".config", "Hot Cross Buns", HCB_MCP_RUNTIME_FILE_NAME),
+    join(home, ".config", "hot-cross-buns", HCB_MCP_RUNTIME_FILE_NAME),
+    join(home, ".config", "Hot Cross Buns", "config", HCB_MCP_RUNTIME_FILE_NAME),
+    join(home, ".config", "hot-cross-buns", "config", HCB_MCP_RUNTIME_FILE_NAME)
   ];
 }
 
@@ -2622,15 +2622,15 @@ export function mcpSecretStoreFileCandidates(
 
   if (platform === "linux") {
     return [
-      join(home, ".config", "Hot Cross Buns 2", "secrets.safe-storage.json"),
-      join(home, ".config", "hot-cross-buns-2", "secrets.safe-storage.json")
+      join(home, ".config", "Hot Cross Buns", "secrets.safe-storage.json"),
+      join(home, ".config", "hot-cross-buns", "secrets.safe-storage.json")
     ];
   }
 
   if (platform === "win32") {
     return windowsAppDataRoots(env, home).flatMap((root) => [
-      win32.join(root, "Hot Cross Buns 2", "config", "secrets.windows-safe-storage.json"),
-      win32.join(root, "hot-cross-buns-2", "config", "secrets.windows-safe-storage.json")
+      win32.join(root, "Hot Cross Buns", "config", "secrets.windows-safe-storage.json"),
+      win32.join(root, "hot-cross-buns", "config", "secrets.windows-safe-storage.json")
     ]);
   }
 
@@ -3752,7 +3752,7 @@ function doctorFailureResponse(message: string): McpToolResponse {
         }
       ],
       suggestedCommands: [
-        "Start HCB2",
+        "Start HCB",
         "Enable Settings > Local MCP server",
         "pnpm hcb -- status"
       ]
@@ -4964,7 +4964,7 @@ async function loadSafeStorageMcpBearerToken(input: SafeStorageMcpTokenLoaderInp
   const storageFile = input.secretStoreFiles.find((file) => existsSync(file));
 
   if (!storageFile) {
-    throw new CliError("HCB MCP bearer token storage was not found. Start HCB2 and enable Settings > Local MCP server.");
+    throw new CliError("HCB MCP bearer token storage was not found. Start HCB and enable Settings > Local MCP server.");
   }
 
   const helperBinary = input.helperBinary;

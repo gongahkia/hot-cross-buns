@@ -2,7 +2,7 @@
 
 ## Release Strategy
 
-Hot Cross Buns 2 starts with preview desktop builds. macOS is first, Linux is the first non-Mac technical preview, and Windows follows Linux.
+Hot Cross Buns starts with preview desktop builds. macOS is first, Linux is the first non-Mac technical preview, and Windows follows Linux.
 
 Preview releases may be unsigned initially, but the docs and build pipeline must leave a clear path to signing, notarization, and updater support.
 
@@ -33,12 +33,12 @@ Current package metadata:
 
 | Field | Value |
 |---|---|
-| Package name | `hot-cross-buns-2` |
-| Product name | `Hot Cross Buns 2` |
+| Package name | `hot-cross-buns` |
+| Product name | `Hot Cross Buns` |
 | Version source | `package.json` `version` |
 | Author metadata | `gongahkia` |
-| macOS bundle id | `dev.hotcrossbuns.hotcrossbuns2` |
-| Artifact pattern | `Hot-Cross-Buns-2-${version}-${os}-${arch}.${ext}` |
+| macOS bundle id | `dev.hotcrossbuns.hotcrossbuns` |
+| Artifact pattern | `Hot-Cross-Buns-${version}-${os}-${arch}.${ext}` |
 | macOS category | `public.app-category.productivity` |
 | Dock/app icon | `build/icon.icns` generated from `assets/brand/app-icon.png` |
 | Renderer sidebar icon | `assets/brand/buns-app-icon-sidebar.png` |
@@ -85,12 +85,12 @@ pnpm release:checksums
 Expected artifact paths:
 
 ```text
-release/Hot-Cross-Buns-2-<version>-mac-<arch>.dmg
-release/Hot-Cross-Buns-2-<version>-mac-<arch>.zip
-release/Hot-Cross-Buns-2-macOS.dmg
-release/Hot-Cross-Buns-2-macOS.zip
-release/Hot-Cross-Buns-2-macOS-<arch>.dmg
-release/Hot-Cross-Buns-2-macOS-<arch>.zip
+release/Hot-Cross-Buns-<version>-mac-<arch>.dmg
+release/Hot-Cross-Buns-<version>-mac-<arch>.zip
+release/Hot-Cross-Buns-macOS.dmg
+release/Hot-Cross-Buns-macOS.zip
+release/Hot-Cross-Buns-macOS-<arch>.dmg
+release/Hot-Cross-Buns-macOS-<arch>.zip
 release/SHASUMS256.txt
 release/*.sha256
 artifacts/release/bundle-review.json
@@ -116,7 +116,7 @@ least one arch-specific versioned DMG/ZIP pair.
 Optional install helper after downloading or building both an artifact and `SHASUMS256.txt`:
 
 ```sh
-scripts/install-mac-preview.sh release/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg release/SHASUMS256.txt
+scripts/install-mac-preview.sh release/Hot-Cross-Buns-0.0.0-mac-arm64.dmg release/SHASUMS256.txt
 ```
 
 The helper verifies the artifact checksum before copying the contained `.app` bundle. It does not sign, notarize, bypass Gatekeeper, or enable updates.
@@ -153,13 +153,13 @@ Linux package metadata:
 
 | Field | Value |
 |---|---|
-| Product name | `Hot Cross Buns 2` |
-| Artifact pattern | `Hot-Cross-Buns-2-${version}-linux-${arch}.AppImage`; electron-builder emits `x86_64` for x64 AppImages |
+| Product name | `Hot Cross Buns` |
+| Artifact pattern | `Hot-Cross-Buns-${version}-linux-${arch}.AppImage`; electron-builder emits `x86_64` for x64 AppImages |
 | Linux category | `Office` |
-| Executable name | `hot-cross-buns-2` |
+| Executable name | `hot-cross-buns` |
 | Generic name | `Planner` |
 | Keywords | `tasks;calendar;notes;planner;productivity;` |
-| StartupWMClass | `hot-cross-buns-2` |
+| StartupWMClass | `hot-cross-buns` |
 | Linux icons | `build/icons/<size>x<size>.png` generated from `assets/brand/app-icon.png` |
 | Protocol metadata | omitted until Linux deep links are validated |
 
@@ -217,16 +217,16 @@ pnpm pack:linux:preview
 Expected artifact paths:
 
 ```text
-release/Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage
-release/Hot-Cross-Buns-2-linux.AppImage
-release/Hot-Cross-Buns-2-linux-x64.AppImage
+release/Hot-Cross-Buns-<version>-linux-x86_64.AppImage
+release/Hot-Cross-Buns-linux.AppImage
+release/Hot-Cross-Buns-linux-x64.AppImage
 release/SHASUMS256.txt
 release/*.sha256
 artifacts/release/bundle-review.json
 artifacts/release/bundle-review.md
 ```
 
-The alias helper only accepts versioned `Hot-Cross-Buns-2-*-linux-*.AppImage`
+The alias helper only accepts versioned `Hot-Cross-Buns-*-linux-*.AppImage`
 artifact names, so unrelated AppImage files in `release/` are ignored.
 
 Run the AppImage artifact smoke after packaging:
@@ -330,16 +330,16 @@ pnpm pack:win:preview
 Expected artifact paths:
 
 ```text
-release/Hot-Cross-Buns-2-<version>-windows-x64.exe
-release/Hot-Cross-Buns-2-windows.exe
-release/Hot-Cross-Buns-2-windows-x64.exe
+release/Hot-Cross-Buns-<version>-windows-x64.exe
+release/Hot-Cross-Buns-windows.exe
+release/Hot-Cross-Buns-windows-x64.exe
 release/SHASUMS256.txt
 release/*.sha256
 artifacts/release/bundle-review.json
 artifacts/release/bundle-review.md
 ```
 
-The alias helper only accepts versioned `Hot-Cross-Buns-2-*-windows-*.exe`
+The alias helper only accepts versioned `Hot-Cross-Buns-*-windows-*.exe`
 artifact names, so unrelated `.exe` files in `release/` are ignored.
 
 Run the Windows installer artifact smoke after packaging:
@@ -362,7 +362,7 @@ pnpm release:smoke-nsis-install
 ```
 
 The install smoke silently installs the stable x64 installer alias to an
-isolated temporary directory, launches `Hot Cross Buns 2.exe` with isolated user
+isolated temporary directory, launches `Hot Cross Buns.exe` with isolated user
 data, verifies Start Menu and desktop shortcuts target the installed executable,
 kills the process tree, runs the NSIS uninstaller silently, and verifies the
 installed app executable plus newly-created shortcuts were removed. It does not
@@ -383,7 +383,7 @@ Windows preview support and uninstall/data-retention policy live in
 Verify checksums locally on Windows:
 
 ```powershell
-Get-FileHash .\release\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256
+Get-FileHash .\release\Hot-Cross-Buns-windows-x64.exe -Algorithm SHA256
 ```
 
 or from a shell with GNU coreutils:
@@ -449,14 +449,14 @@ macOS preview artifacts:
 VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 gh release create "$TAG" \
-  release/Hot-Cross-Buns-2-${VERSION}-mac-*.dmg \
-  release/Hot-Cross-Buns-2-${VERSION}-mac-*.zip \
-  release/Hot-Cross-Buns-2-macOS*.dmg \
-  release/Hot-Cross-Buns-2-macOS*.zip \
+  release/Hot-Cross-Buns-${VERSION}-mac-*.dmg \
+  release/Hot-Cross-Buns-${VERSION}-mac-*.zip \
+  release/Hot-Cross-Buns-macOS*.dmg \
+  release/Hot-Cross-Buns-macOS*.zip \
   release/*.sha256 \
   release/SHASUMS256.txt \
   --draft \
-  --title "Hot Cross Buns 2 ${VERSION}" \
+  --title "Hot Cross Buns ${VERSION}" \
   --notes-file "docs/release/notes/${TAG}.md"
 ```
 
@@ -500,12 +500,12 @@ item is verified after the draft or published release contains the Linux assets.
 VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 gh release upload "$TAG" \
-  release/Hot-Cross-Buns-2-${VERSION}-linux-x86_64.AppImage \
-  release/Hot-Cross-Buns-2-linux.AppImage \
-  release/Hot-Cross-Buns-2-linux-x64.AppImage \
-  release/Hot-Cross-Buns-2-${VERSION}-linux-x86_64.AppImage.sha256 \
-  release/Hot-Cross-Buns-2-linux.AppImage.sha256 \
-  release/Hot-Cross-Buns-2-linux-x64.AppImage.sha256 \
+  release/Hot-Cross-Buns-${VERSION}-linux-x86_64.AppImage \
+  release/Hot-Cross-Buns-linux.AppImage \
+  release/Hot-Cross-Buns-linux-x64.AppImage \
+  release/Hot-Cross-Buns-${VERSION}-linux-x86_64.AppImage.sha256 \
+  release/Hot-Cross-Buns-linux.AppImage.sha256 \
+  release/Hot-Cross-Buns-linux-x64.AppImage.sha256 \
   release/SHASUMS256.txt \
   --clobber
 ```
@@ -548,12 +548,12 @@ assets.
 VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 gh release upload "$TAG" \
-  release/Hot-Cross-Buns-2-${VERSION}-windows-x64.exe \
-  release/Hot-Cross-Buns-2-windows.exe \
-  release/Hot-Cross-Buns-2-windows-x64.exe \
-  release/Hot-Cross-Buns-2-${VERSION}-windows-x64.exe.sha256 \
-  release/Hot-Cross-Buns-2-windows.exe.sha256 \
-  release/Hot-Cross-Buns-2-windows-x64.exe.sha256 \
+  release/Hot-Cross-Buns-${VERSION}-windows-x64.exe \
+  release/Hot-Cross-Buns-windows.exe \
+  release/Hot-Cross-Buns-windows-x64.exe \
+  release/Hot-Cross-Buns-${VERSION}-windows-x64.exe.sha256 \
+  release/Hot-Cross-Buns-windows.exe.sha256 \
+  release/Hot-Cross-Buns-windows-x64.exe.sha256 \
   release/SHASUMS256.txt \
   --clobber
 ```
@@ -578,18 +578,18 @@ DMG install:
 
 1. Download the `.dmg` and `SHASUMS256.txt` from the GitHub Release.
 2. Verify the checksum with `shasum -a 256 -c SHASUMS256.txt`.
-3. Open the DMG and drag `Hot Cross Buns 2.app` to `/Applications`.
+3. Open the DMG and drag `Hot Cross Buns.app` to `/Applications`.
 4. On first launch, macOS may warn that the app is from an unidentified developer.
-5. Use Finder to Control-click or right-click `Hot Cross Buns 2.app`, choose `Open`, then confirm `Open`.
+5. Use Finder to Control-click or right-click `Hot Cross Buns.app`, choose `Open`, then confirm `Open`.
 
 Zip install:
 
 1. Download the `.zip` and `SHASUMS256.txt` from the GitHub Release.
 2. Verify the checksum with `shasum -a 256 -c SHASUMS256.txt`.
-3. Unzip the archive and move `Hot Cross Buns 2.app` to `/Applications`.
+3. Unzip the archive and move `Hot Cross Buns.app` to `/Applications`.
 4. Use the same first-launch `Open` flow if macOS blocks the app.
 
-Do not tell users to disable Gatekeeper. If the `Open` option is unavailable, use `System Settings > Privacy & Security` and choose `Open Anyway` for `Hot Cross Buns 2`.
+Do not tell users to disable Gatekeeper. If the `Open` option is unavailable, use `System Settings > Privacy & Security` and choose `Open Anyway` for `Hot Cross Buns`.
 
 For support-ready preview guidance, including diagnostics, privacy summary, and reinstall/rollback notes, see [Mac Preview Support](../support/mac-preview-support.md).
 

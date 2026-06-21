@@ -6,7 +6,7 @@ usage() {
 Usage: scripts/install-mac-preview.sh <artifact.dmg|artifact.zip> [SHASUMS256.txt] [destination]
 
 Verifies the artifact SHA-256 against SHASUMS256.txt, then copies the contained
-Hot Cross Buns 2.app to the destination. The default destination is /Applications.
+Hot Cross Buns.app to the destination. The default destination is /Applications.
 
 This helper is for unsigned macOS preview artifacts only. It does not sign,
 notarize, bypass Gatekeeper, or enable automatic updates.
@@ -64,7 +64,7 @@ fi
 echo "Checksum verified for $artifact_name"
 echo "Installing unsigned preview app. macOS may require Finder > Control-click > Open on first launch."
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcb2-install.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcb-install.XXXXXX")"
 mount_point=""
 
 cleanup() {

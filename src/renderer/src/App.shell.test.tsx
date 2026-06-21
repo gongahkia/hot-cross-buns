@@ -387,7 +387,7 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Notes" })).toBeInTheDocument();
   });
 
-  it("uses HCB2 section counts in primary navigation badges", async () => {
+  it("uses HCB section counts in primary navigation badges", async () => {
     const api = seededHcb();
 
     api.tasks.listTaskLists = async () =>

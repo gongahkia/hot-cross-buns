@@ -1,6 +1,6 @@
 # Contributing
 
-Hot Cross Buns 2 is a macOS-first Electron, React, TypeScript, and SQLite rebuild. Keep renderer code unprivileged and route filesystem, SQLite, Google, native shell, MCP, and package behavior through main-process services and typed preload IPC.
+Hot Cross Buns is a macOS-first Electron, React, TypeScript, and SQLite rebuild. Keep renderer code unprivileged and route filesystem, SQLite, Google, native shell, MCP, and package behavior through main-process services and typed preload IPC.
 
 ## Local Setup
 

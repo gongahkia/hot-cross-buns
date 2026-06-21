@@ -4,7 +4,7 @@ Use this checklist for release PRs or local verification when tray, hotkey, noti
 
 ## Preconditions
 
-- Run a macOS build or dev session of Hot Cross Buns 2.
+- Run a macOS build or dev session of Hot Cross Buns.
 - Use a temporary app data directory when testing destructive settings changes.
 - Keep Console open only if you need logs; do not copy task titles, event details, note bodies, tokens, or local file paths into PR notes.
 
@@ -21,10 +21,10 @@ Use this checklist for release PRs or local verification when tray, hotkey, noti
 - Menu bar icon uses the copied template asset from `assets/brand/menubar-template.png`.
 - Left-click opens the custom compact menu bar panel when Primary click is set to Open menu bar panel.
 - The custom panel is a main-process-owned Electron `BrowserWindow` with no preload, no Node integration, no renderer IPC access, and link navigation handled by the native adapter.
-- Right-click opens the utility menu with Open Hot Cross Buns 2, Quick Capture, Refresh Tasks and Calendar, Settings, and Quit.
+- Right-click opens the utility menu with Open Hot Cross Buns, Quick Capture, Refresh Tasks and Calendar, Settings, and Quit.
 - The menu bar panel shows Today/Tomorrow agenda items and overdue tasks according to the selected panel style.
 - If Show overdue badge is enabled, overdue tasks appear as a capped menu bar title badge.
-- Open Hot Cross Buns 2 shows the main window without quitting the app.
+- Open Hot Cross Buns shows the main window without quitting the app.
 - Quick Capture opens the app and focuses the quick capture UI.
 - Refresh requests a manual Tasks/Calendar sync without enabling new background sync behavior.
 - Settings opens the Settings section.

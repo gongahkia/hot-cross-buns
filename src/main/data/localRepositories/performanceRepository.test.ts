@@ -5,7 +5,7 @@ import { LocalPerformanceRepository } from "./performanceRepository";
 
 describe("local performance repository", () => {
   it("roundtrips sanitized timing metadata", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-performance-repository-");
+    const temporary = createTemporarySqliteConnection("hcb-performance-repository-");
 
     try {
       runLocalDataMigrations(temporary.connection);
@@ -45,7 +45,7 @@ describe("local performance repository", () => {
   });
 
   it("keeps SQLite query timings visible without synchronous persistence", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-performance-repository-");
+    const temporary = createTemporarySqliteConnection("hcb-performance-repository-");
 
     try {
       runLocalDataMigrations(temporary.connection);

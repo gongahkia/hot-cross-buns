@@ -10,7 +10,7 @@ import { GoogleOAuthClientConfigStore } from "./runtimeConfig";
 
 describe("Google OAuth runtime config", () => {
   it("stores client id in local settings and keeps client secret in the secret store", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "hcb2-google-config-"));
+    const directory = mkdtempSync(join(tmpdir(), "hcb-google-config-"));
     const connection = createAppSqliteConnection({ appSupportDirectory: directory });
     const secrets = new MemorySecretStore();
     const clientSecrets = new KeychainGoogleOAuthClientSecretStore(secrets);

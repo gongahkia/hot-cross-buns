@@ -2,7 +2,7 @@
 
 ## Scope
 
-SQLite is the local operating store for Hot Cross Buns 2. It stores mirrored Google data, settings, sync checkpoints, pending mutations, diagnostics metadata, and local-only UI preferences.
+SQLite is the local operating store for Hot Cross Buns. It stores mirrored Google data, settings, sync checkpoints, pending mutations, diagnostics metadata, and local-only UI preferences.
 
 SQLite is not a custom cloud source of truth.
 
@@ -22,7 +22,7 @@ Start from the existing Hot Cross Buns canonical SQLite model:
 - `headings`
 - `sync_meta`
 
-Hot Cross Buns 2 must add mirror tables for Google account/task/calendar/event state plus settings and mutations.
+Hot Cross Buns must add mirror tables for Google account/task/calendar/event state plus settings and mutations.
 
 Required table groups:
 

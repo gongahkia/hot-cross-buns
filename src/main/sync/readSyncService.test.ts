@@ -107,7 +107,7 @@ function defaultCalendarTransport(): GoogleCalendarReadTransport {
 async function withRepository<T>(
   run: (repository: GoogleSyncRepository, connection: SqliteConnection) => Promise<T>
 ): Promise<T> {
-  const temporary = createTemporarySqliteConnection("hcb2-google-sync-test-");
+  const temporary = createTemporarySqliteConnection("hcb-google-sync-test-");
 
   try {
     return await run(new GoogleSyncRepository(temporary.connection), temporary.connection);

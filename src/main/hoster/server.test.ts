@@ -64,7 +64,7 @@ describe("local hoster server", () => {
       permissionMode: "read-only"
     }, "http://127.0.0.1:0/hcb/v1/signal");
     const secret = JSON.parse(await secretStore.read({
-      service: "Hot Cross Buns 2 Local Hosters",
+      service: "Hot Cross Buns Local Hosters",
       account: created.id
     }) ?? "{}") as LocalHosterSecret;
     const payload = signalPayload("request-encrypted", "hcb_status", { limit: 1 });
@@ -96,7 +96,7 @@ describe("local hoster server", () => {
     });
     const created = await repository.create({ name: "Malformed" }, "http://127.0.0.1:0/hcb/v1/signal");
     const secret = JSON.parse(await secretStore.read({
-      service: "Hot Cross Buns 2 Local Hosters",
+      service: "Hot Cross Buns Local Hosters",
       account: created.id
     }) ?? "{}") as LocalHosterSecret;
     const envelope = encryptSignalEnvelope(signalPayload("request-bad-envelope", "hcb_status"), secret.publicKeyDerBase64);

@@ -3,8 +3,8 @@ import { basename, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_RELEASE_DIR = "release";
-const STABLE_PREFIX = "Hot-Cross-Buns-2-linux";
-const linuxAppImagePattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-linux-(x64|x86_64|arm64|aarch64)\.AppImage$/;
+const STABLE_PREFIX = "Hot-Cross-Buns-linux";
+const linuxAppImagePattern = /^Hot-Cross-Buns-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-linux-(x64|x86_64|arm64|aarch64)\.AppImage$/;
 
 interface PreviewArtifactOptions {
   releaseDir?: string;

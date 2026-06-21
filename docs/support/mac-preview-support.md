@@ -1,6 +1,6 @@
 # Mac Preview Support
 
-Hot Cross Buns 2 macOS preview builds are unsigned and unnotarized. They are for internal or early technical preview use, not broad public distribution.
+Hot Cross Buns macOS preview builds are unsigned and unnotarized. They are for internal or early technical preview use, not broad public distribution.
 
 ## Install With Checksum Verification
 
@@ -16,7 +16,7 @@ shasum -a 256 -c SHASUMS256.txt
 Optional helper:
 
 ```sh
-scripts/install-mac-preview.sh ~/Downloads/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg ~/Downloads/SHASUMS256.txt
+scripts/install-mac-preview.sh ~/Downloads/Hot-Cross-Buns-0.0.0-mac-arm64.dmg ~/Downloads/SHASUMS256.txt
 ```
 
 The helper verifies SHA-256 before copying the `.app` to `/Applications`. It does not sign, notarize, bypass Gatekeeper, or enable automatic updates.
@@ -27,11 +27,11 @@ If macOS blocks the app because it is unsigned:
 
 1. Open Finder.
 2. Go to `/Applications`.
-3. Control-click or right-click `Hot Cross Buns 2.app`.
+3. Control-click or right-click `Hot Cross Buns.app`.
 4. Choose `Open`.
 5. Confirm `Open`.
 
-If that option is unavailable, use `System Settings > Privacy & Security > Open Anyway` for Hot Cross Buns 2. Do not disable Gatekeeper.
+If that option is unavailable, use `System Settings > Privacy & Security > Open Anyway` for Hot Cross Buns. Do not disable Gatekeeper.
 
 ## Current Preview Limitations
 

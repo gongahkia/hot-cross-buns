@@ -1,6 +1,6 @@
-appId: dev.hotcrossbuns.hotcrossbuns2
-productName: Hot Cross Buns 2
-artifactName: Hot-Cross-Buns-2-${version}-${os}-${arch}.${ext}
+appId: dev.hotcrossbuns.hotcrossbuns
+productName: Hot Cross Buns
+artifactName: Hot-Cross-Buns-${version}-${os}-${arch}.${ext}
 
 directories:
   output: release
@@ -57,17 +57,17 @@ linux:
         - x64
   icon: build/icons
   category: Office
-  executableName: hot-cross-buns-2
+  executableName: hot-cross-buns
   synopsis: Private planner for tasks, calendars, notes, and local agent workflows.
-  description: Hot Cross Buns 2 Linux technical preview for GNOME desktops.
+  description: Hot Cross Buns Linux technical preview for GNOME desktops.
   desktop:
     entry:
       GenericName: Planner
       Keywords: tasks;calendar;notes;planner;productivity;
-      StartupWMClass: hot-cross-buns-2
+      StartupWMClass: hot-cross-buns
 
 appImage:
-  artifactName: Hot-Cross-Buns-2-${version}-linux-${arch}.${ext}
+  artifactName: Hot-Cross-Buns-${version}-linux-${arch}.${ext}
 
 win:
   icon: build/icon.ico
@@ -75,17 +75,17 @@ win:
     - target: nsis
       arch:
         - x64
-  executableName: Hot Cross Buns 2
+  executableName: Hot Cross Buns
   protocols:
     - name: Hot Cross Buns Links
       schemes:
         - hotcrossbuns
 
 nsis:
-  artifactName: Hot-Cross-Buns-2-${version}-windows-${arch}.${ext}
+  artifactName: Hot-Cross-Buns-${version}-windows-${arch}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Hot Cross Buns 2
+  shortcutName: Hot Cross Buns

@@ -53,7 +53,7 @@ describe("service container integration", () => {
   });
 
   it("writes MCP discovery metadata under the Linux config path without bearer tokens", async () => {
-    const root = mkdtempSync(join(tmpdir(), "hcb2-linux-mcp-runtime-"));
+    const root = mkdtempSync(join(tmpdir(), "hcb-linux-mcp-runtime-"));
     const appPaths = {
       configDirectory: join(root, "config"),
       dataDirectory: join(root, "data"),
@@ -74,7 +74,7 @@ describe("service container integration", () => {
       const parsed = JSON.parse(readFileSync(runtimePath, "utf8")) as Record<string, unknown>;
       const mode = statSync(runtimePath).mode & 0o777;
       const token = await secretStore.read({
-        service: "Hot Cross Buns 2 MCP",
+        service: "Hot Cross Buns MCP",
         account: "loopback-bearer-token"
       });
 
@@ -101,7 +101,7 @@ describe("service container integration", () => {
   });
 
   it("starts the local hoster from persisted settings before deferred runtime", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-hoster-startup-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-hoster-startup-"));
     const services = createServiceContainer({
       appSupportDirectory,
       secretStore: new MemorySecretStore()
@@ -130,7 +130,7 @@ describe("service container integration", () => {
   });
 
   it("pushes a saved HCB vault host credential during sync.runNow in hoster mode", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-vault-sync-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-vault-sync-"));
     const secretStore = new MemorySecretStore();
     const services = createServiceContainer({
       appSupportDirectory,
@@ -179,7 +179,7 @@ describe("service container integration", () => {
           resources: ["hcb-vault"]
         }
       });
-      expect(hosted.manifest.kind).toBe("hot-cross-buns-2-vault");
+      expect(hosted.manifest.kind).toBe("hot-cross-buns-vault");
     } finally {
       await server.stop();
       await services.close();
@@ -188,7 +188,7 @@ describe("service container integration", () => {
   });
 
   it("keeps sync status available after wrapping runNow for hoster mode", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-sync-wrapper-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-sync-wrapper-"));
     const services = createServiceContainer({
       appSupportDirectory,
       secretStore: new MemorySecretStore()
@@ -211,7 +211,7 @@ describe("service container integration", () => {
   });
 
   it("shares domain services between MCP tool handlers and planner IPC services", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-container-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-container-"));
     const services = createServiceContainer({
       appSupportDirectory
     });
@@ -262,7 +262,7 @@ describe("service container integration", () => {
   });
 
   it("wires runtime Google write transports by default", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-runtime-writes-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-runtime-writes-"));
     const secretStore = new MemorySecretStore();
     const tasksRead: GoogleTasksReadTransport = {
       listTaskLists: vi.fn(async () => [
@@ -358,7 +358,7 @@ describe("service container integration", () => {
   });
 
   it("keeps runtime Google writes disabled when explicitly configured read-only", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-runtime-readonly-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-runtime-readonly-"));
     let createdTaskId: string | undefined;
     const tasksRead: GoogleTasksReadTransport = {
       listTaskLists: vi.fn(async () => [
@@ -439,7 +439,7 @@ describe("service container integration", () => {
   });
 
   it("drains queued Google mutations from sync.runNow when write transports are configured", async () => {
-    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-sync-worker-"));
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb-service-sync-worker-"));
     const tasks: GoogleTasksWriteTransport = {
       insertTaskList: vi.fn(async (title) => ({
         id: "remote-list",

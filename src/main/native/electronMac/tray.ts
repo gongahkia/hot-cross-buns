@@ -185,7 +185,7 @@ function menuBarPanelMenu(actions: NativeTrayActions, snapshot: NativeMenuBarSna
       click: actions.refresh
     },
     {
-      label: "Open Hot Cross Buns 2",
+      label: "Open Hot Cross Buns",
       click: actions.openMainWindow
     },
     {
@@ -205,7 +205,7 @@ function menuBarPanelMenu(actions: NativeTrayActions, snapshot: NativeMenuBarSna
 function trayUtilityMenu(actions: NativeTrayActions): Menu {
   return Menu.buildFromTemplate([
     {
-      label: "Open Hot Cross Buns 2",
+      label: "Open Hot Cross Buns",
       click: actions.openMainWindow
     },
     {

@@ -64,10 +64,10 @@ export async function checkGitHubReleaseForUpdates(input: {
   const checkedAt = new Date().toISOString();
 
   try {
-    const response = await fetch("https://api.github.com/repos/gongahkia/hot-cross-buns-2/releases/latest", {
+    const response = await fetch("https://api.github.com/repos/gongahkia/hot-cross-buns/releases/latest", {
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": `HotCrossBuns2/${input.userAgentVersion}`
+        "User-Agent": `HotCrossBuns/${input.userAgentVersion}`
       },
       signal: AbortSignal.timeout(15_000)
     });
@@ -169,16 +169,16 @@ function releaseCheckMessage(input: {
   updateAvailable: boolean;
 }): string {
   if (!input.updateAvailable) {
-    return "Hot Cross Buns 2 is up to date.";
+    return "Hot Cross Buns is up to date.";
   }
 
   if (input.selectedAsset) {
-    return `Hot Cross Buns 2 ${input.latestVersion} is available from GitHub Releases.`;
+    return `Hot Cross Buns ${input.latestVersion} is available from GitHub Releases.`;
   }
 
   const preferredAssets = input.assetPreferences.map((preference) => preference.label).join(" or ");
 
-  return `Hot Cross Buns 2 ${input.latestVersion} is available from GitHub Releases, but no ${preferredAssets || "matching"} asset was found.`;
+  return `Hot Cross Buns ${input.latestVersion} is available from GitHub Releases, but no ${preferredAssets || "matching"} asset was found.`;
 }
 
 function assetMatchesExtension(asset: GitHubReleaseAsset, extension: string): boolean {

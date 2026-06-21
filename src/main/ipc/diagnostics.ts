@@ -561,7 +561,7 @@ function buildDiagnosticSummaryText(input: {
   const summary = input.summary;
   const cachePath = input.services?.localData.connection.databasePath ?? "unavailable";
   const lines = [
-    "Hot Cross Buns 2 Diagnostics",
+    "Hot Cross Buns Diagnostics",
     `Generated: ${summary.generatedAt}`,
     `Version: ${summary.build.version}`,
     `Environment: ${summary.build.environment}`,
@@ -614,7 +614,7 @@ function buildDiagnosticBundleText(input: {
   const history = input.services?.localData.historyRepository.listRecent(200) ?? [];
   const performanceTimings = input.services?.performance.listRecent(50) ?? [];
   const sections = [
-    "=== Hot Cross Buns 2 Diagnostic Bundle ===",
+    "=== Hot Cross Buns Diagnostic Bundle ===",
     buildDiagnosticSummaryText(input),
     "",
     `=== Pending Mutations (${pendingMutations.length}) ===`,

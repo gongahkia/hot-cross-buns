@@ -62,7 +62,7 @@ function windowsTrayMenu(actions: NativeTrayActions): Menu {
   const snapshot = actions.snapshot();
   const template: MenuItemConstructorOptions[] = [
     {
-      label: "Open Hot Cross Buns 2",
+      label: "Open Hot Cross Buns",
       click: actions.openMainWindow
     },
     {

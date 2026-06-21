@@ -96,7 +96,7 @@ export function buildNativeMenuBarSnapshot(
       ? cappedBadgeLabel(overdueTasks.length)
       : undefined;
   const tooltip = statusLabel
-    ? `Hot Cross Buns 2 - ${statusLabel}`
+    ? `Hot Cross Buns - ${statusLabel}`
     : subtitle
       ? `${title} - ${subtitle}`
       : title;
@@ -282,7 +282,7 @@ function menuBarTitle(
     return `${todayCount} today`;
   }
 
-  return "Hot Cross Buns 2";
+  return "Hot Cross Buns";
 }
 
 function menuBarSubtitle(

@@ -1,6 +1,6 @@
 # Linux Port
 
-Linux is the first non-Mac port for Hot Cross Buns 2. Treat it as a technical preview before claiming broad Linux parity.
+Linux is the first non-Mac port for Hot Cross Buns. Treat it as a technical preview before claiming broad Linux parity.
 
 ## Target Scope
 
@@ -31,11 +31,11 @@ AppImage desktop integration depends on `.desktop` metadata. AppImages carry a d
 
 The AppImage config currently includes:
 
-- app name: Hot Cross Buns 2
+- app name: Hot Cross Buns
 - generic name: Planner
 - category: Office
 - icon metadata from `build/icons/<size>x<size>.png`
-- `StartupWMClass=hot-cross-buns-2`
+- `StartupWMClass=hot-cross-buns`
 
 Linux package metadata intentionally does not register `hotcrossbuns://` until deep-link behavior is validated.
 

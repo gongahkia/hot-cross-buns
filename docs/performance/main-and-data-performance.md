@@ -1,6 +1,6 @@
 # Main, IPC, And Data Performance
 
-Hot Cross Buns 2 uses Electron main/preload/renderer boundaries. The main process is responsible for app lifecycle and native integration, so it must avoid becoming a shared bottleneck.
+Hot Cross Buns uses Electron main/preload/renderer boundaries. The main process is responsible for app lifecycle and native integration, so it must avoid becoming a shared bottleneck.
 
 ## Main Process Rules
 

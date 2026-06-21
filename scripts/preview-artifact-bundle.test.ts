@@ -7,18 +7,18 @@ import { formatManualQaEvidence, requiredReleaseFiles } from "./manual-qa-eviden
 import { verifyPreviewArtifactBundle } from "./preview-artifact-bundle";
 
 const linuxArtifacts = [
-  "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-  "Hot-Cross-Buns-2-linux.AppImage",
-  "Hot-Cross-Buns-2-linux-x64.AppImage"
+  "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+  "Hot-Cross-Buns-linux.AppImage",
+  "Hot-Cross-Buns-linux-x64.AppImage"
 ];
 const windowsArtifacts = [
-  "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-  "Hot-Cross-Buns-2-windows.exe",
-  "Hot-Cross-Buns-2-windows-x64.exe"
+  "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+  "Hot-Cross-Buns-windows.exe",
+  "Hot-Cross-Buns-windows-x64.exe"
 ];
 
 async function createBundleDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "hcb2-preview-bundle-"));
+  const dir = await mkdtemp(join(tmpdir(), "hcb-preview-bundle-"));
 
   await mkdir(join(dir, "release"), { recursive: true });
   await mkdir(join(dir, "artifacts", "manual-qa"), { recursive: true });
@@ -104,7 +104,7 @@ describe("preview artifact bundle verifier", () => {
 
     expect(messages.join("\n")).toContain("linux-evidence.md exists");
     expect(messages.join("\n")).toContain("current manual QA evidence template");
-    expect(messages.join("\n")).toContain("Hot-Cross-Buns-2-linux-x64.AppImage exists");
+    expect(messages.join("\n")).toContain("Hot-Cross-Buns-linux-x64.AppImage exists");
   });
 
   it("verifies a Windows preview artifact bundle", async () => {
@@ -116,7 +116,7 @@ describe("preview artifact bundle verifier", () => {
     const messages = await verifyPreviewArtifactBundle({ bundleDir, target: "windows", version: "5.0.0" });
 
     expect(messages.join("\n")).toContain("windows-evidence.md exists");
-    expect(messages.join("\n")).toContain("Hot-Cross-Buns-2-windows-x64.exe exists");
+    expect(messages.join("\n")).toContain("Hot-Cross-Buns-windows-x64.exe exists");
   });
 
   it("fails when a stable alias does not match the versioned artifact", async () => {
@@ -124,7 +124,7 @@ describe("preview artifact bundle verifier", () => {
     const manifestLines: string[] = [];
 
     for (const artifact of linuxArtifacts) {
-      const content = artifact === "Hot-Cross-Buns-2-linux.AppImage" ? "wrong alias" : "release artifact";
+      const content = artifact === "Hot-Cross-Buns-linux.AppImage" ? "wrong alias" : "release artifact";
       const hash = await writeReleaseArtifact(bundleDir, artifact, content);
 
       manifestLines.push(`${hash}  ${artifact}`);
@@ -135,7 +135,7 @@ describe("preview artifact bundle verifier", () => {
 
     await expect(
       verifyPreviewArtifactBundle({ bundleDir, target: "linux", version: "5.0.0" })
-    ).rejects.toThrow("Hot-Cross-Buns-2-linux.AppImage does not match");
+    ).rejects.toThrow("Hot-Cross-Buns-linux.AppImage does not match");
   });
 
   it("fails when the manual QA evidence template did not pass release preflight", async () => {

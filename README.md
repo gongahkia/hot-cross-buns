@@ -1,35 +1,35 @@
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns-2">
-    <img src="docs/logo.png" alt="Hot Cross Buns 2 logo" width="144" />
+  <a href="https://github.com/gongahkia/hot-cross-buns">
+    <img src="docs/logo.png" alt="Hot Cross Buns logo" width="144" />
   </a>
 </p>
 
-<h1 align="center">Hot Cross Buns 2</h1>
+<h1 align="center">Hot Cross Buns</h1>
 
 <h3 align="center">Keyboard-first desktop planner for Google Tasks, Google Calendar, local HCB vaults, and terminal workflows on macOS, Linux, and Windows.</h3>
 
 <p align="center">
-  <a href="https://gongahkia.github.io/hot-cross-buns-2/">Website</a> ·
+  <a href="https://gongahkia.github.io/hot-cross-buns/">Website</a> ·
   <a href="docs/README.md">Docs</a> ·
   <a href="docs/mcp.md">MCP</a> ·
   <a href="docs/architecture/system-architecture.md">Architecture</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">
+  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-macOS.dmg">
     <img src="https://img.shields.io/badge/macOS-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="macOS DMG" />
   </a>
-  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">
+  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage">
     <img src="https://img.shields.io/badge/Linux-AppImage-5E8C61?style=for-the-badge&logo=linux&logoColor=white&labelColor=1f2430" alt="Linux AppImage" />
   </a>
-  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">
+  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe">
     <img src="https://img.shields.io/badge/Windows-NSIS-4F7DBD?style=for-the-badge&logo=windows&logoColor=white&labelColor=1f2430" alt="Windows NSIS installer" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest">
-    <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns-2?display_name=tag" alt="Latest release" />
+  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">
+    <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns?display_name=tag" alt="Latest release" />
   </a>
   <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
   <img src="https://img.shields.io/badge/Linux-x64%20AppImage-black" alt="Linux x64 AppImage" />
@@ -53,7 +53,7 @@
 
 ## Highlights
 
-Hot Cross Buns 2 is an Electron-first desktop planner built around three everyday surfaces:
+Hot Cross Buns is an Electron-first desktop planner built around three everyday surfaces:
 
 - Tasks for inbox capture and day-to-day execution, synced with Google Tasks or kept in local HCB storage
 - Calendar views for agenda, day, week, multi-day, month, year, and longer-range planning, synced with Google Calendar or kept in local HCB storage
@@ -74,14 +74,14 @@ Around those core surfaces, the app also includes:
 
 **Downloads**
 
-- macOS DMG: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg`
-- Linux AppImage: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage`
-- Windows NSIS: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe`
-- Release page: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest`
+- macOS DMG: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-macOS.dmg`
+- Linux AppImage: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage`
+- Windows NSIS: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe`
+- Release page: `https://github.com/gongahkia/hot-cross-buns/releases/latest`
 - macOS one-line installer:
 
 ```bash
-curl -fsSL https://gongahkia.github.io/hot-cross-buns-2/install-macos-preview.sh | bash
+curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash
 ```
 
 **First launch on macOS**
@@ -97,11 +97,11 @@ You should only need to do that once per Mac.
 The Linux package is an x64 AppImage.
 
 ```bash
-curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
-curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt
+curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage
+curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/SHASUMS256.txt
 sha256sum -c SHASUMS256.txt --ignore-missing
-chmod +x Hot-Cross-Buns-2-linux-x64.AppImage
-./Hot-Cross-Buns-2-linux-x64.AppImage
+chmod +x Hot-Cross-Buns-linux-x64.AppImage
+./Hot-Cross-Buns-linux-x64.AppImage
 ```
 
 Known Linux limits:
@@ -113,7 +113,7 @@ Known Linux limits:
 
 **First launch on Windows**
 
-Download `Hot-Cross-Buns-2-windows-x64.exe`, verify it against `SHASUMS256.txt`, then run the NSIS installer. The installer is unsigned, so Windows or the browser may show trust warnings.
+Download `Hot-Cross-Buns-windows-x64.exe`, verify it against `SHASUMS256.txt`, then run the NSIS installer. The installer is unsigned, so Windows or the browser may show trust warnings.
 
 **Google Cloud OAuth setup**
 
@@ -123,7 +123,7 @@ Downloads use a bring-your-own Google Cloud Desktop OAuth client:
 2. Enable the Google Tasks API and Google Calendar API.
 3. Configure the OAuth consent screen. For personal use, add your Google account as a test user while setting up.
 4. Create a `Desktop app` OAuth client.
-5. Open Hot Cross Buns 2, paste the desktop client ID and optional client secret into setup, then connect Google.
+5. Open Hot Cross Buns, paste the desktop client ID and optional client secret into setup, then connect Google.
 
 Tokens are stored in macOS Keychain on macOS. On Linux, tokens are stored through Electron `safeStorage` only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet. On Windows, tokens are stored through Electron `safeStorage`.
 
@@ -133,7 +133,7 @@ Do not distribute a build that embeds your personal OAuth client for other peopl
 
 ```mermaid
 flowchart TD
-    user["desktop user"] --> app["Hot Cross Buns 2<br>Electron + React + TypeScript"]
+    user["desktop user"] --> app["Hot Cross Buns<br>Electron + React + TypeScript"]
 
     subgraph runtime["Desktop runtime"]
         app --> renderer["Renderer<br>Tasks · Calendar · Notes<br>Command palette · Settings"]

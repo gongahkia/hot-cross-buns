@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 function createTestServices() {
-  temp = createTemporarySqliteConnection("hcb2-domain-services-");
+  temp = createTemporarySqliteConnection("hcb-domain-services-");
   runLocalDataMigrations(temp.connection);
 
   const performanceRepository = new LocalPerformanceRepository(temp.connection);
@@ -215,7 +215,7 @@ describe("SQLite-backed domain services", () => {
       expect(pushed.endpoint).toBe(endpoint);
       expect(pushed.remote.hasVault).toBe(true);
       expect(pushed.remote.packageSha256).toEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
-      expect(pushed.manifest.kind).toBe("hot-cross-buns-2-vault");
+      expect(pushed.manifest.kind).toBe("hot-cross-buns-vault");
 
       const status = await domain.settings.hcbVaultRemoteStatus({});
       expect(status.remote.manifest?.payloadSha256).toBe(pushed.manifest.payloadSha256);
@@ -807,8 +807,8 @@ describe("SQLite-backed domain services", () => {
 
     const firstExport = await domain.settings.exportPortableArchive();
     const secondExport = await domain.settings.exportPortableArchive();
-    const firstState = readFileSync(join(firstExport.path, "hot-cross-buns-2-state.json"), "utf8");
-    const secondState = readFileSync(join(secondExport.path, "hot-cross-buns-2-state.json"), "utf8");
+    const firstState = readFileSync(join(firstExport.path, "hot-cross-buns-state.json"), "utf8");
+    const secondState = readFileSync(join(secondExport.path, "hot-cross-buns-state.json"), "utf8");
 
     expect(firstState).toBe(secondState);
     expect(firstExport.manifest.attachments).toHaveLength(1);
@@ -964,7 +964,7 @@ describe("SQLite-backed domain services", () => {
       "DTSTAMP:20260701T000000Z",
       "DTSTART:20260703T090000Z",
       "DTEND:20260703T100000Z",
-      "SUMMARY:Ship HCB2",
+      "SUMMARY:Ship HCB",
       "DESCRIPTION:Release prep",
       "LOCATION:Remote",
       "END:VEVENT",
@@ -985,9 +985,9 @@ describe("SQLite-backed domain services", () => {
 
     expect(imported).toMatchObject({ calendarTitle: "Launches", importedEventCount: 1 });
     expect(calendars.items.some((calendar) => calendar.title === "Launches")).toBe(true);
-    expect(events.items.some((event) => event.title === "Ship HCB2")).toBe(true);
+    expect(events.items.some((event) => event.title === "Ship HCB")).toBe(true);
     expect(() => domain.planner.updateCalendarEvent({
-      id: events.items.find((event) => event.title === "Ship HCB2")?.eventId ?? "",
+      id: events.items.find((event) => event.title === "Ship HCB")?.eventId ?? "",
       title: "Edited"
     })).toThrow(/read-only/);
     expect(existsSync(report.path)).toBe(true);
@@ -1119,7 +1119,7 @@ describe("SQLite-backed domain services", () => {
 
     const exported = settingsRepository.exportPortableArchive("2026-06-01T00:00:00.000Z");
     const state = JSON.parse(
-      readFileSync(join(exported.path, "hot-cross-buns-2-state.json"), "utf8")
+      readFileSync(join(exported.path, "hot-cross-buns-state.json"), "utf8")
     ) as { tables: Record<string, { rows: Array<Record<string, unknown>> }> };
     const rowIds = (table: string) => state.tables[table]?.rows.map((row) => row.id).sort() ?? [];
     const mutationResourceIds = state.tables.google_pending_mutations.rows

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import packageJson from "../package.json";
 
-const DEFAULT_REPO = "gongahkia/hot-cross-buns-2";
+const DEFAULT_REPO = "gongahkia/hot-cross-buns";
 
 export type ReleaseAssetTarget = "mac" | "linux" | "windows";
 
@@ -49,43 +49,43 @@ function normalizeTarget(value: string): ReleaseAssetTarget | "all" {
 export function requiredReleaseAssets(target: ReleaseAssetTarget, version = packageJson.version): string[] {
   if (target === "mac") {
     return [
-      "Hot-Cross-Buns-2-macOS.dmg",
-      "Hot-Cross-Buns-2-macOS.dmg.sha256",
-      "Hot-Cross-Buns-2-macOS.zip",
-      "Hot-Cross-Buns-2-macOS.zip.sha256",
+      "Hot-Cross-Buns-macOS.dmg",
+      "Hot-Cross-Buns-macOS.dmg.sha256",
+      "Hot-Cross-Buns-macOS.zip",
+      "Hot-Cross-Buns-macOS.zip.sha256",
       "SHASUMS256.txt",
-      `one of Hot-Cross-Buns-2-${version}-mac-<arch>.dmg`,
-      `one of Hot-Cross-Buns-2-${version}-mac-<arch>.zip`
+      `one of Hot-Cross-Buns-${version}-mac-<arch>.dmg`,
+      `one of Hot-Cross-Buns-${version}-mac-<arch>.zip`
     ];
   }
 
   if (target === "linux") {
     return [
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage.sha256`,
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux.AppImage.sha256",
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage.sha256",
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage.sha256`,
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux.AppImage.sha256",
+      "Hot-Cross-Buns-linux-x64.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage.sha256",
       "SHASUMS256.txt"
     ];
   }
 
   return [
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe.sha256`,
-    "Hot-Cross-Buns-2-windows.exe",
-    "Hot-Cross-Buns-2-windows.exe.sha256",
-    "Hot-Cross-Buns-2-windows-x64.exe",
-    "Hot-Cross-Buns-2-windows-x64.exe.sha256",
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    `Hot-Cross-Buns-${version}-windows-x64.exe.sha256`,
+    "Hot-Cross-Buns-windows.exe",
+    "Hot-Cross-Buns-windows.exe.sha256",
+    "Hot-Cross-Buns-windows-x64.exe",
+    "Hot-Cross-Buns-windows-x64.exe.sha256",
     "SHASUMS256.txt"
   ];
 }
 
 export function matchesUpdateCheckAsset(assetName: string, target: ReleaseAssetTarget): boolean {
   if (target === "mac") {
-    return /^Hot-Cross-Buns-2-macOS\.dmg$/i.test(assetName) ||
-      /^Hot-Cross-Buns-2-\d+\.\d+\.\d+-mac-(?:arm64|x64)\.dmg$/i.test(assetName);
+    return /^Hot-Cross-Buns-macOS\.dmg$/i.test(assetName) ||
+      /^Hot-Cross-Buns-\d+\.\d+\.\d+-mac-(?:arm64|x64)\.dmg$/i.test(assetName);
   }
 
   if (target === "linux") {
@@ -98,44 +98,44 @@ export function matchesUpdateCheckAsset(assetName: string, target: ReleaseAssetT
 function releaseArtifacts(target: ReleaseAssetTarget, version = packageJson.version): string[] {
   if (target === "mac") {
     return [
-      "Hot-Cross-Buns-2-macOS.dmg",
-      "Hot-Cross-Buns-2-macOS.zip"
+      "Hot-Cross-Buns-macOS.dmg",
+      "Hot-Cross-Buns-macOS.zip"
     ];
   }
 
   if (target === "linux") {
     return [
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage"
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage"
     ];
   }
 
   return [
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    "Hot-Cross-Buns-2-windows.exe",
-    "Hot-Cross-Buns-2-windows-x64.exe"
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-windows.exe",
+    "Hot-Cross-Buns-windows-x64.exe"
   ];
 }
 
 function versionedArtifact(target: ReleaseAssetTarget, version = packageJson.version): string {
   if (target === "mac") {
-    return `Hot-Cross-Buns-2-${version}-mac-<arch>.dmg`;
+    return `Hot-Cross-Buns-${version}-mac-<arch>.dmg`;
   }
 
   return target === "linux"
-    ? `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`
-    : `Hot-Cross-Buns-2-${version}-windows-x64.exe`;
+    ? `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`
+    : `Hot-Cross-Buns-${version}-windows-x64.exe`;
 }
 
 function stableAliases(target: ReleaseAssetTarget): string[] {
   if (target === "mac") {
-    return ["Hot-Cross-Buns-2-macOS.dmg", "Hot-Cross-Buns-2-macOS.zip"];
+    return ["Hot-Cross-Buns-macOS.dmg", "Hot-Cross-Buns-macOS.zip"];
   }
 
   return target === "linux"
-    ? ["Hot-Cross-Buns-2-linux.AppImage", "Hot-Cross-Buns-2-linux-x64.AppImage"]
-    : ["Hot-Cross-Buns-2-windows.exe", "Hot-Cross-Buns-2-windows-x64.exe"];
+    ? ["Hot-Cross-Buns-linux.AppImage", "Hot-Cross-Buns-linux-x64.AppImage"]
+    : ["Hot-Cross-Buns-windows.exe", "Hot-Cross-Buns-windows-x64.exe"];
 }
 
 function assetDigestProblems(input: ReleaseAssetPreflightInput): string[] {
@@ -183,7 +183,7 @@ export function evaluateReleaseAssetPreflight(
     if (input.target === "mac" && asset.includes("<arch>")) {
       const extension = asset.endsWith(".zip") ? "zip" : "dmg";
       return !input.assets.some((candidate) =>
-        new RegExp(`^Hot-Cross-Buns-2-${escapeRegExp(input.version ?? packageJson.version)}-mac-(?:arm64|x64)\\.${extension}$`, "i")
+        new RegExp(`^Hot-Cross-Buns-${escapeRegExp(input.version ?? packageJson.version)}-mac-(?:arm64|x64)\\.${extension}$`, "i")
           .test(candidate.name)
       );
     }

@@ -2,7 +2,7 @@
 
 ## Test Layers
 
-Hot Cross Buns 2 must rely on fast automated checks before broad manual testing.
+Hot Cross Buns must rely on fast automated checks before broad manual testing.
 
 Required layers:
 

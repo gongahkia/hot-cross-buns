@@ -1,6 +1,6 @@
-# Hot Cross Buns 2 Documentation
+# Hot Cross Buns Documentation
 
-Hot Cross Buns 2 is the Electron-first rebuild of Hot Cross Buns. The repository started with specs first, and now includes the initial Electron, React, TypeScript, IPC, renderer shell, performance harness, local SQLite connection foundations, and cache-backed core product workflows.
+Hot Cross Buns is a keyboard-first Electron desktop planner. The repository started with specs first, and now includes Electron, React, TypeScript, IPC, renderer shell, performance harness, local SQLite connection foundations, and cache-backed core product workflows.
 
 ## Starting Point For Agents
 
@@ -15,7 +15,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 
 ## Current Direction
 
-- Product name: Hot Cross Buns 2
+- Product name: Hot Cross Buns
 - Platforms: macOS DMG, Linux x64 AppImage, Windows x64 NSIS
 - Default stack: Electron, React, TypeScript, Vite, Tailwind, SQLite
 - Source of truth: Google Tasks and Google Calendar
@@ -54,7 +54,7 @@ Subsystem specs:
 - [Platform Strategy](specs/platforms.md)
 - [Native Parity](specs/native-parity.md)
 - [Design System](design/design-system.md)
-- [Legacy Hot Cross Buns Context](reference/legacy-hot-cross-buns-context.md)
+- [Historical Swift App Context](reference/legacy-hot-cross-buns-context.md)
 
 Performance:
 

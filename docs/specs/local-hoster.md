@@ -1,4 +1,4 @@
-# HCB2 Local Hoster Protocol
+# HCB Local Hoster Protocol
 
 Local hosters have two separate surfaces:
 
@@ -128,7 +128,7 @@ example.hcbhost/
 ```json
 {
   "formatVersion": 1,
-  "kind": "hot-cross-buns-2-local-hoster",
+  "kind": "hot-cross-buns-local-hoster",
   "createdAt": "2026-06-19T00:00:00.000Z",
   "appVersion": "5.0.0",
   "hosterId": "hoster:...",

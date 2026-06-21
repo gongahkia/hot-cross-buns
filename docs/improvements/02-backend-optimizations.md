@@ -18,7 +18,7 @@ Current Electron rebuild:
 - `src/main/ipc/diagnostics.ts`
 - `src/main/mcp`
 
-Hot Cross Buns 2 already records pending mutations, performs Google read sync with checkpointing and retry classification, exposes diagnostics, and shares domain services between UI IPC and MCP. The key backend gap is that several legacy production behaviors are still scaffolded, synchronous, or not yet durable.
+Hot Cross Buns already records pending mutations, performs Google read sync with checkpointing and retry classification, exposes diagnostics, and shares domain services between UI IPC and MCP. The key backend gap is that several legacy production behaviors are still scaffolded, synchronous, or not yet durable.
 
 ## Improvements To Add
 

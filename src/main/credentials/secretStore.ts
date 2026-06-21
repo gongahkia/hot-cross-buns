@@ -73,9 +73,9 @@ interface WindowsSecretStoreEntry {
 }
 
 const linuxSecretStoreVersion = 1;
-const linuxSecretSmokePlaintext = "hot-cross-buns-2-linux-secret-service-smoke";
+const linuxSecretSmokePlaintext = "hot-cross-buns-linux-secret-service-smoke";
 const windowsSecretStoreVersion = 1;
-const windowsSecretSmokePlaintext = "hot-cross-buns-2-windows-safe-storage-smoke";
+const windowsSecretSmokePlaintext = "hot-cross-buns-windows-safe-storage-smoke";
 
 export class MacOsKeychainSecretStore implements SecretStore {
   status(): NativeOperationResult {

@@ -2,8 +2,8 @@ import type { SecretStore } from "../credentials/secretStore";
 import type { GoogleCredentialAdapter } from "./credentials";
 import type { GoogleStoredTokenSet } from "./types";
 
-const GOOGLE_TOKEN_SERVICE = "Hot Cross Buns 2 Google OAuth Tokens";
-const GOOGLE_CLIENT_SECRET_SERVICE = "Hot Cross Buns 2 Google OAuth Client";
+const GOOGLE_TOKEN_SERVICE = "Hot Cross Buns Google OAuth Tokens";
+const GOOGLE_CLIENT_SECRET_SERVICE = "Hot Cross Buns Google OAuth Client";
 
 export class KeychainGoogleCredentialAdapter implements GoogleCredentialAdapter {
   constructor(private readonly store: SecretStore) {}

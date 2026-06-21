@@ -8,7 +8,7 @@ Only the latest public release is supported for security fixes. The current supp
 
 Report vulnerabilities privately through GitHub Security Advisories:
 
-https://github.com/gongahkia/hot-cross-buns-2/security/advisories/new
+https://github.com/gongahkia/hot-cross-buns/security/advisories/new
 
 Do not open a public issue for suspected vulnerabilities.
 

@@ -5,11 +5,11 @@ import { basename, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_RELEASE_DIR = "release";
-const stableInstallerName = "Hot-Cross-Buns-2-windows.exe";
-const stableX64InstallerName = "Hot-Cross-Buns-2-windows-x64.exe";
+const stableInstallerName = "Hot-Cross-Buns-windows.exe";
+const stableX64InstallerName = "Hot-Cross-Buns-windows-x64.exe";
 const checksumManifestName = "SHASUMS256.txt";
 const minimumInstallerBytes = 20 * 1024 * 1024;
-const versionedInstallerPattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-x64\.exe$/;
+const versionedInstallerPattern = /^Hot-Cross-Buns-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-x64\.exe$/;
 
 interface SmokeOptions {
   artifact?: string;

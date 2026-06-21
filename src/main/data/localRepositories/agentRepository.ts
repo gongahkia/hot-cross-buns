@@ -282,5 +282,5 @@ function parseObject(value: string): Record<string, unknown> {
 }
 
 export function localAgentSecret(): string {
-  return createHash("sha256").update("hot-cross-buns-2-agent").digest("hex");
+  return createHash("sha256").update("hot-cross-buns-agent").digest("hex");
 }

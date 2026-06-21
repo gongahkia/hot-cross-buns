@@ -19,7 +19,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     name: "agent-brief",
     description: "Produce a concise HCB planner brief for the user.",
     text: () => [
-      "Brief the user on local HCB2 planner state.",
+      "Brief the user on local HCB planner state.",
       "Read hcb://brief, hcb://status, and hcb://tail?level=warn&limit=25.",
       "Keep it concise: account/sync state, today counts, pending action risk, and next suggested read."
     ].join("\n")
@@ -33,7 +33,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
       const resource = startDate ? `hcb://plan/${encodeURIComponent(startDate)}` : "hcb://plan";
 
       return [
-        "Draft an HCB2 planner plan from local cache.",
+        "Draft an HCB planner plan from local cache.",
         `Read ${resource}, hcb://brief, and hcb://pending-mutations?limit=50.`,
         "Separate read-only observations from proposed writes.",
         "Do not apply writes without explicit user approval."
@@ -45,7 +45,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     description: "Inspect HCB sync/account/queue health and propose next commands.",
     arguments: [optionalArgument("focus", "Optional sync focus, e.g. tasks, calendar, auth, queue.")],
     text: (args) => [
-      "Debug local HCB2 sync health.",
+      "Debug local HCB sync health.",
       `Focus: ${stringArg(args, "focus") ?? "overall"}.`,
       "First read hcb://doctor, hcb://status, hcb://diff, and hcb://logs?level=warn&limit=50.",
       "Use hcb_pending_mutations when queue detail is needed.",
@@ -57,7 +57,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     name: "inspect-pending-mutations",
     description: "Review pending queue entries and identify retry/cancel candidates.",
     text: () => [
-      "Inspect HCB2 pending mutations.",
+      "Inspect HCB pending mutations.",
       "Read hcb://pending-mutations?limit=100 and hcb://status.",
       "For each failed or stale mutation, inspect hcb://mutations/{id}.",
       "Recommend retry or cancel only when the reason is clear from local diagnostics.",
@@ -68,7 +68,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     name: "clean-stuck-google-sync",
     description: "Guide a safe stuck-sync cleanup using existing queue controls.",
     text: () => [
-      "Clean up stuck HCB2 Google sync carefully.",
+      "Clean up stuck HCB Google sync carefully.",
       "Read hcb://doctor, hcb://status, hcb://pending-mutations?limit=100, and hcb://logs?level=error&limit=50.",
       "If the account is not connected, stop and tell the user to reconnect Google.",
       "If queue entries are failed, dry-run hcb_retry_mutation before applying.",
@@ -79,7 +79,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     name: "review-today",
     description: "Review today's HCB agenda from local cache.",
     text: () => [
-      "Review today's HCB2 agenda.",
+      "Review today's HCB agenda.",
       "Read hcb://today and hcb://status.",
       "Summarize tasks, events, and notes; flag overdue or unscheduled items.",
       "Do not create/update/delete anything unless the user asks."
@@ -94,7 +94,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
       const resource = startDate ? `hcb://week/${encodeURIComponent(startDate)}` : "hcb://week";
 
       return [
-        "Plan the HCB2 week from local cache.",
+        "Plan the HCB week from local cache.",
         `Read ${resource}, hcb://today, and hcb://status.`,
         "Identify overloaded days, empty planning gaps, and unscheduled important tasks.",
         "Only suggest writes; do not apply them without user approval."
@@ -105,7 +105,7 @@ const promptDefinitions: readonly McpPromptDefinition[] = [
     name: "prepare-support-summary",
     description: "Prepare a redacted support/debug summary from local diagnostics.",
     text: () => [
-      "Prepare a redacted HCB2 support summary.",
+      "Prepare a redacted HCB support summary.",
       "Read hcb://doctor, hcb://status, hcb://diff, and hcb://logs?level=warn&limit=100.",
       "Include app version, account state, sync state, queue counts, recent warning/error summaries, and next commands.",
       "Do not include secrets, bearer tokens, OAuth tokens, raw Google payloads, or private note/task bodies unless necessary."

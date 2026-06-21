@@ -47,13 +47,13 @@ jobs:
       - name: Verify Windows installer checksum
         shell: pwsh
         run: |
-          $artifact = ".\release\Hot-Cross-Buns-2-windows-x64.exe"
+          $artifact = ".\release\Hot-Cross-Buns-windows-x64.exe"
           $hash = (Get-FileHash $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
-          $line = Get-Content .\release\SHASUMS256.txt | Where-Object { $_ -match "  Hot-Cross-Buns-2-windows-x64\.exe$" } | Select-Object -First 1
-          if (-not $line) { throw "SHASUMS256.txt is missing Hot-Cross-Buns-2-windows-x64.exe" }
+          $line = Get-Content .\release\SHASUMS256.txt | Where-Object { $_ -match "  Hot-Cross-Buns-windows-x64\.exe$" } | Select-Object -First 1
+          if (-not $line) { throw "SHASUMS256.txt is missing Hot-Cross-Buns-windows-x64.exe" }
           $expected = ($line -split "\s+")[0].ToLowerInvariant()
           if ($hash -ne $expected) { throw "Windows installer checksum mismatch" }
-          Write-Host "$hash  Hot-Cross-Buns-2-windows-x64.exe"
+          Write-Host "$hash  Hot-Cross-Buns-windows-x64.exe"
 
       - name: Silent install Windows preview installer and MCP
         env:

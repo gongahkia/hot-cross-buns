@@ -11,7 +11,7 @@ import {
 describe("safeStorage MCP token helper", () => {
   it("parses packaged app helper argv", () => {
     expect(parseSafeStorageTokenHelperArgv([
-      "Hot Cross Buns 2.exe",
+      "Hot Cross Buns.exe",
       "--hcb-read-mcp-token-safe-storage",
       "win32",
       "C:\\hcb\\secrets.windows-safe-storage.json"
@@ -19,7 +19,7 @@ describe("safeStorage MCP token helper", () => {
       platform: "win32",
       storageFile: "C:\\hcb\\secrets.windows-safe-storage.json"
     });
-    expect(parseSafeStorageTokenHelperArgv(["Hot Cross Buns 2.exe"])).toBeNull();
+    expect(parseSafeStorageTokenHelperArgv(["Hot Cross Buns.exe"])).toBeNull();
   });
 
   it("decrypts the MCP bearer token entry", async () => {
@@ -31,7 +31,7 @@ describe("safeStorage MCP token helper", () => {
       writeFileSync(storageFile, JSON.stringify({
         version: 1,
         values: {
-          [hashedSecretKey("Hot Cross Buns 2 MCP", "loopback-bearer-token")]: {
+          [hashedSecretKey("Hot Cross Buns MCP", "loopback-bearer-token")]: {
             ciphertextBase64: Buffer.from(`encrypted:${token}`).toString("base64"),
             updatedAt: new Date("2026-06-14T00:00:00.000Z").toISOString()
           }

@@ -19,13 +19,13 @@ Current Electron rebuild:
 - `scripts`
 - `assets/brand`
 
-Hot Cross Buns 2 has stronger architecture/spec documentation than the legacy repo in some areas, plus Electron packaging scripts. The missing general parity items are mostly public-facing project polish, CI, docsite/installer flow, release evidence, contribution guidance, and packaging hardening.
+Hot Cross Buns has stronger architecture/spec documentation than the legacy repo in some areas, plus Electron packaging scripts. The missing general parity items are mostly public-facing project polish, CI, docsite/installer flow, release evidence, contribution guidance, and packaging hardening.
 
 ## Improvements To Add
 
 ### 1. GitHub Actions CI
 
-Legacy has a tracked CI workflow. Hot Cross Buns 2 currently lacks an equivalent tracked workflow.
+Legacy has a tracked CI workflow. Hot Cross Buns currently lacks an equivalent tracked workflow.
 
 Add `.github/workflows/ci.yml` for:
 
@@ -51,7 +51,7 @@ Status on 2026-05-23:
 
 Legacy has a GitHub Pages style docsite, privacy page, media assets, install script, and first-launch unsigned-DMG guidance.
 
-Add a lightweight public docs surface for Hot Cross Buns 2:
+Add a lightweight public docs surface for Hot Cross Buns:
 
 - product overview and screenshots/video
 - latest release download link
@@ -93,14 +93,14 @@ Acceptance checks:
 
 Implemented follow-up:
 
-- `pnpm release:mac:preview` now creates stable `Hot-Cross-Buns-2-macOS*` aliases and per-artifact `.sha256` files before writing `SHASUMS256.txt`.
+- `pnpm release:mac:preview` now creates stable `Hot-Cross-Buns-macOS*` aliases and per-artifact `.sha256` files before writing `SHASUMS256.txt`.
 - `pnpm release:smoke-dmg` mounts the generated DMG read-only and verifies the contained app bundle metadata.
 
 ### 4. Contribution And Agent Workflow Polish
 
 Legacy has `docs/CONTRIBUTING.md`, architecture references, release references, style guides, urgent todo references, and profiling docs.
 
-Add or extend Hot Cross Buns 2 docs for:
+Add or extend Hot Cross Buns docs for:
 
 - contributor setup and local commands
 - branch/test/release expectations
@@ -123,7 +123,7 @@ Status on 2026-05-23:
 
 Legacy includes app icons, menu-bar template assets, onboarding imagery, localized strings, and public website media.
 
-Finish asset hygiene for Hot Cross Buns 2:
+Finish asset hygiene for Hot Cross Buns:
 
 - verify app icon and menu-bar template assets in packaged app
 - keep brand assets under `assets/brand`

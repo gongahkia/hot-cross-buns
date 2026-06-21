@@ -20,7 +20,7 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
       content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; navigate-to hcb-panel:"
     >
     <meta name="color-scheme" content="light dark">
-    <title>Hot Cross Buns 2 menu bar panel</title>
+    <title>Hot Cross Buns menu bar panel</title>
     <style>
       :root {
         color-scheme: light dark;

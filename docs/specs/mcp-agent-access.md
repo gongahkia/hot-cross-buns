@@ -2,7 +2,7 @@
 
 ## Scope
 
-Hot Cross Buns 2 exposes an opt-in local MCP endpoint for agent clients configured by the user. The endpoint must bind to `127.0.0.1` and must never expose Google tokens, platform credential-store material, raw credentials, cache encryption keys, or unsanitized diagnostics.
+Hot Cross Buns exposes an opt-in local MCP endpoint for agent clients configured by the user. The endpoint must bind to `127.0.0.1` and must never expose Google tokens, platform credential-store material, raw credentials, cache encryption keys, or unsanitized diagnostics.
 
 ## Endpoint
 

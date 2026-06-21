@@ -62,7 +62,7 @@ Windows CI evidence:
   commit `dd2f607`.
 - The run completed `pnpm release:win:preview`, `pnpm release:smoke-nsis`,
   HCB CLI MCP smoke, PowerShell `Get-FileHash` verification for
-  `Hot-Cross-Buns-2-windows-x64.exe`, silent NSIS install/launch/uninstall plus
+  `Hot-Cross-Buns-windows-x64.exe`, silent NSIS install/launch/uninstall plus
   Start Menu/desktop shortcut target/removal checks, installed MCP smoke,
   persisted MCP token relaunch through Windows safeStorage, Electron smoke,
   performance smoke with required launch timing, manual QA evidence-template
@@ -84,7 +84,7 @@ Windows preview support guidance lives in
 [Windows Preview Support](../support/windows-preview-support.md).
 
 Linux cross-packaging note: a Fedora 43 attempt on 2026-06-13 reached
-`release/win-unpacked/Hot Cross Buns 2.exe`, then stopped before NSIS installer
+`release/win-unpacked/Hot Cross Buns.exe`, then stopped before NSIS installer
 creation because Wine was not installed. Prefer Windows CI for the first
 packaging pass, or install Wine before using Linux cross-packaging. The
 release scripts use cross-platform TypeScript wrappers so native Windows shells

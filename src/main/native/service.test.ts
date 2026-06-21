@@ -384,14 +384,14 @@ describe("native shell service", () => {
     const adapter = new FakeNativeAdapter();
     adapter.updateResult = {
       checkedAt,
-      downloadUrl: "https://github.com/gongahkia/hot-cross-buns-2/releases/download/v1.2.0/HotCrossBuns2.dmg",
+      downloadUrl: "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns.dmg",
       latestVersion: "1.2.0",
       ok: true,
       releaseName: "v1.2.0",
-      releaseUrl: "https://github.com/gongahkia/hot-cross-buns-2/releases/tag/v1.2.0",
+      releaseUrl: "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.2.0",
       state: "ready",
       updateAvailable: true,
-      message: "Hot Cross Buns 2 1.2.0 is available from GitHub Releases."
+      message: "Hot Cross Buns 1.2.0 is available from GitHub Releases."
     };
     const { service } = createService({ adapter, recordUpdateCheck });
 
@@ -402,7 +402,7 @@ describe("native shell service", () => {
     });
     expect(recordUpdateCheck).toHaveBeenCalledWith(checkedAt);
     expect(service.capabilities().updaterStatus).toMatchObject({
-      releaseUrl: "https://github.com/gongahkia/hot-cross-buns-2/releases/tag/v1.2.0",
+      releaseUrl: "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.2.0",
       updateAvailable: true
     });
   });

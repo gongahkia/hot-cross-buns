@@ -10,7 +10,7 @@ import { McpToolRegistry } from "../src/main/mcp/toolRegistry";
 import type { JsonObject } from "../src/main/mcp/types";
 
 const token = "hcb-hoster-e2e-token";
-const secretService = "Hot Cross Buns 2 Local Hosters";
+const secretService = "Hot Cross Buns Local Hosters";
 
 async function main(): Promise<void> {
   const temp = createTemporarySqliteConnection("hcb-hoster-e2e-");

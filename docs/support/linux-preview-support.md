@@ -1,6 +1,6 @@
 # Linux Preview Support
 
-Hot Cross Buns 2 Linux support is a technical preview for Ubuntu 26.04 LTS on GNOME.
+Hot Cross Buns Linux support is a technical preview for Ubuntu 26.04 LTS on GNOME.
 The first preview artifact is an AppImage. Other distributions and desktop
 environments are secondary validation targets until the Linux QA matrix is
 complete.
@@ -15,7 +15,7 @@ uploading public Linux artifacts.
 
 ## Install And Run
 
-1. Download `Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage`,
+1. Download `Hot-Cross-Buns-<version>-linux-x86_64.AppImage`,
    `SHASUMS256.txt`, and the matching `.sha256` file from the release.
 2. Verify checksums:
 
@@ -26,13 +26,13 @@ uploading public Linux artifacts.
 3. Make the AppImage executable:
 
    ```sh
-   chmod +x Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage
+   chmod +x Hot-Cross-Buns-<version>-linux-x86_64.AppImage
    ```
 
 4. Launch it:
 
    ```sh
-   ./Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage
+   ./Hot-Cross-Buns-<version>-linux-x86_64.AppImage
    ```
 
 Use a terminal launch for first-run support reports so startup errors are
@@ -79,11 +79,11 @@ Useful checks for support reports:
 ```sh
 echo "$XDG_SESSION_TYPE"
 echo "$XDG_CURRENT_DESKTOP"
-./Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage --appimage-extract
+./Hot-Cross-Buns-<version>-linux-x86_64.AppImage --appimage-extract
 ```
 
 The extracted `squashfs-root/*.desktop` file should identify the app as
-`Hot Cross Buns 2`, category `Office`, and `StartupWMClass=hot-cross-buns-2`.
+`Hot Cross Buns`, category `Office`, and `StartupWMClass=hot-cross-buns`.
 
 ## Data And Removal
 
@@ -94,7 +94,7 @@ Electron stores app data using the platform app paths exposed in Diagnostics.
 For a clean smoke run, launch with an isolated user data directory:
 
 ```sh
-HCB_ALLOW_PACKAGED_USER_DATA_DIR=1 HCB_USER_DATA_DIR="$(mktemp -d)" ./Hot-Cross-Buns-2-<version>-linux-x86_64.AppImage
+HCB_ALLOW_PACKAGED_USER_DATA_DIR=1 HCB_USER_DATA_DIR="$(mktemp -d)" ./Hot-Cross-Buns-<version>-linux-x86_64.AppImage
 ```
 
 Before deleting data directories, export any local data you need to keep and

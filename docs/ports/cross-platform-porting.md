@@ -1,6 +1,6 @@
 # Cross-Platform Porting
 
-Hot Cross Buns 2 starts on macOS, then ports to Linux, then Windows. The shared product core must remain platform-neutral before any non-Mac packaging work begins.
+Hot Cross Buns starts on macOS, then ports to Linux, then Windows. The shared product core must remain platform-neutral before any non-Mac packaging work begins.
 
 ## Porting Order
 

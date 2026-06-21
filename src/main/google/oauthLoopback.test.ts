@@ -14,7 +14,7 @@ import { GOOGLE_CALENDAR_SCOPE, GOOGLE_TASKS_SCOPE } from "./types";
 
 describe("Google OAuth loopback controller", () => {
   it("opens the browser, accepts the loopback callback, and stores sanitized account status", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "hcb2-oauth-loopback-"));
+    const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-loopback-"));
     const connection = createAppSqliteConnection({ appSupportDirectory: directory });
     const configStore = new GoogleOAuthClientConfigStore(
       connection,

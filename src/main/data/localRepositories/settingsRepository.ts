@@ -49,9 +49,9 @@ import { remoteMutationOperationsForConnection, shouldQueueRemoteMutationsForCon
 import { systemTimeZone, uniqueIds, validationFailure } from "./shared";
 
 const PORTABLE_FORMAT_VERSION = 1;
-const PORTABLE_STATE_FILE = "hot-cross-buns-2-state.json";
+const PORTABLE_STATE_FILE = "hot-cross-buns-state.json";
 const PORTABLE_ATTACHMENT_DIR = "Attachments";
-const HCB_VAULT_AAD = "hot-cross-buns-2:vault:v1";
+const HCB_VAULT_AAD = "hot-cross-buns:vault:v1";
 const HCB_VAULT_SCRYPT = { cost: 32_768, blockSize: 8, parallelization: 1 } as const;
 const PORTABLE_TABLES = [
   "google_accounts",
@@ -1073,7 +1073,7 @@ export class LocalSettingsRepository {
   createLocalBackup(now = new Date().toISOString()): { path: string; backedUpAt: string } {
     const backupsDirectory = join(dirname(this.connection.databasePath), "Backups");
     const fileSafeTimestamp = now.replace(/[:.]/g, "-");
-    const backupPath = join(backupsDirectory, `hot-cross-buns-2-${fileSafeTimestamp}.sqlite3`);
+    const backupPath = join(backupsDirectory, `hot-cross-buns-${fileSafeTimestamp}.sqlite3`);
 
     mkdirSync(backupsDirectory, { recursive: true });
     this.connection.run("PRAGMA wal_checkpoint(FULL);");
@@ -1090,7 +1090,7 @@ export class LocalSettingsRepository {
     const exportDirectory = join(
       dirname(this.connection.databasePath),
       "PortableExports",
-      `hot-cross-buns-2-${now.replace(/[:.]/g, "-")}.hcbexport`
+      `hot-cross-buns-${now.replace(/[:.]/g, "-")}.hcbexport`
     );
     const attachmentDirectory = join(exportDirectory, PORTABLE_ATTACHMENT_DIR);
     const state = this.portableState(now, this.get());
@@ -1477,7 +1477,7 @@ export class LocalSettingsRepository {
     const statePath = join(archivePath, PORTABLE_STATE_FILE);
 
     if (!existsSync(manifestPath) || !existsSync(statePath)) {
-      throw validationFailure("Portable archive must contain manifest.json and hot-cross-buns-2-state.json.");
+      throw validationFailure("Portable archive must contain manifest.json and hot-cross-buns-state.json.");
     }
 
     const manifest = portableArchiveManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
@@ -1819,7 +1819,7 @@ function normalizedVaultPath(out: string | undefined, baseDirectory: string, now
   const fileSafeTimestamp = now.replace(/[:.]/g, "-");
   const candidate = out?.trim()
     ? out.trim()
-    : join(baseDirectory, "HcbVaults", `hot-cross-buns-2-${fileSafeTimestamp}.hcbvault`);
+    : join(baseDirectory, "HcbVaults", `hot-cross-buns-${fileSafeTimestamp}.hcbvault`);
   const normalized = normalize(candidate.endsWith(".hcbvault") ? candidate : `${candidate}.hcbvault`);
 
   return isAbsolute(normalized) ? normalized : join(baseDirectory, normalized);

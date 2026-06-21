@@ -186,7 +186,7 @@ export function AppSidebar({
           src={appIconUrl}
         />
         <div className="hidden min-w-0 lg:block">
-          <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
+          <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns</div>
         </div>
       </div>
 

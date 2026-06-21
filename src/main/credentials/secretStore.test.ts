@@ -85,7 +85,7 @@ async function withLinuxStore<T>(
     store: LinuxSecretServiceStore;
   }) => Promise<T>
 ): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "hcb2-linux-secret-store-"));
+  const directory = await mkdtemp(join(tmpdir(), "hcb-linux-secret-store-"));
   const backend = new FakeLinuxSafeStorageBackend();
   const storageFile = join(directory, "secrets.safe-storage.json");
   const store = new LinuxSecretServiceStore({
@@ -109,7 +109,7 @@ async function withWindowsStore<T>(
     store: WindowsSafeStorageSecretStore;
   }) => Promise<T>
 ): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "hcb2-windows-secret-store-"));
+  const directory = await mkdtemp(join(tmpdir(), "hcb-windows-secret-store-"));
   const backend = new FakeWindowsSafeStorageBackend();
   const storageFile = join(directory, "secrets.windows-safe-storage.json");
   const store = new WindowsSafeStorageSecretStore({
@@ -141,7 +141,7 @@ describe("secret stores", () => {
 
   it("persists Linux secrets as encrypted metadata without raw labels or values", async () => {
     await withLinuxStore(async ({ backend, storageFile, store }) => {
-      const key = { service: "Hot Cross Buns 2 Test", account: "oauth-token-account" };
+      const key = { service: "Hot Cross Buns Test", account: "oauth-token-account" };
 
       expect(store.status()).toMatchObject({
         ok: true,

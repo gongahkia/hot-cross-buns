@@ -12,19 +12,19 @@ import {
 } from "./packaged-mcp-smoke";
 
 const DEFAULT_RELEASE_DIR = "release";
-const stableAppImageName = "Hot-Cross-Buns-2-linux.AppImage";
-const stableX64AppImageName = "Hot-Cross-Buns-2-linux-x64.AppImage";
+const stableAppImageName = "Hot-Cross-Buns-linux.AppImage";
+const stableX64AppImageName = "Hot-Cross-Buns-linux-x64.AppImage";
 const checksumManifestName = "SHASUMS256.txt";
 const launchTimeoutMs = 12_000;
 const minimumAppImageBytes = 20 * 1024 * 1024;
-const versionedAppImagePattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-linux-(x64|x86_64|arm64|aarch64)\.AppImage$/;
+const versionedAppImagePattern = /^Hot-Cross-Buns-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-linux-(x64|x86_64|arm64|aarch64)\.AppImage$/;
 const requiredDesktopFields = new Map([
-  ["Name", "Hot Cross Buns 2"],
+  ["Name", "Hot Cross Buns"],
   ["Type", "Application"],
   ["Terminal", "false"],
   ["Categories", "Office;"],
   ["GenericName", "Planner"],
-  ["StartupWMClass", "hot-cross-buns-2"]
+  ["StartupWMClass", "hot-cross-buns"]
 ]);
 
 interface SmokeOptions {
@@ -110,7 +110,7 @@ export async function smokeLinuxAppImageArtifact(options: SmokeOptions = {}): Pr
   verifyStableAliasMatchesVersionedArtifact(artifactHashes, versionedAppImage, join(releaseDir, stableAppImageName));
   verifyStableAliasMatchesVersionedArtifact(artifactHashes, versionedAppImage, join(releaseDir, stableX64AppImageName));
 
-  const workDir = await mkdtemp(join(tmpdir(), "hcb2-appimage-smoke-"));
+  const workDir = await mkdtemp(join(tmpdir(), "hcb-appimage-smoke-"));
 
   try {
     await extractAppImage(versionedAppImage, workDir);
@@ -210,7 +210,7 @@ async function extractAppImage(artifact: string, workDir: string): Promise<void>
 }
 
 async function verifyDesktopEntry(workDir: string): Promise<void> {
-  const desktopPath = join(workDir, "squashfs-root", "hot-cross-buns-2.desktop");
+  const desktopPath = join(workDir, "squashfs-root", "hot-cross-buns.desktop");
   const desktop = await readFile(desktopPath, "utf8");
 
   for (const [field, expected] of requiredDesktopFields) {

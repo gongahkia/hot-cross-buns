@@ -259,7 +259,7 @@ export function AlertsSettingsTab({
               </Button>
             </div>
             <p className="text-[var(--text-sm)] text-text-secondary">
-              Choose a transparent PNG and give it a HCB2 name.
+              Choose a transparent PNG and give it a HCB name.
             </p>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem]">
               <div className="grid gap-3">

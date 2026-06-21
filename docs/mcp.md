@@ -1,10 +1,10 @@
-# Hot Cross Buns 2 MCP
+# Hot Cross Buns MCP
 
-Hot Cross Buns 2 can expose a local Model Context Protocol endpoint for agent clients that you explicitly configure on this Mac.
+Hot Cross Buns can expose a local Model Context Protocol endpoint for agent clients that you explicitly configure on this Mac.
 
 ## Enable
 
-1. Open Hot Cross Buns 2 Settings.
+1. Open Hot Cross Buns Settings.
 2. Go to General -> Agent access.
 3. Turn on Local MCP server.
 4. Choose a permission mode.
@@ -112,7 +112,7 @@ Use the copied Settings config when your client accepts HTTP MCP servers. For cl
 http://127.0.0.1:<port>/mcp
 ```
 
-and add the copied `Authorization` header. Keep Hot Cross Buns 2 running while the client connects.
+and add the copied `Authorization` header. Keep Hot Cross Buns running while the client connects.
 
 ## Transport notes
 

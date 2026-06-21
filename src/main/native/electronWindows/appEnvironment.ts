@@ -36,7 +36,7 @@ export function appPaths(): NativeAppPaths {
     cacheDirectory: sessionData,
     logsDirectory: logs,
     diagnosticsDirectory: join(userData, "diagnostics"),
-    tempDirectory: join(temp, "hot-cross-buns-2")
+    tempDirectory: join(temp, "hot-cross-buns")
   };
 }
 

@@ -112,7 +112,7 @@ export function encryptSignalEnvelope(
     publicKey: recipientPublicKey
   });
   const salt = randomBytes(16);
-  const key = Buffer.from(hkdfSync("sha256", shared, salt, "hcb2-signal-v1", 32));
+  const key = Buffer.from(hkdfSync("sha256", shared, salt, "hcb-signal-v1", 32));
   const iv = randomBytes(12);
   const cipher = createCipheriv(packageAlgorithm, key, iv) as CipherGCM;
   const plaintext = Buffer.from(JSON.stringify(value), "utf8");
@@ -148,7 +148,7 @@ export function decryptSignalEnvelope<T>(
   });
   const shared = diffieHellman({ privateKey, publicKey });
   const key = Buffer.from(
-    hkdfSync("sha256", shared, Buffer.from(envelope.saltBase64, "base64"), "hcb2-signal-v1", 32)
+    hkdfSync("sha256", shared, Buffer.from(envelope.saltBase64, "base64"), "hcb-signal-v1", 32)
   );
   const decipher = createDecipheriv(packageAlgorithm, key, Buffer.from(envelope.ivBase64, "base64")) as DecipherGCM;
   decipher.setAuthTag(Buffer.from(envelope.tagBase64, "base64"));

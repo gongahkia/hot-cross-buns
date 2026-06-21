@@ -2,7 +2,7 @@
 
 ## Scope And Evidence
 
-This plan translates the local Apple Calendar and Notion Calendar screenshots into scoped Hot Cross Buns 2 frontend work. It does not copy competitor branding, labels, artwork, icons, or layouts. It keeps the renderer unprivileged and uses the existing React, Tailwind, CSS token, typed preload, and local-cache architecture.
+This plan translates the local Apple Calendar and Notion Calendar screenshots into scoped Hot Cross Buns frontend work. It does not copy competitor branding, labels, artwork, icons, or layouts. It keeps the renderer unprivileged and uses the existing React, Tailwind, CSS token, typed preload, and local-cache architecture.
 
 Screenshot directories checked:
 
@@ -11,7 +11,7 @@ Screenshot directories checked:
 - `artifacts/reference-screenshots/ticktick/` - not used per the latest user instruction.
 - `artifacts/reference-screenshots/hcb-before/` - still missing from this checkout.
 
-Current Hot Cross Buns 2 comparison is therefore based on code inspection of the requested renderer files, not on before screenshots.
+Current Hot Cross Buns comparison is therefore based on code inspection of the requested renderer files, not on before screenshots.
 
 ## Screenshot Inventory
 
@@ -31,7 +31,7 @@ Current Hot Cross Buns 2 comparison is therefore based on code inspection of the
 | Notion Calendar | `artifacts/reference-screenshots/notion-calendar/week-view-time-blocking.png` | 1962 x 930 | Week grid with availability panel and hatched available slots | Availability preview, selected time ranges, scheduling link toggle, time-blocking overlays | Used |
 | Notion Calendar | `artifacts/reference-screenshots/notion-calendar/menu-bar-collapsed.png` | 260 x 70 | Menu-bar next-up compact state | Ultra-compact next-up status | Used as concept only |
 | Notion Calendar | `artifacts/reference-screenshots/notion-calendar/menu-bar-expanded.png` | 320 x 442 | Menu-bar agenda dropdown | Compact upcoming agenda, grouped times, settings entry | Used as concept only |
-| Hot Cross Buns 2 before | Requested `artifacts/reference-screenshots/hcb-before/` | Unknown | Missing | Current-state visual comparison should be redone from real screenshots | Blocked by missing screenshots |
+| Hot Cross Buns before | Requested `artifacts/reference-screenshots/hcb-before/` | Unknown | Missing | Current-state visual comparison should be redone from real screenshots | Blocked by missing screenshots |
 
 ## Current Renderer Baseline
 
@@ -54,9 +54,9 @@ Relevant existing constraints from docs:
 
 ## Source-Product Lesson Matrix
 
-| Source | Product-Agnostic Lesson | Evidence | Current HCB 2 Fit | Plan |
+| Source | Product-Agnostic Lesson | Evidence | Current HCB Fit | Plan |
 |---|---|---|---|---|
-| Apple Calendar | Calendar navigation should be stable and peripheral: source list left, primary range title visible, view controls stable, date navigation separate. | `year-view.png`, `month-view.png`, `week-view.png` | HCB 2 has a global section header and in-calendar tab controls, but calendar date/range navigation is thin and not visually tied to the grid. | Add a calendar-local header row with range label, previous/today/next controls, compact view tabs, and stable source-count badges inside `CalendarView`. |
+| Apple Calendar | Calendar navigation should be stable and peripheral: source list left, primary range title visible, view controls stable, date navigation separate. | `year-view.png`, `month-view.png`, `week-view.png` | HCB has a global section header and in-calendar tab controls, but calendar date/range navigation is thin and not visually tied to the grid. | Add a calendar-local header row with range label, previous/today/next controls, compact view tabs, and stable source-count badges inside `CalendarView`. |
 | Apple Calendar | Month and week grids should optimize density before decoration. | `month-view.png`, `week-view.png`, `day-view.png` | HCB month cells have minimum height 80px and show only the first visible event. Week view is a windowed day-column strip, not a timed grid. Day view is hourly but card-like. | Tighten month cell rhythm, show up to 2 or 3 event chips plus overflow count, reduce panel chrome, and make day rows read like a time grid rather than repeated cards. |
 | Apple Calendar | All-day content needs a distinct lane from timed content. | `month-view.png`, `existing-event-in-month-view.png`, `week-view.png` | HCB Today separates all-day into groups. Calendar day/week views mostly filter all-day into ordinary day cells or event lists. | Add explicit all-day lanes in Day and Week views before timed rows/columns. Keep the lane small, scroll-independent, and source-colored. |
 | Apple Calendar | Event color should identify source and state without overpowering text. | `month-view.png`, `existing-event-in-month-view.png`, `new-event-in-month-view.png` | HCB uses semantic badge tones and generic surfaces; event rows do not carry calendar-source color. | First use deterministic local source color classes from visible calendar order. Later, pass Google calendar colors through typed cache DTOs if needed. |

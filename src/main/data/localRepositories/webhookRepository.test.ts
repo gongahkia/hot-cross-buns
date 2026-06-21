@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function repositoryHarness() {
-  temporary = createTemporarySqliteConnection("hcb2-webhook-repository-");
+  temporary = createTemporarySqliteConnection("hcb-webhook-repository-");
   runLocalDataMigrations(temporary.connection);
 
   return {

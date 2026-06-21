@@ -3,8 +3,8 @@ import { basename, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_RELEASE_DIR = "release";
-const STABLE_PREFIX = "Hot-Cross-Buns-2-windows";
-const windowsInstallerPattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-(x64|x86_64|arm64|aarch64)\.exe$/;
+const STABLE_PREFIX = "Hot-Cross-Buns-windows";
+const windowsInstallerPattern = /^Hot-Cross-Buns-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-(x64|x86_64|arm64|aarch64)\.exe$/;
 
 interface PreviewArtifactOptions {
   releaseDir?: string;

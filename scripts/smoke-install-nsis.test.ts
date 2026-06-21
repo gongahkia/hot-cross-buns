@@ -14,23 +14,23 @@ import {
 
 describe("Windows NSIS install smoke helpers", () => {
   it("builds silent install args with the target directory last", () => {
-    expect(nsisSilentInstallArgs("C:\\hcb2\\app")).toEqual([
+    expect(nsisSilentInstallArgs("C:\\hcb\\app")).toEqual([
       "/S",
-      "/D=C:\\hcb2\\app"
+      "/D=C:\\hcb\\app"
     ]);
   });
 
   it("resolves the installed executable path", () => {
-    expect(basename(installedExecutablePath("C:\\hcb2\\app"))).toBe("Hot Cross Buns 2.exe");
+    expect(basename(installedExecutablePath("C:\\hcb\\app"))).toBe("Hot Cross Buns.exe");
   });
 
   it("finds the NSIS uninstaller in an install directory", async () => {
-    const installDir = await mkdtemp(join(tmpdir(), "hcb2-nsis-uninstaller-"));
+    const installDir = await mkdtemp(join(tmpdir(), "hcb-nsis-uninstaller-"));
     await mkdir(join(installDir, "resources"), { recursive: true });
-    await writeFile(join(installDir, "Hot Cross Buns 2.exe"), "");
-    await writeFile(join(installDir, "Uninstall Hot Cross Buns 2.exe"), "");
+    await writeFile(join(installDir, "Hot Cross Buns.exe"), "");
+    await writeFile(join(installDir, "Uninstall Hot Cross Buns.exe"), "");
 
-    await expect(findUninstaller(installDir)).resolves.toBe(join(installDir, "Uninstall Hot Cross Buns 2.exe"));
+    await expect(findUninstaller(installDir)).resolves.toBe(join(installDir, "Uninstall Hot Cross Buns.exe"));
   });
 
   it("resolves current-user Start Menu and Desktop shortcut paths", () => {
@@ -38,21 +38,21 @@ describe("Windows NSIS install smoke helpers", () => {
       APPDATA: "C:\\Users\\runneradmin\\AppData\\Roaming",
       USERPROFILE: "C:\\Users\\runneradmin"
     })).toEqual([
-      "C:\\Users\\runneradmin\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Hot Cross Buns 2.lnk",
-      "C:\\Users\\runneradmin\\Desktop\\Hot Cross Buns 2.lnk"
+      "C:\\Users\\runneradmin\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Hot Cross Buns.lnk",
+      "C:\\Users\\runneradmin\\Desktop\\Hot Cross Buns.lnk"
     ]);
   });
 
   it("escapes shortcut paths in PowerShell metadata reads", () => {
-    expect(shortcutMetadataPowerShell("C:\\Users\\O'Hara\\Desktop\\Hot Cross Buns 2.lnk")).toContain(
-      "$shortcut = $shell.CreateShortcut('C:\\Users\\O''Hara\\Desktop\\Hot Cross Buns 2.lnk')"
+    expect(shortcutMetadataPowerShell("C:\\Users\\O'Hara\\Desktop\\Hot Cross Buns.lnk")).toContain(
+      "$shortcut = $shell.CreateShortcut('C:\\Users\\O''Hara\\Desktop\\Hot Cross Buns.lnk')"
     );
   });
 
   it("escapes installed app paths in PowerShell process cleanup", () => {
-    const appExe = "C:\\Users\\O'Hara\\App\\Hot Cross Buns 2.exe";
+    const appExe = "C:\\Users\\O'Hara\\App\\Hot Cross Buns.exe";
 
-    expect(installedAppProcessIdsPowerShell(appExe)).toContain("$target = 'C:\\Users\\O''Hara\\App\\Hot Cross Buns 2.exe'");
+    expect(installedAppProcessIdsPowerShell(appExe)).toContain("$target = 'C:\\Users\\O''Hara\\App\\Hot Cross Buns.exe'");
     expect(installedAppProcessIdsPowerShell(appExe)).toContain("$_.CommandLine -like '*--disable-gpu*'");
     expect(stopInstalledAppProcessesPowerShell(appExe)).toContain("Stop-Process -Id $processIds -Force");
   });

@@ -7,7 +7,7 @@ import { GoogleSyncRepository } from "../sync/readSyncRepository";
 const now = "2026-05-23T00:00:00.000Z";
 
 function setupRepository(): { connection: SqliteConnection; cleanup: () => void; repository: LocalPlannerRepository; syncRepository: GoogleSyncRepository } {
-  const temporary = createTemporarySqliteConnection("hcb2-note-links-");
+  const temporary = createTemporarySqliteConnection("hcb-note-links-");
   runLocalDataMigrations(temporary.connection);
   const syncRepository = new GoogleSyncRepository(temporary.connection);
   syncRepository.writeTaskLists(

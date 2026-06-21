@@ -2,7 +2,7 @@
 
 ## Decision
 
-Hot Cross Buns 2 will use an Electron-first desktop stack:
+Hot Cross Buns will use an Electron-first desktop stack:
 
 - Electron for the app shell, native desktop lifecycle, tray, menu, global shortcuts, notifications, deep links, and packaging.
 - React + TypeScript for renderer UI.
@@ -31,7 +31,7 @@ Vite is the default renderer build tool because it gives a fast dev server, HMR,
 
 Tauri remains the strongest alternative. It is smaller at runtime, has a Rust backend, supports tray/global shortcut/updater plugins, and uses the OS webview instead of bundling Chromium.
 
-Rejected as the default because Hot Cross Buns 2 is optimizing for debuggability and agent velocity over binary size. Tauri also introduces Rust ownership and plugin-boundary complexity. It is a better fit if runtime footprint becomes a hard product constraint.
+Rejected as the default because Hot Cross Buns is optimizing for debuggability and agent velocity over binary size. Tauri also introduces Rust ownership and plugin-boundary complexity. It is a better fit if runtime footprint becomes a hard product constraint.
 
 Reference docs:
 

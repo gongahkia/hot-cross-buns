@@ -118,7 +118,7 @@ async function waitForAppWindow(electronApp: ElectronApplication): Promise<Page>
 
 test("launches, navigates, opens command palette, and creates core items", async () => {
   let electronApp: ElectronApplication | undefined;
-  const tempRoot = mkdtempSync(join(tmpdir(), "hcb2-smoke-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "hcb-smoke-"));
   const userDataDir = join(tempRoot, "user-data");
   const platformShortcut = process.platform === "darwin" ? "Meta" : "Control";
 

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 
 const helperFlag = "--hcb-read-mcp-token-safe-storage";
-const mcpTokenService = "Hot Cross Buns 2 MCP";
+const mcpTokenService = "Hot Cross Buns MCP";
 const mcpTokenAccount = "loopback-bearer-token";
 
 interface SafeStorageLike {

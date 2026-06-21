@@ -1,7 +1,7 @@
 const { createHash } = require("node:crypto");
 const { existsSync, readFileSync } = require("node:fs");
 
-const mcpTokenService = "Hot Cross Buns 2 MCP";
+const mcpTokenService = "Hot Cross Buns MCP";
 const mcpTokenAccount = "loopback-bearer-token";
 
 async function main() {
@@ -16,7 +16,7 @@ async function main() {
   }
 
   const { app, safeStorage } = require("electron");
-  app.setName("Hot Cross Buns 2");
+  app.setName("Hot Cross Buns");
   await app.whenReady();
 
   if (platform === "linux") {

@@ -14,7 +14,7 @@ Use [SECURITY.md](SECURITY.md) for private vulnerability reports.
 
 Latest release:
 
-https://github.com/gongahkia/hot-cross-buns-2/releases/latest
+https://github.com/gongahkia/hot-cross-buns/releases/latest
 
 Platform support docs:
 

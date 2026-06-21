@@ -1,12 +1,8 @@
-# Legacy Hot Cross Buns Context
+# Historical Swift App Context
 
-The original Hot Cross Buns repository is local reference material:
+This page records behavior from the pre-Electron Swift implementation preserved in Git history and project notes.
 
-```text
-/Users/gongahkia/Desktop/coding/projects/hot-cross-buns
-```
-
-Hot Cross Buns 2 must not depend on the Swift app at runtime. Use the old repo to understand behavior, UX, schema intent, and edge cases.
+Hot Cross Buns must not depend on the Swift app at runtime. Use this context to understand behavior, UX, schema intent, and edge cases.
 
 ## Product Shape To Preserve
 
@@ -25,9 +21,9 @@ The original app is a macOS planner built around:
 - local MCP server for agent access
 - diagnostics and recovery controls
 
-Hot Cross Buns 2 keeps the same product center but implements it with Electron, React, TypeScript, and SQLite.
+Hot Cross Buns keeps the same product center but implements it with Electron, React, TypeScript, and SQLite.
 
-## Useful Old-Repo References
+## Useful Historical References
 
 Architecture and docs:
 
@@ -68,7 +64,7 @@ Tests worth studying for behavior:
 - Google Tasks and Google Calendar are the synced sources of truth.
 - Local SQLite is cache, settings, checkpoints, offline mutation queue, diagnostics metadata, and task-backed note mirrors.
 - Google Drive is out of scope.
-- Renderer code in Hot Cross Buns 2 never gets direct filesystem, token, SQLite, or Google API access.
+- Renderer code in Hot Cross Buns never gets direct filesystem, token, SQLite, or Google API access.
 - UI writes and MCP writes must use the same domain services.
 - MCP uses read-only, confirm-writes, and allow-writes modes.
 - Destructive MCP writes always require confirmation.
@@ -88,5 +84,5 @@ Not allowed without explicit approval:
 
 - Copy Swift source as application code.
 - Reintroduce Xcode/XcodeGen as the active build path.
-- Make Hot Cross Buns 2 import or shell out to the old Swift app.
+- Make Hot Cross Buns import or shell out to the old Swift app.
 - Expand scope to mobile apps before the desktop roadmap is stable.

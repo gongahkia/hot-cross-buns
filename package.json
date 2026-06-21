@@ -1,8 +1,8 @@
 {
-  "name": "hot-cross-buns-2",
+  "name": "hot-cross-buns",
   "version": "5.0.0",
   "private": true,
-  "description": "Electron-first rebuild of Hot Cross Buns.",
+  "description": "Keyboard-first desktop planner for tasks, calendars, notes, and local agent workflows.",
   "author": "gongahkia",
   "main": "out/main/index.js",
   "bin": {

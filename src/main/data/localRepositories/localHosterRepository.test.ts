@@ -37,7 +37,7 @@ describe("local hoster repository", () => {
 
     expect(exported.manifest).toMatchObject({
       formatVersion: 1,
-      kind: "hot-cross-buns-2-local-hoster",
+      kind: "hot-cross-buns-local-hoster",
       hosterId: created.id,
       payloadFile: "payload.hcbenc",
       manifestSignature: {

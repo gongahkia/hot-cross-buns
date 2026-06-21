@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hot Cross Buns 2 is an Electron desktop app with a strict separation between UI, privileged app services, and background work.
+Hot Cross Buns is an Electron desktop app with a strict separation between UI, privileged app services, and background work.
 
 ```text
 Renderer (React)

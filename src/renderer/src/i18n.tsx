@@ -78,7 +78,7 @@ const en: Dictionary = {
   "action.settings": "Settings",
   "action.splitView": "Split view",
   "action.viewDiagnostics": "View diagnostics",
-  "app.name": "Hot Cross Buns 2",
+  "app.name": "Hot Cross Buns",
   "command.close": "Close command palette",
   "command.empty.noCommands": "No commands found",
   "command.empty.noLocalResults": "No local results",

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Hot Cross Buns 2 starts as a macOS app and must be designed for Windows and Linux expansion. Platform behavior belongs behind adapters so core product logic is shared.
+Hot Cross Buns starts as a macOS app and must be designed for Windows and Linux expansion. Platform behavior belongs behind adapters so core product logic is shared.
 
 ## Platform Priority
 

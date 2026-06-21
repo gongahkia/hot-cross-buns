@@ -42,7 +42,7 @@ import {
 import type { SqliteConnection } from "../sqliteConnection";
 import { validationFailure } from "./shared";
 
-const HOSTER_SECRET_SERVICE = "Hot Cross Buns 2 Local Hosters";
+const HOSTER_SECRET_SERVICE = "Hot Cross Buns Local Hosters";
 const HCBHOST_FORMAT_VERSION = LOCAL_HOSTER_HCBHOST_FORMAT_VERSION;
 const PAYLOAD_FILE = "payload.hcbenc";
 const replayPastWindowMs = 5 * 60 * 1000;

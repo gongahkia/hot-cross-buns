@@ -14,7 +14,7 @@ if [[ -z "${dmg_path:-}" || ! -f "$dmg_path" ]]; then
   exit 1
 fi
 
-mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcb2-dmg-smoke.XXXXXX")"
+mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcb-dmg-smoke.XXXXXX")"
 cleanup() {
   hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
   rm -rf "$mount_dir"
@@ -23,14 +23,14 @@ trap cleanup EXIT
 
 hdiutil attach "$dmg_path" -readonly -nobrowse -mountpoint "$mount_dir" -quiet
 
-app_path="$(find "$mount_dir" -maxdepth 2 -type d -name 'Hot Cross Buns 2.app' | head -n 1)"
+app_path="$(find "$mount_dir" -maxdepth 2 -type d -name 'Hot Cross Buns.app' | head -n 1)"
 if [[ -z "$app_path" ]]; then
-  echo "DMG did not contain Hot Cross Buns 2.app." >&2
+  echo "DMG did not contain Hot Cross Buns.app." >&2
   exit 1
 fi
 
 plist="$app_path/Contents/Info.plist"
-executable="$app_path/Contents/MacOS/Hot Cross Buns 2"
+executable="$app_path/Contents/MacOS/Hot Cross Buns"
 
 if [[ ! -f "$plist" ]]; then
   echo "App bundle is missing Info.plist." >&2
@@ -43,7 +43,7 @@ if [[ ! -x "$executable" ]]; then
 fi
 
 bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
-if [[ "$bundle_id" != "dev.hotcrossbuns.hotcrossbuns2" ]]; then
+if [[ "$bundle_id" != "dev.hotcrossbuns.hotcrossbuns" ]]; then
   echo "Unexpected bundle identifier: $bundle_id" >&2
   exit 1
 fi

@@ -28,7 +28,7 @@ export function AboutSettingsTab({
   const commit = build?.commit ?? "Not recorded";
   const environment = build?.environment ?? "development";
   const versionInfo = [
-    "Hot Cross Buns 2",
+    "Hot Cross Buns",
     `Version: ${version}`,
     `Build: ${commit}`,
     `Environment: ${environment}`

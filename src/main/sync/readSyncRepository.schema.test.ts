@@ -20,7 +20,7 @@ function eventColumnsOf(connection: ReturnType<typeof createTemporarySqliteConne
 
 describe("google_tasks planning columns", () => {
   it("creates planning columns on a fresh database", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-task-planning-fresh-");
+    const temporary = createTemporarySqliteConnection("hcb-task-planning-fresh-");
     try {
       new GoogleSyncRepository(temporary.connection);
       const columns = columnsOf(temporary.connection);
@@ -38,7 +38,7 @@ describe("google_tasks planning columns", () => {
   });
 
   it("backfills planning columns on a pre-existing schema without them", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-task-planning-alter-");
+    const temporary = createTemporarySqliteConnection("hcb-task-planning-alter-");
     try {
       temporary.connection.exec(`
         CREATE TABLE google_tasks (
@@ -80,7 +80,7 @@ describe("google_tasks planning columns", () => {
   });
 
   it("round-trips planning columns through direct inserts", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-task-planning-roundtrip-");
+    const temporary = createTemporarySqliteConnection("hcb-task-planning-roundtrip-");
     try {
       new GoogleSyncRepository(temporary.connection);
       temporary.connection.run(
@@ -135,7 +135,7 @@ describe("google_tasks planning columns", () => {
 
 describe("google_calendar_events local timezone column", () => {
   it("creates local timezone on a fresh database", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-event-timezone-fresh-");
+    const temporary = createTemporarySqliteConnection("hcb-event-timezone-fresh-");
     try {
       new GoogleSyncRepository(temporary.connection, { defaultTimeZone: "Asia/Singapore" });
       const columns = eventColumnsOf(temporary.connection);
@@ -148,7 +148,7 @@ describe("google_calendar_events local timezone column", () => {
   });
 
   it("adds local timezone on a pre-existing schema without it", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-event-timezone-alter-");
+    const temporary = createTemporarySqliteConnection("hcb-event-timezone-alter-");
     try {
       temporary.connection.exec(`
         CREATE TABLE google_calendar_events (
@@ -193,7 +193,7 @@ describe("google_calendar_events local timezone column", () => {
   });
 
   it("adds recurrence rule on a pre-existing schema without it", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-event-recurrence-alter-");
+    const temporary = createTemporarySqliteConnection("hcb-event-recurrence-alter-");
     try {
       temporary.connection.exec(`
         CREATE TABLE google_calendar_events (
@@ -230,7 +230,7 @@ describe("google_calendar_events local timezone column", () => {
   });
 
   it("round-trips local timezone through mirror writes", () => {
-    const temporary = createTemporarySqliteConnection("hcb2-event-timezone-roundtrip-");
+    const temporary = createTemporarySqliteConnection("hcb-event-timezone-roundtrip-");
     try {
       const repository = new GoogleSyncRepository(temporary.connection, { defaultTimeZone: "UTC" });
       repository.writeCalendarLists(

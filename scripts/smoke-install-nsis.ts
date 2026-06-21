@@ -12,10 +12,10 @@ import {
 } from "./packaged-mcp-smoke";
 
 const DEFAULT_RELEASE_DIR = "release";
-const stableX64InstallerName = "Hot-Cross-Buns-2-windows-x64.exe";
-const installedExecutableName = "Hot Cross Buns 2.exe";
-const shortcutName = "Hot Cross Buns 2.lnk";
-const versionedInstallerPattern = /^Hot-Cross-Buns-2-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-x64\.exe$/;
+const stableX64InstallerName = "Hot-Cross-Buns-windows-x64.exe";
+const installedExecutableName = "Hot Cross Buns.exe";
+const shortcutName = "Hot Cross Buns.lnk";
+const versionedInstallerPattern = /^Hot-Cross-Buns-\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?-windows-x64\.exe$/;
 
 interface SmokeInstallOptions {
   artifact?: string;
@@ -58,7 +58,7 @@ export async function smokeInstallWindowsNsis(options: SmokeInstallOptions = {})
   const installer = options.artifact ? resolve(options.artifact) : await findInstaller(releaseDir);
   const tempRoot = options.installDir
     ? undefined
-    : await mkdtemp(join(tmpdir(), "hcb2-nsis-install-smoke-"));
+    : await mkdtemp(join(tmpdir(), "hcb-nsis-install-smoke-"));
   const installDir = resolve(options.installDir ?? join(tempRoot ?? tmpdir(), "app"));
   const userDataDir = join(tempRoot ?? installDir, "user-data");
   const shortcutPaths = windowsShortcutPaths(process.env);

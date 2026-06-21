@@ -34,7 +34,7 @@ describe("central redaction utilities", () => {
         "client_secret=fake-client-secret",
         "Authorization: Bearer fake-bearer-token",
         '{"mcpToken":"fake-mcp-token"}',
-        "/home/alice/.config/Hot Cross Buns 2"
+        "/home/alice/.config/Hot Cross Buns"
       ].join(" ")
     );
 

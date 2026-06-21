@@ -14,7 +14,7 @@ const healthResponse = {
     appReadyMs: 2
   },
   build: {
-    appName: "Hot Cross Buns 2",
+    appName: "Hot Cross Buns",
     version: "0.0.0-test",
     environment: "test" as const,
     nodeVersion: process.versions.node,

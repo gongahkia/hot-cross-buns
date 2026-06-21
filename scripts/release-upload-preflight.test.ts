@@ -8,18 +8,18 @@ import { requiredReleaseAssets } from "./release-asset-preflight";
 import { verifyReleaseUploadPreflight } from "./release-upload-preflight";
 
 const linuxArtifacts = [
-  "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-  "Hot-Cross-Buns-2-linux.AppImage",
-  "Hot-Cross-Buns-2-linux-x64.AppImage"
+  "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+  "Hot-Cross-Buns-linux.AppImage",
+  "Hot-Cross-Buns-linux-x64.AppImage"
 ];
 const windowsArtifacts = [
-  "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-  "Hot-Cross-Buns-2-windows.exe",
-  "Hot-Cross-Buns-2-windows-x64.exe"
+  "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+  "Hot-Cross-Buns-windows.exe",
+  "Hot-Cross-Buns-windows-x64.exe"
 ];
 
 async function tempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-release-upload-"));
+  return mkdtemp(join(tmpdir(), "hcb-release-upload-"));
 }
 
 function sha256(value: string): string {
@@ -132,16 +132,16 @@ async function writeReleaseNotes(notesFile: string, target: "linux" | "windows",
     ? [
       "# Linux AppImage technical preview",
       "Ubuntu 26.04 LTS GNOME manual QA passed.",
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
       "unsupported notifications, global shortcuts, tray, and hotcrossbuns://"
     ]
     : [
       "# Windows NSIS technical preview",
       "Windows 11 25H2 installed-app manual QA passed.",
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+      "Hot-Cross-Buns-windows-x64.exe",
       "Get-FileHash",
       "unsigned NSIS SmartScreen expectations recorded."
     ];
@@ -170,7 +170,7 @@ describe("release upload preflight", () => {
       version: "5.0.0"
     });
 
-    expect(messages.join("\n")).toContain("Hot-Cross-Buns-2-linux-x64.AppImage exists");
+    expect(messages.join("\n")).toContain("Hot-Cross-Buns-linux-x64.AppImage exists");
     expect(messages.join("\n")).toContain("linux release upload preflight passed for 5.0.0");
   });
 
@@ -225,7 +225,7 @@ describe("release upload preflight", () => {
 
     await mkdir(releaseDir);
     for (const artifact of windowsArtifacts) {
-      const content = artifact === "Hot-Cross-Buns-2-windows-x64.exe" ? "wrong alias" : "release artifact";
+      const content = artifact === "Hot-Cross-Buns-windows-x64.exe" ? "wrong alias" : "release artifact";
       const hash = await writeReleaseArtifact(releaseDir, artifact, content);
 
       manifestLines.push(`${hash}  ${artifact}`);
@@ -241,7 +241,7 @@ describe("release upload preflight", () => {
       releaseDir,
       target: "windows",
       version: "5.0.0"
-    })).rejects.toThrow("Hot-Cross-Buns-2-windows-x64.exe does not match");
+    })).rejects.toThrow("Hot-Cross-Buns-windows-x64.exe does not match");
   });
 
   it("fails while release notes still contain publish blockers", async () => {
@@ -278,8 +278,8 @@ describe("release upload preflight", () => {
       "# Windows NSIS technical preview",
       "Windows NSIS artifacts prepared for review.",
       "Windows 11 25H2 installed-app manual QA passed.",
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+      "Hot-Cross-Buns-windows-x64.exe",
       "Get-FileHash",
       "unsigned NSIS SmartScreen expectations recorded."
     ].join("\n"));
@@ -306,8 +306,8 @@ describe("release upload preflight", () => {
     await writeFile(notesFile, [
       "# Windows NSIS technical preview",
       "Windows 11 25H2 installed-app manual QA passed.",
-      "Hot-Cross-Buns-2-5.0.0-windows-x64.exe",
-      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Hot-Cross-Buns-5.0.0-windows-x64.exe",
+      "Hot-Cross-Buns-windows-x64.exe",
       "unsigned NSIS SmartScreen expectations recorded."
     ].join("\n"));
 
@@ -354,7 +354,7 @@ describe("release upload preflight", () => {
     await writeFile(notesFile, [
       "# Windows NSIS technical preview",
       "Windows 11 25H2 installed-app manual QA passed.",
-      "Hot-Cross-Buns-2-windows-x64.exe",
+      "Hot-Cross-Buns-windows-x64.exe",
       "Get-FileHash",
       "unsigned NSIS SmartScreen expectations recorded."
     ].join("\n"));
@@ -366,7 +366,7 @@ describe("release upload preflight", () => {
       releaseDir,
       target: "windows",
       version: "5.0.0"
-    })).rejects.toThrow("missing release-note phrase: Hot-Cross-Buns-2-5.0.0-windows-x64.exe");
+    })).rejects.toThrow("missing release-note phrase: Hot-Cross-Buns-5.0.0-windows-x64.exe");
   });
 
   it("fails when release notes omit final target manual QA wording", async () => {
@@ -381,8 +381,8 @@ describe("release upload preflight", () => {
     await writeFile(notesFile, [
       "# Linux AppImage technical preview",
       "Ubuntu 26.04 LTS GNOME automated preview gates passed.",
-      "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
       "unsupported notifications, global shortcuts, tray, and hotcrossbuns://"
     ].join("\n"));

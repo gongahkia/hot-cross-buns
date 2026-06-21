@@ -413,7 +413,7 @@ export const settingsSnapshotSchema = z
 export type SettingsSnapshot = z.infer<typeof settingsSnapshotSchema>;
 
 export const HCB_VAULT_FORMAT_VERSION = 1;
-export const HCB_VAULT_KIND = "hot-cross-buns-2-vault";
+export const HCB_VAULT_KIND = "hot-cross-buns-vault";
 export const HCB_VAULT_PAYLOAD_FILE = "payload.hcbenc";
 export const HCB_VAULT_ALGORITHM = "scrypt-AES-256-GCM";
 
@@ -760,7 +760,7 @@ export const portableArchiveManifestSchema = z
     formatVersion: z.literal(1),
     exportedAt: isoDateTimeSchema,
     appVersion: z.string().min(1).max(80),
-    stateFile: z.literal("hot-cross-buns-2-state.json"),
+    stateFile: z.literal("hot-cross-buns-state.json"),
     stateSha256: z.string().regex(/^[0-9a-f]{64}$/),
     attachmentDirectory: z.literal("Attachments"),
     attachments: z.array(portableAttachmentManifestSchema).max(10_000),

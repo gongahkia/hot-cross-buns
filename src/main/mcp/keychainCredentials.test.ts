@@ -29,7 +29,7 @@ describe("Keychain MCP credential adapter", () => {
 
     await expect(adapter.loadBearerToken()).resolves.toBe("seed-token");
     await expect(store.read({
-      service: "Hot Cross Buns 2 MCP",
+      service: "Hot Cross Buns MCP",
       account: "loopback-bearer-token"
     })).resolves.toBe("seed-token");
   });

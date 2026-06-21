@@ -1,7 +1,7 @@
 # Windows Signing And SmartScreen
 
 Status: expected policy only. This has not been verified against an installed
-Hot Cross Buns 2 NSIS artifact on Windows 11 25H2.
+Hot Cross Buns NSIS artifact on Windows 11 25H2.
 
 ## Unsigned Preview Policy
 

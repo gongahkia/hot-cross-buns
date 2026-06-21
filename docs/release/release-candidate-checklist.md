@@ -23,10 +23,10 @@ Automated unit, typecheck, production build, Electron smoke, performance smoke, 
 | `pnpm release:mac:preview` | PASS | Tests, release build, bundle review, unsigned DMG/zip, and checksums completed. |
 | `pnpm pack:mac:preview` | PASS | 2026-05-23: rebuilt unsigned preview package, stable aliases, and checksums with the OAuth/Keychain/MCP/performance changes. |
 | `cd release && shasum -a 256 -c SHASUMS256.txt` | PASS | 2026-05-23: all 6 versioned/stable DMG and zip checksums verified. |
-| `pnpm release:smoke-dmg` | PASS | 2026-05-23: mounted `release/Hot-Cross-Buns-2-macOS.dmg` and verified app bundle, executable, Info.plist, and bundle id. |
-| `scripts/install-mac-preview.sh release/Hot-Cross-Buns-2-0.0.0-mac-arm64.zip release/SHASUMS256.txt /tmp/hcb2-install-helper-smoke` | PASS | Verified SHA-256 and copied the unsigned preview `.app` into a temporary destination without bypassing Gatekeeper. Temporary destination was removed after verification. |
+| `pnpm release:smoke-dmg` | PASS | 2026-05-23: mounted `release/Hot-Cross-Buns-macOS.dmg` and verified app bundle, executable, Info.plist, and bundle id. |
+| `scripts/install-mac-preview.sh release/Hot-Cross-Buns-0.0.0-mac-arm64.zip release/SHASUMS256.txt /tmp/hcb-install-helper-smoke` | PASS | Verified SHA-256 and copied the unsigned preview `.app` into a temporary destination without bypassing Gatekeeper. Temporary destination was removed after verification. |
 | `bash -n scripts/install-mac-preview.sh`, helper `--help`, and YAML parse for `.github/workflows/ci.yml` | PASS | Install helper shell syntax/help and CI workflow YAML parsed locally. |
-| `file assets/brand/... build/icon.icns`, `plutil -p .../Info.plist`, packaged brand asset listing, `codesign -dv --verbose=4 ...` | PASS | App icon 1024 px source, sidebar 64 px, menu-bar 18/36 px, `icon.icns`, packaged brand resources, bundle id `dev.hotcrossbuns.hotcrossbuns2`, version `0.0.0`, `hotcrossbuns` protocol, productivity category, and ad-hoc signature verified. |
+| `file assets/brand/... build/icon.icns`, `plutil -p .../Info.plist`, packaged brand asset listing, `codesign -dv --verbose=4 ...` | PASS | App icon 1024 px source, sidebar 64 px, menu-bar 18/36 px, `icon.icns`, packaged brand resources, bundle id `dev.hotcrossbuns.hotcrossbuns`, version `0.0.0`, `hotcrossbuns` protocol, productivity category, and ad-hoc signature verified. |
 | `git diff --check` | PASS | No whitespace errors. |
 | `rg` secret-pattern scans over source and diff | PASS | Only fake test fixtures and documentation references found. |
 | `git ls-files \| rg` and `git diff \| rg` Swift/Xcode scans | PASS | No Swift source, Xcode project, or runtime dependency found. |
@@ -42,10 +42,10 @@ Packaging artifacts:
 
 | Artifact | Size | Checksum |
 |---|---:|---|
-| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg` | 101 MiB | `1212fcb8a5372f2f61f531014cc917cde7f134a473c451c63c85ae164c78251c` |
-| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.zip` | 97 MiB | `c46f0514079ed30b12b4c539d897e1fd01314455882f1047c4d4f746adce8108` |
-| `release/Hot-Cross-Buns-2-macOS.dmg` | 101 MiB | `1212fcb8a5372f2f61f531014cc917cde7f134a473c451c63c85ae164c78251c` |
-| `release/Hot-Cross-Buns-2-macOS.zip` | 97 MiB | `c46f0514079ed30b12b4c539d897e1fd01314455882f1047c4d4f746adce8108` |
+| `release/Hot-Cross-Buns-0.0.0-mac-arm64.dmg` | 101 MiB | `1212fcb8a5372f2f61f531014cc917cde7f134a473c451c63c85ae164c78251c` |
+| `release/Hot-Cross-Buns-0.0.0-mac-arm64.zip` | 97 MiB | `c46f0514079ed30b12b4c539d897e1fd01314455882f1047c4d4f746adce8108` |
+| `release/Hot-Cross-Buns-macOS.dmg` | 101 MiB | `1212fcb8a5372f2f61f531014cc917cde7f134a473c451c63c85ae164c78251c` |
+| `release/Hot-Cross-Buns-macOS.zip` | 97 MiB | `c46f0514079ed30b12b4c539d897e1fd01314455882f1047c4d4f746adce8108` |
 
 Packaging caveats: `electron-builder` skipped signing because `mac.identity: null`, warned that arm64 requires signing, and generated blockmap/latest metadata that must not be uploaded for the unsigned preview flow. The macOS package uses `build/icon.icns` generated from the round bun app icon on a white rounded background, and package metadata now includes author `gongahkia`.
 

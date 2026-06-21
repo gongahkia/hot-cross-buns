@@ -56,16 +56,16 @@ function expectedReleaseArtifacts(
 ): string[] {
   if (target === "linux") {
     return [
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage"
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage"
     ];
   }
 
   return [
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    "Hot-Cross-Buns-2-windows.exe",
-    "Hot-Cross-Buns-2-windows-x64.exe"
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-windows.exe",
+    "Hot-Cross-Buns-windows-x64.exe"
   ];
 }
 
@@ -138,11 +138,11 @@ function verifyStableAliasesMatch(
   version = packageJson.version
 ): void {
   const versioned = target === "linux"
-    ? `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`
-    : `Hot-Cross-Buns-2-${version}-windows-x64.exe`;
+    ? `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`
+    : `Hot-Cross-Buns-${version}-windows-x64.exe`;
   const aliases = target === "linux"
-    ? ["Hot-Cross-Buns-2-linux.AppImage", "Hot-Cross-Buns-2-linux-x64.AppImage"]
-    : ["Hot-Cross-Buns-2-windows.exe", "Hot-Cross-Buns-2-windows-x64.exe"];
+    ? ["Hot-Cross-Buns-linux.AppImage", "Hot-Cross-Buns-linux-x64.AppImage"]
+    : ["Hot-Cross-Buns-windows.exe", "Hot-Cross-Buns-windows-x64.exe"];
   const versionedHash = hashes.get(versioned);
 
   if (!versionedHash) {

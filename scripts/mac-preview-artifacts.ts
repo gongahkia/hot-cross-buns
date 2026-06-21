@@ -2,7 +2,7 @@ import { copyFile, readdir, stat } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 
 const DEFAULT_RELEASE_DIR = "release";
-const STABLE_PREFIX = "Hot-Cross-Buns-2-macOS";
+const STABLE_PREFIX = "Hot-Cross-Buns-macOS";
 const artifactExtensions = new Set([".dmg", ".zip"]);
 
 function argValue(name: string, fallback: string): string {

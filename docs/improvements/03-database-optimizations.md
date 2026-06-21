@@ -16,7 +16,7 @@ Current Electron rebuild:
 - `src/main/data/localRepositories.ts`
 - `src/main/sync/readSyncRepository.ts`
 
-Hot Cross Buns 2 already uses SQLite, WAL, FTS5, local migrations, indexed Google mirror tables, pending mutations, checkpoints, and query timing diagnostics. The main gap is that the current connection is a Python subprocess bridge and the database lacks the legacy app's richer derived indexes, persistent prepared statements, incremental apply profiles, and repair paths.
+Hot Cross Buns already uses SQLite, WAL, FTS5, local migrations, indexed Google mirror tables, pending mutations, checkpoints, and query timing diagnostics. The main gap is that the current connection is a Python subprocess bridge and the database lacks the legacy app's richer derived indexes, persistent prepared statements, incremental apply profiles, and repair paths.
 
 ## Status - 2026-05-22 SQLite Adapter Pass
 

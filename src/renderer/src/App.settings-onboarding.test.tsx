@@ -299,7 +299,7 @@ describe("App settings and onboarding", () => {
     });
     const manifest = {
       formatVersion: 1 as const,
-      kind: "hot-cross-buns-2-vault" as const,
+      kind: "hot-cross-buns-vault" as const,
       exportedAt: "2026-05-22T00:00:00.000Z",
       appVersion: "0.0.0",
       stateEncoding: "hcb-portable-state-json" as const,
@@ -362,8 +362,8 @@ describe("App settings and onboarding", () => {
     render(<App />);
 
     await goToSection("Settings");
-    await user.type(screen.getByLabelText("HCB vault host token"), "remote-host-token");
-    await user.type(screen.getByLabelText("HCB vault passphrase"), "vault-passphrase");
+    fireEvent.change(screen.getByLabelText("HCB vault host token"), { target: { value: "remote-host-token" } });
+    fireEvent.change(screen.getByLabelText("HCB vault passphrase"), { target: { value: "vault-passphrase" } });
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {

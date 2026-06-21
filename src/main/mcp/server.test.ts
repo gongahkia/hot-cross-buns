@@ -331,7 +331,7 @@ describe("local MCP server contract", () => {
     expect((jsonBody(prompts).result.prompts as Array<{ name: string }>).map((item) => item.name)).toEqual(
       expect.arrayContaining(["debug-sync", "inspect-pending-mutations", "prepare-support-summary"])
     );
-    expect(JSON.stringify(jsonBody(prompt).result)).toContain("Debug local HCB2 sync health.");
+    expect(JSON.stringify(jsonBody(prompt).result)).toContain("Debug local HCB sync health.");
     expect(JSON.stringify(jsonBody(prompt).result)).toContain("Focus: queue.");
   });
 

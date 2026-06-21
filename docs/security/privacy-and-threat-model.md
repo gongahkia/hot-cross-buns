@@ -2,7 +2,7 @@
 
 ## Security Posture
 
-Hot Cross Buns 2 is a local-first desktop app that syncs with Google Tasks and Google Calendar. It must protect Google credentials, local personal planning data, and MCP write access.
+Hot Cross Buns is a local-first desktop app that syncs with Google Tasks and Google Calendar. It must protect Google credentials, local personal planning data, and MCP write access.
 
 The app ships with no third-party analytics SDK and no cloud crash reporter by default.
 
@@ -149,7 +149,7 @@ Diagnostics and performance reports expose counts, timings, status states, query
 
 Use this short summary in release notes and support replies for unsigned macOS preview builds:
 
-- Hot Cross Buns 2 stores planner cache data, settings, checkpoints, diagnostics metadata, and pending mutation state on the local Mac.
+- Hot Cross Buns stores planner cache data, settings, checkpoints, diagnostics metadata, and pending mutation state on the local Mac.
 - Google Tasks and Calendar use a bring-your-own Desktop OAuth client in the Mac preview. OAuth tokens, optional client secrets, and MCP bearer tokens are stored in macOS Keychain by the main process, not in renderer storage or SQLite.
 - Authenticated Google sync transport and scheduling are wired for macOS preview use, but live-account QA, conflict recovery polish, and signed/notarized distribution remain release blockers.
 - Notes are task-backed and sync through Google Tasks.

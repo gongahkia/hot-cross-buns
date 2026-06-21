@@ -23,9 +23,9 @@ import { NativeShellService } from "./service";
 
 const electronMock = vi.hoisted(() => {
   const paths: Record<string, string> = {
-    userData: "/home/test/.config/Hot Cross Buns 2",
-    sessionData: "/home/test/.cache/Hot Cross Buns 2",
-    logs: "/home/test/.local/state/Hot Cross Buns 2/logs",
+    userData: "/home/test/.config/Hot Cross Buns",
+    sessionData: "/home/test/.cache/Hot Cross Buns",
+    logs: "/home/test/.local/state/Hot Cross Buns/logs",
     temp: "/tmp"
   };
   const notificationInstances: MockNotification[] = [];
@@ -93,7 +93,7 @@ const electronMock = vi.hoisted(() => {
     app: {
       isPackaged: false,
       getAppPath: vi.fn(() => "/repo"),
-      getName: vi.fn(() => "Hot Cross Buns 2"),
+      getName: vi.fn(() => "Hot Cross Buns"),
       getPath: vi.fn((name: string) => paths[name] ?? `/tmp/hcb-${name}`),
       getVersion: vi.fn(() => "5.0.0"),
       getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
@@ -128,9 +128,9 @@ const originalUnvalidatedNativeShell = process.env.HCB_LINUX_ENABLE_UNVALIDATED_
 const originalSessionType = process.env.XDG_SESSION_TYPE;
 
 beforeEach(() => {
-  electronMock.paths.userData = "/home/test/.config/Hot Cross Buns 2";
-  electronMock.paths.sessionData = "/home/test/.cache/Hot Cross Buns 2";
-  electronMock.paths.logs = "/home/test/.local/state/Hot Cross Buns 2/logs";
+  electronMock.paths.userData = "/home/test/.config/Hot Cross Buns";
+  electronMock.paths.sessionData = "/home/test/.cache/Hot Cross Buns";
+  electronMock.paths.logs = "/home/test/.local/state/Hot Cross Buns/logs";
   electronMock.paths.temp = "/tmp";
   electronMock.Notification.isSupported.mockReset();
   electronMock.Notification.isSupported.mockReturnValue(true);
@@ -355,7 +355,7 @@ describe("native adapter contract", () => {
       state: "ready"
     });
     expect(electronMock.app.setAppUserModelId).toHaveBeenCalledWith(
-      "dev.hotcrossbuns.hotcrossbuns2"
+      "dev.hotcrossbuns.hotcrossbuns"
     );
   });
 
@@ -487,12 +487,12 @@ describe("native adapter contract", () => {
     const adapter = createElectronLinuxNativeAdapter({ currentPlatform: "linux" });
 
     expect(adapter.appPaths()).toEqual({
-      configDirectory: "/home/test/.config/Hot Cross Buns 2",
-      dataDirectory: "/home/test/.config/Hot Cross Buns 2/data",
-      cacheDirectory: "/home/test/.cache/Hot Cross Buns 2",
-      logsDirectory: "/home/test/.local/state/Hot Cross Buns 2/logs",
-      diagnosticsDirectory: "/home/test/.config/Hot Cross Buns 2/diagnostics",
-      tempDirectory: "/tmp/hot-cross-buns-2"
+      configDirectory: "/home/test/.config/Hot Cross Buns",
+      dataDirectory: "/home/test/.config/Hot Cross Buns/data",
+      cacheDirectory: "/home/test/.cache/Hot Cross Buns",
+      logsDirectory: "/home/test/.local/state/Hot Cross Buns/logs",
+      diagnosticsDirectory: "/home/test/.config/Hot Cross Buns/diagnostics",
+      tempDirectory: "/tmp/hot-cross-buns"
     });
     expect(electronMock.app.getPath).toHaveBeenCalledWith("userData");
     expect(electronMock.app.getPath).toHaveBeenCalledWith("sessionData");
@@ -653,9 +653,9 @@ describe("native adapter contract", () => {
     });
 
     electronMock.shell.openPath.mockResolvedValueOnce(
-      "failed to open /home/test/.config/Hot Cross Buns 2/token-file"
+      "failed to open /home/test/.config/Hot Cross Buns/token-file"
     );
-    await expect(adapter.openPath("/home/test/.config/Hot Cross Buns 2/token-file")).resolves.toEqual({
+    await expect(adapter.openPath("/home/test/.config/Hot Cross Buns/token-file")).resolves.toEqual({
       ok: false,
       state: "error",
       message: "Path could not be opened by the operating system."
@@ -663,9 +663,9 @@ describe("native adapter contract", () => {
   });
 
   it("reports schema-valid Windows preview capabilities", () => {
-    electronMock.paths.userData = "C:\\Users\\test\\AppData\\Roaming\\Hot Cross Buns 2";
-    electronMock.paths.sessionData = "C:\\Users\\test\\AppData\\Local\\Hot Cross Buns 2\\Session";
-    electronMock.paths.logs = "C:\\Users\\test\\AppData\\Local\\Hot Cross Buns 2\\logs";
+    electronMock.paths.userData = "C:\\Users\\test\\AppData\\Roaming\\Hot Cross Buns";
+    electronMock.paths.sessionData = "C:\\Users\\test\\AppData\\Local\\Hot Cross Buns\\Session";
+    electronMock.paths.logs = "C:\\Users\\test\\AppData\\Local\\Hot Cross Buns\\logs";
     electronMock.paths.temp = "C:\\Users\\test\\AppData\\Local\\Temp";
     electronMock.app.isPackaged = true;
     const adapter = createElectronWindowsNativeAdapter();
@@ -697,7 +697,7 @@ describe("native adapter contract", () => {
       requiresSignedBuildForNotifications: true
     });
     expect(electronMock.app.setAppUserModelId).toHaveBeenCalledWith(
-      "dev.hotcrossbuns.hotcrossbuns2"
+      "dev.hotcrossbuns.hotcrossbuns"
     );
     expect(adapter.credentialStorageStatus()).toMatchObject({
       ok: true,
@@ -749,9 +749,9 @@ describe("native adapter contract", () => {
         customMenuBarIcons: [],
         calendarDone: false,
         primaryClickAction: "open-menu",
-        title: "Hot Cross Buns 2",
+        title: "Hot Cross Buns",
         syncLabel: "Ready",
-        tooltip: "Hot Cross Buns 2",
+        tooltip: "Hot Cross Buns",
         sections: []
       }),
       quit: vi.fn()

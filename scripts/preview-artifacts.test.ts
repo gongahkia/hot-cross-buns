@@ -6,7 +6,7 @@ import { writeLinuxPreviewArtifacts } from "./linux-preview-artifacts";
 import { writeWindowsPreviewArtifacts } from "./windows-preview-artifacts";
 
 async function createReleaseDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "hcb2-preview-artifacts-"));
+  return mkdtemp(join(tmpdir(), "hcb-preview-artifacts-"));
 }
 
 describe("preview artifact aliases", () => {
@@ -14,22 +14,22 @@ describe("preview artifact aliases", () => {
     const releaseDir = await createReleaseDir();
 
     await writeFile(join(releaseDir, "helper-linux-x64.AppImage"), "wrong");
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-linux.AppImage"), "old stable");
-    const versionedAppImage = join(releaseDir, "Hot-Cross-Buns-2-5.0.0-linux-x86_64.AppImage");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-linux.AppImage"), "old stable");
+    const versionedAppImage = join(releaseDir, "Hot-Cross-Buns-5.0.0-linux-x86_64.AppImage");
 
     await writeFile(versionedAppImage, "linux appimage");
     await chmod(versionedAppImage, 0o755);
 
     await expect(writeLinuxPreviewArtifacts({ releaseDir })).resolves.toHaveLength(2);
-    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-2-linux.AppImage"), "utf8")).resolves.toBe(
+    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-linux.AppImage"), "utf8")).resolves.toBe(
       "linux appimage"
     );
-    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-2-linux-x64.AppImage"), "utf8")).resolves.toBe(
+    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-linux-x64.AppImage"), "utf8")).resolves.toBe(
       "linux appimage"
     );
     if (process.platform !== "win32") {
-      expect((await stat(join(releaseDir, "Hot-Cross-Buns-2-linux.AppImage"))).mode & 0o111).not.toBe(0);
-      expect((await stat(join(releaseDir, "Hot-Cross-Buns-2-linux-x64.AppImage"))).mode & 0o111).not.toBe(0);
+      expect((await stat(join(releaseDir, "Hot-Cross-Buns-linux.AppImage"))).mode & 0o111).not.toBe(0);
+      expect((await stat(join(releaseDir, "Hot-Cross-Buns-linux-x64.AppImage"))).mode & 0o111).not.toBe(0);
     }
   });
 
@@ -37,14 +37,14 @@ describe("preview artifact aliases", () => {
     const releaseDir = await createReleaseDir();
 
     await writeFile(join(releaseDir, "helper-windows-x64.exe"), "wrong");
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-windows.exe"), "old stable");
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-5.0.0-windows-x64.exe"), "windows installer");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-windows.exe"), "old stable");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-5.0.0-windows-x64.exe"), "windows installer");
 
     await expect(writeWindowsPreviewArtifacts({ releaseDir })).resolves.toHaveLength(2);
-    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-2-windows.exe"), "utf8")).resolves.toBe(
+    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-windows.exe"), "utf8")).resolves.toBe(
       "windows installer"
     );
-    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-2-windows-x64.exe"), "utf8")).resolves.toBe(
+    await expect(readFile(join(releaseDir, "Hot-Cross-Buns-windows-x64.exe"), "utf8")).resolves.toBe(
       "windows installer"
     );
   });
@@ -52,8 +52,8 @@ describe("preview artifact aliases", () => {
   it("rejects missing versioned release artifacts", async () => {
     const releaseDir = await createReleaseDir();
 
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-linux.AppImage"), "stable only");
-    await writeFile(join(releaseDir, "Hot-Cross-Buns-2-windows.exe"), "stable only");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-linux.AppImage"), "stable only");
+    await writeFile(join(releaseDir, "Hot-Cross-Buns-windows.exe"), "stable only");
 
     await expect(writeLinuxPreviewArtifacts({ releaseDir })).rejects.toThrow(
       "No versioned Linux AppImage artifacts found"

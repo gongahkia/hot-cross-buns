@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document tells future agents how to work in Hot Cross Buns 2 without drifting from the architecture and product decisions.
+This document tells future agents how to work in Hot Cross Buns without drifting from the architecture and product decisions.
 
 ## Before Starting Work
 
@@ -21,9 +21,9 @@ If the requested work conflicts with these docs, update or propose a doc change 
 
 ## Repository Boundaries
 
-This repo is the Electron-first rebuild. The old Swift repo is reference material only.
+This repo is the Electron app. The historical Swift implementation is reference material only.
 
-Allowed from the old repo:
+Allowed from historical Swift material:
 
 - product behavior references
 - schema concepts
@@ -36,8 +36,8 @@ Not allowed without explicit approval:
 
 - copying Swift source code directly
 - reviving Swift build infrastructure
-- making the Swift repo a runtime dependency
-- implementing new features in the old Swift repo when the request targets Hot Cross Buns 2
+- making the Swift implementation a runtime dependency
+- implementing new features in the historical Swift implementation when the request targets Hot Cross Buns
 
 ## Implementation Rules
 

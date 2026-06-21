@@ -53,7 +53,7 @@ export class MenuBarPanelController {
       movable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      title: "Hot Cross Buns 2 menu bar panel",
+      title: "Hot Cross Buns menu bar panel",
       backgroundColor: "#00000000",
       webPreferences: {
         contextIsolation: true,

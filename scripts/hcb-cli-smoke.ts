@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     await expectCommand(["retry-mutation", "mutation-1"], "HCB retry-mutation: dry-run", runtimeFile, token);
     await expectCommand(["cancel-mutation", "mutation-1"], "HCB cancel-mutation: dry-run", runtimeFile, token);
     await expectMcpMethod(port, token, "resources/read", { uri: "hcb://status" }, "diagnosticsStatus");
-    await expectMcpMethod(port, token, "prompts/get", { name: "debug-sync" }, "Debug local HCB2 sync health.");
+    await expectMcpMethod(port, token, "prompts/get", { name: "debug-sync" }, "Debug local HCB sync health.");
     await expectCommand(["create", "task", "--title", "Smoke task"], "HCB create task: dry-run", runtimeFile, token);
     await expectCommand(["create", "event", "--title", "Smoke event", "--start-date", "2026-06-04T09:00:00.000Z"], "HCB create event: dry-run", runtimeFile, token);
     await expectCommand(["create", "task-list", "--title", "Smoke tasks"], "HCB create task-list: dry-run", runtimeFile, token);

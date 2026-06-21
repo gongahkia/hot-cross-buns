@@ -48,29 +48,29 @@ function normalizeTarget(value: string | undefined): ReleaseUploadTarget {
 function releaseArtifacts(target: ReleaseUploadTarget, version = packageJson.version): string[] {
   if (target === "linux") {
     return [
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      "Hot-Cross-Buns-2-linux.AppImage",
-      "Hot-Cross-Buns-2-linux-x64.AppImage"
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-linux.AppImage",
+      "Hot-Cross-Buns-linux-x64.AppImage"
     ];
   }
 
   return [
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    "Hot-Cross-Buns-2-windows.exe",
-    "Hot-Cross-Buns-2-windows-x64.exe"
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-windows.exe",
+    "Hot-Cross-Buns-windows-x64.exe"
   ];
 }
 
 function versionedArtifact(target: ReleaseAssetTarget, version = packageJson.version): string {
   return target === "linux"
-    ? `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`
-    : `Hot-Cross-Buns-2-${version}-windows-x64.exe`;
+    ? `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`
+    : `Hot-Cross-Buns-${version}-windows-x64.exe`;
 }
 
 function stableAliases(target: ReleaseAssetTarget): string[] {
   return target === "linux"
-    ? ["Hot-Cross-Buns-2-linux.AppImage", "Hot-Cross-Buns-2-linux-x64.AppImage"]
-    : ["Hot-Cross-Buns-2-windows.exe", "Hot-Cross-Buns-2-windows-x64.exe"];
+    ? ["Hot-Cross-Buns-linux.AppImage", "Hot-Cross-Buns-linux-x64.AppImage"]
+    : ["Hot-Cross-Buns-windows.exe", "Hot-Cross-Buns-windows-x64.exe"];
 }
 
 function parseChecksumLine(line: string, sourceName: string): ChecksumEntry {
@@ -146,8 +146,8 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget, version = packag
     return [
       "Linux AppImage",
       "technical preview",
-      `Hot-Cross-Buns-2-${version}-linux-x86_64.AppImage`,
-      "Hot-Cross-Buns-2-linux-x64.AppImage",
+      `Hot-Cross-Buns-${version}-linux-x86_64.AppImage`,
+      "Hot-Cross-Buns-linux-x64.AppImage",
       "sha256sum -c SHASUMS256.txt",
       "Ubuntu 26.04 LTS GNOME manual QA passed",
       "unsupported",
@@ -161,8 +161,8 @@ function requiredReleaseNotePhrases(target: ReleaseAssetTarget, version = packag
   return [
     "Windows NSIS",
     "technical preview",
-    `Hot-Cross-Buns-2-${version}-windows-x64.exe`,
-    "Hot-Cross-Buns-2-windows-x64.exe",
+    `Hot-Cross-Buns-${version}-windows-x64.exe`,
+    "Hot-Cross-Buns-windows-x64.exe",
     "Get-FileHash",
     "Windows 11 25H2 installed-app manual QA passed",
     "unsigned",

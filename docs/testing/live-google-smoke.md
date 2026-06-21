@@ -4,14 +4,14 @@ Use this only with a disposable Google account or a clearly marked test calendar
 
 ## Preconditions
 
-- HCB2 is connected to Google Tasks and Google Calendar.
+- HCB is connected to Google Tasks and Google Calendar.
 - Sync mode is not paused.
 - Diagnostics performance collection is enabled.
 - Open Google Calendar and Google Tasks web in a browser for confirmation.
 
 ## Startup
 
-- Launch HCB2.
+- Launch HCB.
 - Confirm cached data renders before any long sync dialog blocks interaction.
 - Open Diagnostics and confirm recent performance timings include `startup.bootstrap.light`.
 - If bootstrap failed, confirm a `startup.bootstrap.fallback-fanout` timing explains the fallback reason.
@@ -19,13 +19,13 @@ Use this only with a disposable Google account or a clearly marked test calendar
 
 ## Create
 
-- Create one task in HCB2.
+- Create one task in HCB.
 - Confirm the task appears locally immediately.
 - Confirm pending mutations briefly increase.
 - Confirm a recent `sync.post-crud-drain` timing appears with `accepted=true`.
 - Confirm the task appears in Google Tasks web after drain.
-- Create one calendar event in HCB2 and repeat the local/pending/drain/Google Calendar checks.
-- Create one note in HCB2 and confirm it appears in Google Tasks web as the task-backed note model.
+- Create one calendar event in HCB and repeat the local/pending/drain/Google Calendar checks.
+- Create one note in HCB and confirm it appears in Google Tasks web as the task-backed note model.
 
 ## Update
 
