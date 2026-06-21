@@ -1,7 +1,8 @@
 # Energy Profiling Workflow
 
-This archived workflow was used to evaluate foreground polling, background
-refresh, calendar motion, notifications, and Spotlight indexing energy impact.
+Use this workflow before closing #6. The goal is to verify that foreground
+polling, background refresh, calendar motion, notifications, and Spotlight
+indexing do not create unacceptable energy impact in common user sessions.
 
 ## Build
 
@@ -82,7 +83,7 @@ only for profiling; it intentionally emits extra debug work.
 
 ## Pass Criteria
 
-The original pass criteria were:
+#6 can be closed only after evidence shows:
 
 - near-realtime polling exits while the scene is inactive
 - unfocused and Low Power Mode cadences are longer than focused cadence
@@ -91,6 +92,8 @@ The original pass criteria were:
   enabled
 - no scenario shows sustained high Energy impact without an explained active
   user action
+
+Attach the profiling evidence to #6 before closing it.
 
 ## 2026-05-13 Local Evidence Pass
 
@@ -130,4 +133,7 @@ Further exact Release-app profiling:
   near-realtime sync activity during the sampled steady-state window. The Mac
   also slept during this window.
 
-Artifacts from this local pass were written under `.build-evidence/issue-6/`.
+Artifacts from this local pass are under `.build-evidence/issue-6/`. This is
+useful regression evidence, but it does not replace the required 5 minute Xcode
+Energy Gauge or Instruments Energy Organizer runs for closing #6, especially
+the signed-in near-realtime cadence scenarios.

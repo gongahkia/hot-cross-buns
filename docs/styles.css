@@ -314,22 +314,17 @@ code, kbd {
 /* hero shot */
 .hero-shot { margin: 0; position: relative; }
 
-.demo-video {
+.demo-art {
   display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10.4;
+  width: min(100%, 520px);
   height: auto;
+  max-height: min(74vh, 760px);
+  margin: 0 auto;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow);
   border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
   background: var(--mantle);
-  object-fit: contain;
-  object-position: center top;
-}
-
-.window-video {
-  max-height: min(72vh, 860px);
 }
 
 /* window placeholder */
@@ -363,6 +358,29 @@ code, kbd {
 .placeholder-window .tl span:nth-child(2) { background: #f5a97faa; }
 .placeholder-window .tl span:nth-child(3) { background: #a6da95aa; }
 
+.app-gif-placeholder {
+  width: min(100%, 720px);
+  margin: 0 auto;
+}
+.app-gif-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 52px 18px 18px;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, transparent 0 13%, color-mix(in srgb, var(--surface0) 55%, transparent) 13% 14%, transparent 14% 27%, color-mix(in srgb, var(--surface0) 55%, transparent) 27% 28%, transparent 28% 41%, color-mix(in srgb, var(--surface0) 55%, transparent) 41% 42%, transparent 42% 55%, color-mix(in srgb, var(--surface0) 55%, transparent) 55% 56%, transparent 56% 69%, color-mix(in srgb, var(--surface0) 55%, transparent) 69% 70%, transparent 70% 83%, color-mix(in srgb, var(--surface0) 55%, transparent) 83% 84%, transparent 84%),
+    linear-gradient(180deg, transparent 0 18%, color-mix(in srgb, var(--surface0) 55%, transparent) 18% 19%, transparent 19% 37%, color-mix(in srgb, var(--surface0) 55%, transparent) 37% 38%, transparent 38% 56%, color-mix(in srgb, var(--surface0) 55%, transparent) 56% 57%, transparent 57% 75%, color-mix(in srgb, var(--surface0) 55%, transparent) 75% 76%, transparent 76%),
+    linear-gradient(110deg, transparent 0 38%, color-mix(in srgb, var(--base) 45%, transparent) 48%, transparent 58%),
+    color-mix(in srgb, var(--base) 64%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface0) 60%, transparent);
+  opacity: .82;
+  animation: placeholder-wait 2.4s ease-in-out infinite;
+}
+@keyframes placeholder-wait {
+  0%, 100% { opacity: .55; }
+  50% { opacity: .9; }
+}
+
 .placeholder .ph-label {
   position: absolute;
   left: 50%; top: 50%;
@@ -376,6 +394,7 @@ code, kbd {
   border-radius: 6px;
   background: color-mix(in srgb, var(--base) 70%, transparent);
   white-space: nowrap;
+  z-index: 1;
 }
 .placeholder .ph-note {
   position: absolute;
@@ -385,6 +404,24 @@ code, kbd {
   font-size: .76rem;
   color: var(--overlay);
   letter-spacing: .04em;
+  z-index: 1;
+}
+.media-window {
+  width: min(100%, 720px);
+  aspect-ratio: 16 / 10.4;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  background: var(--mantle);
+}
+.media-window video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--mantle);
 }
 
 /* views */
@@ -468,6 +505,10 @@ code, kbd {
   .keys-intro { grid-template-columns: 1.05fr 1fr; gap: 72px; }
 }
 .keys-shot { margin: 0; }
+.keys-copy {
+  margin-bottom: 0;
+  max-width: 46ch;
+}
 .section-head.end {
   text-align: right;
   margin-left: auto;
@@ -547,6 +588,21 @@ kbd {
 .menubar-shot {
   margin: 0;
 }
+.menubar-image-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.menubar-image-pair img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  background: var(--mantle);
+}
 .menubar-copy {
   min-width: 0;
   display: flex;
@@ -585,6 +641,10 @@ kbd {
   font-size: .94rem;
   line-height: 1.45;
   max-width: none;
+}
+
+.webviews {
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
 }
 
 /* reviews */
@@ -629,6 +689,44 @@ kbd {
   color: var(--peach);
   border-bottom: 1px solid currentColor;
   padding-bottom: 2px;
+}
+
+/* promo art */
+.promos {
+  padding: clamp(72px, 10vw, 120px) clamp(20px, 4vw, 56px);
+  max-width: 1240px;
+  margin: 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
+}
+.promos-head {
+  max-width: 760px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+.promos-head .eyebrow { display: block; margin-bottom: 14px; }
+.promo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 2vw, 28px);
+  align-items: start;
+}
+.promo-card {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--mantle);
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  box-shadow: var(--shadow);
+}
+.promo-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.promo-card .placeholder {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* updates */
@@ -686,13 +784,14 @@ kbd {
   border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
   text-align: center;
 }
-.download-inner { max-width: 620px; margin: 0 auto; }
+.download-inner { max-width: 1040px; margin: 0 auto; }
 .download .eyebrow { display: block; margin-bottom: 14px; }
 .download h2 { margin-bottom: 18px; }
 .download .lede {
   color: var(--subtext1);
   font-size: 1.08rem;
-  margin-bottom: 36px;
+  max-width: 650px;
+  margin: 0 auto 36px;
   line-height: 1.5;
 }
 .download-cta {
@@ -700,6 +799,50 @@ kbd {
   flex-direction: column;
   align-items: center;
   gap: 18px;
+}
+.download-platforms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0 auto 34px;
+  text-align: center;
+}
+.download-platform {
+  border: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
+  border-radius: 8px;
+  padding: 28px 22px;
+  background: color-mix(in srgb, var(--base) 82%, transparent);
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.download-platform-icon {
+  width: 76px;
+  height: 76px;
+  display: inline-grid;
+  place-items: center;
+}
+.download-platform-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  opacity: .82;
+}
+[data-theme="mocha"] .download-platform-icon img {
+  filter: invert(1) brightness(1.2);
+  opacity: .94;
+}
+.download-platform h3 {
+  font-size: 1.08rem;
+  margin: 0;
+}
+.download-platform .cta-secondary {
+  display: inline-flex;
+  font-size: .88rem;
 }
 .download-meta {
   margin: 0;
@@ -745,10 +888,20 @@ kbd {
 .brew-terminal p {
   text-align: center;
 }
+.brew-terminal h3 {
+  margin: 18px 0 0;
+  font-size: .88rem;
+  color: var(--subtext1);
+  font-family: "Geist", sans-serif;
+  font-weight: 500;
+}
+.brew-terminal h3:first-child {
+  margin-top: 18px;
+}
 .brew-terminal pre {
-  width: min(100%, 980px);
+  width: min(100%, 780px);
   display: block;
-  margin: 18px auto 0;
+  margin: 8px auto 0;
   text-align: left;
   overflow-x: hidden;
 }
@@ -1033,8 +1186,8 @@ body.modal-open {
   .keys-grid { grid-template-columns: 1fr; gap: 32px; }
   .key-col dl > div { gap: 12px; }
 
-  /* views / menubar / reviews / updates / download padding */
-  .views, .menubar, .reviews, .updates, .download {
+  /* views / menubar / reviews / promos / updates / download padding */
+  .views, .menubar, .reviews, .promos, .updates, .download {
     padding-left: 18px; padding-right: 18px;
   }
   .section-head { margin-bottom: 36px; }
@@ -1046,9 +1199,26 @@ body.modal-open {
   .reviews { padding-top: 56px; padding-bottom: 56px; }
   .review-list li { font-size: 1.05rem; }
 
+  .promos { padding-top: 56px; padding-bottom: 56px; }
+  .promos-head { margin-bottom: 28px; }
+  .promo-grid {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+  }
+  .promo-card {
+    flex: 0 0 min(78vw, 320px);
+    scroll-snap-align: center;
+  }
+
   .update-entry { grid-template-columns: 1fr; gap: 10px; }
 
   .download-inner { padding: 0 4px; }
+  .download-platforms {
+    grid-template-columns: 1fr;
+  }
   .download-modal-card {
     padding: 24px 20px 20px;
   }

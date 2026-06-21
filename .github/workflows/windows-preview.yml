@@ -1,0 +1,96 @@
+name: Windows Preview Validation
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  CSC_IDENTITY_AUTO_DISCOVERY: false
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  windows-preview:
+    name: NSIS package and runtime smoke
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: HCB CLI MCP smoke on Windows
+        run: pnpm hcb:smoke
+
+      - name: Build Windows preview installer
+        run: pnpm release:win:preview
+
+      - name: Smoke Windows installer artifact
+        run: pnpm release:smoke-nsis
+
+      - name: Verify Windows installer checksum
+        shell: pwsh
+        run: |
+          $artifact = ".\release\Hot-Cross-Buns-2-windows-x64.exe"
+          $hash = (Get-FileHash $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+          $line = Get-Content .\release\SHASUMS256.txt | Where-Object { $_ -match "  Hot-Cross-Buns-2-windows-x64\.exe$" } | Select-Object -First 1
+          if (-not $line) { throw "SHASUMS256.txt is missing Hot-Cross-Buns-2-windows-x64.exe" }
+          $expected = ($line -split "\s+")[0].ToLowerInvariant()
+          if ($hash -ne $expected) { throw "Windows installer checksum mismatch" }
+          Write-Host "$hash  Hot-Cross-Buns-2-windows-x64.exe"
+
+      - name: Silent install Windows preview installer and MCP
+        env:
+          HCB_PACKAGED_MCP_SMOKE: "1"
+        run: pnpm release:smoke-nsis-install
+
+      - name: Electron smoke on Windows
+        run: pnpm test:smoke
+
+      - name: Performance smoke on Windows
+        env:
+          HCB_PERF_REQUIRE_ELECTRON: "1"
+        run: pnpm test:perf
+
+      - name: Generate Windows manual QA evidence template
+        run: pnpm qa:evidence -- --target windows --dir release
+
+      - name: Verify Windows preview artifact bundle
+        run: pnpm release:artifact-bundle -- --target windows --dir .
+
+      - name: Upload Windows preview artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-preview-artifacts-${{ github.run_id }}
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 14
+          path: |
+            release/*.exe
+            release/*.sha256
+            release/SHASUMS256.txt
+            release/*.blockmap
+            release/*.yml
+            artifacts/manual-qa/**
+            artifacts/release/**
+            artifacts/perf/**
+            output/playwright/**
+            test-results/**
+            playwright-report/**
