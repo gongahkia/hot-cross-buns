@@ -1,86 +1,88 @@
-
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns">
-    <img src="docs/logo.png" alt="Hot Cross Buns logo" width="144" />
+  <a href="https://github.com/gongahkia/hot-cross-buns-2">
+    <img src="docs/logo.png" alt="Hot Cross Buns 2 logo" width="144" />
   </a>
 </p>
 
-<h1 align="center">Hot Cross Buns</h1>
+<h1 align="center">Hot Cross Buns 2</h1>
 
-<h3 align="center">Keyboard-first planning for macOS, backed by Google Tasks and Google Calendar.</h3>
+<h3 align="center">Keyboard-first desktop planner for Google Tasks, Google Calendar, local HCB vaults, and terminal workflows on macOS, Linux, and Windows.</h3>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">Release Archive</a> ·
-  <a href="apps/apple/README.md">Apple App</a> ·
+  <a href="https://gongahkia.github.io/hot-cross-buns-2/">Website</a> ·
+  <a href="docs/README.md">Docs</a> ·
   <a href="docs/mcp.md">MCP</a> ·
-  <a href="reference/architecture/ARCHITECTURE.md">Architecture</a>
+  <a href="docs/architecture/system-architecture.md">Architecture</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg">
-    <img src="https://img.shields.io/badge/Release-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="Release DMG" />
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">
+    <img src="https://img.shields.io/badge/macOS-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="macOS DMG" />
+  </a>
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">
+    <img src="https://img.shields.io/badge/Linux-AppImage-5E8C61?style=for-the-badge&logo=linux&logoColor=white&labelColor=1f2430" alt="Linux AppImage" />
+  </a>
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">
+    <img src="https://img.shields.io/badge/Windows-NSIS-4F7DBD?style=for-the-badge&logo=windows&logoColor=white&labelColor=1f2430" alt="Windows NSIS installer" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">
-    <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns?display_name=tag" alt="Latest release" />
+  <a href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest">
+    <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns-2?display_name=tag" alt="Latest release" />
   </a>
   <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
-  <img src="https://img.shields.io/badge/Distribution-Unsigned%20DMG-orange" alt="Unsigned DMG distribution" />
+  <img src="https://img.shields.io/badge/Linux-x64%20AppImage-black" alt="Linux x64 AppImage" />
+  <img src="https://img.shields.io/badge/Windows-x64%20NSIS-black" alt="Windows x64 NSIS" />
+  <img src="https://img.shields.io/badge/Distribution-Unsigned-orange" alt="Unsigned distribution" />
 </p>
 
-> [!WARNING]  
-> [Hot Cross Buns](https://github.com/gongahkia/hot-cross-buns)'s deployment is inactive as of 11 June 2026.
->
-> For those still interested, ***check out [Hot Cross Buns 2](https://github.com/gongahkia/hot-cross-buns-2)***!
-
 > [!IMPORTANT]
-> Public downloads currently ship as an unsigned DMG. On first launch, macOS may ask the user to allow the app once from `System Settings > Privacy & Security > Open Anyway`.
+> Downloads are unsigned. macOS may require `System Settings > Privacy & Security > Open Anyway` on first launch, Windows may show SmartScreen warnings, and Linux tray/status-area surfaces, deep links, notifications, global shortcuts, and autostart are intentionally unsupported.
 
 ## Table of Contents
 
 - [Highlights](#highlights)
-- [Demo](#demo)
 - [Install](#install)
-- [Archived Status](#archived-status)
 - [Architecture](#architecture)
 - [Repository Layout](#repository-layout)
-- [Build From Source](#build-from-source)
-- [Historical Release Artifacts](#historical-release-artifacts)
+- [Local Development](#local-development)
+- [Release Checks](#release-checks)
 - [Testing](#testing)
 - [Additional Documentation](#additional-documentation)
 
 ## Highlights
 
-Hot Cross Buns is a native Mac planner built around three everyday surfaces:
+Hot Cross Buns 2 is an Electron-first desktop planner built around three everyday surfaces:
 
-- Tasks for inbox capture and day-to-day execution, synced with Google Tasks
-- Calendar views for agenda, day, week, month, and longer-range planning, synced with Google Calendar
-- Lightweight local notes for context, drafts, and reference material
+- Tasks for inbox capture and day-to-day execution, synced with Google Tasks or kept in local HCB storage
+- Calendar views for agenda, day, week, multi-day, month, year, and longer-range planning, synced with Google Calendar or kept in local HCB storage
+- Notes backed by task data for context, drafts, and reference material
 
 Around those core surfaces, the app also includes:
 
 - Command palette capture and keyboard-first navigation
-- Leader-key shortcuts for diagnostics, help, refresh, and secondary actions
-- menu bar surfaces for glanceable calendar, compact capture, and fast return to the main app
-- Spotlight indexing and App Shortcuts integration
-- Optional local MCP server for user-configured AI agent clients
-- Local cache, sync checkpoints, and pending offline mutations
-- Diagnostics, recovery tools, and local reminder scheduling
-
-## Demo
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/ea15df17-b65f-4f2e-b6f2-a6fec0fe5490" controls muted playsinline preload="metadata"></video>
-</div>
+- Account workspaces for multiple Google accounts
+- Smart rescheduling, task/event/note conversion, reminders, recurrence, templates, and saved views
+- Native shell surfaces where supported, including macOS menu bar panels for glanceable calendar, compact capture, and fast return to the main app
+- Local customization with CSS snippets, keymaps, extension panels, custom backgrounds, and inferred color themes
+- Portable `.hcbexport` archives, encrypted `.hcbvault` archives, trusted vault-host status/push/pull from Settings or CLI, saved vault-host credentials for Refresh/scheduled sync, local attachments, ICS import/subscription support, and local report exports
+- Optional local MCP server, local hoster signal server, CLI/TUI, webhook, and dry-run/write-policy surfaces for user-configured agent clients
+- Typed IPC, hardened preload bridge, diagnostics, recovery tools, and native capability reporting
 
 ## Install
 
-**Historical downloads**
+**Downloads**
 
-- DMG: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg`
-- Release page: `https://github.com/gongahkia/hot-cross-buns/releases/latest`
+- macOS DMG: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg`
+- Linux AppImage: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage`
+- Windows NSIS: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe`
+- Release page: `https://github.com/gongahkia/hot-cross-buns-2/releases/latest`
+- macOS one-line installer:
+
+```bash
+curl -fsSL https://gongahkia.github.io/hot-cross-buns-2/install-macos-preview.sh | bash
+```
 
 **First launch on macOS**
 
@@ -90,131 +92,176 @@ Around those core surfaces, the app also includes:
 
 You should only need to do that once per Mac.
 
-## Archived Status
+**First launch on Linux**
 
-- This repository is archived and no longer maintained.
-- GitHub Pages and the one-line installer have been disabled.
-- All open GitHub issues were closed during archival.
-- `apps/apple` is the final product path. Older Tauri and self-hosted sync-server work has been removed from the repo.
-- Google Tasks and Google Calendar are the source of truth.
-- Google OAuth is bring-your-own-client. Downloaded DMGs can use a user-supplied Google Cloud Desktop OAuth client at runtime; source builds can still embed a native Google Sign-In client.
-- Historical GitHub Releases use the stable DMG alias: `HotCrossBuns-macOS.dmg`.
-- The public path ended as an unsigned DMG release flow, not a signed/notarized consumer release.
+The Linux package is an x64 AppImage.
+
+```bash
+curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
+curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt
+sha256sum -c SHASUMS256.txt --ignore-missing
+chmod +x Hot-Cross-Buns-2-linux-x64.AppImage
+./Hot-Cross-Buns-2-linux-x64.AppImage
+```
+
+Known Linux limits:
+
+- AppImage is the only Linux package format.
+- The app can check GitHub Releases for newer AppImage builds, but does not download or install Linux updates automatically.
+- Tray/status-area surfaces, `hotcrossbuns://` deep links, open-at-login/autostart, local notifications, and global shortcuts are unsupported on Linux.
+- Google OAuth tokens, OAuth client secrets, and MCP bearer tokens require an OS-backed Secret Service provider such as GNOME Keyring/libsecret or KWallet. Plaintext fallback is rejected.
+
+**First launch on Windows**
+
+Download `Hot-Cross-Buns-2-windows-x64.exe`, verify it against `SHASUMS256.txt`, then run the NSIS installer. The installer is unsigned, so Windows or the browser may show trust warnings.
+
+**Google Cloud OAuth setup**
+
+Downloads use a bring-your-own Google Cloud Desktop OAuth client:
+
+1. Create a Google Cloud project.
+2. Enable the Google Tasks API and Google Calendar API.
+3. Configure the OAuth consent screen. For personal use, add your Google account as a test user while setting up.
+4. Create a `Desktop app` OAuth client.
+5. Open Hot Cross Buns 2, paste the desktop client ID and optional client secret into setup, then connect Google.
+
+Tokens are stored in macOS Keychain on macOS. On Linux, tokens are stored through Electron `safeStorage` only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet. On Windows, tokens are stored through Electron `safeStorage`.
+
+Do not distribute a build that embeds your personal OAuth client for other people's accounts.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    user["macOS user"] --> app["Hot Cross Buns app<br>SwiftUI + AppKit bridges"]
+    user["desktop user"] --> app["Hot Cross Buns 2<br>Electron + React + TypeScript"]
 
-    subgraph client["Client runtime"]
-        app --> surfaces["Tasks · Calendar · Notes<br>Command palette · Menu bar"]
-        app --> integrations["Spotlight · App Intents · Share extension"]
-        app --> model["AppModel"]
-        model --> auth["GoogleAuthService"]
-        model --> sync["SyncScheduler"]
-        model --> cache["LocalCacheStore<br>settings, checkpoints,<br>pending mutations"]
-        model --> notifications["LocalNotificationScheduler"]
-        model --> updater["UpdaterController"]
-        cache --> disk["Application Support<br>local JSON cache"]
+    subgraph runtime["Desktop runtime"]
+        app --> renderer["Renderer<br>Tasks · Calendar · Notes<br>Command palette · Settings"]
+        app --> preload["Hardened preload bridge"]
+        preload --> ipc["Typed IPC contracts"]
+        ipc --> main["Main process services"]
+        main --> native["Native shell adapters<br>menu bar/tray capability · notifications · updater · files"]
     end
 
-    subgraph google["Google source of truth"]
-        sync --> tasksClient["GoogleTasksClient"]
-        sync --> calendarClient["GoogleCalendarClient"]
-        tasksClient --> tasksApi["Google Tasks API"]
-        calendarClient --> calendarApi["Google Calendar API"]
+    subgraph data["Local data"]
+        main --> sqlite["SQLite repositories<br>settings, cache, checkpoints,<br>pending mutations, tags, history"]
+        main --> files["Application Support files<br>attachments, exports, backups"]
     end
 
-    subgraph distribution["Historical distribution"]
-        repo["Archived GitHub repo"] --> releases["GitHub Releases<br>unsigned DMG + SHA-256"]
+    subgraph google["Google sync option"]
+        main --> tasksApi["Google Tasks API"]
+        main --> calendarApi["Google Calendar API"]
     end
 
-    releases --> user
+    subgraph localBackend["Local HCB backend option"]
+        main --> vault["Encrypted .hcbvault export/import"]
+        main --> vaultHost["Trusted vault host status/push/pull"]
+        main --> hoster["Loopback local hoster signals"]
+    end
+
+    subgraph automation["Automation surfaces"]
+        main --> cli["hcb CLI"]
+        main --> mcp["Local MCP server"]
+        main --> webhooks["Local webhooks"]
+    end
 ```
 
-## Build From Source
+## Repository Layout
+
+```text
+src/main/          Electron main process, native adapters, SQLite repositories, services
+src/preload/       Narrow preload bridge over typed IPC contracts
+src/renderer/      React app shell, planner surfaces, settings, command palette
+src/shared/        Shared schemas, contracts, catalogs, sync/search helpers
+docs/              Website, product docs, architecture, release, security, QA docs
+scripts/           Local CLI, smoke, release, and packaging helpers
+```
+
+Start with [docs/README.md](docs/README.md) before changing product, architecture, security, or subsystem behavior.
+
+## Local Development
 
 **Requirements**
 
 - macOS 14+
-- Xcode 15+
-- `xcodegen`
+- Linux x64 AppImage, with Secret Service provider required for credentials
+- Windows x64 NSIS installer
+- Node 20+
+- pnpm 9.15.4 through Corepack
 
-**Generate the Xcode project**
-
-```bash
-cd apps/apple
-xcodegen generate
-```
-
-**Build**
+**Install and run**
 
 ```bash
-xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install
+pnpm dev
 ```
 
-**Run tests**
+**Useful commands**
 
 ```bash
-xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
+pnpm typecheck
+pnpm test
+pnpm test:smoke
+pnpm hcb --help
 ```
 
-**Package an unsigned DMG locally**
+## Release Checks
+
+Packages are unsigned. macOS packages are also unnotarized.
 
 ```bash
-scripts/package-macos-dmg.sh
+pnpm release:mac:preview
+pnpm release:linux:preview
+pnpm release:smoke-appimage
+HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage
+pnpm release:win:preview
+pnpm release:smoke-nsis
 ```
 
-**Google Cloud OAuth setup**
+Manual GitHub Actions gates:
 
-There are two supported Google OAuth paths.
+- `Linux AppImage Preview Validation`
+- `Windows Preview Validation`
 
-**Path A: downloaded DMG + runtime Desktop OAuth**
+Useful docs:
 
-Downloaded DMGs do not need to be rebuilt for personal Google sync:
-
-1. Create a Google Cloud project.
-2. Enable the Google Tasks API and Google Calendar API.
-3. Configure the Google Auth platform / OAuth consent screen. For a personal Gmail account, choose `External`; add your Google account as a test user while setting up.
-4. Create a `Desktop app` OAuth client.
-5. Open Hot Cross Buns, paste the desktop client ID and optional client secret into the Google OAuth client setup card, then click Connect Google.
-
-For personal day-to-day use, set the OAuth app publishing status to `In production` after setup. Google's testing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes, so staying in testing means periodic re-consent.
-
-**Path B: source build + embedded native Google Sign-In**
-
-To embed a native Google Sign-In client in a source build instead, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own iOS/macOS OAuth client values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and includes the local override when present.
-
-```xcconfig
-GOOGLE_MACOS_CLIENT_ID = your-client-id.apps.googleusercontent.com
-GOOGLE_MACOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.your-reversed-client-id
-GOOGLE_MAPS_EMBED_API_KEY =
-```
-
-Do not distribute a build that embeds your personal native OAuth client for other people's accounts.
-
-## Historical Release Artifacts
-
-No release flow is maintained after archival. Existing GitHub Release assets remain historical downloads.
+- [Distribution](docs/release/distribution.md)
+- [Release Candidate Checklist](docs/release/release-candidate-checklist.md)
+- [Mac Preview Support](docs/support/mac-preview-support.md)
+- [Linux Preview Support](docs/support/linux-preview-support.md)
+- [Manual Linux Native Shell Checklist](docs/testing/manual-linux-native-shell.md)
+- [Privacy and Threat Model](docs/security/privacy-and-threat-model.md)
 
 ## Testing
 
-The current suite is strongest on pure logic and sync-domain behavior:
+The current suite covers:
 
-- search and parsing
-- recurrence and date handling
-- bulk task operations
-- local cache persistence
-- sync tombstone handling
-- calendar grid and drag/drop computations
-- transport-level Google Tasks client behavior
-- GitHub release updater behavior
+- typed IPC contract validation
+- SQLite repository and domain-service behavior
+- Google Tasks and Google Calendar sync paths
+- local search, semantic search, tags, templates, and automation flows
+- renderer workflows for Tasks, Calendar, Notes, Settings, command palette, and onboarding
+- native shell adapter contracts and release-support paths
+- smoke, perf, and release-artifact scripts
 
-The CI workflow was removed during archival. The commands above remain available for local verification.
+Run focused tests with:
+
+```bash
+pnpm vitest run --config vitest.config.ts path/to/test.ts
+```
 
 ## Additional Documentation
 
-- [Apple app README](apps/apple/README.md)
-- [Local MCP agent access](docs/mcp.md)
-- [Architecture reference](reference/architecture/ARCHITECTURE.md)
+- [Docs index](docs/README.md)
+- [System architecture](docs/architecture/system-architecture.md)
+- [Tech stack](docs/architecture/tech-stack.md)
+- [Google sync spec](docs/specs/google-sync.md)
+- [Local data spec](docs/specs/local-data.md)
+- [MCP agent access](docs/specs/mcp-agent-access.md)
+- [HCB CLI](docs/hcb-cli.md)
+- [Local hoster protocol](docs/specs/local-hoster.md)
+- [Customization](docs/customization/theming.md)
+- [Portable export](docs/portable-export.md)
+- [QA plan](docs/testing/qa-plan.md)

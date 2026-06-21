@@ -1,0 +1,14 @@
+name: Security report
+description: Do not disclose vulnerabilities in public issues.
+title: "[Security]: "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not submit vulnerability details here.
+
+        Report suspected vulnerabilities privately:
+        https://github.com/gongahkia/hot-cross-buns-2/security/advisories/new
+
+        See SECURITY.md for scope and reporting expectations.
