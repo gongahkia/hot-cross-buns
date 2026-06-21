@@ -68,7 +68,7 @@ describe("manual QA evidence", () => {
     const releaseDir = await tempDir();
     const outputFile = join(await tempDir(), "windows-evidence.md");
 
-    for (const file of requiredReleaseFiles("windows", "5.0.0")) {
+    for (const file of requiredReleaseFiles("windows")) {
       await writeFile(join(releaseDir, file), file);
     }
 
