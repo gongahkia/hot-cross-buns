@@ -1,20 +1,20 @@
-# Hot Cross Buns 2 Portable Export
+# Hot Cross Buns Portable Export
 
 Portable exports use a directory package with the `.hcbexport` extension. The
-format is intended for lossless migration between machines. HCB vault exports
-use `.hcbvault` for encrypted local-backend state snapshots.
+format is intended for lossless migration between Macs while Hot Cross Buns is
+still Google-backed. It is not a local-first source-of-truth backend.
 
 ## Layout
 
 ```text
-HotCrossBuns2-Portable-YYYYMMDD-HHMMSS.hcbexport/
+HotCrossBuns-Portable-YYYYMMDD-HHMMSS.hcbexport/
   manifest.json
-  hot-cross-buns-2-state.json
+  hot-cross-buns-state.json
   Attachments/
     copied-local-file-or-image
 ```
 
-`hot-cross-buns-2-state.json` contains the cached app state:
+`hot-cross-buns-state.json` contains the cached app state:
 
 - Google account metadata cached by the app
 - task lists and tasks
@@ -34,7 +34,7 @@ at copies in the importing Mac's Application Support attachments folder.
 - `formatVersion`: current archive schema version. Unknown versions are refused.
 - `exportedAt`: export timestamp.
 - `appVersion`: app version that wrote the archive when available.
-- `stateFile`: state payload file name, currently `hot-cross-buns-2-state.json`.
+- `stateFile`: state payload file name, currently `hot-cross-buns-state.json`.
 - `attachmentDirectory`: attachment folder name, currently `Attachments`.
 - `attachments`: reachable local pointers that were bundled.
 - `skippedPointers`: original file URLs that were missing, unreadable, or
@@ -56,7 +56,7 @@ integrity checks is treated as corrupt and is not copied or relinked.
 
 ## Import Semantics
 
-Portable import is destructive for cached Hot Cross Buns 2 data on the importing
+Portable import is destructive for cached Hot Cross Buns data on the importing
 Mac. Users must confirm replacement before local cached tasks, events,
 calendars, task lists, settings, sync checkpoints, and queued mutations are
 replaced by the archive state.
@@ -98,36 +98,8 @@ does not provide:
 - peer-to-peer sync
 - CRDT or conflict merging
 - append-only logs
+- encrypted local-first payloads
 - CLI parity
 - Syncthing/iCloud/rsync transport adapters
 
-## HCB Vaults
-
-`.hcbvault` is the encrypted local-backend package. It contains:
-
-- `manifest.json`
-- `payload.hcbenc`
-
-The manifest records format version, state hash, payload hash, and encryption
-parameters. The payload is the portable state JSON encrypted with
-scrypt-derived AES-256-GCM. The passphrase is supplied through CLI/MCP request
-input and should normally come from an environment variable in CLI usage.
-
-Vault import is destructive: it makes a local backup, replaces cached HCB state,
-sets the storage backend to `hcb-local`, and seeds a local inbox/calendar if no
-selected resources exist.
-
-`.hcbvault` packages can also be pushed to and pulled from a trusted HCB vault
-host. The host stores only `manifest.json` plus encrypted `payload.hcbenc`; the
-vault passphrase stays on the client. Remote pull uses the same destructive
-import path as local vault import. The app can save the vault host token and
-passphrase in OS credential storage so Refresh and scheduled sync push the
-current encrypted snapshot while HCB hoster mode is active. After the app has
-seen a hosted package SHA-256, later app-managed pushes include that hash as a
-precondition so stale clients do not silently overwrite a newer hosted vault.
-
-Current non-goals for `.hcbvault`:
-
-- live peer-to-peer sync
-- multi-writer merge/conflict resolution
-- Syncthing/iCloud/rsync transport adapters
+Those were outside the archived implementation.

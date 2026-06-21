@@ -4,62 +4,59 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
-<title>Hot Cross Buns 2 - Planner App for macOS, Linux, and Windows</title>
-<meta name="description" content="Hot Cross Buns 2: Keyboard-first desktop planner for Google Tasks, Google Calendar, local vault mode, and terminal workflows on macOS, Linux, and Windows.">
+<title>Hot Cross Buns - Archived Planner App for macOS</title>
+<meta name="description" content="Archived source snapshot for a keyboard-first macOS planner backed by Google Tasks and Google Calendar.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" type="image/png" sizes="64x64" href="logo-64.png">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="logo.png">
 </head>
 <body>
 
 <nav class="nav">
   <a class="wordmark" href="#">
-    <img src="logo-64.png" alt="" width="28" height="28">
-    <span>Hot Cross Buns 2</span>
+    <img src="logo.png" alt="" width="28" height="28">
+    <span>Hot Cross Buns</span>
   </a>
   <div class="nav-links">
     <a href="#views">Views</a>
     <a href="#keys">Keyboard</a>
     <a href="#menubar">Menu Bar</a>
-    <a href="#webviews">Web</a>
     <a href="#reviews">Reviews</a>
-    <a href="#updates">Updates</a>
+    <a href="#updates">Changelog</a>
     <button id="theme-toggle" aria-label="Toggle theme">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
-    <a class="nav-cta" href="#download">Download</a>
+    <a class="nav-cta" href="#archive">Archive</a>
   </div>
 </nav>
 
 <header class="hero">
   <div class="hero-copy">
-    <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns 2 is a keyboard-first desktop planner for Google Tasks, Google Calendar, encrypted local vault mode, and terminal workflows on macOS, Linux, and Windows.</p>
+    <h1>An archived planner<br>for busy people<br>with a <em>system</em>.</h1>
+    <p class="deck">Hot Cross Buns was a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar. This source snapshot is archived and no longer maintained.</p>
     <div class="hero-ctas">
-      <a class="cta-primary" href="#download">Download</a>
-      <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2" target="_blank" rel="noopener">GitHub →</a>
+      <a class="cta-primary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">View archived repo</a>
+      <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
     </div>
   </div>
 
   <figure class="hero-shot">
-    <div class="media-window">
-      <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 landing footage">
-        <source data-src="assets/landing.mp4" type="video/mp4">
-      </video>
-    </div>
+    <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="App window preview">
+      <source src="media/hero-window.mp4" type="video/mp4">
+    </video>
   </figure>
 </header>
 
 <section id="views" class="views">
   <div class="views-layout">
+    <!-- RECORDING: views-cycle.gif — cycle through the three surfaces: Tasks → Calendar → Notes. ~12s. 1600×1100 @ 2x. -->
     <figure class="views-single">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 three views footage">
-          <source data-src="assets/three-views.mp4" type="video/mp4">
-        </video>
-      </div>
+      <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Tasks, calendar, and notes views">
+        <source src="media/views-cycle.mp4" type="video/mp4">
+      </video>
     </figure>
 
     <div class="views-copy">
@@ -72,12 +69,12 @@
       <div class="views-list">
         <article class="view-item">
           <h3>Tasks</h3>
-          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks or stays in local HCB storage.</p>
+          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks.</p>
         </article>
 
         <article class="view-item">
           <h3>Calendar</h3>
-          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar or stays in local HCB storage.</p>
+          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar.</p>
         </article>
 
         <article class="view-item">
@@ -91,18 +88,16 @@
 
 <section id="keys" class="keys">
   <div class="keys-intro">
-    <div class="section-head keys-copy">
+    <figure class="keys-shot">
+      <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Command palette and keyboard workflow">
+        <source src="media/keys-palette.mp4" type="video/mp4">
+      </video>
+    </figure>
+    <div class="section-head end">
       <p class="eyebrow">Made with keyboard users in mind</p>
       <h2>Do things at the<br><em>speed of thought</em>.</h2>
       <p class="lede">Core shortcuts stay single-key. Calendar views get their own lane. Global quick capture and the command palette open as lightweight panels instead of slow modal surfaces.</p>
     </div>
-    <figure class="keys-shot">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns 2 command palette footage">
-          <source data-src="assets/command-palette.mp4" type="video/mp4">
-        </video>
-      </div>
-    </figure>
   </div>
 
   <div class="keys-grid">
@@ -150,17 +145,10 @@
 
 <section id="menubar" class="menubar">
   <div class="menubar-layout">
-    <figure class="menubar-shot">
-      <div class="menubar-image-pair" aria-label="Hot Cross Buns 2 menu bar surfaces">
-        <img src="assets/menu-bar-1.png" alt="Hot Cross Buns 2 menu bar agenda panel" width="696" height="818" loading="lazy" decoding="async">
-        <img src="assets/menu-bar-2.png" alt="Hot Cross Buns 2 menu bar calendar panel" width="640" height="962" loading="lazy" decoding="async">
-      </div>
-    </figure>
-
     <div class="menubar-copy">
-      <p class="eyebrow">macOS menu bar</p>
+      <p class="eyebrow">Menu bar</p>
       <h2>The planner that stays<br><em>within reach</em>.</h2>
-      <p class="lede">Three lighter macOS menu bar surfaces for glanceable calendar, quick capture, and fast return to the main app.</p>
+      <p class="lede">Three lighter menu bar surfaces for glanceable calendar, quick capture, and fast return to the main app.</p>
 
       <div class="menubar-list">
         <article class="menubar-item">
@@ -179,40 +167,11 @@
         </article>
       </div>
     </div>
-  </div>
-</section>
 
-<section id="webviews" class="menubar webviews">
-  <div class="menubar-layout webviews-layout">
-    <div class="menubar-copy">
-      <p class="eyebrow">Native web views</p>
-      <h2>Open the web<br><em>inside your planner</em>.</h2>
-      <p class="lede">Keep docs, dashboards, forms, and reference pages beside tasks, notes, and calendar context without switching apps.</p>
-
-      <div class="menubar-list">
-        <article class="menubar-item">
-          <h3>Pages</h3>
-          <p>Open webpage panes directly inside Hot Cross Buns 2.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Context</h3>
-          <p>Keep research next to the plan it supports.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Focus</h3>
-          <p>Move between planner views and web references from one workspace.</p>
-        </article>
-      </div>
-    </div>
-
-    <figure class="menubar-shot webviews-shot">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Native webpage footage inside Hot Cross Buns 2">
-          <source data-src="assets/web-view.mp4" type="video/mp4">
-        </video>
-      </div>
+    <figure class="menubar-shot">
+      <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Menu bar apps and panels">
+        <source src="media/menu-bar-apps.mp4" type="video/mp4">
+      </video>
     </figure>
   </div>
 </section>
@@ -223,183 +182,36 @@
   <p class="stars" aria-label="five stars">★★★★★</p>
   <ul class="review-list">
     <li>&ldquo;Awesome.&rdquo;</li>
-    <li>&ldquo;You mean you made two of these?&rdquo;</li>
+    <li>&ldquo;Finally, a planner that doesn't charge me monthly.&rdquo;</li>
     <li>&ldquo;Not as good as Notion. But I'm not paying for Notion.&rdquo;</li>
     <li>&ldquo;It's lovely, dear. Is it different from Apple Calendar?&rdquo;</li>
   </ul>
   <p class="review-footnote">* people = me and one time, my mother</p>
-  <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns-2" target="_blank" rel="noopener">See the repository →</a>
+  <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">See the repository →</a>
 </section>
 
-	<section id="download" class="download">
+	<section id="archive" class="download">
 	  <div class="download-inner">
-	    <p class="eyebrow">Ready when you are</p>
-	    <h2>Get Hot Cross Buns 2.</h2>
-	    <p class="lede">Free desktop builds are available for macOS 14+, Linux x64 AppImage, and Windows x64 NSIS. Each release includes SHA-256 checksums.</p>
-
-	    <div class="download-platforms" aria-label="Platform downloads">
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-macos.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>macOS</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-macOS.dmg">Download DMG</a>
-	      </article>
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-linux.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>Linux</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage">Download AppImage</a>
-	      </article>
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-windows.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>Windows</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe">Download EXE</a>
-	      </article>
-	    </div>
+	    <p class="eyebrow">Archived</p>
+	    <h2>Source snapshot only.</h2>
+	    <p class="lede">This repository was archived on 2026-06-10. GitHub Pages, issue tracking, CI, and active release work are disabled.</p>
 
 	    <div class="download-cta">
-	      <a
-	        class="cta-primary big"
-	        href="https://github.com/gongahkia/hot-cross-buns-2/releases"
-	        data-download-trigger
-	        data-download-url="https://github.com/gongahkia/hot-cross-buns-2/releases"
-	      >
-	        Open Releases
-	      </a>
+	      <a class="cta-primary big" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">Open repository</a>
 	      <p class="download-meta">
-	        <span>GitHub Releases hosts platform assets and published SHA-256 checksums.</span>
+	        <span>Historical release assets may remain available on GitHub Releases.</span>
 	      </p>
 	    </div>
-
-	    <details class="brew brew-terminal">
-	      <summary>Prefer Terminal?</summary>
-	      <div class="brew-panel">
-	        <h3>macOS</h3>
-	        <pre><code>curl -fsSL https://raw.githubusercontent.com/gongahkia/hot-cross-buns-2/main/docs/install-macos-preview.sh | bash</code></pre>
-	        <h3>Linux</h3>
-	        <pre><code>curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-linux-x64.AppImage
-curl -LO https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt
-sha256sum -c SHASUMS256.txt --ignore-missing
-chmod +x Hot-Cross-Buns-2-linux-x64.AppImage
-./Hot-Cross-Buns-2-linux-x64.AppImage</code></pre>
-	        <h3>Windows PowerShell</h3>
-	        <pre><code>Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/Hot-Cross-Buns-2-windows-x64.exe -OutFile Hot-Cross-Buns-2-windows-x64.exe
-Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns-2/releases/latest/download/SHASUMS256.txt -OutFile SHASUMS256.txt
-Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
-	      </div>
-	    </details>
 	  </div>
 	</section>
-
-	<div id="download-modal" class="download-modal" hidden aria-hidden="true">
-	  <div class="download-modal-backdrop" data-modal-close></div>
-	  <div
-	    class="download-modal-card"
-	    role="dialog"
-	    aria-modal="true"
-	    aria-labelledby="download-modal-title"
-	    aria-describedby="download-modal-copy"
-	  >
-	    <button class="download-modal-close" type="button" aria-label="Close" data-modal-close>×</button>
-	    <p class="eyebrow">Download notes</p>
-	    <h3 id="download-modal-title">One quick thing before you open releases.</h3>
-	    <p id="download-modal-copy" class="download-modal-copy">
-	      Builds are distributed through GitHub Releases and are unsigned for now. macOS may require Open Anyway, Windows may show SmartScreen warnings, and Linux keeps explicit native-shell limitations. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
-	    </p>
-	    <figure class="download-modal-warning">
-	      <img
-	        class="download-modal-warning-dialog"
-	        data-src="assets/macos-not-opened-warning.jpeg"
-	        alt="macOS warning dialog saying Hot Cross Buns 2 was not opened because Apple could not verify it is free of malware."
-	        width="546"
-	        height="516"
-	        loading="lazy"
-	        decoding="async"
-	      >
-	      <img
-	        class="download-modal-warning-settings"
-	        data-src="assets/macos-open-anyway-warning.jpeg"
-	        alt="macOS Privacy and Security row saying Hot Cross Buns 2 was blocked to protect your Mac, with an Open Anyway button."
-	        width="928"
-	        height="186"
-	        loading="lazy"
-	        decoding="async"
-	      >
-	    </figure>
-	    <ul class="download-modal-list">
-	      <li>Move Hot Cross Buns 2 into your Applications folder after opening the DMG.</li>
-	      <li>Try opening the app once.</li>
-	      <li>If macOS blocks it, go to System Settings &gt; Privacy &amp; Security and click Open Anyway.</li>
-	      <li>For Linux, verify the AppImage checksum, mark it executable, and run it directly.</li>
-	      <li>Linux tray/status-area surfaces, notifications, global shortcuts, deep links, autostart, and in-place auto-update are not supported.</li>
-	      <li>For Windows, verify the installer hash before running the unsigned NSIS installer.</li>
-	    </ul>
-	    <p class="download-modal-footnote">You&apos;ll open GitHub Releases.</p>
-        <p class="download-modal-footnote">Checksums are published for each release. See <a href="privacy.html">Privacy and Trust</a> and the GitHub README for OAuth setup.</p>
-	    <div class="download-modal-actions">
-	      <button class="cta-secondary download-modal-cancel" type="button" data-modal-close>Not now</button>
-	      <a
-	        id="download-modal-continue"
-	        class="cta-primary"
-	        href="https://github.com/gongahkia/hot-cross-buns-2/releases"
-	      >
-	        Open Releases
-	      </a>
-	    </div>
-	  </div>
-	</div>
 
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v5.0.1</em>.</h2>
+    <h2>Latest changes in <em>v4.0.0</em>.</h2>
   </div>
 
   <div class="updates-list">
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v5.0.1</h3>
-        <p>19 Jun 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added first-run and Settings controls for selecting Google, HCB local vault, or HCB local hoster backend mode.</li>
-          <li>Added encrypted <code>.hcbvault</code> export/import contracts and tools using scrypt-derived AES-256-GCM payload encryption.</li>
-          <li>Added in-app Settings controls to check a vault host, push an encrypted vault, and pull a hosted vault back into local HCB state.</li>
-          <li>Added optional OS credential storage for vault host tokens/passphrases so Refresh, scheduled sync, and CLI/TUI sync can push the encrypted vault in hoster mode.</li>
-          <li>Added standalone vault hosting for trusted local machines with <code>hcb vault serve</code>, <code>remote-status</code>, <code>push</code>, and <code>pull</code>.</li>
-          <li>Added hosted vault package SHA-256 reporting and stale-upload rejection so app-managed pushes do not silently overwrite a newer vault.</li>
-          <li>Remote vault clients require HTTPS outside loopback unless the user explicitly allows insecure HTTP for trusted LAN testing.</li>
-          <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
-          <li>Added MCP and CLI commands for backend status, backend switching, vault export, vault import, remote vault status/push/pull, plus TUI backend and vault host views.</li>
-          <li>Kept the local hoster signal path on bearer auth, loopback origin checks, replay receipts, rate limiting, and encrypted signal support.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v5.0.0</h3>
-        <p>10 Jun 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Declared Hot Cross Buns 2 as the new maintained version, carrying forward the full archived Hot Cross Buns changelog below.</li>
-          <li>Moved the app to an Electron-first desktop build with typed IPC, a hardened preload bridge, native shell adapters, macOS DMG packaging, Linux AppImage packaging, and Windows NSIS packaging.</li>
-          <li>Expanded Google account handling with account-scoped cache rows, per-account resource filtering, explicit calendar/list destinations, and cleaner signed-out account hiding.</li>
-          <li>Added local customization with CSS snippets, external <code>keymap.json</code>, sandboxed extension panels, safe mode, and Settings controls for enabling each item.</li>
-          <li>Added portable <code>.hcbexport</code> archives, attachment bundling, local pointer repair, attachment add/open/download/remove flows, ICS imports, ICS subscriptions, and local report exports.</li>
-          <li>Upgraded templates, reminders, command palette behavior, event editing, recurrence handling, smart rescheduling, and Google Calendar/Tasks conversion flows.</li>
-          <li>Added agent-facing MCP and CLI surfaces with dry-run/write policies, redacted diagnostics, webhook retry/rate limiting, <code>event.starting</code> emits, and <code>mutation.failed</code> emits.</li>
-          <li>Expanded release hardening with GitHub release checks, native capability reporting, diagnostics redaction, low-power/constrained-network backoff, and 15k-event performance coverage.</li>
-        </ul>
-      </div>
-    </article>
-
     <article class="update-entry">
       <div class="update-meta">
         <h3>v4.0.0</h3>
@@ -655,15 +467,14 @@ Get-FileHash .\Hot-Cross-Buns-2-windows-x64.exe -Algorithm SHA256</code></pre>
   <div class="foot-top">
     <div class="foot-cols">
       <div>
-        <p class="foot-title">Hot Cross Buns 2</p>
-        <p>A small, personal desktop planner.</p>
+        <p class="foot-title">Hot Cross Buns</p>
+        <p>A small, personal macOS planner.</p>
       </div>
       <div class="foot-links">
-        <a href="https://github.com/gongahkia/hot-cross-buns-2">GitHub</a>
-        <a href="#download">Download</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
+        <a href="#archive">Archive</a>
         <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns-2/blob/main/docs/CONTRIBUTING.md">Contribute</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns-2/releases">Releases</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
       </div>
     </div>
   </div>

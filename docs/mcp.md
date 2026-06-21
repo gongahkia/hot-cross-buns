@@ -1,10 +1,10 @@
-# Hot Cross Buns 2 MCP
+# Hot Cross Buns MCP
 
-Hot Cross Buns 2 can expose a local Model Context Protocol endpoint for agent clients that you explicitly configure on this Mac.
+Hot Cross Buns can expose a local Model Context Protocol endpoint for agent clients that you explicitly configure on this Mac.
 
 ## Enable
 
-1. Open Hot Cross Buns 2 Settings.
+1. Open Hot Cross Buns Settings.
 2. Go to General -> Agent access.
 3. Turn on Local MCP server.
 4. Choose a permission mode.
@@ -22,9 +22,7 @@ Requests must include:
 Authorization: Bearer <generated-token>
 ```
 
-The token is stored in the platform credential store: macOS Keychain, Linux
-Electron `safeStorage` with an OS-backed provider, or Windows Electron
-`safeStorage`. Reset it from Settings if a client config is no longer trusted.
+The token is stored in the macOS Keychain. Reset it from Settings if a client config is no longer trusted.
 
 ## Permissions
 
@@ -38,33 +36,19 @@ Every write tool accepts `dryRun`. Dry-runs return the planned item payload with
 
 Read tools:
 
-- `hcb_doctor`
-- `hcb_status`
-- `hcb_log`
-- `hcb_diff`
-- `hcb_show`
 - `hcb_search`
 - `hcb_today`
 - `hcb_week`
 - `hcb_get_task`
 - `hcb_get_event`
-- `hcb_get_note`
 - `hcb_list_task_lists`
-- `hcb_list_note_lists`
 - `hcb_list_calendars`
-- `hcb_backend_status`
-- `hcb_vault_remote_status`
 
 Write tools:
 
-- `hcb_sync_now`
 - `hcb_create_task`
 - `hcb_create_note`
 - `hcb_create_event`
-- `hcb_create_task_list`
-- `hcb_create_note_list`
-- `hcb_rename_task_list`
-- `hcb_rename_note_list`
 - `hcb_update_task`
 - `hcb_update_event`
 - `hcb_complete_task`
@@ -72,17 +56,12 @@ Write tools:
 - `hcb_move_task`
 - `hcb_delete_task`
 - `hcb_delete_event`
-- `hcb_backend_set`
-- `hcb_vault_export`
-- `hcb_vault_import`
-- `hcb_vault_remote_push`
-- `hcb_vault_remote_pull`
 
 Tool responses include `applied`, `dryRun`, `requiresConfirmation`, optional `confirmationId`, `message`, and sanitized `item` or `items`. Task and event responses include `hotcrossbuns://` deep links for review in the app.
 
 ## Privacy
 
-The MCP server binds only to `127.0.0.1`. It rejects non-local connections and unexpected browser origins. It does not return Google OAuth tokens, cache encryption keys, platform credential-store material, raw credential config, or raw Google diagnostic payloads.
+The MCP server binds only to `127.0.0.1`. It rejects non-local connections and unexpected browser origins. It does not return Google OAuth tokens, cache encryption keys, Keychain material, raw credential config, or raw Google diagnostic payloads.
 
 Write attempts are recorded in the encrypted mutation audit log with the MCP client, tool name, outcome, and argument keys only. The audit metadata intentionally excludes task titles, notes, event details, bearer tokens, and full tool arguments. Settings also shows current server status and recent MCP activity for the current launch.
 
@@ -112,7 +91,7 @@ Use the copied Settings config when your client accepts HTTP MCP servers. For cl
 http://127.0.0.1:<port>/mcp
 ```
 
-and add the copied `Authorization` header. Keep Hot Cross Buns 2 running while the client connects.
+and add the copied `Authorization` header. Keep Hot Cross Buns running while the client connects.
 
 ## Transport notes
 

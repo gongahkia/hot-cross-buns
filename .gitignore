@@ -1,23 +1,55 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
 node_modules/
-out/
 dist/
-dist-electron/
+build/
 .vite/
-.turbo/
-coverage/
-output/
-/release/
-test-results/
-playwright-report/
+.svelte-kit/
+*.tsbuildinfo
 
-artifacts/perf/*
-!artifacts/perf/.gitkeep
-artifacts/release/*
-artifacts/reference-screenshots
-artifacts/screenshots
+# Rust / Tauri
+target/
+*.rs.bk
 
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.xcode.env.local
+apps/apple/Configuration/GoogleOAuth.local.xcconfig
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS
 .DS_Store
-*.log
-AGENTS.md
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test
+coverage/
+playwright-report/
+test-results/
+
+# Profiling / local evidence
+.build-evidence/
+*.trace/
+
 CLAUDE.md
+AGENTS.md
+.poor-cli
+
 .playwright-cli

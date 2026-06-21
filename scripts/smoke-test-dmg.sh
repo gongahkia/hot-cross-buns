@@ -1,51 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-release_dir="${1:-release}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DMG_PATH="${1:-}"
+APP_NAME="${APP_NAME:-Hot Cross Buns.app}"
+WAIT_TIMEOUT_SECONDS="${WAIT_TIMEOUT_SECONDS:-20}"
+MOUNT_POINT=""
 
-if [[ -d "$release_dir" ]]; then
-  dmg_path="$(find "$release_dir" -maxdepth 1 -type f -name '*.dmg' ! -name '*blockmap' | sort | tail -n 1)"
-else
-  dmg_path="$release_dir"
-fi
-
-if [[ -z "${dmg_path:-}" || ! -f "$dmg_path" ]]; then
-  echo "No DMG found for smoke test." >&2
+if [[ -z "$DMG_PATH" ]]; then
+  echo "Usage: $0 path/to/HotCrossBuns-<version>-macOS.dmg" >&2
   exit 1
 fi
 
-mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcb2-dmg-smoke.XXXXXX")"
+if [[ ! -f "$DMG_PATH" ]]; then
+  echo "DMG not found: $DMG_PATH" >&2
+  exit 1
+fi
+
 cleanup() {
-  hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
-  rm -rf "$mount_dir"
+  if [[ -n "$MOUNT_POINT" && -d "$MOUNT_POINT" ]]; then
+    hdiutil detach "$MOUNT_POINT" -quiet || true
+  fi
 }
+
 trap cleanup EXIT
 
-hdiutil attach "$dmg_path" -readonly -nobrowse -mountpoint "$mount_dir" -quiet
+ATTACH_OUTPUT="$(hdiutil attach "$DMG_PATH" -nobrowse -readonly)"
+MOUNT_POINT="$(printf '%s\n' "$ATTACH_OUTPUT" | awk -F '\t' '$NF ~ /^\// { print $NF }' | tail -n 1)"
 
-app_path="$(find "$mount_dir" -maxdepth 2 -type d -name 'Hot Cross Buns 2.app' | head -n 1)"
-if [[ -z "$app_path" ]]; then
-  echo "DMG did not contain Hot Cross Buns 2.app." >&2
+if [[ -z "$MOUNT_POINT" || ! -d "$MOUNT_POINT" ]]; then
+  echo "Failed to determine mounted volume for $DMG_PATH" >&2
   exit 1
 fi
 
-plist="$app_path/Contents/Info.plist"
-executable="$app_path/Contents/MacOS/Hot Cross Buns 2"
-
-if [[ ! -f "$plist" ]]; then
-  echo "App bundle is missing Info.plist." >&2
+APP_PATH="$MOUNT_POINT/$APP_NAME"
+if [[ ! -d "$APP_PATH" ]]; then
+  echo "App bundle not found in mounted DMG: $APP_PATH" >&2
   exit 1
 fi
 
-if [[ ! -x "$executable" ]]; then
-  echo "App bundle executable is missing or not executable." >&2
+EXECUTABLE="$APP_PATH/Contents/MacOS/${APP_NAME%.app}"
+if [[ ! -x "$EXECUTABLE" ]]; then
+  echo "Executable not found in app bundle: $EXECUTABLE" >&2
   exit 1
 fi
 
-bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
-if [[ "$bundle_id" != "dev.hotcrossbuns.hotcrossbuns2" ]]; then
-  echo "Unexpected bundle identifier: $bundle_id" >&2
-  exit 1
-fi
+"$EXECUTABLE" --smoke-test &
+APP_PID=$!
+DEADLINE=$((SECONDS + WAIT_TIMEOUT_SECONDS))
 
-echo "DMG smoke passed: $dmg_path"
+while kill -0 "$APP_PID" 2>/dev/null; do
+  if (( SECONDS >= DEADLINE )); then
+    echo "Smoke test timed out after ${WAIT_TIMEOUT_SECONDS}s: $EXECUTABLE" >&2
+    kill "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+    exit 1
+  fi
+  sleep 1
+done
+
+wait "$APP_PID"

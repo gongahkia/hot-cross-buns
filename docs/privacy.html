@@ -3,100 +3,101 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy and Trust - Hot Cross Buns 2</title>
-<meta name="description" content="Privacy, storage, permissions, and release integrity details for Hot Cross Buns 2.">
+<title>Privacy and Trust - Hot Cross Buns</title>
+<meta name="description" content="Privacy, storage, permissions, and release integrity details for Hot Cross Buns.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" type="image/png" sizes="64x64" href="logo-64.png">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="logo.png">
 </head>
 <body>
 
 <nav class="nav">
   <a class="wordmark" href="index.html">
-    <img src="logo-64.png" alt="" width="28" height="28">
-    <span>Hot Cross Buns 2</span>
+    <img src="logo.png" alt="" width="28" height="28">
+    <span>Hot Cross Buns</span>
   </a>
 </nav>
 
 <main class="doc-page">
   <section class="doc-hero">
     <p class="eyebrow">Privacy and trust</p>
-    <h1>What Hot Cross Buns 2 stores, requests, and does not send.</h1>
+    <h1>What Hot Cross Buns stores, requests, and does not send.</h1>
     <p class="deck">
-      Hot Cross Buns 2 is a desktop app. It can talk directly to Google Tasks and Google Calendar, or it can run in local HCB storage mode. There is no separate hosted Hot Cross Buns 2 backend; optional vault hosts are user-owned endpoints.
+      Hot Cross Buns is a Mac app that talks directly to Google Tasks and Google Calendar. There is no separate Hot Cross Buns backend.
     </p>
   </section>
 
   <section class="doc-grid">
     <article class="doc-card">
       <h2>Google access</h2>
-      <p>Hot Cross Buns 2 asks Google only for the scopes it needs to read and write your selected task lists and calendars:</p>
+      <p>Hot Cross Buns asks Google only for the scopes it needs to read and write your selected task lists and calendars:</p>
       <ul>
         <li><code>https://www.googleapis.com/auth/tasks</code></li>
         <li><code>https://www.googleapis.com/auth/calendar</code></li>
       </ul>
-      <p>The Tasks scope lets the app list task lists, read tasks, create tasks, update task titles, notes, due dates, completion state, hierarchy, and delete tasks or task lists when you choose those actions. The Calendar scope lets the app list calendars, read events, create events, update event details, reminders, recurrence, attendees, location, Google Meet links, and delete events when you choose those actions. Hot Cross Buns 2 does not request Drive, Gmail, Contacts, or Photos access.</p>
+      <p>The Tasks scope lets the app list task lists, read tasks, create tasks, update task titles, notes, due dates, completion state, hierarchy, and delete tasks or task lists when you choose those actions. The Calendar scope lets the app list calendars, read events, create events, update event details, reminders, recurrence, attendees, location, Google Meet links, and delete events when you choose those actions. Hot Cross Buns does not request Drive, Gmail, Contacts, or Photos access.</p>
     </article>
 
     <article class="doc-card">
       <h2>How Google data is used</h2>
-      <p>Google user data is used only to provide the visible task, note, calendar, search, reminder, template, cleanup, export, and sync features in the desktop app when Google is selected as the backend. The app sends your edits directly to Google Tasks and Google Calendar for the currently active account, reads Google responses back into the local cache, and uses local copies for fast search, offline display, pending offline writes, diagnostics, and optional local notifications. In HCB local storage modes, Google mutation queueing is stopped.</p>
-      <p>Hot Cross Buns 2 does not sell Google user data, use it for advertising, transfer it to data brokers, or use it to train AI models.</p>
+      <p>Google user data is used only to provide the visible task, note, calendar, search, reminder, template, cleanup, export, and sync features in the Mac app. The app sends your edits directly to Google Tasks and Google Calendar for the currently active account, reads Google responses back into the local cache, and uses local copies for fast search, offline display, pending offline writes, diagnostics, and optional local notifications.</p>
+      <p>Hot Cross Buns does not sell Google user data, use it for advertising, transfer it to data brokers, or use it to train AI models.</p>
     </article>
 
     <article class="doc-card">
       <h2>Where local data lives</h2>
-      <p>By default the app keeps a local cache under the platform app-data directory, such as <code>~/Library/Application Support/Hot Cross Buns 2/</code> on macOS or the matching XDG app-data/config/cache paths on Linux.</p>
+      <p>By default the app keeps a local cache under <code>~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/</code>.</p>
       <ul>
         <li><code>cache-state.sqlite</code>: account metadata, active-account state, per-account settings, sync checkpoints, pending offline mutations, task mirrors, calendar mirrors, and event mirrors</li>
         <li><code>cache-state.json</code> and <code>cache-events.json</code>: legacy cache sidecars that are migrated into SQLite on first load and used only as fallback inputs</li>
         <li><code>cache-state.salt</code>: encryption salt when cache encryption is enabled</li>
         <li><code>crash.log</code>: local crash note written on certain fatal crashes</li>
       </ul>
-      <p>The cache is replaceable. Google remains the source of truth only when Google sync is the active backend. HCB local vault mode stores planner state locally and can export/import encrypted <code>.hcbvault</code> packages. Vault host mode can push/pull those encrypted packages to a user-owned host. When multiple Google accounts are connected, each account has its own cached workspace and only the active account is synced or replayed.</p>
+      <p>The cache is replaceable. Google remains the source of truth for synced tasks and events. When multiple Google accounts are connected, each account has its own cached workspace and only the active account is synced or replayed.</p>
     </article>
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens stay in the macOS Keychain on macOS. Linux builds use Electron <code>safeStorage</code> only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet; plaintext fallback is rejected. Windows builds use Electron <code>safeStorage</code> through the Windows adapter. For custom Desktop OAuth, the OAuth client configuration is stored once for the app, while token sets are stored separately by Google account ID. Optional vault host tokens and passphrases are stored in OS credential storage only if you save them from Settings. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your device; it does not change what Google stores.</p>
+      <p>Google OAuth tokens stay in the macOS Keychain and are used to request fresh access tokens from Google when the app syncs. For custom Desktop OAuth, the OAuth client configuration is stored once for the app, while token sets are stored separately by Google account ID. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your Mac; it does not change what Google stores.</p>
     </article>
 
     <article class="doc-card">
       <h2>Sharing and retention</h2>
-      <p>There is no Hot Cross Buns 2-operated server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Data is shared with Google only when Google is the storage and sync provider you connect to. If you configure a vault host, encrypted <code>.hcbvault</code> packages are sent to the endpoint you provide. Calendar events may also be visible to event attendees or calendar subscribers according to your Google Calendar settings.</p>
-      <p>Disconnecting a Google account in the app removes that account's local tokens and workspace on this device. If other accounts remain connected, the app can switch to another account; disconnecting the last account leaves the app signed out locally. You can also revoke the app's access from your Google Account. Data already stored in Google Tasks or Google Calendar remains in your Google account unless you delete it there or delete it through Hot Cross Buns 2.</p>
+      <p>There is no Hot Cross Buns server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Data is shared with Google because Google is the storage and sync provider you connect to. Calendar events may also be visible to event attendees or calendar subscribers according to your Google Calendar settings.</p>
+      <p>Disconnecting a Google account in the app removes that account's local tokens and workspace on this Mac. If other accounts remain connected, the app can switch to another account; disconnecting the last account leaves the app signed out locally. You can also revoke the app's access from your Google Account. Data already stored in Google Tasks or Google Calendar remains in your Google account unless you delete it there or delete it through Hot Cross Buns.</p>
     </article>
 
     <article class="doc-card">
       <h2>Crash logs and telemetry</h2>
-      <p>Hot Cross Buns 2 does not include a third-party analytics or crash-upload SDK. The operating system may still produce local system crash reports, and the app may write a local crash note next to the cache to help diagnose launch failures. Those files stay on-device unless you choose to share them.</p>
+      <p>Hot Cross Buns does not include a third-party analytics or crash-upload SDK. macOS may still produce system crash reports in your Library logs, and the app may write a local crash note next to the cache to help diagnose launch failures. Those files stay on-device unless you choose to share them.</p>
     </article>
 
     <article class="doc-card">
       <h2>Notes, tasks, and events</h2>
-      <p>Tasks and calendar events are backed by Google Tasks and Google Calendar when Google is the active backend, or by local HCB storage when local vault/hoster mode is active. Notes in the app are task-shaped items, typically by keeping the note body in the task notes field and leaving the due date empty.</p>
+      <p>Tasks and calendar events are backed by Google Tasks and Google Calendar. Notes in the app are task-shaped items that use Google Tasks storage, typically by keeping the note body in the Google Tasks notes field and leaving the due date empty.</p>
     </article>
 
     <article class="doc-card">
       <h2>Permissions</h2>
-      <p>Notifications are optional and used only for device-local reminders from the active workspace. Linux builds report notifications and global shortcuts as unsupported. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns 2 from the app’s Settings window.</p>
+      <p>Notifications are optional and used only for device-local reminders from the active workspace. Accessibility permission is only needed if you enable global hotkeys that should work outside the app. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns from the app’s Settings window.</p>
     </article>
 
     <article class="doc-card">
       <h2>OAuth client ownership</h2>
-      <p>Hot Cross Buns 2 is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMG and AppImage builds can store one user-supplied Desktop OAuth client in OS-backed credential storage and use a localhost browser redirect for each Google account sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
+      <p>Hot Cross Buns is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMGs can store one user-supplied Desktop OAuth client in the macOS Keychain and use a localhost browser redirect for each Google account sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
     </article>
 
     <article class="doc-card">
       <h2>Release integrity</h2>
-      <p>Each GitHub release publishes SHA-256 checksums for uploaded artifacts. The macOS install script downloads both the DMG and checksum, verifies them locally, and refuses to install if they do not match. Linux AppImage and Windows NSIS users should verify downloads against the release checksum before running them.</p>
+      <p>Historical GitHub releases published matching SHA-256 checksum files for DMG assets.</p>
     </article>
 
     <article class="doc-card">
       <h2>Distribution model</h2>
-      <p>Builds are currently distributed outside app stores and may be unsigned or not notarized. macOS can require a one-time manual approval under System Settings &gt; Privacy &amp; Security, and Windows can show SmartScreen warnings for unsigned installers. Hot Cross Buns 2 can check GitHub Releases for a newer platform artifact, but installation is still manual rather than a silent in-place update.</p>
+      <p>Preview DMGs were distributed outside the Mac App Store. They may be unsigned or not notarized, so macOS can require a one-time manual approval under System Settings &gt; Privacy &amp; Security. Hot Cross Buns can check GitHub Releases for a newer DMG, but installation remains a manual replace rather than a silent in-place update.</p>
     </article>
   </section>
 </main>
@@ -105,15 +106,14 @@
   <div class="foot-top">
     <div class="foot-cols">
       <div>
-        <p class="foot-title">Hot Cross Buns 2</p>
-        <p>A small, personal desktop planner.</p>
+        <p class="foot-title">Hot Cross Buns</p>
+        <p>A small, personal macOS planner.</p>
       </div>
       <div class="foot-links">
-        <a href="https://github.com/gongahkia/hot-cross-buns-2">GitHub</a>
-        <a href="index.html#download">Download</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
+        <a href="index.html#archive">Archive</a>
         <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns-2/blob/main/docs/CONTRIBUTING.md">Contribute</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns-2/releases">Releases</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
       </div>
     </div>
   </div>
