@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">Hot Cross Buns</h1>
+<h1 align="center"><code>Hot Cross Buns</code></h1>
 
 <h3 align="center">Keyboard-first desktop planner for Google Tasks, Google Calendar, local HCB vaults, and terminal workflows on macOS, Linux, and Windows.</h3>
 
