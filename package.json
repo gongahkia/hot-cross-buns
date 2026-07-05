@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "pnpm typecheck && electron-vite build",
+    "build:extension": "tsx scripts/build-browser-extension.ts",
     "build:release:mac": "tsx scripts/release-build.ts",
     "build:release:linux": "tsx scripts/release-build.ts",
     "build:release:win": "tsx scripts/release-build.ts",
@@ -23,6 +24,7 @@
     "hcb:hoster-smoke": "tsx scripts/hcb-hoster-e2e-smoke.ts",
     "hcb:july-smoke": "tsx scripts/july-2026-smoke.ts",
     "typecheck": "tsc --noEmit",
+    "typecheck:extension": "tsc --noEmit -p tsconfig.browser-extension.json",
     "test": "pnpm test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:smoke": "pnpm build && playwright test -c playwright.config.ts",

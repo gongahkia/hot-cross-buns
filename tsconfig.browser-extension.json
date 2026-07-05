@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/browser-extension/**/*.ts",
+    "src/browser-extension/**/*.tsx",
+    "src/browser-extension/**/*.d.ts"
+  ]
+}
