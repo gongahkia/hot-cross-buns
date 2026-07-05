@@ -85,6 +85,11 @@
     </article>
 
     <article class="doc-card">
+      <h2>Browser extension</h2>
+      <p>The optional browser extension is read-only and separate from the desktop app. It requests Google Tasks readonly, Google Calendar readonly, and basic OpenID profile scopes so its sidebar can search cached task and event data. It stores access tokens only in extension session storage with an in-memory fallback and does not persist refresh tokens. The extension keeps a session cache of fetched tasks and events for sidebar search and clears that cache when you sign out or change the OAuth client ID.</p>
+    </article>
+
+    <article class="doc-card">
       <h2>OAuth client ownership</h2>
       <p>Hot Cross Buns is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMG and AppImage builds can store one user-supplied Desktop OAuth client in OS-backed credential storage and use a localhost browser redirect for each Google account sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
     </article>

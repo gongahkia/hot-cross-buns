@@ -60,6 +60,7 @@ input {
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -70,6 +71,11 @@ h1 {
 }
 
 h2 {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+h3 {
   font-size: 14px;
   line-height: 1.25;
 }
@@ -131,7 +137,21 @@ h2 {
 
 .result-list {
   display: grid;
+  gap: 14px;
+}
+
+.result-group {
+  display: grid;
   gap: 8px;
+}
+
+.result-group-heading {
+  color: #6f6759;
+  font-family: "Geist", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .result-card {
@@ -143,6 +163,11 @@ h2 {
   gap: 10px;
   grid-template-columns: 1fr auto;
   padding: 10px;
+}
+
+.result-card.active {
+  border-color: #5f6f52;
+  box-shadow: 0 0 0 2px rgba(95, 111, 82, 0.18);
 }
 
 .result-card a {
@@ -238,6 +263,10 @@ footer {
 
   .segmented button {
     color: #f8f3e8;
+  }
+
+  .result-group-heading {
+    color: #c4bcad;
   }
 
   .empty-state {
