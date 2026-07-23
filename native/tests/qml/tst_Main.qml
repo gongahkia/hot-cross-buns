@@ -133,6 +133,27 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_commandPaletteRestoresPriorFocus() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        mainWindow.navigationSidebar.forceActiveFocus()
+        tryVerify(function() {
+            return mainWindow.navigationSidebar.activeFocus
+        })
+        mainWindow.openCommandPalette()
+        tryVerify(function() {
+            return mainWindow.commandPaletteQuery.activeFocus
+        })
+        mainWindow.commandPalette.close()
+        tryVerify(function() {
+            return mainWindow.navigationSidebar.activeFocus
+        })
+        mainWindow.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

@@ -66,6 +66,7 @@ ApplicationWindow {
 
     function openCommandPalette() {
         if (!commandPalette.opened) {
+            commandPalette.previousFocusItem = window.activeFocusItem
             commandPalette.open()
         }
         commandPaletteQuery.forceActiveFocus()
@@ -109,6 +110,7 @@ ApplicationWindow {
         padding: Theme.spacingLarge
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         property var matchingCommands: window.matchingNavigationCommands(commandPaletteQuery.text)
+        property var previousFocusItem: null
 
         function activateCurrentCommand() {
             const command = matchingCommands[commandPaletteResults.currentIndex]
@@ -123,6 +125,13 @@ ApplicationWindow {
             commandPaletteQuery.text = ""
             commandPaletteResults.currentIndex = 0
             commandPaletteQuery.forceActiveFocus()
+        }
+
+        onClosed: {
+            if (previousFocusItem !== null) {
+                previousFocusItem.forceActiveFocus()
+            }
+            previousFocusItem = null
         }
 
         background: Rectangle {
