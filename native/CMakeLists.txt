@@ -4,6 +4,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppServices.cpp
   src/app/AppServices.h
   src/core/AppError.h
+  src/core/Cancellation.h
 )
 
 qt_add_executable(hcb_native
@@ -51,6 +52,16 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_core_tests)
   add_test(NAME hcb_core_tests COMMAND hcb_core_tests)
 
+  qt_add_executable(hcb_cancellation_tests
+    tests/CancellationTest.cpp
+    src/core/Cancellation.h
+  )
+  target_link_libraries(hcb_cancellation_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_cancellation_tests PRIVATE src)
+  hcb_enable_warnings(hcb_cancellation_tests)
+  hcb_enable_sanitizers(hcb_cancellation_tests)
+  add_test(NAME hcb_cancellation_tests COMMAND hcb_cancellation_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -63,10 +74,19 @@ endif()
 
 set(hcb_static_analysis_dependencies hcb_native)
 if(BUILD_TESTING)
-  list(APPEND hcb_static_analysis_dependencies hcb_core_tests hcb_qml_tests)
+  list(APPEND hcb_static_analysis_dependencies
+    hcb_core_tests
+    hcb_cancellation_tests
+    hcb_qml_tests
+  )
 endif()
 hcb_add_static_analysis_target(${hcb_static_analysis_dependencies})
 hcb_add_format_check_target()
 if(BUILD_TESTING)
-  hcb_add_bootstrap_check(hcb_native hcb_core_tests hcb_qml_tests)
+  hcb_add_bootstrap_check(
+    hcb_native
+    hcb_core_tests
+    hcb_cancellation_tests
+    hcb_qml_tests
+  )
 endif()
