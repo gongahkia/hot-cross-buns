@@ -14,7 +14,8 @@ class CommandRegistryModel final : public QAbstractListModel {
 public:
   enum Role : std::int32_t {
     CommandIdRole = Qt::UserRole + 1,
-    CommandLabelRole
+    CommandLabelRole,
+    CommandShortcutRole
   };
   Q_ENUM(Role)
 
@@ -30,6 +31,7 @@ private:
   struct Command final {
     QString id;
     QString label;
+    QString shortcut;
   };
 
   QList<Command> commands_;

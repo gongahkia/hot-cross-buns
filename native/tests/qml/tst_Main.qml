@@ -11,10 +11,10 @@ TestCase {
 
     ListModel {
         id: navigationCommands
-        ListElement { commandId: "navigation.tasks"; commandLabel: "Tasks" }
-        ListElement { commandId: "navigation.calendar"; commandLabel: "Calendar" }
-        ListElement { commandId: "navigation.notes"; commandLabel: "Notes" }
-        ListElement { commandId: "navigation.settings"; commandLabel: "Settings" }
+        ListElement { commandId: "navigation.tasks"; commandLabel: "Tasks"; commandShortcut: "Ctrl+1" }
+        ListElement { commandId: "navigation.calendar"; commandLabel: "Calendar"; commandShortcut: "Ctrl+2" }
+        ListElement { commandId: "navigation.notes"; commandLabel: "Notes"; commandShortcut: "Ctrl+3" }
+        ListElement { commandId: "navigation.settings"; commandLabel: "Settings"; commandShortcut: "Ctrl+," }
     }
 
     SystemPalette {
@@ -91,6 +91,21 @@ TestCase {
             return completedTransitions.length === 1
         })
         compare(completedTransitions, ["navigation.notes"])
+        mainWindow.destroy()
+    }
+
+    function test_navigationShortcutRoutesSelection() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        compare(mainWindow.navigationShortcuts.count, 4)
+        const notesShortcut = mainWindow.navigationShortcuts.objectAt(2)
+        verify(notesShortcut !== null)
+        compare(notesShortcut.portableText, "Ctrl+3")
+        notesShortcut.activated()
+        compare(mainWindow.currentPage, "Notes")
         mainWindow.destroy()
     }
 

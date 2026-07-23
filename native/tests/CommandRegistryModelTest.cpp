@@ -24,10 +24,15 @@ void CommandRegistryModelTest::exposesNativeNavigationCommands() {
            QStringLiteral("Calendar"));
   QCOMPARE(commands.data(commands.index(3, 0), hcb::CommandRegistryModel::CommandIdRole).toString(),
            QStringLiteral("navigation.settings"));
+  QCOMPARE(commands.data(commands.index(2, 0), hcb::CommandRegistryModel::CommandShortcutRole)
+               .toString(),
+           QStringLiteral("Ctrl+3"));
   QCOMPARE(commands.roleNames().value(hcb::CommandRegistryModel::CommandIdRole),
            QByteArrayLiteral("commandId"));
   QCOMPARE(commands.roleNames().value(hcb::CommandRegistryModel::CommandLabelRole),
            QByteArrayLiteral("commandLabel"));
+  QCOMPARE(commands.roleNames().value(hcb::CommandRegistryModel::CommandShortcutRole),
+           QByteArrayLiteral("commandShortcut"));
 }
 
 void CommandRegistryModelTest::rejectsInvalidIndexesAndUnknownLabels() {

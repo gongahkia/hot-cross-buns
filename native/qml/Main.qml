@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQml.Models
 
 ApplicationWindow {
     id: window
@@ -14,6 +15,7 @@ ApplicationWindow {
     required property var navigationCommands
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
+    property alias navigationShortcuts: navigationShortcuts
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -47,6 +49,19 @@ ApplicationWindow {
     palette.base: Theme.surface
     palette.text: Theme.textPrimary
     palette.highlight: Theme.accent
+
+    Instantiator {
+        id: navigationShortcuts
+        model: window.navigationCommands
+
+        delegate: Shortcut {
+            required property string commandLabel
+            required property string commandShortcut
+            sequence: commandShortcut
+            autoRepeat: false
+            onActivated: window.selectPage(commandLabel)
+        }
+    }
 
     header: ToolBar {
         RowLayout {

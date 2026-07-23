@@ -6,10 +6,15 @@ namespace hcb {
 
 CommandRegistryModel::CommandRegistryModel(QObject* parent)
     : QAbstractListModel(parent),
-      commands_{{QStringLiteral("navigation.tasks"), QStringLiteral("Tasks")},
-                {QStringLiteral("navigation.calendar"), QStringLiteral("Calendar")},
-                {QStringLiteral("navigation.notes"), QStringLiteral("Notes")},
-                {QStringLiteral("navigation.settings"), QStringLiteral("Settings")}} {}
+      commands_{
+          {QStringLiteral("navigation.tasks"), QStringLiteral("Tasks"), QStringLiteral("Ctrl+1")},
+          {QStringLiteral("navigation.calendar"),
+           QStringLiteral("Calendar"),
+           QStringLiteral("Ctrl+2")},
+          {QStringLiteral("navigation.notes"), QStringLiteral("Notes"), QStringLiteral("Ctrl+3")},
+          {QStringLiteral("navigation.settings"),
+           QStringLiteral("Settings"),
+           QStringLiteral("Ctrl+,")}} {}
 
 int CommandRegistryModel::rowCount(const QModelIndex& parent) const {
   return parent.isValid() ? 0 : static_cast<int>(commands_.size());
@@ -27,13 +32,17 @@ QVariant CommandRegistryModel::data(const QModelIndex& index, int role) const {
     return command.label;
   case CommandIdRole:
     return command.id;
+  case CommandShortcutRole:
+    return command.shortcut;
   default:
     return {};
   }
 }
 
 QHash<int, QByteArray> CommandRegistryModel::roleNames() const {
-  return {{CommandIdRole, "commandId"}, {CommandLabelRole, "commandLabel"}};
+  return {{CommandIdRole, "commandId"},
+          {CommandLabelRole, "commandLabel"},
+          {CommandShortcutRole, "commandShortcut"}};
 }
 
 bool CommandRegistryModel::containsLabel(const QString& label) const {
