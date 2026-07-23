@@ -14,6 +14,7 @@ namespace {
 
 constexpr NativePerformanceFixtureCounts kSmallCounts{50, 20, 10};
 constexpr NativePerformanceFixtureCounts kMediumCounts{1'000, 1'000, 200};
+constexpr NativePerformanceFixtureCounts kEvent15kCounts{1'000, 15'000, 500};
 constexpr qint64 kBaseTimeMilliseconds = 1'767'603'600'000;
 constexpr std::array<QStringView, 4> kTaskListIds{
     u"generated-inbox", u"generated-work", u"generated-personal", u"generated-later"};
@@ -128,6 +129,10 @@ NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
 
 NativePerformanceFixture NativePerformanceFixtureGenerator::medium() {
   return generate(u"medium", kMediumCounts);
+}
+
+NativePerformanceFixture NativePerformanceFixtureGenerator::event15k() {
+  return generate(u"event15k", kEvent15kCounts);
 }
 
 QByteArray NativePerformanceFixtureGenerator::toJson(const NativePerformanceFixture& fixture) {

@@ -66,6 +66,7 @@ class NativePerformanceFixtureGenerator final {
 public:
   [[nodiscard]] static NativePerformanceFixture small();
   [[nodiscard]] static NativePerformanceFixture medium();
+  [[nodiscard]] static NativePerformanceFixture event15k();
   [[nodiscard]] static QByteArray toJson(const NativePerformanceFixture& fixture);
 };
 

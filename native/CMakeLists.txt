@@ -95,6 +95,16 @@ target_include_directories(hcb_medium_performance_fixture PRIVATE src)
 hcb_enable_warnings(hcb_medium_performance_fixture)
 hcb_enable_sanitizers(hcb_medium_performance_fixture)
 
+qt_add_executable(hcb_event15k_performance_fixture
+  benchmarks/Native15kEventPerformanceFixtureMain.cpp
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
+)
+target_link_libraries(hcb_event15k_performance_fixture PRIVATE Qt6::Core)
+target_include_directories(hcb_event15k_performance_fixture PRIVATE src)
+hcb_enable_warnings(hcb_event15k_performance_fixture)
+hcb_enable_sanitizers(hcb_event15k_performance_fixture)
+
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
   WIN32_EXECUTABLE TRUE
@@ -358,6 +368,7 @@ set(hcb_static_analysis_dependencies
   hcb_idle_rss_benchmark
   hcb_small_performance_fixture
   hcb_medium_performance_fixture
+  hcb_event15k_performance_fixture
 )
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
@@ -390,6 +401,7 @@ if(BUILD_TESTING)
     hcb_idle_rss_benchmark
     hcb_small_performance_fixture
     hcb_medium_performance_fixture
+    hcb_event15k_performance_fixture
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
