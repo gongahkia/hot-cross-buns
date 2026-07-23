@@ -1,6 +1,9 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 
+#include <optional>
+#include <utility>
+
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
 
@@ -10,7 +13,11 @@ int main(int argc, char* argv[]) {
   QCoreApplication::setOrganizationDomain("gongahkia.github.io");
   QCoreApplication::setApplicationName("Hot Cross Buns");
 
-  const hcb::AppServices services(hcb::AppPaths::discover());
+  std::optional<hcb::AppPaths> paths = hcb::AppPaths::discover();
+  if (!paths.has_value()) {
+    return 1;
+  }
+  const hcb::AppServices services(std::move(*paths));
   QQmlApplicationEngine engine;
 
   QObject::connect(

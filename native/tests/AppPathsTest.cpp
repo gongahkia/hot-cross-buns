@@ -1,7 +1,5 @@
 #include <QtTest>
 
-#include <QDir>
-
 #include "app/AppPaths.h"
 
 class AppPathsTest final : public QObject {
@@ -12,12 +10,15 @@ private slots:
 };
 
 void AppPathsTest::discoversStableApplicationDirectories() {
-  const hcb::AppPaths paths = hcb::AppPaths::discover();
+  const std::optional<hcb::AppPaths> discoveredPaths = hcb::AppPaths::discover();
+  QVERIFY(discoveredPaths.has_value());
+  if (!discoveredPaths.has_value()) {
+    return;
+  }
+  const hcb::AppPaths& paths = *discoveredPaths;
 
-  QVERIFY(!paths.dataDirectory().isEmpty());
-  QVERIFY(!paths.cacheDirectory().isEmpty());
-  QVERIFY(QDir::isAbsolutePath(paths.dataDirectory()));
-  QVERIFY(QDir::isAbsolutePath(paths.cacheDirectory()));
+  QVERIFY(!paths.dataDirectory().nativePath().isEmpty());
+  QVERIFY(!paths.cacheDirectory().nativePath().isEmpty());
 }
 
 QTEST_MAIN(AppPathsTest)

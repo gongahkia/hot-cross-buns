@@ -7,6 +7,7 @@ set(HCB_NATIVE_SOURCES
   src/core/AppError.h
   src/core/Cancellation.h
   src/core/Clock.h
+  src/core/FilePath.h
   src/core/FeatureCapabilityRegistry.h
   src/core/SettingsRegistry.h
 )
@@ -49,12 +50,23 @@ if(BUILD_TESTING)
     src/app/AppPaths.cpp
     src/app/AppPaths.h
     src/core/AppError.h
+    src/core/FilePath.h
   )
   target_link_libraries(hcb_core_tests PRIVATE Qt6::Core Qt6::Test)
   target_include_directories(hcb_core_tests PRIVATE src)
   hcb_enable_warnings(hcb_core_tests)
   hcb_enable_sanitizers(hcb_core_tests)
   add_test(NAME hcb_core_tests COMMAND hcb_core_tests)
+
+  qt_add_executable(hcb_file_path_tests
+    tests/FilePathTest.cpp
+    src/core/FilePath.h
+  )
+  target_link_libraries(hcb_file_path_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_file_path_tests PRIVATE src)
+  hcb_enable_warnings(hcb_file_path_tests)
+  hcb_enable_sanitizers(hcb_file_path_tests)
+  add_test(NAME hcb_file_path_tests COMMAND hcb_file_path_tests)
 
   qt_add_executable(hcb_cancellation_tests
     tests/CancellationTest.cpp
@@ -120,6 +132,7 @@ set(hcb_static_analysis_dependencies hcb_native)
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
+    hcb_file_path_tests
     hcb_cancellation_tests
     hcb_clock_tests
     hcb_application_lifecycle_tests
@@ -134,6 +147,7 @@ if(BUILD_TESTING)
   hcb_add_bootstrap_check(
     hcb_native
     hcb_core_tests
+    hcb_file_path_tests
     hcb_cancellation_tests
     hcb_clock_tests
     hcb_application_lifecycle_tests

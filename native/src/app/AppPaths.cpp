@@ -1,6 +1,5 @@
 #include "app/AppPaths.h"
 
-#include <QDir>
 #include <QStandardPaths>
 
 #include <utility>
@@ -11,15 +10,19 @@ AppPaths::AppPaths(DataDirectory dataDirectory, CacheDirectory cacheDirectory)
     : dataDirectory_(std::move(dataDirectory.value)),
       cacheDirectory_(std::move(cacheDirectory.value)) {}
 
-AppPaths AppPaths::discover() {
-  return AppPaths(DataDirectory{QDir::cleanPath(
-                      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))},
-                  CacheDirectory{QDir::cleanPath(
-                      QStandardPaths::writableLocation(QStandardPaths::CacheLocation))});
+std::optional<AppPaths> AppPaths::discover() {
+  const std::optional<FilePath> dataDirectory =
+      FilePath::fromAbsolute(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+  const std::optional<FilePath> cacheDirectory =
+      FilePath::fromAbsolute(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+  if (!dataDirectory.has_value() || !cacheDirectory.has_value()) {
+    return std::nullopt;
+  }
+  return AppPaths(DataDirectory{*dataDirectory}, CacheDirectory{*cacheDirectory});
 }
 
-const QString& AppPaths::dataDirectory() const noexcept { return dataDirectory_; }
+const FilePath& AppPaths::dataDirectory() const noexcept { return dataDirectory_; }
 
-const QString& AppPaths::cacheDirectory() const noexcept { return cacheDirectory_; }
+const FilePath& AppPaths::cacheDirectory() const noexcept { return cacheDirectory_; }
 
 } // namespace hcb
