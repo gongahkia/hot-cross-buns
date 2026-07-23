@@ -42,8 +42,7 @@ public:
 
   [[nodiscard]] bool fail() noexcept {
     ApplicationState current = state();
-    while (current == ApplicationState::Starting || current == ApplicationState::Ready ||
-           current == ApplicationState::Stopping) {
+    while (current == ApplicationState::Starting || current == ApplicationState::Ready) {
       if (state_.compare_exchange_weak(current,
                                        ApplicationState::Failed,
                                        std::memory_order_acq_rel,

@@ -9,6 +9,7 @@ private slots:
   void startsAndStopsInOrder();
   void supportsStopDuringStartup();
   void recoversFromFailureThroughShutdown();
+  void preservesStoppingStateWhenFailureArrivesLate();
   void rejectsInvalidTransitions();
 };
 
@@ -39,6 +40,18 @@ void ApplicationLifecycleTest::recoversFromFailureThroughShutdown() {
   QCOMPARE(lifecycle.state(), hcb::ApplicationState::Failed);
   QVERIFY(lifecycle.requestStop());
   QVERIFY(lifecycle.markStopped());
+}
+
+void ApplicationLifecycleTest::preservesStoppingStateWhenFailureArrivesLate() {
+  hcb::ApplicationLifecycle lifecycle;
+
+  QVERIFY(lifecycle.markReady());
+  QVERIFY(lifecycle.requestStop());
+  QCOMPARE(lifecycle.state(), hcb::ApplicationState::Stopping);
+  QVERIFY(!lifecycle.fail());
+  QCOMPARE(lifecycle.state(), hcb::ApplicationState::Stopping);
+  QVERIFY(lifecycle.markStopped());
+  QCOMPARE(lifecycle.state(), hcb::ApplicationState::Stopped);
 }
 
 void ApplicationLifecycleTest::rejectsInvalidTransitions() {
