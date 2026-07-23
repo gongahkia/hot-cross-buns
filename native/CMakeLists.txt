@@ -22,6 +22,8 @@ set(HCB_NATIVE_SOURCES
   src/core/SecretRedactor.h
   src/core/StructuredLogger.cpp
   src/core/StructuredLogger.h
+  src/core/SyncBackoffPolicy.cpp
+  src/core/SyncBackoffPolicy.h
   src/core/StartupTimingTracker.cpp
   src/core/StartupTimingTracker.h
   src/core/UiTransitionTimingTracker.cpp
@@ -234,6 +236,21 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_google_api_error_tests)
   add_test(NAME hcb_google_api_error_tests COMMAND hcb_google_api_error_tests)
 
+  qt_add_executable(hcb_sync_backoff_policy_tests
+    tests/SyncBackoffPolicyTest.cpp
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+    src/core/SyncBackoffPolicy.cpp
+    src/core/SyncBackoffPolicy.h
+  )
+  target_link_libraries(hcb_sync_backoff_policy_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sync_backoff_policy_tests PRIVATE src)
+  hcb_enable_warnings(hcb_sync_backoff_policy_tests)
+  hcb_enable_sanitizers(hcb_sync_backoff_policy_tests)
+  add_test(NAME hcb_sync_backoff_policy_tests COMMAND hcb_sync_backoff_policy_tests)
+
   qt_add_executable(hcb_secret_redactor_tests
     tests/SecretRedactorTest.cpp
     src/core/SecretRedactor.cpp
@@ -434,6 +451,7 @@ if(BUILD_TESTING)
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
+    hcb_sync_backoff_policy_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
@@ -467,6 +485,7 @@ if(BUILD_TESTING)
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
+    hcb_sync_backoff_policy_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
