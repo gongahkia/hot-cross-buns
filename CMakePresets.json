@@ -80,6 +80,11 @@
       "inherits": "base",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/macos-analysis",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "HCB_ENABLE_STATIC_ANALYSIS": "ON"
@@ -98,6 +103,11 @@
       "inherits": "base",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-analysis",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "HCB_ENABLE_STATIC_ANALYSIS": "ON"
@@ -108,6 +118,11 @@
       "inherits": "base",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/macos-format",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
       "cacheVariables": {
         "HCB_ENABLE_FORMAT_CHECK": "ON"
       }
@@ -125,8 +140,37 @@
       "inherits": "base",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-format",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
         "HCB_ENABLE_FORMAT_CHECK": "ON"
+      }
+    },
+    {
+      "name": "macos-bootstrap",
+      "inherits": "macos-debug",
+      "binaryDir": "${sourceDir}/build/macos-bootstrap-xcode",
+      "cacheVariables": {
+        "HCB_ENABLE_BOOTSTRAP_CHECK": "ON"
+      }
+    },
+    {
+      "name": "linux-bootstrap",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-bootstrap",
+      "cacheVariables": {
+        "HCB_ENABLE_BOOTSTRAP_CHECK": "ON"
+      }
+    },
+    {
+      "name": "windows-bootstrap",
+      "inherits": "windows-debug",
+      "binaryDir": "${sourceDir}/build/windows-bootstrap",
+      "cacheVariables": {
+        "HCB_ENABLE_BOOTSTRAP_CHECK": "ON"
       }
     }
   ],
@@ -142,7 +186,10 @@
     { "name": "windows-analysis", "configurePreset": "windows-analysis", "targets": ["hcb_static_analysis"] },
     { "name": "macos-format", "configurePreset": "macos-format", "targets": ["hcb_format_check"] },
     { "name": "linux-format", "configurePreset": "linux-format", "targets": ["hcb_format_check"] },
-    { "name": "windows-format", "configurePreset": "windows-format", "targets": ["hcb_format_check"] }
+    { "name": "windows-format", "configurePreset": "windows-format", "targets": ["hcb_format_check"] },
+    { "name": "macos-bootstrap", "configurePreset": "macos-bootstrap", "configuration": "Debug", "targets": ["hcb_bootstrap_check"] },
+    { "name": "linux-bootstrap", "configurePreset": "linux-bootstrap", "targets": ["hcb_bootstrap_check"] },
+    { "name": "windows-bootstrap", "configurePreset": "windows-bootstrap", "configuration": "Debug", "targets": ["hcb_bootstrap_check"] }
   ],
   "testPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },

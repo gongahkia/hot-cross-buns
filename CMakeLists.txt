@@ -11,6 +11,7 @@ include(cmake/HcbWarnings.cmake)
 include(cmake/HcbSanitizers.cmake)
 include(cmake/HcbStaticAnalysis.cmake)
 include(cmake/HcbFormatting.cmake)
+include(cmake/HcbBootstrap.cmake)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
