@@ -25,7 +25,7 @@ if(APPLE AND NOT CMAKE_PREFIX_PATH)
   endforeach()
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickTest Test)
 qt_standard_project_setup(REQUIRES 6.8)
 
 add_subdirectory(native)

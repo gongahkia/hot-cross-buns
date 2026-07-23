@@ -50,11 +50,20 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_core_tests)
   hcb_enable_sanitizers(hcb_core_tests)
   add_test(NAME hcb_core_tests COMMAND hcb_core_tests)
+
+  qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
+  target_compile_definitions(hcb_qml_tests PRIVATE
+    QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
+  )
+  target_link_libraries(hcb_qml_tests PRIVATE Qt6::Qml Qt6::QuickTest)
+  hcb_enable_warnings(hcb_qml_tests)
+  hcb_enable_sanitizers(hcb_qml_tests)
+  add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
 endif()
 
 set(hcb_static_analysis_dependencies hcb_native)
 if(BUILD_TESTING)
-  list(APPEND hcb_static_analysis_dependencies hcb_core_tests)
+  list(APPEND hcb_static_analysis_dependencies hcb_core_tests hcb_qml_tests)
 endif()
 hcb_add_static_analysis_target(${hcb_static_analysis_dependencies})
 hcb_add_format_check_target()
