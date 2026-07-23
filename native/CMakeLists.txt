@@ -19,6 +19,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleApiError.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/NativeCapabilityReport.cpp
+  src/core/NativeCapabilityReport.h
   src/core/PkceAuthorization.cpp
   src/core/PkceAuthorization.h
   src/core/SettingsRegistry.h
@@ -229,6 +231,19 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_feature_capability_registry_tests)
   hcb_enable_sanitizers(hcb_feature_capability_registry_tests)
   add_test(NAME hcb_feature_capability_registry_tests COMMAND hcb_feature_capability_registry_tests)
+
+  qt_add_executable(hcb_native_capability_report_tests
+    tests/NativeCapabilityReportTest.cpp
+    src/core/NativeCapabilityReport.cpp
+    src/core/NativeCapabilityReport.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+  )
+  target_link_libraries(hcb_native_capability_report_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_capability_report_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_capability_report_tests)
+  hcb_enable_sanitizers(hcb_native_capability_report_tests)
+  add_test(NAME hcb_native_capability_report_tests COMMAND hcb_native_capability_report_tests)
 
   qt_add_executable(hcb_command_registry_model_tests
     tests/CommandRegistryModelTest.cpp
@@ -518,6 +533,7 @@ if(BUILD_TESTING)
     hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
+    hcb_native_capability_report_tests
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
@@ -557,6 +573,7 @@ if(BUILD_TESTING)
     hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
+    hcb_native_capability_report_tests
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
