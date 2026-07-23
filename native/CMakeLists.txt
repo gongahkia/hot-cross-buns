@@ -446,6 +446,14 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_qml_tests)
   hcb_enable_sanitizers(hcb_qml_tests)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
+
+  qt_add_executable(hcb_native_qml_shell_smoke tests/NativeQmlShellSmokeTest.cpp)
+  target_link_libraries(hcb_native_qml_shell_smoke PRIVATE Qt6::Core Qt6::Test)
+  hcb_enable_warnings(hcb_native_qml_shell_smoke)
+  hcb_enable_sanitizers(hcb_native_qml_shell_smoke)
+  add_test(NAME hcb_native_qml_shell_smoke
+    COMMAND hcb_native_qml_shell_smoke "$<TARGET_FILE:hcb_native>"
+  )
 endif()
 
 set(hcb_static_analysis_dependencies
@@ -481,6 +489,7 @@ if(BUILD_TESTING)
     hcb_native_performance_fixture_tests
     hcb_native_performance_report_tests
     hcb_qml_tests
+    hcb_native_qml_shell_smoke
   )
 endif()
 hcb_add_static_analysis_target(${hcb_static_analysis_dependencies})
@@ -516,5 +525,6 @@ if(BUILD_TESTING)
     hcb_native_performance_fixture_tests
     hcb_native_performance_report_tests
     hcb_qml_tests
+    hcb_native_qml_shell_smoke
   )
 endif()
