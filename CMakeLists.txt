@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.28)
 
+if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum supported macOS version" FORCE)
+endif()
+
 project(HotCrossBuns VERSION 6.0.0 LANGUAGES CXX)
 
 include(CTest)
+include(cmake/HcbWarnings.cmake)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
