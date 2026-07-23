@@ -45,6 +45,8 @@ qt_add_qml_module(hcb_native
   URI HCB
   VERSION 1.0
   QML_FILES
+    qml/AccessibleButton.qml
+    qml/AccessibleNavigationButton.qml
     qml/Main.qml
     qml/NavigationSidebar.qml
     qml/Theme.qml

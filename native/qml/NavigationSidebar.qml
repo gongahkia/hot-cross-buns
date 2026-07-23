@@ -23,13 +23,12 @@ Pane {
         Repeater {
             model: root.pageNames
 
-            delegate: Button {
+            delegate: AccessibleNavigationButton {
                 required property string modelData
                 Layout.fillWidth: true
-                text: modelData
-                checkable: true
-                checked: root.currentPage === modelData
-                onClicked: root.selectPage(modelData)
+                pageName: modelData
+                currentPage: root.currentPage === modelData
+                onPageSelected: pageName => root.selectPage(pageName)
             }
         }
 

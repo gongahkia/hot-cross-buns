@@ -92,4 +92,41 @@ TestCase {
         compare(mainWindow.palette.highlight.toString(), systemPalette.highlight.toString())
         mainWindow.destroy()
     }
+
+    function test_accessibleButtonExposesLabelAndPressAction() {
+        const component = Qt.createComponent("../../qml/AccessibleButton.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const button = component.createObject(null, { text: "Save" })
+        verify(button !== null)
+        compare(button.accessibleName, "")
+        compare(button.Accessible.name, "Save")
+        compare(button.Accessible.role, Accessible.Button)
+        verify(button.Accessible.focusable)
+        button.accessibleName = "Save draft"
+        compare(button.Accessible.name, "Save draft")
+        button.destroy()
+    }
+
+    function test_accessibleNavigationButtonRoutesSelection() {
+        const component = Qt.createComponent("../../qml/AccessibleNavigationButton.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const button = component.createObject(null, { pageName: "Notes", currentPage: true })
+        verify(button !== null)
+        let selectedPage = ""
+        button.pageSelected.connect(function(pageName) {
+            selectedPage = pageName
+        })
+        compare(button.text, "Notes")
+        verify(button.checkable)
+        verify(button.checked)
+        compare(button.Accessible.name, "Notes")
+        compare(button.Accessible.role, Accessible.PageTab)
+        verify(button.Accessible.checkable)
+        verify(button.Accessible.checked)
+        button.click()
+        compare(selectedPage, "Notes")
+        button.destroy()
+    }
 }
