@@ -50,6 +50,16 @@ target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
 hcb_enable_sanitizers(hcb_native)
 
+qt_add_executable(hcb_launch_benchmark
+  benchmarks/NativeLaunchBenchmarkMain.cpp
+  src/core/NativeLaunchBenchmark.cpp
+  src/core/NativeLaunchBenchmark.h
+)
+target_link_libraries(hcb_launch_benchmark PRIVATE Qt6::Core)
+target_include_directories(hcb_launch_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_launch_benchmark)
+hcb_enable_sanitizers(hcb_launch_benchmark)
+
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
   WIN32_EXECUTABLE TRUE
@@ -245,6 +255,24 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_diagnostics_json_exporter_tests)
   add_test(NAME hcb_diagnostics_json_exporter_tests COMMAND hcb_diagnostics_json_exporter_tests)
 
+  qt_add_executable(hcb_native_launch_benchmark_tests
+    tests/NativeLaunchBenchmarkTest.cpp
+    src/core/NativeLaunchBenchmark.cpp
+    src/core/NativeLaunchBenchmark.h
+  )
+  target_link_libraries(hcb_native_launch_benchmark_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_launch_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_launch_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_launch_benchmark_tests)
+  add_test(NAME hcb_native_launch_benchmark_tests COMMAND hcb_native_launch_benchmark_tests)
+  add_test(NAME hcb_native_launch_benchmark
+    COMMAND hcb_launch_benchmark
+      --executable "$<TARGET_FILE:hcb_native>"
+      --iterations 1
+      --timeout-ms 15000
+      -- -platform offscreen
+  )
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -255,7 +283,7 @@ if(BUILD_TESTING)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
 endif()
 
-set(hcb_static_analysis_dependencies hcb_native)
+set(hcb_static_analysis_dependencies hcb_native hcb_launch_benchmark)
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
@@ -272,6 +300,7 @@ if(BUILD_TESTING)
     hcb_ui_transition_timing_tracker_tests
     hcb_diagnostics_snapshot_tests
     hcb_diagnostics_json_exporter_tests
+    hcb_native_launch_benchmark_tests
     hcb_qml_tests
   )
 endif()
@@ -280,6 +309,7 @@ hcb_add_format_check_target()
 if(BUILD_TESTING)
   hcb_add_bootstrap_check(
     hcb_native
+    hcb_launch_benchmark
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -294,6 +324,7 @@ if(BUILD_TESTING)
     hcb_ui_transition_timing_tracker_tests
     hcb_diagnostics_snapshot_tests
     hcb_diagnostics_json_exporter_tests
+    hcb_native_launch_benchmark_tests
     hcb_qml_tests
   )
 endif()

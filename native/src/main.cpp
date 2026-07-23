@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QTimer>
 #include <QVariant>
 
 #include <optional>
@@ -50,6 +51,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   startupTimings.mark(u"qml.loaded");
+
+  if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
+    startupTimings.mark(u"benchmark.exit.scheduled");
+    QTimer::singleShot(0, &application, &QCoreApplication::quit);
+  }
 
   Q_UNUSED(services);
   return application.exec();
