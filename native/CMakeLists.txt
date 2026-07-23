@@ -33,11 +33,14 @@ qt_add_executable(hcb_native
   ${HCB_NATIVE_SOURCES}
 )
 
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(hcb_native
   URI HCB
   VERSION 1.0
   QML_FILES
     qml/Main.qml
+    qml/Theme.qml
 )
 
 target_link_libraries(hcb_native PRIVATE

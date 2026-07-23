@@ -27,22 +27,23 @@ ApplicationWindow {
         }
     }
 
-    palette.window: "#17191d"
-    palette.windowText: "#f2f2f2"
-    palette.base: "#20242a"
-    palette.text: "#f2f2f2"
-    palette.highlight: "#e88747"
+    color: Theme.background
+    palette.window: Theme.background
+    palette.windowText: Theme.textPrimary
+    palette.base: Theme.surface
+    palette.text: Theme.textPrimary
+    palette.highlight: Theme.accent
 
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
+            anchors.leftMargin: Theme.spacingLarge
+            anchors.rightMargin: Theme.spacingLarge
 
             Label {
                 text: "Hot Cross Buns"
                 font.bold: true
-                font.pixelSize: 16
+                font.pixelSize: Theme.labelFontSize
             }
             Item { Layout.fillWidth: true }
             Label {
@@ -56,10 +57,10 @@ ApplicationWindow {
         anchors.fill: parent
 
         Pane {
-            SplitView.preferredWidth: 220
+            SplitView.preferredWidth: Theme.navigationWidth
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 8
+                spacing: Theme.spacingSmall
                 Repeater {
                     model: ["Tasks", "Calendar", "Notes", "Settings"]
                     delegate: Button {
@@ -79,16 +80,16 @@ ApplicationWindow {
             SplitView.fillWidth: true
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 12
+                spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage
-                    font.pixelSize: 20
+                    font.pixelSize: Theme.titleFontSize
                 }
                 Label {
                     text: "Qt Quick presents small C++ model diffs; sync, search, recurrence, and SQLite stay off the UI thread."
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
-                    opacity: 0.72
+                    color: Theme.textSecondary
                 }
                 Item { Layout.fillHeight: true }
             }

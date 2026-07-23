@@ -50,4 +50,17 @@ TestCase {
         compare(completedTransitions, ["navigation.calendar"])
         mainWindow.destroy()
     }
+
+    function test_usesDesignTokens() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null)
+        verify(mainWindow !== null)
+        compare(mainWindow.color.toString(), "#17191d")
+        compare(mainWindow.palette.window.toString(), "#17191d")
+        compare(mainWindow.palette.base.toString(), "#20242a")
+        compare(mainWindow.palette.highlight.toString(), "#e88747")
+        mainWindow.destroy()
+    }
 }
