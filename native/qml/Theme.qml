@@ -3,11 +3,15 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property color background: "#17191d"
-    readonly property color surface: "#20242a"
-    readonly property color textPrimary: "#f2f2f2"
-    readonly property color textSecondary: "#b7bcc5"
-    readonly property color accent: "#e88747"
+    readonly property var systemPalette: SystemPalette {
+        colorGroup: SystemPalette.Active
+    }
+
+    readonly property color background: systemPalette.window
+    readonly property color surface: systemPalette.base
+    readonly property color textPrimary: systemPalette.windowText
+    readonly property color textSecondary: systemPalette.placeholderText
+    readonly property color accent: systemPalette.highlight
     readonly property int navigationWidth: 220
     readonly property int spacingSmall: 8
     readonly property int spacingMedium: 12
