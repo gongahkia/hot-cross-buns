@@ -16,6 +16,8 @@ artifacts/release/*
 artifacts/reference-screenshots
 artifacts/screenshots
 
+build/
+
 .DS_Store
 *.log
 AGENTS.md
