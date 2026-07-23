@@ -155,6 +155,7 @@ ApplicationWindow {
 
             TextField {
                 id: commandPaletteQuery
+                objectName: "commandPaletteQuery"
                 Layout.fillWidth: true
                 focus: true
                 placeholderText: "Search commands"

@@ -89,6 +89,16 @@ target_include_directories(hcb_idle_rss_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_idle_rss_benchmark)
 hcb_enable_sanitizers(hcb_idle_rss_benchmark)
 
+qt_add_executable(hcb_command_palette_benchmark
+  benchmarks/NativeCommandPaletteBenchmarkMain.cpp
+  src/core/NativeCommandPaletteBenchmark.cpp
+  src/core/NativeCommandPaletteBenchmark.h
+)
+target_link_libraries(hcb_command_palette_benchmark PRIVATE Qt6::Core)
+target_include_directories(hcb_command_palette_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_command_palette_benchmark)
+hcb_enable_sanitizers(hcb_command_palette_benchmark)
+
 qt_add_executable(hcb_small_performance_fixture
   benchmarks/NativeSmallPerformanceFixtureMain.cpp
   src/core/NativePerformanceFixture.cpp
@@ -420,6 +430,26 @@ if(BUILD_TESTING)
       -- -platform offscreen
   )
 
+  qt_add_executable(hcb_native_command_palette_benchmark_tests
+    tests/NativeCommandPaletteBenchmarkTest.cpp
+    src/core/NativeCommandPaletteBenchmark.cpp
+    src/core/NativeCommandPaletteBenchmark.h
+  )
+  target_link_libraries(hcb_native_command_palette_benchmark_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_command_palette_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_command_palette_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_command_palette_benchmark_tests)
+  add_test(NAME hcb_native_command_palette_benchmark_tests
+    COMMAND hcb_native_command_palette_benchmark_tests
+  )
+  add_test(NAME hcb_native_command_palette_benchmark
+    COMMAND hcb_command_palette_benchmark
+      --executable "$<TARGET_FILE:hcb_native>"
+      --iterations 1
+      --timeout-ms 15000
+      -- -platform offscreen
+  )
+
   qt_add_executable(hcb_native_performance_fixture_tests
     tests/NativePerformanceFixtureTest.cpp
     src/core/NativePerformanceFixture.cpp
@@ -473,6 +503,7 @@ set(hcb_static_analysis_dependencies
   hcb_native
   hcb_launch_benchmark
   hcb_idle_rss_benchmark
+  hcb_command_palette_benchmark
   hcb_small_performance_fixture
   hcb_medium_performance_fixture
   hcb_event15k_performance_fixture
@@ -500,6 +531,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
+    hcb_native_command_palette_benchmark_tests
     hcb_native_performance_fixture_tests
     hcb_native_performance_report_tests
     hcb_qml_tests
@@ -513,6 +545,7 @@ if(BUILD_TESTING)
     hcb_native
     hcb_launch_benchmark
     hcb_idle_rss_benchmark
+    hcb_command_palette_benchmark
     hcb_small_performance_fixture
     hcb_medium_performance_fixture
     hcb_event15k_performance_fixture
@@ -537,6 +570,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
+    hcb_native_command_palette_benchmark_tests
     hcb_native_performance_fixture_tests
     hcb_native_performance_report_tests
     hcb_qml_tests

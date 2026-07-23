@@ -1,10 +1,13 @@
 #include <QGuiApplication>
+#include <QElapsedTimer>
+#include <QQuickItem>
 #include <QQmlApplicationEngine>
 #include <QTextStream>
 #include <QTimer>
 #include <QVariant>
 
 #include <exception>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -21,6 +24,38 @@
 namespace {
 
 constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
+constexpr int kCommandPaletteBenchmarkTimeoutMilliseconds = 5'000;
+
+void scheduleCommandPaletteBenchmark(QGuiApplication& application, QObject* rootObject) {
+  QTimer::singleShot(0, &application, [&application, rootObject] {
+    auto timer = std::make_shared<QElapsedTimer>();
+    timer->start();
+    if (!QMetaObject::invokeMethod(rootObject, "openCommandPalette")) {
+      QCoreApplication::exit(3);
+      return;
+    }
+
+    auto* pollTimer = new QTimer(&application);
+    pollTimer->setInterval(1);
+    QObject::connect(pollTimer, &QTimer::timeout, &application, [rootObject, timer, pollTimer] {
+      const auto* query = rootObject->findChild<QQuickItem*>("commandPaletteQuery");
+      if (query != nullptr && query->hasActiveFocus()) {
+        QTextStream(stdout) << "HCB_COMMAND_PALETTE_OPEN_MS=" << timer->elapsed() << Qt::endl;
+        pollTimer->stop();
+        pollTimer->deleteLater();
+        QCoreApplication::quit();
+        return;
+      }
+      if (timer->elapsed() >= kCommandPaletteBenchmarkTimeoutMilliseconds) {
+        pollTimer->stop();
+        pollTimer->deleteLater();
+        QCoreApplication::exit(3);
+        return;
+      }
+    });
+    pollTimer->start();
+  });
+}
 
 } // namespace
 
@@ -64,6 +99,8 @@ int runApplication(int argc, char* argv[]) {
   }
   startupTimings.mark(u"qml.loaded");
 
+  const bool benchmarkCommandPalette =
+      qEnvironmentVariable("HCB_BENCHMARK_COMMAND_PALETTE_AFTER_LOAD") == QStringLiteral("1");
   bool idleRssDurationValid = false;
   const int idleRssDuration =
       qEnvironmentVariable("HCB_BENCHMARK_IDLE_RSS_AFTER_MS").toInt(&idleRssDurationValid);
@@ -79,6 +116,9 @@ int runApplication(int argc, char* argv[]) {
       }
       QCoreApplication::exit(2);
     });
+  } else if (benchmarkCommandPalette) {
+    startupTimings.mark(u"benchmark.command_palette.scheduled");
+    scheduleCommandPaletteBenchmark(application, engine.rootObjects().constFirst());
   } else if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
     startupTimings.mark(u"benchmark.exit.scheduled");
     QTimer::singleShot(0, &application, &QCoreApplication::quit);
