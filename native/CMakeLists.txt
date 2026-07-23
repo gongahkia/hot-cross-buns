@@ -75,6 +75,16 @@ target_include_directories(hcb_idle_rss_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_idle_rss_benchmark)
 hcb_enable_sanitizers(hcb_idle_rss_benchmark)
 
+qt_add_executable(hcb_small_performance_fixture
+  benchmarks/NativeSmallPerformanceFixtureMain.cpp
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
+)
+target_link_libraries(hcb_small_performance_fixture PRIVATE Qt6::Core)
+target_include_directories(hcb_small_performance_fixture PRIVATE src)
+hcb_enable_warnings(hcb_small_performance_fixture)
+hcb_enable_sanitizers(hcb_small_performance_fixture)
+
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
   WIN32_EXECUTABLE TRUE
@@ -311,6 +321,17 @@ if(BUILD_TESTING)
       -- -platform offscreen
   )
 
+  qt_add_executable(hcb_native_performance_fixture_tests
+    tests/NativePerformanceFixtureTest.cpp
+    src/core/NativePerformanceFixture.cpp
+    src/core/NativePerformanceFixture.h
+  )
+  target_link_libraries(hcb_native_performance_fixture_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_performance_fixture_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_performance_fixture_tests)
+  hcb_enable_sanitizers(hcb_native_performance_fixture_tests)
+  add_test(NAME hcb_native_performance_fixture_tests COMMAND hcb_native_performance_fixture_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -321,7 +342,12 @@ if(BUILD_TESTING)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
 endif()
 
-set(hcb_static_analysis_dependencies hcb_native hcb_launch_benchmark hcb_idle_rss_benchmark)
+set(hcb_static_analysis_dependencies
+  hcb_native
+  hcb_launch_benchmark
+  hcb_idle_rss_benchmark
+  hcb_small_performance_fixture
+)
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
@@ -340,6 +366,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
+    hcb_native_performance_fixture_tests
     hcb_qml_tests
   )
 endif()
@@ -350,6 +377,7 @@ if(BUILD_TESTING)
     hcb_native
     hcb_launch_benchmark
     hcb_idle_rss_benchmark
+    hcb_small_performance_fixture
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -366,6 +394,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
+    hcb_native_performance_fixture_tests
     hcb_qml_tests
   )
 endif()
