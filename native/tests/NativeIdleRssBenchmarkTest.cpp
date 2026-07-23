@@ -21,10 +21,15 @@ void NativeIdleRssBenchmarkTest::parsesResidentBytes() {
 }
 
 void NativeIdleRssBenchmarkTest::rejectsInvalidResidentBytes() {
-  QVERIFY(!hcb::NativeIdleRssBenchmark::parseResidentBytes(QByteArrayLiteral("HCB_IDLE_RSS_BYTES=0"))
-                .has_value());
-  QVERIFY(!hcb::NativeIdleRssBenchmark::parseResidentBytes(QByteArrayLiteral("HCB_IDLE_RSS_BYTES=x"))
-                .has_value());
+  QVERIFY(
+      !hcb::NativeIdleRssBenchmark::parseResidentBytes(QByteArrayLiteral("HCB_IDLE_RSS_BYTES=0"))
+           .has_value());
+  QVERIFY(
+      !hcb::NativeIdleRssBenchmark::parseResidentBytes(QByteArrayLiteral("HCB_IDLE_RSS_BYTES=x"))
+           .has_value());
+  QVERIFY(!hcb::NativeIdleRssBenchmark::parseResidentBytes(
+               QByteArrayLiteral("HCB_IDLE_RSS_BYTES=18446744073709551615"))
+               .has_value());
 }
 
 void NativeIdleRssBenchmarkTest::reportsCurrentProcessResidentBytes() {

@@ -56,12 +56,12 @@ int main(int argc, char* argv[]) {
   }
 
   QString error;
-  const auto residentBytes = hcb::NativeIdleRssBenchmark::measure(
-      parser.value(executableOption),
-      parser.positionalArguments(),
-      std::chrono::milliseconds{idleDuration},
-      std::chrono::milliseconds{timeoutMilliseconds},
-      &error);
+  const auto residentBytes =
+      hcb::NativeIdleRssBenchmark::measure(parser.value(executableOption),
+                                           parser.positionalArguments(),
+                                           std::chrono::milliseconds{idleDuration},
+                                           std::chrono::milliseconds{timeoutMilliseconds},
+                                           &error);
   if (!residentBytes.has_value()) {
     QTextStream(stderr) << error << '\n';
     return 1;
@@ -69,8 +69,7 @@ int main(int argc, char* argv[]) {
 
   const QJsonObject output{{QStringLiteral("schema_version"), 1},
                            {QStringLiteral("idle_duration_ms"), idleDuration},
-                           {QStringLiteral("idle_rss_bytes"),
-                            static_cast<qint64>(*residentBytes)}};
+                           {QStringLiteral("idle_rss_bytes"), static_cast<qint64>(*residentBytes)}};
   QTextStream(stdout) << QJsonDocument(output).toJson(QJsonDocument::Compact) << '\n';
   return 0;
 }

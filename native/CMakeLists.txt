@@ -51,6 +51,9 @@ target_link_libraries(hcb_native PRIVATE
 target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
 hcb_enable_sanitizers(hcb_native)
+if(WIN32)
+  target_link_libraries(hcb_native PRIVATE Psapi)
+endif()
 
 qt_add_executable(hcb_launch_benchmark
   benchmarks/NativeLaunchBenchmarkMain.cpp
@@ -293,6 +296,9 @@ if(BUILD_TESTING)
     src/core/NativeProcessMemory.h
   )
   target_link_libraries(hcb_native_idle_rss_benchmark_tests PRIVATE Qt6::Core Qt6::Test)
+  if(WIN32)
+    target_link_libraries(hcb_native_idle_rss_benchmark_tests PRIVATE Psapi)
+  endif()
   target_include_directories(hcb_native_idle_rss_benchmark_tests PRIVATE src)
   hcb_enable_warnings(hcb_native_idle_rss_benchmark_tests)
   hcb_enable_sanitizers(hcb_native_idle_rss_benchmark_tests)

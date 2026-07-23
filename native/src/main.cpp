@@ -16,6 +16,12 @@
 #include "core/StructuredLogger.h"
 #include "core/UiTransitionTimingTracker.h"
 
+namespace {
+
+constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
+
+} // namespace
+
 int main(int argc, char* argv[]) {
   hcb::SystemClock clock;
   hcb::StructuredLogger logger(clock);
@@ -55,14 +61,15 @@ int main(int argc, char* argv[]) {
   startupTimings.mark(u"qml.loaded");
 
   bool idleRssDurationValid = false;
-  const int idleRssDuration = qEnvironmentVariable("HCB_BENCHMARK_IDLE_RSS_AFTER_MS")
-                                  .toInt(&idleRssDurationValid);
-  if (idleRssDurationValid && idleRssDuration > 0) {
+  const int idleRssDuration =
+      qEnvironmentVariable("HCB_BENCHMARK_IDLE_RSS_AFTER_MS").toInt(&idleRssDurationValid);
+  if (idleRssDurationValid && idleRssDuration > 0 &&
+      idleRssDuration <= kMaximumBenchmarkIdleRssDurationMilliseconds) {
     startupTimings.mark(u"benchmark.idle_rss.scheduled");
-    QTimer::singleShot(idleRssDuration, &application, [&application] {
+    QTimer::singleShot(idleRssDuration, &application, [] {
       const auto residentBytes = hcb::NativeProcessMemory::residentBytes();
       if (residentBytes.has_value()) {
-        QTextStream(stdout) << "HCB_IDLE_RSS_BYTES=" << *residentBytes << '\n';
+        QTextStream(stdout) << "HCB_IDLE_RSS_BYTES=" << *residentBytes << Qt::endl;
         QCoreApplication::quit();
         return;
       }

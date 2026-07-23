@@ -18,12 +18,11 @@ void setError(QString* error, QString message) {
 
 } // namespace
 
-std::optional<quint64>
-NativeIdleRssBenchmark::measure(QString executable,
-                                QStringList arguments,
-                                std::chrono::milliseconds idleDuration,
-                                std::chrono::milliseconds timeout,
-                                QString* error) {
+std::optional<quint64> NativeIdleRssBenchmark::measure(QString executable,
+                                                       QStringList arguments,
+                                                       std::chrono::milliseconds idleDuration,
+                                                       std::chrono::milliseconds timeout,
+                                                       QString* error) {
   if (executable.isEmpty()) {
     setError(error, QStringLiteral("idle-RSS executable is required"));
     return std::nullopt;
@@ -74,7 +73,7 @@ std::optional<quint64> NativeIdleRssBenchmark::parseResidentBytes(const QByteArr
   const QRegularExpressionMatch match = expression.match(QString::fromUtf8(output));
   bool valid = false;
   const quint64 bytes = match.captured(1).toULongLong(&valid);
-  if (!valid || bytes == 0) {
+  if (!valid || bytes == 0 || bytes > static_cast<quint64>(std::numeric_limits<qint64>::max())) {
     return std::nullopt;
   }
   return bytes;
