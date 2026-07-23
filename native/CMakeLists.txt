@@ -10,6 +10,8 @@ set(HCB_NATIVE_SOURCES
   src/core/FilePath.h
   src/core/FeatureCapabilityRegistry.h
   src/core/SettingsRegistry.h
+  src/core/SecretRedactor.cpp
+  src/core/SecretRedactor.h
 )
 
 qt_add_executable(hcb_native
@@ -135,6 +137,17 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_settings_registry_tests)
   add_test(NAME hcb_settings_registry_tests COMMAND hcb_settings_registry_tests)
 
+  qt_add_executable(hcb_secret_redactor_tests
+    tests/SecretRedactorTest.cpp
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+  )
+  target_link_libraries(hcb_secret_redactor_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_secret_redactor_tests PRIVATE src)
+  hcb_enable_warnings(hcb_secret_redactor_tests)
+  hcb_enable_sanitizers(hcb_secret_redactor_tests)
+  add_test(NAME hcb_secret_redactor_tests COMMAND hcb_secret_redactor_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -156,6 +169,7 @@ if(BUILD_TESTING)
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
+    hcb_secret_redactor_tests
     hcb_qml_tests
   )
 endif()
@@ -172,6 +186,7 @@ if(BUILD_TESTING)
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
+    hcb_secret_redactor_tests
     hcb_qml_tests
   )
 endif()
