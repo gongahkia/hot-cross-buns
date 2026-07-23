@@ -46,6 +46,7 @@ qt_add_qml_module(hcb_native
   VERSION 1.0
   QML_FILES
     qml/Main.qml
+    qml/NavigationSidebar.qml
     qml/Theme.qml
 )
 

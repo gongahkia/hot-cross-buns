@@ -56,6 +56,30 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_sidebarRoutesSelectionThroughWindow() {
+        startedTransitions = []
+        completedTransitions = []
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { transitionTimings: testCase })
+        verify(mainWindow !== null)
+        compare(mainWindow.navigationSidebar.currentPage, "Tasks")
+        compare(mainWindow.navigationSidebar.pageNames.length, 4)
+        mainWindow.navigationSidebar.selectPage("Unsupported")
+        compare(mainWindow.currentPage, "Tasks")
+        compare(startedTransitions, [])
+        mainWindow.navigationSidebar.selectPage("Notes")
+        compare(mainWindow.currentPage, "Notes")
+        compare(mainWindow.navigationSidebar.currentPage, "Notes")
+        compare(startedTransitions, ["navigation.notes"])
+        tryVerify(function() {
+            return completedTransitions.length === 1
+        })
+        compare(completedTransitions, ["navigation.notes"])
+        mainWindow.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

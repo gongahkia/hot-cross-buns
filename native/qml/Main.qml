@@ -12,6 +12,7 @@ ApplicationWindow {
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
     property var transitionTimings: null
+    property alias navigationSidebar: navigationSidebar
 
     function selectPage(pageName) {
         if (pageName === currentPage) {
@@ -56,24 +57,10 @@ ApplicationWindow {
     SplitView {
         anchors.fill: parent
 
-        Pane {
-            SplitView.preferredWidth: Theme.navigationWidth
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: Theme.spacingSmall
-                Repeater {
-                    model: ["Tasks", "Calendar", "Notes", "Settings"]
-                    delegate: Button {
-                        required property string modelData
-                        Layout.fillWidth: true
-                        text: modelData
-                        checkable: true
-                        checked: window.currentPage === modelData
-                        onClicked: window.selectPage(modelData)
-                    }
-                }
-                Item { Layout.fillHeight: true }
-            }
+        NavigationSidebar {
+            id: navigationSidebar
+            currentPage: window.currentPage
+            onPageSelected: pageName => window.selectPage(pageName)
         }
 
         Pane {
