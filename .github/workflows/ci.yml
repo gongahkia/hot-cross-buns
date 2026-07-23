@@ -120,3 +120,43 @@ jobs:
           path: |
             artifacts/perf/**
             output/playwright/**
+
+  native-performance-report:
+    name: Native performance report
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install native build dependencies
+        run: brew install cmake ninja qt
+
+      - name: Configure native build
+        run: cmake --preset macos-debug
+
+      - name: Build native report runner
+        run: cmake --build --preset macos-debug --target hcb_native hcb_performance_report --parallel 3
+
+      - name: Generate report-only native performance JSON
+        run: |
+          mkdir -p artifacts/native-performance
+          build/macos-debug-xcode/native/Debug/hcb_performance_report \
+            --executable "build/macos-debug-xcode/native/Debug/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
+            --launch-iterations 3 \
+            --idle-duration-ms 1000 \
+            --timeout-ms 30000 \
+            -- -platform offscreen \
+            > artifacts/native-performance/macos.json
+          jq --exit-status '.schema_version == 1 and .launch.iterations == 3 and .idle_rss.bytes > 0' \
+            artifacts/native-performance/macos.json
+
+      - name: Upload native performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-performance-report-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: artifacts/native-performance/macos.json
