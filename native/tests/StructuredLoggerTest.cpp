@@ -35,9 +35,9 @@ void StructuredLoggerTest::boundsEntriesAndFiltersByLevel() {
   const TestClock clock(wallTime, monotonicTime);
   hcb::StructuredLogger logger(clock, 2);
 
-  logger.log(hcb::LogLevel::Debug, u"sync", u"debug event");
-  logger.log(hcb::LogLevel::Info, u"sync", u"info event");
-  logger.log(hcb::LogLevel::Error, u"sync", u"error event");
+  logger.log(hcb::LogLevel::Debug, {u"sync", u"debug event"});
+  logger.log(hcb::LogLevel::Info, {u"sync", u"info event"});
+  logger.log(hcb::LogLevel::Error, {u"sync", u"error event"});
 
   QCOMPARE(logger.size(), std::size_t{2});
   const std::vector<hcb::LogEntry> entries = logger.entries(hcb::LogLevel::Info);
@@ -52,8 +52,7 @@ void StructuredLoggerTest::redactsMessageAndMetadata() {
   hcb::StructuredLogger logger(clock);
 
   logger.log(hcb::LogLevel::Warning,
-             u"oauth",
-             u"Authorization: Bearer fake-bearer-token",
+             {u"oauth", u"Authorization: Bearer fake-bearer-token"},
              {{QStringLiteral("refreshToken"), QStringLiteral("fake-refresh-token")},
               {QStringLiteral("reason"), QStringLiteral("access_token=fake-access-token")}});
 

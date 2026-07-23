@@ -47,7 +47,7 @@ void DiagnosticsSnapshotTest::buildsVersionedRedactedSnapshot() {
   QVERIFY(uiTransitionTimings.begin(QStringLiteral("navigation.tasks")));
   clock.setMonotonicTime(hcb::MonotonicTimePoint{std::chrono::milliseconds{31}});
   QVERIFY(uiTransitionTimings.complete(QStringLiteral("navigation.tasks")));
-  logger.log(hcb::LogLevel::Warning, u"sync", u"access_token=raw-access-token");
+  logger.log(hcb::LogLevel::Warning, {u"sync", u"access_token=raw-access-token"});
 
   const hcb::DiagnosticsSnapshot snapshot =
       hcb::DiagnosticsSnapshotBuilder::build(clock,

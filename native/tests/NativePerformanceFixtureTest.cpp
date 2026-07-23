@@ -32,14 +32,26 @@ void NativePerformanceFixtureTest::generatesExpectedSmallFixture() {
   QCOMPARE(fixture.tasks.at(0).id, QStringLiteral("generated-small-task-00001"));
   QCOMPARE(fixture.tasks.at(0).status, QStringLiteral("completed"));
   QVERIFY(!fixture.tasks.at(0).dueAt.has_value());
-  QVERIFY(fixture.tasks.at(17).parentTaskId.has_value());
-  QCOMPARE(*fixture.tasks.at(17).parentTaskId, QStringLiteral("generated-small-task-00017"));
+  const std::optional<QString>& parentTaskId = fixture.tasks.at(17).parentTaskId;
+  if (!parentTaskId.has_value()) {
+    QFAIL("expected generated parent task ID");
+    return;
+  }
+  QCOMPARE(parentTaskId.value(), QStringLiteral("generated-small-task-00017"));
   QCOMPARE(fixture.eventInstances.at(0).startsAt, QStringLiteral("2026-01-05T09:00:00.000Z"));
   QVERIFY(fixture.eventInstances.at(0).isAllDay);
-  QVERIFY(fixture.notes.at(0).linkedResourceType.has_value());
-  QCOMPARE(*fixture.notes.at(0).linkedResourceType, QStringLiteral("task"));
-  QVERIFY(fixture.notes.at(0).linkedResourceId.has_value());
-  QCOMPARE(*fixture.notes.at(0).linkedResourceId, QStringLiteral("generated-small-task-00001"));
+  const std::optional<QString>& linkedResourceType = fixture.notes.at(0).linkedResourceType;
+  if (!linkedResourceType.has_value()) {
+    QFAIL("expected generated linked resource type");
+    return;
+  }
+  QCOMPARE(linkedResourceType.value(), QStringLiteral("task"));
+  const std::optional<QString>& linkedResourceId = fixture.notes.at(0).linkedResourceId;
+  if (!linkedResourceId.has_value()) {
+    QFAIL("expected generated linked resource ID");
+    return;
+  }
+  QCOMPARE(linkedResourceId.value(), QStringLiteral("generated-small-task-00001"));
 }
 
 void NativePerformanceFixtureTest::generatesExpectedMediumFixture() {

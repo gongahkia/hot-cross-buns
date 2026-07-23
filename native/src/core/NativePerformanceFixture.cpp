@@ -71,6 +71,7 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
 
   fixture.tasks.reserve(fixture.counts.tasks);
   for (std::size_t index = 0; index < fixture.counts.tasks; ++index) {
+    const qint64 indexOffset = static_cast<qint64>(index);
     const bool completed = index % 9 == 0;
     fixture.tasks.push_back(
         {taskId(size, index),
@@ -79,17 +80,16 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
                                       : std::nullopt,
          QStringLiteral("Generated task %1").arg(padded(index + 1)),
          completed ? QStringLiteral("completed") : QStringLiteral("needsAction"),
-         index % 5 == 0 ? std::nullopt
-                        : std::optional<QString>(timestamp(static_cast<qint64>(index * 37))),
-         completed ? std::optional<QString>(timestamp(static_cast<qint64>(index) - 120))
-                   : std::nullopt,
-         timestamp(static_cast<qint64>(index) - 240),
+         index % 5 == 0 ? std::nullopt : std::optional<QString>(timestamp(indexOffset * 37)),
+         completed ? std::optional<QString>(timestamp(indexOffset - 120)) : std::nullopt,
+         timestamp(indexOffset - 240),
          index + 1});
   }
 
   fixture.eventInstances.reserve(fixture.counts.eventInstances);
   for (std::size_t index = 0; index < fixture.counts.eventInstances; ++index) {
-    const qint64 startsAtOffset = static_cast<qint64>(index * 45);
+    const qint64 indexOffset = static_cast<qint64>(index);
+    const qint64 startsAtOffset = indexOffset * 45;
     const qint64 durationMinutes = 30 + static_cast<qint64>(index % 4) * 15;
     fixture.eventInstances.push_back({eventId(size, index),
                                       kCalendarIds[index % kCalendarIds.size()].toString(),
@@ -97,7 +97,7 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
                                       timestamp(startsAtOffset),
                                       timestamp(startsAtOffset + durationMinutes),
                                       index % 31 == 0,
-                                      timestamp(static_cast<qint64>(index) - 90)});
+                                      timestamp(indexOffset - 90)});
   }
 
   fixture.notes.reserve(fixture.counts.notes);

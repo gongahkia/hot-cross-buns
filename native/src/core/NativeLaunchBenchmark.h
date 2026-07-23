@@ -20,8 +20,8 @@ struct NativeLaunchBenchmarkResult final {
 class NativeLaunchBenchmark final {
 public:
   [[nodiscard]] static std::optional<NativeLaunchBenchmarkResult>
-  measure(QString executable,
-          QStringList arguments,
+  measure(const QString& executable,
+          const QStringList& arguments,
           std::size_t iterations,
           std::chrono::milliseconds timeout,
           QString* error);

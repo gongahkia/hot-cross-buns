@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <QVariant>
 
+#include <exception>
 #include <optional>
 #include <utility>
 
@@ -22,7 +23,7 @@ constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
 
 } // namespace
 
-int main(int argc, char* argv[]) {
+int runApplication(int argc, char* argv[]) {
   hcb::SystemClock clock;
   hcb::StructuredLogger logger(clock);
   hcb::StartupTimingTracker startupTimings(clock, logger);
@@ -82,4 +83,15 @@ int main(int argc, char* argv[]) {
 
   Q_UNUSED(services);
   return application.exec();
+}
+
+int main(int argc, char* argv[]) {
+  try {
+    return runApplication(argc, argv);
+  } catch (const std::exception& exception) {
+    QTextStream(stderr) << "Fatal native startup exception: " << exception.what() << Qt::endl;
+  } catch (...) {
+    QTextStream(stderr) << "Fatal native startup exception" << Qt::endl;
+  }
+  return 1;
 }

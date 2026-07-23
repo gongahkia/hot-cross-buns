@@ -2,8 +2,6 @@
 
 #include "core/SecretRedactor.h"
 
-#include <utility>
-
 namespace hcb {
 namespace {
 
@@ -75,7 +73,7 @@ namespace {
 
 } // namespace
 
-GoogleApiError::GoogleApiError(GoogleApiErrorOptions options)
+GoogleApiError::GoogleApiError(const GoogleApiErrorOptions& options)
     : kind_(options.kind), message_(SecretRedactor::redactText(options.message)),
       status_(options.status), retryAfterMilliseconds_(options.retryAfterMilliseconds),
       responseBodyBytes_(options.responseBodyBytes), quotaExceeded_(options.quotaExceeded) {}
@@ -92,7 +90,7 @@ GoogleApiError GoogleApiError::fromHttpStatus(int status,
   options.retryAfterMilliseconds = retryAfterMilliseconds;
   options.responseBodyBytes = body.toString().toUtf8().size();
   options.quotaExceeded = quotaExceeded;
-  return GoogleApiError(std::move(options));
+  return GoogleApiError(options);
 }
 
 GoogleApiErrorKind GoogleApiError::kind() const noexcept { return kind_; }

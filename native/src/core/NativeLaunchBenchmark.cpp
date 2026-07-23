@@ -25,8 +25,8 @@ void setError(QString* error, QString message) {
 } // namespace
 
 std::optional<NativeLaunchBenchmarkResult>
-NativeLaunchBenchmark::measure(QString executable,
-                               QStringList arguments,
+NativeLaunchBenchmark::measure(const QString& executable,
+                               const QStringList& arguments,
                                std::size_t iterations,
                                std::chrono::milliseconds timeout,
                                QString* error) {

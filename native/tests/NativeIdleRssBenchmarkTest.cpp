@@ -16,8 +16,11 @@ void NativeIdleRssBenchmarkTest::parsesResidentBytes() {
   const auto bytes = hcb::NativeIdleRssBenchmark::parseResidentBytes(
       QByteArrayLiteral("ignored\nHCB_IDLE_RSS_BYTES=1048576\n"));
 
-  QVERIFY(bytes.has_value());
-  QCOMPARE(*bytes, quint64{1'048'576});
+  if (!bytes.has_value()) {
+    QFAIL("expected resident bytes");
+    return;
+  }
+  QCOMPARE(bytes.value(), quint64{1'048'576});
 }
 
 void NativeIdleRssBenchmarkTest::rejectsInvalidResidentBytes() {
@@ -35,8 +38,11 @@ void NativeIdleRssBenchmarkTest::rejectsInvalidResidentBytes() {
 void NativeIdleRssBenchmarkTest::reportsCurrentProcessResidentBytes() {
   const auto bytes = hcb::NativeProcessMemory::residentBytes();
 
-  QVERIFY(bytes.has_value());
-  QVERIFY(*bytes > 0);
+  if (!bytes.has_value()) {
+    QFAIL("expected current-process resident bytes");
+    return;
+  }
+  QVERIFY(bytes.value() > 0);
 }
 
 QTEST_MAIN(NativeIdleRssBenchmarkTest)

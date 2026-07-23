@@ -5,6 +5,8 @@
 #include <QMutexLocker>
 #include <QRandomGenerator>
 
+#include <utility>
+
 namespace hcb {
 namespace {
 
@@ -90,12 +92,13 @@ PkceStateValidationResult PkceStateRegistry::consume(QStringView state) {
     return {.status = PkceStateValidationStatus::Unrecognized};
   }
 
-  const PendingState pendingState = iterator.value();
-  pendingStates_.erase(iterator);
-  if (pendingState.expiresAt <= clock_.monotonicNow()) {
+  if (iterator.value().expiresAt <= clock_.monotonicNow()) {
+    pendingStates_.erase(iterator);
     return {.status = PkceStateValidationStatus::Expired};
   }
-  return {.status = PkceStateValidationStatus::Accepted, .codeVerifier = pendingState.codeVerifier};
+  QString codeVerifier = std::move(iterator.value().codeVerifier);
+  pendingStates_.erase(iterator);
+  return {.status = PkceStateValidationStatus::Accepted, .codeVerifier = std::move(codeVerifier)};
 }
 
 } // namespace hcb

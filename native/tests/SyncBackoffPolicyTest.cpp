@@ -42,7 +42,7 @@ void SyncBackoffPolicyTest::multipliesRetryAfterUnderConstraints() {
   errorOptions.kind = hcb::GoogleApiErrorKind::Server;
   errorOptions.message = QStringLiteral("Google service unavailable");
   errorOptions.retryAfterMilliseconds = 10'000;
-  const hcb::GoogleApiError error(std::move(errorOptions));
+  const hcb::GoogleApiError error(errorOptions);
 
   QCOMPARE(policy.retryDelayMilliseconds(error, 0), std::optional<qint64>(20'000));
 }
@@ -52,7 +52,7 @@ void SyncBackoffPolicyTest::rejectsNonRetryableAndQuotaErrors() {
   hcb::GoogleApiErrorOptions forbiddenOptions;
   forbiddenOptions.kind = hcb::GoogleApiErrorKind::Forbidden;
   forbiddenOptions.message = QStringLiteral("Google denied access");
-  const hcb::GoogleApiError forbidden(std::move(forbiddenOptions));
+  const hcb::GoogleApiError forbidden(forbiddenOptions);
   QVERIFY(!policy.shouldBackOff(forbidden));
   QVERIFY(!policy.retryDelayMilliseconds(forbidden, 0).has_value());
 
@@ -60,7 +60,7 @@ void SyncBackoffPolicyTest::rejectsNonRetryableAndQuotaErrors() {
   quotaOptions.kind = hcb::GoogleApiErrorKind::RateLimited;
   quotaOptions.message = QStringLiteral("Google quota exhausted");
   quotaOptions.quotaExceeded = true;
-  const hcb::GoogleApiError quotaError(std::move(quotaOptions));
+  const hcb::GoogleApiError quotaError(quotaOptions);
   QVERIFY(!policy.shouldBackOff(quotaError));
   QVERIFY(!policy.retryDelayMilliseconds(quotaError, 0).has_value());
 }

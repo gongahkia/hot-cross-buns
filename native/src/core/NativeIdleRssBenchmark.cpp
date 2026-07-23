@@ -18,8 +18,8 @@ void setError(QString* error, QString message) {
 
 } // namespace
 
-std::optional<quint64> NativeIdleRssBenchmark::measure(QString executable,
-                                                       QStringList arguments,
+std::optional<quint64> NativeIdleRssBenchmark::measure(const QString& executable,
+                                                       const QStringList& arguments,
                                                        std::chrono::milliseconds idleDuration,
                                                        std::chrono::milliseconds timeout,
                                                        QString* error) {

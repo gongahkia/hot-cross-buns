@@ -53,7 +53,7 @@ void GoogleApiErrorTest::redactsExplicitErrorMessages() {
   options.kind = hcb::GoogleApiErrorKind::Transport;
   options.message = QStringLiteral("Transport failed with access_token=fake-access-token");
 
-  const hcb::GoogleApiError error(std::move(options));
+  const hcb::GoogleApiError error(options);
 
   QCOMPARE(error.message(), QStringLiteral("Transport failed with access_token=[redacted]"));
 }

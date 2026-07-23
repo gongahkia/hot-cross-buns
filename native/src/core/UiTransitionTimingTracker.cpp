@@ -56,8 +56,7 @@ bool UiTransitionTimingTracker::complete(const QString& name) {
   }
   spans_.push_back(UiTransitionTimingSpan{transitionName, elapsed});
   logger_.log(LogLevel::Info,
-              u"ui.transition",
-              u"ui transition completed",
+              {u"ui.transition", u"ui transition completed"},
               {{QStringLiteral("span"), transitionName},
                {QStringLiteral("elapsed_ms"), QString::number(elapsed.count())}});
   return true;

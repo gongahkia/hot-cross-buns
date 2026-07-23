@@ -31,7 +31,7 @@ struct GoogleApiErrorOptions {
 
 class GoogleApiError final {
 public:
-  explicit GoogleApiError(GoogleApiErrorOptions options);
+  explicit GoogleApiError(const GoogleApiErrorOptions& options);
 
   [[nodiscard]] static GoogleApiError fromHttpStatus(
       int status, QStringView body, std::optional<qint64> retryAfterMilliseconds = std::nullopt);

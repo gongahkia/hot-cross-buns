@@ -12,8 +12,8 @@ namespace hcb {
 
 class NativeIdleRssBenchmark final {
 public:
-  [[nodiscard]] static std::optional<quint64> measure(QString executable,
-                                                      QStringList arguments,
+  [[nodiscard]] static std::optional<quint64> measure(const QString& executable,
+                                                      const QStringList& arguments,
                                                       std::chrono::milliseconds idleDuration,
                                                       std::chrono::milliseconds timeout,
                                                       QString* error);

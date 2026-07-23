@@ -35,8 +35,11 @@ void PkceAuthorizationTest::generatesRfc7636Challenge() {
   const std::optional<QString> challenge = hcb::PkceAuthorization::codeChallengeForVerifier(
       u"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk");
 
-  QVERIFY(challenge.has_value());
-  QCOMPARE(*challenge, QStringLiteral("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"));
+  if (!challenge.has_value()) {
+    QFAIL("expected RFC 7636 challenge");
+    return;
+  }
+  QCOMPARE(challenge.value(), QStringLiteral("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"));
 }
 
 void PkceAuthorizationTest::rejectsInvalidCodeVerifiers() {
@@ -56,8 +59,11 @@ void PkceAuthorizationTest::createsValidRandomAuthorizationValues() {
   QVERIFY(hcb::PkceAuthorization::isValidCodeVerifier(codeVerifier));
   QCOMPARE(codeVerifier.size(), 86);
   QCOMPARE(state.size(), 32);
-  QVERIFY(challenge.has_value());
-  QCOMPARE(challenge->size(), 43);
+  if (!challenge.has_value()) {
+    QFAIL("expected generated code challenge");
+    return;
+  }
+  QCOMPARE(challenge.value().size(), 43);
 }
 
 void PkceAuthorizationTest::consumesStateExactlyOnce() {
@@ -72,8 +78,13 @@ void PkceAuthorizationTest::consumesStateExactlyOnce() {
   const hcb::PkceStateValidationResult accepted = registry.consume(request.state);
   QCOMPARE(accepted.status, hcb::PkceStateValidationStatus::Accepted);
   QVERIFY(hcb::PkceAuthorization::isValidCodeVerifier(accepted.codeVerifier));
-  QCOMPARE(*hcb::PkceAuthorization::codeChallengeForVerifier(accepted.codeVerifier),
-           request.codeChallenge);
+  const std::optional<QString> codeChallenge =
+      hcb::PkceAuthorization::codeChallengeForVerifier(accepted.codeVerifier);
+  if (!codeChallenge.has_value()) {
+    QFAIL("expected accepted verifier challenge");
+    return;
+  }
+  QCOMPARE(codeChallenge.value(), request.codeChallenge);
 
   const hcb::PkceStateValidationResult repeated = registry.consume(request.state);
   QCOMPARE(repeated.status, hcb::PkceStateValidationStatus::Unrecognized);

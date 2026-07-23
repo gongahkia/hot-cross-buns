@@ -10,13 +10,10 @@ namespace hcb {
 StructuredLogger::StructuredLogger(const Clock& clock, std::size_t capacity)
     : clock_(clock), capacity_(std::max<std::size_t>(capacity, 1)) {}
 
-void StructuredLogger::log(LogLevel level,
-                           QStringView category,
-                           QStringView message,
-                           const LogMetadata& metadata) {
+void StructuredLogger::log(LogLevel level, LogEvent event, const LogMetadata& metadata) {
   const WallTimePoint timestamp = clock_.wallNow();
-  const QString safeCategory = SecretRedactor::redactText(category, 80);
-  const QString safeMessage = SecretRedactor::redactText(message, 1'000);
+  const QString safeCategory = SecretRedactor::redactText(event.category, 80);
+  const QString safeMessage = SecretRedactor::redactText(event.message, 1'000);
   LogMetadata safeMetadata = redactMetadata(metadata);
 
   std::lock_guard<std::mutex> lock(mutex_);

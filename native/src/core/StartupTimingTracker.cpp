@@ -32,8 +32,7 @@ bool StartupTimingTracker::mark(QStringView name) {
   }
   spans_.push_back(StartupTimingSpan{safeName, elapsed});
   logger_.log(LogLevel::Info,
-              u"startup",
-              u"startup span completed",
+              {u"startup", u"startup span completed"},
               {{QStringLiteral("span"), safeName},
                {QStringLiteral("elapsed_ms"), QString::number(elapsed.count())}});
   return true;

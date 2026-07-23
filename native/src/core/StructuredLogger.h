@@ -23,6 +23,11 @@ enum class LogLevel : std::uint8_t {
 
 using LogMetadata = QHash<QString, QString>;
 
+struct LogEvent final {
+  QStringView category;
+  QStringView message;
+};
+
 struct LogEntry final {
   std::uint64_t sequence;
   WallTimePoint timestamp;
@@ -36,8 +41,7 @@ class StructuredLogger final {
 public:
   explicit StructuredLogger(const Clock& clock, std::size_t capacity = 500);
 
-  void
-  log(LogLevel level, QStringView category, QStringView message, const LogMetadata& metadata = {});
+  void log(LogLevel level, LogEvent event, const LogMetadata& metadata = {});
 
   [[nodiscard]] std::vector<LogEntry> entries(LogLevel minimumLevel = LogLevel::Debug) const;
   [[nodiscard]] std::size_t size() const;
