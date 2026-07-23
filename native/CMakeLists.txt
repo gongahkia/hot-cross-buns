@@ -30,6 +30,7 @@ target_link_libraries(hcb_native PRIVATE
 
 target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
+hcb_enable_sanitizers(hcb_native)
 
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
@@ -47,5 +48,6 @@ if(BUILD_TESTING)
   target_link_libraries(hcb_core_tests PRIVATE Qt6::Core Qt6::Test)
   target_include_directories(hcb_core_tests PRIVATE src)
   hcb_enable_warnings(hcb_core_tests)
+  hcb_enable_sanitizers(hcb_core_tests)
   add_test(NAME hcb_core_tests COMMAND hcb_core_tests)
 endif()

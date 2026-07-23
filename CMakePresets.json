@@ -47,16 +47,49 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       }
+    },
+    {
+      "name": "macos-sanitize",
+      "inherits": "macos-debug",
+      "binaryDir": "${sourceDir}/build/macos-sanitize-xcode",
+      "cacheVariables": {
+        "HCB_ENABLE_SANITIZERS": "ON",
+        "HCB_SANITIZERS": "address;undefined"
+      }
+    },
+    {
+      "name": "linux-sanitize",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-sanitize",
+      "cacheVariables": {
+        "HCB_ENABLE_SANITIZERS": "ON",
+        "HCB_SANITIZERS": "address;undefined"
+      }
+    },
+    {
+      "name": "windows-sanitize",
+      "inherits": "windows-debug",
+      "binaryDir": "${sourceDir}/build/windows-sanitize",
+      "cacheVariables": {
+        "HCB_ENABLE_SANITIZERS": "ON",
+        "HCB_SANITIZERS": "address"
+      }
     }
   ],
   "buildPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug" },
     { "name": "linux-debug", "configurePreset": "linux-debug" },
-    { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" }
+    { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" },
+    { "name": "macos-sanitize", "configurePreset": "macos-sanitize", "configuration": "Debug" },
+    { "name": "linux-sanitize", "configurePreset": "linux-sanitize" },
+    { "name": "windows-sanitize", "configurePreset": "windows-sanitize", "configuration": "Debug" }
   ],
   "testPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },
     { "name": "linux-debug", "configurePreset": "linux-debug", "output": { "outputOnFailure": true } },
-    { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug", "output": { "outputOnFailure": true } }
+    { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "macos-sanitize", "configurePreset": "macos-sanitize", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "linux-sanitize", "configurePreset": "linux-sanitize", "output": { "outputOnFailure": true } },
+    { "name": "windows-sanitize", "configurePreset": "windows-sanitize", "configuration": "Debug", "output": { "outputOnFailure": true } }
   ]
 }
