@@ -6,6 +6,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppServices.h
   src/core/AppError.h
   src/core/Cancellation.h
+  src/core/FeatureCapabilityRegistry.h
 )
 
 qt_add_executable(hcb_native
@@ -73,6 +74,16 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_application_lifecycle_tests)
   add_test(NAME hcb_application_lifecycle_tests COMMAND hcb_application_lifecycle_tests)
 
+  qt_add_executable(hcb_feature_capability_registry_tests
+    tests/FeatureCapabilityRegistryTest.cpp
+    src/core/FeatureCapabilityRegistry.h
+  )
+  target_link_libraries(hcb_feature_capability_registry_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_feature_capability_registry_tests PRIVATE src)
+  hcb_enable_warnings(hcb_feature_capability_registry_tests)
+  hcb_enable_sanitizers(hcb_feature_capability_registry_tests)
+  add_test(NAME hcb_feature_capability_registry_tests COMMAND hcb_feature_capability_registry_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -89,6 +100,7 @@ if(BUILD_TESTING)
     hcb_core_tests
     hcb_cancellation_tests
     hcb_application_lifecycle_tests
+    hcb_feature_capability_registry_tests
     hcb_qml_tests
   )
 endif()
@@ -100,6 +112,7 @@ if(BUILD_TESTING)
     hcb_core_tests
     hcb_cancellation_tests
     hcb_application_lifecycle_tests
+    hcb_feature_capability_registry_tests
     hcb_qml_tests
   )
 endif()
