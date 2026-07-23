@@ -7,6 +7,7 @@ class SecretRedactorTest final : public QObject {
 
 private slots:
   void redactsSecretAssignmentsAndBearerTokens();
+  void redactsBasicAndBearerAuthorizationHeaders();
   void redactsOAuthQueryParameters();
   void redactsSensitiveKeysAndBoundsOutput();
 };
@@ -22,6 +23,17 @@ void SecretRedactorTest::redactsSecretAssignmentsAndBearerTokens() {
   QVERIFY(!redacted.contains(QStringLiteral("fake-client-secret")));
   QVERIFY(!redacted.contains(QStringLiteral("fake-bearer-token")));
   QVERIFY(!redacted.contains(QStringLiteral("fake-mcp-token")));
+}
+
+void SecretRedactorTest::redactsBasicAndBearerAuthorizationHeaders() {
+  const QString redacted = hcb::SecretRedactor::redactText(
+      QStringLiteral("Authorization: Basic ZmFrZS11c2VyOmZha2UtcGFzcw== "
+                     "Proxy-Authorization: Bearer fake-proxy-token"));
+
+  QVERIFY(redacted.contains(QStringLiteral("Authorization: [redacted]")));
+  QVERIFY(redacted.contains(QStringLiteral("Proxy-Authorization: [redacted]")));
+  QVERIFY(!redacted.contains(QStringLiteral("ZmFrZS11c2VyOmZha2UtcGFzcw==")));
+  QVERIFY(!redacted.contains(QStringLiteral("fake-proxy-token")));
 }
 
 void SecretRedactorTest::redactsOAuthQueryParameters() {

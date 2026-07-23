@@ -11,6 +11,7 @@ namespace hcb {
 namespace {
 
 constexpr qsizetype kStateRandomByteCount = 24;
+constexpr qsizetype kStateLength = 32;
 constexpr qsizetype kCodeVerifierRandomByteCount = 64;
 constexpr qsizetype kMinimumCodeVerifierLength = 43;
 constexpr qsizetype kMaximumCodeVerifierLength = 128;
@@ -40,6 +41,24 @@ constexpr qsizetype kMaximumCodeVerifierLength = 128;
   return (value >= u'A' && value <= u'Z') || (value >= u'a' && value <= u'z') ||
          (value >= u'0' && value <= u'9') || value == u'-' || value == u'.' || value == u'_' ||
          value == u'~';
+}
+
+[[nodiscard]] bool isStateCharacter(QChar character) noexcept {
+  const ushort value = character.unicode();
+  return (value >= u'A' && value <= u'Z') || (value >= u'a' && value <= u'z') ||
+         (value >= u'0' && value <= u'9') || value == u'-' || value == u'_';
+}
+
+[[nodiscard]] bool isValidState(QStringView state) noexcept {
+  if (state.size() != kStateLength) {
+    return false;
+  }
+  for (const QChar character : state) {
+    if (!isStateCharacter(character)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 } // namespace
@@ -86,6 +105,10 @@ PkceAuthorizationRequest PkceStateRegistry::begin() {
 }
 
 PkceStateValidationResult PkceStateRegistry::consume(QStringView state) {
+  if (!isValidState(state)) {
+    return {.status = PkceStateValidationStatus::Unrecognized};
+  }
+
   QMutexLocker locker(&mutex_);
   const auto iterator = pendingStates_.find(state.toString());
   if (iterator == pendingStates_.end()) {

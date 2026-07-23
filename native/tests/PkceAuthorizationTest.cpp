@@ -28,6 +28,7 @@ private slots:
   void rejectsInvalidCodeVerifiers();
   void createsValidRandomAuthorizationValues();
   void consumesStateExactlyOnce();
+  void rejectsMalformedStateWithoutConsumingRequest();
   void rejectsExpiredState();
 };
 
@@ -88,6 +89,26 @@ void PkceAuthorizationTest::consumesStateExactlyOnce() {
 
   const hcb::PkceStateValidationResult repeated = registry.consume(request.state);
   QCOMPARE(repeated.status, hcb::PkceStateValidationStatus::Unrecognized);
+}
+
+void PkceAuthorizationTest::rejectsMalformedStateWithoutConsumingRequest() {
+  ControlledClock clock(hcb::MonotonicTimePoint{});
+  hcb::PkceStateRegistry registry(clock);
+  const hcb::PkceAuthorizationRequest request = registry.begin();
+
+  const hcb::PkceStateValidationResult oversized = registry.consume(QString(4096, QChar(u'a')));
+  QCOMPARE(oversized.status, hcb::PkceStateValidationStatus::Unrecognized);
+  QVERIFY(oversized.codeVerifier.isEmpty());
+
+  QString malformed = request.state;
+  malformed[0] = u'=';
+  const hcb::PkceStateValidationResult invalidCharacters = registry.consume(malformed);
+  QCOMPARE(invalidCharacters.status, hcb::PkceStateValidationStatus::Unrecognized);
+  QVERIFY(invalidCharacters.codeVerifier.isEmpty());
+
+  const hcb::PkceStateValidationResult accepted = registry.consume(request.state);
+  QCOMPARE(accepted.status, hcb::PkceStateValidationStatus::Accepted);
+  QVERIFY(hcb::PkceAuthorization::isValidCodeVerifier(accepted.codeVerifier));
 }
 
 void PkceAuthorizationTest::rejectsExpiredState() {

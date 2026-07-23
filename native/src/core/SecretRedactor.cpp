@@ -18,7 +18,7 @@ const QRegularExpression& sensitiveKeyPattern() {
 const QRegularExpression& secretAssignmentPattern() {
   static const QRegularExpression pattern(
       QStringLiteral(
-          R"(\b([A-Za-z0-9_-]*(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|mcp[_-]?token|bearer[_-]?token|api[_-]?key|password|credential|secret|token|authorization)[A-Za-z0-9_-]*)\b\s*([:=])\s*(?:"[^"]*"|'[^']*'|[^"',\s)}\]]+))"),
+          R"(\b([A-Za-z0-9_-]*(?:access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|mcp[_-]?token|bearer[_-]?token|api[_-]?key|password|credential|secret|token|authorization)[A-Za-z0-9_-]*)\b\s*([:=])\s*(?!\[redacted\])(?:"[^"]*"|'[^']*'|[^"',\s)}\]]+))"),
       QRegularExpression::CaseInsensitiveOption);
   return pattern;
 }
@@ -34,6 +34,14 @@ const QRegularExpression& jsonSecretPattern() {
 const QRegularExpression& bearerPattern() {
   static const QRegularExpression pattern(QStringLiteral(R"(\bBearer\s+[A-Za-z0-9._~+/=-]+)"),
                                           QRegularExpression::CaseInsensitiveOption);
+  return pattern;
+}
+
+const QRegularExpression& authorizationHeaderPattern() {
+  static const QRegularExpression pattern(
+      QStringLiteral(
+          R"(\b((?:Proxy-)?Authorization)\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]+)"),
+      QRegularExpression::CaseInsensitiveOption);
   return pattern;
 }
 
@@ -102,10 +110,27 @@ QString replaceOAuthQueryParameters(const QString& input) {
   return output;
 }
 
+QString replaceAuthorizationHeaders(const QString& input) {
+  QString output;
+  qsizetype previousEnd = 0;
+  QRegularExpressionMatchIterator matches = authorizationHeaderPattern().globalMatch(input);
+  while (matches.hasNext()) {
+    const QRegularExpressionMatch match = matches.next();
+    output.append(input.mid(previousEnd, match.capturedStart() - previousEnd));
+    output.append(match.capturedView(1));
+    output.append(QStringLiteral(": "));
+    output.append(kRedactedValue);
+    previousEnd = match.capturedEnd();
+  }
+  output.append(input.mid(previousEnd));
+  return output;
+}
+
 } // namespace
 
 QString SecretRedactor::redactText(QStringView value, qsizetype maximumLength) {
   QString redacted = value.toString();
+  redacted = replaceAuthorizationHeaders(redacted);
   redacted.replace(bearerPattern(), QStringLiteral("Bearer [redacted]"));
   redacted = replaceJsonSecrets(redacted);
   redacted = replaceAssignments(redacted);
