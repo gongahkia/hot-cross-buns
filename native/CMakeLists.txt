@@ -105,6 +105,20 @@ target_include_directories(hcb_event15k_performance_fixture PRIVATE src)
 hcb_enable_warnings(hcb_event15k_performance_fixture)
 hcb_enable_sanitizers(hcb_event15k_performance_fixture)
 
+qt_add_executable(hcb_performance_report
+  benchmarks/NativePerformanceReportMain.cpp
+  src/core/NativeIdleRssBenchmark.cpp
+  src/core/NativeIdleRssBenchmark.h
+  src/core/NativeLaunchBenchmark.cpp
+  src/core/NativeLaunchBenchmark.h
+  src/core/NativePerformanceReport.cpp
+  src/core/NativePerformanceReport.h
+)
+target_link_libraries(hcb_performance_report PRIVATE Qt6::Core)
+target_include_directories(hcb_performance_report PRIVATE src)
+hcb_enable_warnings(hcb_performance_report)
+hcb_enable_sanitizers(hcb_performance_report)
+
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
   WIN32_EXECUTABLE TRUE
@@ -352,6 +366,26 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_native_performance_fixture_tests)
   add_test(NAME hcb_native_performance_fixture_tests COMMAND hcb_native_performance_fixture_tests)
 
+  qt_add_executable(hcb_native_performance_report_tests
+    tests/NativePerformanceReportTest.cpp
+    src/core/NativeLaunchBenchmark.h
+    src/core/NativePerformanceReport.cpp
+    src/core/NativePerformanceReport.h
+  )
+  target_link_libraries(hcb_native_performance_report_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_performance_report_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_performance_report_tests)
+  hcb_enable_sanitizers(hcb_native_performance_report_tests)
+  add_test(NAME hcb_native_performance_report_tests COMMAND hcb_native_performance_report_tests)
+  add_test(NAME hcb_native_performance_report
+    COMMAND hcb_performance_report
+      --executable "$<TARGET_FILE:hcb_native>"
+      --launch-iterations 1
+      --idle-duration-ms 250
+      --timeout-ms 15000
+      -- -platform offscreen
+  )
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -369,6 +403,7 @@ set(hcb_static_analysis_dependencies
   hcb_small_performance_fixture
   hcb_medium_performance_fixture
   hcb_event15k_performance_fixture
+  hcb_performance_report
 )
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
@@ -389,6 +424,7 @@ if(BUILD_TESTING)
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
     hcb_native_performance_fixture_tests
+    hcb_native_performance_report_tests
     hcb_qml_tests
   )
 endif()
@@ -402,6 +438,7 @@ if(BUILD_TESTING)
     hcb_small_performance_fixture
     hcb_medium_performance_fixture
     hcb_event15k_performance_fixture
+    hcb_performance_report
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -419,6 +456,7 @@ if(BUILD_TESTING)
     hcb_native_launch_benchmark_tests
     hcb_native_idle_rss_benchmark_tests
     hcb_native_performance_fixture_tests
+    hcb_native_performance_report_tests
     hcb_qml_tests
   )
 endif()
