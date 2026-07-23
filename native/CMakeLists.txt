@@ -1,4 +1,5 @@
 set(HCB_NATIVE_SOURCES
+  src/app/ApplicationLifecycle.h
   src/app/AppPaths.cpp
   src/app/AppPaths.h
   src/app/AppServices.cpp
@@ -62,6 +63,16 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_cancellation_tests)
   add_test(NAME hcb_cancellation_tests COMMAND hcb_cancellation_tests)
 
+  qt_add_executable(hcb_application_lifecycle_tests
+    tests/ApplicationLifecycleTest.cpp
+    src/app/ApplicationLifecycle.h
+  )
+  target_link_libraries(hcb_application_lifecycle_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_application_lifecycle_tests PRIVATE src)
+  hcb_enable_warnings(hcb_application_lifecycle_tests)
+  hcb_enable_sanitizers(hcb_application_lifecycle_tests)
+  add_test(NAME hcb_application_lifecycle_tests COMMAND hcb_application_lifecycle_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -77,6 +88,7 @@ if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
     hcb_cancellation_tests
+    hcb_application_lifecycle_tests
     hcb_qml_tests
   )
 endif()
@@ -87,6 +99,7 @@ if(BUILD_TESTING)
     hcb_native
     hcb_core_tests
     hcb_cancellation_tests
+    hcb_application_lifecycle_tests
     hcb_qml_tests
   )
 endif()
