@@ -12,7 +12,14 @@ public:
   [[nodiscard]] const QString& cacheDirectory() const noexcept;
 
 private:
-  AppPaths(QString dataDirectory, QString cacheDirectory);
+  struct DataDirectory final {
+    QString value;
+  };
+  struct CacheDirectory final {
+    QString value;
+  };
+
+  AppPaths(DataDirectory dataDirectory, CacheDirectory cacheDirectory);
 
   QString dataDirectory_;
   QString cacheDirectory_;

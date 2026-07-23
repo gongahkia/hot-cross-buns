@@ -74,6 +74,34 @@
         "HCB_ENABLE_SANITIZERS": "ON",
         "HCB_SANITIZERS": "address"
       }
+    },
+    {
+      "name": "macos-analysis",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-analysis",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "HCB_ENABLE_STATIC_ANALYSIS": "ON"
+      }
+    },
+    {
+      "name": "linux-analysis",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-analysis",
+      "cacheVariables": {
+        "HCB_ENABLE_STATIC_ANALYSIS": "ON"
+      }
+    },
+    {
+      "name": "windows-analysis",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-analysis",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "HCB_ENABLE_STATIC_ANALYSIS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -82,7 +110,10 @@
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" },
     { "name": "macos-sanitize", "configurePreset": "macos-sanitize", "configuration": "Debug" },
     { "name": "linux-sanitize", "configurePreset": "linux-sanitize" },
-    { "name": "windows-sanitize", "configurePreset": "windows-sanitize", "configuration": "Debug" }
+    { "name": "windows-sanitize", "configurePreset": "windows-sanitize", "configuration": "Debug" },
+    { "name": "macos-analysis", "configurePreset": "macos-analysis", "targets": ["hcb_static_analysis"] },
+    { "name": "linux-analysis", "configurePreset": "linux-analysis", "targets": ["hcb_static_analysis"] },
+    { "name": "windows-analysis", "configurePreset": "windows-analysis", "targets": ["hcb_static_analysis"] }
   ],
   "testPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },
