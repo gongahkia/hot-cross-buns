@@ -13,6 +13,8 @@ set(HCB_NATIVE_SOURCES
   src/core/DiagnosticsSnapshot.h
   src/core/FilePath.h
   src/core/FeatureCapabilityRegistry.h
+  src/core/NativeProcessMemory.cpp
+  src/core/NativeProcessMemory.h
   src/core/SettingsRegistry.h
   src/core/SecretRedactor.cpp
   src/core/SecretRedactor.h
@@ -59,6 +61,16 @@ target_link_libraries(hcb_launch_benchmark PRIVATE Qt6::Core)
 target_include_directories(hcb_launch_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_launch_benchmark)
 hcb_enable_sanitizers(hcb_launch_benchmark)
+
+qt_add_executable(hcb_idle_rss_benchmark
+  benchmarks/NativeIdleRssBenchmarkMain.cpp
+  src/core/NativeIdleRssBenchmark.cpp
+  src/core/NativeIdleRssBenchmark.h
+)
+target_link_libraries(hcb_idle_rss_benchmark PRIVATE Qt6::Core)
+target_include_directories(hcb_idle_rss_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_idle_rss_benchmark)
+hcb_enable_sanitizers(hcb_idle_rss_benchmark)
 
 set_target_properties(hcb_native PROPERTIES
   OUTPUT_NAME "Hot Cross Buns"
@@ -273,6 +285,26 @@ if(BUILD_TESTING)
       -- -platform offscreen
   )
 
+  qt_add_executable(hcb_native_idle_rss_benchmark_tests
+    tests/NativeIdleRssBenchmarkTest.cpp
+    src/core/NativeIdleRssBenchmark.cpp
+    src/core/NativeIdleRssBenchmark.h
+    src/core/NativeProcessMemory.cpp
+    src/core/NativeProcessMemory.h
+  )
+  target_link_libraries(hcb_native_idle_rss_benchmark_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_idle_rss_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_idle_rss_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_idle_rss_benchmark_tests)
+  add_test(NAME hcb_native_idle_rss_benchmark_tests COMMAND hcb_native_idle_rss_benchmark_tests)
+  add_test(NAME hcb_native_idle_rss_benchmark
+    COMMAND hcb_idle_rss_benchmark
+      --executable "$<TARGET_FILE:hcb_native>"
+      --idle-duration-ms 250
+      --timeout-ms 15000
+      -- -platform offscreen
+  )
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -283,7 +315,7 @@ if(BUILD_TESTING)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
 endif()
 
-set(hcb_static_analysis_dependencies hcb_native hcb_launch_benchmark)
+set(hcb_static_analysis_dependencies hcb_native hcb_launch_benchmark hcb_idle_rss_benchmark)
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
@@ -301,6 +333,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_snapshot_tests
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
+    hcb_native_idle_rss_benchmark_tests
     hcb_qml_tests
   )
 endif()
@@ -310,6 +343,7 @@ if(BUILD_TESTING)
   hcb_add_bootstrap_check(
     hcb_native
     hcb_launch_benchmark
+    hcb_idle_rss_benchmark
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -325,6 +359,7 @@ if(BUILD_TESTING)
     hcb_diagnostics_snapshot_tests
     hcb_diagnostics_json_exporter_tests
     hcb_native_launch_benchmark_tests
+    hcb_native_idle_rss_benchmark_tests
     hcb_qml_tests
   )
 endif()

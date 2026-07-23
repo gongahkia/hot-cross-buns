@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QTextStream>
 #include <QTimer>
 #include <QVariant>
 
@@ -9,6 +10,7 @@
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
 #include "core/Clock.h"
+#include "core/NativeProcessMemory.h"
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
@@ -52,7 +54,21 @@ int main(int argc, char* argv[]) {
   }
   startupTimings.mark(u"qml.loaded");
 
-  if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
+  bool idleRssDurationValid = false;
+  const int idleRssDuration = qEnvironmentVariable("HCB_BENCHMARK_IDLE_RSS_AFTER_MS")
+                                  .toInt(&idleRssDurationValid);
+  if (idleRssDurationValid && idleRssDuration > 0) {
+    startupTimings.mark(u"benchmark.idle_rss.scheduled");
+    QTimer::singleShot(idleRssDuration, &application, [&application] {
+      const auto residentBytes = hcb::NativeProcessMemory::residentBytes();
+      if (residentBytes.has_value()) {
+        QTextStream(stdout) << "HCB_IDLE_RSS_BYTES=" << *residentBytes << '\n';
+        QCoreApplication::quit();
+        return;
+      }
+      QCoreApplication::exit(2);
+    });
+  } else if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
     startupTimings.mark(u"benchmark.exit.scheduled");
     QTimer::singleShot(0, &application, &QCoreApplication::quit);
   }
