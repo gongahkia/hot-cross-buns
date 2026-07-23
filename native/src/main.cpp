@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QVariant>
 
 #include <optional>
 #include <utility>
@@ -10,6 +11,7 @@
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
+#include "core/UiTransitionTimingTracker.h"
 
 int main(int argc, char* argv[]) {
   hcb::SystemClock clock;
@@ -30,7 +32,10 @@ int main(int argc, char* argv[]) {
   hcb::SettingsRegistry settings;
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
+  hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
+  engine.setInitialProperties(
+      {{QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(
       &engine,

@@ -10,6 +10,22 @@ ApplicationWindow {
     minimumHeight: 600
     visible: true
     title: "Hot Cross Buns"
+    property string currentPage: "Tasks"
+    property var transitionTimings: null
+
+    function selectPage(pageName) {
+        if (pageName === currentPage) {
+            return
+        }
+        const spanName = "navigation." + pageName.toLowerCase()
+        const tracked = transitionTimings !== null && transitionTimings.begin(spanName)
+        currentPage = pageName
+        if (tracked) {
+            Qt.callLater(function() {
+                transitionTimings.complete(spanName)
+            })
+        }
+    }
 
     palette.window: "#17191d"
     palette.windowText: "#f2f2f2"
@@ -50,6 +66,9 @@ ApplicationWindow {
                         required property string modelData
                         Layout.fillWidth: true
                         text: modelData
+                        checkable: true
+                        checked: window.currentPage === modelData
+                        onClicked: window.selectPage(modelData)
                     }
                 }
                 Item { Layout.fillHeight: true }
@@ -62,7 +81,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 spacing: 12
                 Label {
-                    text: "Native planner core is being built in atomic issues."
+                    text: window.currentPage
                     font.pixelSize: 20
                 }
                 Label {

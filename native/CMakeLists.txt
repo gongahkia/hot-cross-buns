@@ -16,6 +16,8 @@ set(HCB_NATIVE_SOURCES
   src/core/StructuredLogger.h
   src/core/StartupTimingTracker.cpp
   src/core/StartupTimingTracker.h
+  src/core/UiTransitionTimingTracker.cpp
+  src/core/UiTransitionTimingTracker.h
 )
 
 qt_add_executable(hcb_native
@@ -182,6 +184,22 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_startup_timing_tracker_tests)
   add_test(NAME hcb_startup_timing_tracker_tests COMMAND hcb_startup_timing_tracker_tests)
 
+  qt_add_executable(hcb_ui_transition_timing_tracker_tests
+    tests/UiTransitionTimingTrackerTest.cpp
+    src/core/Clock.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+    src/core/StructuredLogger.cpp
+    src/core/StructuredLogger.h
+    src/core/UiTransitionTimingTracker.cpp
+    src/core/UiTransitionTimingTracker.h
+  )
+  target_link_libraries(hcb_ui_transition_timing_tracker_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_ui_transition_timing_tracker_tests PRIVATE src)
+  hcb_enable_warnings(hcb_ui_transition_timing_tracker_tests)
+  hcb_enable_sanitizers(hcb_ui_transition_timing_tracker_tests)
+  add_test(NAME hcb_ui_transition_timing_tracker_tests COMMAND hcb_ui_transition_timing_tracker_tests)
+
   qt_add_executable(hcb_qml_tests tests/QmlTestMain.cpp)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
@@ -206,6 +224,7 @@ if(BUILD_TESTING)
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
+    hcb_ui_transition_timing_tracker_tests
     hcb_qml_tests
   )
 endif()
@@ -225,6 +244,7 @@ if(BUILD_TESTING)
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
+    hcb_ui_transition_timing_tracker_tests
     hcb_qml_tests
   )
 endif()
