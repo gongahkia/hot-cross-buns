@@ -6,6 +6,8 @@
 
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
+#include "core/Clock.h"
+#include "core/SettingsRegistry.h"
 
 int main(int argc, char* argv[]) {
   QGuiApplication application(argc, argv);
@@ -17,7 +19,9 @@ int main(int argc, char* argv[]) {
   if (!paths.has_value()) {
     return 1;
   }
-  const hcb::AppServices services(std::move(*paths));
+  hcb::SystemClock clock;
+  hcb::SettingsRegistry settings;
+  const hcb::AppServices services(std::move(*paths), clock, settings);
   QQmlApplicationEngine engine;
 
   QObject::connect(

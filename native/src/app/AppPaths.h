@@ -9,6 +9,7 @@ namespace hcb {
 class AppPaths final {
 public:
   [[nodiscard]] static std::optional<AppPaths> discover();
+  [[nodiscard]] static AppPaths fromDirectories(FilePath dataDirectory, FilePath cacheDirectory);
 
   [[nodiscard]] const FilePath& dataDirectory() const noexcept;
   [[nodiscard]] const FilePath& cacheDirectory() const noexcept;

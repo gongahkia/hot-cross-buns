@@ -21,6 +21,11 @@ std::optional<AppPaths> AppPaths::discover() {
   return AppPaths(DataDirectory{*dataDirectory}, CacheDirectory{*cacheDirectory});
 }
 
+AppPaths AppPaths::fromDirectories(FilePath dataDirectory, FilePath cacheDirectory) {
+  return AppPaths(DataDirectory{std::move(dataDirectory)},
+                  CacheDirectory{std::move(cacheDirectory)});
+}
+
 const FilePath& AppPaths::dataDirectory() const noexcept { return dataDirectory_; }
 
 const FilePath& AppPaths::cacheDirectory() const noexcept { return cacheDirectory_; }
