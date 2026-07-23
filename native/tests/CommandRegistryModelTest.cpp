@@ -8,6 +8,7 @@ class CommandRegistryModelTest final : public QObject {
 private slots:
   void exposesNativeNavigationCommands();
   void rejectsInvalidIndexesAndUnknownLabels();
+  void filtersCommandsByIdAndLabel();
 };
 
 void CommandRegistryModelTest::exposesNativeNavigationCommands() {
@@ -43,6 +44,22 @@ void CommandRegistryModelTest::rejectsInvalidIndexesAndUnknownLabels() {
   QVERIFY(commands.containsLabel(QStringLiteral("Notes")));
   QVERIFY(!commands.containsLabel(QStringLiteral("Unsupported")));
   QVERIFY(!commands.containsLabel(QStringLiteral("notes")));
+}
+
+void CommandRegistryModelTest::filtersCommandsByIdAndLabel() {
+  hcb::CommandRegistryModel commands;
+
+  const QVariantList allCommands = commands.matchingCommands(QString());
+  QCOMPARE(allCommands.size(), 4);
+  const QVariantList labelMatch = commands.matchingCommands(QStringLiteral("notes"));
+  QCOMPARE(labelMatch.size(), 1);
+  QCOMPARE(labelMatch.constFirst().toMap().value(QStringLiteral("commandId")).toString(),
+           QStringLiteral("navigation.notes"));
+  const QVariantList idMatch = commands.matchingCommands(QStringLiteral("settings"));
+  QCOMPARE(idMatch.size(), 1);
+  QCOMPARE(idMatch.constFirst().toMap().value(QStringLiteral("commandShortcut")).toString(),
+           QStringLiteral("Ctrl+,"));
+  QVERIFY(commands.matchingCommands(QStringLiteral("unavailable")).isEmpty());
 }
 
 QTEST_MAIN(CommandRegistryModelTest)

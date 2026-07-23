@@ -3,6 +3,7 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QString>
+#include <QVariantList>
 
 #include <cstdint>
 
@@ -26,6 +27,7 @@ public:
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
   Q_INVOKABLE bool containsLabel(const QString& label) const;
+  Q_INVOKABLE QVariantList matchingCommands(const QString& query) const;
 
 private:
   struct Command final {

@@ -109,6 +109,30 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_commandPaletteFiltersAndActivatesCommands() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        mainWindow.commandPaletteShortcut.activated()
+        tryVerify(function() {
+            return mainWindow.commandPalette.opened
+        })
+        tryVerify(function() {
+            return mainWindow.commandPaletteQuery.activeFocus
+        })
+        compare(mainWindow.commandPaletteResults.count, 4)
+        mainWindow.commandPaletteQuery.text = "notes"
+        tryCompare(mainWindow.commandPaletteResults, "count", 1)
+        mainWindow.commandPalette.activateCurrentCommand()
+        compare(mainWindow.currentPage, "Notes")
+        tryVerify(function() {
+            return !mainWindow.commandPalette.opened
+        })
+        mainWindow.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

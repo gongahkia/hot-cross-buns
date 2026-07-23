@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <QVariantMap>
+
 namespace hcb {
 
 CommandRegistryModel::CommandRegistryModel(QObject* parent)
@@ -49,6 +51,22 @@ bool CommandRegistryModel::containsLabel(const QString& label) const {
   return std::any_of(commands_.cbegin(), commands_.cend(), [&label](const Command& command) {
     return command.label == label;
   });
+}
+
+QVariantList CommandRegistryModel::matchingCommands(const QString& query) const {
+  const QString normalizedQuery = query.trimmed().toCaseFolded();
+  QVariantList matches;
+  matches.reserve(commands_.size());
+  for (const Command& command : commands_) {
+    if (!normalizedQuery.isEmpty() && !command.id.toCaseFolded().contains(normalizedQuery) &&
+        !command.label.toCaseFolded().contains(normalizedQuery)) {
+      continue;
+    }
+    matches.append(QVariantMap{{QStringLiteral("commandId"), command.id},
+                               {QStringLiteral("commandLabel"), command.label},
+                               {QStringLiteral("commandShortcut"), command.shortcut}});
+  }
+  return matches;
 }
 
 } // namespace hcb
