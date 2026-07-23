@@ -17,6 +17,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleApiError.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/PkceAuthorization.cpp
+  src/core/PkceAuthorization.h
   src/core/SettingsRegistry.h
   src/core/SecretRedactor.cpp
   src/core/SecretRedactor.h
@@ -251,6 +253,18 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_sync_backoff_policy_tests)
   add_test(NAME hcb_sync_backoff_policy_tests COMMAND hcb_sync_backoff_policy_tests)
 
+  qt_add_executable(hcb_pkce_authorization_tests
+    tests/PkceAuthorizationTest.cpp
+    src/core/Clock.h
+    src/core/PkceAuthorization.cpp
+    src/core/PkceAuthorization.h
+  )
+  target_link_libraries(hcb_pkce_authorization_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_pkce_authorization_tests PRIVATE src)
+  hcb_enable_warnings(hcb_pkce_authorization_tests)
+  hcb_enable_sanitizers(hcb_pkce_authorization_tests)
+  add_test(NAME hcb_pkce_authorization_tests COMMAND hcb_pkce_authorization_tests)
+
   qt_add_executable(hcb_secret_redactor_tests
     tests/SecretRedactorTest.cpp
     src/core/SecretRedactor.cpp
@@ -452,6 +466,7 @@ if(BUILD_TESTING)
     hcb_settings_registry_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
+    hcb_pkce_authorization_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
@@ -486,6 +501,7 @@ if(BUILD_TESTING)
     hcb_settings_registry_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
+    hcb_pkce_authorization_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
