@@ -65,6 +65,7 @@ struct NativePerformanceFixture final {
 class NativePerformanceFixtureGenerator final {
 public:
   [[nodiscard]] static NativePerformanceFixture small();
+  [[nodiscard]] static NativePerformanceFixture medium();
   [[nodiscard]] static QByteArray toJson(const NativePerformanceFixture& fixture);
 };
 

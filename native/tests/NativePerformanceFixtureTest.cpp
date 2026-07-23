@@ -10,6 +10,7 @@ class NativePerformanceFixtureTest final : public QObject {
 
 private slots:
   void generatesExpectedSmallFixture();
+  void generatesExpectedMediumFixture();
   void serializesDeterministicallyWithoutCredentials();
 };
 
@@ -38,6 +39,20 @@ void NativePerformanceFixtureTest::generatesExpectedSmallFixture() {
   QCOMPARE(*fixture.notes.at(0).linkedResourceType, QStringLiteral("task"));
   QVERIFY(fixture.notes.at(0).linkedResourceId.has_value());
   QCOMPARE(*fixture.notes.at(0).linkedResourceId, QStringLiteral("generated-small-task-00001"));
+}
+
+void NativePerformanceFixtureTest::generatesExpectedMediumFixture() {
+  const hcb::NativePerformanceFixture fixture = hcb::NativePerformanceFixtureGenerator::medium();
+
+  QCOMPARE(fixture.size, QStringLiteral("medium"));
+  QCOMPARE(fixture.seed, QStringLiteral("hot-cross-buns-perf-medium-v1"));
+  QCOMPARE(fixture.counts.tasks, std::size_t{1'000});
+  QCOMPARE(fixture.counts.eventInstances, std::size_t{1'000});
+  QCOMPARE(fixture.counts.notes, std::size_t{200});
+  QCOMPARE(fixture.tasks.at(999).id, QStringLiteral("generated-medium-task-01000"));
+  QCOMPARE(fixture.eventInstances.at(999).id,
+           QStringLiteral("generated-medium-event-instance-01000"));
+  QCOMPARE(fixture.notes.at(199).id, QStringLiteral("generated-medium-note-00200"));
 }
 
 void NativePerformanceFixtureTest::serializesDeterministicallyWithoutCredentials() {

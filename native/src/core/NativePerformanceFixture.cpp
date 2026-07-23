@@ -13,6 +13,7 @@ namespace hcb {
 namespace {
 
 constexpr NativePerformanceFixtureCounts kSmallCounts{50, 20, 10};
+constexpr NativePerformanceFixtureCounts kMediumCounts{1'000, 1'000, 200};
 constexpr qint64 kBaseTimeMilliseconds = 1'767'603'600'000;
 constexpr std::array<QStringView, 4> kTaskListIds{
     u"generated-inbox", u"generated-work", u"generated-personal", u"generated-later"};
@@ -28,31 +29,29 @@ QString timestamp(qint64 offsetMinutes) {
   return QDateTime::fromMSecsSinceEpoch(milliseconds, QTimeZone::UTC).toString(Qt::ISODateWithMs);
 }
 
-QString taskId(std::size_t index) {
-  return QStringLiteral("generated-small-task-%1").arg(padded(index + 1));
+QString taskId(QStringView size, std::size_t index) {
+  return QStringLiteral("generated-%1-task-%2").arg(size, padded(index + 1));
 }
 
-QString eventId(std::size_t index) {
-  return QStringLiteral("generated-small-event-instance-%1").arg(padded(index + 1));
+QString eventId(QStringView size, std::size_t index) {
+  return QStringLiteral("generated-%1-event-instance-%2").arg(size, padded(index + 1));
 }
 
-QString noteId(std::size_t index) {
-  return QStringLiteral("generated-small-note-%1").arg(padded(index + 1));
+QString noteId(QStringView size, std::size_t index) {
+  return QStringLiteral("generated-%1-note-%2").arg(size, padded(index + 1));
 }
 
 QJsonValue optionalString(const std::optional<QString>& value) {
   return value.has_value() ? QJsonValue(*value) : QJsonValue(QJsonValue::Null);
 }
 
-} // namespace
-
-NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
+NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCounts counts) {
   NativePerformanceFixture fixture{1,
-                                   QStringLiteral("small"),
-                                   QStringLiteral("hot-cross-buns-perf-small-v1"),
+                                   size.toString(),
+                                   QStringLiteral("hot-cross-buns-perf-%1-v1").arg(size),
                                    true,
                                    timestamp(0),
-                                   kSmallCounts,
+                                   counts,
                                    {},
                                    {},
                                    {},
@@ -73,9 +72,10 @@ NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
   for (std::size_t index = 0; index < fixture.counts.tasks; ++index) {
     const bool completed = index % 9 == 0;
     fixture.tasks.push_back(
-        {taskId(index),
+        {taskId(size, index),
          kTaskListIds[index % kTaskListIds.size()].toString(),
-         index > 0 && index % 17 == 0 ? std::optional<QString>(taskId(index - 1)) : std::nullopt,
+         index > 0 && index % 17 == 0 ? std::optional<QString>(taskId(size, index - 1))
+                                      : std::nullopt,
          QStringLiteral("Generated task %1").arg(padded(index + 1)),
          completed ? QStringLiteral("completed") : QStringLiteral("needsAction"),
          index % 5 == 0 ? std::nullopt
@@ -90,7 +90,7 @@ NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
   for (std::size_t index = 0; index < fixture.counts.eventInstances; ++index) {
     const qint64 startsAtOffset = static_cast<qint64>(index * 45);
     const qint64 durationMinutes = 30 + static_cast<qint64>(index % 4) * 15;
-    fixture.eventInstances.push_back({eventId(index),
+    fixture.eventInstances.push_back({eventId(size, index),
                                       kCalendarIds[index % kCalendarIds.size()].toString(),
                                       QStringLiteral("Generated event %1").arg(padded(index + 1)),
                                       timestamp(startsAtOffset),
@@ -104,19 +104,30 @@ NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
     const bool linkedToTask = index % 3 == 0;
     const bool linkedToEvent = !linkedToTask && index % 5 == 0;
     fixture.notes.push_back(
-        {noteId(index),
+        {noteId(size, index),
          linkedToTask    ? std::optional<QString>(QStringLiteral("task"))
          : linkedToEvent ? std::optional<QString>(QStringLiteral("event"))
                          : std::nullopt,
-         linkedToTask    ? std::optional<QString>(taskId(index % fixture.counts.tasks))
-         : linkedToEvent ? std::optional<QString>(eventId(index % fixture.counts.eventInstances))
-                         : std::nullopt,
+         linkedToTask ? std::optional<QString>(taskId(size, index % fixture.counts.tasks))
+         : linkedToEvent
+             ? std::optional<QString>(eventId(size, index % fixture.counts.eventInstances))
+             : std::nullopt,
          QStringLiteral("Generated note %1").arg(padded(index + 1)),
          QStringLiteral("Generated note body %1 for deterministic performance fixtures.")
              .arg(padded(index + 1)),
          timestamp(static_cast<qint64>(index) - 360)});
   }
   return fixture;
+}
+
+} // namespace
+
+NativePerformanceFixture NativePerformanceFixtureGenerator::small() {
+  return generate(u"small", kSmallCounts);
+}
+
+NativePerformanceFixture NativePerformanceFixtureGenerator::medium() {
+  return generate(u"medium", kMediumCounts);
 }
 
 QByteArray NativePerformanceFixtureGenerator::toJson(const NativePerformanceFixture& fixture) {
