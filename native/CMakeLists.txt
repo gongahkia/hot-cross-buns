@@ -6,6 +6,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppServices.h
   src/core/AppError.h
   src/core/Cancellation.h
+  src/core/Clock.h
   src/core/FeatureCapabilityRegistry.h
   src/core/SettingsRegistry.h
 )
@@ -65,6 +66,16 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_cancellation_tests)
   add_test(NAME hcb_cancellation_tests COMMAND hcb_cancellation_tests)
 
+  qt_add_executable(hcb_clock_tests
+    tests/ClockTest.cpp
+    src/core/Clock.h
+  )
+  target_link_libraries(hcb_clock_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_clock_tests PRIVATE src)
+  hcb_enable_warnings(hcb_clock_tests)
+  hcb_enable_sanitizers(hcb_clock_tests)
+  add_test(NAME hcb_clock_tests COMMAND hcb_clock_tests)
+
   qt_add_executable(hcb_application_lifecycle_tests
     tests/ApplicationLifecycleTest.cpp
     src/app/ApplicationLifecycle.h
@@ -110,6 +121,7 @@ if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_core_tests
     hcb_cancellation_tests
+    hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
@@ -123,6 +135,7 @@ if(BUILD_TESTING)
     hcb_native
     hcb_core_tests
     hcb_cancellation_tests
+    hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
     hcb_settings_registry_tests
