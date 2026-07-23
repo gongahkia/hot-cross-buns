@@ -6,8 +6,6 @@ namespace hcb {
 
 AppServices::AppServices(AppPaths paths) : paths_(std::move(paths)) {}
 
-const AppPaths& AppServices::paths() const noexcept {
-  return paths_;
-}
+const AppPaths& AppServices::paths() const noexcept { return paths_; }
 
 } // namespace hcb

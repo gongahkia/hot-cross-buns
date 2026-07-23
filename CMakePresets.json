@@ -102,6 +102,32 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "HCB_ENABLE_STATIC_ANALYSIS": "ON"
       }
+    },
+    {
+      "name": "macos-format",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-format",
+      "cacheVariables": {
+        "HCB_ENABLE_FORMAT_CHECK": "ON"
+      }
+    },
+    {
+      "name": "linux-format",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/linux-format",
+      "cacheVariables": {
+        "HCB_ENABLE_FORMAT_CHECK": "ON"
+      }
+    },
+    {
+      "name": "windows-format",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-format",
+      "cacheVariables": {
+        "HCB_ENABLE_FORMAT_CHECK": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -113,7 +139,10 @@
     { "name": "windows-sanitize", "configurePreset": "windows-sanitize", "configuration": "Debug" },
     { "name": "macos-analysis", "configurePreset": "macos-analysis", "targets": ["hcb_static_analysis"] },
     { "name": "linux-analysis", "configurePreset": "linux-analysis", "targets": ["hcb_static_analysis"] },
-    { "name": "windows-analysis", "configurePreset": "windows-analysis", "targets": ["hcb_static_analysis"] }
+    { "name": "windows-analysis", "configurePreset": "windows-analysis", "targets": ["hcb_static_analysis"] },
+    { "name": "macos-format", "configurePreset": "macos-format", "targets": ["hcb_format_check"] },
+    { "name": "linux-format", "configurePreset": "linux-format", "targets": ["hcb_format_check"] },
+    { "name": "windows-format", "configurePreset": "windows-format", "targets": ["hcb_format_check"] }
   ],
   "testPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },

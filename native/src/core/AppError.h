@@ -16,8 +16,7 @@ enum class AppErrorCode {
 
 class AppError final {
 public:
-  AppError(AppErrorCode code, QString message)
-      : code_(code), message_(std::move(message)) {}
+  AppError(AppErrorCode code, QString message) : code_(code), message_(std::move(message)) {}
 
   [[nodiscard]] AppErrorCode code() const noexcept { return code_; }
   [[nodiscard]] const QString& message() const noexcept { return message_; }
