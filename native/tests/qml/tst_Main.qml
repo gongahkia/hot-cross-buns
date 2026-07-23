@@ -9,6 +9,14 @@ TestCase {
     property var startedTransitions: []
     property var completedTransitions: []
 
+    ListModel {
+        id: navigationCommands
+        ListElement { commandId: "navigation.tasks"; commandLabel: "Tasks" }
+        ListElement { commandId: "navigation.calendar"; commandLabel: "Calendar" }
+        ListElement { commandId: "navigation.notes"; commandLabel: "Notes" }
+        ListElement { commandId: "navigation.settings"; commandLabel: "Settings" }
+    }
+
     SystemPalette {
         id: systemPalette
         colorGroup: SystemPalette.Active
@@ -28,7 +36,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null)
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
         verify(mainWindow !== null)
         compare(mainWindow.title, "Hot Cross Buns")
         compare(mainWindow.width, 1200)
@@ -44,7 +52,10 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { transitionTimings: testCase })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            transitionTimings: testCase
+        })
         verify(mainWindow !== null)
         mainWindow.selectPage("Calendar")
         compare(mainWindow.currentPage, "Calendar")
@@ -62,10 +73,13 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { transitionTimings: testCase })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            transitionTimings: testCase
+        })
         verify(mainWindow !== null)
         compare(mainWindow.navigationSidebar.currentPage, "Tasks")
-        compare(mainWindow.navigationSidebar.pageNames.length, 4)
+        compare(navigationCommands.count, 4)
         mainWindow.navigationSidebar.selectPage("Unsupported")
         compare(mainWindow.currentPage, "Tasks")
         compare(startedTransitions, [])
@@ -84,7 +98,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null)
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
         verify(mainWindow !== null)
         compare(mainWindow.color.toString(), systemPalette.window.toString())
         compare(mainWindow.palette.window.toString(), systemPalette.window.toString())

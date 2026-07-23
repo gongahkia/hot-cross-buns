@@ -1,0 +1,38 @@
+#pragma once
+
+#include <QAbstractListModel>
+#include <QHash>
+#include <QString>
+
+#include <cstdint>
+
+namespace hcb {
+
+class CommandRegistryModel final : public QAbstractListModel {
+  Q_OBJECT
+
+public:
+  enum Role : std::int32_t {
+    CommandIdRole = Qt::UserRole + 1,
+    CommandLabelRole
+  };
+  Q_ENUM(Role)
+
+  explicit CommandRegistryModel(QObject* parent = nullptr);
+
+  [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+  [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+  [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+
+  Q_INVOKABLE bool containsLabel(const QString& label) const;
+
+private:
+  struct Command final {
+    QString id;
+    QString label;
+  };
+
+  QList<Command> commands_;
+};
+
+} // namespace hcb

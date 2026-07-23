@@ -11,6 +11,7 @@
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
 #include "core/Clock.h"
+#include "core/CommandRegistryModel.h"
 #include "core/NativeProcessMemory.h"
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
@@ -42,10 +43,12 @@ int runApplication(int argc, char* argv[]) {
   hcb::SettingsRegistry settings;
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
+  hcb::CommandRegistryModel navigationCommands;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
-      {{QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
+      {{QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+       {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(
       &engine,

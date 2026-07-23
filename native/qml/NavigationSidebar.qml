@@ -4,14 +4,26 @@ import QtQuick.Layouts
 
 Pane {
     id: root
+    required property var commandRegistry
     required property string currentPage
-    readonly property var pageNames: ["Tasks", "Calendar", "Notes", "Settings"]
     signal pageSelected(string pageName)
 
     SplitView.preferredWidth: Theme.navigationWidth
 
+    function hasNavigationPage(pageName) {
+        if (typeof commandRegistry.containsLabel === "function") {
+            return commandRegistry.containsLabel(pageName)
+        }
+        for (let row = 0; row < commandRegistry.count; ++row) {
+            if (commandRegistry.get(row).commandLabel === pageName) {
+                return true
+            }
+        }
+        return false
+    }
+
     function selectPage(pageName) {
-        if (pageNames.indexOf(pageName) >= 0) {
+        if (hasNavigationPage(pageName)) {
             pageSelected(pageName)
         }
     }
@@ -21,13 +33,13 @@ Pane {
         spacing: Theme.spacingSmall
 
         Repeater {
-            model: root.pageNames
+            model: root.commandRegistry
 
             delegate: AccessibleNavigationButton {
-                required property string modelData
+                required property string commandLabel
                 Layout.fillWidth: true
-                pageName: modelData
-                currentPage: root.currentPage === modelData
+                pageName: commandLabel
+                currentPage: root.currentPage === commandLabel
                 onPageSelected: pageName => root.selectPage(pageName)
             }
         }

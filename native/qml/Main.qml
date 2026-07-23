@@ -11,11 +11,24 @@ ApplicationWindow {
     visible: true
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
+    required property var navigationCommands
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
 
+    function hasNavigationPage(pageName) {
+        if (typeof navigationCommands.containsLabel === "function") {
+            return navigationCommands.containsLabel(pageName)
+        }
+        for (let row = 0; row < navigationCommands.count; ++row) {
+            if (navigationCommands.get(row).commandLabel === pageName) {
+                return true
+            }
+        }
+        return false
+    }
+
     function selectPage(pageName) {
-        if (pageName === currentPage) {
+        if (!hasNavigationPage(pageName) || pageName === currentPage) {
             return
         }
         const spanName = "navigation." + pageName.toLowerCase()
@@ -59,6 +72,7 @@ ApplicationWindow {
 
         NavigationSidebar {
             id: navigationSidebar
+            commandRegistry: window.navigationCommands
             currentPage: window.currentPage
             onPageSelected: pageName => window.selectPage(pageName)
         }

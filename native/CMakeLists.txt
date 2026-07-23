@@ -7,6 +7,8 @@ set(HCB_NATIVE_SOURCES
   src/core/AppError.h
   src/core/Cancellation.h
   src/core/Clock.h
+  src/core/CommandRegistryModel.cpp
+  src/core/CommandRegistryModel.h
   src/core/DiagnosticsJsonExporter.cpp
   src/core/DiagnosticsJsonExporter.h
   src/core/DiagnosticsSnapshot.cpp
@@ -217,6 +219,17 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_feature_capability_registry_tests)
   hcb_enable_sanitizers(hcb_feature_capability_registry_tests)
   add_test(NAME hcb_feature_capability_registry_tests COMMAND hcb_feature_capability_registry_tests)
+
+  qt_add_executable(hcb_command_registry_model_tests
+    tests/CommandRegistryModelTest.cpp
+    src/core/CommandRegistryModel.cpp
+    src/core/CommandRegistryModel.h
+  )
+  target_link_libraries(hcb_command_registry_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_command_registry_model_tests PRIVATE src)
+  hcb_enable_warnings(hcb_command_registry_model_tests)
+  hcb_enable_sanitizers(hcb_command_registry_model_tests)
+  add_test(NAME hcb_command_registry_model_tests COMMAND hcb_command_registry_model_tests)
 
   qt_add_executable(hcb_settings_registry_tests
     tests/SettingsRegistryTest.cpp
@@ -474,6 +487,7 @@ if(BUILD_TESTING)
     hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
+    hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
@@ -510,6 +524,7 @@ if(BUILD_TESTING)
     hcb_clock_tests
     hcb_application_lifecycle_tests
     hcb_feature_capability_registry_tests
+    hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
