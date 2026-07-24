@@ -151,6 +151,37 @@ BEGIN
 END
 )";
 
+constexpr char calendarSchemaSql[] = R"(
+CREATE TABLE local_calendars (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  account_id TEXT NOT NULL REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  remote_id TEXT NOT NULL CHECK(length(trim(remote_id)) BETWEEN 1 AND 256),
+  title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 500),
+  description TEXT CHECK(description IS NULL OR length(description) <= 20000),
+  time_zone TEXT CHECK(time_zone IS NULL OR length(trim(time_zone)) BETWEEN 1 AND 120),
+  background_color TEXT CHECK(background_color IS NULL OR (length(background_color) = 7 AND background_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]')),
+  foreground_color TEXT CHECK(foreground_color IS NULL OR (length(foreground_color) = 7 AND foreground_color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]')),
+  access_role TEXT CHECK(access_role IS NULL OR access_role IN ('freeBusyReader', 'reader', 'writer', 'owner')),
+  is_selected INTEGER NOT NULL DEFAULT 1 CHECK(is_selected IN (0, 1)),
+  is_hidden INTEGER NOT NULL DEFAULT 0 CHECK(is_hidden IN (0, 1)),
+  is_primary INTEGER NOT NULL DEFAULT 0 CHECK(is_primary IN (0, 1)),
+  etag TEXT CHECK(etag IS NULL OR length(etag) <= 4096),
+  remote_updated_at TEXT CHECK(remote_updated_at IS NULL OR length(trim(remote_updated_at)) BETWEEN 1 AND 64),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  deleted_at TEXT CHECK(deleted_at IS NULL OR length(trim(deleted_at)) BETWEEN 1 AND 64),
+  UNIQUE(account_id, remote_id)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_calendars_active_navigation
+ON local_calendars(account_id, is_hidden, is_primary DESC, title COLLATE NOCASE, id)
+WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX local_calendars_one_primary_per_account
+ON local_calendars(account_id)
+WHERE is_primary = 1 AND deleted_at IS NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -189,8 +220,12 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, taskSchemaSql, QStringLiteral("SQLite task schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 4>& migrations() {
-  static const std::array<SqliteMigration, 4> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarSchema(SqliteConnection& connection) {
+  return applySchema(connection, calendarSchemaSql, QStringLiteral("SQLite calendar schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 5>& migrations() {
+  static const std::array<SqliteMigration, 5> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -201,6 +236,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        checksum(taskListSchemaSql),
        applyTaskListSchema},
       {4, QStringLiteral("create local tasks"), checksum(taskSchemaSql), applyTaskSchema},
+      {5,
+       QStringLiteral("create local calendars"),
+       checksum(calendarSchemaSql),
+       applyCalendarSchema},
   }};
   return catalogue;
 }
