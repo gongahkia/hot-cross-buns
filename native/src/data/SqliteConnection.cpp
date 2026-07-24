@@ -1,5 +1,6 @@
 #include "data/SqliteConnection.h"
 
+#include "data/SqliteQueryTimingTracker.h"
 #include "sqlite3.h"
 
 #include <QByteArray>
@@ -27,6 +28,11 @@ namespace {
 [[nodiscard]] AppError configurationError(int result) {
   return AppError(AppErrorCode::Database,
                   QStringLiteral("SQLite connection configuration failed (%1)").arg(result));
+}
+
+[[nodiscard]] AppError queryTimingError(int result) {
+  return AppError(AppErrorCode::Database,
+                  QStringLiteral("SQLite query timing setup failed (%1)").arg(result));
 }
 
 [[nodiscard]] std::optional<AppError> executePragma(sqlite3* handle, const char* sql) {
@@ -92,19 +98,50 @@ namespace {
 SqliteConnection::SqliteConnection(sqlite3* handle) noexcept : handle_(handle) {}
 
 SqliteConnection::SqliteConnection(SqliteConnection&& other) noexcept
-    : handle_(std::exchange(other.handle_, nullptr)) {}
+    : handle_(std::exchange(other.handle_, nullptr)),
+      queryTimingTracker_(std::move(other.queryTimingTracker_)) {}
 
 SqliteConnection& SqliteConnection::operator=(SqliteConnection&& other) noexcept {
   if (this != &other) {
+    clearQueryTimingTracker();
     sqlite3_close_v2(handle_);
     handle_ = std::exchange(other.handle_, nullptr);
+    queryTimingTracker_ = std::move(other.queryTimingTracker_);
   }
   return *this;
 }
 
-SqliteConnection::~SqliteConnection() { sqlite3_close_v2(handle_); }
+SqliteConnection::~SqliteConnection() {
+  clearQueryTimingTracker();
+  sqlite3_close_v2(handle_);
+}
 
 sqlite3* SqliteConnection::nativeHandle() const noexcept { return handle_; }
+
+std::optional<AppError>
+SqliteConnection::installQueryTimingTracker(std::shared_ptr<SqliteQueryTimingTracker> tracker) {
+  if (handle_ == nullptr || !tracker) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite query timing tracker is unavailable"));
+  }
+  const int result = sqlite3_trace_v2(
+      handle_, SQLITE_TRACE_PROFILE, &SqliteQueryTimingTracker::profileCallback, tracker.get());
+  if (result != SQLITE_OK) {
+    return queryTimingError(result);
+  }
+  queryTimingTracker_ = std::move(tracker);
+  return std::nullopt;
+}
+
+void SqliteConnection::clearQueryTimingTracker() noexcept {
+  if (!queryTimingTracker_) {
+    return;
+  }
+  if (handle_ != nullptr) {
+    sqlite3_trace_v2(handle_, 0, nullptr, nullptr);
+  }
+  queryTimingTracker_.reset();
+}
 
 SqliteConnectionResult SqliteConnectionFactory::open(const FilePath& databasePath,
                                                      SqliteOpenMode mode) {
