@@ -14,9 +14,7 @@ namespace {
 
 SqliteWriterQueue::SqliteWriterQueue(FilePath databasePath)
     : readyFuture_(readyPromise_.get_future().share()),
-      worker_([this, databasePath = std::move(databasePath)]() mutable {
-        run(std::move(databasePath));
-      }) {}
+      worker_([this, databasePath = std::move(databasePath)]() mutable { run(databasePath); }) {}
 
 SqliteWriterQueue::~SqliteWriterQueue() { shutdown(); }
 
@@ -33,7 +31,7 @@ std::future<SqliteWriteResult> SqliteWriterQueue::enqueue(SqliteWriteTask task) 
   {
     std::lock_guard lock(mutex_);
     if (startupError_.has_value()) {
-      completion.set_value(*startupError_);
+      completion.set_value(startupError_);
       return future;
     }
     if (!accepting_) {
@@ -44,6 +42,21 @@ std::future<SqliteWriteResult> SqliteWriterQueue::enqueue(SqliteWriteTask task) 
   }
   workAvailable_.notify_one();
   return future;
+}
+
+std::optional<AppError> SqliteWriterQueue::schedule(PendingTask pendingTask) {
+  {
+    std::lock_guard lock(mutex_);
+    if (startupError_.has_value()) {
+      return startupError_;
+    }
+    if (!accepting_) {
+      return queueError(QStringLiteral("SQLite writer queue is closed"));
+    }
+    pendingTasks_.push_back(std::move(pendingTask));
+  }
+  workAvailable_.notify_one();
+  return std::nullopt;
 }
 
 void SqliteWriterQueue::shutdown() {
@@ -57,7 +70,7 @@ void SqliteWriterQueue::shutdown() {
   }
 }
 
-void SqliteWriterQueue::run(FilePath databasePath) {
+void SqliteWriterQueue::run(const FilePath& databasePath) {
   SqliteConnectionResult connectionResult =
       SqliteConnectionFactory::open(databasePath, SqliteOpenMode::ReadWriteCreate);
   if (std::holds_alternative<AppError>(connectionResult)) {

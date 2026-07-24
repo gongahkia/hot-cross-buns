@@ -24,6 +24,8 @@ set(HCB_NATIVE_SOURCES
   src/core/PkceAuthorization.cpp
   src/core/PkceAuthorization.h
   src/core/SettingsRegistry.h
+  src/core/SettingsService.cpp
+  src/core/SettingsService.h
   src/core/SecretRedactor.cpp
   src/core/SecretRedactor.h
   src/core/StructuredLogger.cpp
@@ -459,6 +461,32 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_settings_registry_tests)
   add_test(NAME hcb_settings_registry_tests COMMAND hcb_settings_registry_tests)
 
+  qt_add_executable(hcb_settings_service_tests
+    tests/SettingsServiceTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/SettingsService.cpp
+    src/core/SettingsService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_settings_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_settings_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_settings_service_tests)
+  hcb_enable_sanitizers(hcb_settings_service_tests)
+  add_test(NAME hcb_settings_service_tests COMMAND hcb_settings_service_tests)
+
   qt_add_executable(hcb_google_api_error_tests
     tests/GoogleApiErrorTest.cpp
     src/core/GoogleApiError.cpp
@@ -739,6 +767,7 @@ if(BUILD_TESTING)
     hcb_native_capability_report_tests
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
+    hcb_settings_service_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
@@ -789,6 +818,7 @@ if(BUILD_TESTING)
     hcb_native_capability_report_tests
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
+    hcb_settings_service_tests
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
