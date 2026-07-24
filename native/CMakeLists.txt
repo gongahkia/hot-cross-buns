@@ -152,6 +152,19 @@ set_target_properties(hcb_native PROPERTIES
 )
 
 if(BUILD_TESTING)
+  add_test(NAME hcb_native_dependency_manifest_tests
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      "-DHCB_MANIFEST=${HCB_NATIVE_DEPENDENCY_MANIFEST_PATH}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/DependencyManifestTest.cmake"
+  )
+  add_test(NAME hcb_native_dependency_manifest_rejects_invalid_hash
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      "-DHCB_MANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/invalid-dependency-manifest.json"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/DependencyManifestInvalidHashTest.cmake"
+  )
+
   qt_add_executable(hcb_core_tests
     tests/AppPathsTest.cpp
     src/app/AppPaths.cpp
