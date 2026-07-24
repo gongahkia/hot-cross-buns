@@ -314,6 +314,139 @@ CREATE INDEX local_sync_checkpoints_account_recency
 ON local_sync_checkpoints(account_id, updated_at DESC, id)
 )";
 
+constexpr char ftsSchemaSql[] = R"(
+CREATE VIRTUAL TABLE local_task_lists_fts
+USING fts5(
+  task_list_id UNINDEXED,
+  title,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE VIRTUAL TABLE local_tasks_fts
+USING fts5(
+  task_id UNINDEXED,
+  title,
+  notes,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE VIRTUAL TABLE local_calendars_fts
+USING fts5(
+  calendar_id UNINDEXED,
+  title,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE VIRTUAL TABLE local_calendar_events_fts
+USING fts5(
+  calendar_event_id UNINDEXED,
+  title,
+  description,
+  location,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE TRIGGER local_task_lists_fts_insert
+AFTER INSERT ON local_task_lists
+BEGIN
+  INSERT INTO local_task_lists_fts(task_list_id, title)
+  VALUES (NEW.id, NEW.title);
+END;
+
+CREATE TRIGGER local_task_lists_fts_delete
+AFTER DELETE ON local_task_lists
+BEGIN
+  DELETE FROM local_task_lists_fts WHERE task_list_id = OLD.id;
+END;
+
+CREATE TRIGGER local_task_lists_fts_update
+AFTER UPDATE OF id, title ON local_task_lists
+BEGIN
+  DELETE FROM local_task_lists_fts WHERE task_list_id = OLD.id;
+  INSERT INTO local_task_lists_fts(task_list_id, title)
+  VALUES (NEW.id, NEW.title);
+END;
+
+CREATE TRIGGER local_tasks_fts_insert
+AFTER INSERT ON local_tasks
+BEGIN
+  INSERT INTO local_tasks_fts(task_id, title, notes)
+  VALUES (NEW.id, NEW.title, COALESCE(NEW.notes, ''));
+END;
+
+CREATE TRIGGER local_tasks_fts_delete
+AFTER DELETE ON local_tasks
+BEGIN
+  DELETE FROM local_tasks_fts WHERE task_id = OLD.id;
+END;
+
+CREATE TRIGGER local_tasks_fts_update
+AFTER UPDATE OF id, title, notes ON local_tasks
+BEGIN
+  DELETE FROM local_tasks_fts WHERE task_id = OLD.id;
+  INSERT INTO local_tasks_fts(task_id, title, notes)
+  VALUES (NEW.id, NEW.title, COALESCE(NEW.notes, ''));
+END;
+
+CREATE TRIGGER local_calendars_fts_insert
+AFTER INSERT ON local_calendars
+BEGIN
+  INSERT INTO local_calendars_fts(calendar_id, title)
+  VALUES (NEW.id, NEW.title);
+END;
+
+CREATE TRIGGER local_calendars_fts_delete
+AFTER DELETE ON local_calendars
+BEGIN
+  DELETE FROM local_calendars_fts WHERE calendar_id = OLD.id;
+END;
+
+CREATE TRIGGER local_calendars_fts_update
+AFTER UPDATE OF id, title ON local_calendars
+BEGIN
+  DELETE FROM local_calendars_fts WHERE calendar_id = OLD.id;
+  INSERT INTO local_calendars_fts(calendar_id, title)
+  VALUES (NEW.id, NEW.title);
+END;
+
+CREATE TRIGGER local_calendar_events_fts_insert
+AFTER INSERT ON local_calendar_events
+BEGIN
+  INSERT INTO local_calendar_events_fts(calendar_event_id, title, description, location)
+  VALUES (NEW.id, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.location, ''));
+END;
+
+CREATE TRIGGER local_calendar_events_fts_delete
+AFTER DELETE ON local_calendar_events
+BEGIN
+  DELETE FROM local_calendar_events_fts WHERE calendar_event_id = OLD.id;
+END;
+
+CREATE TRIGGER local_calendar_events_fts_update
+AFTER UPDATE OF id, title, description, location ON local_calendar_events
+BEGIN
+  DELETE FROM local_calendar_events_fts WHERE calendar_event_id = OLD.id;
+  INSERT INTO local_calendar_events_fts(calendar_event_id, title, description, location)
+  VALUES (NEW.id, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.location, ''));
+END;
+
+INSERT INTO local_task_lists_fts(task_list_id, title)
+SELECT id, title FROM local_task_lists;
+
+INSERT INTO local_tasks_fts(task_id, title, notes)
+SELECT id, title, COALESCE(notes, '') FROM local_tasks;
+
+INSERT INTO local_calendars_fts(calendar_id, title)
+SELECT id, title FROM local_calendars;
+
+INSERT INTO local_calendar_events_fts(calendar_event_id, title, description, location)
+SELECT id, title, COALESCE(description, ''), COALESCE(location, '') FROM local_calendar_events
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -376,8 +509,12 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, syncCheckpointSchemaSql, QStringLiteral("SQLite sync-checkpoint schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 9>& migrations() {
-  static const std::array<SqliteMigration, 9> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyFtsSchema(SqliteConnection& connection) {
+  return applySchema(connection, ftsSchemaSql, QStringLiteral("SQLite FTS schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 10>& migrations() {
+  static const std::array<SqliteMigration, 10> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -408,6 +545,7 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local sync checkpoints"),
        checksum(syncCheckpointSchemaSql),
        applySyncCheckpointSchema},
+      {10, QStringLiteral("create local FTS indexes"), checksum(ftsSchemaSql), applyFtsSchema},
   }};
   return catalogue;
 }

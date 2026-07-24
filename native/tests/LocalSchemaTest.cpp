@@ -24,6 +24,7 @@ private slots:
   void createsTaskBackedNoteProjectionAndIndex();
   void createsPendingMutationSchemaAndEnforcesLifecycle();
   void createsSyncCheckpointSchemaAndEnforcesIntegrity();
+  void createsFtsIndexesTriggersAndBackfillsExistingData();
 };
 
 namespace {
@@ -104,8 +105,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 9);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9}));
+  QCOMPARE(first.version, 10);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -146,6 +147,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 9 "
                   "AND name = 'create local sync checkpoints' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 10 "
+                  "AND name = 'create local FTS indexes' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -161,7 +166,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 9);
+  QCOMPARE(second.version, 10);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -782,6 +787,130 @@ void LocalSchemaTest::createsSyncCheckpointSchemaAndEnforcesIntegrity() {
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                   "AND name = 'local_sync_checkpoints_account_recency'"),
            1);
+}
+
+void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResultOrError schemaResult =
+      hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
+
+  sqlite3* const handle = connection->nativeHandle();
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_accounts (id, provider, connection_state, "
+                   "granted_scopes_json, missing_scopes_json, updated_at) "
+                   "VALUES ('account-1', 'google', 'connected', '[]', '[]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) "
+                   "VALUES ('list-1', 'account-1', 'google-list-1', 'Project work', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, updated_at) "
+              "VALUES ('task-1', 'list-1', 'google-task-1', 'Ship search', "
+              "'Initial investigation', '2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendars (id, account_id, remote_id, title, updated_at) "
+                   "VALUES ('calendar-1', 'account-1', 'primary', 'Engineering', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, "
+                   "description, location, start_at, end_at, updated_at) VALUES ('event-1', "
+                   "'calendar-1', 'google-event-1', 'Search review', 'Initial design review', "
+                   "'Room 5', '2026-07-24T10:00:00Z', '2026-07-24T11:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(scalarText(handle,
+                      "SELECT task_list_id FROM local_task_lists_fts "
+                      "WHERE local_task_lists_fts MATCH 'proj*'"),
+           std::optional<QString>(QStringLiteral("list-1")));
+  QCOMPARE(scalarText(handle,
+                      "SELECT task_id FROM local_tasks_fts WHERE local_tasks_fts MATCH 'invest*'"),
+           std::optional<QString>(QStringLiteral("task-1")));
+  QCOMPARE(scalarText(handle,
+                      "SELECT calendar_id FROM local_calendars_fts "
+                      "WHERE local_calendars_fts MATCH 'engine*'"),
+           std::optional<QString>(QStringLiteral("calendar-1")));
+  QCOMPARE(scalarText(handle,
+                      "SELECT calendar_event_id FROM local_calendar_events_fts "
+                      "WHERE local_calendar_events_fts MATCH 'room*'"),
+           std::optional<QString>(QStringLiteral("event-1")));
+
+  QCOMPARE(
+      execute(handle, "UPDATE local_tasks SET notes = 'Revised investigation' WHERE id = 'task-1'"),
+      SQLITE_OK);
+  QCOMPARE(
+      scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts WHERE local_tasks_fts MATCH 'initial*'"),
+      0);
+  QCOMPARE(scalarText(handle,
+                      "SELECT task_id FROM local_tasks_fts WHERE local_tasks_fts MATCH 'revis*'"),
+           std::optional<QString>(QStringLiteral("task-1")));
+  QCOMPARE(
+      execute(handle, "UPDATE local_calendar_events SET location = 'Room 7' WHERE id = 'event-1'"),
+      SQLITE_OK);
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM local_calendar_events_fts "
+                  "WHERE local_calendar_events_fts MATCH 'room 5'"),
+           0);
+  QCOMPARE(scalarText(handle,
+                      "SELECT calendar_event_id FROM local_calendar_events_fts "
+                      "WHERE local_calendar_events_fts MATCH 'room 7'"),
+           std::optional<QString>(QStringLiteral("event-1")));
+  QCOMPARE(execute(handle, "DELETE FROM local_tasks WHERE id = 'task-1'"), SQLITE_OK);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
+
+  QCOMPARE(execute(handle,
+                   "DROP TRIGGER local_task_lists_fts_insert; "
+                   "DROP TRIGGER local_task_lists_fts_delete; "
+                   "DROP TRIGGER local_task_lists_fts_update; "
+                   "DROP TRIGGER local_tasks_fts_insert; "
+                   "DROP TRIGGER local_tasks_fts_delete; "
+                   "DROP TRIGGER local_tasks_fts_update; "
+                   "DROP TRIGGER local_calendars_fts_insert; "
+                   "DROP TRIGGER local_calendars_fts_delete; "
+                   "DROP TRIGGER local_calendars_fts_update; "
+                   "DROP TRIGGER local_calendar_events_fts_insert; "
+                   "DROP TRIGGER local_calendar_events_fts_delete; "
+                   "DROP TRIGGER local_calendar_events_fts_update; "
+                   "DROP TABLE local_task_lists_fts; "
+                   "DROP TABLE local_tasks_fts; "
+                   "DROP TABLE local_calendars_fts; "
+                   "DROP TABLE local_calendar_events_fts; "
+                   "DELETE FROM local_schema_migrations WHERE version = 10"),
+           SQLITE_OK);
+  hcb::SqliteMigrationRunResultOrError backfillResult = hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(backfillResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(backfillResult)) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResult backfill =
+      std::get<hcb::SqliteMigrationRunResult>(std::move(backfillResult));
+  QCOMPARE(backfill.appliedVersions, std::vector<int>({10}));
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_task_lists_fts"), 1);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendars_fts"), 1);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendar_events_fts"), 1);
+  QCOMPARE(scalarText(handle,
+                      "SELECT calendar_event_id FROM local_calendar_events_fts "
+                      "WHERE local_calendar_events_fts MATCH 'room 7'"),
+           std::optional<QString>(QStringLiteral("event-1")));
 }
 
 QTEST_GUILESS_MAIN(LocalSchemaTest)

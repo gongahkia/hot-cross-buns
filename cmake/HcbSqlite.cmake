@@ -32,7 +32,7 @@ function(hcb_add_sqlite_library)
     C_EXTENSIONS OFF
     POSITION_INDEPENDENT_CODE ON
   )
-  target_compile_definitions(hcb_sqlite PRIVATE SQLITE_THREADSAFE=1)
+  target_compile_definitions(hcb_sqlite PRIVATE SQLITE_THREADSAFE=1 SQLITE_ENABLE_FTS5=1)
   target_include_directories(hcb_sqlite SYSTEM PUBLIC "${hcb_sqlite_SOURCE_DIR}")
   target_link_libraries(hcb_sqlite PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endfunction()
