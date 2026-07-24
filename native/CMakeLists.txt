@@ -36,6 +36,8 @@ set(HCB_NATIVE_SOURCES
   src/core/UiTransitionTimingTracker.h
   src/data/SqliteConnection.cpp
   src/data/SqliteConnection.h
+  src/data/LocalSchema.cpp
+  src/data/LocalSchema.h
   src/data/SqliteMigrationRunner.cpp
   src/data/SqliteMigrationRunner.h
   src/data/SqliteQueryTimingTracker.cpp
@@ -320,6 +322,28 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_temporary_sqlite_database_tests)
   hcb_enable_sanitizers(hcb_temporary_sqlite_database_tests)
   add_test(NAME hcb_temporary_sqlite_database_tests COMMAND hcb_temporary_sqlite_database_tests)
+
+  qt_add_executable(hcb_local_schema_tests
+    tests/LocalSchemaTest.cpp
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+  )
+  target_link_libraries(hcb_local_schema_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_local_schema_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_local_schema_tests)
+  hcb_enable_sanitizers(hcb_local_schema_tests)
+  add_test(NAME hcb_local_schema_tests COMMAND hcb_local_schema_tests)
 
   qt_add_executable(hcb_core_tests
     tests/AppPathsTest.cpp
@@ -704,6 +728,7 @@ if(BUILD_TESTING)
     hcb_sqlite_migration_runner_tests
     hcb_sqlite_query_timing_tracker_tests
     hcb_temporary_sqlite_database_tests
+    hcb_local_schema_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -753,6 +778,7 @@ if(BUILD_TESTING)
     hcb_sqlite_migration_runner_tests
     hcb_sqlite_query_timing_tracker_tests
     hcb_temporary_sqlite_database_tests
+    hcb_local_schema_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
