@@ -36,6 +36,8 @@ set(HCB_NATIVE_SOURCES
   src/core/UiTransitionTimingTracker.h
   src/data/SqliteConnection.cpp
   src/data/SqliteConnection.h
+  src/data/SqliteWriterQueue.cpp
+  src/data/SqliteWriterQueue.h
 )
 
 qt_add_executable(hcb_native
@@ -186,6 +188,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_sqlite_connection_tests)
   hcb_enable_sanitizers(hcb_sqlite_connection_tests)
   add_test(NAME hcb_sqlite_connection_tests COMMAND hcb_sqlite_connection_tests)
+
+  qt_add_executable(hcb_sqlite_writer_queue_tests
+    tests/SqliteWriterQueueTest.cpp
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_sqlite_writer_queue_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sqlite_writer_queue_tests PRIVATE src)
+  hcb_enable_warnings(hcb_sqlite_writer_queue_tests)
+  hcb_enable_sanitizers(hcb_sqlite_writer_queue_tests)
+  add_test(NAME hcb_sqlite_writer_queue_tests COMMAND hcb_sqlite_writer_queue_tests)
 
   qt_add_executable(hcb_core_tests
     tests/AppPathsTest.cpp
@@ -563,6 +580,7 @@ if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
     hcb_sqlite_integration_tests
     hcb_sqlite_connection_tests
+    hcb_sqlite_writer_queue_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -605,6 +623,7 @@ if(BUILD_TESTING)
     hcb_performance_report
     hcb_sqlite_integration_tests
     hcb_sqlite_connection_tests
+    hcb_sqlite_writer_queue_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
