@@ -38,6 +38,8 @@ set(HCB_NATIVE_SOURCES
   src/data/SqliteConnection.h
   src/data/SqliteReadConnectionPool.cpp
   src/data/SqliteReadConnectionPool.h
+  src/data/SqliteTransaction.cpp
+  src/data/SqliteTransaction.h
   src/data/SqliteWriterQueue.cpp
   src/data/SqliteWriterQueue.h
 )
@@ -220,6 +222,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_sqlite_read_connection_pool_tests)
   hcb_enable_sanitizers(hcb_sqlite_read_connection_pool_tests)
   add_test(NAME hcb_sqlite_read_connection_pool_tests COMMAND hcb_sqlite_read_connection_pool_tests)
+
+  qt_add_executable(hcb_sqlite_transaction_tests
+    tests/SqliteTransactionTest.cpp
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+  )
+  target_link_libraries(hcb_sqlite_transaction_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sqlite_transaction_tests PRIVATE src)
+  hcb_enable_warnings(hcb_sqlite_transaction_tests)
+  hcb_enable_sanitizers(hcb_sqlite_transaction_tests)
+  add_test(NAME hcb_sqlite_transaction_tests COMMAND hcb_sqlite_transaction_tests)
 
   qt_add_executable(hcb_core_tests
     tests/AppPathsTest.cpp
@@ -599,6 +616,7 @@ if(BUILD_TESTING)
     hcb_sqlite_connection_tests
     hcb_sqlite_writer_queue_tests
     hcb_sqlite_read_connection_pool_tests
+    hcb_sqlite_transaction_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -643,6 +661,7 @@ if(BUILD_TESTING)
     hcb_sqlite_connection_tests
     hcb_sqlite_writer_queue_tests
     hcb_sqlite_read_connection_pool_tests
+    hcb_sqlite_transaction_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
