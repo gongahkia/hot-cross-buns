@@ -45,6 +45,27 @@ ON local_accounts(connection_state, updated_at DESC, id)
 WHERE deleted_at IS NULL
 )";
 
+constexpr char taskListSchemaSql[] = R"(
+CREATE TABLE local_task_lists (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  account_id TEXT NOT NULL REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  remote_id TEXT NOT NULL CHECK(length(trim(remote_id)) BETWEEN 1 AND 256),
+  title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 1024),
+  etag TEXT CHECK(etag IS NULL OR length(etag) <= 4096),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_selected INTEGER NOT NULL DEFAULT 1 CHECK(is_selected IN (0, 1)),
+  remote_updated_at TEXT CHECK(remote_updated_at IS NULL OR length(trim(remote_updated_at)) BETWEEN 1 AND 64),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  deleted_at TEXT CHECK(deleted_at IS NULL OR length(trim(deleted_at)) BETWEEN 1 AND 64),
+  UNIQUE(account_id, remote_id)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_task_lists_active_navigation
+ON local_task_lists(account_id, is_selected DESC, sort_order, title COLLATE NOCASE, id)
+WHERE deleted_at IS NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -75,13 +96,21 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, accountSchemaSql, QStringLiteral("SQLite account schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 2>& migrations() {
-  static const std::array<SqliteMigration, 2> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyTaskListSchema(SqliteConnection& connection) {
+  return applySchema(connection, taskListSchemaSql, QStringLiteral("SQLite task-list schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 3>& migrations() {
+  static const std::array<SqliteMigration, 3> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
        applySettingsSchema},
       {2, QStringLiteral("create local accounts"), checksum(accountSchemaSql), applyAccountSchema},
+      {3,
+       QStringLiteral("create local task lists"),
+       checksum(taskListSchemaSql),
+       applyTaskListSchema},
   }};
   return catalogue;
 }
