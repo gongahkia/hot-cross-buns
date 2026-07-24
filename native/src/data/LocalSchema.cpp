@@ -260,6 +260,41 @@ WHERE deleted_at IS NULL
   AND due_at IS NULL
 )";
 
+constexpr char pendingMutationSchemaSql[] = R"(
+CREATE TABLE local_pending_mutations (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  account_id TEXT REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+  resource_type TEXT NOT NULL CHECK(resource_type IN ('task', 'task_list', 'event')),
+  resource_id TEXT NOT NULL CHECK(length(trim(resource_id)) BETWEEN 1 AND 256),
+  operation TEXT NOT NULL CHECK(length(trim(operation)) BETWEEN 1 AND 128),
+  payload_json TEXT NOT NULL CHECK(length(payload_json) <= 262144 AND json_valid(payload_json) AND json_type(payload_json) = 'object'),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'applying', 'failed', 'applied', 'cancelled')),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+  next_retry_at TEXT CHECK(next_retry_at IS NULL OR length(trim(next_retry_at)) BETWEEN 1 AND 64),
+  lease_id TEXT CHECK(lease_id IS NULL OR length(trim(lease_id)) BETWEEN 1 AND 256),
+  lease_expires_at TEXT CHECK(lease_expires_at IS NULL OR length(trim(lease_expires_at)) BETWEEN 1 AND 64),
+  last_error_code TEXT CHECK(last_error_code IS NULL OR length(trim(last_error_code)) BETWEEN 1 AND 64),
+  last_error_message TEXT CHECK(last_error_message IS NULL OR length(last_error_message) <= 4096),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  applied_at TEXT CHECK(applied_at IS NULL OR length(trim(applied_at)) BETWEEN 1 AND 64),
+  CHECK((status = 'applying' AND lease_id IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status != 'applying' AND lease_id IS NULL AND lease_expires_at IS NULL)),
+  CHECK((status = 'applied' AND applied_at IS NOT NULL) OR (status != 'applied' AND applied_at IS NULL))
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_pending_mutations_due
+ON local_pending_mutations(status, next_retry_at, created_at, id)
+WHERE status IN ('pending', 'failed');
+
+CREATE INDEX local_pending_mutations_active_resource
+ON local_pending_mutations(resource_type, resource_id, status, created_at, id)
+WHERE status IN ('pending', 'applying', 'failed');
+
+CREATE INDEX local_pending_mutations_expired_lease
+ON local_pending_mutations(lease_expires_at, created_at, id)
+WHERE status = 'applying'
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -312,8 +347,13 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, noteProjectionSchemaSql, QStringLiteral("SQLite note projection schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 7>& migrations() {
-  static const std::array<SqliteMigration, 7> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyPendingMutationSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, pendingMutationSchemaSql, QStringLiteral("SQLite pending-mutation schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 8>& migrations() {
+  static const std::array<SqliteMigration, 8> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -336,6 +376,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local note projection"),
        checksum(noteProjectionSchemaSql),
        applyNoteProjectionSchema},
+      {8,
+       QStringLiteral("create local pending mutations"),
+       checksum(pendingMutationSchemaSql),
+       applyPendingMutationSchema},
   }};
   return catalogue;
 }

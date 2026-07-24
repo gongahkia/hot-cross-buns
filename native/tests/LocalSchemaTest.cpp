@@ -22,6 +22,7 @@ private slots:
   void createsCalendarSchemaAndEnforcesIntegrity();
   void createsCalendarEventSchemaAndEnforcesIntegrity();
   void createsTaskBackedNoteProjectionAndIndex();
+  void createsPendingMutationSchemaAndEnforcesLifecycle();
 };
 
 namespace {
@@ -102,8 +103,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 7);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7}));
+  QCOMPARE(first.version, 8);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -136,6 +137,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 7 "
                   "AND name = 'create local note projection' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 8 "
+                  "AND name = 'create local pending mutations' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -151,7 +156,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 7);
+  QCOMPARE(second.version, 8);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -602,6 +607,100 @@ void LocalSchemaTest::createsTaskBackedNoteProjectionAndIndex() {
   QCOMPARE(scalar(handle,
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                   "AND name = 'local_tasks_active_note_recency'"),
+           1);
+}
+
+void LocalSchemaTest::createsPendingMutationSchemaAndEnforcesLifecycle() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResultOrError schemaResult =
+      hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
+
+  sqlite3* const handle = connection->nativeHandle();
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_accounts (id, provider, connection_state, "
+                   "granted_scopes_json, missing_scopes_json, updated_at) "
+                   "VALUES ('account-1', 'google', 'connected', '[]', '[]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_pending_mutations (id, account_id, resource_type, "
+                   "resource_id, operation, payload_json, updated_at) VALUES ('mutation-1', "
+                   "'account-1', 'task', 'task-1', 'task.create', '{\"title\":\"Write\"}', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, updated_at) VALUES ('mutation-2', 'unknown', 'task-2', "
+              "'task.create', '{}', '2026-07-24T00:00:00Z')"),
+      SQLITE_CONSTRAINT);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, updated_at) VALUES ('mutation-3', 'task', 'task-3', "
+              "'task.create', 'not-json', '2026-07-24T00:00:00Z')"),
+      SQLITE_CONSTRAINT);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, status, updated_at) VALUES ('mutation-4', 'task', 'task-4', "
+              "'task.create', '{}', 'applying', '2026-07-24T00:00:00Z')"),
+      SQLITE_CONSTRAINT);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, status, lease_id, lease_expires_at, updated_at) VALUES "
+              "('mutation-5', 'event', 'event-1', 'calendar.events.create', '{}', "
+              "'applying', 'worker-1', '2026-07-24T00:05:00Z', "
+              "'2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, status, updated_at) VALUES ('mutation-6', 'task', 'task-6', "
+              "'task.create', '{}', 'applied', '2026-07-24T00:00:00Z')"),
+      SQLITE_CONSTRAINT);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, resource_type, resource_id, operation, "
+              "payload_json, status, applied_at, updated_at) VALUES ('mutation-7', 'task_list', "
+              "'list-1', 'task_list.create', '{}', 'applied', '2026-07-24T00:00:00Z', "
+              "'2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_pending_mutations (id, account_id, resource_type, resource_id, "
+              "operation, payload_json, updated_at) VALUES ('mutation-8', 'missing-account', "
+              "'task', 'task-8', 'task.create', '{}', '2026-07-24T00:00:00Z')"),
+      SQLITE_CONSTRAINT);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_pending_mutations"), 3);
+  const std::optional<QString> mutationSchema =
+      scalarText(handle, "SELECT sql FROM sqlite_master WHERE name = 'local_pending_mutations'");
+  QVERIFY(mutationSchema.has_value());
+  if (!mutationSchema.has_value()) {
+    return;
+  }
+  QVERIFY(mutationSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                  "AND name = 'local_pending_mutations_due'"),
+           1);
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                  "AND name = 'local_pending_mutations_expired_lease'"),
            1);
 }
 
