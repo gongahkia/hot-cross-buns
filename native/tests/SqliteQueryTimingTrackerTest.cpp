@@ -1,6 +1,3 @@
-#include <QDir>
-#include <QFileInfo>
-#include <QTemporaryDir>
 #include <QtTest/QTest>
 
 #include <algorithm>
@@ -15,6 +12,7 @@
 #include "data/SqliteConnection.h"
 #include "data/SqliteQueryTimingTracker.h"
 #include "sqlite3.h"
+#include "support/TemporarySqliteDatabase.h"
 
 class SqliteQueryTimingTrackerTest final : public QObject {
   Q_OBJECT
@@ -39,20 +37,21 @@ private:
   const hcb::WallTimePoint wallTime_{std::chrono::seconds{1'725'000'000}};
 };
 
-[[nodiscard]] std::optional<hcb::FilePath>
-databasePathFor(const QTemporaryDir& temporaryDirectory) {
-  return hcb::FilePath::fromAbsolute(QDir(QFileInfo(temporaryDirectory.path()).canonicalFilePath())
-                                         .filePath(QStringLiteral("hot-cross-buns.sqlite")));
-}
-
 [[nodiscard]] std::optional<hcb::SqliteConnection>
-openConnection(const hcb::FilePath& databasePath) {
-  hcb::SqliteConnectionResult result =
-      hcb::SqliteConnectionFactory::open(databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+openConnection(const hcb::test::TemporarySqliteDatabase& database) {
+  hcb::SqliteConnectionResult result = database.open(hcb::SqliteOpenMode::ReadWriteCreate);
   if (std::holds_alternative<hcb::AppError>(result)) {
     return std::nullopt;
   }
   return std::move(std::get<hcb::SqliteConnection>(result));
+}
+
+[[nodiscard]] std::unique_ptr<hcb::test::TemporarySqliteDatabase> createDatabase() {
+  hcb::test::TemporarySqliteDatabaseResult result = hcb::test::TemporarySqliteDatabase::create();
+  if (std::holds_alternative<hcb::AppError>(result)) {
+    return nullptr;
+  }
+  return std::move(std::get<std::unique_ptr<hcb::test::TemporarySqliteDatabase>>(result));
 }
 
 [[nodiscard]] int execute(sqlite3* handle, const char* sql) {
@@ -65,14 +64,12 @@ openConnection(const hcb::FilePath& databasePath) {
 } // namespace
 
 void SqliteQueryTimingTrackerTest::recordsReadAndWriteStatements() {
-  QTemporaryDir temporaryDirectory;
-  QVERIFY(temporaryDirectory.isValid());
-  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
-  QVERIFY(databasePath.has_value());
-  if (!databasePath.has_value()) {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
     return;
   }
-  std::optional<hcb::SqliteConnection> connection = openConnection(*databasePath);
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
   QVERIFY(connection.has_value());
   if (!connection.has_value()) {
     return;
@@ -97,14 +94,12 @@ void SqliteQueryTimingTrackerTest::recordsReadAndWriteStatements() {
 }
 
 void SqliteQueryTimingTrackerTest::boundsSamplesAndStopsAfterClear() {
-  QTemporaryDir temporaryDirectory;
-  QVERIFY(temporaryDirectory.isValid());
-  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
-  QVERIFY(databasePath.has_value());
-  if (!databasePath.has_value()) {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
     return;
   }
-  std::optional<hcb::SqliteConnection> connection = openConnection(*databasePath);
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
   QVERIFY(connection.has_value());
   if (!connection.has_value()) {
     return;
@@ -128,14 +123,12 @@ void SqliteQueryTimingTrackerTest::boundsSamplesAndStopsAfterClear() {
 }
 
 void SqliteQueryTimingTrackerTest::replacesPreviousTracker() {
-  QTemporaryDir temporaryDirectory;
-  QVERIFY(temporaryDirectory.isValid());
-  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
-  QVERIFY(databasePath.has_value());
-  if (!databasePath.has_value()) {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
     return;
   }
-  std::optional<hcb::SqliteConnection> connection = openConnection(*databasePath);
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
   QVERIFY(connection.has_value());
   if (!connection.has_value()) {
     return;
@@ -156,14 +149,12 @@ void SqliteQueryTimingTrackerTest::replacesPreviousTracker() {
 }
 
 void SqliteQueryTimingTrackerTest::remainsAttachedWhenConnectionMoves() {
-  QTemporaryDir temporaryDirectory;
-  QVERIFY(temporaryDirectory.isValid());
-  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
-  QVERIFY(databasePath.has_value());
-  if (!databasePath.has_value()) {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
     return;
   }
-  std::optional<hcb::SqliteConnection> connection = openConnection(*databasePath);
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
   QVERIFY(connection.has_value());
   if (!connection.has_value()) {
     return;
