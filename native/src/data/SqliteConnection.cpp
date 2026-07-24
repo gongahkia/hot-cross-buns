@@ -66,6 +66,10 @@ namespace {
 }
 
 [[nodiscard]] std::optional<AppError> applyProductionPragmas(sqlite3* handle, SqliteOpenMode mode) {
+  const int busyTimeoutResult = sqlite3_busy_timeout(handle, 30'000);
+  if (busyTimeoutResult != SQLITE_OK) {
+    return configurationError(busyTimeoutResult);
+  }
   if (mode == SqliteOpenMode::ReadWriteCreate) {
     if (const std::optional<AppError> error = setWalJournalMode(handle); error.has_value()) {
       return error;
@@ -79,10 +83,6 @@ namespace {
     if (const std::optional<AppError> error = executePragma(handle, pragma); error.has_value()) {
       return error;
     }
-  }
-  const int busyTimeoutResult = sqlite3_busy_timeout(handle, 30'000);
-  if (busyTimeoutResult != SQLITE_OK) {
-    return configurationError(busyTimeoutResult);
   }
   return std::nullopt;
 }

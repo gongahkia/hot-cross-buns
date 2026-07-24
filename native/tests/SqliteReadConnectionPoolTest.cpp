@@ -92,7 +92,9 @@ void SqliteReadConnectionPoolTest::boundsConcurrentReadsAndUsesWorkerThreads() {
   hcb::SqliteReadConnectionPool pool(*databasePath, 2);
   const std::shared_future<std::optional<hcb::AppError>> ready = pool.ready();
   QVERIFY(ready.wait_for(2s) == std::future_status::ready);
-  QVERIFY(!ready.get().has_value());
+  const std::optional<hcb::AppError> startupError = ready.get();
+  QVERIFY2(!startupError.has_value(),
+           qPrintable(startupError.has_value() ? startupError->message() : QString()));
 
   std::atomic<int> startedReads{0};
   std::promise<void> firstTwoStarted;
