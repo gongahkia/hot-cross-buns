@@ -16,6 +16,7 @@ using SqliteMigrationApply = std::function<std::optional<AppError>(SqliteConnect
 struct SqliteMigration final {
   int version{0};
   QString name;
+  QString checksum;
   SqliteMigrationApply apply;
 };
 
