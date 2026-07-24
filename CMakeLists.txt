@@ -4,7 +4,7 @@ if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum supported macOS version" FORCE)
 endif()
 
-project(HotCrossBuns VERSION 6.0.0 LANGUAGES CXX)
+project(HotCrossBuns VERSION 6.0.0 LANGUAGES C CXX)
 
 include(CTest)
 include(cmake/HcbWarnings.cmake)
@@ -13,6 +13,7 @@ include(cmake/HcbStaticAnalysis.cmake)
 include(cmake/HcbFormatting.cmake)
 include(cmake/HcbBootstrap.cmake)
 include(cmake/HcbNativeDependencyManifest.cmake)
+include(cmake/HcbSqlite.cmake)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +23,7 @@ set(HCB_NATIVE_DEPENDENCY_MANIFEST "${CMAKE_SOURCE_DIR}/native/dependencies/mani
   CACHE FILEPATH "Pinned native dependency manifest"
 )
 hcb_load_native_dependency_manifest("${HCB_NATIVE_DEPENDENCY_MANIFEST}")
+hcb_add_sqlite_library()
 
 if(APPLE AND NOT CMAKE_PREFIX_PATH)
   foreach(hcb_qt_prefix IN ITEMS /opt/homebrew /usr/local)

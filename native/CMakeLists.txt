@@ -165,6 +165,12 @@ if(BUILD_TESTING)
       -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/DependencyManifestInvalidHashTest.cmake"
   )
 
+  qt_add_executable(hcb_sqlite_integration_tests tests/SqliteIntegrationTest.cpp)
+  target_link_libraries(hcb_sqlite_integration_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  hcb_enable_warnings(hcb_sqlite_integration_tests)
+  hcb_enable_sanitizers(hcb_sqlite_integration_tests)
+  add_test(NAME hcb_sqlite_integration_tests COMMAND hcb_sqlite_integration_tests)
+
   qt_add_executable(hcb_core_tests
     tests/AppPathsTest.cpp
     src/app/AppPaths.cpp
@@ -539,6 +545,7 @@ set(hcb_static_analysis_dependencies
 )
 if(BUILD_TESTING)
   list(APPEND hcb_static_analysis_dependencies
+    hcb_sqlite_integration_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
@@ -579,6 +586,7 @@ if(BUILD_TESTING)
     hcb_medium_performance_fixture
     hcb_event15k_performance_fixture
     hcb_performance_report
+    hcb_sqlite_integration_tests
     hcb_core_tests
     hcb_file_path_tests
     hcb_test_bootstrap_tests
