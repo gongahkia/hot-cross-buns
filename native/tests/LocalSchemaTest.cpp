@@ -21,6 +21,7 @@ private slots:
   void createsTaskAndSubtaskSchemaAndEnforcesIntegrity();
   void createsCalendarSchemaAndEnforcesIntegrity();
   void createsCalendarEventSchemaAndEnforcesIntegrity();
+  void createsTaskBackedNoteProjectionAndIndex();
 };
 
 namespace {
@@ -101,8 +102,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 6);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6}));
+  QCOMPARE(first.version, 7);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -131,6 +132,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 6 "
                   "AND name = 'create local calendar events' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 7 "
+                  "AND name = 'create local note projection' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -146,7 +151,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 6);
+  QCOMPARE(second.version, 7);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -522,6 +527,82 @@ void LocalSchemaTest::createsCalendarEventSchemaAndEnforcesIntegrity() {
     return;
   }
   QVERIFY(eventSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
+}
+
+void LocalSchemaTest::createsTaskBackedNoteProjectionAndIndex() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResultOrError schemaResult =
+      hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
+
+  sqlite3* const handle = connection->nativeHandle();
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_accounts (id, provider, connection_state, "
+                   "granted_scopes_json, missing_scopes_json, updated_at) "
+                   "VALUES ('account-1', 'google', 'connected', '[]', '[]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) "
+                   "VALUES ('list-1', 'account-1', 'google-list-1', 'Notes', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, updated_at) "
+              "VALUES ('note-1', 'list-1', 'google-note-1', 'Project note', 'Body', "
+              "'2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_tasks (id, task_list_id, remote_id, title, due_at, updated_at) "
+              "VALUES ('task-due', 'list-1', 'google-task-due', 'Task', '2026-07-25T00:00:00Z', "
+              "'2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_tasks (id, task_list_id, remote_id, parent_task_id, title, "
+                   "updated_at) VALUES ('task-child', 'list-1', 'google-task-child', 'note-1', "
+                   "'Child', '2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_tasks (id, task_list_id, remote_id, title, state, updated_at) "
+              "VALUES ('task-completed', 'list-1', 'google-task-completed', 'Completed', "
+              "'completed', '2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(
+      execute(handle,
+              "INSERT INTO local_tasks (id, task_list_id, remote_id, title, is_hidden, updated_at) "
+              "VALUES ('task-hidden', 'list-1', 'google-task-hidden', 'Hidden', 1, "
+              "'2026-07-24T00:00:00Z')"),
+      SQLITE_OK);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_note_projections"), 1);
+  QCOMPARE(scalarText(handle, "SELECT body FROM local_note_projections WHERE id = 'note-1'"),
+           std::optional<QString>(QStringLiteral("Body")));
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'view' "
+                  "AND name = 'local_note_projections'"),
+           1);
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'local_note_projections'"),
+           0);
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                  "AND name = 'local_tasks_active_note_recency'"),
+           1);
 }
 
 QTEST_GUILESS_MAIN(LocalSchemaTest)

@@ -233,6 +233,33 @@ ON local_calendar_events(calendar_id, recurring_remote_id, original_start_at, id
 WHERE deleted_at IS NULL AND recurring_remote_id IS NOT NULL
 )";
 
+constexpr char noteProjectionSchemaSql[] = R"(
+CREATE VIEW local_note_projections AS
+SELECT tasks.id,
+       tasks.task_list_id AS list_id,
+       lists.title AS list_title,
+       tasks.title,
+       COALESCE(tasks.notes, '') AS body,
+       tasks.tags_json,
+       tasks.updated_at
+FROM local_tasks AS tasks
+INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+WHERE tasks.deleted_at IS NULL
+  AND tasks.is_hidden = 0
+  AND tasks.state = 'active'
+  AND tasks.parent_task_id IS NULL
+  AND tasks.due_at IS NULL
+  AND lists.deleted_at IS NULL;
+
+CREATE INDEX local_tasks_active_note_recency
+ON local_tasks(updated_at DESC, id)
+WHERE deleted_at IS NULL
+  AND is_hidden = 0
+  AND state = 'active'
+  AND parent_task_id IS NULL
+  AND due_at IS NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -280,8 +307,13 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, calendarEventSchemaSql, QStringLiteral("SQLite calendar-event schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 6>& migrations() {
-  static const std::array<SqliteMigration, 6> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyNoteProjectionSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, noteProjectionSchemaSql, QStringLiteral("SQLite note projection schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 7>& migrations() {
+  static const std::array<SqliteMigration, 7> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -300,6 +332,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local calendar events"),
        checksum(calendarEventSchemaSql),
        applyCalendarEventSchema},
+      {7,
+       QStringLiteral("create local note projection"),
+       checksum(noteProjectionSchemaSql),
+       applyNoteProjectionSchema},
   }};
   return catalogue;
 }
