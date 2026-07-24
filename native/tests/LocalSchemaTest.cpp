@@ -23,6 +23,7 @@ private slots:
   void createsCalendarEventSchemaAndEnforcesIntegrity();
   void createsTaskBackedNoteProjectionAndIndex();
   void createsPendingMutationSchemaAndEnforcesLifecycle();
+  void createsSyncCheckpointSchemaAndEnforcesIntegrity();
 };
 
 namespace {
@@ -103,8 +104,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 8);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8}));
+  QCOMPARE(first.version, 9);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -141,6 +142,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 8 "
                   "AND name = 'create local pending mutations' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 9 "
+                  "AND name = 'create local sync checkpoints' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -156,7 +161,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 8);
+  QCOMPARE(second.version, 9);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -701,6 +706,81 @@ void LocalSchemaTest::createsPendingMutationSchemaAndEnforcesLifecycle() {
   QCOMPARE(scalar(handle,
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                   "AND name = 'local_pending_mutations_expired_lease'"),
+           1);
+}
+
+void LocalSchemaTest::createsSyncCheckpointSchemaAndEnforcesIntegrity() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResultOrError schemaResult =
+      hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
+
+  sqlite3* const handle = connection->nativeHandle();
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_accounts (id, provider, connection_state, "
+                   "granted_scopes_json, missing_scopes_json, updated_at) "
+                   "VALUES ('account-1', 'google', 'connected', '[]', '[]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_sync_checkpoints (id, account_id, resource_type, "
+                   "resource_id, checkpoint_type, checkpoint_value, metadata_json, "
+                   "last_successful_sync_at, updated_at) VALUES ('checkpoint-1', 'account-1', "
+                   "'calendar', 'primary', 'sync_token', 'google-sync-token', "
+                   "'{\"fullResync\":false}', '2026-07-24T00:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_sync_checkpoints (id, account_id, resource_type, "
+                   "resource_id, checkpoint_type, checkpoint_value, last_successful_sync_at, "
+                   "updated_at) VALUES ('checkpoint-2', 'account-1', 'calendar', 'primary', "
+                   "'sync_token', 'duplicate', '2026-07-24T00:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_sync_checkpoints (id, account_id, resource_type, "
+                   "resource_id, checkpoint_type, checkpoint_value, last_successful_sync_at, "
+                   "updated_at) VALUES ('checkpoint-3', 'account-1', 'unknown', 'resource-3', "
+                   "'sync_token', 'value', '2026-07-24T00:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_sync_checkpoints (id, account_id, resource_type, "
+                   "resource_id, checkpoint_type, checkpoint_value, metadata_json, "
+                   "last_successful_sync_at, updated_at) VALUES ('checkpoint-4', 'account-1', "
+                   "'task_list', 'list-1', 'watermark:v3-split-completed', 'value', '[]', "
+                   "'2026-07-24T00:00:00Z', '2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_sync_checkpoints (id, account_id, resource_type, "
+                   "resource_id, checkpoint_type, checkpoint_value, last_successful_sync_at, "
+                   "updated_at) VALUES ('checkpoint-5', 'missing-account', 'task_list', 'list-5', "
+                   "'watermark', 'value', '2026-07-24T00:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_sync_checkpoints"), 1);
+  const std::optional<QString> checkpointSchema =
+      scalarText(handle, "SELECT sql FROM sqlite_master WHERE name = 'local_sync_checkpoints'");
+  QVERIFY(checkpointSchema.has_value());
+  if (!checkpointSchema.has_value()) {
+    return;
+  }
+  QVERIFY(checkpointSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                  "AND name = 'local_sync_checkpoints_account_recency'"),
            1);
 }
 

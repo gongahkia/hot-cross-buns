@@ -295,6 +295,25 @@ ON local_pending_mutations(lease_expires_at, created_at, id)
 WHERE status = 'applying'
 )";
 
+constexpr char syncCheckpointSchemaSql[] = R"(
+CREATE TABLE local_sync_checkpoints (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  account_id TEXT NOT NULL REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  resource_type TEXT NOT NULL CHECK(resource_type IN ('tasks', 'task_list', 'calendar', 'calendar_list', 'calendar_event')),
+  resource_id TEXT NOT NULL CHECK(length(trim(resource_id)) BETWEEN 1 AND 256),
+  checkpoint_type TEXT NOT NULL CHECK(length(trim(checkpoint_type)) BETWEEN 1 AND 128),
+  checkpoint_value TEXT NOT NULL CHECK(length(checkpoint_value) BETWEEN 1 AND 16384),
+  metadata_json TEXT NOT NULL DEFAULT '{}' CHECK(length(metadata_json) <= 16384 AND json_valid(metadata_json) AND json_type(metadata_json) = 'object'),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  last_successful_sync_at TEXT NOT NULL CHECK(length(trim(last_successful_sync_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  UNIQUE(account_id, resource_type, resource_id, checkpoint_type)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_sync_checkpoints_account_recency
+ON local_sync_checkpoints(account_id, updated_at DESC, id)
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -352,8 +371,13 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, pendingMutationSchemaSql, QStringLiteral("SQLite pending-mutation schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 8>& migrations() {
-  static const std::array<SqliteMigration, 8> catalogue = {{
+[[nodiscard]] std::optional<AppError> applySyncCheckpointSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, syncCheckpointSchemaSql, QStringLiteral("SQLite sync-checkpoint schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 9>& migrations() {
+  static const std::array<SqliteMigration, 9> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -380,6 +404,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local pending mutations"),
        checksum(pendingMutationSchemaSql),
        applyPendingMutationSchema},
+      {9,
+       QStringLiteral("create local sync checkpoints"),
+       checksum(syncCheckpointSchemaSql),
+       applySyncCheckpointSchema},
   }};
   return catalogue;
 }
