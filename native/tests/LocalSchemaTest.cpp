@@ -20,6 +20,7 @@ private slots:
   void createsTaskListSchemaAndEnforcesIntegrity();
   void createsTaskAndSubtaskSchemaAndEnforcesIntegrity();
   void createsCalendarSchemaAndEnforcesIntegrity();
+  void createsCalendarEventSchemaAndEnforcesIntegrity();
 };
 
 namespace {
@@ -100,8 +101,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 5);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5}));
+  QCOMPARE(first.version, 6);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -126,6 +127,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 5 "
                   "AND name = 'create local calendars' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 6 "
+                  "AND name = 'create local calendar events' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -141,7 +146,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 5);
+  QCOMPARE(second.version, 6);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -429,6 +434,94 @@ void LocalSchemaTest::createsCalendarSchemaAndEnforcesIntegrity() {
     return;
   }
   QVERIFY(calendarSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
+}
+
+void LocalSchemaTest::createsCalendarEventSchemaAndEnforcesIntegrity() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const hcb::SqliteMigrationRunResultOrError schemaResult =
+      hcb::LocalSchema::initialize(*connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
+
+  sqlite3* const handle = connection->nativeHandle();
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_accounts (id, provider, connection_state, "
+                   "granted_scopes_json, missing_scopes_json, updated_at) "
+                   "VALUES ('account-1', 'google', 'connected', '[]', '[]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendars (id, account_id, remote_id, title, updated_at) "
+                   "VALUES ('calendar-1', 'account-1', 'google-calendar-1', 'Primary', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, "
+                   "recurring_remote_id, original_start_at, title, start_at, end_at, "
+                   "attendee_emails_json, attendee_details_json, reminders_json, updated_at) "
+                   "VALUES ('event-1', 'calendar-1', 'google-event-1', 'google-series-1', "
+                   "'2026-07-24T09:00:00Z', 'Planning', '2026-07-24T09:00:00Z', "
+                   "'2026-07-24T10:00:00Z', '[\"person@example.com\"]', "
+                   "'[{\"email\":\"person@example.com\"}]', "
+                   "'[{\"method\":\"popup\",\"minutes\":15}]', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, "
+                   "start_at, end_at, updated_at) VALUES ('event-2', 'calendar-1', "
+                   "'google-event-1', 'Duplicate', '2026-07-24T11:00:00Z', "
+                   "'2026-07-24T12:00:00Z', '2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, title, start_at, end_at, "
+                   "updated_at) VALUES ('event-pending', 'calendar-1', 'Offline create', "
+                   "'2026-07-24T11:00:00Z', '2026-07-24T12:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, "
+                   "start_at, end_at, updated_at) VALUES ('event-cancelled', 'calendar-1', "
+                   "'google-event-cancelled', 'cancelled', 'Cancelled tombstone', "
+                   "'2026-07-24T00:00:00Z', '2026-07-24T00:00:00Z', "
+                   "'2026-07-24T00:00:00Z')"),
+           SQLITE_OK);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, "
+                   "start_at, end_at, updated_at) VALUES ('event-3', 'calendar-1', "
+                   "'google-event-3', 'Invalid range', '2026-07-24T12:00:00Z', "
+                   "'2026-07-24T11:00:00Z', '2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, "
+                   "start_at, end_at, attendee_details_json, updated_at) VALUES ('event-4', "
+                   "'calendar-1', 'google-event-4', 'Bad attendees', '2026-07-24T13:00:00Z', "
+                   "'2026-07-24T14:00:00Z', '{}', '2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(execute(handle,
+                   "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, "
+                   "start_at, end_at, updated_at) VALUES ('event-5', 'missing-calendar', "
+                   "'google-event-5', 'Orphan', '2026-07-24T13:00:00Z', "
+                   "'2026-07-24T14:00:00Z', '2026-07-24T00:00:00Z')"),
+           SQLITE_CONSTRAINT);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendar_events"), 3);
+  const std::optional<QString> eventSchema =
+      scalarText(handle, "SELECT sql FROM sqlite_master WHERE name = 'local_calendar_events'");
+  QVERIFY(eventSchema.has_value());
+  if (!eventSchema.has_value()) {
+    return;
+  }
+  QVERIFY(eventSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
 }
 
 QTEST_GUILESS_MAIN(LocalSchemaTest)

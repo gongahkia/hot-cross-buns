@@ -182,6 +182,57 @@ ON local_calendars(account_id)
 WHERE is_primary = 1 AND deleted_at IS NULL
 )";
 
+constexpr char calendarEventSchemaSql[] = R"(
+CREATE TABLE local_calendar_events (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  calendar_id TEXT NOT NULL REFERENCES local_calendars(id) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  remote_id TEXT CHECK(remote_id IS NULL OR length(trim(remote_id)) BETWEEN 1 AND 256),
+  recurring_remote_id TEXT CHECK(recurring_remote_id IS NULL OR length(trim(recurring_remote_id)) BETWEEN 1 AND 256),
+  original_start_at TEXT CHECK(original_start_at IS NULL OR (length(trim(original_start_at)) BETWEEN 1 AND 64 AND julianday(original_start_at) IS NOT NULL)),
+  status TEXT NOT NULL DEFAULT 'confirmed' CHECK(status IN ('confirmed', 'tentative', 'cancelled')),
+  title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 500),
+  description TEXT CHECK(description IS NULL OR length(description) <= 20000),
+  location TEXT CHECK(location IS NULL OR length(location) <= 1000),
+  start_at TEXT NOT NULL CHECK(length(trim(start_at)) BETWEEN 1 AND 64),
+  start_time_zone TEXT CHECK(start_time_zone IS NULL OR length(trim(start_time_zone)) BETWEEN 1 AND 120),
+  end_at TEXT NOT NULL CHECK(length(trim(end_at)) BETWEEN 1 AND 64),
+  end_time_zone TEXT CHECK(end_time_zone IS NULL OR length(trim(end_time_zone)) BETWEEN 1 AND 120),
+  is_all_day INTEGER NOT NULL DEFAULT 0 CHECK(is_all_day IN (0, 1)),
+  recurrence_rule TEXT CHECK(recurrence_rule IS NULL OR length(recurrence_rule) BETWEEN 1 AND 4096),
+  color_id TEXT CHECK(color_id IS NULL OR length(trim(color_id)) BETWEEN 1 AND 32),
+  transparency TEXT CHECK(transparency IS NULL OR transparency IN ('opaque', 'transparent')),
+  visibility TEXT CHECK(visibility IS NULL OR visibility IN ('default', 'public', 'private')),
+  time_zone TEXT CHECK(time_zone IS NULL OR length(trim(time_zone)) BETWEEN 1 AND 120),
+  hcb_kind TEXT CHECK(hcb_kind IS NULL OR hcb_kind = 'birthday'),
+  tags_json TEXT NOT NULL DEFAULT '[]' CHECK(length(tags_json) <= 8192 AND json_valid(tags_json) AND json_type(tags_json) = 'array' AND json_array_length(tags_json) <= 64),
+  attendee_emails_json TEXT NOT NULL DEFAULT '[]' CHECK(length(attendee_emails_json) <= 32768 AND json_valid(attendee_emails_json) AND json_type(attendee_emails_json) = 'array' AND json_array_length(attendee_emails_json) <= 50),
+  attendee_details_json TEXT NOT NULL DEFAULT '[]' CHECK(length(attendee_details_json) <= 65536 AND json_valid(attendee_details_json) AND json_type(attendee_details_json) = 'array' AND json_array_length(attendee_details_json) <= 50),
+  reminder_minutes_json TEXT NOT NULL DEFAULT '[]' CHECK(length(reminder_minutes_json) <= 8192 AND json_valid(reminder_minutes_json) AND json_type(reminder_minutes_json) = 'array' AND json_array_length(reminder_minutes_json) <= 10),
+  reminders_json TEXT NOT NULL DEFAULT '[]' CHECK(length(reminders_json) <= 8192 AND json_valid(reminders_json) AND json_type(reminders_json) = 'array' AND json_array_length(reminders_json) <= 10),
+  reminders_use_default INTEGER NOT NULL DEFAULT 0 CHECK(reminders_use_default IN (0, 1)),
+  conference_json TEXT CHECK(conference_json IS NULL OR (length(conference_json) <= 32768 AND json_valid(conference_json) AND json_type(conference_json) = 'object')),
+  etag TEXT CHECK(etag IS NULL OR length(etag) <= 4096),
+  sequence INTEGER CHECK(sequence IS NULL OR sequence >= 0),
+  remote_updated_at TEXT CHECK(remote_updated_at IS NULL OR length(trim(remote_updated_at)) BETWEEN 1 AND 64),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  deleted_at TEXT CHECK(deleted_at IS NULL OR length(trim(deleted_at)) BETWEEN 1 AND 64),
+  CHECK(status = 'cancelled' OR (julianday(start_at) IS NOT NULL AND julianday(end_at) IS NOT NULL AND julianday(end_at) > julianday(start_at)))
+) STRICT, WITHOUT ROWID;
+
+CREATE UNIQUE INDEX local_calendar_events_remote_identity
+ON local_calendar_events(calendar_id, remote_id)
+WHERE remote_id IS NOT NULL;
+
+CREATE INDEX local_calendar_events_active_range
+ON local_calendar_events(calendar_id, start_at, end_at, id)
+WHERE deleted_at IS NULL AND status != 'cancelled';
+
+CREATE INDEX local_calendar_events_recurrence_instances
+ON local_calendar_events(calendar_id, recurring_remote_id, original_start_at, id)
+WHERE deleted_at IS NULL AND recurring_remote_id IS NOT NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -224,8 +275,13 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, calendarSchemaSql, QStringLiteral("SQLite calendar schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 5>& migrations() {
-  static const std::array<SqliteMigration, 5> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarEventSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, calendarEventSchemaSql, QStringLiteral("SQLite calendar-event schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 6>& migrations() {
+  static const std::array<SqliteMigration, 6> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -240,6 +296,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local calendars"),
        checksum(calendarSchemaSql),
        applyCalendarSchema},
+      {6,
+       QStringLiteral("create local calendar events"),
+       checksum(calendarEventSchemaSql),
+       applyCalendarEventSchema},
   }};
   return catalogue;
 }
