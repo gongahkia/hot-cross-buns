@@ -1,3 +1,11 @@
+set(HCB_MACOS_CREDENTIAL_SOURCES
+  src/app/MacOSCredentialAdapter.cpp
+  src/app/MacOSCredentialAdapter.h
+)
+if(APPLE)
+  find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
+endif()
+
 set(HCB_NATIVE_SOURCES
   src/app/ApplicationLifecycle.h
   src/app/AppPaths.cpp
@@ -6,6 +14,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppServices.h
   src/app/LinuxPathsAdapter.cpp
   src/app/LinuxPathsAdapter.h
+  ${HCB_MACOS_CREDENTIAL_SOURCES}
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
   src/app/WindowsPathsAdapter.cpp
@@ -195,6 +204,9 @@ target_link_libraries(hcb_native PRIVATE
   Qt6::QuickControls2
   hcb::sqlite
 )
+if(APPLE)
+  target_link_libraries(hcb_native PRIVATE ${HCB_SECURITY_FRAMEWORK})
+endif()
 
 target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
@@ -1778,6 +1790,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_credential_health_diagnostics_tests)
   hcb_enable_sanitizers(hcb_credential_health_diagnostics_tests)
   add_test(NAME hcb_credential_health_diagnostics_tests COMMAND hcb_credential_health_diagnostics_tests)
+
+  qt_add_executable(hcb_macos_credential_adapter_tests
+    tests/MacOSCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_MACOS_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_macos_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(APPLE)
+    target_link_libraries(hcb_macos_credential_adapter_tests PRIVATE ${HCB_SECURITY_FRAMEWORK})
+  endif()
+  target_include_directories(hcb_macos_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_macos_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_macos_credential_adapter_tests)
+  add_test(NAME hcb_macos_credential_adapter_tests COMMAND hcb_macos_credential_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
