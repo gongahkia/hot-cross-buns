@@ -7,6 +7,8 @@ set(HCB_NATIVE_SOURCES
   src/core/AccountStatusService.cpp
   src/core/AccountStatusService.h
   src/core/AppError.h
+  src/core/CalendarLayoutEngine.cpp
+  src/core/CalendarLayoutEngine.h
   src/core/CalendarReadService.cpp
   src/core/CalendarReadService.h
   src/core/CalendarMutationService.cpp
@@ -895,6 +897,17 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_recurrence_result_cache_tests)
   add_test(NAME hcb_recurrence_result_cache_tests COMMAND hcb_recurrence_result_cache_tests)
 
+  qt_add_executable(hcb_calendar_layout_engine_tests
+    tests/CalendarLayoutEngineTest.cpp
+    src/core/CalendarLayoutEngine.cpp
+    src/core/CalendarLayoutEngine.h
+  )
+  target_link_libraries(hcb_calendar_layout_engine_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_calendar_layout_engine_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_calendar_layout_engine_tests)
+  hcb_enable_sanitizers(hcb_calendar_layout_engine_tests)
+  add_test(NAME hcb_calendar_layout_engine_tests COMMAND hcb_calendar_layout_engine_tests)
+
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1562,6 +1575,7 @@ if(BUILD_TESTING)
     hcb_unified_local_search_ranker_tests
     hcb_recurrence_expansion_worker_tests
     hcb_recurrence_result_cache_tests
+    hcb_calendar_layout_engine_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
@@ -1644,6 +1658,7 @@ if(BUILD_TESTING)
     hcb_unified_local_search_ranker_tests
     hcb_recurrence_expansion_worker_tests
     hcb_recurrence_result_cache_tests
+    hcb_calendar_layout_engine_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
