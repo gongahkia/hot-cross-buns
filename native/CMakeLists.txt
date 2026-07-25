@@ -35,6 +35,8 @@ set(HCB_NATIVE_SOURCES
   src/core/OAuthLoopbackCallbackListener.h
   src/core/OAuthTokenExchangeClient.cpp
   src/core/OAuthTokenExchangeClient.h
+  src/core/OAuthTokenRefreshClient.cpp
+  src/core/OAuthTokenRefreshClient.h
   src/core/OptimisticMutationCoordinator.cpp
   src/core/OptimisticMutationCoordinator.h
   src/core/NativeCapabilityReport.cpp
@@ -856,6 +858,22 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_oauth_token_exchange_client_tests)
   add_test(NAME hcb_oauth_token_exchange_client_tests COMMAND hcb_oauth_token_exchange_client_tests)
 
+  qt_add_executable(hcb_oauth_token_refresh_client_tests
+    tests/OAuthTokenRefreshClientTest.cpp
+    src/core/AppError.h
+    src/core/PkceAuthorization.cpp
+    src/core/PkceAuthorization.h
+    src/core/OAuthTokenExchangeClient.cpp
+    src/core/OAuthTokenExchangeClient.h
+    src/core/OAuthTokenRefreshClient.cpp
+    src/core/OAuthTokenRefreshClient.h
+  )
+  target_link_libraries(hcb_oauth_token_refresh_client_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_oauth_token_refresh_client_tests PRIVATE src)
+  hcb_enable_warnings(hcb_oauth_token_refresh_client_tests)
+  hcb_enable_sanitizers(hcb_oauth_token_refresh_client_tests)
+  add_test(NAME hcb_oauth_token_refresh_client_tests COMMAND hcb_oauth_token_refresh_client_tests)
+
   qt_add_executable(hcb_secret_redactor_tests
     tests/SecretRedactorTest.cpp
     src/core/SecretRedactor.cpp
@@ -1112,6 +1130,7 @@ if(BUILD_TESTING)
     hcb_oauth_loopback_callback_listener_tests
     hcb_oauth_browser_authorization_launcher_tests
     hcb_oauth_token_exchange_client_tests
+    hcb_oauth_token_refresh_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
@@ -1175,6 +1194,7 @@ if(BUILD_TESTING)
     hcb_oauth_loopback_callback_listener_tests
     hcb_oauth_browser_authorization_launcher_tests
     hcb_oauth_token_exchange_client_tests
+    hcb_oauth_token_refresh_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
