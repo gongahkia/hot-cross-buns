@@ -291,6 +291,7 @@ ON CONFLICT(mutation_id) DO UPDATE SET
   }
   if (const std::optional<AppError> error = bindText(statement, 1, input.mutationId);
       error.has_value()) {
+    sqlite3_finalize(statement);
     return *error;
   }
   const int lookupStep = sqlite3_step(statement);
@@ -419,6 +420,7 @@ WHERE id = ?1 AND status = 'unresolved'
   }
   if (const std::optional<AppError> error = bindText(statement, 1, conflictIdValue);
       error.has_value()) {
+    sqlite3_finalize(statement);
     return *error;
   }
   const int lookupStep = sqlite3_step(statement);
