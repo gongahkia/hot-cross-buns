@@ -41,6 +41,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleTaskPullClient.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/LocalSearchService.cpp
+  src/core/LocalSearchService.h
   src/core/NoteService.cpp
   src/core/NoteService.h
   src/core/OAuthBrowserAuthorizationLauncher.cpp
@@ -289,6 +291,8 @@ if(BUILD_TESTING)
     src/data/SqliteQueryTimingTracker.h
     src/data/SqliteReadConnectionPool.cpp
     src/data/SqliteReadConnectionPool.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
   )
   target_link_libraries(hcb_sqlite_read_connection_pool_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
   target_include_directories(hcb_sqlite_read_connection_pool_tests PRIVATE src)
@@ -860,6 +864,34 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_unified_local_search_ranker_tests)
   hcb_enable_sanitizers(hcb_unified_local_search_ranker_tests)
   add_test(NAME hcb_unified_local_search_ranker_tests COMMAND hcb_unified_local_search_ranker_tests)
+
+  qt_add_executable(hcb_local_search_service_tests
+    tests/LocalSearchServiceTest.cpp
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/core/LocalSearchService.cpp
+    src/core/LocalSearchService.h
+    src/core/UnifiedLocalSearchRanker.cpp
+    src/core/UnifiedLocalSearchRanker.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteReadConnectionPool.cpp
+    src/data/SqliteReadConnectionPool.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+  )
+  target_link_libraries(hcb_local_search_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_local_search_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_local_search_service_tests)
+  hcb_enable_sanitizers(hcb_local_search_service_tests)
+  add_test(NAME hcb_local_search_service_tests COMMAND hcb_local_search_service_tests)
 
   qt_add_executable(hcb_google_sync_recovery_service_tests
     tests/GoogleSyncRecoveryServiceTest.cpp
@@ -1498,6 +1530,7 @@ if(BUILD_TESTING)
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
+    hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
@@ -1577,6 +1610,7 @@ if(BUILD_TESTING)
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
+    hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests

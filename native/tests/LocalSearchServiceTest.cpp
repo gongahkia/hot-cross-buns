@@ -1,0 +1,135 @@
+#include <QtTest/QTest>
+
+#include "core/LocalSearchService.h"
+#include "data/LocalSchema.h"
+#include "sqlite3.h"
+#include "support/TemporarySqliteDatabase.h"
+
+#include <chrono>
+#include <future>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <variant>
+
+using namespace std::chrono_literals;
+
+class LocalSearchServiceTest final : public QObject {
+  Q_OBJECT
+
+private slots:
+  void returnsRankedAndPagedResultsAcrossResources();
+  void rejectsInvalidRequests();
+};
+
+namespace {
+
+[[nodiscard]] std::unique_ptr<hcb::test::TemporarySqliteDatabase> createDatabase() {
+  hcb::test::TemporarySqliteDatabaseResult result = hcb::test::TemporarySqliteDatabase::create();
+  if (!std::holds_alternative<std::unique_ptr<hcb::test::TemporarySqliteDatabase>>(result)) {
+    return nullptr;
+  }
+  return std::move(std::get<std::unique_ptr<hcb::test::TemporarySqliteDatabase>>(result));
+}
+
+[[nodiscard]] int execute(sqlite3* handle, const char* sql) {
+  char* error = nullptr;
+  const int result = sqlite3_exec(handle, sql, nullptr, nullptr, &error);
+  sqlite3_free(error);
+  return result;
+}
+
+void initializeDatabase(const hcb::test::TemporarySqliteDatabase& database) {
+  hcb::SqliteConnectionResult connectionResult =
+      database.open(hcb::SqliteOpenMode::ReadWriteCreate);
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    qFatal("database connection failed");
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(
+          hcb::LocalSchema::initialize(connection))) {
+    qFatal("database migration failed");
+  }
+  sqlite3* const handle = connection.nativeHandle();
+  QCOMPARE(
+      execute(
+          handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES ('account', 'google', 'connected', '[]', "
+          "'[]', '2026-07-25T00:00:00Z'); "
+          "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) "
+          "VALUES ('list', 'account', 'list', 'Release planning', '2026-07-25T00:00:00Z'); "
+          "INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, updated_at) "
+          "VALUES ('task', 'list', 'task', 'Release review', 'Prepare the release', "
+          "'2026-07-25T00:00:00Z'); "
+          "INSERT INTO local_calendars (id, account_id, remote_id, title, updated_at) "
+          "VALUES ('calendar', 'account', 'calendar', 'Release calendar', '2026-07-25T00:00:00Z'); "
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, title, description, "
+          "start_at, end_at, updated_at) VALUES ('event', 'calendar', 'event', 'Review', "
+          "'Release retrospective', '2026-07-26T10:00:00Z', '2026-07-26T11:00:00Z', "
+          "'2026-07-25T00:00:00Z')"),
+      SQLITE_OK);
+}
+
+[[nodiscard]] hcb::LocalSearchPage awaitPage(std::future<hcb::LocalSearchPageResult>& future) {
+  if (future.wait_for(2s) != std::future_status::ready) {
+    qFatal("local search timed out");
+  }
+  const hcb::LocalSearchPageResult result = future.get();
+  if (!std::holds_alternative<hcb::LocalSearchPage>(result)) {
+    qFatal("local search failed: %s", qPrintable(std::get<hcb::AppError>(result).message()));
+  }
+  return std::get<hcb::LocalSearchPage>(result);
+}
+
+} // namespace
+
+void LocalSearchServiceTest::returnsRankedAndPagedResultsAcrossResources() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  initializeDatabase(*database);
+  hcb::LocalSearchService service(database->databasePath());
+  QCOMPARE(service.ready().wait_for(2s), std::future_status::ready);
+  QVERIFY(!service.ready().get().has_value());
+  std::future<hcb::LocalSearchPageResult> firstFuture =
+      service.search({.query = QStringLiteral("release"), .limit = 2});
+  const hcb::LocalSearchPage first = awaitPage(firstFuture);
+  QCOMPARE(first.items.size(), 2);
+  QVERIFY(first.totalKnown >= 4);
+  QVERIFY(first.hasMore);
+  QCOMPARE(first.items.front().resource, hcb::LocalSearchResource::Task);
+  std::future<hcb::LocalSearchPageResult> secondFuture =
+      service.search({.query = QStringLiteral("release"), .offset = 2, .limit = 2});
+  const hcb::LocalSearchPage second = awaitPage(secondFuture);
+  QCOMPARE(second.items.size(), 2);
+  QVERIFY(second.hasMore);
+  std::future<hcb::LocalSearchPageResult> thirdFuture =
+      service.search({.query = QStringLiteral("release"), .offset = 4, .limit = 2});
+  const hcb::LocalSearchPage third = awaitPage(thirdFuture);
+  QCOMPARE(third.items.size(), 1);
+  QVERIFY(!third.hasMore);
+}
+
+void LocalSearchServiceTest::rejectsInvalidRequests() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  initializeDatabase(*database);
+  hcb::LocalSearchService service(database->databasePath());
+  std::future<hcb::LocalSearchPageResult> invalid = service.search({.query = QStringLiteral("  ")});
+  if (invalid.wait_for(2s) != std::future_status::ready) {
+    qFatal("invalid local search timed out");
+  }
+  const hcb::LocalSearchPageResult result = invalid.get();
+  QVERIFY(std::holds_alternative<hcb::AppError>(result));
+  QCOMPARE(std::get<hcb::AppError>(result).code(), hcb::AppErrorCode::Validation);
+}
+
+QTEST_GUILESS_MAIN(LocalSearchServiceTest)
+
+#include "LocalSearchServiceTest.moc"
