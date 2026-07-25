@@ -28,6 +28,7 @@ ApplicationWindow {
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias calendarVisibility: calendarVisibility
     property alias eventCreateDialog: eventCreateDialog
+    property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
@@ -39,6 +40,7 @@ ApplicationWindow {
                                 bool allDay, string description, string location)
     signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
                                 string endAt, bool allDay, string description, string location)
+    signal eventDeleteRequested(string eventId)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -289,6 +291,16 @@ ApplicationWindow {
         onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
             window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
         }
+        onEventDeleteRequested: function(eventId, title) {
+            eventDeleteDialog.openForDelete(eventId, title)
+        }
+    }
+
+    EventDeleteDialog {
+        id: eventDeleteDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onEventDeleteRequested: eventId => window.eventDeleteRequested(eventId)
     }
 
     header: ToolBar {

@@ -406,6 +406,21 @@ TestCase {
         sourceModel.destroy()
     }
 
+    function test_eventDeleteDialogEmitsDeleteRequest() {
+        const component = Qt.createComponent("../../qml/EventDeleteDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null)
+        verify(dialog !== null)
+        dialog.openForDelete("event-1", "Release review")
+        verify(dialog.primaryEnabled)
+        let deletedId = ""
+        dialog.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
+        dialog.primaryButton.click()
+        compare(deletedId, "event-1")
+        dialog.destroy()
+    }
+
     function test_dayTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -689,6 +704,19 @@ TestCase {
         compare(request.allDay, false)
         compare(request.description, "Verify the native package")
         compare(request.location, "Studio")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsEventDeleteRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let deletedId = ""
+        mainWindow.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
+        mainWindow.eventDeleteDialog.eventDeleteRequested("event-1")
+        compare(deletedId, "event-1")
         mainWindow.destroy()
     }
 

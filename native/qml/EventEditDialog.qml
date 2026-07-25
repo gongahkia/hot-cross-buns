@@ -19,8 +19,10 @@ HcbDialog {
     property alias eventLocation: locationField.text
     property alias calendarPicker: calendarPicker
     property alias eventTitleField: titleField
+    property alias deleteButton: deleteButton
     signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
                                 string endAt, bool allDay, string description, string location)
+    signal eventDeleteRequested(string eventId, string title)
 
     function validRange() {
         const start = Date.parse(startField.text)
@@ -107,5 +109,18 @@ HcbDialog {
         Accessible.name: "Event description"
         selectByMouse: true
         wrapMode: TextEdit.Wrap
+    }
+
+    Button {
+        id: deleteButton
+        text: "Delete event"
+        Layout.alignment: Qt.AlignRight
+        palette.button: Theme.destructive
+        Accessible.name: text
+        Accessible.description: "Delete this event"
+        onClicked: {
+            root.close()
+            root.eventDeleteRequested(root.eventId, titleField.text)
+        }
     }
 }

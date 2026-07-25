@@ -164,6 +164,7 @@ qt_add_qml_module(hcb_native
     qml/CalendarSourceControls.qml
     qml/DayTimelineView.qml
     qml/EventCreateDialog.qml
+    qml/EventDeleteDialog.qml
     qml/EventEditDialog.qml
     qml/HcbDialog.qml
     qml/Main.qml
