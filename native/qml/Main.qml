@@ -13,6 +13,7 @@ ApplicationWindow {
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
     required property var navigationCommands
+    property var notesModel: null
     property var taskModel: null
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
@@ -269,9 +270,15 @@ ApplicationWindow {
                 taskModel: window.taskModel
             }
 
+            NotesListView {
+                anchors.fill: parent
+                visible: window.currentPage === "Notes"
+                notesModel: window.notesModel
+            }
+
             ColumnLayout {
                 anchors.fill: parent
-                visible: window.currentPage !== "Tasks"
+                visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage

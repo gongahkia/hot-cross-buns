@@ -234,6 +234,39 @@ TestCase {
         taskModel.destroy()
     }
 
+    function test_notesListPresentsAndSelectsNotes() {
+        const component = Qt.createComponent("../../qml/NotesListView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const notesModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        notesModel.append({
+            id: "note-1",
+            taskListTitle: "Inbox",
+            title: "Release notes",
+            body: "Verify the package artifacts"
+        })
+        notesModel.append({
+            id: "note-2",
+            taskListTitle: "Work",
+            title: "Sprint plan",
+            body: "Review the current priorities"
+        })
+        const notesList = component.createObject(null, {
+            notesModel: notesModel,
+            width: 480,
+            height: 320,
+            visible: true
+        })
+        verify(notesList !== null)
+        tryCompare(notesList.noteRows, "count", 2)
+        let selectedId = ""
+        notesList.noteSelected.connect(function(noteId) { selectedId = noteId })
+        notesList.selectNote("note-1")
+        compare(selectedId, "note-1")
+        notesList.destroy()
+        notesModel.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
