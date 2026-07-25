@@ -10,6 +10,7 @@
 
 #include <future>
 #include <memory>
+#include <stop_token>
 #include <variant>
 
 namespace hcb {
@@ -35,7 +36,8 @@ public:
   LocalSearchService& operator=(const LocalSearchService&) = delete;
 
   [[nodiscard]] std::shared_future<std::optional<AppError>> ready() const;
-  [[nodiscard]] std::future<LocalSearchPageResult> search(LocalSearchRequest request);
+  [[nodiscard]] std::future<LocalSearchPageResult> search(LocalSearchRequest request,
+                                                          const std::stop_token& cancellation = {});
 
 private:
   UnifiedLocalSearchRanker ranker_;

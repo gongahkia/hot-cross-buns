@@ -1,6 +1,7 @@
 #include <QtTest/QTest>
 
 #include "core/LocalSearchService.h"
+#include "core/Cancellation.h"
 #include "data/LocalSchema.h"
 #include "sqlite3.h"
 #include "support/TemporarySqliteDatabase.h"
@@ -19,6 +20,7 @@ class LocalSearchServiceTest final : public QObject {
 
 private slots:
   void returnsRankedAndPagedResultsAcrossResources();
+  void returnsCancelledForStoppedSearch();
   void rejectsInvalidRequests();
 };
 
@@ -128,6 +130,26 @@ void LocalSearchServiceTest::rejectsInvalidRequests() {
   const hcb::LocalSearchPageResult result = invalid.get();
   QVERIFY(std::holds_alternative<hcb::AppError>(result));
   QCOMPARE(std::get<hcb::AppError>(result).code(), hcb::AppErrorCode::Validation);
+}
+
+void LocalSearchServiceTest::returnsCancelledForStoppedSearch() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  initializeDatabase(*database);
+  hcb::LocalSearchService service(database->databasePath());
+  hcb::CancellationSource cancellation;
+  QVERIFY(cancellation.requestStop());
+  std::future<hcb::LocalSearchPageResult> future =
+      service.search({.query = QStringLiteral("release")}, cancellation.token());
+  if (future.wait_for(2s) != std::future_status::ready) {
+    qFatal("cancelled local search timed out");
+  }
+  const hcb::LocalSearchPageResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::AppError>(result));
+  QCOMPARE(std::get<hcb::AppError>(result).code(), hcb::AppErrorCode::Cancelled);
 }
 
 QTEST_GUILESS_MAIN(LocalSearchServiceTest)

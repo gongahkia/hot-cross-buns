@@ -5,8 +5,8 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <future>
 #include <optional>
-#include <stdexcept>
 #include <utility>
 #include <variant>
 
@@ -80,8 +80,11 @@ constexpr QuerySpec querySpecs[] = {
                                       : std::optional<QString>(QString::fromUtf8(value, size));
 }
 
-[[nodiscard]] std::variant<QList<LocalSearchCandidate>, AppError>
-readCandidates(SqliteConnection& connection, const QString& query) {
+[[nodiscard]] std::variant<QList<LocalSearchCandidate>, AppError> readCandidates(
+    SqliteConnection& connection, const QString& query, const std::stop_token& cancellation) {
+  if (cancellation.stop_requested()) {
+    return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
+  }
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
     return AppError(AppErrorCode::Database,
@@ -90,6 +93,9 @@ readCandidates(SqliteConnection& connection, const QString& query) {
   QList<LocalSearchCandidate> candidates;
   candidates.reserve(static_cast<qsizetype>(std::size(querySpecs)) * kMaximumCandidatesPerResource);
   for (const QuerySpec& spec : querySpecs) {
+    if (cancellation.stop_requested()) {
+      return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
+    }
     sqlite3_stmt* statement = nullptr;
     const int prepareResult =
         sqlite3_prepare_v3(handle, spec.sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
@@ -110,6 +116,10 @@ readCandidates(SqliteConnection& connection, const QString& query) {
                            bindQueryResult != SQLITE_OK ? bindQueryResult : bindLimitResult);
     }
     while (true) {
+      if (cancellation.stop_requested()) {
+        sqlite3_finalize(statement);
+        return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
+      }
       const int stepResult = sqlite3_step(statement);
       if (stepResult == SQLITE_DONE) {
         break;
@@ -136,17 +146,21 @@ readCandidates(SqliteConnection& connection, const QString& query) {
   return candidates;
 }
 
-[[nodiscard]] LocalSearchPage searchStored(SqliteConnection& connection,
-                                           const LocalSearchRequest& request,
-                                           const UnifiedLocalSearchRanker& ranker) {
+[[nodiscard]] LocalSearchPageResult searchStored(SqliteConnection& connection,
+                                                 const LocalSearchRequest& request,
+                                                 const UnifiedLocalSearchRanker& ranker,
+                                                 const std::stop_token& cancellation) {
+  if (cancellation.stop_requested()) {
+    return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
+  }
   const QString query = ftsQuery(request.query);
   if (query.isEmpty()) {
-    throw std::invalid_argument("search query is invalid");
+    return AppError(AppErrorCode::Validation, QStringLiteral("Search query is invalid"));
   }
   const std::variant<QList<LocalSearchCandidate>, AppError> candidates =
-      readCandidates(connection, query);
+      readCandidates(connection, query, cancellation);
   if (std::holds_alternative<AppError>(candidates)) {
-    throw std::runtime_error("SQLite search query failed");
+    return std::get<AppError>(candidates);
   }
   const QList<LocalSearchRankedResult> ranked = ranker.rank(
       request.query, std::get<QList<LocalSearchCandidate>>(candidates), kMaximumRankedResults);
@@ -172,7 +186,15 @@ std::shared_future<std::optional<AppError>> LocalSearchService::ready() const {
   return readPool_->ready();
 }
 
-std::future<LocalSearchPageResult> LocalSearchService::search(LocalSearchRequest request) {
+std::future<LocalSearchPageResult> LocalSearchService::search(LocalSearchRequest request,
+                                                              const std::stop_token& cancellation) {
+  if (cancellation.stop_requested()) {
+    std::promise<LocalSearchPageResult> completion;
+    std::future<LocalSearchPageResult> future = completion.get_future();
+    completion.set_value(
+        AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled")));
+    return future;
+  }
   if (request.query.trimmed().isEmpty() || request.offset < 0 || request.offset > kMaximumOffset ||
       request.limit < 1) {
     std::promise<LocalSearchPageResult> completion;
@@ -182,8 +204,15 @@ std::future<LocalSearchPageResult> LocalSearchService::search(LocalSearchRequest
     return future;
   }
   request.limit = std::clamp(request.limit, 1, kMaximumPageSize);
-  return readPool_->enqueue([this, request = std::move(request)](SqliteConnection& connection) {
-    return searchStored(connection, request, ranker_);
+  auto queued = readPool_->enqueue(
+      [this, request = std::move(request), cancellation](SqliteConnection& connection) {
+        return searchStored(connection, request, ranker_, cancellation);
+      });
+  return std::async(std::launch::async, [queued = std::move(queued)]() mutable {
+    auto result = queued.get();
+    return std::holds_alternative<AppError>(result)
+               ? LocalSearchPageResult(std::get<AppError>(std::move(result)))
+               : std::get<LocalSearchPageResult>(std::move(result));
   });
 }
 
