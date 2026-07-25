@@ -49,6 +49,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleTaskPullClient.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/NativeTaskScrollBenchmark.cpp
+  src/core/NativeTaskScrollBenchmark.h
   src/core/NativeLocalSearchBenchmark.cpp
   src/core/NativeLocalSearchBenchmark.h
   src/core/NativeQuickCaptureBenchmark.cpp
@@ -306,6 +308,19 @@ target_link_libraries(hcb_local_search_benchmark PRIVATE hcb::sqlite Qt6::Core)
 target_include_directories(hcb_local_search_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_local_search_benchmark)
 hcb_enable_sanitizers(hcb_local_search_benchmark)
+
+qt_add_executable(hcb_task_scroll_benchmark
+  benchmarks/NativeTaskScrollBenchmarkMain.cpp
+  src/core/NativeTaskScrollBenchmark.cpp
+  src/core/NativeTaskScrollBenchmark.h
+  src/core/TaskModel.cpp
+  src/core/TaskModel.h
+  src/core/TaskMutationService.h
+)
+target_link_libraries(hcb_task_scroll_benchmark PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+target_include_directories(hcb_task_scroll_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_task_scroll_benchmark)
+hcb_enable_sanitizers(hcb_task_scroll_benchmark)
 
 qt_add_executable(hcb_performance_report
   benchmarks/NativePerformanceReportMain.cpp
@@ -1150,6 +1165,22 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_native_local_search_benchmark_tests)
   add_test(NAME hcb_native_local_search_benchmark_tests COMMAND hcb_native_local_search_benchmark_tests)
 
+  qt_add_executable(hcb_native_task_scroll_benchmark_tests
+    tests/NativeTaskScrollBenchmarkTest.cpp
+    src/core/NativeTaskScrollBenchmark.cpp
+    src/core/NativeTaskScrollBenchmark.h
+    src/core/TaskModel.cpp
+    src/core/TaskModel.h
+    src/core/TaskMutationService.h
+  )
+  target_link_libraries(hcb_native_task_scroll_benchmark_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+  target_include_directories(hcb_native_task_scroll_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_task_scroll_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_task_scroll_benchmark_tests)
+  add_test(NAME hcb_native_task_scroll_benchmark_tests
+    COMMAND hcb_native_task_scroll_benchmark_tests -platform offscreen
+  )
+
   qt_add_executable(hcb_task_list_model_tests
     tests/TaskListModelTest.cpp
     src/core/AppError.h
@@ -1876,6 +1907,7 @@ set(hcb_static_analysis_dependencies
   hcb_planner_benchmark
   hcb_quick_capture_benchmark
   hcb_local_search_benchmark
+  hcb_task_scroll_benchmark
   hcb_performance_report
 )
 if(BUILD_TESTING)
@@ -1924,6 +1956,7 @@ if(BUILD_TESTING)
     hcb_native_planner_benchmark_tests
     hcb_native_quick_capture_benchmark_tests
     hcb_native_local_search_benchmark_tests
+    hcb_native_task_scroll_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
@@ -2021,6 +2054,7 @@ if(BUILD_TESTING)
     hcb_native_planner_benchmark_tests
     hcb_native_quick_capture_benchmark_tests
     hcb_native_local_search_benchmark_tests
+    hcb_native_task_scroll_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
