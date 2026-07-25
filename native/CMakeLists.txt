@@ -7,6 +7,8 @@ set(HCB_NATIVE_SOURCES
   src/core/AccountStatusService.cpp
   src/core/AccountStatusService.h
   src/core/AppError.h
+  src/core/CalendarReadService.cpp
+  src/core/CalendarReadService.h
   src/core/Cancellation.h
   src/core/Clock.h
   src/core/CommandRegistryModel.cpp
@@ -493,6 +495,31 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_account_status_service_tests)
   add_test(NAME hcb_account_status_service_tests COMMAND hcb_account_status_service_tests)
 
+  qt_add_executable(hcb_calendar_read_service_tests
+    tests/CalendarReadServiceTest.cpp
+    src/core/AppError.h
+    src/core/CalendarReadService.cpp
+    src/core/CalendarReadService.h
+    src/core/FilePath.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_calendar_read_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_calendar_read_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_calendar_read_service_tests)
+  hcb_enable_sanitizers(hcb_calendar_read_service_tests)
+  add_test(NAME hcb_calendar_read_service_tests COMMAND hcb_calendar_read_service_tests)
+
   qt_add_executable(hcb_task_list_read_service_tests
     tests/TaskListReadServiceTest.cpp
     src/core/AppError.h
@@ -851,6 +878,7 @@ if(BUILD_TESTING)
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_account_status_service_tests
+    hcb_calendar_read_service_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
@@ -904,6 +932,7 @@ if(BUILD_TESTING)
     hcb_command_registry_model_tests
     hcb_settings_registry_tests
     hcb_account_status_service_tests
+    hcb_calendar_read_service_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
