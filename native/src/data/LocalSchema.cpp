@@ -339,6 +339,30 @@ CREATE INDEX local_sync_checkpoints_account_recency
 ON local_sync_checkpoints(account_id, updated_at DESC, id)
 )";
 
+constexpr char syncConflictSchemaSql[] = R"(
+CREATE TABLE local_sync_conflicts (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  account_id TEXT REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+  resource_type TEXT NOT NULL CHECK(resource_type IN ('task', 'task_list', 'event')),
+  resource_id TEXT NOT NULL CHECK(length(trim(resource_id)) BETWEEN 1 AND 256),
+  mutation_id TEXT NOT NULL UNIQUE CHECK(length(trim(mutation_id)) BETWEEN 1 AND 256),
+  error_code TEXT NOT NULL CHECK(length(trim(error_code)) BETWEEN 1 AND 64),
+  error_message TEXT NOT NULL CHECK(length(error_message) BETWEEN 1 AND 4096),
+  payload_json TEXT NOT NULL CHECK(length(payload_json) <= 262144 AND json_valid(payload_json) AND json_type(payload_json) = 'object'),
+  status TEXT NOT NULL DEFAULT 'unresolved' CHECK(status IN ('unresolved', 'resolved')),
+  resolution TEXT CHECK(resolution IS NULL OR resolution IN ('keep_local', 'keep_remote')),
+  created_at TEXT NOT NULL CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  resolved_at TEXT CHECK(resolved_at IS NULL OR length(trim(resolved_at)) BETWEEN 1 AND 64),
+  CHECK((status = 'unresolved' AND resolution IS NULL AND resolved_at IS NULL) OR
+        (status = 'resolved' AND resolution IS NOT NULL AND resolved_at IS NOT NULL))
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_sync_conflicts_unresolved
+ON local_sync_conflicts(status, updated_at, id)
+WHERE status = 'unresolved'
+)";
+
 constexpr char ftsSchemaSql[] = R"(
 CREATE VIRTUAL TABLE local_task_lists_fts
 USING fts5(
@@ -538,12 +562,17 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, syncCheckpointSchemaSql, QStringLiteral("SQLite sync-checkpoint schema"));
 }
 
+[[nodiscard]] std::optional<AppError> applySyncConflictSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, syncConflictSchemaSql, QStringLiteral("SQLite sync-conflict schema"));
+}
+
 [[nodiscard]] std::optional<AppError> applyFtsSchema(SqliteConnection& connection) {
   return applySchema(connection, ftsSchemaSql, QStringLiteral("SQLite FTS schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 11>& migrations() {
-  static const std::array<SqliteMigration, 11> catalogue = {{
+[[nodiscard]] const std::array<SqliteMigration, 12>& migrations() {
+  static const std::array<SqliteMigration, 12> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -576,6 +605,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        applySyncCheckpointSchema},
       {10, QStringLiteral("create local FTS indexes"), checksum(ftsSchemaSql), applyFtsSchema},
       {11, QStringLiteral("create local undo entries"), checksum(undoSchemaSql), applyUndoSchema},
+      {12,
+       QStringLiteral("create local sync conflicts"),
+       checksum(syncConflictSchemaSql),
+       applySyncConflictSchema},
   }};
   return catalogue;
 }
