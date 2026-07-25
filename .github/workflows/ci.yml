@@ -140,6 +140,59 @@ jobs:
           retention-days: 14
           path: build/linux-debug/Testing/Temporary/**
 
+  native-windows:
+    name: Native Qt build and tests (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      HCB_QT_ROOT: ${{ runner.temp }}\Qt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore Qt SDK cache
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          key: qt-6.11.1-windows-msvc2022-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          path: ${{ runner.temp }}\Qt
+
+      - name: Install Qt 6.11.1
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\qt-online-installer.exe"
+          Invoke-WebRequest -Uri https://download.qt.io/official_releases/online_installers/qt-online-installer-windows-x64-online.exe -OutFile $installer
+          & $installer `
+            --root $env:HCB_QT_ROOT `
+            --accept-licenses `
+            --default-answer `
+            --confirm-command `
+            install qt.qt6.6111.win64_msvc2022_64
+          if ($LASTEXITCODE -ne 0) { throw "Qt installer failed with exit code $LASTEXITCODE" }
+
+      - name: Configure native debug build
+        shell: pwsh
+        run: cmake --preset windows-debug -A x64 -DCMAKE_PREFIX_PATH="$env:HCB_QT_ROOT\6.11.1\msvc2022_64"
+
+      - name: Build native targets
+        run: cmake --build --preset windows-debug --parallel 3
+
+      - name: Run native tests
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --preset windows-debug --output-on-failure
+
+      - name: Upload native test diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-test-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/windows-debug/Testing/Temporary/**
+
   native-macos-smoke:
     name: Native Qt shell smoke (macOS)
     runs-on: macos-14
