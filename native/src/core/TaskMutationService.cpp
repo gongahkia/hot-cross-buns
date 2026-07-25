@@ -142,6 +142,8 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
 [[nodiscard]] std::variant<TaskCreateInput, AppError> canonicalize(TaskCreateInput input) {
   input.title = input.title.trimmed();
   if (!isValidRequiredText(input.taskListId, kMaximumIdentifierLength) ||
+      (input.parentTaskId.has_value() &&
+       !isValidRequiredText(*input.parentTaskId, kMaximumIdentifierLength)) ||
       !isValidRequiredText(input.title, kMaximumTitleLength) || !isValidNotes(input.notes) ||
       !isValidDue(input.due) || !isValidPriority(input.priority)) {
     return validationError(QStringLiteral("Task create input is invalid"));
@@ -154,11 +156,13 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
     *input.title = input.title->trimmed();
   }
   if (!isValidRequiredText(input.taskId, kMaximumIdentifierLength) ||
+      (input.parentTaskId.has_value() && input.parentTaskId->has_value() &&
+       !isValidRequiredText(**input.parentTaskId, kMaximumIdentifierLength)) ||
       (input.title.has_value() && !isValidRequiredText(*input.title, kMaximumTitleLength)) ||
       !isValidNotes(input.notes) || !isValidDue(input.due) ||
       (input.priority.has_value() && !isValidPriority(*input.priority)) ||
-      (!input.title.has_value() && !input.notes.has_value() && !input.due.has_value() &&
-       !input.priority.has_value())) {
+      (!input.parentTaskId.has_value() && !input.title.has_value() && !input.notes.has_value() &&
+       !input.due.has_value() && !input.priority.has_value())) {
     return validationError(QStringLiteral("Task update input is invalid"));
   }
   return input;
@@ -179,15 +183,23 @@ INSERT INTO local_tasks (
   id, task_list_id, remote_id, parent_task_id, title, notes, state, due_at, due_time_zone,
   sort_order, is_hidden, priority, created_at, updated_at
 )
-SELECT ?1, lists.id, ?3, NULL, ?4, ?5, 'active', ?6, ?7,
+SELECT ?1, lists.id, ?3, ?4, ?5, ?6, 'active', ?7, ?8,
        COALESCE((SELECT MAX(tasks.sort_order) + 1
                  FROM local_tasks AS tasks
                  WHERE tasks.task_list_id = lists.id
-                   AND tasks.parent_task_id IS NULL
+                   AND ((?4 IS NULL AND tasks.parent_task_id IS NULL)
+                        OR tasks.parent_task_id = ?4)
                    AND tasks.deleted_at IS NULL), 0),
-       0, ?8, ?9, ?9
+       0, ?9, ?10, ?10
 FROM local_task_lists AS lists
-WHERE lists.id = ?2 AND lists.deleted_at IS NULL
+WHERE lists.id = ?2
+  AND lists.deleted_at IS NULL
+  AND (?4 IS NULL OR EXISTS (SELECT 1
+                             FROM local_tasks AS parent
+                             WHERE parent.id = ?4
+                               AND parent.task_list_id = lists.id
+                               AND parent.parent_task_id IS NULL
+                               AND parent.deleted_at IS NULL))
 )";
   sqlite3_stmt* statement = nullptr;
   const int prepareResult =
@@ -205,12 +217,13 @@ WHERE lists.id = ?2 AND lists.deleted_at IS NULL
                   {bindText(statement, 1, taskId),
                    bindText(statement, 2, input.taskListId),
                    bindText(statement, 3, remoteId),
-                   bindText(statement, 4, input.title),
-                   bindOptionalText(statement, 5, input.notes),
-                   bindOptionalText(statement, 6, dueAt),
-                   bindOptionalText(statement, 7, dueTimeZone),
-                   bindText(statement, 8, priorityText(input.priority)),
-                   bindText(statement, 9, updatedAt)});
+                   bindOptionalText(statement, 4, input.parentTaskId),
+                   bindText(statement, 5, input.title),
+                   bindOptionalText(statement, 6, input.notes),
+                   bindOptionalText(statement, 7, dueAt),
+                   bindOptionalText(statement, 8, dueTimeZone),
+                   bindText(statement, 9, priorityText(input.priority)),
+                   bindText(statement, 10, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -240,13 +253,34 @@ WHERE lists.id = ?2 AND lists.deleted_at IS NULL
   }
   constexpr char sql[] = R"(
 UPDATE local_tasks
-SET title = CASE WHEN ?2 = 1 THEN ?3 ELSE title END,
-    notes = CASE WHEN ?4 = 1 THEN ?5 ELSE notes END,
-    due_at = CASE WHEN ?6 = 1 THEN ?7 ELSE due_at END,
-    due_time_zone = CASE WHEN ?6 = 1 THEN ?8 ELSE due_time_zone END,
-    priority = CASE WHEN ?9 = 1 THEN ?10 ELSE priority END,
-    updated_at = ?11
-WHERE id = ?1 AND deleted_at IS NULL
+SET parent_task_id = CASE WHEN ?2 = 1 THEN ?3 ELSE parent_task_id END,
+    sort_order = CASE WHEN ?2 = 1 THEN COALESCE((SELECT MAX(sibling.sort_order) + 1
+                                                  FROM local_tasks AS sibling
+                                                  WHERE sibling.task_list_id = local_tasks.task_list_id
+                                                    AND sibling.id != local_tasks.id
+                                                    AND sibling.deleted_at IS NULL
+                                                    AND ((?3 IS NULL AND sibling.parent_task_id IS NULL)
+                                                         OR sibling.parent_task_id = ?3)), 0)
+                      ELSE sort_order END,
+    title = CASE WHEN ?4 = 1 THEN ?5 ELSE title END,
+    notes = CASE WHEN ?6 = 1 THEN ?7 ELSE notes END,
+    due_at = CASE WHEN ?8 = 1 THEN ?9 ELSE due_at END,
+    due_time_zone = CASE WHEN ?8 = 1 THEN ?10 ELSE due_time_zone END,
+    priority = CASE WHEN ?11 = 1 THEN ?12 ELSE priority END,
+    updated_at = ?13
+WHERE id = ?1
+  AND deleted_at IS NULL
+  AND (?2 = 0 OR NOT EXISTS (SELECT 1
+                             FROM local_tasks AS descendant
+                             WHERE descendant.parent_task_id = local_tasks.id
+                               AND descendant.deleted_at IS NULL))
+  AND (?2 = 0 OR ?3 IS NULL OR EXISTS (SELECT 1
+                                        FROM local_tasks AS parent
+                                        WHERE parent.id = ?3
+                                          AND parent.id != local_tasks.id
+                                          AND parent.task_list_id = local_tasks.task_list_id
+                                          AND parent.parent_task_id IS NULL
+                                          AND parent.deleted_at IS NULL))
 )";
   sqlite3_stmt* statement = nullptr;
   const int prepareResult =
@@ -260,19 +294,23 @@ WHERE id = ?1 AND deleted_at IS NULL
   const std::optional<QString> dueTimeZone =
       input.due.has_value() ? input.due->timeZone : std::nullopt;
   const QString priority = input.priority.has_value() ? priorityText(*input.priority) : QString();
+  const std::optional<QString> parentTaskId =
+      input.parentTaskId.has_value() ? *input.parentTaskId : std::nullopt;
   if (const std::optional<AppError> error =
           bindAll(statement,
                   {bindText(statement, 1, input.taskId),
-                   bindInteger(statement, 2, input.title.has_value()),
-                   bindOptionalText(statement, 3, input.title),
-                   bindInteger(statement, 4, input.notes.has_value()),
-                   bindOptionalText(statement, 5, input.notes),
-                   bindInteger(statement, 6, input.due.has_value()),
-                   bindOptionalText(statement, 7, dueAt),
-                   bindOptionalText(statement, 8, dueTimeZone),
-                   bindInteger(statement, 9, input.priority.has_value()),
-                   bindText(statement, 10, priority),
-                   bindText(statement, 11, updatedAt)});
+                   bindInteger(statement, 2, input.parentTaskId.has_value()),
+                   bindOptionalText(statement, 3, parentTaskId),
+                   bindInteger(statement, 4, input.title.has_value()),
+                   bindOptionalText(statement, 5, input.title),
+                   bindInteger(statement, 6, input.notes.has_value()),
+                   bindOptionalText(statement, 7, input.notes),
+                   bindInteger(statement, 8, input.due.has_value()),
+                   bindOptionalText(statement, 9, dueAt),
+                   bindOptionalText(statement, 10, dueTimeZone),
+                   bindInteger(statement, 11, input.priority.has_value()),
+                   bindText(statement, 12, priority),
+                   bindText(statement, 13, updatedAt)});
       error.has_value()) {
     return *error;
   }

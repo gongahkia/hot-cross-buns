@@ -28,6 +28,7 @@ struct TaskDue final {
 
 struct TaskCreateInput final {
   QString taskListId;
+  std::optional<QString> parentTaskId;
   QString title;
   std::optional<QString> notes;
   std::optional<TaskDue> due;
@@ -36,6 +37,7 @@ struct TaskCreateInput final {
 
 struct TaskUpdateInput final {
   QString taskId;
+  std::optional<std::optional<QString>> parentTaskId;
   std::optional<QString> title;
   std::optional<QString> notes;
   std::optional<TaskDue> due;
