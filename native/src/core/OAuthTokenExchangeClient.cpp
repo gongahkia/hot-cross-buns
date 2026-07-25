@@ -62,8 +62,11 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 
 } // namespace
 
-OAuthTokenExchangeClient::OAuthTokenExchangeClient(QObject* parent, QUrl tokenEndpoint)
-    : QObject(parent), manager_(this), tokenEndpoint_(std::move(tokenEndpoint)) {}
+OAuthTokenExchangeClient::OAuthTokenExchangeClient(QObject* parent,
+                                                   QUrl tokenEndpoint,
+                                                   QNetworkAccessManager* manager)
+    : QObject(parent), manager_(manager != nullptr ? manager : new QNetworkAccessManager(this)),
+      tokenEndpoint_(std::move(tokenEndpoint)) {}
 
 std::future<OAuthTokenExchangeResult>
 OAuthTokenExchangeClient::exchange(OAuthTokenExchangeRequest request) {
@@ -86,7 +89,7 @@ OAuthTokenExchangeClient::exchange(OAuthTokenExchangeRequest request) {
                            QStringLiteral("application/x-www-form-urlencoded"));
   networkRequest.setRawHeader("Accept", "application/json");
   QNetworkReply* const reply =
-      manager_.post(networkRequest, form.toString(QUrl::FullyEncoded).toUtf8());
+      manager_->post(networkRequest, form.toString(QUrl::FullyEncoded).toUtf8());
   auto completion = std::make_shared<std::promise<OAuthTokenExchangeResult>>();
   std::future<OAuthTokenExchangeResult> future = completion->get_future();
   connect(reply, &QNetworkReply::finished, this, [reply, completion] {

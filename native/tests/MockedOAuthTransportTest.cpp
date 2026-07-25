@@ -1,0 +1,242 @@
+#include <QtTest/QTest>
+
+#include "core/GoogleHttpClient.h"
+#include "core/OAuthTokenExchangeClient.h"
+#include "core/OAuthTokenRefreshClient.h"
+#include "core/OAuthTokenRevocationClient.h"
+
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QUrlQuery>
+
+#include <algorithm>
+#include <chrono>
+#include <optional>
+#include <utility>
+#include <variant>
+
+namespace {
+
+struct MockResponse final {
+  int status{200};
+  QByteArray body;
+  QNetworkReply::NetworkError error{QNetworkReply::NoError};
+  QList<QPair<QByteArray, QByteArray>> headers;
+};
+
+class MockNetworkReply final : public QNetworkReply {
+public:
+  MockNetworkReply(MockResponse response, QObject* parent) : QNetworkReply(parent) {
+    setAttribute(QNetworkRequest::HttpStatusCodeAttribute, response.status);
+    for (const auto& [name, value] : response.headers) {
+      setRawHeader(name, value);
+    }
+    if (response.error != QNetworkReply::NoError) {
+      setError(response.error, QStringLiteral("mock network error"));
+    }
+    body_ = std::move(response.body);
+    open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+    QMetaObject::invokeMethod(
+        this,
+        [this] {
+          emit readyRead();
+          emit finished();
+        },
+        Qt::QueuedConnection);
+  }
+
+  void abort() override {}
+
+  [[nodiscard]] qint64 bytesAvailable() const override {
+    return body_.size() - offset_ + QNetworkReply::bytesAvailable();
+  }
+
+  [[nodiscard]] bool isSequential() const override { return true; }
+
+protected:
+  qint64 readData(char* data, qint64 maximumSize) override {
+    if (offset_ >= body_.size()) {
+      return -1;
+    }
+    const qint64 count = std::min(maximumSize, body_.size() - offset_);
+    std::copy_n(body_.constData() + offset_, count, data);
+    offset_ += count;
+    return count;
+  }
+
+private:
+  QByteArray body_;
+  qsizetype offset_{0};
+};
+
+struct CapturedRequest final {
+  QNetworkAccessManager::Operation operation;
+  QNetworkRequest request;
+  QByteArray body;
+};
+
+class MockNetworkAccessManager final : public QNetworkAccessManager {
+public:
+  using QNetworkAccessManager::QNetworkAccessManager;
+
+  void enqueue(MockResponse response) { responses_.append(std::move(response)); }
+
+  [[nodiscard]] const QList<CapturedRequest>& requests() const { return requests_; }
+
+protected:
+  QNetworkReply* createRequest(Operation operation,
+                               const QNetworkRequest& request,
+                               QIODevice* outgoingData) override {
+    requests_.append({.operation = operation,
+                      .request = request,
+                      .body = outgoingData != nullptr ? outgoingData->readAll() : QByteArray()});
+    MockResponse response;
+    if (!responses_.isEmpty()) {
+      response = responses_.takeFirst();
+    } else {
+      response.status = 500;
+      response.error = QNetworkReply::UnknownServerError;
+    }
+    return new MockNetworkReply(std::move(response), this);
+  }
+
+private:
+  QList<MockResponse> responses_;
+  QList<CapturedRequest> requests_;
+};
+
+[[nodiscard]] QUrl loopbackRedirectUri() {
+  return QUrl(QStringLiteral("http://127.0.0.1:38421/oauth/google/callback"));
+}
+
+[[nodiscard]] QString validVerifier() { return QString(43, u'a'); }
+
+} // namespace
+
+class MockedOAuthTransportTest final : public QObject {
+  Q_OBJECT
+
+private slots:
+  void exchangesAuthorizationCodeThroughMock();
+  void refreshesAccessTokenThroughMock();
+  void revokesTokenThroughMock();
+  void sendsGoogleTransportRequestThroughMock();
+};
+
+void MockedOAuthTransportTest::exchangesAuthorizationCodeThroughMock() {
+  MockNetworkAccessManager manager;
+  manager.enqueue(
+      {.body = QByteArray(
+           "{\"access_token\":\"access\",\"refresh_token\":\"refresh\",\"expires_in\":3600}")});
+  hcb::OAuthTokenExchangeClient client(
+      nullptr, hcb::OAuthTokenExchangeClient::defaultTokenEndpoint(), &manager);
+
+  std::future<hcb::OAuthTokenExchangeResult> future =
+      client.exchange({.code = QStringLiteral("authorization-code"),
+                       .codeVerifier = validVerifier(),
+                       .redirectUri = loopbackRedirectUri(),
+                       .clientId = QStringLiteral("client-id-12345"),
+                       .clientSecret = QStringLiteral("client-secret")});
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::OAuthTokenExchangeResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::OAuthTokenSet>(result));
+  QCOMPARE(std::get<hcb::OAuthTokenSet>(result).accessToken, QStringLiteral("access"));
+  QCOMPARE(manager.requests().size(), 1);
+  const CapturedRequest& request = manager.requests().front();
+  QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(request.request.url(), hcb::OAuthTokenExchangeClient::defaultTokenEndpoint());
+  QCOMPARE(request.request.header(QNetworkRequest::ContentTypeHeader).toString(),
+           QStringLiteral("application/x-www-form-urlencoded"));
+  const QUrlQuery form(QString::fromUtf8(request.body));
+  QCOMPARE(form.queryItemValue(QStringLiteral("grant_type")), QStringLiteral("authorization_code"));
+  QCOMPARE(form.queryItemValue(QStringLiteral("code")), QStringLiteral("authorization-code"));
+  QCOMPARE(form.queryItemValue(QStringLiteral("code_verifier")), validVerifier());
+  QCOMPARE(form.queryItemValue(QStringLiteral("client_secret")), QStringLiteral("client-secret"));
+}
+
+void MockedOAuthTransportTest::refreshesAccessTokenThroughMock() {
+  MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{\"access_token\":\"refreshed\",\"scope\":\"tasks\"}")});
+  hcb::OAuthTokenRefreshClient client(nullptr, &manager);
+
+  std::future<hcb::OAuthTokenRefreshResult> future = client.refresh(
+      {.clientId = QStringLiteral("client-id-12345"), .refreshToken = QStringLiteral("refresh")});
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::OAuthTokenRefreshResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::OAuthRefreshedToken>(result));
+  QCOMPARE(std::get<hcb::OAuthRefreshedToken>(result).accessToken, QStringLiteral("refreshed"));
+  QCOMPARE(manager.requests().size(), 1);
+  const CapturedRequest& request = manager.requests().front();
+  QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(request.request.url(), hcb::OAuthTokenExchangeClient::defaultTokenEndpoint());
+  const QUrlQuery form(QString::fromUtf8(request.body));
+  QCOMPARE(form.queryItemValue(QStringLiteral("grant_type")), QStringLiteral("refresh_token"));
+  QCOMPARE(form.queryItemValue(QStringLiteral("refresh_token")), QStringLiteral("refresh"));
+}
+
+void MockedOAuthTransportTest::revokesTokenThroughMock() {
+  MockNetworkAccessManager manager;
+  manager.enqueue({.status = 400,
+                   .body = QByteArray("{\"error\":\"invalid_token\"}"),
+                   .error = QNetworkReply::ContentAccessDenied});
+  hcb::OAuthTokenRevocationClient client(nullptr, &manager);
+
+  std::future<hcb::OAuthTokenRevocationResult> future = client.revoke(QStringLiteral("token"));
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  QVERIFY(std::holds_alternative<std::monostate>(future.get()));
+  QCOMPARE(manager.requests().size(), 1);
+  const CapturedRequest& request = manager.requests().front();
+  QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(request.request.url(), hcb::OAuthTokenRevocationClient::defaultRevocationEndpoint());
+  const QUrlQuery form(QString::fromUtf8(request.body));
+  QCOMPARE(form.queryItemValue(QStringLiteral("token")), QStringLiteral("token"));
+}
+
+void MockedOAuthTransportTest::sendsGoogleTransportRequestThroughMock() {
+  MockNetworkAccessManager manager;
+  manager.enqueue({.status = 429,
+                   .body = QByteArray("{\"error\":{\"reason\":\"quotaExceeded\"}}"),
+                   .error = QNetworkReply::UnknownServerError,
+                   .headers = {{QByteArray("Retry-After"), QByteArray("3")}}});
+  hcb::GoogleHttpClient client(nullptr, &manager);
+
+  std::future<hcb::GoogleHttpResult> future =
+      client.send({.method = hcb::GoogleHttpMethod::Patch,
+                   .path = QStringLiteral("/tasks/v1/lists/list-id/tasks/task-id"),
+                   .query = {{.name = QStringLiteral("alt"), .value = QStringLiteral("json")}},
+                   .body = QByteArray("{\"title\":\"updated\"}"),
+                   .ifMatch = QStringLiteral("etag")},
+                  QStringLiteral("access-token"));
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::GoogleHttpResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleApiError>(result));
+  const hcb::GoogleApiError& error = std::get<hcb::GoogleApiError>(result);
+  QCOMPARE(error.kind(), hcb::GoogleApiErrorKind::RateLimited);
+  QCOMPARE(error.retryAfterMilliseconds(), std::optional<qint64>(3'000));
+  QCOMPARE(manager.requests().size(), 1);
+  const CapturedRequest& request = manager.requests().front();
+  QCOMPARE(request.operation, QNetworkAccessManager::CustomOperation);
+  QCOMPARE(request.request.url(),
+           QUrl(QStringLiteral(
+               "https://www.googleapis.com/tasks/v1/lists/list-id/tasks/task-id?alt=json")));
+  QCOMPARE(request.request.rawHeader("Authorization"), QByteArray("Bearer access-token"));
+  QCOMPARE(request.request.rawHeader("If-Match"), QByteArray("etag"));
+  QCOMPARE(request.request.header(QNetworkRequest::ContentTypeHeader).toString(),
+           QStringLiteral("application/json"));
+  QCOMPARE(request.body, QByteArray("{\"title\":\"updated\"}"));
+  QCOMPARE(request.request.attribute(QNetworkRequest::RedirectPolicyAttribute).toInt(),
+           static_cast<int>(QNetworkRequest::ManualRedirectPolicy));
+}
+
+QTEST_GUILESS_MAIN(MockedOAuthTransportTest)
+
+#include "MockedOAuthTransportTest.moc"

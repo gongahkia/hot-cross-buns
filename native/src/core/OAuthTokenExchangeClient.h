@@ -34,14 +34,15 @@ class OAuthTokenExchangeClient final : public QObject {
 
 public:
   explicit OAuthTokenExchangeClient(QObject* parent = nullptr,
-                                    QUrl tokenEndpoint = defaultTokenEndpoint());
+                                    QUrl tokenEndpoint = defaultTokenEndpoint(),
+                                    QNetworkAccessManager* manager = nullptr);
 
   [[nodiscard]] std::future<OAuthTokenExchangeResult> exchange(OAuthTokenExchangeRequest request);
   [[nodiscard]] static QUrl defaultTokenEndpoint();
   [[nodiscard]] static OAuthTokenExchangeResult decodeTokenResponse(const QByteArray& responseBody);
 
 private:
-  QNetworkAccessManager manager_;
+  QNetworkAccessManager* manager_;
   QUrl tokenEndpoint_;
 };
 

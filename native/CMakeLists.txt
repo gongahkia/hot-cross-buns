@@ -790,6 +790,31 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_google_http_client_tests)
   add_test(NAME hcb_google_http_client_tests COMMAND hcb_google_http_client_tests)
 
+  qt_add_executable(hcb_mocked_oauth_transport_tests
+    tests/MockedOAuthTransportTest.cpp
+    src/core/AppError.h
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/OAuthTokenExchangeClient.cpp
+    src/core/OAuthTokenExchangeClient.h
+    src/core/OAuthTokenRefreshClient.cpp
+    src/core/OAuthTokenRefreshClient.h
+    src/core/OAuthTokenRevocationClient.cpp
+    src/core/OAuthTokenRevocationClient.h
+    src/core/OAuthTokenRevoker.h
+    src/core/PkceAuthorization.cpp
+    src/core/PkceAuthorization.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+  )
+  target_link_libraries(hcb_mocked_oauth_transport_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_mocked_oauth_transport_tests PRIVATE src)
+  hcb_enable_warnings(hcb_mocked_oauth_transport_tests)
+  hcb_enable_sanitizers(hcb_mocked_oauth_transport_tests)
+  add_test(NAME hcb_mocked_oauth_transport_tests COMMAND hcb_mocked_oauth_transport_tests)
+
   qt_add_executable(hcb_sync_backoff_policy_tests
     tests/SyncBackoffPolicyTest.cpp
     src/core/GoogleApiError.cpp
@@ -1191,6 +1216,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
+    hcb_mocked_oauth_transport_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
     hcb_oauth_client_configuration_store_tests
@@ -1258,6 +1284,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
+    hcb_mocked_oauth_transport_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
     hcb_oauth_client_configuration_store_tests

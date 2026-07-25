@@ -62,8 +62,9 @@ void complete(const std::shared_ptr<Completion>& completion, OAuthTokenRevocatio
 
 } // namespace
 
-OAuthTokenRevocationClient::OAuthTokenRevocationClient(QObject* parent)
-    : QObject(parent), manager_(this) {}
+OAuthTokenRevocationClient::OAuthTokenRevocationClient(QObject* parent,
+                                                       QNetworkAccessManager* manager)
+    : QObject(parent), manager_(manager != nullptr ? manager : new QNetworkAccessManager(this)) {}
 
 std::future<OAuthTokenRevocationResult> OAuthTokenRevocationClient::revoke(QString token) {
   if (!isValidToken(token)) {
@@ -87,7 +88,7 @@ std::future<OAuthTokenRevocationResult> OAuthTokenRevocationClient::revoke(QStri
                               QStringLiteral("application/x-www-form-urlencoded"));
             request.setRawHeader("Accept", "application/json");
             QNetworkReply* const reply =
-                manager_.post(request, form.toString(QUrl::FullyEncoded).toUtf8());
+                manager_->post(request, form.toString(QUrl::FullyEncoded).toUtf8());
             connect(reply, &QNetworkReply::finished, reply, [reply, completion] {
               const QByteArray responseBody = reply->readAll();
               const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

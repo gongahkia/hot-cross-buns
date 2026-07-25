@@ -12,7 +12,8 @@ class OAuthTokenRevocationClient final : public QObject, public OAuthTokenRevoke
   Q_OBJECT
 
 public:
-  explicit OAuthTokenRevocationClient(QObject* parent = nullptr);
+  explicit OAuthTokenRevocationClient(QObject* parent = nullptr,
+                                      QNetworkAccessManager* manager = nullptr);
 
   [[nodiscard]] std::future<OAuthTokenRevocationResult> revoke(QString token) override;
   [[nodiscard]] static QUrl defaultRevocationEndpoint();
@@ -20,7 +21,7 @@ public:
                                                                  const QByteArray& responseBody);
 
 private:
-  QNetworkAccessManager manager_;
+  QNetworkAccessManager* manager_;
 };
 
 } // namespace hcb

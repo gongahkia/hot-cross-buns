@@ -150,7 +150,8 @@ void complete(const std::shared_ptr<Completion>& completion, GoogleHttpResult re
 
 } // namespace
 
-GoogleHttpClient::GoogleHttpClient(QObject* parent) : QObject(parent), manager_(this) {}
+GoogleHttpClient::GoogleHttpClient(QObject* parent, QNetworkAccessManager* manager)
+    : QObject(parent), manager_(manager != nullptr ? manager : new QNetworkAccessManager(this)) {}
 
 std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
                                                      QString accessToken) {
@@ -192,19 +193,19 @@ std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
             QNetworkReply* reply = nullptr;
             switch (request.method) {
             case GoogleHttpMethod::Get:
-              reply = manager_.get(networkRequest);
+              reply = manager_->get(networkRequest);
               break;
             case GoogleHttpMethod::Post:
-              reply = manager_.post(networkRequest, body);
+              reply = manager_->post(networkRequest, body);
               break;
             case GoogleHttpMethod::Patch:
-              reply = manager_.sendCustomRequest(networkRequest, methodName(request.method), body);
+              reply = manager_->sendCustomRequest(networkRequest, methodName(request.method), body);
               break;
             case GoogleHttpMethod::Put:
-              reply = manager_.put(networkRequest, body);
+              reply = manager_->put(networkRequest, body);
               break;
             case GoogleHttpMethod::Delete:
-              reply = manager_.deleteResource(networkRequest);
+              reply = manager_->deleteResource(networkRequest);
               break;
             }
             if (reply == nullptr) {

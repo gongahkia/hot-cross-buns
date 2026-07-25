@@ -43,8 +43,8 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 
 } // namespace
 
-OAuthTokenRefreshClient::OAuthTokenRefreshClient(QObject* parent)
-    : QObject(parent), manager_(this) {}
+OAuthTokenRefreshClient::OAuthTokenRefreshClient(QObject* parent, QNetworkAccessManager* manager)
+    : QObject(parent), manager_(manager != nullptr ? manager : new QNetworkAccessManager(this)) {}
 
 std::future<OAuthTokenRefreshResult>
 OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
@@ -64,7 +64,7 @@ OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
                            QStringLiteral("application/x-www-form-urlencoded"));
   networkRequest.setRawHeader("Accept", "application/json");
   QNetworkReply* const reply =
-      manager_.post(networkRequest, form.toString(QUrl::FullyEncoded).toUtf8());
+      manager_->post(networkRequest, form.toString(QUrl::FullyEncoded).toUtf8());
   auto completion = std::make_shared<std::promise<OAuthTokenRefreshResult>>();
   std::future<OAuthTokenRefreshResult> future = completion->get_future();
   connect(reply, &QNetworkReply::finished, this, [reply, completion] {

@@ -49,7 +49,7 @@ class GoogleHttpClient final : public QObject {
   Q_OBJECT
 
 public:
-  explicit GoogleHttpClient(QObject* parent = nullptr);
+  explicit GoogleHttpClient(QObject* parent = nullptr, QNetworkAccessManager* manager = nullptr);
 
   [[nodiscard]] std::future<GoogleHttpResult> send(GoogleHttpRequest request, QString accessToken);
   [[nodiscard]] static QUrl defaultApiEndpoint();
@@ -62,7 +62,7 @@ public:
                  QDateTime now = QDateTime::currentDateTimeUtc());
 
 private:
-  QNetworkAccessManager manager_;
+  QNetworkAccessManager* manager_;
 };
 
 } // namespace hcb
