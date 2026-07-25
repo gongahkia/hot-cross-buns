@@ -30,6 +30,8 @@ Pane {
             clip: true
             model: root.taskModel
             spacing: Theme.spacingSmall
+            cacheBuffer: height
+            reuseItems: true
 
             delegate: AccessibleButton {
                 required property string id

@@ -200,6 +200,40 @@ TestCase {
         taskModel.destroy()
     }
 
+    function test_taskListVirtualizesRows() {
+        const component = Qt.createComponent("../../qml/TaskListView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        for (let index = 0; index < 1000; ++index) {
+            taskModel.append({
+                id: "task-" + index,
+                title: "Task " + index,
+                completed: false
+            })
+        }
+        const taskList = component.createObject(testCase, {
+            taskModel: taskModel,
+            width: 480,
+            height: 320
+        })
+        verify(taskList !== null)
+        tryCompare(taskList.taskRows, "count", 1000)
+        verify(taskList.taskRows.reuseItems)
+        compare(taskList.taskRows.cacheBuffer, taskList.taskRows.height)
+        tryVerify(function() {
+            return taskList.taskRows.itemAtIndex(0) !== null
+        })
+        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.count)
+        taskList.taskRows.contentY = taskList.taskRows.contentHeight - taskList.taskRows.height
+        tryVerify(function() {
+            return taskList.taskRows.itemAtIndex(999) !== null
+        })
+        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.count)
+        taskList.destroy()
+        taskModel.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
