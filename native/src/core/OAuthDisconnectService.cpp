@@ -1,7 +1,9 @@
 #include "core/OAuthDisconnectService.h"
 
 #include <future>
+#include <memory>
 #include <optional>
+#include <thread>
 #include <utility>
 #include <variant>
 
@@ -59,44 +61,53 @@ std::future<OAuthDisconnectResultOrError> OAuthDisconnectService::disconnect(QSt
     return readyFuture(OAuthDisconnectResultOrError(
         validationError(QStringLiteral("Account identifier is invalid"))));
   }
-  return std::async(
-      std::launch::async,
-      [this, accountId = std::move(accountId)]() -> OAuthDisconnectResultOrError {
-        try {
-          const OAuthCredentialReadResult credential = credentials_.read(accountId).get();
-          if (std::holds_alternative<AppError>(credential)) {
-            return std::get<AppError>(credential);
-          }
-          OAuthRemoteRevocationState revocationState = OAuthRemoteRevocationState::NotAttempted;
-          std::optional<AppError> revocationError;
-          if (const std::optional<QString> token =
-                  tokenForRevocation(std::get<std::optional<OAuthStoredCredential>>(credential));
-              token.has_value()) {
-            const OAuthTokenRevocationResult revocation = revoker_.revoke(*token).get();
-            if (std::holds_alternative<AppError>(revocation)) {
-              revocationState = OAuthRemoteRevocationState::Failed;
-              revocationError = std::get<AppError>(revocation);
-            } else {
-              revocationState = OAuthRemoteRevocationState::Revoked;
-            }
-          }
-          const OAuthCredentialDeleteResult erased = credentials_.erase(accountId).get();
-          if (std::holds_alternative<AppError>(erased)) {
-            return std::get<AppError>(erased);
-          }
-          const AccountStatusSaveResultOrError account =
-              accountStatuses_.disconnect(accountId).get();
-          if (std::holds_alternative<AppError>(account)) {
-            return std::get<AppError>(account);
-          }
-          return OAuthDisconnectResult{.account = std::get<AccountStatusSaveResult>(account),
-                                       .remoteRevocationState = revocationState,
-                                       .remoteRevocationError = std::move(revocationError)};
-        } catch (...) {
-          return OAuthDisconnectResultOrError(
-              cancelledError(QStringLiteral("OAuth disconnect operation failed")));
+  auto completion = std::make_shared<std::promise<OAuthDisconnectResultOrError>>();
+  std::future<OAuthDisconnectResultOrError> future = completion->get_future();
+  try {
+    std::thread([this, accountId = std::move(accountId), completion] {
+      try {
+        const OAuthCredentialReadResult credential = credentials_.read(accountId).get();
+        if (std::holds_alternative<AppError>(credential)) {
+          completion->set_value(std::get<AppError>(credential));
+          return;
         }
-      });
+        OAuthRemoteRevocationState revocationState = OAuthRemoteRevocationState::NotAttempted;
+        std::optional<AppError> revocationError;
+        if (const std::optional<QString> token =
+                tokenForRevocation(std::get<std::optional<OAuthStoredCredential>>(credential));
+            token.has_value()) {
+          const OAuthTokenRevocationResult revocation = revoker_.revoke(*token).get();
+          if (std::holds_alternative<AppError>(revocation)) {
+            revocationState = OAuthRemoteRevocationState::Failed;
+            revocationError = std::get<AppError>(revocation);
+          } else {
+            revocationState = OAuthRemoteRevocationState::Revoked;
+          }
+        }
+        const OAuthCredentialDeleteResult erased = credentials_.erase(accountId).get();
+        if (std::holds_alternative<AppError>(erased)) {
+          completion->set_value(std::get<AppError>(erased));
+          return;
+        }
+        const AccountStatusSaveResultOrError account = accountStatuses_.disconnect(accountId).get();
+        if (std::holds_alternative<AppError>(account)) {
+          completion->set_value(std::get<AppError>(account));
+          return;
+        }
+        completion->set_value(
+            OAuthDisconnectResult{.account = std::get<AccountStatusSaveResult>(account),
+                                  .remoteRevocationState = revocationState,
+                                  .remoteRevocationError = std::move(revocationError)});
+      } catch (...) {
+        completion->set_value(OAuthDisconnectResultOrError(
+            cancelledError(QStringLiteral("OAuth disconnect operation failed"))));
+      }
+    }).detach();
+  } catch (...) {
+    completion->set_value(OAuthDisconnectResultOrError(
+        cancelledError(QStringLiteral("OAuth disconnect operation failed"))));
+  }
+  return future;
 }
 
 } // namespace hcb

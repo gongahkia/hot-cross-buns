@@ -72,6 +72,11 @@ std::future<OAuthTokenRevocationResult> OAuthTokenRevocationClient::revoke(QStri
   }
   auto completion = std::make_shared<Completion>();
   std::future<OAuthTokenRevocationResult> future = completion->promise.get_future();
+  connect(this, &QObject::destroyed, [completion] {
+    complete(completion,
+             OAuthTokenRevocationResult(
+                 cancelledError(QStringLiteral("OAuth token revocation was cancelled"))));
+  });
   if (!QMetaObject::invokeMethod(
           this,
           [this, token = std::move(token), completion] {

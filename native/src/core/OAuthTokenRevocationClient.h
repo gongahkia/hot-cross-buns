@@ -2,6 +2,7 @@
 
 #include "core/OAuthTokenRevoker.h"
 
+#include <QByteArray>
 #include <QNetworkAccessManager>
 #include <QUrl>
 
