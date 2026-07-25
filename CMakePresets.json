@@ -158,6 +158,22 @@
       }
     },
     {
+      "name": "macos-universal-package",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-universal-package",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "HCB_ENABLE_MACOS_UNIVERSAL_PACKAGE": "ON"
+      }
+    },
+    {
       "name": "linux-bootstrap",
       "inherits": "linux-debug",
       "binaryDir": "${sourceDir}/build/linux-bootstrap",
@@ -188,6 +204,7 @@
     { "name": "linux-format", "configurePreset": "linux-format", "targets": ["hcb_format_check"] },
     { "name": "windows-format", "configurePreset": "windows-format", "targets": ["hcb_format_check"] },
     { "name": "macos-bootstrap", "configurePreset": "macos-bootstrap", "configuration": "Debug", "targets": ["hcb_bootstrap_check"] },
+    { "name": "macos-universal-package", "configurePreset": "macos-universal-package", "targets": ["package"] },
     { "name": "linux-bootstrap", "configurePreset": "linux-bootstrap", "targets": ["hcb_bootstrap_check"] },
     { "name": "windows-bootstrap", "configurePreset": "windows-bootstrap", "configuration": "Debug", "targets": ["hcb_bootstrap_check"] }
   ],

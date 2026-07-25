@@ -373,6 +373,11 @@ if(BUILD_TESTING)
       "-DHCB_MANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/invalid-dependency-manifest.json"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/DependencyManifestInvalidHashTest.cmake"
   )
+  add_test(NAME hcb_macos_universal_package_config_tests
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/MacosUniversalPackageConfigTest.cmake"
+  )
 
   qt_add_executable(hcb_sqlite_integration_tests tests/SqliteIntegrationTest.cpp)
   target_link_libraries(hcb_sqlite_integration_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)

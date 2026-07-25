@@ -13,6 +13,7 @@ include(cmake/HcbStaticAnalysis.cmake)
 include(cmake/HcbFormatting.cmake)
 include(cmake/HcbBootstrap.cmake)
 include(cmake/HcbNativeDependencyManifest.cmake)
+include(cmake/HcbMacosUniversalPackage.cmake)
 include(cmake/HcbSqlite.cmake)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -40,3 +41,9 @@ find_package(Qt6 ${HCB_NATIVE_QT_VERSION} EXACT REQUIRED
 qt_standard_project_setup(REQUIRES ${HCB_NATIVE_QT_VERSION})
 
 add_subdirectory(native)
+
+option(HCB_ENABLE_MACOS_UNIVERSAL_PACKAGE "Enable the macOS universal DMG package target" OFF)
+if(HCB_ENABLE_MACOS_UNIVERSAL_PACKAGE)
+  hcb_configure_macos_universal_package(hcb_native)
+  include(CPack)
+endif()
