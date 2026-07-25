@@ -11,6 +11,8 @@ set(HCB_NATIVE_SOURCES
   src/core/AppError.h
   src/core/CalendarLayoutEngine.cpp
   src/core/CalendarLayoutEngine.h
+  src/core/NativeCalendarNavigationBenchmark.cpp
+  src/core/NativeCalendarNavigationBenchmark.h
   src/core/CalendarReadService.cpp
   src/core/CalendarReadService.h
   src/core/CalendarSourceModel.cpp
@@ -321,6 +323,22 @@ target_link_libraries(hcb_task_scroll_benchmark PRIVATE Qt6::Core Qt6::Gui Qt6::
 target_include_directories(hcb_task_scroll_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_task_scroll_benchmark)
 hcb_enable_sanitizers(hcb_task_scroll_benchmark)
+
+qt_add_executable(hcb_calendar_navigation_benchmark
+  benchmarks/NativeCalendarNavigationBenchmarkMain.cpp
+  src/core/AppError.h
+  src/core/FilePath.h
+  src/core/MonthGridModel.cpp
+  src/core/MonthGridModel.h
+  src/core/NativeCalendarNavigationBenchmark.cpp
+  src/core/NativeCalendarNavigationBenchmark.h
+  src/core/CalendarReadService.h
+  src/data/SqliteWriterQueue.h
+)
+target_link_libraries(hcb_calendar_navigation_benchmark PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+target_include_directories(hcb_calendar_navigation_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_calendar_navigation_benchmark)
+hcb_enable_sanitizers(hcb_calendar_navigation_benchmark)
 
 qt_add_executable(hcb_performance_report
   benchmarks/NativePerformanceReportMain.cpp
@@ -1181,6 +1199,25 @@ if(BUILD_TESTING)
     COMMAND hcb_native_task_scroll_benchmark_tests -platform offscreen
   )
 
+  qt_add_executable(hcb_native_calendar_navigation_benchmark_tests
+    tests/NativeCalendarNavigationBenchmarkTest.cpp
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/core/MonthGridModel.cpp
+    src/core/MonthGridModel.h
+    src/core/NativeCalendarNavigationBenchmark.cpp
+    src/core/NativeCalendarNavigationBenchmark.h
+    src/core/CalendarReadService.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_native_calendar_navigation_benchmark_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+  target_include_directories(hcb_native_calendar_navigation_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_calendar_navigation_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_calendar_navigation_benchmark_tests)
+  add_test(NAME hcb_native_calendar_navigation_benchmark_tests
+    COMMAND hcb_native_calendar_navigation_benchmark_tests -platform offscreen
+  )
+
   qt_add_executable(hcb_task_list_model_tests
     tests/TaskListModelTest.cpp
     src/core/AppError.h
@@ -1908,6 +1945,7 @@ set(hcb_static_analysis_dependencies
   hcb_quick_capture_benchmark
   hcb_local_search_benchmark
   hcb_task_scroll_benchmark
+  hcb_calendar_navigation_benchmark
   hcb_performance_report
 )
 if(BUILD_TESTING)
@@ -1957,6 +1995,7 @@ if(BUILD_TESTING)
     hcb_native_quick_capture_benchmark_tests
     hcb_native_local_search_benchmark_tests
     hcb_native_task_scroll_benchmark_tests
+    hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
@@ -2055,6 +2094,7 @@ if(BUILD_TESTING)
     hcb_native_quick_capture_benchmark_tests
     hcb_native_local_search_benchmark_tests
     hcb_native_task_scroll_benchmark_tests
+    hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
