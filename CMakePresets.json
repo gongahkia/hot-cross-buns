@@ -39,6 +39,21 @@
       }
     },
     {
+      "name": "linux-x64-package",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-x64-package",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "HCB_ENABLE_LINUX_X64_PACKAGE": "ON"
+      }
+    },
+    {
       "name": "windows-debug",
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
@@ -193,6 +208,7 @@
   "buildPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug" },
     { "name": "linux-debug", "configurePreset": "linux-debug" },
+    { "name": "linux-x64-package", "configurePreset": "linux-x64-package", "targets": ["package"] },
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" },
     { "name": "macos-sanitize", "configurePreset": "macos-sanitize", "configuration": "Debug" },
     { "name": "linux-sanitize", "configurePreset": "linux-sanitize" },

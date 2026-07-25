@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Hot Cross Buns
+Comment=Keyboard-first planner for tasks, calendars, and notes
+Exec=hot-cross-buns
+Icon=hot-cross-buns
+Categories=Office;Calendar;Utility;
+Terminal=false
+StartupWMClass=hot-cross-buns
+Version=@PROJECT_VERSION@
