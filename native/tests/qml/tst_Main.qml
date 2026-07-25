@@ -177,6 +177,29 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_taskListPresentsAndSelectsTasks() {
+        const component = Qt.createComponent("../../qml/TaskListView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskModel.append({ id: "inbox-1", title: "Plan release", completed: false })
+        taskModel.append({ id: "inbox-2", title: "Review sync", completed: true })
+        const taskList = component.createObject(null, {
+            taskModel: taskModel,
+            width: 480,
+            height: 320,
+            visible: true
+        })
+        verify(taskList !== null)
+        tryCompare(taskList.taskRows, "count", 2)
+        let selectedId = ""
+        taskList.taskSelected.connect(function(taskId) { selectedId = taskId })
+        taskList.selectTask("inbox-1")
+        compare(selectedId, "inbox-1")
+        taskList.destroy()
+        taskModel.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

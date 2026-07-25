@@ -19,6 +19,7 @@
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
+#include "core/TaskModel.h"
 #include "core/UiTransitionTimingTracker.h"
 
 namespace {
@@ -79,10 +80,12 @@ int runApplication(int argc, char* argv[]) {
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
   hcb::CommandRegistryModel navigationCommands;
+  hcb::TaskModel taskModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
       {{QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+       {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(

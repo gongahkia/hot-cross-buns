@@ -13,6 +13,7 @@ ApplicationWindow {
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
     required property var navigationCommands
+    property var taskModel: null
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
@@ -262,8 +263,15 @@ ApplicationWindow {
 
         Pane {
             SplitView.fillWidth: true
+            TaskListView {
+                anchors.fill: parent
+                visible: window.currentPage === "Tasks"
+                taskModel: window.taskModel
+            }
+
             ColumnLayout {
                 anchors.fill: parent
+                visible: window.currentPage !== "Tasks"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage
