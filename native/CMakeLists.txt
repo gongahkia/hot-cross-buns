@@ -90,6 +90,8 @@ set(HCB_NATIVE_SOURCES
   src/core/SyncScheduler.h
   src/core/TaskListReadService.cpp
   src/core/TaskListReadService.h
+  src/core/TaskListModel.cpp
+  src/core/TaskListModel.h
   src/core/TaskMutationService.cpp
   src/core/TaskMutationService.h
   src/core/UndoRecoveryPolicy.cpp
@@ -937,6 +939,21 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_native_planner_benchmark_tests)
   add_test(NAME hcb_native_planner_benchmark_tests COMMAND hcb_native_planner_benchmark_tests)
 
+  qt_add_executable(hcb_task_list_model_tests
+    tests/TaskListModelTest.cpp
+    src/core/AppError.h
+    src/core/FilePath.h
+    src/core/TaskListModel.cpp
+    src/core/TaskListModel.h
+    src/core/TaskListReadService.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_task_list_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_task_list_model_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_task_list_model_tests)
+  hcb_enable_sanitizers(hcb_task_list_model_tests)
+  add_test(NAME hcb_task_list_model_tests COMMAND hcb_task_list_model_tests)
+
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1607,6 +1624,7 @@ if(BUILD_TESTING)
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
     hcb_native_planner_benchmark_tests
+    hcb_task_list_model_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
@@ -1691,6 +1709,7 @@ if(BUILD_TESTING)
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
     hcb_native_planner_benchmark_tests
+    hcb_task_list_model_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
