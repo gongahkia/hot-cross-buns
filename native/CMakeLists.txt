@@ -13,6 +13,8 @@ set(HCB_NATIVE_SOURCES
   src/core/CalendarLayoutEngine.h
   src/core/NativeCalendarNavigationBenchmark.cpp
   src/core/NativeCalendarNavigationBenchmark.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
   src/core/CalendarReadService.cpp
   src/core/CalendarReadService.h
   src/core/CalendarSourceModel.cpp
@@ -345,6 +347,8 @@ qt_add_executable(hcb_calendar_navigation_benchmark
   src/core/MonthGridModel.h
   src/core/NativeCalendarNavigationBenchmark.cpp
   src/core/NativeCalendarNavigationBenchmark.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
   src/core/CalendarReadService.h
   src/data/SqliteWriterQueue.h
 )
@@ -1250,6 +1254,8 @@ if(BUILD_TESTING)
     src/core/MonthGridModel.h
     src/core/NativeCalendarNavigationBenchmark.cpp
     src/core/NativeCalendarNavigationBenchmark.h
+    src/core/NativePerformanceFixture.cpp
+    src/core/NativePerformanceFixture.h
     src/core/CalendarReadService.h
     src/data/SqliteWriterQueue.h
   )

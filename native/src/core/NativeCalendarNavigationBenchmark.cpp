@@ -1,8 +1,8 @@
 #include "core/NativeCalendarNavigationBenchmark.h"
 
 #include "core/MonthGridModel.h"
+#include "core/NativePerformanceFixture.h"
 
-#include <QDateTime>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QJsonArray>
@@ -22,7 +22,6 @@
 namespace hcb {
 namespace {
 
-constexpr std::size_t kEventCount = 1'000;
 constexpr std::size_t kMaximumFrameCount = 60;
 constexpr int kViewportWidth = 700;
 constexpr int kViewportHeight = 480;
@@ -64,23 +63,18 @@ private:
   bool received_{false};
 };
 
-[[nodiscard]] QList<CalendarEventSummary> createEvents() {
+[[nodiscard]] QList<CalendarEventSummary> createEvents(const NativePerformanceFixture& fixture) {
   QList<CalendarEventSummary> events;
-  events.reserve(kEventCount);
-  for (std::size_t index = 0; index < kEventCount; ++index) {
-    const qulonglong eventNumber = static_cast<qulonglong>(index) + 1U;
-    const QDate date = initialMonth().addDays(static_cast<int>((index * 37U) % 1'826U));
-    const QDateTime start(date, QTime(static_cast<int>(index % 12U) + 8, 0), QTimeZone::utc());
-    const bool allDay = index % 13U == 0U;
-    events.append(
-        {.id = QStringLiteral("navigation-event-%1").arg(eventNumber, 4, 10, QLatin1Char('0')),
-         .calendarId = QStringLiteral("navigation-calendar-%1").arg(index % 3U),
-         .status = QStringLiteral("confirmed"),
-         .title = QStringLiteral("Navigation event %1").arg(eventNumber, 4, 10, QLatin1Char('0')),
-         .startAt = start.toString(Qt::ISODateWithMs),
-         .endAt = start.addSecs(allDay ? 86'400 : 3'600).toString(Qt::ISODateWithMs),
-         .allDay = allDay,
-         .updatedAt = QStringLiteral("2026-01-01T00:00:00.000Z")});
+  events.reserve(static_cast<qsizetype>(fixture.eventInstances.size()));
+  for (const NativePerformanceEventFixture& event : fixture.eventInstances) {
+    events.append({.id = event.id,
+                   .calendarId = event.calendarId,
+                   .status = QStringLiteral("confirmed"),
+                   .title = event.title,
+                   .startAt = event.startsAt,
+                   .endAt = event.endsAt,
+                   .allDay = event.isAllDay,
+                   .updatedAt = event.updatedAt});
   }
   return events;
 }
@@ -93,7 +87,11 @@ NativeCalendarNavigationBenchmark::run(std::size_t frameCount) {
     return std::nullopt;
   }
   const QTimeZone timeZone = QTimeZone::utc();
-  const QList<CalendarEventSummary> events = createEvents();
+  const QList<CalendarEventSummary> events =
+      createEvents(NativePerformanceFixtureGenerator::event15k());
+  if (events.empty()) {
+    return std::nullopt;
+  }
   MonthGridModel model;
   model.setMonth(initialMonth(), events, timeZone);
   QQuickView view;
