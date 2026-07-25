@@ -23,6 +23,8 @@ set(HCB_NATIVE_SOURCES
   src/core/FeatureCapabilityRegistry.h
   src/core/GoogleApiError.cpp
   src/core/GoogleApiError.h
+  src/core/GoogleHttpClient.cpp
+  src/core/GoogleHttpClient.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
   src/core/NoteService.cpp
@@ -773,6 +775,21 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_google_api_error_tests)
   add_test(NAME hcb_google_api_error_tests COMMAND hcb_google_api_error_tests)
 
+  qt_add_executable(hcb_google_http_client_tests
+    tests/GoogleHttpClientTest.cpp
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+  )
+  target_link_libraries(hcb_google_http_client_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_google_http_client_tests PRIVATE src)
+  hcb_enable_warnings(hcb_google_http_client_tests)
+  hcb_enable_sanitizers(hcb_google_http_client_tests)
+  add_test(NAME hcb_google_http_client_tests COMMAND hcb_google_http_client_tests)
+
   qt_add_executable(hcb_sync_backoff_policy_tests
     tests/SyncBackoffPolicyTest.cpp
     src/core/GoogleApiError.cpp
@@ -1173,6 +1190,7 @@ if(BUILD_TESTING)
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
+    hcb_google_http_client_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
     hcb_oauth_client_configuration_store_tests
@@ -1239,6 +1257,7 @@ if(BUILD_TESTING)
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
+    hcb_google_http_client_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
     hcb_oauth_client_configuration_store_tests
