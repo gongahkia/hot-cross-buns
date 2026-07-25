@@ -31,12 +31,18 @@ set(HCB_NATIVE_SOURCES
   src/core/OAuthBrowserAuthorizationLauncher.h
   src/core/OAuthClientConfigurationStore.cpp
   src/core/OAuthClientConfigurationStore.h
+  src/core/OAuthCredentialStore.h
+  src/core/OAuthDisconnectService.cpp
+  src/core/OAuthDisconnectService.h
   src/core/OAuthLoopbackCallbackListener.cpp
   src/core/OAuthLoopbackCallbackListener.h
   src/core/OAuthTokenExchangeClient.cpp
   src/core/OAuthTokenExchangeClient.h
   src/core/OAuthTokenRefreshClient.cpp
   src/core/OAuthTokenRefreshClient.h
+  src/core/OAuthTokenRevocationClient.cpp
+  src/core/OAuthTokenRevocationClient.h
+  src/core/OAuthTokenRevoker.h
   src/core/OptimisticMutationCoordinator.cpp
   src/core/OptimisticMutationCoordinator.h
   src/core/NativeCapabilityReport.cpp
@@ -874,6 +880,49 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_oauth_token_refresh_client_tests)
   add_test(NAME hcb_oauth_token_refresh_client_tests COMMAND hcb_oauth_token_refresh_client_tests)
 
+  qt_add_executable(hcb_oauth_disconnect_service_tests
+    tests/OAuthDisconnectServiceTest.cpp
+    src/core/AccountStatusService.cpp
+    src/core/AccountStatusService.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/OAuthCredentialStore.h
+    src/core/OAuthDisconnectService.cpp
+    src/core/OAuthDisconnectService.h
+    src/core/OAuthTokenRevoker.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_oauth_disconnect_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_oauth_disconnect_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_oauth_disconnect_service_tests)
+  hcb_enable_sanitizers(hcb_oauth_disconnect_service_tests)
+  add_test(NAME hcb_oauth_disconnect_service_tests COMMAND hcb_oauth_disconnect_service_tests)
+
+  qt_add_executable(hcb_oauth_token_revocation_client_tests
+    tests/OAuthTokenRevocationClientTest.cpp
+    src/core/AppError.h
+    src/core/OAuthTokenRevocationClient.cpp
+    src/core/OAuthTokenRevocationClient.h
+    src/core/OAuthTokenRevoker.h
+  )
+  target_link_libraries(hcb_oauth_token_revocation_client_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_oauth_token_revocation_client_tests PRIVATE src)
+  hcb_enable_warnings(hcb_oauth_token_revocation_client_tests)
+  hcb_enable_sanitizers(hcb_oauth_token_revocation_client_tests)
+  add_test(NAME hcb_oauth_token_revocation_client_tests COMMAND hcb_oauth_token_revocation_client_tests)
+
   qt_add_executable(hcb_secret_redactor_tests
     tests/SecretRedactorTest.cpp
     src/core/SecretRedactor.cpp
@@ -1131,6 +1180,8 @@ if(BUILD_TESTING)
     hcb_oauth_browser_authorization_launcher_tests
     hcb_oauth_token_exchange_client_tests
     hcb_oauth_token_refresh_client_tests
+    hcb_oauth_disconnect_service_tests
+    hcb_oauth_token_revocation_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
@@ -1195,6 +1246,8 @@ if(BUILD_TESTING)
     hcb_oauth_browser_authorization_launcher_tests
     hcb_oauth_token_exchange_client_tests
     hcb_oauth_token_refresh_client_tests
+    hcb_oauth_disconnect_service_tests
+    hcb_oauth_token_revocation_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
