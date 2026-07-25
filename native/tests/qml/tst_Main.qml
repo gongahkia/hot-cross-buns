@@ -233,6 +233,9 @@ TestCase {
             calendarId: "calendar-1",
             title: "Release review",
             startAt: "2026-07-26T10:00:00.000Z",
+            endAt: "2026-07-26T11:00:00.000Z",
+            description: "Verify the native package",
+            location: "Studio",
             allDay: false
         })
         agendaModel.append({
@@ -240,6 +243,9 @@ TestCase {
             calendarId: "calendar-1",
             title: "Team offsite",
             startAt: "2026-07-27",
+            endAt: "2026-07-28",
+            description: "",
+            location: "",
             allDay: true
         })
         const agenda = component.createObject(null, {
@@ -257,6 +263,16 @@ TestCase {
         agenda.eventSelected.connect(function(eventId) { selectedId = eventId })
         agenda.selectEvent("event-1")
         compare(selectedId, "event-1")
+        let edit = null
+        agenda.eventEditRequested.connect(function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+            edit = { eventId, calendarId, title, startAt, endAt, allDay, description, location }
+        })
+        agenda.requestEdit("event-1", "calendar-1", "Release review",
+                           "2026-07-26T10:00:00.000Z", "2026-07-26T11:00:00.000Z", false,
+                           "Verify the native package", "Studio")
+        compare(edit.eventId, "event-1")
+        compare(edit.calendarId, "calendar-1")
+        compare(edit.title, "Release review")
         agenda.destroy()
         agendaModel.destroy()
     }
@@ -351,6 +367,36 @@ TestCase {
         dialog.primaryButton.click()
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(request.description, "Verify the native package")
+        compare(request.location, "Studio")
+        dialog.destroy()
+        sourceModel.destroy()
+    }
+
+    function test_eventEditDialogEmitsUpdateRequest() {
+        const component = Qt.createComponent("../../qml/EventEditDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        sourceModel.append({ id: "calendar-primary", title: "Primary" })
+        const dialog = component.createObject(null, { calendarSourceModel: sourceModel })
+        verify(dialog !== null)
+        dialog.openForEdit("event-1", "calendar-primary", "Release review",
+                           "2026-07-26T10:00:00.000Z", "2026-07-26T11:00:00.000Z", false,
+                           "Verify the native package", "Studio")
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.eventUpdateRequested.connect(function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+            request = { eventId, calendarId, title, startAt, endAt, allDay, description, location }
+        })
+        dialog.eventTitle = "Revised release review"
+        dialog.primaryButton.click()
+        compare(request.eventId, "event-1")
+        compare(request.calendarId, "calendar-primary")
+        compare(request.title, "Revised release review")
         compare(request.startAt, "2026-07-26T10:00:00.000Z")
         compare(request.endAt, "2026-07-26T11:00:00.000Z")
         compare(request.allDay, false)
@@ -611,6 +657,31 @@ TestCase {
                                                           "2026-07-26T10:00:00.000Z",
                                                           "2026-07-26T11:00:00.000Z", false,
                                                           "Verify the native package", "Studio")
+        compare(request.calendarId, "calendar-primary")
+        compare(request.title, "Release review")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(request.description, "Verify the native package")
+        compare(request.location, "Studio")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsEventUpdateRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.eventUpdateRequested.connect(function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+            request = { eventId, calendarId, title, startAt, endAt, allDay, description, location }
+        })
+        mainWindow.eventEditDialog.eventUpdateRequested("event-1", "calendar-primary", "Release review",
+                                                        "2026-07-26T10:00:00.000Z",
+                                                        "2026-07-26T11:00:00.000Z", false,
+                                                        "Verify the native package", "Studio")
+        compare(request.eventId, "event-1")
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")
         compare(request.startAt, "2026-07-26T10:00:00.000Z")

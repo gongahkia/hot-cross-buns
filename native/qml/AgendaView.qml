@@ -8,6 +8,8 @@ Pane {
     property var calendarVisibility: null
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
+    signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
+                              string endAt, bool allDay, string description, string location)
 
     function scheduleLabel(startAt, allDay) {
         return allDay ? "All day" : startAt
@@ -15,6 +17,10 @@ Pane {
 
     function selectEvent(eventId) {
         eventSelected(eventId)
+    }
+
+    function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+        eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
     }
 
     function isCalendarVisible(calendarId) {
@@ -45,7 +51,10 @@ Pane {
                 required property string calendarId
                 required property string title
                 required property string startAt
+                required property string endAt
                 required property bool allDay
+                required property string description
+                required property string location
                 width: ListView.view.width
                 visible: root.isCalendarVisible(calendarId)
                 height: visible ? implicitHeight : 0
@@ -53,7 +62,10 @@ Pane {
                 text: title + "\n" + root.scheduleLabel(startAt, allDay)
                 accessibleName: title
                 accessibleDescription: root.scheduleLabel(startAt, allDay) + ". Calendar " + calendarId
-                onClicked: root.selectEvent(id)
+                onClicked: {
+                    root.selectEvent(id)
+                    root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location)
+                }
             }
         }
 

@@ -28,6 +28,7 @@ ApplicationWindow {
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias calendarVisibility: calendarVisibility
     property alias eventCreateDialog: eventCreateDialog
+    property alias eventEditDialog: eventEditDialog
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
@@ -36,6 +37,8 @@ ApplicationWindow {
     signal noteSaveRequested(string noteId, string title, string body)
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
                                 bool allDay, string description, string location)
+    signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
+                                string endAt, bool allDay, string description, string location)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -101,6 +104,10 @@ ApplicationWindow {
 
     function openEventCreate() {
         eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId())
+    }
+
+    function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+        eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
     }
 
     color: Theme.background
@@ -274,6 +281,16 @@ ApplicationWindow {
         }
     }
 
+    EventEditDialog {
+        id: eventEditDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        calendarSourceModel: window.calendarSourceModel
+        onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+            window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -373,6 +390,9 @@ ApplicationWindow {
                     AgendaView {
                         agendaModel: window.agendaModel
                         calendarVisibility: calendarVisibility
+                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+                        }
                     }
 
                     DayTimelineView {
