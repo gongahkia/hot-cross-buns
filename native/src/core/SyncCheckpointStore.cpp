@@ -218,6 +218,47 @@ ON CONFLICT(account_id, resource_type, resource_id, checkpoint_type) DO UPDATE S
   return checkpoint;
 }
 
+[[nodiscard]] SyncCheckpointEraseResult eraseStoredCheckpoint(SqliteConnection& connection,
+                                                              const SyncCheckpointKey& key) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite sync-checkpoint connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+DELETE FROM local_sync_checkpoints
+WHERE account_id = ?1 AND resource_type = ?2 AND resource_id = ?3 AND checkpoint_type = 'sync_token'
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite sync-checkpoint deletion preparation failed (%1)"),
+                         prepareResult);
+  }
+  const QString resourceType = resourceTypeText(key.resourceType);
+  for (const auto& [index, value] :
+       {std::pair{1, &key.accountId}, std::pair{2, &resourceType}, std::pair{3, &key.resourceId}}) {
+    if (const std::optional<AppError> error = bindText(statement, index, *value);
+        error.has_value()) {
+      sqlite3_finalize(statement);
+      return *error;
+    }
+  }
+  const int stepResult = sqlite3_step(statement);
+  const bool erased = sqlite3_changes(handle) == 1;
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite sync-checkpoint deletion failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite sync-checkpoint deletion finalization failed (%1)"),
+                         finalizeResult);
+  }
+  return erased;
+}
+
 } // namespace
 
 SyncCheckpointStore::SyncCheckpointStore(FilePath databasePath, const Clock& clock)
@@ -259,6 +300,16 @@ std::future<SyncCheckpointSaveResult> SyncCheckpointStore::save(SyncCheckpointKe
       [checkpoint = std::move(checkpoint)](SqliteConnection& connection) {
         return saveStoredCheckpoint(connection, checkpoint);
       });
+}
+
+std::future<SyncCheckpointEraseResult> SyncCheckpointStore::erase(SyncCheckpointKey key) {
+  if (!isValidKey(key)) {
+    return readyFuture(SyncCheckpointEraseResult(
+        validationError(QStringLiteral("Sync checkpoint key is invalid"))));
+  }
+  return writerQueue_.enqueueResult([key = std::move(key)](SqliteConnection& connection) {
+    return eraseStoredCheckpoint(connection, key);
+  });
 }
 
 } // namespace hcb

@@ -34,6 +34,7 @@ struct SyncCheckpoint final {
 
 using SyncCheckpointLookupResult = std::variant<std::optional<SyncCheckpoint>, AppError>;
 using SyncCheckpointSaveResult = std::variant<SyncCheckpoint, AppError>;
+using SyncCheckpointEraseResult = std::variant<bool, AppError>;
 
 class SyncCheckpointStore final {
 public:
@@ -45,6 +46,7 @@ public:
   [[nodiscard]] std::future<SyncCheckpointLookupResult> find(SyncCheckpointKey key);
   [[nodiscard]] std::future<SyncCheckpointSaveResult> save(SyncCheckpointKey key,
                                                            const QString& syncToken);
+  [[nodiscard]] std::future<SyncCheckpointEraseResult> erase(SyncCheckpointKey key);
 
 private:
   const Clock& clock_;
