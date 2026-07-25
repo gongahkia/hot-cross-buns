@@ -126,7 +126,7 @@ void GoogleTaskMutationPushServiceTest::pushesCreateUpdateAndDeleteMutations() {
        {QStringLiteral("parentTaskId"), QStringLiteral("parent-1")},
        {QStringLiteral("previousTaskId"), QStringLiteral("previous-1")},
        {QStringLiteral("task"),
-        QJsonObject{{QStringLiteral("title"), QStringLiteral(" Write report ")},
+        QJsonObject{{QStringLiteral("title"), QStringLiteral(" Write/report ")},
                     {QStringLiteral("notes"), QStringLiteral("draft")},
                     {QStringLiteral("status"), QStringLiteral("needsAction")},
                     {QStringLiteral("due"), QStringLiteral("2026-08-01T18:30:00+08:00")}}}});
@@ -180,7 +180,7 @@ void GoogleTaskMutationPushServiceTest::pushesCreateUpdateAndDeleteMutations() {
   QCOMPARE(createQuery.queryItemValue(QStringLiteral("parent")), QStringLiteral("parent-1"));
   QCOMPARE(createQuery.queryItemValue(QStringLiteral("previous")), QStringLiteral("previous-1"));
   const QJsonObject createBody = QJsonDocument::fromJson(createRequest->body).object();
-  QCOMPARE(createBody.value(QStringLiteral("title")).toString(), QStringLiteral("Write report"));
+  QCOMPARE(createBody.value(QStringLiteral("title")).toString(), QStringLiteral("Write/report"));
   QCOMPARE(createBody.value(QStringLiteral("due")).toString(),
            QStringLiteral("2026-08-01T00:00:00.000Z"));
   QCOMPARE(updateRequest->request.url().path(),

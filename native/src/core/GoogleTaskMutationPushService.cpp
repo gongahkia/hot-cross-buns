@@ -46,10 +46,15 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
   return AppError(AppErrorCode::Network, message);
 }
 
-[[nodiscard]] bool isValidText(const QString& value, qsizetype maximumLength) {
+[[nodiscard]] bool isValidIdentifier(const QString& value, qsizetype maximumLength) {
   return !value.isEmpty() && value == value.trimmed() && value.size() <= maximumLength &&
          !value.contains(QChar::Null) && !value.contains(u'/') && !value.contains(u'\\') &&
          !value.contains(u'?') && !value.contains(u'#');
+}
+
+[[nodiscard]] bool isValidRequiredText(const QString& value, qsizetype maximumLength) {
+  return !value.isEmpty() && value == value.trimmed() && value.size() <= maximumLength &&
+         !value.contains(QChar::Null);
 }
 
 [[nodiscard]] bool isValidOptionalText(const QString& value, qsizetype maximumLength) {
@@ -67,7 +72,7 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
   if (value.isUndefined() || value.isNull()) {
     return std::optional<QString>{};
   }
-  if (!value.isString() || !isValidText(value.toString(), kMaximumIdentifierLength)) {
+  if (!value.isString() || !isValidIdentifier(value.toString(), kMaximumIdentifierLength)) {
     return std::nullopt;
   }
   return value.toString();
@@ -76,7 +81,7 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
 [[nodiscard]] std::optional<QString> requiredIdentifier(const QJsonObject& object,
                                                         QStringView key) {
   const QJsonValue value = object.value(key);
-  if (!value.isString() || !isValidText(value.toString(), kMaximumIdentifierLength)) {
+  if (!value.isString() || !isValidIdentifier(value.toString(), kMaximumIdentifierLength)) {
     return std::nullopt;
   }
   return value.toString();
@@ -121,7 +126,7 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
       return std::nullopt;
     }
     const QString titleText = title.toString().trimmed();
-    if (!isValidText(titleText, kMaximumTitleLength)) {
+    if (!isValidRequiredText(titleText, kMaximumTitleLength)) {
       return std::nullopt;
     }
     result.insert(QStringLiteral("title"), titleText);
