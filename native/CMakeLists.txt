@@ -163,6 +163,7 @@ qt_add_qml_module(hcb_native
     qml/AgendaView.qml
     qml/CalendarSourceControls.qml
     qml/DayTimelineView.qml
+    qml/EventCreateDialog.qml
     qml/HcbDialog.qml
     qml/Main.qml
     qml/MonthGridView.qml

@@ -12,6 +12,7 @@ Pane {
     property alias sourceRows: sourceRows
 
     function calendarIds() {
+        const revision = sourceRevision
         if (calendarSourceModel === null) {
             return []
         }
@@ -63,6 +64,10 @@ Pane {
 
     function isVisible(calendarId) {
         return visibleCalendarIds.indexOf(calendarId) >= 0
+    }
+
+    function preferredCalendarId() {
+        return visibleCalendarIds.length > 0 ? visibleCalendarIds[0] : calendarIds()[0] || ""
     }
 
     function setCalendarVisible(calendarId, visible) {

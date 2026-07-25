@@ -27,12 +27,15 @@ ApplicationWindow {
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias calendarVisibility: calendarVisibility
+    property alias eventCreateDialog: eventCreateDialog
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
     property alias notesList: notesList
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
+    signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
+                                bool allDay, string description, string location)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -94,6 +97,10 @@ ApplicationWindow {
         noteEditor.noteTitle = title
         noteEditor.noteBody = body
         noteEditor.open()
+    }
+
+    function openEventCreate() {
+        eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId())
     }
 
     color: Theme.background
@@ -257,6 +264,16 @@ ApplicationWindow {
         }
     }
 
+    EventCreateDialog {
+        id: eventCreateDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        calendarSourceModel: window.calendarSourceModel
+        onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location) {
+            window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -313,6 +330,29 @@ ApplicationWindow {
                     id: calendarVisibility
                     Layout.fillWidth: true
                     calendarSourceModel: window.calendarSourceModel
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.spacingMedium
+                    Layout.rightMargin: Theme.spacingMedium
+
+                    Label {
+                        text: "Calendar"
+                        font.pixelSize: Theme.titleFontSize
+                        Accessible.role: Accessible.Heading
+                        Accessible.name: text
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        id: eventCreateButton
+                        text: "New event"
+                        enabled: calendarVisibility.calendarIds().length > 0
+                        Accessible.name: text
+                        onClicked: window.openEventCreate()
+                    }
                 }
 
                 TabBar {

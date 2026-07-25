@@ -321,6 +321,45 @@ TestCase {
         sourceModel.destroy()
     }
 
+    function test_eventCreateDialogEmitsCreateRequest() {
+        const component = Qt.createComponent("../../qml/EventCreateDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        sourceModel.append({ id: "calendar-primary", title: "Primary" })
+        const dialog = component.createObject(null, {
+            calendarSourceModel: sourceModel,
+            width: 480,
+            visible: true
+        })
+        verify(dialog !== null)
+        dialog.openForCreate("calendar-primary")
+        compare(dialog.eventCalendarId, "calendar-primary")
+        dialog.eventTitle = "Release review"
+        dialog.eventStartAt = "2026-07-26T10:00:00.000Z"
+        dialog.eventEndAt = "2026-07-26T10:00:00.000Z"
+        verify(!dialog.primaryEnabled)
+        dialog.eventEndAt = "2026-07-26T11:00:00.000Z"
+        dialog.eventAllDay = false
+        dialog.eventDescription = "Verify the native package"
+        dialog.eventLocation = "Studio"
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.eventCreateRequested.connect(function(calendarId, title, startAt, endAt, allDay, description, location) {
+            request = { calendarId, title, startAt, endAt, allDay, description, location }
+        })
+        dialog.primaryButton.click()
+        compare(request.calendarId, "calendar-primary")
+        compare(request.title, "Release review")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(request.description, "Verify the native package")
+        compare(request.location, "Studio")
+        dialog.destroy()
+        sourceModel.destroy()
+    }
+
     function test_dayTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -555,6 +594,30 @@ TestCase {
         compare(saved.noteId, "note-1")
         compare(saved.title, "Revised release notes")
         compare(saved.body, "Update the package checklist")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsEventCreateRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.eventCreateRequested.connect(function(calendarId, title, startAt, endAt, allDay, description, location) {
+            request = { calendarId, title, startAt, endAt, allDay, description, location }
+        })
+        mainWindow.eventCreateDialog.eventCreateRequested("calendar-primary", "Release review",
+                                                          "2026-07-26T10:00:00.000Z",
+                                                          "2026-07-26T11:00:00.000Z", false,
+                                                          "Verify the native package", "Studio")
+        compare(request.calendarId, "calendar-primary")
+        compare(request.title, "Release review")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(request.description, "Verify the native package")
+        compare(request.location, "Studio")
         mainWindow.destroy()
     }
 
