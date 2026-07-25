@@ -50,10 +50,13 @@ jobs:
             install qt.qt6.6111.clang_64
 
       - name: Configure native universal package tree
-        run: cmake --preset macos-universal-package -DBUILD_TESTING=OFF -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/macos"
+        run: cmake --preset macos-universal-package -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/macos"
 
-      - name: Build native universal package tree
-        run: cmake --build build/macos-universal-package --target hcb_native --parallel 3
+      - name: Build native universal package tree and tests
+        run: cmake --build build/macos-universal-package --parallel 3
+
+      - name: Run native universal package tests
+        run: ctest --test-dir build/macos-universal-package --output-on-failure
 
       - name: Install native universal package tree
         run: cmake --install build/macos-universal-package --prefix "$HCB_INSTALL_ROOT"
@@ -122,10 +125,13 @@ jobs:
             install qt.qt6.6111.linux_gcc_64
 
       - name: Configure native Linux package tree
-        run: cmake --preset linux-x64-package -DBUILD_TESTING=OFF -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/gcc_64"
+        run: cmake --preset linux-x64-package -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/gcc_64"
 
-      - name: Build native Linux package tree
-        run: cmake --build build/linux-x64-package --target hcb_native --parallel 3
+      - name: Build native Linux package tree and tests
+        run: cmake --build build/linux-x64-package --parallel 3
+
+      - name: Run native Linux package tests
+        run: xvfb-run -a ctest --test-dir build/linux-x64-package --output-on-failure
 
       - name: Install native Linux package tree
         run: cmake --install build/linux-x64-package --prefix "$HCB_INSTALL_ROOT"
@@ -176,10 +182,16 @@ jobs:
 
       - name: Configure native Windows package tree
         shell: pwsh
-        run: cmake --preset windows-x64-package -A x64 -DBUILD_TESTING=OFF -DCMAKE_PREFIX_PATH="$env:HCB_QT_ROOT\6.11.1\msvc2022_64"
+        run: cmake --preset windows-x64-package -A x64 -DCMAKE_PREFIX_PATH="$env:HCB_QT_ROOT\6.11.1\msvc2022_64"
 
-      - name: Build native Windows package tree
-        run: cmake --build build/windows-x64-package --config Release --target hcb_native --parallel 3
+      - name: Build native Windows package tree and tests
+        run: cmake --build build/windows-x64-package --config Release --parallel 3
+
+      - name: Run native Windows package tests
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --test-dir build/windows-x64-package -C Release --output-on-failure
 
       - name: Install native Windows package tree
         shell: pwsh
