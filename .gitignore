@@ -1,23 +1,6 @@
-node_modules/
-out/
-dist/
-dist-electron/
-.vite/
-.turbo/
-coverage/
-output/
-/release/
-test-results/
-playwright-report/
-
-artifacts/perf/*
-!artifacts/perf/.gitkeep
-artifacts/release/*
-artifacts/reference-screenshots
-artifacts/screenshots
+build/
 
 .DS_Store
 *.log
 AGENTS.md
 CLAUDE.md
-.playwright-cli

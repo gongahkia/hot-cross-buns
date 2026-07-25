@@ -1,0 +1,16 @@
+name: Native release acceptance
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: native-release-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-release-acceptance:
+    name: Build, test, install, and launch
+    uses: ./.github/workflows/native-package-install-smoke.yml

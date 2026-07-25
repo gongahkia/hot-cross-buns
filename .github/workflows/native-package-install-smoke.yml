@@ -1,0 +1,211 @@
+name: Native package install smoke
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: native-package-install-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  native-macos-package-install-smoke:
+    name: macOS universal install tree
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      HCB_QT_ROOT: ${{ runner.temp }}/Qt
+      HCB_INSTALL_ROOT: ${{ runner.temp }}/hcb-package-install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore Qt SDK cache
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          key: qt-6.11.1-macos-universal-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          path: ${{ runner.temp }}/Qt
+
+      - name: Install Qt 6.11.1
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          installer_dmg="$RUNNER_TEMP/qt-online-installer.dmg"
+          installer_mount="$RUNNER_TEMP/qt-online-installer"
+          curl --fail --location --retry 3 --output "$installer_dmg" \
+            https://download.qt.io/official_releases/online_installers/qt-online-installer-macOS-universal.dmg
+          mkdir "$installer_mount"
+          hdiutil attach "$installer_dmg" -nobrowse -readonly -mountpoint "$installer_mount"
+          trap 'hdiutil detach "$installer_mount" -quiet || true' EXIT
+          installer="$(find "$installer_mount" -type f -path '*/Contents/MacOS/*' -perm -111 -print -quit)"
+          test -n "$installer"
+          "$installer" \
+            --root "$HCB_QT_ROOT" \
+            --accept-licenses \
+            --default-answer \
+            --confirm-command \
+            install qt.qt6.6111.clang_64
+
+      - name: Configure native universal package tree
+        run: cmake --preset macos-universal-package -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/macos"
+
+      - name: Build native universal package tree and tests
+        run: cmake --build build/macos-universal-package --parallel 3
+
+      - name: Run native universal package tests
+        run: ctest --test-dir build/macos-universal-package --output-on-failure
+
+      - name: Install native universal package tree
+        run: cmake --install build/macos-universal-package --prefix "$HCB_INSTALL_ROOT"
+
+      - name: Smoke installed macOS app
+        run: native/packaging/smoke/macos-install-smoke.sh "$HCB_INSTALL_ROOT"
+
+      - name: Upload macOS package diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-macos-package-install-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/macos-universal-package/CMakeFiles/**
+
+  native-linux-package-install-smoke:
+    name: Linux x64 install tree
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      HCB_QT_ROOT: ${{ runner.temp }}/Qt
+      HCB_INSTALL_ROOT: ${{ runner.temp }}/hcb-package-install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore Qt SDK cache
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          key: qt-6.11.1-linux-gcc-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          path: ${{ runner.temp }}/Qt
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 \
+            libgl1-mesa-dev \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxkbcommon-x11-0 \
+            ninja-build \
+            python3-pip \
+            xvfb
+          python3 -m pip install --user cmake==4.2.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Qt 6.11.1
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/qt-online-installer.run" \
+            https://download.qt.io/official_releases/online_installers/qt-online-installer-linux-x64-online.run
+          chmod +x "$RUNNER_TEMP/qt-online-installer.run"
+          "$RUNNER_TEMP/qt-online-installer.run" \
+            --root "$HCB_QT_ROOT" \
+            --accept-licenses \
+            --default-answer \
+            --confirm-command \
+            install qt.qt6.6111.linux_gcc_64
+
+      - name: Configure native Linux package tree
+        run: cmake --preset linux-x64-package -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/gcc_64"
+
+      - name: Build native Linux package tree and tests
+        run: cmake --build build/linux-x64-package --parallel 3
+
+      - name: Run native Linux package tests
+        run: xvfb-run -a ctest --test-dir build/linux-x64-package --output-on-failure
+
+      - name: Install native Linux package tree
+        run: cmake --install build/linux-x64-package --prefix "$HCB_INSTALL_ROOT"
+
+      - name: Smoke installed Linux app
+        run: xvfb-run -a native/packaging/smoke/linux-install-smoke.sh "$HCB_INSTALL_ROOT"
+
+      - name: Upload Linux package diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-package-install-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/linux-x64-package/CMakeFiles/**
+
+  native-windows-package-install-smoke:
+    name: Windows x64 install tree
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      HCB_QT_ROOT: ${{ runner.temp }}\Qt
+      HCB_INSTALL_ROOT: ${{ runner.temp }}\hcb-package-install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore Qt SDK cache
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          key: qt-6.11.1-windows-msvc2022-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          path: ${{ runner.temp }}\Qt
+
+      - name: Install Qt 6.11.1
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\qt-online-installer.exe"
+          Invoke-WebRequest -Uri https://download.qt.io/official_releases/online_installers/qt-online-installer-windows-x64-online.exe -OutFile $installer
+          & $installer `
+            --root $env:HCB_QT_ROOT `
+            --accept-licenses `
+            --default-answer `
+            --confirm-command `
+            install qt.qt6.6111.win64_msvc2022_64
+          if ($LASTEXITCODE -ne 0) { throw "Qt installer failed with exit code $LASTEXITCODE" }
+
+      - name: Configure native Windows package tree
+        shell: pwsh
+        run: cmake --preset windows-x64-package -A x64 -DCMAKE_PREFIX_PATH="$env:HCB_QT_ROOT\6.11.1\msvc2022_64"
+
+      - name: Build native Windows package tree and tests
+        run: cmake --build build/windows-x64-package --config Release --parallel 3
+
+      - name: Run native Windows package tests
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --test-dir build/windows-x64-package -C Release --output-on-failure
+
+      - name: Install native Windows package tree
+        shell: pwsh
+        run: cmake --install build/windows-x64-package --config Release --prefix "$env:HCB_INSTALL_ROOT"
+
+      - name: Smoke installed Windows app
+        shell: pwsh
+        run: native/packaging/smoke/windows-install-smoke.ps1 -InstallRoot "$env:HCB_INSTALL_ROOT"
+
+      - name: Upload Windows package diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-package-install-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/windows-x64-package/CMakeFiles/**

@@ -21,10 +21,9 @@
 
 # Tests
 
-- [ ] `pnpm typecheck`
-- [ ] `pnpm test`
-- [ ] `pnpm test:smoke`
-- [ ] `pnpm test:perf`
+- [ ] `cmake --build --preset macos-debug --parallel 3`
+- [ ] `ctest --preset macos-debug --output-on-failure`
+- [ ] `cmake --build --preset macos-format --parallel 3`
 - [ ] not run; explain:
 
 # Release / Docs
