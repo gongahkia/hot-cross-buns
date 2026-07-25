@@ -22,7 +22,7 @@
 namespace hcb {
 namespace {
 
-constexpr qsizetype kMaximumResponseBytes = 8 * 1024 * 1024;
+constexpr qsizetype kMaximumResponseBytes = static_cast<qsizetype>(8) * 1024 * 1024;
 constexpr qsizetype kMaximumEventCount = 100'000;
 constexpr qsizetype kMaximumEventIdLength = 256;
 constexpr qsizetype kMaximumTitleLength = 500;
@@ -231,7 +231,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   }
   QList<QString> result;
   result.reserve(rules.size());
-  for (const QJsonValue& rule : rules) {
+  for (const auto& rule : rules) {
     if (!rule.isString() || rule.toString().isEmpty() ||
         rule.toString().size() > kMaximumRecurrenceLength ||
         rule.toString().contains(QChar::Null)) {
@@ -309,7 +309,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   QSet<QString> seenIds;
   QList<GoogleCalendarEventMirror> events;
   events.reserve(items.size());
-  for (const QJsonValue& itemValue : items) {
+  for (const auto& itemValue : items) {
     if (!itemValue.isObject()) {
       return invalidPayloadError();
     }

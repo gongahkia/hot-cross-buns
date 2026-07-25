@@ -16,7 +16,7 @@
 namespace hcb {
 namespace {
 
-constexpr qsizetype kMaximumResponseBytes = 4 * 1024 * 1024;
+constexpr qsizetype kMaximumResponseBytes = static_cast<qsizetype>(4) * 1024 * 1024;
 constexpr qsizetype kMaximumCalendarCount = 20'000;
 constexpr qsizetype kMaximumCalendarIdLength = 256;
 constexpr qsizetype kMaximumCalendarTitleLength = 500;
@@ -182,7 +182,7 @@ calendarAccessRole(const QJsonObject& object) {
   QSet<QString> seenIds;
   QList<GoogleCalendarMirror> calendars;
   calendars.reserve(items.size());
-  for (const QJsonValue& itemValue : items) {
+  for (const auto& itemValue : items) {
     if (!itemValue.isObject()) {
       return invalidPayloadError();
     }
