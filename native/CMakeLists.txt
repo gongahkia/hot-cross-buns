@@ -27,6 +27,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeProcessMemory.h
   src/core/NoteService.cpp
   src/core/NoteService.h
+  src/core/OptimisticMutationCoordinator.cpp
+  src/core/OptimisticMutationCoordinator.h
   src/core/NativeCapabilityReport.cpp
   src/core/NativeCapabilityReport.h
   src/core/PkceAuthorization.cpp
@@ -576,6 +578,32 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_note_service_tests)
   add_test(NAME hcb_note_service_tests COMMAND hcb_note_service_tests)
 
+  qt_add_executable(hcb_optimistic_mutation_coordinator_tests
+    tests/OptimisticMutationCoordinatorTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/OptimisticMutationCoordinator.cpp
+    src/core/OptimisticMutationCoordinator.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_optimistic_mutation_coordinator_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_optimistic_mutation_coordinator_tests PRIVATE src)
+  hcb_enable_warnings(hcb_optimistic_mutation_coordinator_tests)
+  hcb_enable_sanitizers(hcb_optimistic_mutation_coordinator_tests)
+  add_test(NAME hcb_optimistic_mutation_coordinator_tests COMMAND hcb_optimistic_mutation_coordinator_tests)
+
   qt_add_executable(hcb_task_list_read_service_tests
     tests/TaskListReadServiceTest.cpp
     src/core/AppError.h
@@ -937,6 +965,7 @@ if(BUILD_TESTING)
     hcb_calendar_read_service_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
+    hcb_optimistic_mutation_coordinator_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
@@ -993,6 +1022,7 @@ if(BUILD_TESTING)
     hcb_calendar_read_service_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
+    hcb_optimistic_mutation_coordinator_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
