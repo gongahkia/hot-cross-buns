@@ -102,6 +102,8 @@ set(HCB_NATIVE_SOURCES
   src/core/TaskModel.h
   src/core/TaskMutationService.cpp
   src/core/TaskMutationService.h
+  src/core/TimelineModel.cpp
+  src/core/TimelineModel.h
   src/core/UndoRecoveryPolicy.cpp
   src/core/UndoRecoveryPolicy.h
   src/core/StartupTimingTracker.cpp
@@ -647,6 +649,23 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_month_grid_model_tests)
   hcb_enable_sanitizers(hcb_month_grid_model_tests)
   add_test(NAME hcb_month_grid_model_tests COMMAND hcb_month_grid_model_tests)
+
+  qt_add_executable(hcb_timeline_model_tests
+    tests/TimelineModelTest.cpp
+    src/core/AppError.h
+    src/core/CalendarLayoutEngine.cpp
+    src/core/CalendarLayoutEngine.h
+    src/core/CalendarReadService.h
+    src/core/FilePath.h
+    src/core/TimelineModel.cpp
+    src/core/TimelineModel.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_timeline_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_timeline_model_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_timeline_model_tests)
+  hcb_enable_sanitizers(hcb_timeline_model_tests)
+  add_test(NAME hcb_timeline_model_tests COMMAND hcb_timeline_model_tests)
 
   qt_add_executable(hcb_calendar_mutation_service_tests
     tests/CalendarMutationServiceTest.cpp
@@ -1681,6 +1700,7 @@ if(BUILD_TESTING)
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
     hcb_month_grid_model_tests
+    hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
@@ -1770,6 +1790,7 @@ if(BUILD_TESTING)
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
     hcb_month_grid_model_tests
+    hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
