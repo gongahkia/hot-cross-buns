@@ -16,6 +16,7 @@
 #include "core/AgendaModel.h"
 #include "core/Clock.h"
 #include "core/CommandRegistryModel.h"
+#include "core/MonthGridModel.h"
 #include "core/NativeProcessMemory.h"
 #include "core/NotesModel.h"
 #include "core/SettingsRegistry.h"
@@ -84,6 +85,7 @@ int runApplication(int argc, char* argv[]) {
   startupTimings.mark(u"core.services.initialized");
   hcb::AgendaModel agendaModel;
   hcb::CommandRegistryModel navigationCommands;
+  hcb::MonthGridModel monthGridModel;
   hcb::NotesModel notesModel;
   hcb::TaskModel taskModel;
   hcb::TimelineModel timelineModel;
@@ -92,6 +94,7 @@ int runApplication(int argc, char* argv[]) {
   engine.setInitialProperties(
       {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
        {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+       {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},

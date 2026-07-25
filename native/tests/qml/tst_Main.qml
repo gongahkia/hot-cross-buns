@@ -351,6 +351,27 @@ TestCase {
         timelineModel.destroy()
     }
 
+    function test_monthGridFormatsCellsAndSelection() {
+        const component = Qt.createComponent("../../qml/MonthGridView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const monthGrid = component.createObject(null, {
+            width: 700,
+            height: 480,
+            visible: true
+        })
+        verify(monthGrid !== null)
+        compare(monthGrid.eventSummary([]), "")
+        compare(monthGrid.eventSummary([{ title: "Release review" }]), "Release review")
+        compare(monthGrid.eventSummary([{ title: "Release review" }, { title: "Offsite" }]),
+                "Release review +1")
+        let selectedDate = ""
+        monthGrid.dateSelected.connect(function(date) { selectedDate = date })
+        monthGrid.selectDate("2026-07-26")
+        compare(selectedDate, "2026-07-26")
+        monthGrid.destroy()
+    }
+
     function test_taskListVirtualizesRows() {
         const component = Qt.createComponent("../../qml/TaskListView.qml")
         compare(component.status, Component.Ready, component.errorString())

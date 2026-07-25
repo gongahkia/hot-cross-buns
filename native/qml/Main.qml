@@ -14,6 +14,7 @@ ApplicationWindow {
     property string currentPage: "Tasks"
     required property var navigationCommands
     property var agendaModel: null
+    property var monthGridModel: null
     property var notesModel: null
     property var taskModel: null
     property var timelineModel: null
@@ -313,6 +314,7 @@ ApplicationWindow {
                     TabButton { text: "Agenda" }
                     TabButton { text: "Day" }
                     TabButton { text: "Week" }
+                    TabButton { text: "Month" }
                 }
 
                 StackLayout {
@@ -330,6 +332,10 @@ ApplicationWindow {
 
                     WeekTimelineView {
                         timelineModel: window.timelineModel
+                    }
+
+                    MonthGridView {
+                        monthGridModel: window.monthGridModel
                     }
                 }
             }

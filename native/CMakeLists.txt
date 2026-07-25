@@ -164,6 +164,7 @@ qt_add_qml_module(hcb_native
     qml/DayTimelineView.qml
     qml/HcbDialog.qml
     qml/Main.qml
+    qml/MonthGridView.qml
     qml/NavigationSidebar.qml
     qml/NoteEditorDialog.qml
     qml/NotesListView.qml
