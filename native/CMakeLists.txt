@@ -90,6 +90,8 @@ set(HCB_NATIVE_SOURCES
   src/core/StartupTimingTracker.h
   src/core/UiTransitionTimingTracker.cpp
   src/core/UiTransitionTimingTracker.h
+  src/core/UnifiedLocalSearchRanker.cpp
+  src/core/UnifiedLocalSearchRanker.h
   src/data/SqliteConnection.cpp
   src/data/SqliteConnection.h
   src/data/LocalSchema.cpp
@@ -848,6 +850,17 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_sync_scheduler_tests)
   add_test(NAME hcb_sync_scheduler_tests COMMAND hcb_sync_scheduler_tests)
 
+  qt_add_executable(hcb_unified_local_search_ranker_tests
+    tests/UnifiedLocalSearchRankerTest.cpp
+    src/core/UnifiedLocalSearchRanker.cpp
+    src/core/UnifiedLocalSearchRanker.h
+  )
+  target_link_libraries(hcb_unified_local_search_ranker_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_unified_local_search_ranker_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_unified_local_search_ranker_tests)
+  hcb_enable_sanitizers(hcb_unified_local_search_ranker_tests)
+  add_test(NAME hcb_unified_local_search_ranker_tests COMMAND hcb_unified_local_search_ranker_tests)
+
   qt_add_executable(hcb_google_sync_recovery_service_tests
     tests/GoogleSyncRecoveryServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1484,6 +1497,7 @@ if(BUILD_TESTING)
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
+    hcb_unified_local_search_ranker_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
@@ -1562,6 +1576,7 @@ if(BUILD_TESTING)
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
+    hcb_unified_local_search_ranker_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
