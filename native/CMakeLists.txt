@@ -21,6 +21,8 @@ set(HCB_NATIVE_SOURCES
   src/core/Clock.h
   src/core/CommandRegistryModel.cpp
   src/core/CommandRegistryModel.h
+  src/core/CredentialHealthDiagnostics.cpp
+  src/core/CredentialHealthDiagnostics.h
   src/core/DiagnosticsJsonExporter.cpp
   src/core/DiagnosticsJsonExporter.h
   src/core/DiagnosticsSnapshot.cpp
@@ -1497,6 +1499,35 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_oauth_disconnect_service_tests)
   add_test(NAME hcb_oauth_disconnect_service_tests COMMAND hcb_oauth_disconnect_service_tests)
 
+  qt_add_executable(hcb_credential_health_diagnostics_tests
+    tests/CredentialHealthDiagnosticsTest.cpp
+    src/core/AccountStatusService.cpp
+    src/core/AccountStatusService.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/CredentialHealthDiagnostics.cpp
+    src/core/CredentialHealthDiagnostics.h
+    src/core/FilePath.h
+    src/core/OAuthCredentialStore.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_credential_health_diagnostics_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_credential_health_diagnostics_tests PRIVATE src)
+  hcb_enable_warnings(hcb_credential_health_diagnostics_tests)
+  hcb_enable_sanitizers(hcb_credential_health_diagnostics_tests)
+  add_test(NAME hcb_credential_health_diagnostics_tests COMMAND hcb_credential_health_diagnostics_tests)
+
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
     src/core/AppError.h
@@ -1797,6 +1828,7 @@ if(BUILD_TESTING)
     hcb_oauth_token_exchange_client_tests
     hcb_oauth_token_refresh_client_tests
     hcb_oauth_disconnect_service_tests
+    hcb_credential_health_diagnostics_tests
     hcb_oauth_token_revocation_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
@@ -1891,6 +1923,7 @@ if(BUILD_TESTING)
     hcb_oauth_token_exchange_client_tests
     hcb_oauth_token_refresh_client_tests
     hcb_oauth_disconnect_service_tests
+    hcb_credential_health_diagnostics_tests
     hcb_oauth_token_revocation_client_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
