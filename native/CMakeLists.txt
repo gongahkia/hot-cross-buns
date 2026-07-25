@@ -33,6 +33,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleCalendarEventPullClient.h
   src/core/GoogleTaskListPullClient.cpp
   src/core/GoogleTaskListPullClient.h
+  src/core/GoogleTaskMutationPushService.cpp
+  src/core/GoogleTaskMutationPushService.h
   src/core/GoogleTaskPullClient.cpp
   src/core/GoogleTaskPullClient.h
   src/core/NativeProcessMemory.cpp
@@ -934,6 +936,44 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_google_task_pull_client_tests)
   add_test(NAME hcb_google_task_pull_client_tests COMMAND hcb_google_task_pull_client_tests)
 
+  qt_add_executable(hcb_google_task_mutation_push_service_tests
+    tests/GoogleTaskMutationPushServiceTest.cpp
+    tests/support/MockNetworkAccessManager.h
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/GoogleTaskMutationPushService.cpp
+    src/core/GoogleTaskMutationPushService.h
+    src/core/OptimisticMutationCoordinator.cpp
+    src/core/OptimisticMutationCoordinator.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+    src/core/SyncBackoffPolicy.cpp
+    src/core/SyncBackoffPolicy.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_google_task_mutation_push_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_google_task_mutation_push_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_google_task_mutation_push_service_tests)
+  hcb_enable_sanitizers(hcb_google_task_mutation_push_service_tests)
+  add_test(NAME hcb_google_task_mutation_push_service_tests COMMAND hcb_google_task_mutation_push_service_tests)
+
   qt_add_executable(hcb_mocked_oauth_transport_tests
     tests/MockedOAuthTransportTest.cpp
     src/core/AppError.h
@@ -1366,6 +1406,7 @@ if(BUILD_TESTING)
     hcb_google_calendar_event_pull_client_tests
     hcb_google_task_list_pull_client_tests
     hcb_google_task_pull_client_tests
+    hcb_google_task_mutation_push_service_tests
     hcb_mocked_oauth_transport_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
@@ -1440,6 +1481,7 @@ if(BUILD_TESTING)
     hcb_google_calendar_event_pull_client_tests
     hcb_google_task_list_pull_client_tests
     hcb_google_task_pull_client_tests
+    hcb_google_task_mutation_push_service_tests
     hcb_mocked_oauth_transport_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
