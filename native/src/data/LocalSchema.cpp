@@ -295,6 +295,31 @@ ON local_pending_mutations(lease_expires_at, created_at, id)
 WHERE status = 'applying'
 )";
 
+constexpr char undoSchemaSql[] = R"(
+CREATE TABLE local_undo_entries (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
+  session_id TEXT NOT NULL CHECK(length(trim(session_id)) BETWEEN 1 AND 256),
+  stack TEXT NOT NULL CHECK(stack IN ('undo', 'redo')),
+  ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+  action_kind TEXT NOT NULL CHECK(length(trim(action_kind)) BETWEEN 1 AND 128),
+  label TEXT NOT NULL CHECK(length(trim(label)) BETWEEN 1 AND 512),
+  resource_type TEXT NOT NULL CHECK(resource_type IN ('task', 'task_list', 'event')),
+  resource_id TEXT NOT NULL CHECK(length(trim(resource_id)) BETWEEN 1 AND 256),
+  before_json TEXT NOT NULL CHECK(length(before_json) <= 262144 AND json_valid(before_json) AND json_type(before_json) = 'object'),
+  after_json TEXT NOT NULL CHECK(length(after_json) <= 262144 AND json_valid(after_json) AND json_type(after_json) = 'object'),
+  created_at TEXT NOT NULL CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  applied_at TEXT CHECK(applied_at IS NULL OR length(trim(applied_at)) BETWEEN 1 AND 64),
+  UNIQUE(session_id, stack, ordinal)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_undo_entries_session_stack
+ON local_undo_entries(session_id, stack, ordinal DESC, id DESC);
+
+CREATE INDEX local_undo_entries_recovery
+ON local_undo_entries(created_at, id)
+)";
+
 constexpr char syncCheckpointSchemaSql[] = R"(
 CREATE TABLE local_sync_checkpoints (
   id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 256),
@@ -504,6 +529,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, pendingMutationSchemaSql, QStringLiteral("SQLite pending-mutation schema"));
 }
 
+[[nodiscard]] std::optional<AppError> applyUndoSchema(SqliteConnection& connection) {
+  return applySchema(connection, undoSchemaSql, QStringLiteral("SQLite undo schema"));
+}
+
 [[nodiscard]] std::optional<AppError> applySyncCheckpointSchema(SqliteConnection& connection) {
   return applySchema(
       connection, syncCheckpointSchemaSql, QStringLiteral("SQLite sync-checkpoint schema"));
@@ -513,8 +542,8 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, ftsSchemaSql, QStringLiteral("SQLite FTS schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 10>& migrations() {
-  static const std::array<SqliteMigration, 10> catalogue = {{
+[[nodiscard]] const std::array<SqliteMigration, 11>& migrations() {
+  static const std::array<SqliteMigration, 11> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -546,6 +575,7 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        checksum(syncCheckpointSchemaSql),
        applySyncCheckpointSchema},
       {10, QStringLiteral("create local FTS indexes"), checksum(ftsSchemaSql), applyFtsSchema},
+      {11, QStringLiteral("create local undo entries"), checksum(undoSchemaSql), applyUndoSchema},
   }};
   return catalogue;
 }
