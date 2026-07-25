@@ -36,6 +36,8 @@ set(HCB_NATIVE_SOURCES
   src/core/SyncBackoffPolicy.h
   src/core/TaskListReadService.cpp
   src/core/TaskListReadService.h
+  src/core/TaskMutationService.cpp
+  src/core/TaskMutationService.h
   src/core/StartupTimingTracker.cpp
   src/core/StartupTimingTracker.h
   src/core/UiTransitionTimingTracker.cpp
@@ -515,6 +517,32 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_task_list_read_service_tests)
   hcb_enable_sanitizers(hcb_task_list_read_service_tests)
   add_test(NAME hcb_task_list_read_service_tests COMMAND hcb_task_list_read_service_tests)
+
+  qt_add_executable(hcb_task_mutation_service_tests
+    tests/TaskMutationServiceTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_task_mutation_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_task_mutation_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_task_mutation_service_tests)
+  hcb_enable_sanitizers(hcb_task_mutation_service_tests)
+  add_test(NAME hcb_task_mutation_service_tests COMMAND hcb_task_mutation_service_tests)
 
   qt_add_executable(hcb_settings_service_tests
     tests/SettingsServiceTest.cpp
