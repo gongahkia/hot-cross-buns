@@ -6,6 +6,8 @@ set(HCB_NATIVE_SOURCES
   src/app/AppServices.h
   src/core/AccountStatusService.cpp
   src/core/AccountStatusService.h
+  src/core/AgendaModel.cpp
+  src/core/AgendaModel.h
   src/core/AppError.h
   src/core/CalendarLayoutEngine.cpp
   src/core/CalendarLayoutEngine.h
@@ -613,6 +615,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_calendar_source_model_tests)
   hcb_enable_sanitizers(hcb_calendar_source_model_tests)
   add_test(NAME hcb_calendar_source_model_tests COMMAND hcb_calendar_source_model_tests)
+
+  qt_add_executable(hcb_agenda_model_tests
+    tests/AgendaModelTest.cpp
+    src/core/AgendaModel.cpp
+    src/core/AgendaModel.h
+    src/core/AppError.h
+    src/core/CalendarReadService.h
+    src/core/FilePath.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_agenda_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_agenda_model_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_agenda_model_tests)
+  hcb_enable_sanitizers(hcb_agenda_model_tests)
+  add_test(NAME hcb_agenda_model_tests COMMAND hcb_agenda_model_tests)
 
   qt_add_executable(hcb_calendar_mutation_service_tests
     tests/CalendarMutationServiceTest.cpp
@@ -1645,6 +1662,7 @@ if(BUILD_TESTING)
     hcb_account_status_service_tests
     hcb_calendar_read_service_tests
     hcb_calendar_source_model_tests
+    hcb_agenda_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
@@ -1732,6 +1750,7 @@ if(BUILD_TESTING)
     hcb_account_status_service_tests
     hcb_calendar_read_service_tests
     hcb_calendar_source_model_tests
+    hcb_agenda_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests

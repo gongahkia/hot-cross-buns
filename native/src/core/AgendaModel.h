@@ -1,0 +1,48 @@
+#pragma once
+
+#include "core/CalendarReadService.h"
+
+#include <QAbstractListModel>
+
+#include <cstdint>
+
+namespace hcb {
+
+class AgendaModel final : public QAbstractListModel {
+  Q_OBJECT
+
+public:
+  enum Role : std::int32_t {
+    IdRole = Qt::UserRole + 1,
+    CalendarIdRole,
+    RecurringRemoteIdRole,
+    OriginalStartAtRole,
+    StatusRole,
+    TitleRole,
+    DescriptionRole,
+    LocationRole,
+    StartAtRole,
+    StartTimeZoneRole,
+    EndAtRole,
+    EndTimeZoneRole,
+    AllDayRole,
+    ColorIdRole,
+    TransparencyRole,
+    VisibilityRole,
+    HcbKindRole
+  };
+  Q_ENUM(Role)
+
+  explicit AgendaModel(QObject* parent = nullptr);
+
+  [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+  [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+  [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+
+  void setEvents(QList<CalendarEventSummary> events);
+
+private:
+  QList<CalendarEventSummary> events_;
+};
+
+} // namespace hcb
