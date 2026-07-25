@@ -2,6 +2,10 @@ set(HCB_MACOS_CREDENTIAL_SOURCES
   src/app/MacOSCredentialAdapter.cpp
   src/app/MacOSCredentialAdapter.h
 )
+set(HCB_WINDOWS_CREDENTIAL_SOURCES
+  src/app/WindowsCredentialAdapter.cpp
+  src/app/WindowsCredentialAdapter.h
+)
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
 endif()
@@ -17,6 +21,7 @@ set(HCB_NATIVE_SOURCES
   ${HCB_MACOS_CREDENTIAL_SOURCES}
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
+  ${HCB_WINDOWS_CREDENTIAL_SOURCES}
   src/app/WindowsPathsAdapter.cpp
   src/app/WindowsPathsAdapter.h
   src/core/AccountStatusService.cpp
@@ -212,7 +217,7 @@ target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
 hcb_enable_sanitizers(hcb_native)
 if(WIN32)
-  target_link_libraries(hcb_native PRIVATE Psapi)
+  target_link_libraries(hcb_native PRIVATE Advapi32 Psapi)
 endif()
 
 qt_add_executable(hcb_launch_benchmark
@@ -1805,6 +1810,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_macos_credential_adapter_tests)
   hcb_enable_sanitizers(hcb_macos_credential_adapter_tests)
   add_test(NAME hcb_macos_credential_adapter_tests COMMAND hcb_macos_credential_adapter_tests)
+
+  qt_add_executable(hcb_windows_credential_adapter_tests
+    tests/WindowsCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_WINDOWS_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_windows_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(WIN32)
+    target_link_libraries(hcb_windows_credential_adapter_tests PRIVATE Advapi32)
+  endif()
+  target_include_directories(hcb_windows_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_windows_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_windows_credential_adapter_tests)
+  add_test(NAME hcb_windows_credential_adapter_tests COMMAND hcb_windows_credential_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
