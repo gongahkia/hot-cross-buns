@@ -7,6 +7,7 @@ class TimelineModelTest final : public QObject {
 
 private slots:
   void laysOutDayAndWeekItemsInDisplayTimeZone();
+  void buildsMoveInputInDisplayTimeZone();
   void clearsInvalidRanges();
 };
 
@@ -75,6 +76,36 @@ void TimelineModelTest::laysOutDayAndWeekItemsInDisplayTimeZone() {
   QCOMPARE(model.data(model.index(4, 0), hcb::TimelineModel::StartMinuteRole).toInt(), 0);
   QCOMPARE(model.roleNames().value(hcb::TimelineModel::StartsBeforeRangeRole),
            QByteArrayLiteral("startsBeforeRange"));
+}
+
+void TimelineModelTest::buildsMoveInputInDisplayTimeZone() {
+  const QTimeZone timeZone(QByteArrayLiteral("America/Los_Angeles"));
+  QVERIFY(timeZone.isValid());
+  hcb::TimelineModel model;
+  model.setRange(QDate(2026, 3, 7),
+                 2,
+                 {{.id = QStringLiteral("event-a"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("A"),
+                   .startAt = QStringLiteral("2026-03-07T18:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-03-07T19:00:00.000Z"),
+                   .allDay = false,
+                   .updatedAt = QStringLiteral("2026-03-01T00:00:00.000Z")}},
+                 timeZone,
+                 1);
+
+  const QVariantMap move = model.moveInput(QStringLiteral("event-a"), 1, 3 * 60);
+  QCOMPARE(move.value(QStringLiteral("id")).toString(), QStringLiteral("event-a"));
+  QCOMPARE(move.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-03-08T10:00:00.000Z"));
+  QCOMPARE(move.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-03-08T11:00:00.000Z"));
+  QCOMPARE(move.value(QStringLiteral("allDay")).toBool(), false);
+  QVERIFY(model.moveInput(QStringLiteral("event-a"), -1, 0).isEmpty());
+  QVERIFY(model.moveInput(QStringLiteral("event-a"), 2, 0).isEmpty());
+  QVERIFY(model.moveInput(QStringLiteral("event-a"), 0, 24 * 60).isEmpty());
+  QVERIFY(model.moveInput(QStringLiteral("missing"), 0, 0).isEmpty());
 }
 
 void TimelineModelTest::clearsInvalidRanges() {

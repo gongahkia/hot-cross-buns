@@ -5,6 +5,7 @@
 #include <QAbstractListModel>
 #include <QDate>
 #include <QTimeZone>
+#include <QVariantMap>
 
 #include <cstdint>
 
@@ -38,6 +39,10 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
+  Q_INVOKABLE QVariantMap moveInput(const QString& eventId,
+                                    int targetDayIndex,
+                                    int targetMinute) const;
+
   void setRange(QDate startDate,
                 int dayCount,
                 const QList<CalendarEventSummary>& events,
@@ -59,6 +64,9 @@ private:
   };
 
   QList<Item> items_;
+  QDate rangeStartDate_;
+  int dayCount_{0};
+  QTimeZone displayTimeZone_;
 };
 
 } // namespace hcb

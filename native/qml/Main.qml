@@ -30,6 +30,8 @@ ApplicationWindow {
     property alias eventCreateDialog: eventCreateDialog
     property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
+    property alias dayTimeline: dayTimeline
+    property alias weekTimeline: weekTimeline
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
@@ -41,6 +43,7 @@ ApplicationWindow {
     signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
                                 string endAt, bool allDay, string description, string location)
     signal eventDeleteRequested(string eventId)
+    signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -408,13 +411,21 @@ ApplicationWindow {
                     }
 
                     DayTimelineView {
+                        id: dayTimeline
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
+                        onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
+                            window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                        }
                     }
 
                     WeekTimelineView {
+                        id: weekTimeline
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
+                        onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
+                            window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                        }
                     }
 
                     MonthGridView {

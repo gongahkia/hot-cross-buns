@@ -11,6 +11,7 @@ Pane {
     property int timeColumnWidth: 64
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
+    signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -18,6 +19,22 @@ Pane {
 
     function eventHeight(durationMinutes) {
         return Math.max(24, durationMinutes * hourHeight / 60)
+    }
+
+    function dropMinute(y) {
+        return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
+    }
+
+    function requestMove(eventId, targetDayIndex, targetMinute) {
+        if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
+            return
+        }
+        const move = timelineModel.moveInput(eventId, targetDayIndex, targetMinute)
+        if (move === null || typeof move.id !== "string" || typeof move.startAt !== "string" ||
+                typeof move.endAt !== "string" || typeof move.allDay !== "boolean") {
+            return
+        }
+        eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
     }
 
     function selectEvent(eventId) {
@@ -127,6 +144,19 @@ Pane {
                         accessibleName: title
                         accessibleDescription: "Timed event"
                         onClicked: root.selectEvent(id)
+
+                        DragHandler {
+                            id: moveHandler
+                            target: null
+                            onActiveChanged: {
+                                const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
+                                if (!active && targetMinute !== startMinute) {
+                                    root.requestMove(id, root.dayIndex, targetMinute)
+                                }
+                            }
+                        }
+
+                        opacity: moveHandler.active ? 0.7 : 1
                     }
                 }
             }

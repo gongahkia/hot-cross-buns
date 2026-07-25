@@ -467,6 +467,28 @@ TestCase {
         timelineModel.destroy()
     }
 
+    function test_dayTimelineRequestsMoves() {
+        const component = Qt.createComponent("../../qml/DayTimelineView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-26T10:00:00.000Z", endAt: "2026-07-26T11:00:00.000Z", allDay: false } } }', testCase)
+        const timeline = component.createObject(null, { timelineModel: timelineModel })
+        verify(timeline !== null)
+        let request = null
+        timeline.eventMoveRequested.connect(function(eventId, startAt, endAt, allDay) {
+            request = { eventId, startAt, endAt, allDay }
+        })
+        timeline.requestMove("event-1", 0, 600)
+        compare(request.eventId, "event-1")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(timeline.dropMinute(-1), 0)
+        compare(timeline.dropMinute(99999), 1439)
+        timeline.destroy()
+        timelineModel.destroy()
+    }
+
     function test_weekTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -511,6 +533,29 @@ TestCase {
         timeline.eventSelected.connect(function(eventId) { selectedId = eventId })
         timeline.selectEvent("event-1")
         compare(selectedId, "event-1")
+        timeline.destroy()
+        timelineModel.destroy()
+    }
+
+    function test_weekTimelineRequestsMoves() {
+        const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } }', testCase)
+        const timeline = component.createObject(null, { timelineModel: timelineModel, width: 764 })
+        verify(timeline !== null)
+        let request = null
+        timeline.eventMoveRequested.connect(function(eventId, startAt, endAt, allDay) {
+            request = { eventId, startAt, endAt, allDay }
+        })
+        timeline.requestMove("event-1", 1, 600)
+        compare(request.eventId, "event-1")
+        compare(request.startAt, "2026-07-27T10:00:00.000Z")
+        compare(request.endAt, "2026-07-27T11:00:00.000Z")
+        compare(request.allDay, false)
+        compare(timeline.dropDayIndex(-1, 764), 0)
+        compare(timeline.dropDayIndex(99999, 764), 6)
+        compare(timeline.dropMinute(99999), 1439)
         timeline.destroy()
         timelineModel.destroy()
     }
@@ -717,6 +762,25 @@ TestCase {
         mainWindow.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
         mainWindow.eventDeleteDialog.eventDeleteRequested("event-1")
         compare(deletedId, "event-1")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsEventMoveRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.eventMoveRequested.connect(function(eventId, startAt, endAt, allDay) {
+            request = { eventId, startAt, endAt, allDay }
+        })
+        mainWindow.dayTimeline.eventMoveRequested("event-1", "2026-07-26T10:00:00.000Z",
+                                                  "2026-07-26T11:00:00.000Z", false)
+        compare(request.eventId, "event-1")
+        compare(request.startAt, "2026-07-26T10:00:00.000Z")
+        compare(request.endAt, "2026-07-26T11:00:00.000Z")
+        compare(request.allDay, false)
         mainWindow.destroy()
     }
 

@@ -127,12 +127,48 @@ QHash<int, QByteArray> TimelineModel::roleNames() const {
           {EndsAfterRangeRole, "endsAfterRange"}};
 }
 
+QVariantMap
+TimelineModel::moveInput(const QString& eventId, int targetDayIndex, int targetMinute) const {
+  if (eventId.isEmpty() || !rangeStartDate_.isValid() || dayCount_ < 1 || targetDayIndex < 0 ||
+      targetDayIndex >= dayCount_ || targetMinute < 0 || targetMinute >= kMinutesPerDay ||
+      !displayTimeZone_.isValid()) {
+    return {};
+  }
+  const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
+    return candidate.event.id == eventId && !candidate.allDay;
+  });
+  if (item == items_.cend()) {
+    return {};
+  }
+  const std::optional<EventRange> range = eventRange(item->event, displayTimeZone_);
+  if (!range.has_value()) {
+    return {};
+  }
+  const QDate targetDate = rangeStartDate_.addDays(targetDayIndex);
+  const QTime targetTime(targetMinute / 60, targetMinute % 60);
+  const QDateTime targetStart(targetDate, targetTime, displayTimeZone_);
+  if (!targetStart.isValid()) {
+    return {};
+  }
+  const QDateTime targetEnd = targetStart.addMSecs(range->start.msecsTo(range->end));
+  if (!targetEnd.isValid() || targetEnd <= targetStart) {
+    return {};
+  }
+  return {{QStringLiteral("id"), item->event.id},
+          {QStringLiteral("startAt"), targetStart.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"), targetEnd.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), false}};
+}
+
 void TimelineModel::setRange(QDate startDate,
                              int dayCount,
                              const QList<CalendarEventSummary>& events,
                              const QTimeZone& displayTimeZone,
                              int visibleAllDayLaneCount) {
   QList<Item> items;
+  rangeStartDate_ = startDate;
+  dayCount_ = dayCount;
+  displayTimeZone_ = displayTimeZone;
   if (startDate.isValid() && dayCount >= 1 && dayCount <= 7 && displayTimeZone.isValid() &&
       visibleAllDayLaneCount >= 0) {
     QList<CalendarAllDayLayoutEvent> allDayEvents;

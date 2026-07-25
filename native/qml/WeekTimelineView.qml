@@ -12,6 +12,7 @@ Pane {
     property int allDayLaneHeight: 28
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
+    signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
 
     function dayColumnWidth(availableWidth) {
         return (availableWidth - timeColumnWidth) / dayCount
@@ -23,6 +24,27 @@ Pane {
 
     function timePosition(minute) {
         return minute * hourHeight / 60
+    }
+
+    function dropDayIndex(x, availableWidth) {
+        return Math.max(0, Math.min(dayCount - 1,
+                                    Math.floor((x - timeColumnWidth) / dayColumnWidth(availableWidth))))
+    }
+
+    function dropMinute(y) {
+        return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
+    }
+
+    function requestMove(eventId, targetDayIndex, targetMinute) {
+        if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
+            return
+        }
+        const move = timelineModel.moveInput(eventId, targetDayIndex, targetMinute)
+        if (move === null || typeof move.id !== "string" || typeof move.startAt !== "string" ||
+                typeof move.endAt !== "string" || typeof move.allDay !== "boolean") {
+            return
+        }
+        eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
     }
 
     function selectEvent(eventId) {
@@ -153,6 +175,21 @@ Pane {
                         accessibleName: title
                         accessibleDescription: "Timed event, day " + (dayIndex + 1)
                         onClicked: root.selectEvent(id)
+
+                        DragHandler {
+                            id: moveHandler
+                            target: null
+                            onActiveChanged: {
+                                const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                    timelineCanvas.width)
+                                const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
+                                if (!active && (targetDay !== dayIndex || targetMinute !== startMinute)) {
+                                    root.requestMove(id, targetDay, targetMinute)
+                                }
+                            }
+                        }
+
+                        opacity: moveHandler.active ? 0.7 : 1
                     }
                 }
             }
