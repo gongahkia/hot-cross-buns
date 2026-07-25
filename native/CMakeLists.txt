@@ -6,6 +6,10 @@ set(HCB_WINDOWS_CREDENTIAL_SOURCES
   src/app/WindowsCredentialAdapter.cpp
   src/app/WindowsCredentialAdapter.h
 )
+set(HCB_LINUX_CREDENTIAL_SOURCES
+  src/app/LinuxCredentialAdapter.cpp
+  src/app/LinuxCredentialAdapter.h
+)
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
 endif()
@@ -16,6 +20,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppPaths.h
   src/app/AppServices.cpp
   src/app/AppServices.h
+  ${HCB_LINUX_CREDENTIAL_SOURCES}
   src/app/LinuxPathsAdapter.cpp
   src/app/LinuxPathsAdapter.h
   ${HCB_MACOS_CREDENTIAL_SOURCES}
@@ -211,6 +216,9 @@ target_link_libraries(hcb_native PRIVATE
 )
 if(APPLE)
   target_link_libraries(hcb_native PRIVATE ${HCB_SECURITY_FRAMEWORK})
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(hcb_native PRIVATE Qt6::DBus)
 endif()
 
 target_include_directories(hcb_native PRIVATE src)
@@ -1825,6 +1833,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_windows_credential_adapter_tests)
   hcb_enable_sanitizers(hcb_windows_credential_adapter_tests)
   add_test(NAME hcb_windows_credential_adapter_tests COMMAND hcb_windows_credential_adapter_tests)
+
+  qt_add_executable(hcb_linux_credential_adapter_tests
+    tests/LinuxCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_LINUX_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_linux_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(hcb_linux_credential_adapter_tests PRIVATE Qt6::DBus)
+  endif()
+  target_include_directories(hcb_linux_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_linux_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_linux_credential_adapter_tests)
+  add_test(NAME hcb_linux_credential_adapter_tests COMMAND hcb_linux_credential_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
