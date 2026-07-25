@@ -388,6 +388,11 @@ if(BUILD_TESTING)
       "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/WindowsX64PackageConfigTest.cmake"
   )
+  add_test(NAME hcb_package_install_smoke_config_tests
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/PackageInstallSmokeConfigTest.cmake"
+  )
 
   qt_add_executable(hcb_sqlite_integration_tests tests/SqliteIntegrationTest.cpp)
   target_link_libraries(hcb_sqlite_integration_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
