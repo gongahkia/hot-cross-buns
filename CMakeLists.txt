@@ -35,7 +35,7 @@ if(APPLE AND NOT CMAKE_PREFIX_PATH)
 endif()
 
 find_package(Qt6 ${HCB_NATIVE_QT_VERSION} EXACT REQUIRED
-  COMPONENTS Core Gui Qml Quick QuickControls2 QuickTest Test
+  COMPONENTS Core Gui Network Qml Quick QuickControls2 QuickTest Test
 )
 qt_standard_project_setup(REQUIRES ${HCB_NATIVE_QT_VERSION})
 
