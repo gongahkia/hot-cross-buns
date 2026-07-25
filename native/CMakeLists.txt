@@ -49,6 +49,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeProcessMemory.h
   src/core/LocalSearchService.cpp
   src/core/LocalSearchService.h
+  src/core/MonthGridModel.cpp
+  src/core/MonthGridModel.h
   src/core/NoteService.cpp
   src/core/NoteService.h
   src/core/OAuthBrowserAuthorizationLauncher.cpp
@@ -630,6 +632,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_agenda_model_tests)
   hcb_enable_sanitizers(hcb_agenda_model_tests)
   add_test(NAME hcb_agenda_model_tests COMMAND hcb_agenda_model_tests)
+
+  qt_add_executable(hcb_month_grid_model_tests
+    tests/MonthGridModelTest.cpp
+    src/core/MonthGridModel.cpp
+    src/core/MonthGridModel.h
+    src/core/AppError.h
+    src/core/CalendarReadService.h
+    src/core/FilePath.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_month_grid_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_month_grid_model_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_month_grid_model_tests)
+  hcb_enable_sanitizers(hcb_month_grid_model_tests)
+  add_test(NAME hcb_month_grid_model_tests COMMAND hcb_month_grid_model_tests)
 
   qt_add_executable(hcb_calendar_mutation_service_tests
     tests/CalendarMutationServiceTest.cpp
@@ -1663,6 +1680,7 @@ if(BUILD_TESTING)
     hcb_calendar_read_service_tests
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
+    hcb_month_grid_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
@@ -1751,6 +1769,7 @@ if(BUILD_TESTING)
     hcb_calendar_read_service_tests
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
+    hcb_month_grid_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
