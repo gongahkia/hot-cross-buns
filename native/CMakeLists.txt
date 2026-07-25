@@ -632,6 +632,40 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_undo_recovery_policy_tests)
   add_test(NAME hcb_undo_recovery_policy_tests COMMAND hcb_undo_recovery_policy_tests)
 
+  qt_add_executable(hcb_domain_service_contract_tests
+    tests/DomainServiceContractTest.cpp
+    src/core/AppError.h
+    src/core/CalendarMutationService.cpp
+    src/core/CalendarMutationService.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/NoteService.cpp
+    src/core/NoteService.h
+    src/core/OptimisticMutationCoordinator.cpp
+    src/core/OptimisticMutationCoordinator.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
+    src/core/UndoRecoveryPolicy.cpp
+    src/core/UndoRecoveryPolicy.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_domain_service_contract_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_domain_service_contract_tests PRIVATE src)
+  hcb_enable_warnings(hcb_domain_service_contract_tests)
+  hcb_enable_sanitizers(hcb_domain_service_contract_tests)
+  add_test(NAME hcb_domain_service_contract_tests COMMAND hcb_domain_service_contract_tests)
+
   qt_add_executable(hcb_task_list_read_service_tests
     tests/TaskListReadServiceTest.cpp
     src/core/AppError.h
@@ -995,6 +1029,7 @@ if(BUILD_TESTING)
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
+    hcb_domain_service_contract_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
@@ -1053,6 +1088,7 @@ if(BUILD_TESTING)
     hcb_note_service_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
+    hcb_domain_service_contract_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
