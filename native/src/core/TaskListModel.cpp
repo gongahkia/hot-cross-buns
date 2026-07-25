@@ -1,8 +1,21 @@
 #include "core/TaskListModel.h"
+#include "core/ModelDiffPolicy.h"
 
 #include <utility>
 
 namespace hcb {
+
+namespace {
+
+[[nodiscard]] bool equivalentTaskList(const TaskListSummary& left, const TaskListSummary& right) {
+  return left.id == right.id && left.accountId == right.accountId &&
+         left.remoteId == right.remoteId && left.title == right.title && left.etag == right.etag &&
+         left.sortOrder == right.sortOrder && left.selected == right.selected &&
+         left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt &&
+         left.taskCount == right.taskCount && left.activeTaskCount == right.activeTaskCount;
+}
+
+} // namespace
 
 TaskListModel::TaskListModel(QObject* parent) : QAbstractListModel(parent) {}
 
@@ -47,9 +60,21 @@ QHash<int, QByteArray> TaskListModel::roleNames() const {
 }
 
 void TaskListModel::setTaskLists(QList<TaskListSummary> taskLists) {
-  beginResetModel();
+  const ModelDiffPlan plan = ModelDiffPolicy::plan(
+      taskLists_,
+      taskLists,
+      [](const TaskListSummary& taskList) -> const QString& { return taskList.id; },
+      equivalentTaskList);
+  if (plan.requiresReset) {
+    beginResetModel();
+    taskLists_ = std::move(taskLists);
+    endResetModel();
+    return;
+  }
   taskLists_ = std::move(taskLists);
-  endResetModel();
+  for (const ModelDataChangeRange& range : plan.changedRanges) {
+    emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
+  }
 }
 
 } // namespace hcb

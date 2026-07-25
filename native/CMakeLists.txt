@@ -51,6 +51,7 @@ set(HCB_NATIVE_SOURCES
   src/core/LocalSearchService.h
   src/core/MonthGridModel.cpp
   src/core/MonthGridModel.h
+  src/core/ModelDiffPolicy.h
   src/core/NoteService.cpp
   src/core/NoteService.h
   src/core/NotesModel.cpp
@@ -1102,6 +1103,16 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_search_results_model_tests)
   add_test(NAME hcb_search_results_model_tests COMMAND hcb_search_results_model_tests)
 
+  qt_add_executable(hcb_model_diff_policy_tests
+    tests/ModelDiffPolicyTest.cpp
+    src/core/ModelDiffPolicy.h
+  )
+  target_link_libraries(hcb_model_diff_policy_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_model_diff_policy_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_model_diff_policy_tests)
+  hcb_enable_sanitizers(hcb_model_diff_policy_tests)
+  add_test(NAME hcb_model_diff_policy_tests COMMAND hcb_model_diff_policy_tests)
+
   qt_add_executable(hcb_google_sync_recovery_service_tests
     tests/GoogleSyncRecoveryServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1753,6 +1764,7 @@ if(BUILD_TESTING)
     hcb_task_model_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
+    hcb_model_diff_policy_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
@@ -1845,6 +1857,7 @@ if(BUILD_TESTING)
     hcb_task_model_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
+    hcb_model_diff_policy_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests

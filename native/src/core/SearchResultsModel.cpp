@@ -1,4 +1,5 @@
 #include "core/SearchResultsModel.h"
+#include "core/ModelDiffPolicy.h"
 
 #include <utility>
 
@@ -20,6 +21,12 @@ namespace {
     return QStringLiteral("event");
   }
   return {};
+}
+
+[[nodiscard]] bool equivalentResult(const LocalSearchRankedResult& left,
+                                    const LocalSearchRankedResult& right) {
+  return left.id == right.id && left.resource == right.resource && left.title == right.title &&
+         left.detail == right.detail && left.score == right.score;
 }
 
 } // namespace
@@ -61,9 +68,21 @@ QHash<int, QByteArray> SearchResultsModel::roleNames() const {
 }
 
 void SearchResultsModel::setResults(QList<LocalSearchRankedResult> results) {
-  beginResetModel();
+  const ModelDiffPlan plan = ModelDiffPolicy::plan(
+      results_,
+      results,
+      [](const LocalSearchRankedResult& result) -> const QString& { return result.id; },
+      equivalentResult);
+  if (plan.requiresReset) {
+    beginResetModel();
+    results_ = std::move(results);
+    endResetModel();
+    return;
+  }
   results_ = std::move(results);
-  endResetModel();
+  for (const ModelDataChangeRange& range : plan.changedRanges) {
+    emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
+  }
 }
 
 } // namespace hcb

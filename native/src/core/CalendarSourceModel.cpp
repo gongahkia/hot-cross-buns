@@ -1,8 +1,24 @@
 #include "core/CalendarSourceModel.h"
+#include "core/ModelDiffPolicy.h"
 
 #include <utility>
 
 namespace hcb {
+
+namespace {
+
+[[nodiscard]] bool equivalentCalendar(const CalendarSummary& left, const CalendarSummary& right) {
+  return left.id == right.id && left.accountId == right.accountId &&
+         left.remoteId == right.remoteId && left.title == right.title &&
+         left.description == right.description && left.timeZone == right.timeZone &&
+         left.backgroundColor == right.backgroundColor &&
+         left.foregroundColor == right.foregroundColor && left.accessRole == right.accessRole &&
+         left.selected == right.selected && left.primary == right.primary &&
+         left.etag == right.etag && left.remoteUpdatedAt == right.remoteUpdatedAt &&
+         left.updatedAt == right.updatedAt && left.eventCount == right.eventCount;
+}
+
+} // namespace
 
 CalendarSourceModel::CalendarSourceModel(QObject* parent) : QAbstractListModel(parent) {}
 
@@ -59,9 +75,21 @@ QHash<int, QByteArray> CalendarSourceModel::roleNames() const {
 }
 
 void CalendarSourceModel::setCalendars(QList<CalendarSummary> calendars) {
-  beginResetModel();
+  const ModelDiffPlan plan = ModelDiffPolicy::plan(
+      calendars_,
+      calendars,
+      [](const CalendarSummary& calendar) -> const QString& { return calendar.id; },
+      equivalentCalendar);
+  if (plan.requiresReset) {
+    beginResetModel();
+    calendars_ = std::move(calendars);
+    endResetModel();
+    return;
+  }
   calendars_ = std::move(calendars);
-  endResetModel();
+  for (const ModelDataChangeRange& range : plan.changedRanges) {
+    emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
+  }
 }
 
 } // namespace hcb

@@ -1,8 +1,19 @@
 #include "core/NotesModel.h"
+#include "core/ModelDiffPolicy.h"
 
 #include <utility>
 
 namespace hcb {
+
+namespace {
+
+[[nodiscard]] bool equivalentNote(const NoteSummary& left, const NoteSummary& right) {
+  return left.id == right.id && left.taskListId == right.taskListId &&
+         left.taskListTitle == right.taskListTitle && left.title == right.title &&
+         left.body == right.body && left.updatedAt == right.updatedAt;
+}
+
+} // namespace
 
 NotesModel::NotesModel(QObject* parent) : QAbstractListModel(parent) {}
 
@@ -44,9 +55,21 @@ QHash<int, QByteArray> NotesModel::roleNames() const {
 }
 
 void NotesModel::setNotes(QList<NoteSummary> notes) {
-  beginResetModel();
+  const ModelDiffPlan plan = ModelDiffPolicy::plan(
+      notes_,
+      notes,
+      [](const NoteSummary& note) -> const QString& { return note.id; },
+      equivalentNote);
+  if (plan.requiresReset) {
+    beginResetModel();
+    notes_ = std::move(notes);
+    endResetModel();
+    return;
+  }
   notes_ = std::move(notes);
-  endResetModel();
+  for (const ModelDataChangeRange& range : plan.changedRanges) {
+    emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
+  }
 }
 
 } // namespace hcb

@@ -1,8 +1,29 @@
 #include "core/AgendaModel.h"
+#include "core/ModelDiffPolicy.h"
 
 #include <utility>
 
 namespace hcb {
+
+namespace {
+
+[[nodiscard]] bool equivalentEvent(const CalendarEventSummary& left,
+                                   const CalendarEventSummary& right) {
+  return left.id == right.id && left.calendarId == right.calendarId &&
+         left.remoteId == right.remoteId && left.recurringRemoteId == right.recurringRemoteId &&
+         left.originalStartAt == right.originalStartAt && left.status == right.status &&
+         left.title == right.title && left.description == right.description &&
+         left.location == right.location && left.startAt == right.startAt &&
+         left.startTimeZone == right.startTimeZone && left.endAt == right.endAt &&
+         left.endTimeZone == right.endTimeZone && left.allDay == right.allDay &&
+         left.recurrenceRule == right.recurrenceRule && left.colorId == right.colorId &&
+         left.transparency == right.transparency && left.visibility == right.visibility &&
+         left.timeZone == right.timeZone && left.hcbKind == right.hcbKind &&
+         left.etag == right.etag && left.sequence == right.sequence &&
+         left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt;
+}
+
+} // namespace
 
 AgendaModel::AgendaModel(QObject* parent) : QAbstractListModel(parent) {}
 
@@ -77,9 +98,21 @@ QHash<int, QByteArray> AgendaModel::roleNames() const {
 }
 
 void AgendaModel::setEvents(QList<CalendarEventSummary> events) {
-  beginResetModel();
+  const ModelDiffPlan plan = ModelDiffPolicy::plan(
+      events_,
+      events,
+      [](const CalendarEventSummary& event) -> const QString& { return event.id; },
+      equivalentEvent);
+  if (plan.requiresReset) {
+    beginResetModel();
+    events_ = std::move(events);
+    endResetModel();
+    return;
+  }
   events_ = std::move(events);
-  endResetModel();
+  for (const ModelDataChangeRange& range : plan.changedRanges) {
+    emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
+  }
 }
 
 } // namespace hcb
