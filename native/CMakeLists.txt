@@ -67,6 +67,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeCapabilityReport.h
   src/core/PkceAuthorization.cpp
   src/core/PkceAuthorization.h
+  src/core/RecurrenceExpansionWorker.cpp
+  src/core/RecurrenceExpansionWorker.h
   src/core/SettingsRegistry.h
   src/core/SettingsService.cpp
   src/core/SettingsService.h
@@ -865,6 +867,19 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_unified_local_search_ranker_tests)
   add_test(NAME hcb_unified_local_search_ranker_tests COMMAND hcb_unified_local_search_ranker_tests)
 
+  qt_add_executable(hcb_recurrence_expansion_worker_tests
+    tests/RecurrenceExpansionWorkerTest.cpp
+    src/core/AppError.h
+    src/core/Cancellation.h
+    src/core/RecurrenceExpansionWorker.cpp
+    src/core/RecurrenceExpansionWorker.h
+  )
+  target_link_libraries(hcb_recurrence_expansion_worker_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_recurrence_expansion_worker_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_recurrence_expansion_worker_tests)
+  hcb_enable_sanitizers(hcb_recurrence_expansion_worker_tests)
+  add_test(NAME hcb_recurrence_expansion_worker_tests COMMAND hcb_recurrence_expansion_worker_tests)
+
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1530,6 +1545,7 @@ if(BUILD_TESTING)
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
+    hcb_recurrence_expansion_worker_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
@@ -1610,6 +1626,7 @@ if(BUILD_TESTING)
     hcb_sync_conflict_store_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
+    hcb_recurrence_expansion_worker_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests

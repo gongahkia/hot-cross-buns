@@ -1,0 +1,38 @@
+#pragma once
+
+#include "core/AppError.h"
+
+#include <QList>
+#include <QString>
+
+#include <future>
+#include <optional>
+#include <stop_token>
+#include <variant>
+
+namespace hcb {
+
+struct RecurrenceExpansionRequest final {
+  QString eventId;
+  QString startAt;
+  QString endAt;
+  bool allDay{false};
+  std::optional<QString> recurrenceRule;
+};
+
+struct RecurrenceOccurrence final {
+  QString id;
+  QString startAt;
+  QString endAt;
+  std::optional<QString> originalStartAt;
+};
+
+using RecurrenceExpansionResult = std::variant<QList<RecurrenceOccurrence>, AppError>;
+
+class RecurrenceExpansionWorker final {
+public:
+  [[nodiscard]] std::future<RecurrenceExpansionResult>
+  expand(RecurrenceExpansionRequest request, const std::stop_token& cancellation = {}) const;
+};
+
+} // namespace hcb
