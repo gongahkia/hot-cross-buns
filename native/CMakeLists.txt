@@ -78,6 +78,8 @@ set(HCB_NATIVE_SOURCES
   src/core/SyncCheckpointStore.h
   src/core/SyncConflictStore.cpp
   src/core/SyncConflictStore.h
+  src/core/SyncScheduler.cpp
+  src/core/SyncScheduler.h
   src/core/TaskListReadService.cpp
   src/core/TaskListReadService.h
   src/core/TaskMutationService.cpp
@@ -834,6 +836,18 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_sync_conflict_store_tests)
   add_test(NAME hcb_sync_conflict_store_tests COMMAND hcb_sync_conflict_store_tests)
 
+  qt_add_executable(hcb_sync_scheduler_tests
+    tests/SyncSchedulerTest.cpp
+    src/core/AppError.h
+    src/core/SyncScheduler.cpp
+    src/core/SyncScheduler.h
+  )
+  target_link_libraries(hcb_sync_scheduler_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sync_scheduler_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_sync_scheduler_tests)
+  hcb_enable_sanitizers(hcb_sync_scheduler_tests)
+  add_test(NAME hcb_sync_scheduler_tests COMMAND hcb_sync_scheduler_tests)
+
   qt_add_executable(hcb_google_sync_recovery_service_tests
     tests/GoogleSyncRecoveryServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1469,6 +1483,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
+    hcb_sync_scheduler_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
@@ -1546,6 +1561,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
+    hcb_sync_scheduler_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
