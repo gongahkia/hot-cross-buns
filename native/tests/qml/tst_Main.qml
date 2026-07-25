@@ -261,6 +261,50 @@ TestCase {
         agendaModel.destroy()
     }
 
+    function test_dayTimelinePresentsAndSelectsEvents() {
+        const component = Qt.createComponent("../../qml/DayTimelineView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        timelineModel.append({
+            id: "event-1",
+            title: "Release review",
+            allDay: false,
+            dayIndex: 0,
+            startMinute: 540,
+            durationMinutes: 60,
+            laneIndex: 0,
+            laneCount: 2
+        })
+        timelineModel.append({
+            id: "event-2",
+            title: "Team offsite",
+            allDay: true,
+            dayIndex: 0,
+            startMinute: 0,
+            durationMinutes: 0,
+            laneIndex: 0,
+            laneCount: 1
+        })
+        const timeline = component.createObject(null, {
+            timelineModel: timelineModel,
+            width: 480,
+            height: 640,
+            visible: true
+        })
+        verify(timeline !== null)
+        tryCompare(timeline.eventRows, "count", 2)
+        compare(timeline.timePosition(540), 576)
+        compare(timeline.eventHeight(60), 64)
+        compare(timeline.eventHeight(1), 24)
+        let selectedId = ""
+        timeline.eventSelected.connect(function(eventId) { selectedId = eventId })
+        timeline.selectEvent("event-1")
+        compare(selectedId, "event-1")
+        timeline.destroy()
+        timelineModel.destroy()
+    }
+
     function test_taskListVirtualizesRows() {
         const component = Qt.createComponent("../../qml/TaskListView.qml")
         compare(component.status, Component.Ready, component.errorString())

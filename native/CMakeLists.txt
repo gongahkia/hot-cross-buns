@@ -161,6 +161,7 @@ qt_add_qml_module(hcb_native
     qml/AccessibleButton.qml
     qml/AccessibleNavigationButton.qml
     qml/AgendaView.qml
+    qml/DayTimelineView.qml
     qml/HcbDialog.qml
     qml/Main.qml
     qml/NavigationSidebar.qml

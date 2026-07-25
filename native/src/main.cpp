@@ -22,6 +22,7 @@
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
 #include "core/TaskModel.h"
+#include "core/TimelineModel.h"
 #include "core/UiTransitionTimingTracker.h"
 
 namespace {
@@ -85,6 +86,7 @@ int runApplication(int argc, char* argv[]) {
   hcb::CommandRegistryModel navigationCommands;
   hcb::NotesModel notesModel;
   hcb::TaskModel taskModel;
+  hcb::TimelineModel timelineModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
@@ -92,6 +94,7 @@ int runApplication(int argc, char* argv[]) {
        {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
+       {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(

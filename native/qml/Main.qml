@@ -16,6 +16,7 @@ ApplicationWindow {
     property var agendaModel: null
     property var notesModel: null
     property var taskModel: null
+    property var timelineModel: null
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
@@ -300,10 +301,32 @@ ApplicationWindow {
                 }
             }
 
-            AgendaView {
+            ColumnLayout {
                 anchors.fill: parent
                 visible: window.currentPage === "Calendar"
-                agendaModel: window.agendaModel
+                spacing: 0
+
+                TabBar {
+                    id: calendarViews
+                    Layout.fillWidth: true
+
+                    TabButton { text: "Agenda" }
+                    TabButton { text: "Day" }
+                }
+
+                StackLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: calendarViews.currentIndex
+
+                    AgendaView {
+                        agendaModel: window.agendaModel
+                    }
+
+                    DayTimelineView {
+                        timelineModel: window.timelineModel
+                    }
+                }
             }
 
             ColumnLayout {
