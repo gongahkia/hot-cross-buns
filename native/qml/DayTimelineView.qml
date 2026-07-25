@@ -12,6 +12,7 @@ Pane {
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
+    signal eventResizeRequested(string eventId, string endAt)
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -25,6 +26,10 @@ Pane {
         return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
     }
 
+    function dropEndMinute(y) {
+        return Math.max(0, Math.min(24 * 60, Math.round(y * 60 / hourHeight)))
+    }
+
     function requestMove(eventId, targetDayIndex, targetMinute) {
         if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
             return
@@ -35,6 +40,17 @@ Pane {
             return
         }
         eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
+    }
+
+    function requestResize(eventId, targetEndDayIndex, targetEndMinute) {
+        if (timelineModel === null || typeof timelineModel.resizeInput !== "function") {
+            return
+        }
+        const resize = timelineModel.resizeInput(eventId, targetEndDayIndex, targetEndMinute)
+        if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
+            return
+        }
+        eventResizeRequested(resize.id, resize.endAt)
     }
 
     function selectEvent(eventId) {
@@ -150,13 +166,49 @@ Pane {
                             target: null
                             onActiveChanged: {
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
-                                if (!active && targetMinute !== startMinute) {
+                                if (!active && !resizeHandler.active && targetMinute !== startMinute) {
                                     root.requestMove(id, root.dayIndex, targetMinute)
                                 }
                             }
                         }
 
                         opacity: moveHandler.active ? 0.7 : 1
+
+                        AccessibleButton {
+                            id: resizeHandle
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 14
+                            padding: 0
+                            text: ""
+                            accessibleName: "Resize " + title + " end"
+                            accessibleDescription: "Drag to change the end time"
+                            onClicked: root.requestResize(id, root.dayIndex,
+                                                          Math.min(24 * 60, startMinute + durationMinutes + 15))
+
+                            background: Rectangle {
+                                color: Theme.accent
+                                opacity: resizeHandler.active ? 1 : 0.65
+                                radius: 1
+                            }
+
+                            DragHandler {
+                                id: resizeHandler
+                                target: null
+                                cursorShape: Qt.SizeVerCursor
+                                grabPermissions: PointerHandler.CanTakeOverFromAnything
+                                onActiveChanged: {
+                                    const targetEndMinute = root.dropEndMinute(
+                                                parent.parent.y + parent.parent.height + activeTranslation.y)
+                                    const initialEndMinute = Math.min(24 * 60,
+                                                                      startMinute + durationMinutes)
+                                    if (!active && targetEndMinute !== initialEndMinute) {
+                                        root.requestResize(id, root.dayIndex, targetEndMinute)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

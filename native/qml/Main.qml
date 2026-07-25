@@ -44,6 +44,7 @@ ApplicationWindow {
                                 string endAt, bool allDay, string description, string location)
     signal eventDeleteRequested(string eventId)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
+    signal eventResizeRequested(string eventId, string endAt)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -416,6 +417,9 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                        }
+                        onEventResizeRequested: function(eventId, endAt) {
+                            window.eventResizeRequested(eventId, endAt)
                         }
                     }
 

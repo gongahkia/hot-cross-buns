@@ -42,6 +42,9 @@ public:
   Q_INVOKABLE QVariantMap moveInput(const QString& eventId,
                                     int targetDayIndex,
                                     int targetMinute) const;
+  Q_INVOKABLE QVariantMap resizeInput(const QString& eventId,
+                                      int targetEndDayIndex,
+                                      int targetEndMinute) const;
 
   void setRange(QDate startDate,
                 int dayCount,

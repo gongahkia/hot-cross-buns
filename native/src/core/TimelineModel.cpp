@@ -160,6 +160,38 @@ TimelineModel::moveInput(const QString& eventId, int targetDayIndex, int targetM
           {QStringLiteral("allDay"), false}};
 }
 
+QVariantMap TimelineModel::resizeInput(const QString& eventId,
+                                       int targetEndDayIndex,
+                                       int targetEndMinute) const {
+  if (eventId.isEmpty() || !rangeStartDate_.isValid() || dayCount_ < 1 || targetEndDayIndex < 0 ||
+      targetEndDayIndex >= dayCount_ || targetEndMinute < 0 || targetEndMinute > kMinutesPerDay ||
+      !displayTimeZone_.isValid()) {
+    return {};
+  }
+  const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
+    return candidate.event.id == eventId && !candidate.allDay;
+  });
+  if (item == items_.cend()) {
+    return {};
+  }
+  const std::optional<EventRange> range = eventRange(item->event, displayTimeZone_);
+  if (!range.has_value()) {
+    return {};
+  }
+  QDate targetDate = rangeStartDate_.addDays(targetEndDayIndex);
+  if (targetEndMinute == kMinutesPerDay) {
+    targetDate = targetDate.addDays(1);
+  }
+  const QTime targetTime(targetEndMinute % kMinutesPerDay / 60,
+                         targetEndMinute % kMinutesPerDay % 60);
+  const QDateTime targetEnd(targetDate, targetTime, displayTimeZone_);
+  if (!targetEnd.isValid() || targetEnd <= range->start) {
+    return {};
+  }
+  return {{QStringLiteral("id"), item->event.id},
+          {QStringLiteral("endAt"), targetEnd.toUTC().toString(Qt::ISODateWithMs)}};
+}
+
 void TimelineModel::setRange(QDate startDate,
                              int dayCount,
                              const QList<CalendarEventSummary>& events,

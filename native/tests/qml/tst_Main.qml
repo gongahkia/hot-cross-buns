@@ -489,6 +489,26 @@ TestCase {
         timelineModel.destroy()
     }
 
+    function test_dayTimelineRequestsResizes() {
+        const component = Qt.createComponent("../../qml/DayTimelineView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-26T12:00:00.000Z" } } }', testCase)
+        const timeline = component.createObject(null, { timelineModel: timelineModel })
+        verify(timeline !== null)
+        let request = null
+        timeline.eventResizeRequested.connect(function(eventId, endAt) {
+            request = { eventId, endAt }
+        })
+        timeline.requestResize("event-1", 0, 720)
+        compare(request.eventId, "event-1")
+        compare(request.endAt, "2026-07-26T12:00:00.000Z")
+        compare(timeline.dropEndMinute(-1), 0)
+        compare(timeline.dropEndMinute(99999), 1440)
+        timeline.destroy()
+        timelineModel.destroy()
+    }
+
     function test_weekTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -781,6 +801,22 @@ TestCase {
         compare(request.startAt, "2026-07-26T10:00:00.000Z")
         compare(request.endAt, "2026-07-26T11:00:00.000Z")
         compare(request.allDay, false)
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsEventResizeRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.eventResizeRequested.connect(function(eventId, endAt) {
+            request = { eventId, endAt }
+        })
+        mainWindow.dayTimeline.eventResizeRequested("event-1", "2026-07-26T12:00:00.000Z")
+        compare(request.eventId, "event-1")
+        compare(request.endAt, "2026-07-26T12:00:00.000Z")
         mainWindow.destroy()
     }
 
