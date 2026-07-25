@@ -92,6 +92,7 @@ class OptimisticMutationCoordinatorTest final : public QObject {
 
 private slots:
   void enqueuesClaimsRetriesAndAppliesMutations();
+  void recoversExpiredLeasesAtStartup();
   void rejectsInvalidAndUnavailableTransitions();
 };
 
@@ -162,12 +163,12 @@ void OptimisticMutationCoordinatorTest::enqueuesClaimsRetriesAndAppliesMutations
 
   const QString retryAt =
       QDateTime::fromMSecsSinceEpoch(1'753'408'060'123, QTimeZone::UTC).toString(Qt::ISODateWithMs);
-  std::future<hcb::PendingMutationResult> fail =
-      coordinator.markFailed(hcb::MutationFailureInput{.mutationId = leased.id,
-                                                       .leaseId = *leased.leaseId,
-                                                       .errorCode = QStringLiteral("network"),
-                                                       .errorMessage = QStringLiteral("offline"),
-                                                       .nextRetryAt = retryAt});
+  std::future<hcb::PendingMutationResult> fail = coordinator.markFailed(
+      hcb::MutationFailureInput{.mutationId = leased.id,
+                                .leaseId = leased.leaseId.value_or(QStringLiteral("lease:missing")),
+                                .errorCode = QStringLiteral("network"),
+                                .errorMessage = QStringLiteral("offline"),
+                                .nextRetryAt = retryAt});
   const hcb::PendingMutation failed = awaitMutation(fail);
   QVERIFY(failed.status == hcb::PendingMutationStatus::Failed);
   QCOMPARE(failed.attemptCount, 1);
@@ -186,8 +187,8 @@ void OptimisticMutationCoordinatorTest::enqueuesClaimsRetriesAndAppliesMutations
   QVERIFY(leasedAgain.leaseId.has_value());
   QVERIFY(leasedAgain.leaseId != leased.leaseId);
 
-  std::future<hcb::PendingMutationResult> apply =
-      coordinator.markApplied(leasedAgain.id, *leasedAgain.leaseId);
+  std::future<hcb::PendingMutationResult> apply = coordinator.markApplied(
+      leasedAgain.id, leasedAgain.leaseId.value_or(QStringLiteral("lease:missing")));
   const hcb::PendingMutation applied = awaitMutation(apply);
   QVERIFY(applied.status == hcb::PendingMutationStatus::Applied);
   QVERIFY(applied.appliedAt.has_value());
@@ -205,6 +206,87 @@ void OptimisticMutationCoordinatorTest::enqueuesClaimsRetriesAndAppliesMutations
   QVERIFY(found.has_value());
   if (found.has_value()) {
     QVERIFY(found->status == hcb::PendingMutationStatus::Applied);
+  }
+}
+
+void OptimisticMutationCoordinatorTest::recoversExpiredLeasesAtStartup() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const hcb::WallTimePoint initialTime{std::chrono::milliseconds{1'753'408'000'123}};
+  QString expiredMutationId;
+  QString activeMutationId;
+  {
+    const FixedClock clock(initialTime);
+    hcb::OptimisticMutationCoordinator coordinator(*databasePath, clock);
+    verifyReady(coordinator);
+    std::future<hcb::PendingMutationResult> expired = coordinator.enqueue(
+        {.resource = hcb::PendingMutationResource::Task,
+         .resourceId = QStringLiteral("task-expired"),
+         .operation = QStringLiteral("task.update"),
+         .payload = QJsonObject{{QStringLiteral("title"), QStringLiteral("Expired")}}});
+    const hcb::PendingMutation expiredClaim = awaitMutation(expired);
+    expiredMutationId = expiredClaim.id;
+    std::future<hcb::PendingMutationResult> expiredLease =
+        coordinator.claim(expiredMutationId, 30s);
+    QVERIFY(awaitMutation(expiredLease).leaseId.has_value());
+    std::future<hcb::PendingMutationResult> active = coordinator.enqueue(
+        {.resource = hcb::PendingMutationResource::Task,
+         .resourceId = QStringLiteral("task-active"),
+         .operation = QStringLiteral("task.update"),
+         .payload = QJsonObject{{QStringLiteral("title"), QStringLiteral("Active")}}});
+    const hcb::PendingMutation activeClaim = awaitMutation(active);
+    activeMutationId = activeClaim.id;
+    std::future<hcb::PendingMutationResult> activeLease = coordinator.claim(activeMutationId, 1h);
+    QVERIFY(awaitMutation(activeLease).leaseId.has_value());
+  }
+  {
+    const FixedClock clock(initialTime + 31s);
+    hcb::OptimisticMutationCoordinator coordinator(*databasePath, clock);
+    verifyReady(coordinator);
+    std::future<hcb::PendingMutationLookupResult> expired = coordinator.find(expiredMutationId);
+    const hcb::PendingMutationLookupResult expiredResult = awaitResult(expired);
+    QVERIFY(std::holds_alternative<std::optional<hcb::PendingMutation>>(expiredResult));
+    if (!std::holds_alternative<std::optional<hcb::PendingMutation>>(expiredResult)) {
+      return;
+    }
+    const std::optional<hcb::PendingMutation> recovered =
+        std::get<std::optional<hcb::PendingMutation>>(expiredResult);
+    QVERIFY(recovered.has_value());
+    if (!recovered.has_value()) {
+      return;
+    }
+    QCOMPARE(recovered->status, hcb::PendingMutationStatus::Pending);
+    QVERIFY(!recovered->leaseId.has_value());
+    QVERIFY(!recovered->leaseExpiresAt.has_value());
+    std::future<hcb::PendingMutationLookupResult> active = coordinator.find(activeMutationId);
+    const hcb::PendingMutationLookupResult activeResult = awaitResult(active);
+    QVERIFY(std::holds_alternative<std::optional<hcb::PendingMutation>>(activeResult));
+    if (!std::holds_alternative<std::optional<hcb::PendingMutation>>(activeResult)) {
+      return;
+    }
+    const std::optional<hcb::PendingMutation> activeMutation =
+        std::get<std::optional<hcb::PendingMutation>>(activeResult);
+    QVERIFY(activeMutation.has_value());
+    if (!activeMutation.has_value()) {
+      return;
+    }
+    QCOMPARE(activeMutation->status, hcb::PendingMutationStatus::Applying);
+    QVERIFY(activeMutation->leaseId.has_value());
+    std::future<hcb::PendingMutationListResult> due = coordinator.listDue();
+    const hcb::PendingMutationListResult dueResult = awaitResult(due);
+    QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(dueResult));
+    if (!std::holds_alternative<QList<hcb::PendingMutation>>(dueResult)) {
+      return;
+    }
+    const QList<hcb::PendingMutation> dueMutations =
+        std::get<QList<hcb::PendingMutation>>(dueResult);
+    QCOMPARE(dueMutations.size(), 1);
+    QCOMPARE(dueMutations.constFirst().id, expiredMutationId);
   }
 }
 

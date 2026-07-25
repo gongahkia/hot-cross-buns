@@ -630,18 +630,55 @@ WHERE id = ?1 AND status = 'failed'
   return requireStoredMutation(connection, mutationId);
 }
 
+[[nodiscard]] std::optional<AppError> recoverExpiredStoredMutations(SqliteConnection& connection,
+                                                                    const QString& now) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite mutation connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_pending_mutations
+SET status = 'pending', lease_id = NULL, lease_expires_at = NULL, updated_at = ?1
+WHERE status = 'applying' AND lease_expires_at <= ?1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite mutation recovery preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, now); error.has_value()) {
+    sqlite3_finalize(statement);
+    return error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite mutation recovery failed (%1)"), stepResult);
+  }
+  return finalizeResult == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite mutation recovery finalization failed (%1)"),
+                   finalizeResult));
+}
+
 } // namespace
 
 OptimisticMutationCoordinator::OptimisticMutationCoordinator(FilePath databasePath,
                                                              const Clock& clock)
     : clock_(clock), writerQueue_(std::move(databasePath)),
       initialization_(writerQueue_
-                          .enqueue([](SqliteConnection& connection) -> SqliteWriteResult {
+                          .enqueue([&clock](SqliteConnection& connection) -> SqliteWriteResult {
                             const SqliteMigrationRunResultOrError result =
                                 LocalSchema::initialize(connection);
-                            return std::holds_alternative<AppError>(result)
-                                       ? std::optional<AppError>(std::get<AppError>(result))
-                                       : std::nullopt;
+                            if (std::holds_alternative<AppError>(result)) {
+                              return std::get<AppError>(result);
+                            }
+                            return recoverExpiredStoredMutations(connection, timestamp(clock));
                           })
                           .share()) {}
 
