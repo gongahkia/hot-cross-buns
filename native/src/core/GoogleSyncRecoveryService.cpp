@@ -17,7 +17,7 @@ GoogleSyncRecoveryService::recover(SyncCheckpointKey key, const GoogleApiError& 
     completion.set_value(GoogleSyncRecoveryResult::NotRequired);
     return future;
   }
-  return std::async(std::launch::async, [this, key = std::move(key)] {
+  return std::async(std::launch::async, [this, key = std::move(key)]() mutable {
     SyncCheckpointEraseResult erased = checkpointStore_.erase(std::move(key)).get();
     if (std::holds_alternative<AppError>(erased)) {
       return GoogleSyncRecoveryResultOrError(std::get<AppError>(std::move(erased)));

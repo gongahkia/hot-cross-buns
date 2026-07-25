@@ -11,6 +11,7 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 
@@ -59,8 +60,11 @@ void prepareAccount(const hcb::test::TemporarySqliteDatabase& database) {
     return;
   }
   hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
-  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(
-      hcb::LocalSchema::initialize(connection)));
+  hcb::SqliteMigrationRunResultOrError schemaResult = hcb::LocalSchema::initialize(connection);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult));
+  if (!std::holds_alternative<hcb::SqliteMigrationRunResult>(schemaResult)) {
+    return;
+  }
   sqlite3* const handle = connection.nativeHandle();
   QVERIFY(handle != nullptr);
   if (handle == nullptr) {

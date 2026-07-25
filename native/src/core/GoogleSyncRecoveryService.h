@@ -3,6 +3,7 @@
 #include "core/GoogleApiError.h"
 #include "core/SyncCheckpointStore.h"
 
+#include <cstdint>
 #include <future>
 #include <variant>
 
