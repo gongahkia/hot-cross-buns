@@ -17,6 +17,7 @@ class SyncSchedulerTest final : public QObject {
   Q_OBJECT
 
 private slots:
+  void recordsBoundedSuccessAndFailureMetrics();
   void defersOfflineRequestsUntilOnline();
   void coalescesOfflineWorkAfterReconnect();
   void serializesAndCoalescesRequests();
@@ -27,6 +28,33 @@ private slots:
 };
 
 namespace {
+
+class TestClock final : public hcb::Clock {
+public:
+  TestClock(hcb::WallTimePoint wallTime, hcb::MonotonicTimePoint monotonicTime)
+      : wallTime_(wallTime), monotonicTime_(monotonicTime) {}
+
+  [[nodiscard]] hcb::WallTimePoint wallNow() const noexcept override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return wallTime_;
+  }
+
+  [[nodiscard]] hcb::MonotonicTimePoint monotonicNow() const noexcept override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return monotonicTime_;
+  }
+
+  void advance(std::chrono::milliseconds elapsed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    wallTime_ += elapsed;
+    monotonicTime_ += elapsed;
+  }
+
+private:
+  mutable std::mutex mutex_;
+  hcb::WallTimePoint wallTime_;
+  hcb::MonotonicTimePoint monotonicTime_;
+};
 
 struct ExecutorProbe final {
   std::mutex mutex;
@@ -71,6 +99,53 @@ struct ExecutorProbe final {
 }
 
 } // namespace
+
+void SyncSchedulerTest::recordsBoundedSuccessAndFailureMetrics() {
+  const hcb::WallTimePoint wallTime{std::chrono::seconds{1'725'000'000}};
+  TestClock clock(wallTime, hcb::MonotonicTimePoint{});
+  int runs = 0;
+  hcb::SyncScheduler scheduler(
+      [&clock, &runs](const hcb::SyncSchedulerRequest&) {
+        clock.advance(17ms);
+        ++runs;
+        return runs == 2 ? std::optional<hcb::AppError>(
+                               hcb::AppError(hcb::AppErrorCode::Network, QStringLiteral("offline")))
+                         : std::optional<hcb::AppError>{};
+      },
+      clock,
+      2);
+
+  std::future<hcb::SyncSchedulerResult> succeeded =
+      scheduler.request(hcb::SyncScheduleTrigger::Startup);
+  QCOMPARE(awaitRun(succeeded).triggers,
+           std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::Startup});
+  std::future<hcb::SyncSchedulerResult> failed =
+      scheduler.request(hcb::SyncScheduleTrigger::Manual);
+  QVERIFY(failed.wait_for(2s) == std::future_status::ready);
+  QVERIFY(std::holds_alternative<hcb::AppError>(failed.get()));
+  std::future<hcb::SyncSchedulerResult> recovered =
+      scheduler.request(hcb::SyncScheduleTrigger::NetworkRestored);
+  QCOMPARE(awaitRun(recovered).triggers,
+           std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::NetworkRestored});
+
+  const std::vector<hcb::SyncSchedulerMetric> metrics = scheduler.metrics();
+  QCOMPARE(metrics.size(), std::size_t{2});
+  QCOMPARE(metrics[0].sequence, std::uint64_t{2});
+  QCOMPARE(metrics[0].completedAt, wallTime + 34ms);
+  QCOMPARE(metrics[0].elapsed, 17ms);
+  QCOMPARE(metrics[0].triggers,
+           std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::Manual});
+  QCOMPARE(metrics[0].outcome, hcb::SyncSchedulerMetricOutcome::Failed);
+  QVERIFY(metrics[0].errorCode.has_value());
+  QCOMPARE(metrics[0].errorCode.value_or(hcb::AppErrorCode::Cancelled), hcb::AppErrorCode::Network);
+  QCOMPARE(metrics[1].sequence, std::uint64_t{3});
+  QCOMPARE(metrics[1].completedAt, wallTime + 51ms);
+  QCOMPARE(metrics[1].elapsed, 17ms);
+  QCOMPARE(metrics[1].triggers,
+           std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::NetworkRestored});
+  QCOMPARE(metrics[1].outcome, hcb::SyncSchedulerMetricOutcome::Succeeded);
+  QVERIFY(!metrics[1].errorCode.has_value());
+}
 
 void SyncSchedulerTest::defersOfflineRequestsUntilOnline() {
   ExecutorProbe probe;

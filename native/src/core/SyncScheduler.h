@@ -1,9 +1,11 @@
 #pragma once
 
 #include "core/AppError.h"
+#include "core/Clock.h"
 
 #include <chrono>
 #include <cstdint>
+#include <cstddef>
 #include <functional>
 #include <future>
 #include <memory>
@@ -28,6 +30,20 @@ struct SyncSchedulerRun final {
   std::vector<SyncScheduleTrigger> triggers;
 };
 
+enum class SyncSchedulerMetricOutcome : std::uint8_t {
+  Succeeded,
+  Failed
+};
+
+struct SyncSchedulerMetric final {
+  std::uint64_t sequence;
+  WallTimePoint completedAt;
+  std::vector<SyncScheduleTrigger> triggers;
+  std::chrono::milliseconds elapsed;
+  SyncSchedulerMetricOutcome outcome;
+  std::optional<AppErrorCode> errorCode;
+};
+
 struct SyncSchedulerSnapshot final {
   bool online{true};
   bool running{false};
@@ -43,6 +59,9 @@ using SyncSchedulerResult = std::variant<SyncSchedulerRun, AppError>;
 class SyncScheduler final {
 public:
   explicit SyncScheduler(SyncSchedulerExecutor executor);
+  SyncScheduler(SyncSchedulerExecutor executor,
+                const Clock& clock,
+                std::size_t maximumMetrics = 100);
   ~SyncScheduler();
   SyncScheduler(const SyncScheduler&) = delete;
   SyncScheduler& operator=(const SyncScheduler&) = delete;
@@ -52,6 +71,7 @@ public:
   [[nodiscard]] bool startPeriodic(std::chrono::milliseconds interval);
   void stop();
   [[nodiscard]] SyncSchedulerSnapshot snapshot() const;
+  [[nodiscard]] std::vector<SyncSchedulerMetric> metrics() const;
 
 private:
   struct State;

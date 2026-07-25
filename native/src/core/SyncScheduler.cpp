@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <deque>
 #include <exception>
 #include <mutex>
 #include <optional>
@@ -22,6 +23,11 @@ struct WaitingSyncRequest final {
 
 [[nodiscard]] AppError executionError() {
   return AppError(AppErrorCode::Network, QStringLiteral("Scheduled sync execution failed"));
+}
+
+[[nodiscard]] const Clock& systemClock() {
+  static const SystemClock clock;
+  return clock;
 }
 
 [[nodiscard]] std::vector<SyncScheduleTrigger>
@@ -51,12 +57,20 @@ void complete(const std::vector<WaitingSyncRequest>& requests,
 } // namespace
 
 struct SyncScheduler::State final {
-  explicit State(SyncSchedulerExecutor executorValue) : executor(std::move(executorValue)) {}
+  State(SyncSchedulerExecutor executorValue,
+        const Clock& clockValue,
+        std::size_t maximumMetricsValue)
+      : executor(std::move(executorValue)), clock(clockValue),
+        maximumMetrics(std::max<std::size_t>(maximumMetricsValue, 1)) {}
 
   std::mutex mutex;
   std::condition_variable timerWake;
   SyncSchedulerExecutor executor;
+  const Clock& clock;
+  const std::size_t maximumMetrics;
   std::vector<WaitingSyncRequest> pending;
+  std::deque<SyncSchedulerMetric> metrics;
+  std::uint64_t nextMetricSequence{1};
   std::thread periodicThread;
   std::chrono::milliseconds interval{0};
   bool online{true};
@@ -66,7 +80,12 @@ struct SyncScheduler::State final {
 };
 
 SyncScheduler::SyncScheduler(SyncSchedulerExecutor executor)
-    : state_(std::make_shared<State>(std::move(executor))) {}
+    : SyncScheduler(std::move(executor), systemClock()) {}
+
+SyncScheduler::SyncScheduler(SyncSchedulerExecutor executor,
+                             const Clock& clock,
+                             std::size_t maximumMetrics)
+    : state_(std::make_shared<State>(std::move(executor), clock, maximumMetrics)) {}
 
 SyncScheduler::~SyncScheduler() { stop(); }
 
@@ -173,6 +192,11 @@ SyncSchedulerSnapshot SyncScheduler::snapshot() const {
           .stopped = state_->stopped};
 }
 
+std::vector<SyncSchedulerMetric> SyncScheduler::metrics() const {
+  std::lock_guard<std::mutex> lock(state_->mutex);
+  return {state_->metrics.cbegin(), state_->metrics.cend()};
+}
+
 void SyncScheduler::enqueuePeriodic(const std::shared_ptr<State>& state) {
   {
     std::lock_guard<std::mutex> lock(state->mutex);
@@ -200,19 +224,37 @@ void SyncScheduler::startNext(const std::shared_ptr<State>& state) {
   try {
     std::thread([state, requests = std::move(requests), request = std::move(request)]() mutable {
       std::optional<AppError> error;
+      const MonotonicTimePoint startedAt = state->clock.monotonicNow();
       try {
         error = state->executor(request);
       } catch (...) {
         error = executionError();
       }
+      std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+          state->clock.monotonicNow() - startedAt);
+      if (elapsed < std::chrono::milliseconds::zero()) {
+        elapsed = std::chrono::milliseconds::zero();
+      }
       const SyncSchedulerResult result =
           error.has_value() ? SyncSchedulerResult(*error)
                             : SyncSchedulerResult(SyncSchedulerRun{.triggers = request.triggers});
-      complete(requests, result);
       {
         std::lock_guard<std::mutex> lock(state->mutex);
+        state->metrics.push_back(
+            {.sequence = state->nextMetricSequence++,
+             .completedAt = state->clock.wallNow(),
+             .triggers = request.triggers,
+             .elapsed = elapsed,
+             .outcome = error.has_value() ? SyncSchedulerMetricOutcome::Failed
+                                          : SyncSchedulerMetricOutcome::Succeeded,
+             .errorCode =
+                 error.has_value() ? std::optional<AppErrorCode>(error->code()) : std::nullopt});
+        while (state->metrics.size() > state->maximumMetrics) {
+          state->metrics.pop_front();
+        }
         state->running = false;
       }
+      complete(requests, result);
       startNext(state);
     }).detach();
   } catch (...) {
