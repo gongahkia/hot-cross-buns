@@ -25,6 +25,7 @@ ApplicationWindow {
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
+    property alias notesList: notesList
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
 
@@ -289,6 +290,7 @@ ApplicationWindow {
             }
 
             NotesListView {
+                id: notesList
                 anchors.fill: parent
                 visible: window.currentPage === "Notes"
                 notesModel: window.notesModel

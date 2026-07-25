@@ -177,6 +177,29 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_keyboardQuickCaptureSubmitsTaskRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let capturedTitle = ""
+        mainWindow.quickCaptureRequested.connect(function(title) { capturedTitle = title })
+        mainWindow.requestActivate()
+        tryCompare(mainWindow, "active", true)
+        keyClick(Qt.Key_N, Qt.ControlModifier | Qt.ShiftModifier)
+        tryVerify(function() {
+            return mainWindow.quickCapture.opened && mainWindow.quickCapture.taskTitleField.activeFocus
+        })
+        mainWindow.quickCapture.taskTitle = "Ship native quick capture"
+        keyClick(Qt.Key_Return)
+        compare(capturedTitle, "Ship native quick capture")
+        tryVerify(function() {
+            return !mainWindow.quickCapture.opened
+        })
+        mainWindow.destroy()
+    }
+
     function test_taskListPresentsAndSelectsTasks() {
         const component = Qt.createComponent("../../qml/TaskListView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -320,6 +343,49 @@ TestCase {
         compare(saved.title, "Revised release notes")
         compare(saved.body, "Update the package checklist")
         mainWindow.destroy()
+    }
+
+    function test_keyboardNoteEditSubmitsSaveRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const notesModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        notesModel.append({
+            id: "note-1",
+            taskListTitle: "Inbox",
+            title: "Release notes",
+            body: "Verify the package artifacts"
+        })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            notesModel: notesModel
+        })
+        verify(mainWindow !== null)
+        let saved = null
+        mainWindow.noteSaveRequested.connect(function(noteId, title, body) {
+            saved = { noteId: noteId, title: title, body: body }
+        })
+        mainWindow.requestActivate()
+        tryCompare(mainWindow, "active", true)
+        keyClick(Qt.Key_3, Qt.ControlModifier)
+        tryCompare(mainWindow, "currentPage", "Notes")
+        tryVerify(function() {
+            return mainWindow.notesList.noteRows.itemAtIndex(0) !== null
+        })
+        const noteRow = mainWindow.notesList.noteRows.itemAtIndex(0)
+        noteRow.forceActiveFocus()
+        tryVerify(function() { return noteRow.activeFocus })
+        keyClick(Qt.Key_Space)
+        tryVerify(function() {
+            return mainWindow.noteEditor.opened && mainWindow.noteEditor.noteTitleField.activeFocus
+        })
+        mainWindow.noteEditor.noteTitle = "Revised release notes"
+        keyClick(Qt.Key_Return)
+        compare(saved.noteId, "note-1")
+        compare(saved.title, "Revised release notes")
+        compare(saved.body, "Verify the package artifacts")
+        mainWindow.destroy()
+        notesModel.destroy()
     }
 
     function test_usesDesignTokens() {
