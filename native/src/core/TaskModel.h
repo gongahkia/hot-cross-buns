@@ -45,9 +45,10 @@ public:
   Q_ENUM(Role)
 
   explicit TaskModel(QObject* parent = nullptr);
+  ~TaskModel() override;
 
-  [[nodiscard]] QModelIndex index(int row, int column,
-                                  const QModelIndex& parent = QModelIndex()) const override;
+  [[nodiscard]] QModelIndex
+  index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
   [[nodiscard]] QModelIndex parent(const QModelIndex& index) const override;
   [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
   [[nodiscard]] int columnCount(const QModelIndex& parent = QModelIndex()) const override;

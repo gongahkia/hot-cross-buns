@@ -24,33 +24,18 @@ namespace {
          !task.title.contains(QChar::Null) && task.sortOrder >= 0;
 }
 
-[[nodiscard]] int rowOf(const QList<TaskModel::Node*>& siblings, const TaskModel::Node* node) {
-  return siblings.indexOf(const_cast<TaskModel::Node*>(node));
-}
-
-[[nodiscard]] bool wouldCreateCycle(const TaskModel::Node* node,
-                                    const TaskModel::Node* candidateParent,
-                                    const QHash<QString, TaskModel::Node*>& byId) {
-  const TaskModel::Node* current = candidateParent;
-  while (current != nullptr) {
-    if (current == node || !current->task.parentTaskId.has_value()) {
-      return current == node;
-    }
-    current = byId.value(*current->task.parentTaskId, nullptr);
-  }
-  return false;
-}
-
 } // namespace
 
 TaskModel::TaskModel(QObject* parent) : QAbstractItemModel(parent) {}
+
+TaskModel::~TaskModel() = default;
 
 QModelIndex TaskModel::index(int row, int column, const QModelIndex& parentIndex) const {
   if (row < 0 || column != 0) {
     return {};
   }
-  const Node* parentNode = parentIndex.isValid() ? static_cast<const Node*>(parentIndex.internalPointer())
-                                                  : nullptr;
+  const Node* parentNode =
+      parentIndex.isValid() ? static_cast<const Node*>(parentIndex.internalPointer()) : nullptr;
   const QList<Node*>& siblings = parentNode == nullptr ? roots_ : parentNode->children;
   return row >= siblings.size() ? QModelIndex() : createIndex(row, column, siblings.at(row));
 }
@@ -64,8 +49,9 @@ QModelIndex TaskModel::parent(const QModelIndex& index) const {
   if (parentNode == nullptr) {
     return {};
   }
-  const QList<Node*>& siblings = parentNode->parent == nullptr ? roots_ : parentNode->parent->children;
-  const int row = rowOf(siblings, parentNode);
+  const QList<Node*>& siblings =
+      parentNode->parent == nullptr ? roots_ : parentNode->parent->children;
+  const int row = static_cast<int>(siblings.indexOf(const_cast<Node*>(parentNode)));
   return row < 0 ? QModelIndex() : createIndex(row, 0, const_cast<Node*>(parentNode));
 }
 
@@ -73,8 +59,10 @@ int TaskModel::rowCount(const QModelIndex& parentIndex) const {
   if (parentIndex.isValid() && parentIndex.column() != 0) {
     return 0;
   }
-  const Node* node = parentIndex.isValid() ? static_cast<const Node*>(parentIndex.internalPointer()) : nullptr;
-  return node == nullptr ? roots_.size() : node->children.size();
+  const Node* node =
+      parentIndex.isValid() ? static_cast<const Node*>(parentIndex.internalPointer()) : nullptr;
+  return node == nullptr ? static_cast<int>(roots_.size())
+                         : static_cast<int>(node->children.size());
 }
 
 int TaskModel::columnCount(const QModelIndex&) const { return 1; }
@@ -138,22 +126,40 @@ void TaskModel::setTasks(QList<TaskModelTask> tasks) {
     nodes.push_back(std::move(node));
   }
   QList<Node*> roots;
+  const auto order = [](const Node* left, const Node* right) {
+    return left->task.sortOrder != right->task.sortOrder
+               ? left->task.sortOrder < right->task.sortOrder
+               : left->task.id < right->task.id;
+  };
+  const auto mustDetachForCycle = [&byId, &order](const Node* node, const Node* candidateParent) {
+    const Node* current = candidateParent;
+    const Node* cycleRoot = node;
+    while (current != nullptr) {
+      if (order(current, cycleRoot)) {
+        cycleRoot = current;
+      }
+      if (current == node) {
+        return cycleRoot == node;
+      }
+      current = current->task.parentTaskId.has_value()
+                    ? byId.value(*current->task.parentTaskId, nullptr)
+                    : nullptr;
+    }
+    return false;
+  };
   for (const std::unique_ptr<Node>& node : nodes) {
     Node* parentNode = nullptr;
     if (node->task.parentTaskId.has_value()) {
       parentNode = byId.value(*node->task.parentTaskId, nullptr);
     }
-    if (parentNode == nullptr || wouldCreateCycle(node.get(), parentNode, byId)) {
+    if (parentNode == nullptr || parentNode->task.taskListId != node->task.taskListId ||
+        mustDetachForCycle(node.get(), parentNode)) {
       roots.append(node.get());
     } else {
       node->parent = parentNode;
       parentNode->children.append(node.get());
     }
   }
-  const auto order = [](const Node* left, const Node* right) {
-    return left->task.sortOrder != right->task.sortOrder ? left->task.sortOrder < right->task.sortOrder
-                                                          : left->task.id < right->task.id;
-  };
   std::sort(roots.begin(), roots.end(), order);
   for (const std::unique_ptr<Node>& node : nodes) {
     std::sort(node->children.begin(), node->children.end(), order);
