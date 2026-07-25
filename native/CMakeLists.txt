@@ -215,6 +215,20 @@ target_include_directories(hcb_event15k_performance_fixture PRIVATE src)
 hcb_enable_warnings(hcb_event15k_performance_fixture)
 hcb_enable_sanitizers(hcb_event15k_performance_fixture)
 
+qt_add_executable(hcb_planner_benchmark
+  benchmarks/NativePlannerBenchmarkMain.cpp
+  src/core/CalendarLayoutEngine.cpp
+  src/core/CalendarLayoutEngine.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
+  src/core/NativePlannerBenchmark.cpp
+  src/core/NativePlannerBenchmark.h
+)
+target_link_libraries(hcb_planner_benchmark PRIVATE Qt6::Core)
+target_include_directories(hcb_planner_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_planner_benchmark)
+hcb_enable_sanitizers(hcb_planner_benchmark)
+
 qt_add_executable(hcb_performance_report
   benchmarks/NativePerformanceReportMain.cpp
   src/core/NativeIdleRssBenchmark.cpp
@@ -908,6 +922,21 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_calendar_layout_engine_tests)
   add_test(NAME hcb_calendar_layout_engine_tests COMMAND hcb_calendar_layout_engine_tests)
 
+  qt_add_executable(hcb_native_planner_benchmark_tests
+    tests/NativePlannerBenchmarkTest.cpp
+    src/core/CalendarLayoutEngine.cpp
+    src/core/CalendarLayoutEngine.h
+    src/core/NativePerformanceFixture.cpp
+    src/core/NativePerformanceFixture.h
+    src/core/NativePlannerBenchmark.cpp
+    src/core/NativePlannerBenchmark.h
+  )
+  target_link_libraries(hcb_native_planner_benchmark_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_planner_benchmark_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_native_planner_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_planner_benchmark_tests)
+  add_test(NAME hcb_native_planner_benchmark_tests COMMAND hcb_native_planner_benchmark_tests)
+
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1536,6 +1565,7 @@ set(hcb_static_analysis_dependencies
   hcb_small_performance_fixture
   hcb_medium_performance_fixture
   hcb_event15k_performance_fixture
+  hcb_planner_benchmark
   hcb_performance_report
 )
 if(BUILD_TESTING)
@@ -1576,6 +1606,7 @@ if(BUILD_TESTING)
     hcb_recurrence_expansion_worker_tests
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
+    hcb_native_planner_benchmark_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
@@ -1659,6 +1690,7 @@ if(BUILD_TESTING)
     hcb_recurrence_expansion_worker_tests
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
+    hcb_native_planner_benchmark_tests
     hcb_local_search_service_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
