@@ -155,6 +155,28 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_quickCaptureEmitsTaskRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let capturedTitle = ""
+        mainWindow.quickCaptureRequested.connect(function(title) { capturedTitle = title })
+        mainWindow.quickCaptureShortcut.activated()
+        tryVerify(function() {
+            return mainWindow.quickCapture.opened && mainWindow.quickCapture.taskTitleField.activeFocus
+        })
+        mainWindow.quickCapture.taskTitle = "Ship native quick capture"
+        verify(mainWindow.quickCapture.primaryEnabled)
+        mainWindow.quickCapture.primaryButton.click()
+        compare(capturedTitle, "Ship native quick capture")
+        tryVerify(function() {
+            return !mainWindow.quickCapture.opened
+        })
+        mainWindow.destroy()
+    }
+
     function test_usesDesignTokens() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

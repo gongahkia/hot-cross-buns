@@ -20,6 +20,9 @@ ApplicationWindow {
     property alias commandPaletteQuery: commandPaletteQuery
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
+    property alias quickCapture: quickCapture
+    property alias quickCaptureShortcut: quickCaptureShortcut
+    signal quickCaptureRequested(string title)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -72,6 +75,10 @@ ApplicationWindow {
         commandPaletteQuery.forceActiveFocus()
     }
 
+    function openQuickCapture() {
+        quickCapture.open()
+    }
+
     color: Theme.background
     palette.window: Theme.background
     palette.windowText: Theme.textPrimary
@@ -84,6 +91,13 @@ ApplicationWindow {
         sequence: "Ctrl+P"
         autoRepeat: false
         onActivated: window.openCommandPalette()
+    }
+
+    Shortcut {
+        id: quickCaptureShortcut
+        sequence: "Ctrl+Shift+N"
+        autoRepeat: false
+        onActivated: window.openQuickCapture()
     }
 
     Instantiator {
@@ -208,6 +222,13 @@ ApplicationWindow {
                 horizontalAlignment: Text.AlignHCenter
             }
         }
+    }
+
+    QuickCaptureDialog {
+        id: quickCapture
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskRequested: title => window.quickCaptureRequested(title)
     }
 
     header: ToolBar {

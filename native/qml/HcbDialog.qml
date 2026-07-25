@@ -9,6 +9,7 @@ Dialog {
     property string secondaryText: "Cancel"
     property bool primaryDestructive: false
     property alias primaryButton: primaryButton
+    property alias primaryEnabled: primaryButton.enabled
     property alias secondaryButton: secondaryButton
     signal primaryAction()
     signal secondaryAction()
