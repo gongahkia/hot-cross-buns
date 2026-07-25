@@ -312,6 +312,7 @@ ApplicationWindow {
 
                     TabButton { text: "Agenda" }
                     TabButton { text: "Day" }
+                    TabButton { text: "Week" }
                 }
 
                 StackLayout {
@@ -324,6 +325,10 @@ ApplicationWindow {
                     }
 
                     DayTimelineView {
+                        timelineModel: window.timelineModel
+                    }
+
+                    WeekTimelineView {
                         timelineModel: window.timelineModel
                     }
                 }

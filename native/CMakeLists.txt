@@ -170,6 +170,7 @@ qt_add_qml_module(hcb_native
     qml/QuickCaptureDialog.qml
     qml/TaskListView.qml
     qml/Theme.qml
+    qml/WeekTimelineView.qml
 )
 
 target_link_libraries(hcb_native PRIVATE
