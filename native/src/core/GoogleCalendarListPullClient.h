@@ -36,8 +36,13 @@ struct GoogleCalendarMirror final {
   std::optional<QString> etag;
 };
 
+struct GoogleCalendarListPullRequest final {
+  std::optional<QString> syncToken;
+};
+
 struct GoogleCalendarListPullResult final {
   QList<GoogleCalendarMirror> calendars;
+  std::optional<QString> nextSyncToken;
   std::optional<QString> serverDate;
 };
 
@@ -48,7 +53,8 @@ class GoogleCalendarListPullClient final {
 public:
   explicit GoogleCalendarListPullClient(GoogleHttpClient& httpClient);
 
-  [[nodiscard]] std::future<GoogleCalendarListPullResultOrError> list(QString accessToken);
+  [[nodiscard]] std::future<GoogleCalendarListPullResultOrError>
+  list(GoogleCalendarListPullRequest request, const QString& accessToken);
 
 private:
   GoogleHttpClient& httpClient_;

@@ -68,6 +68,8 @@ set(HCB_NATIVE_SOURCES
   src/core/StructuredLogger.h
   src/core/SyncBackoffPolicy.cpp
   src/core/SyncBackoffPolicy.h
+  src/core/SyncCheckpointStore.cpp
+  src/core/SyncCheckpointStore.h
   src/core/TaskListReadService.cpp
   src/core/TaskListReadService.h
   src/core/TaskMutationService.cpp
@@ -770,6 +772,33 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_settings_service_tests)
   add_test(NAME hcb_settings_service_tests COMMAND hcb_settings_service_tests)
 
+  qt_add_executable(hcb_sync_checkpoint_store_tests
+    tests/SyncCheckpointStoreTest.cpp
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/SyncCheckpointStore.cpp
+    src/core/SyncCheckpointStore.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_sync_checkpoint_store_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sync_checkpoint_store_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_sync_checkpoint_store_tests)
+  hcb_enable_sanitizers(hcb_sync_checkpoint_store_tests)
+  add_test(NAME hcb_sync_checkpoint_store_tests COMMAND hcb_sync_checkpoint_store_tests)
+
   qt_add_executable(hcb_google_api_error_tests
     tests/GoogleApiErrorTest.cpp
     src/core/GoogleApiError.cpp
@@ -1294,6 +1323,7 @@ if(BUILD_TESTING)
     hcb_domain_service_contract_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
+    hcb_sync_checkpoint_store_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
     hcb_google_calendar_list_pull_client_tests
@@ -1366,6 +1396,7 @@ if(BUILD_TESTING)
     hcb_domain_service_contract_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
+    hcb_sync_checkpoint_store_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
     hcb_google_calendar_list_pull_client_tests

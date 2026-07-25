@@ -25,11 +25,13 @@ constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumColorLength = 7;
 constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr qsizetype kMaximumPageTokenLength = 8'192;
+constexpr qsizetype kMaximumSyncTokenLength = 8'192;
 constexpr int kMaximumPages = 100;
 
 struct DecodedCalendarListPage final {
   QList<GoogleCalendarMirror> calendars;
   std::optional<QString> nextPageToken;
+  std::optional<QString> nextSyncToken;
 };
 
 using DecodedCalendarListPageOrError = std::variant<DecodedCalendarListPage, GoogleApiError>;
@@ -44,6 +46,12 @@ using DecodedCalendarListPageOrError = std::variant<DecodedCalendarListPage, Goo
   return GoogleApiError(
       {.kind = GoogleApiErrorKind::Transport,
        .message = QStringLiteral("Google calendar-list pull failed before completion")});
+}
+
+[[nodiscard]] GoogleApiError invalidRequestError() {
+  return GoogleApiError(
+      {.kind = GoogleApiErrorKind::InvalidPayload,
+       .message = QStringLiteral("Google calendar-list pull request is invalid")});
 }
 
 [[nodiscard]] bool isPresent(const QJsonValue& value) {
@@ -67,6 +75,11 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   const QString text = value.toString();
   return text.size() <= maximumLength && !text.contains(QChar::Null) ? std::optional<QString>(text)
                                                                      : std::nullopt;
+}
+
+[[nodiscard]] bool isValidSyncToken(const std::optional<QString>& token) {
+  return !token.has_value() || (!token->isEmpty() && token->size() <= kMaximumSyncTokenLength &&
+                                !token->contains(QChar::Null));
 }
 
 [[nodiscard]] std::optional<QString> normalizedTitle(const QJsonObject& object) {
@@ -151,14 +164,16 @@ calendarAccessRole(const QJsonObject& object) {
   if (isPresent(itemsValue) && !itemsValue.isArray()) {
     return invalidPayloadError();
   }
-  const QJsonValue nextPageTokenValue = response.value(QStringLiteral("nextPageToken"));
   std::optional<QString> nextPageToken =
       optionalString(response, u"nextPageToken", kMaximumPageTokenLength);
-  if (!nextPageToken.has_value() && isPresent(nextPageTokenValue)) {
+  std::optional<QString> nextSyncToken =
+      optionalString(response, u"nextSyncToken", kMaximumSyncTokenLength);
+  if ((!nextPageToken.has_value() && isPresent(response.value(QStringLiteral("nextPageToken")))) ||
+      (!nextSyncToken.has_value() && isPresent(response.value(QStringLiteral("nextSyncToken")))) ||
+      (nextPageToken.has_value() && nextPageToken->isEmpty()) ||
+      (nextSyncToken.has_value() && nextSyncToken->isEmpty()) ||
+      (nextPageToken.has_value() && nextSyncToken.has_value())) {
     return invalidPayloadError();
-  }
-  if (nextPageToken.has_value() && nextPageToken->isEmpty()) {
-    nextPageToken.reset();
   }
   const QJsonArray items = itemsValue.isArray() ? itemsValue.toArray() : QJsonArray();
   if (items.size() > 250) {
@@ -219,24 +234,30 @@ calendarAccessRole(const QJsonObject& object) {
                       .deleted = *deleted,
                       .etag = etag});
   }
-  return DecodedCalendarListPage{.calendars = std::move(calendars), .nextPageToken = nextPageToken};
+  return DecodedCalendarListPage{.calendars = std::move(calendars),
+                                 .nextPageToken = nextPageToken,
+                                 .nextSyncToken = nextSyncToken};
 }
 
-[[nodiscard]] GoogleHttpRequest requestForPage(const std::optional<QString>& pageToken) {
-  GoogleHttpRequest request;
-  request.path = QStringLiteral("/calendar/v3/users/me/calendarList");
-  request.query = {
+[[nodiscard]] GoogleHttpRequest requestForPage(const GoogleCalendarListPullRequest& request,
+                                               const std::optional<QString>& pageToken) {
+  GoogleHttpRequest httpRequest;
+  httpRequest.path = QStringLiteral("/calendar/v3/users/me/calendarList");
+  httpRequest.query = {
       {.name = QStringLiteral("maxResults"), .value = QStringLiteral("250")},
       {.name = QStringLiteral("showDeleted"), .value = QStringLiteral("true")},
       {.name = QStringLiteral("showHidden"), .value = QStringLiteral("true")},
       {.name = QStringLiteral("fields"),
        .value = QStringLiteral(
-           "nextPageToken,items(id,summary,summaryOverride,description,timeZone,"
+           "nextPageToken,nextSyncToken,items(id,summary,summaryOverride,description,timeZone,"
            "backgroundColor,foregroundColor,accessRole,selected,hidden,primary,deleted,etag)")}};
-  if (pageToken.has_value()) {
-    request.query.append({.name = QStringLiteral("pageToken"), .value = *pageToken});
+  if (request.syncToken.has_value()) {
+    httpRequest.query.append({.name = QStringLiteral("syncToken"), .value = *request.syncToken});
   }
-  return request;
+  if (pageToken.has_value()) {
+    httpRequest.query.append({.name = QStringLiteral("pageToken"), .value = *pageToken});
+  }
+  return httpRequest;
 }
 
 } // namespace
@@ -245,11 +266,18 @@ GoogleCalendarListPullClient::GoogleCalendarListPullClient(GoogleHttpClient& htt
     : httpClient_(httpClient) {}
 
 std::future<GoogleCalendarListPullResultOrError>
-GoogleCalendarListPullClient::list(QString accessToken) {
+GoogleCalendarListPullClient::list(GoogleCalendarListPullRequest request,
+                                   const QString& accessToken) {
+  if (!isValidSyncToken(request.syncToken)) {
+    std::promise<GoogleCalendarListPullResultOrError> completion;
+    std::future<GoogleCalendarListPullResultOrError> future = completion.get_future();
+    completion.set_value(invalidRequestError());
+    return future;
+  }
   auto completion = std::make_shared<std::promise<GoogleCalendarListPullResultOrError>>();
   std::future<GoogleCalendarListPullResultOrError> future = completion->get_future();
   try {
-    std::thread([this, accessToken = std::move(accessToken), completion] {
+    std::thread([this, request = std::move(request), accessToken, completion] {
       try {
         QList<GoogleCalendarMirror> calendars;
         calendars.reserve(kMaximumCalendarCount);
@@ -258,7 +286,7 @@ GoogleCalendarListPullClient::list(QString accessToken) {
         std::optional<QString> serverDate;
         for (int page = 0; page < kMaximumPages; ++page) {
           GoogleHttpResult response =
-              httpClient_.send(requestForPage(pageToken), accessToken).get();
+              httpClient_.send(requestForPage(request, pageToken), accessToken).get();
           if (std::holds_alternative<GoogleApiError>(response)) {
             completion->set_value(std::get<GoogleApiError>(std::move(response)));
             return;
@@ -286,8 +314,10 @@ GoogleCalendarListPullClient::list(QString accessToken) {
             calendars.append(std::move(calendar));
           }
           if (!pageData.nextPageToken.has_value()) {
-            completion->set_value(GoogleCalendarListPullResult{.calendars = std::move(calendars),
-                                                               .serverDate = serverDate});
+            completion->set_value(
+                GoogleCalendarListPullResult{.calendars = std::move(calendars),
+                                             .nextSyncToken = pageData.nextSyncToken,
+                                             .serverDate = serverDate});
             return;
           }
           pageToken = std::move(pageData.nextPageToken);

@@ -16,6 +16,7 @@ class GoogleCalendarEventPullClientTest final : public QObject {
 
 private slots:
   void readsEveryPageAndNormalizesEvents();
+  void sendsIncrementalSyncTokenOnEveryPage();
   void acceptsCancelledEventTombstones();
   void rejectsMalformedEventPayloads();
   void rejectsInvalidRequest();
@@ -85,6 +86,30 @@ void GoogleCalendarEventPullClientTest::readsEveryPageAndNormalizesEvents() {
   QCOMPARE(
       QUrlQuery(manager.requests().at(1).request.url()).queryItemValue(QStringLiteral("pageToken")),
       QStringLiteral("page-2"));
+}
+
+void GoogleCalendarEventPullClientTest::sendsIncrementalSyncTokenOnEveryPage() {
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{\"nextPageToken\":\"page-2\",\"items\":[]}")});
+  manager.enqueue({.body = QByteArray("{\"nextSyncToken\":\"sync-2\",\"items\":[]}")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventPullClient client(httpClient);
+
+  std::future<hcb::GoogleCalendarEventPullResultOrError> future = client.list(
+      {.calendarId = QStringLiteral("calendar-1"), .syncToken = QStringLiteral("sync-1")},
+      QStringLiteral("access-token"));
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::GoogleCalendarEventPullResultOrError result = future.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarEventPullResult>(result));
+  QCOMPARE(std::get<hcb::GoogleCalendarEventPullResult>(result).nextSyncToken,
+           std::optional<QString>(QStringLiteral("sync-2")));
+  QCOMPARE(manager.requests().size(), 2);
+  for (const hcb::test::CapturedNetworkRequest& request : manager.requests()) {
+    QCOMPARE(QUrlQuery(request.request.url()).queryItemValue(QStringLiteral("syncToken")),
+             QStringLiteral("sync-1"));
+  }
 }
 
 void GoogleCalendarEventPullClientTest::acceptsCancelledEventTombstones() {

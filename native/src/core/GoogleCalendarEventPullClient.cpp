@@ -34,7 +34,7 @@ constexpr qsizetype kMaximumRecurrenceLength = 4'096;
 constexpr qsizetype kMaximumColorIdLength = 32;
 constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr qsizetype kMaximumPageTokenLength = 8'192;
-constexpr qsizetype kMaximumSyncTokenLength = 16'384;
+constexpr qsizetype kMaximumSyncTokenLength = 8'192;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr int kMaximumPages = 400;
 
@@ -78,6 +78,11 @@ using DecodedCalendarEventPageOrError = std::variant<DecodedCalendarEventPage, G
   return !value.isEmpty() && value == value.trimmed() && value.size() <= kMaximumEventIdLength &&
          !value.contains(QChar::Null) && !value.contains(u'/') && !value.contains(u'?') &&
          !value.contains(u'#') && !value.contains(u'\\');
+}
+
+[[nodiscard]] bool isValidSyncToken(const std::optional<QString>& token) {
+  return !token.has_value() || (!token->isEmpty() && token->size() <= kMaximumSyncTokenLength &&
+                                !token->contains(QChar::Null));
 }
 
 [[nodiscard]] std::optional<QString>
@@ -415,6 +420,9 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
            "nextPageToken,nextSyncToken,items(id,status,summary,description,location,"
            "start,end,recurringEventId,originalStartTime,recurrence,colorId,transparency,"
            "visibility,timeZone,eventType,etag,sequence,updated)")}};
+  if (request.syncToken.has_value()) {
+    httpRequest.query.append({.name = QStringLiteral("syncToken"), .value = *request.syncToken});
+  }
   if (pageToken.has_value()) {
     httpRequest.query.append({.name = QStringLiteral("pageToken"), .value = *pageToken});
   }
@@ -427,8 +435,9 @@ GoogleCalendarEventPullClient::GoogleCalendarEventPullClient(GoogleHttpClient& h
     : httpClient_(httpClient) {}
 
 std::future<GoogleCalendarEventPullResultOrError>
-GoogleCalendarEventPullClient::list(GoogleCalendarEventPullRequest request, QString accessToken) {
-  if (!isValidIdentifier(request.calendarId)) {
+GoogleCalendarEventPullClient::list(GoogleCalendarEventPullRequest request,
+                                    const QString& accessToken) {
+  if (!isValidIdentifier(request.calendarId) || !isValidSyncToken(request.syncToken)) {
     std::promise<GoogleCalendarEventPullResultOrError> completion;
     std::future<GoogleCalendarEventPullResultOrError> future = completion.get_future();
     completion.set_value(invalidRequestError());
@@ -437,10 +446,7 @@ GoogleCalendarEventPullClient::list(GoogleCalendarEventPullRequest request, QStr
   auto completion = std::make_shared<std::promise<GoogleCalendarEventPullResultOrError>>();
   std::future<GoogleCalendarEventPullResultOrError> future = completion->get_future();
   try {
-    std::thread([this,
-                 request = std::move(request),
-                 accessToken = std::move(accessToken),
-                 completion] {
+    std::thread([this, request = std::move(request), accessToken, completion] {
       try {
         QList<GoogleCalendarEventMirror> events;
         events.reserve(kMaximumEventCount);
