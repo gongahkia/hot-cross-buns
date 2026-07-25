@@ -1,6 +1,7 @@
 #include <QtTest>
 
 #include "app/AppPaths.h"
+#include "app/LinuxPathsAdapter.h"
 #include "app/MacOSPathsAdapter.h"
 #include "app/WindowsPathsAdapter.h"
 
@@ -12,6 +13,7 @@ class AppPathsTest final : public QObject {
 private slots:
   void discoversStableApplicationDirectories();
   void discoversMacOSApplicationDirectories();
+  void discoversLinuxApplicationDirectories();
   void discoversWindowsApplicationDirectories();
 };
 
@@ -48,6 +50,30 @@ void AppPathsTest::discoversMacOSApplicationDirectories() {
   QCOMPARE(paths->cacheDirectory().nativePath(), locations->cacheDirectory);
 #else
   QSKIP("macOS-only adapter");
+#endif
+}
+
+void AppPathsTest::discoversLinuxApplicationDirectories() {
+#if defined(Q_OS_LINUX)
+  const std::optional<hcb::LinuxPathLocations> locations = hcb::LinuxPathsAdapter::discover();
+  QVERIFY(locations.has_value());
+  if (!locations.has_value()) {
+    return;
+  }
+  QCOMPARE(locations->dataDirectory,
+           QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+  QCOMPARE(locations->cacheDirectory,
+           QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+
+  const std::optional<hcb::AppPaths> paths = hcb::AppPaths::discover();
+  QVERIFY(paths.has_value());
+  if (!paths.has_value()) {
+    return;
+  }
+  QCOMPARE(paths->dataDirectory().nativePath(), locations->dataDirectory);
+  QCOMPARE(paths->cacheDirectory().nativePath(), locations->cacheDirectory);
+#else
+  QSKIP("Linux-only adapter");
 #endif
 }
 

@@ -1,5 +1,6 @@
 #include "app/AppPaths.h"
 
+#include "app/LinuxPathsAdapter.h"
 #include "app/MacOSPathsAdapter.h"
 #include "app/WindowsPathsAdapter.h"
 
@@ -16,6 +17,13 @@ AppPaths::AppPaths(DataDirectory dataDirectory, CacheDirectory cacheDirectory)
 std::optional<AppPaths> AppPaths::discover() {
 #if defined(Q_OS_MACOS)
   const std::optional<MacOSPathLocations> locations = MacOSPathsAdapter::discover();
+  if (!locations.has_value()) {
+    return std::nullopt;
+  }
+  const std::optional<FilePath> dataDirectory = FilePath::fromAbsolute(locations->dataDirectory);
+  const std::optional<FilePath> cacheDirectory = FilePath::fromAbsolute(locations->cacheDirectory);
+#elif defined(Q_OS_LINUX)
+  const std::optional<LinuxPathLocations> locations = LinuxPathsAdapter::discover();
   if (!locations.has_value()) {
     return std::nullopt;
   }

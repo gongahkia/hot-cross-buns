@@ -4,6 +4,8 @@ set(HCB_NATIVE_SOURCES
   src/app/AppPaths.h
   src/app/AppServices.cpp
   src/app/AppServices.h
+  src/app/LinuxPathsAdapter.cpp
+  src/app/LinuxPathsAdapter.h
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
   src/app/WindowsPathsAdapter.cpp
@@ -594,6 +596,8 @@ if(BUILD_TESTING)
     tests/AppPathsTest.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
+    src/app/LinuxPathsAdapter.cpp
+    src/app/LinuxPathsAdapter.h
     src/app/MacOSPathsAdapter.cpp
     src/app/MacOSPathsAdapter.h
     src/app/WindowsPathsAdapter.cpp
@@ -624,6 +628,8 @@ if(BUILD_TESTING)
     src/app/AppPaths.h
     src/app/AppServices.cpp
     src/app/AppServices.h
+    src/app/LinuxPathsAdapter.cpp
+    src/app/LinuxPathsAdapter.h
     src/app/MacOSPathsAdapter.cpp
     src/app/MacOSPathsAdapter.h
     src/app/WindowsPathsAdapter.cpp
