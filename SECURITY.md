@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Only the latest public release is supported for security fixes. The current supported release line is `v5.0.0`.
+Only the latest public release is supported for security fixes.
 
 ## Reporting A Vulnerability
 
@@ -29,7 +29,7 @@ Security-sensitive areas include:
 - Google OAuth and token storage
 - OS credential storage
 - SQLite cache handling
-- Electron preload and IPC boundaries
+- native C++/QML boundaries
 - local MCP server access
 - diagnostics and log redaction
 - release artifacts, checksums, signing, and notarization
