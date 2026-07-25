@@ -25,6 +25,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleApiError.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/NoteService.cpp
+  src/core/NoteService.h
   src/core/NativeCapabilityReport.cpp
   src/core/NativeCapabilityReport.h
   src/core/PkceAuthorization.cpp
@@ -548,6 +550,32 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_calendar_mutation_service_tests)
   add_test(NAME hcb_calendar_mutation_service_tests COMMAND hcb_calendar_mutation_service_tests)
 
+  qt_add_executable(hcb_note_service_tests
+    tests/NoteServiceTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/NoteService.cpp
+    src/core/NoteService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_note_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_note_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_note_service_tests)
+  hcb_enable_sanitizers(hcb_note_service_tests)
+  add_test(NAME hcb_note_service_tests COMMAND hcb_note_service_tests)
+
   qt_add_executable(hcb_task_list_read_service_tests
     tests/TaskListReadServiceTest.cpp
     src/core/AppError.h
@@ -908,6 +936,7 @@ if(BUILD_TESTING)
     hcb_account_status_service_tests
     hcb_calendar_read_service_tests
     hcb_calendar_mutation_service_tests
+    hcb_note_service_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
@@ -963,6 +992,7 @@ if(BUILD_TESTING)
     hcb_account_status_service_tests
     hcb_calendar_read_service_tests
     hcb_calendar_mutation_service_tests
+    hcb_note_service_tests
     hcb_task_list_read_service_tests
     hcb_settings_service_tests
     hcb_google_api_error_tests
