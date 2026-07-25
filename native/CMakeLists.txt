@@ -27,6 +27,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeProcessMemory.h
   src/core/NoteService.cpp
   src/core/NoteService.h
+  src/core/OAuthClientConfigurationStore.cpp
+  src/core/OAuthClientConfigurationStore.h
   src/core/OptimisticMutationCoordinator.cpp
   src/core/OptimisticMutationCoordinator.h
   src/core/NativeCapabilityReport.cpp
@@ -783,6 +785,32 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_pkce_authorization_tests)
   add_test(NAME hcb_pkce_authorization_tests COMMAND hcb_pkce_authorization_tests)
 
+  qt_add_executable(hcb_oauth_client_configuration_store_tests
+    tests/OAuthClientConfigurationStoreTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/OAuthClientConfigurationStore.cpp
+    src/core/OAuthClientConfigurationStore.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_oauth_client_configuration_store_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_oauth_client_configuration_store_tests PRIVATE src)
+  hcb_enable_warnings(hcb_oauth_client_configuration_store_tests)
+  hcb_enable_sanitizers(hcb_oauth_client_configuration_store_tests)
+  add_test(NAME hcb_oauth_client_configuration_store_tests COMMAND hcb_oauth_client_configuration_store_tests)
+
   qt_add_executable(hcb_secret_redactor_tests
     tests/SecretRedactorTest.cpp
     src/core/SecretRedactor.cpp
@@ -1035,6 +1063,7 @@ if(BUILD_TESTING)
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
+    hcb_oauth_client_configuration_store_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
@@ -1094,6 +1123,7 @@ if(BUILD_TESTING)
     hcb_google_api_error_tests
     hcb_sync_backoff_policy_tests
     hcb_pkce_authorization_tests
+    hcb_oauth_client_configuration_store_tests
     hcb_secret_redactor_tests
     hcb_structured_logger_tests
     hcb_startup_timing_tracker_tests
