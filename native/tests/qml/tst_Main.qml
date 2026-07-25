@@ -260,11 +260,66 @@ TestCase {
         verify(notesList !== null)
         tryCompare(notesList.noteRows, "count", 2)
         let selectedId = ""
-        notesList.noteSelected.connect(function(noteId) { selectedId = noteId })
-        notesList.selectNote("note-1")
+        let selectedTitle = ""
+        let selectedBody = ""
+        notesList.noteSelected.connect(function(noteId, title, body) {
+            selectedId = noteId
+            selectedTitle = title
+            selectedBody = body
+        })
+        notesList.selectNote("note-1", "Release notes", "Verify the package artifacts")
         compare(selectedId, "note-1")
+        compare(selectedTitle, "Release notes")
+        compare(selectedBody, "Verify the package artifacts")
         notesList.destroy()
         notesModel.destroy()
+    }
+
+    function test_noteEditorEmitsSaveRequest() {
+        const component = Qt.createComponent("../../qml/NoteEditorDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const editor = component.createObject(null, {
+            noteId: "note-1",
+            noteTitle: "Release notes",
+            noteBody: "Verify the package artifacts"
+        })
+        verify(editor !== null)
+        verify(editor.primaryEnabled)
+        let saved = null
+        editor.noteSaveRequested.connect(function(noteId, title, body) {
+            saved = { noteId: noteId, title: title, body: body }
+        })
+        editor.noteTitle = " Revised release notes "
+        editor.noteBody = "Update the package checklist"
+        editor.primaryButton.click()
+        compare(saved.noteId, "note-1")
+        compare(saved.title, "Revised release notes")
+        compare(saved.body, "Update the package checklist")
+        editor.destroy()
+    }
+
+    function test_mainForwardsNoteSaveRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let saved = null
+        mainWindow.noteSaveRequested.connect(function(noteId, title, body) {
+            saved = { noteId: noteId, title: title, body: body }
+        })
+        mainWindow.openNoteEditor("note-1", "Release notes", "Verify the package artifacts")
+        tryVerify(function() {
+            return mainWindow.noteEditor.opened && mainWindow.noteEditor.noteTitleField.activeFocus
+        })
+        mainWindow.noteEditor.noteTitle = "Revised release notes"
+        mainWindow.noteEditor.noteBody = "Update the package checklist"
+        mainWindow.noteEditor.primaryButton.click()
+        compare(saved.noteId, "note-1")
+        compare(saved.title, "Revised release notes")
+        compare(saved.body, "Update the package checklist")
+        mainWindow.destroy()
     }
 
     function test_usesDesignTokens() {

@@ -24,7 +24,9 @@ ApplicationWindow {
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
+    property alias noteEditor: noteEditor
     signal quickCaptureRequested(string title)
+    signal noteSaveRequested(string noteId, string title, string body)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -79,6 +81,13 @@ ApplicationWindow {
 
     function openQuickCapture() {
         quickCapture.open()
+    }
+
+    function openNoteEditor(noteId, title, body) {
+        noteEditor.noteId = noteId
+        noteEditor.noteTitle = title
+        noteEditor.noteBody = body
+        noteEditor.open()
     }
 
     color: Theme.background
@@ -233,6 +242,15 @@ ApplicationWindow {
         onTaskRequested: title => window.quickCaptureRequested(title)
     }
 
+    NoteEditorDialog {
+        id: noteEditor
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onNoteSaveRequested: function(noteId, title, body) {
+            window.noteSaveRequested(noteId, title, body)
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -274,6 +292,9 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Notes"
                 notesModel: window.notesModel
+                onNoteSelected: function(noteId, title, body) {
+                    window.openNoteEditor(noteId, title, body)
+                }
             }
 
             ColumnLayout {

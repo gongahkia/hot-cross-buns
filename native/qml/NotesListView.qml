@@ -6,10 +6,10 @@ Pane {
     id: root
     property var notesModel: null
     property alias noteRows: noteRows
-    signal noteSelected(string noteId)
+    signal noteSelected(string noteId, string title, string body)
 
-    function selectNote(noteId) {
-        noteSelected(noteId)
+    function selectNote(noteId, title, body) {
+        noteSelected(noteId, title, body)
     }
 
     ColumnLayout {
@@ -40,7 +40,7 @@ Pane {
                 text: title + "\n" + taskListTitle + " — " + body
                 accessibleName: title
                 accessibleDescription: taskListTitle + ". " + body
-                onClicked: root.selectNote(id)
+                onClicked: root.selectNote(id, title, body)
             }
         }
 
