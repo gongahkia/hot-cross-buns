@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 
 TestCase {
@@ -202,5 +203,32 @@ TestCase {
         button.click()
         compare(selectedPage, "Notes")
         button.destroy()
+    }
+
+    function test_dialogProvidesComposableAccessibleActions() {
+        const component = Qt.createComponent("../../qml/HcbDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null, {
+            title: "Edit task",
+            primaryText: "Update",
+            secondaryText: "Discard",
+            primaryDestructive: true
+        })
+        verify(dialog !== null)
+        compare(dialog.primaryButton.text, "Update")
+        compare(dialog.secondaryButton.text, "Discard")
+        compare(dialog.primaryButton.Accessible.description, "Destructive action")
+        compare(dialog.closePolicy, Popup.CloseOnEscape)
+
+        let primaryActions = 0
+        let secondaryActions = 0
+        dialog.primaryAction.connect(function() { primaryActions += 1 })
+        dialog.secondaryAction.connect(function() { secondaryActions += 1 })
+        dialog.primaryButton.click()
+        dialog.secondaryButton.click()
+        compare(primaryActions, 1)
+        compare(secondaryActions, 1)
+        dialog.destroy()
     }
 }

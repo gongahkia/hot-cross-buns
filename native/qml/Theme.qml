@@ -12,6 +12,7 @@ QtObject {
     readonly property color textPrimary: systemPalette.windowText
     readonly property color textSecondary: systemPalette.placeholderText
     readonly property color accent: systemPalette.highlight
+    readonly property color destructive: "#b3261e"
     readonly property int navigationWidth: 220
     readonly property int spacingSmall: 8
     readonly property int spacingMedium: 12
