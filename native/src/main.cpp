@@ -13,6 +13,7 @@
 
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
+#include "core/AgendaModel.h"
 #include "core/Clock.h"
 #include "core/CommandRegistryModel.h"
 #include "core/NativeProcessMemory.h"
@@ -80,13 +81,15 @@ int runApplication(int argc, char* argv[]) {
   hcb::SettingsRegistry settings;
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
+  hcb::AgendaModel agendaModel;
   hcb::CommandRegistryModel navigationCommands;
   hcb::NotesModel notesModel;
   hcb::TaskModel taskModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
-      {{QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+      {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
+       {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});

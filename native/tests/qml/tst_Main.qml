@@ -223,6 +223,44 @@ TestCase {
         taskModel.destroy()
     }
 
+    function test_agendaPresentsAndSelectsEvents() {
+        const component = Qt.createComponent("../../qml/AgendaView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const agendaModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        agendaModel.append({
+            id: "event-1",
+            calendarId: "calendar-1",
+            title: "Release review",
+            startAt: "2026-07-26T10:00:00.000Z",
+            allDay: false
+        })
+        agendaModel.append({
+            id: "event-2",
+            calendarId: "calendar-1",
+            title: "Team offsite",
+            startAt: "2026-07-27",
+            allDay: true
+        })
+        const agenda = component.createObject(null, {
+            agendaModel: agendaModel,
+            width: 480,
+            height: 320,
+            visible: true
+        })
+        verify(agenda !== null)
+        tryCompare(agenda.eventRows, "count", 2)
+        compare(agenda.scheduleLabel("2026-07-26T10:00:00.000Z", false),
+                "2026-07-26T10:00:00.000Z")
+        compare(agenda.scheduleLabel("2026-07-27", true), "All day")
+        let selectedId = ""
+        agenda.eventSelected.connect(function(eventId) { selectedId = eventId })
+        agenda.selectEvent("event-1")
+        compare(selectedId, "event-1")
+        agenda.destroy()
+        agendaModel.destroy()
+    }
+
     function test_taskListVirtualizesRows() {
         const component = Qt.createComponent("../../qml/TaskListView.qml")
         compare(component.status, Component.Ready, component.errorString())

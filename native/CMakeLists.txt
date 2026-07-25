@@ -160,6 +160,7 @@ qt_add_qml_module(hcb_native
   QML_FILES
     qml/AccessibleButton.qml
     qml/AccessibleNavigationButton.qml
+    qml/AgendaView.qml
     qml/HcbDialog.qml
     qml/Main.qml
     qml/NavigationSidebar.qml

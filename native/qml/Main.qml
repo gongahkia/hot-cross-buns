@@ -13,6 +13,7 @@ ApplicationWindow {
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
     required property var navigationCommands
+    property var agendaModel: null
     property var notesModel: null
     property var taskModel: null
     property var transitionTimings: null
@@ -299,9 +300,16 @@ ApplicationWindow {
                 }
             }
 
+            AgendaView {
+                anchors.fill: parent
+                visible: window.currentPage === "Calendar"
+                agendaModel: window.agendaModel
+            }
+
             ColumnLayout {
                 anchors.fill: parent
-                visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes"
+                visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes" &&
+                         window.currentPage !== "Calendar"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage
