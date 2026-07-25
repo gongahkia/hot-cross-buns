@@ -1113,6 +1113,19 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_model_diff_policy_tests)
   add_test(NAME hcb_model_diff_policy_tests COMMAND hcb_model_diff_policy_tests)
 
+  qt_add_executable(hcb_model_virtualization_tests
+    tests/ModelVirtualizationTest.cpp
+    src/core/ModelDiffPolicy.h
+    src/core/SearchResultsModel.cpp
+    src/core/SearchResultsModel.h
+    src/core/UnifiedLocalSearchRanker.h
+  )
+  target_link_libraries(hcb_model_virtualization_tests PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Test)
+  target_include_directories(hcb_model_virtualization_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_model_virtualization_tests)
+  hcb_enable_sanitizers(hcb_model_virtualization_tests)
+  add_test(NAME hcb_model_virtualization_tests COMMAND hcb_model_virtualization_tests -platform offscreen)
+
   qt_add_executable(hcb_google_sync_recovery_service_tests
     tests/GoogleSyncRecoveryServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1765,6 +1778,7 @@ if(BUILD_TESTING)
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests
+    hcb_model_virtualization_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
@@ -1858,6 +1872,7 @@ if(BUILD_TESTING)
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests
+    hcb_model_virtualization_tests
     hcb_google_sync_recovery_service_tests
     hcb_google_api_error_tests
     hcb_google_http_client_tests
