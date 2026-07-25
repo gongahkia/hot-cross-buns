@@ -19,6 +19,7 @@ class SqliteQueryTimingTrackerTest final : public QObject {
 
 private slots:
   void recordsReadAndWriteStatements();
+  void filtersSlowStatementsAtCallerThreshold();
   void boundsSamplesAndStopsAfterClear();
   void replacesPreviousTracker();
   void remainsAttachedWhenConnectionMoves();
@@ -91,6 +92,34 @@ void SqliteQueryTimingTrackerTest::recordsReadAndWriteStatements() {
       samples.cbegin(), samples.cend(), [](const auto& sample) { return sample.readOnly; }));
   QCOMPARE(samples.back().timestamp, clock.wallNow());
   QVERIFY(samples.back().elapsed >= std::chrono::nanoseconds::zero());
+}
+
+void SqliteQueryTimingTrackerTest::filtersSlowStatementsAtCallerThreshold() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*database);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  const TestClock clock;
+  const std::shared_ptr<hcb::SqliteQueryTimingTracker> tracker =
+      std::make_shared<hcb::SqliteQueryTimingTracker>(clock);
+  QVERIFY(!connection->installQueryTimingTracker(tracker).has_value());
+  QCOMPARE(execute(connection->nativeHandle(), "SELECT 1"), SQLITE_OK);
+  QCOMPARE(execute(connection->nativeHandle(), "SELECT 2"), SQLITE_OK);
+
+  const std::vector<hcb::SqliteQueryTimingSample> all = tracker->samples();
+  const std::vector<hcb::SqliteQueryTimingSample> immediate =
+      tracker->slowSamples(std::chrono::nanoseconds::zero());
+  QCOMPARE(immediate.size(), all.size());
+  for (std::size_t index = 0; index < all.size(); ++index) {
+    QCOMPARE(immediate.at(index).sequence, all.at(index).sequence);
+  }
+  QVERIFY(tracker->slowSamples(std::chrono::hours{24}).empty());
 }
 
 void SqliteQueryTimingTrackerTest::boundsSamplesAndStopsAfterClear() {

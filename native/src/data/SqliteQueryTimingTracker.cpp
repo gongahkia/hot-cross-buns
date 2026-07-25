@@ -3,6 +3,7 @@
 #include "sqlite3.h"
 
 #include <algorithm>
+#include <iterator>
 
 namespace hcb {
 
@@ -12,6 +13,21 @@ SqliteQueryTimingTracker::SqliteQueryTimingTracker(const Clock& clock, std::size
 std::vector<SqliteQueryTimingSample> SqliteQueryTimingTracker::samples() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return {samples_.cbegin(), samples_.cend()};
+}
+
+std::vector<SqliteQueryTimingSample>
+SqliteQueryTimingTracker::slowSamples(std::chrono::nanoseconds minimumElapsed) const {
+  const std::chrono::nanoseconds threshold =
+      std::max(minimumElapsed, std::chrono::nanoseconds::zero());
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::vector<SqliteQueryTimingSample> slowSamples;
+  slowSamples.reserve(samples_.size());
+  std::copy_if(
+      samples_.cbegin(),
+      samples_.cend(),
+      std::back_inserter(slowSamples),
+      [threshold](const SqliteQueryTimingSample& sample) { return sample.elapsed >= threshold; });
+  return slowSamples;
 }
 
 std::size_t SqliteQueryTimingTracker::size() const {

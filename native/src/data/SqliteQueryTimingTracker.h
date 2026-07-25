@@ -27,6 +27,8 @@ public:
   explicit SqliteQueryTimingTracker(const Clock& clock, std::size_t capacity = 500);
 
   [[nodiscard]] std::vector<SqliteQueryTimingSample> samples() const;
+  [[nodiscard]] std::vector<SqliteQueryTimingSample>
+  slowSamples(std::chrono::nanoseconds minimumElapsed) const;
   [[nodiscard]] std::size_t size() const;
   void clear();
 
