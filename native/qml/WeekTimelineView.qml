@@ -5,6 +5,7 @@ import QtQuick.Layouts
 Pane {
     id: root
     property var timelineModel: null
+    property var calendarVisibility: null
     property int dayCount: 7
     property int hourHeight: 48
     property int timeColumnWidth: 64
@@ -26,6 +27,10 @@ Pane {
 
     function selectEvent(eventId) {
         eventSelected(eventId)
+    }
+
+    function isCalendarVisible(calendarId) {
+        return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
 
     ColumnLayout {
@@ -62,12 +67,13 @@ Pane {
 
                 delegate: AccessibleButton {
                     required property string id
+                    required property string calendarId
                     required property string title
                     required property bool allDay
                     required property int dayIndex
                     required property int laneIndex
                     required property int daySpan
-                    visible: allDay
+                    visible: allDay && root.isCalendarVisible(calendarId)
                     x: root.dayPosition(dayIndex, dayHeader.width)
                     y: root.allDayLaneHeight + laneIndex * root.allDayLaneHeight
                     width: daySpan * root.dayColumnWidth(dayHeader.width)
@@ -129,6 +135,7 @@ Pane {
 
                     delegate: AccessibleButton {
                         required property string id
+                        required property string calendarId
                         required property string title
                         required property bool allDay
                         required property int dayIndex
@@ -136,7 +143,7 @@ Pane {
                         required property int durationMinutes
                         required property int laneIndex
                         required property int laneCount
-                        visible: !allDay
+                        visible: !allDay && root.isCalendarVisible(calendarId)
                         x: root.dayPosition(dayIndex, timelineCanvas.width) + laneIndex *
                            root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
                         y: root.timePosition(startMinute)

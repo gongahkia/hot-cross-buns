@@ -5,18 +5,26 @@ import QtQuick.Layouts
 Pane {
     id: root
     property var monthGridModel: null
+    property var calendarVisibility: null
     property alias cells: cells
     signal dateSelected(string date)
 
     function eventSummary(events) {
-        if (events.length === 0) {
+        const visibleEvents = events.filter(function(event) {
+            return root.isCalendarVisible(event.calendarId)
+        })
+        if (visibleEvents.length === 0) {
             return ""
         }
-        return events[0].title + (events.length > 1 ? " +" + (events.length - 1) : "")
+        return visibleEvents[0].title + (visibleEvents.length > 1 ? " +" + (visibleEvents.length - 1) : "")
     }
 
     function selectDate(date) {
         dateSelected(date)
+    }
+
+    function isCalendarVisible(calendarId) {
+        return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
 
     ColumnLayout {

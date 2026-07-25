@@ -261,6 +261,66 @@ TestCase {
         agendaModel.destroy()
     }
 
+    function test_calendarSourceControlsFilterVisibleCalendars() {
+        const component = Qt.createComponent("../../qml/CalendarSourceControls.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        sourceModel.append({ id: "calendar-product", title: "Product", selected: true })
+        sourceModel.append({ id: "calendar-engineering", title: "Engineering", selected: false })
+        const controls = component.createObject(null, {
+            calendarSourceModel: sourceModel,
+            width: 480,
+            visible: true
+        })
+        verify(controls !== null)
+        tryCompare(controls.sourceRows, "count", 2)
+        verify(controls.implicitHeight > 0)
+        verify(controls.isVisible("calendar-product"))
+        verify(!controls.isVisible("calendar-engineering"))
+        const agenda = Qt.createComponent("../../qml/AgendaView.qml").createObject(null, {
+            calendarVisibility: controls
+        })
+        const dayTimeline = Qt.createComponent("../../qml/DayTimelineView.qml").createObject(null, {
+            calendarVisibility: controls
+        })
+        const weekTimeline = Qt.createComponent("../../qml/WeekTimelineView.qml").createObject(null, {
+            calendarVisibility: controls
+        })
+        const monthGrid = Qt.createComponent("../../qml/MonthGridView.qml").createObject(null, {
+            calendarVisibility: controls
+        })
+        verify(agenda !== null)
+        verify(dayTimeline !== null)
+        verify(weekTimeline !== null)
+        verify(monthGrid !== null)
+        verify(agenda.isCalendarVisible("calendar-product"))
+        verify(!agenda.isCalendarVisible("calendar-engineering"))
+        verify(dayTimeline.isCalendarVisible("calendar-product"))
+        verify(!dayTimeline.isCalendarVisible("calendar-engineering"))
+        verify(weekTimeline.isCalendarVisible("calendar-product"))
+        verify(!weekTimeline.isCalendarVisible("calendar-engineering"))
+        compare(monthGrid.eventSummary([{ calendarId: "calendar-engineering", title: "Hidden" },
+                                        { calendarId: "calendar-product", title: "Visible" }]),
+                "Visible")
+        controls.setCalendarVisible("calendar-product", false)
+        verify(!controls.isVisible("calendar-product"))
+        controls.setCalendarVisible("calendar-engineering", true)
+        verify(controls.isVisible("calendar-engineering"))
+        verify(!agenda.isCalendarVisible("calendar-product"))
+        verify(dayTimeline.isCalendarVisible("calendar-engineering"))
+        verify(weekTimeline.isCalendarVisible("calendar-engineering"))
+        controls.showAll()
+        verify(controls.isVisible("calendar-product"))
+        verify(controls.isVisible("calendar-engineering"))
+        monthGrid.destroy()
+        weekTimeline.destroy()
+        dayTimeline.destroy()
+        agenda.destroy()
+        controls.destroy()
+        sourceModel.destroy()
+    }
+
     function test_dayTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -268,6 +328,7 @@ TestCase {
         const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
         timelineModel.append({
             id: "event-1",
+            calendarId: "calendar-1",
             title: "Release review",
             allDay: false,
             dayIndex: 0,
@@ -278,6 +339,7 @@ TestCase {
         })
         timelineModel.append({
             id: "event-2",
+            calendarId: "calendar-1",
             title: "Team offsite",
             allDay: true,
             dayIndex: 0,
@@ -312,6 +374,7 @@ TestCase {
         const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
         timelineModel.append({
             id: "event-1",
+            calendarId: "calendar-1",
             title: "Release review",
             allDay: false,
             dayIndex: 3,
@@ -323,6 +386,7 @@ TestCase {
         })
         timelineModel.append({
             id: "event-2",
+            calendarId: "calendar-1",
             title: "Team offsite",
             allDay: true,
             dayIndex: 1,

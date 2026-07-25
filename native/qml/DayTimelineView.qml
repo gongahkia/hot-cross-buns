@@ -5,6 +5,7 @@ import QtQuick.Layouts
 Pane {
     id: root
     property var timelineModel: null
+    property var calendarVisibility: null
     property int dayIndex: 0
     property int hourHeight: 64
     property int timeColumnWidth: 64
@@ -21,6 +22,10 @@ Pane {
 
     function selectEvent(eventId) {
         eventSelected(eventId)
+    }
+
+    function isCalendarVisible(calendarId) {
+        return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
 
     ColumnLayout {
@@ -43,10 +48,11 @@ Pane {
 
                 delegate: AccessibleButton {
                     required property string id
+                    required property string calendarId
                     required property string title
                     required property bool allDay
                     required property int dayIndex
-                    visible: allDay && dayIndex === root.dayIndex
+                    visible: allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                     width: parent.width
                     text: title + " — All day"
                     accessibleName: title
@@ -103,6 +109,7 @@ Pane {
 
                     delegate: AccessibleButton {
                         required property string id
+                        required property string calendarId
                         required property string title
                         required property bool allDay
                         required property int dayIndex
@@ -110,7 +117,7 @@ Pane {
                         required property int durationMinutes
                         required property int laneIndex
                         required property int laneCount
-                        visible: !allDay && dayIndex === root.dayIndex
+                        visible: !allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                         x: root.timeColumnWidth + laneIndex *
                            (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount)
                         y: root.timePosition(startMinute)

@@ -14,6 +14,7 @@
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
 #include "core/AgendaModel.h"
+#include "core/CalendarSourceModel.h"
 #include "core/Clock.h"
 #include "core/CommandRegistryModel.h"
 #include "core/MonthGridModel.h"
@@ -84,6 +85,7 @@ int runApplication(int argc, char* argv[]) {
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
   hcb::AgendaModel agendaModel;
+  hcb::CalendarSourceModel calendarSourceModel;
   hcb::CommandRegistryModel navigationCommands;
   hcb::MonthGridModel monthGridModel;
   hcb::NotesModel notesModel;
@@ -93,6 +95,7 @@ int runApplication(int argc, char* argv[]) {
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
       {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
+       {QStringLiteral("calendarSourceModel"), QVariant::fromValue(&calendarSourceModel)},
        {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
        {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},

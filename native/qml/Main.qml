@@ -14,6 +14,7 @@ ApplicationWindow {
     property string currentPage: "Tasks"
     required property var navigationCommands
     property var agendaModel: null
+    property var calendarSourceModel: null
     property var monthGridModel: null
     property var notesModel: null
     property var taskModel: null
@@ -25,6 +26,7 @@ ApplicationWindow {
     property alias commandPaletteQuery: commandPaletteQuery
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
+    property alias calendarVisibility: calendarVisibility
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
@@ -307,6 +309,12 @@ ApplicationWindow {
                 visible: window.currentPage === "Calendar"
                 spacing: 0
 
+                CalendarSourceControls {
+                    id: calendarVisibility
+                    Layout.fillWidth: true
+                    calendarSourceModel: window.calendarSourceModel
+                }
+
                 TabBar {
                     id: calendarViews
                     Layout.fillWidth: true
@@ -324,18 +332,22 @@ ApplicationWindow {
 
                     AgendaView {
                         agendaModel: window.agendaModel
+                        calendarVisibility: calendarVisibility
                     }
 
                     DayTimelineView {
                         timelineModel: window.timelineModel
+                        calendarVisibility: calendarVisibility
                     }
 
                     WeekTimelineView {
                         timelineModel: window.timelineModel
+                        calendarVisibility: calendarVisibility
                     }
 
                     MonthGridView {
                         monthGridModel: window.monthGridModel
+                        calendarVisibility: calendarVisibility
                     }
                 }
             }

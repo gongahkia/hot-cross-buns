@@ -74,6 +74,27 @@ QHash<int, QByteArray> CalendarSourceModel::roleNames() const {
           {EventCountRole, "eventCount"}};
 }
 
+int CalendarSourceModel::revision() const { return revision_; }
+
+QStringList CalendarSourceModel::calendarIds() const {
+  QStringList ids;
+  ids.reserve(calendars_.size());
+  for (const CalendarSummary& calendar : calendars_) {
+    ids.append(calendar.id);
+  }
+  return ids;
+}
+
+QStringList CalendarSourceModel::selectedCalendarIds() const {
+  QStringList ids;
+  for (const CalendarSummary& calendar : calendars_) {
+    if (calendar.selected) {
+      ids.append(calendar.id);
+    }
+  }
+  return ids;
+}
+
 void CalendarSourceModel::setCalendars(QList<CalendarSummary> calendars) {
   const ModelDiffPlan plan = ModelDiffPolicy::plan(
       calendars_,
@@ -84,12 +105,16 @@ void CalendarSourceModel::setCalendars(QList<CalendarSummary> calendars) {
     beginResetModel();
     calendars_ = std::move(calendars);
     endResetModel();
+    ++revision_;
+    emit revisionChanged();
     return;
   }
   calendars_ = std::move(calendars);
   for (const ModelDataChangeRange& range : plan.changedRanges) {
     emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
   }
+  ++revision_;
+  emit revisionChanged();
 }
 
 } // namespace hcb
