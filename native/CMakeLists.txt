@@ -49,6 +49,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleTaskPullClient.h
   src/core/NativeProcessMemory.cpp
   src/core/NativeProcessMemory.h
+  src/core/NativeQuickCaptureBenchmark.cpp
+  src/core/NativeQuickCaptureBenchmark.h
   src/core/LocalSearchService.cpp
   src/core/LocalSearchService.h
   src/core/MonthGridModel.cpp
@@ -247,6 +249,33 @@ target_link_libraries(hcb_planner_benchmark PRIVATE Qt6::Core)
 target_include_directories(hcb_planner_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_planner_benchmark)
 hcb_enable_sanitizers(hcb_planner_benchmark)
+
+qt_add_executable(hcb_quick_capture_benchmark
+  benchmarks/NativeQuickCaptureBenchmarkMain.cpp
+  src/core/AppError.h
+  src/core/Clock.h
+  src/core/FilePath.h
+  src/core/NativeQuickCaptureBenchmark.cpp
+  src/core/NativeQuickCaptureBenchmark.h
+  src/core/TaskMutationService.cpp
+  src/core/TaskMutationService.h
+  src/data/LocalSchema.cpp
+  src/data/LocalSchema.h
+  src/data/SqliteConnection.cpp
+  src/data/SqliteConnection.h
+  src/data/SqliteMigrationRunner.cpp
+  src/data/SqliteMigrationRunner.h
+  src/data/SqliteQueryTimingTracker.cpp
+  src/data/SqliteQueryTimingTracker.h
+  src/data/SqliteTransaction.cpp
+  src/data/SqliteTransaction.h
+  src/data/SqliteWriterQueue.cpp
+  src/data/SqliteWriterQueue.h
+)
+target_link_libraries(hcb_quick_capture_benchmark PRIVATE hcb::sqlite Qt6::Core)
+target_include_directories(hcb_quick_capture_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_quick_capture_benchmark)
+hcb_enable_sanitizers(hcb_quick_capture_benchmark)
 
 qt_add_executable(hcb_performance_report
   benchmarks/NativePerformanceReportMain.cpp
@@ -1034,6 +1063,34 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_native_planner_benchmark_tests)
   add_test(NAME hcb_native_planner_benchmark_tests COMMAND hcb_native_planner_benchmark_tests)
 
+  qt_add_executable(hcb_native_quick_capture_benchmark_tests
+    tests/NativeQuickCaptureBenchmarkTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/NativeQuickCaptureBenchmark.cpp
+    src/core/NativeQuickCaptureBenchmark.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_native_quick_capture_benchmark_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_native_quick_capture_benchmark_tests PRIVATE src)
+  hcb_enable_warnings(hcb_native_quick_capture_benchmark_tests)
+  hcb_enable_sanitizers(hcb_native_quick_capture_benchmark_tests)
+  add_test(NAME hcb_native_quick_capture_benchmark_tests COMMAND hcb_native_quick_capture_benchmark_tests)
+
   qt_add_executable(hcb_task_list_model_tests
     tests/TaskListModelTest.cpp
     src/core/AppError.h
@@ -1758,6 +1815,7 @@ set(hcb_static_analysis_dependencies
   hcb_medium_performance_fixture
   hcb_event15k_performance_fixture
   hcb_planner_benchmark
+  hcb_quick_capture_benchmark
   hcb_performance_report
 )
 if(BUILD_TESTING)
@@ -1804,6 +1862,7 @@ if(BUILD_TESTING)
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
     hcb_native_planner_benchmark_tests
+    hcb_native_quick_capture_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
@@ -1899,6 +1958,7 @@ if(BUILD_TESTING)
     hcb_recurrence_result_cache_tests
     hcb_calendar_layout_engine_tests
     hcb_native_planner_benchmark_tests
+    hcb_native_quick_capture_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
     hcb_local_search_service_tests
