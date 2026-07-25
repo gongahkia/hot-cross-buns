@@ -53,6 +53,8 @@ set(HCB_NATIVE_SOURCES
   src/core/MonthGridModel.h
   src/core/NoteService.cpp
   src/core/NoteService.h
+  src/core/NotesModel.cpp
+  src/core/NotesModel.h
   src/core/OAuthBrowserAuthorizationLauncher.cpp
   src/core/OAuthBrowserAuthorizationLauncher.h
   src/core/OAuthClientConfigurationStore.cpp
@@ -718,6 +720,22 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_note_service_tests)
   hcb_enable_sanitizers(hcb_note_service_tests)
   add_test(NAME hcb_note_service_tests COMMAND hcb_note_service_tests)
+
+  qt_add_executable(hcb_notes_model_tests
+    tests/NotesModelTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/NotesModel.cpp
+    src/core/NotesModel.h
+    src/core/NoteService.h
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_notes_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_notes_model_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_notes_model_tests)
+  hcb_enable_sanitizers(hcb_notes_model_tests)
+  add_test(NAME hcb_notes_model_tests COMMAND hcb_notes_model_tests)
 
   qt_add_executable(hcb_optimistic_mutation_coordinator_tests
     tests/OptimisticMutationCoordinatorTest.cpp
@@ -1703,6 +1721,7 @@ if(BUILD_TESTING)
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
+    hcb_notes_model_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
     hcb_domain_service_contract_tests
@@ -1793,6 +1812,7 @@ if(BUILD_TESTING)
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_note_service_tests
+    hcb_notes_model_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
     hcb_domain_service_contract_tests
