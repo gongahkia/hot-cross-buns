@@ -75,6 +75,71 @@ jobs:
           retention-days: 14
           path: build/macos-debug-xcode/Testing/Temporary/**
 
+  native-linux:
+    name: Native Qt build and tests (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      HCB_QT_ROOT: ${{ runner.temp }}/Qt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore Qt SDK cache
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          key: qt-6.11.1-linux-gcc-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          path: ${{ runner.temp }}/Qt
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 \
+            libgl1-mesa-dev \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-xinerama0 \
+            libxkbcommon-x11-0 \
+            ninja-build \
+            xvfb
+
+      - name: Install Qt 6.11.1
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/qt-online-installer.run" \
+            https://download.qt.io/official_releases/online_installers/qt-online-installer-linux-x64-online.run
+          chmod +x "$RUNNER_TEMP/qt-online-installer.run"
+          "$RUNNER_TEMP/qt-online-installer.run" \
+            --root "$HCB_QT_ROOT" \
+            --accept-licenses \
+            --default-answer \
+            --confirm-command \
+            install qt.qt6.6111.linux_gcc_64
+
+      - name: Configure native debug build
+        run: cmake --preset linux-debug -DCMAKE_PREFIX_PATH="$HCB_QT_ROOT/6.11.1/gcc_64"
+
+      - name: Build native targets
+        run: cmake --build --preset linux-debug --parallel 3
+
+      - name: Run native tests
+        run: xvfb-run -a ctest --preset linux-debug --output-on-failure
+
+      - name: Upload native test diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-test-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/linux-debug/Testing/Temporary/**
+
   native-macos-smoke:
     name: Native Qt shell smoke (macOS)
     runs-on: macos-14
