@@ -18,9 +18,11 @@ class SyncSchedulerTest final : public QObject {
 
 private slots:
   void defersOfflineRequestsUntilOnline();
+  void coalescesOfflineWorkAfterReconnect();
   void serializesAndCoalescesRequests();
   void runsPeriodicallyAndStops();
   void propagatesExecutorFailures();
+  void recoversFromOnlineFailureAfterReconnect();
   void rejectsRequestsAfterStop();
 };
 
@@ -85,6 +87,28 @@ void SyncSchedulerTest::defersOfflineRequestsUntilOnline() {
   const hcb::SyncSchedulerRun run = awaitRun(future);
   QCOMPARE(run.triggers, std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::Startup});
   QVERIFY(probe.awaitRequests(1));
+}
+
+void SyncSchedulerTest::coalescesOfflineWorkAfterReconnect() {
+  ExecutorProbe probe;
+  hcb::SyncScheduler scheduler(
+      [&probe](const hcb::SyncSchedulerRequest& request) { return probe.execute(request); });
+  scheduler.setOnline(false);
+  std::future<hcb::SyncSchedulerResult> manual =
+      scheduler.request(hcb::SyncScheduleTrigger::Manual);
+  std::future<hcb::SyncSchedulerResult> periodic =
+      scheduler.request(hcb::SyncScheduleTrigger::Periodic);
+  QCOMPARE(manual.wait_for(50ms), std::future_status::timeout);
+  QCOMPARE(periodic.wait_for(50ms), std::future_status::timeout);
+  scheduler.setOnline(true);
+  const std::vector<hcb::SyncScheduleTrigger> expected{hcb::SyncScheduleTrigger::Manual,
+                                                       hcb::SyncScheduleTrigger::Periodic};
+  QCOMPARE(awaitRun(manual).triggers, expected);
+  QCOMPARE(awaitRun(periodic).triggers, expected);
+  QVERIFY(probe.awaitRequests(1));
+  std::lock_guard<std::mutex> lock(probe.mutex);
+  QCOMPARE(probe.requests.size(), std::size_t{1});
+  QCOMPARE(probe.requests.front().triggers, expected);
 }
 
 void SyncSchedulerTest::serializesAndCoalescesRequests() {
@@ -153,6 +177,30 @@ void SyncSchedulerTest::propagatesExecutorFailures() {
   const hcb::SyncSchedulerResult result = future.get();
   QVERIFY(std::holds_alternative<hcb::AppError>(result));
   QCOMPARE(std::get<hcb::AppError>(result).code(), hcb::AppErrorCode::Network);
+}
+
+void SyncSchedulerTest::recoversFromOnlineFailureAfterReconnect() {
+  int executions = 0;
+  hcb::SyncScheduler scheduler([&executions](const hcb::SyncSchedulerRequest&) {
+    ++executions;
+    return executions == 1 ? std::optional<hcb::AppError>(hcb::AppError(hcb::AppErrorCode::Network,
+                                                                        QStringLiteral("offline")))
+                           : std::optional<hcb::AppError>{};
+  });
+  std::future<hcb::SyncSchedulerResult> failed =
+      scheduler.request(hcb::SyncScheduleTrigger::Manual);
+  if (failed.wait_for(2s) != std::future_status::ready) {
+    qFatal("offline sync request timed out");
+  }
+  QVERIFY(std::holds_alternative<hcb::AppError>(failed.get()));
+  scheduler.setOnline(false);
+  std::future<hcb::SyncSchedulerResult> resumed =
+      scheduler.request(hcb::SyncScheduleTrigger::NetworkRestored);
+  QCOMPARE(resumed.wait_for(50ms), std::future_status::timeout);
+  scheduler.setOnline(true);
+  QCOMPARE(awaitRun(resumed).triggers,
+           std::vector<hcb::SyncScheduleTrigger>{hcb::SyncScheduleTrigger::NetworkRestored});
+  QCOMPARE(executions, 2);
 }
 
 void SyncSchedulerTest::rejectsRequestsAfterStop() {
