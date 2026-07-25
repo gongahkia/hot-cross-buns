@@ -1,5 +1,7 @@
 #include "app/AppPaths.h"
 
+#include "app/MacOSPathsAdapter.h"
+
 #include <QStandardPaths>
 
 #include <utility>
@@ -11,10 +13,19 @@ AppPaths::AppPaths(DataDirectory dataDirectory, CacheDirectory cacheDirectory)
       cacheDirectory_(std::move(cacheDirectory.value)) {}
 
 std::optional<AppPaths> AppPaths::discover() {
+#if defined(Q_OS_MACOS)
+  const std::optional<MacOSPathLocations> locations = MacOSPathsAdapter::discover();
+  if (!locations.has_value()) {
+    return std::nullopt;
+  }
+  const std::optional<FilePath> dataDirectory = FilePath::fromAbsolute(locations->dataDirectory);
+  const std::optional<FilePath> cacheDirectory = FilePath::fromAbsolute(locations->cacheDirectory);
+#else
   const std::optional<FilePath> dataDirectory =
       FilePath::fromAbsolute(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
   const std::optional<FilePath> cacheDirectory =
       FilePath::fromAbsolute(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+#endif
   if (!dataDirectory.has_value() || !cacheDirectory.has_value()) {
     return std::nullopt;
   }

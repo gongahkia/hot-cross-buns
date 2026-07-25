@@ -4,6 +4,8 @@ set(HCB_NATIVE_SOURCES
   src/app/AppPaths.h
   src/app/AppServices.cpp
   src/app/AppServices.h
+  src/app/MacOSPathsAdapter.cpp
+  src/app/MacOSPathsAdapter.h
   src/core/AccountStatusService.cpp
   src/core/AccountStatusService.h
   src/core/AgendaModel.cpp
@@ -590,6 +592,8 @@ if(BUILD_TESTING)
     tests/AppPathsTest.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
+    src/app/MacOSPathsAdapter.cpp
+    src/app/MacOSPathsAdapter.h
     src/core/AppError.h
     src/core/FilePath.h
   )
@@ -616,6 +620,8 @@ if(BUILD_TESTING)
     src/app/AppPaths.h
     src/app/AppServices.cpp
     src/app/AppServices.h
+    src/app/MacOSPathsAdapter.cpp
+    src/app/MacOSPathsAdapter.h
     src/core/Clock.h
     src/core/FilePath.h
     src/core/SettingsRegistry.h

@@ -1,12 +1,16 @@
 #include <QtTest>
 
 #include "app/AppPaths.h"
+#include "app/MacOSPathsAdapter.h"
+
+#include <QStandardPaths>
 
 class AppPathsTest final : public QObject {
   Q_OBJECT
 
 private slots:
   void discoversStableApplicationDirectories();
+  void discoversMacOSApplicationDirectories();
 };
 
 void AppPathsTest::discoversStableApplicationDirectories() {
@@ -19,6 +23,30 @@ void AppPathsTest::discoversStableApplicationDirectories() {
 
   QVERIFY(!paths.dataDirectory().nativePath().isEmpty());
   QVERIFY(!paths.cacheDirectory().nativePath().isEmpty());
+}
+
+void AppPathsTest::discoversMacOSApplicationDirectories() {
+#if defined(Q_OS_MACOS)
+  const std::optional<hcb::MacOSPathLocations> locations = hcb::MacOSPathsAdapter::discover();
+  QVERIFY(locations.has_value());
+  if (!locations.has_value()) {
+    return;
+  }
+  QCOMPARE(locations->dataDirectory,
+           QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+  QCOMPARE(locations->cacheDirectory,
+           QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+
+  const std::optional<hcb::AppPaths> paths = hcb::AppPaths::discover();
+  QVERIFY(paths.has_value());
+  if (!paths.has_value()) {
+    return;
+  }
+  QCOMPARE(paths->dataDirectory().nativePath(), locations->dataDirectory);
+  QCOMPARE(paths->cacheDirectory().nativePath(), locations->cacheDirectory);
+#else
+  QSKIP("macOS-only adapter");
+#endif
 }
 
 QTEST_MAIN(AppPathsTest)
