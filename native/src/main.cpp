@@ -1,6 +1,7 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QElapsedTimer>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QQmlApplicationEngine>
 #include <QTextStream>
 #include <QTimer>
@@ -13,6 +14,7 @@
 
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
+#include "app/SystemTrayAdapter.h"
 #include "core/AgendaModel.h"
 #include "core/CalendarSourceModel.h"
 #include "core/Clock.h"
@@ -32,7 +34,7 @@ namespace {
 constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
 constexpr int kCommandPaletteBenchmarkTimeoutMilliseconds = 5'000;
 
-void scheduleCommandPaletteBenchmark(QGuiApplication& application, QObject* rootObject) {
+void scheduleCommandPaletteBenchmark(QApplication& application, QObject* rootObject) {
   QTimer::singleShot(0, &application, [&application, rootObject] {
     auto timer = std::make_shared<QElapsedTimer>();
     timer->start();
@@ -69,7 +71,8 @@ int runApplication(int argc, char* argv[]) {
   hcb::SystemClock clock;
   hcb::StructuredLogger logger(clock);
   hcb::StartupTimingTracker startupTimings(clock, logger);
-  QGuiApplication application(argc, argv);
+  QApplication application(argc, argv);
+  application.setWindowIcon(hcb::SystemTrayAdapter::defaultIcon());
   QCoreApplication::setOrganizationName("Hot Cross Buns");
   QCoreApplication::setOrganizationDomain("gongahkia.github.io");
   QCoreApplication::setApplicationName("Hot Cross Buns");
@@ -117,6 +120,47 @@ int runApplication(int argc, char* argv[]) {
   }
   startupTimings.mark(u"qml.loaded");
 
+  QObject* rootObject = engine.rootObjects().constFirst();
+  auto showMainWindow = [rootObject] {
+    auto* window = qobject_cast<QQuickWindow*>(rootObject);
+    if (window == nullptr) {
+      return;
+    }
+    window->showNormal();
+    window->raise();
+    window->requestActivate();
+  };
+  hcb::TrayActionHandlers trayActions{
+      .openMainWindow = showMainWindow,
+      .toggleMainWindow =
+          [rootObject, showMainWindow] {
+            auto* window = qobject_cast<QQuickWindow*>(rootObject);
+            if (window != nullptr && window->isVisible()) {
+              window->hide();
+              return;
+            }
+            showMainWindow();
+          },
+      .openQuickCapture =
+          [rootObject, showMainWindow] {
+            showMainWindow();
+            static_cast<void>(
+                QMetaObject::invokeMethod(rootObject, "openQuickCapture", Qt::QueuedConnection));
+          },
+      .refresh = {},
+      .openSettings =
+          [rootObject, showMainWindow] {
+            showMainWindow();
+            static_cast<void>(
+                QMetaObject::invokeMethod(rootObject,
+                                          "selectPage",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QString, QStringLiteral("Settings"))));
+          },
+      .quit = [&application] { application.quit(); }};
+  hcb::SystemTrayAdapter tray(application.windowIcon(), std::move(trayActions), &application);
+  tray.setEnabled(true);
+
   const bool benchmarkCommandPalette =
       qEnvironmentVariable("HCB_BENCHMARK_COMMAND_PALETTE_AFTER_LOAD") == QStringLiteral("1");
   bool idleRssDurationValid = false;
@@ -136,7 +180,7 @@ int runApplication(int argc, char* argv[]) {
     });
   } else if (benchmarkCommandPalette) {
     startupTimings.mark(u"benchmark.command_palette.scheduled");
-    scheduleCommandPaletteBenchmark(application, engine.rootObjects().constFirst());
+    scheduleCommandPaletteBenchmark(application, rootObject);
   } else if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
     startupTimings.mark(u"benchmark.exit.scheduled");
     QTimer::singleShot(0, &application, &QCoreApplication::quit);

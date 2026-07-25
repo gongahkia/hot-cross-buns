@@ -38,7 +38,7 @@ if(APPLE AND NOT CMAKE_PREFIX_PATH)
 endif()
 
 find_package(Qt6 ${HCB_NATIVE_QT_VERSION} EXACT REQUIRED
-  COMPONENTS Core Gui Network Qml Quick QuickControls2 QuickTest Test
+  COMPONENTS Core Gui Network Qml Quick QuickControls2 QuickTest Test Widgets
 )
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   find_package(Qt6 ${HCB_NATIVE_QT_VERSION} EXACT REQUIRED COMPONENTS DBus)

@@ -10,6 +10,11 @@ set(HCB_LINUX_CREDENTIAL_SOURCES
   src/app/LinuxCredentialAdapter.cpp
   src/app/LinuxCredentialAdapter.h
 )
+set(HCB_SYSTEM_TRAY_SOURCES
+  src/app/SystemTrayAdapter.cpp
+  src/app/SystemTrayAdapter.h
+)
+qt_add_resources(HCB_SYSTEM_TRAY_RESOURCE_SOURCES resources/SystemTrayIcon.qrc)
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
 endif()
@@ -26,6 +31,8 @@ set(HCB_NATIVE_SOURCES
   ${HCB_MACOS_CREDENTIAL_SOURCES}
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
+  ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
+  ${HCB_SYSTEM_TRAY_SOURCES}
   ${HCB_WINDOWS_CREDENTIAL_SOURCES}
   src/app/WindowsPathsAdapter.cpp
   src/app/WindowsPathsAdapter.h
@@ -212,6 +219,7 @@ target_link_libraries(hcb_native PRIVATE
   Qt6::Qml
   Qt6::Quick
   Qt6::QuickControls2
+  Qt6::Widgets
   hcb::sqlite
 )
 if(APPLE)
@@ -1848,6 +1856,17 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_linux_credential_adapter_tests)
   hcb_enable_sanitizers(hcb_linux_credential_adapter_tests)
   add_test(NAME hcb_linux_credential_adapter_tests COMMAND hcb_linux_credential_adapter_tests)
+
+  qt_add_executable(hcb_system_tray_adapter_tests
+    tests/SystemTrayAdapterTest.cpp
+    ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
+    ${HCB_SYSTEM_TRAY_SOURCES}
+  )
+  target_link_libraries(hcb_system_tray_adapter_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Test Qt6::Widgets)
+  target_include_directories(hcb_system_tray_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_system_tray_adapter_tests)
+  hcb_enable_sanitizers(hcb_system_tray_adapter_tests)
+  add_test(NAME hcb_system_tray_adapter_tests COMMAND hcb_system_tray_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
