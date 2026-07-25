@@ -21,7 +21,7 @@ private slots:
   void createsTaskAndSubtaskSchemaAndEnforcesIntegrity();
   void createsCalendarSchemaAndEnforcesIntegrity();
   void createsCalendarEventSchemaAndEnforcesIntegrity();
-  void createsTaskBackedNoteProjectionAndIndex();
+  void createsTaskBackedNoteProjectionAndIndexes();
   void createsPendingMutationSchemaAndEnforcesLifecycle();
   void createsSyncCheckpointSchemaAndEnforcesIntegrity();
   void createsFtsIndexesTriggersAndBackfillsExistingData();
@@ -105,8 +105,8 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 12);
-  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}));
+  QCOMPARE(first.version, 13);
+  QCOMPARE(first.appliedVersions, std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -159,6 +159,10 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 12 "
                   "AND name = 'create local sync conflicts' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 13 "
+                  "AND name = 'create local note FTS index' AND length(checksum) = 64"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -174,7 +178,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 12);
+  QCOMPARE(second.version, 13);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -552,7 +556,7 @@ void LocalSchemaTest::createsCalendarEventSchemaAndEnforcesIntegrity() {
   QVERIFY(eventSchema->contains(QStringLiteral("STRICT, WITHOUT ROWID")));
 }
 
-void LocalSchemaTest::createsTaskBackedNoteProjectionAndIndex() {
+void LocalSchemaTest::createsTaskBackedNoteProjectionAndIndexes() {
   std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
   QVERIFY(database != nullptr);
   if (database == nullptr) {
@@ -626,6 +630,38 @@ void LocalSchemaTest::createsTaskBackedNoteProjectionAndIndex() {
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                   "AND name = 'local_tasks_active_note_recency'"),
            1);
+  QCOMPARE(scalar(handle,
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'local_notes_fts'"),
+           1);
+  QCOMPARE(scalarText(handle,
+                      "SELECT note_id FROM local_notes_fts "
+                      "WHERE local_notes_fts MATCH 'project*'"),
+           std::optional<QString>(QStringLiteral("note-1")));
+  QCOMPARE(
+      execute(handle, "UPDATE local_tasks SET due_at = '2026-07-25T00:00:00Z' WHERE id = 'note-1'"),
+      SQLITE_OK);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_notes_fts"), 0);
+  QCOMPARE(
+      execute(handle,
+              "UPDATE local_tasks SET due_at = NULL, notes = 'Revised body' WHERE id = 'note-1'"),
+      SQLITE_OK);
+  QCOMPARE(scalarText(handle,
+                      "SELECT note_id FROM local_notes_fts "
+                      "WHERE local_notes_fts MATCH 'revis*'"),
+           std::optional<QString>(QStringLiteral("note-1")));
+  QCOMPARE(
+      execute(
+          handle,
+          "UPDATE local_task_lists SET deleted_at = '2026-07-25T00:00:00Z' WHERE id = 'list-1'"),
+      SQLITE_OK);
+  QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_notes_fts"), 0);
+  QCOMPARE(execute(handle, "UPDATE local_task_lists SET deleted_at = NULL WHERE id = 'list-1'"),
+           SQLITE_OK);
+  QCOMPARE(scalarText(handle,
+                      "SELECT note_id FROM local_notes_fts "
+                      "WHERE local_notes_fts MATCH 'revis*'"),
+           std::optional<QString>(QStringLiteral("note-1")));
 }
 
 void LocalSchemaTest::createsPendingMutationSchemaAndEnforcesLifecycle() {
@@ -897,13 +933,18 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
                    "DROP TRIGGER local_calendar_events_fts_insert; "
                    "DROP TRIGGER local_calendar_events_fts_delete; "
                    "DROP TRIGGER local_calendar_events_fts_update; "
+                   "DROP TRIGGER local_notes_fts_task_insert; "
+                   "DROP TRIGGER local_notes_fts_task_delete; "
+                   "DROP TRIGGER local_notes_fts_task_update; "
+                   "DROP TRIGGER local_notes_fts_task_list_update; "
                    "DROP TABLE local_task_lists_fts; "
                    "DROP TABLE local_tasks_fts; "
                    "DROP TABLE local_calendars_fts; "
                    "DROP TABLE local_calendar_events_fts; "
+                   "DROP TABLE local_notes_fts; "
                    "DROP TABLE local_undo_entries; "
                    "DROP TABLE local_sync_conflicts; "
-                   "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12)"),
+                   "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12, 13)"),
            SQLITE_OK);
   hcb::SqliteMigrationRunResultOrError backfillResult = hcb::LocalSchema::initialize(*connection);
   QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(backfillResult));
@@ -912,7 +953,7 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
   }
   const hcb::SqliteMigrationRunResult backfill =
       std::get<hcb::SqliteMigrationRunResult>(std::move(backfillResult));
-  QCOMPARE(backfill.appliedVersions, std::vector<int>({10, 11, 12}));
+  QCOMPARE(backfill.appliedVersions, std::vector<int>({10, 11, 12, 13}));
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_task_lists_fts"), 1);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendars_fts"), 1);

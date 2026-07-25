@@ -496,6 +496,79 @@ INSERT INTO local_calendar_events_fts(calendar_event_id, title, description, loc
 SELECT id, title, COALESCE(description, ''), COALESCE(location, '') FROM local_calendar_events
 )";
 
+constexpr char noteFtsSchemaSql[] = R"(
+CREATE VIRTUAL TABLE local_notes_fts
+USING fts5(
+  note_id UNINDEXED,
+  list_id UNINDEXED,
+  title,
+  body,
+  tags,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE TRIGGER local_notes_fts_task_insert
+AFTER INSERT ON local_tasks
+WHEN NEW.deleted_at IS NULL
+  AND NEW.is_hidden = 0
+  AND NEW.state = 'active'
+  AND NEW.parent_task_id IS NULL
+  AND NEW.due_at IS NULL
+  AND EXISTS (SELECT 1 FROM local_task_lists WHERE id = NEW.task_list_id AND deleted_at IS NULL)
+BEGIN
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  VALUES (NEW.id, NEW.task_list_id, NEW.title, COALESCE(NEW.notes, ''), NEW.tags_json);
+END;
+
+CREATE TRIGGER local_notes_fts_task_delete
+AFTER DELETE ON local_tasks
+BEGIN
+  DELETE FROM local_notes_fts WHERE note_id = OLD.id;
+END;
+
+CREATE TRIGGER local_notes_fts_task_update
+AFTER UPDATE OF id, task_list_id, title, notes, tags_json, deleted_at, is_hidden, state, parent_task_id, due_at ON local_tasks
+BEGIN
+  DELETE FROM local_notes_fts WHERE note_id = OLD.id;
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  SELECT NEW.id, NEW.task_list_id, NEW.title, COALESCE(NEW.notes, ''), NEW.tags_json
+  WHERE NEW.deleted_at IS NULL
+    AND NEW.is_hidden = 0
+    AND NEW.state = 'active'
+    AND NEW.parent_task_id IS NULL
+    AND NEW.due_at IS NULL
+    AND EXISTS (SELECT 1 FROM local_task_lists WHERE id = NEW.task_list_id AND deleted_at IS NULL);
+END;
+
+CREATE TRIGGER local_notes_fts_task_list_update
+AFTER UPDATE OF id, deleted_at ON local_task_lists
+BEGIN
+  DELETE FROM local_notes_fts WHERE list_id = OLD.id OR list_id = NEW.id;
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  SELECT tasks.id, tasks.task_list_id, tasks.title, COALESCE(tasks.notes, ''), tasks.tags_json
+  FROM local_tasks AS tasks
+  WHERE tasks.task_list_id = NEW.id
+    AND NEW.deleted_at IS NULL
+    AND tasks.deleted_at IS NULL
+    AND tasks.is_hidden = 0
+    AND tasks.state = 'active'
+    AND tasks.parent_task_id IS NULL
+    AND tasks.due_at IS NULL;
+END;
+
+INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+SELECT tasks.id, tasks.task_list_id, tasks.title, COALESCE(tasks.notes, ''), tasks.tags_json
+FROM local_tasks AS tasks
+INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+WHERE tasks.deleted_at IS NULL
+  AND tasks.is_hidden = 0
+  AND tasks.state = 'active'
+  AND tasks.parent_task_id IS NULL
+  AND tasks.due_at IS NULL
+  AND lists.deleted_at IS NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -571,8 +644,12 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, ftsSchemaSql, QStringLiteral("SQLite FTS schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 12>& migrations() {
-  static const std::array<SqliteMigration, 12> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyNoteFtsSchema(SqliteConnection& connection) {
+  return applySchema(connection, noteFtsSchemaSql, QStringLiteral("SQLite note FTS schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 13>& migrations() {
+  static const std::array<SqliteMigration, 13> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -609,6 +686,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local sync conflicts"),
        checksum(syncConflictSchemaSql),
        applySyncConflictSchema},
+      {13,
+       QStringLiteral("create local note FTS index"),
+       checksum(noteFtsSchemaSql),
+       applyNoteFtsSchema},
   }};
   return catalogue;
 }
