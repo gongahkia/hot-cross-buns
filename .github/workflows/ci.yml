@@ -134,9 +134,10 @@ jobs:
       - name: Install Qt 6.11.1
         if: steps.qt-cache.outputs.cache-hit != 'true'
         run: |
-          python3 -m pip install --disable-pip-version-check \
+          python3 -m venv "$RUNNER_TEMP/hcb-aqt-venv"
+          "$RUNNER_TEMP/hcb-aqt-venv/bin/python" -m pip install --disable-pip-version-check \
             "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
-          python3 -m aqt install-qt linux desktop 6.11.1 linux_gcc_64 --outputdir "$RUNNER_TEMP/Qt"
+          "$RUNNER_TEMP/hcb-aqt-venv/bin/python" -m aqt install-qt linux desktop 6.11.1 linux_gcc_64 --outputdir "$RUNNER_TEMP/Qt"
 
       - name: Configure native debug build
         run: cmake --preset linux-debug -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/Qt/6.11.1/gcc_64"
@@ -177,8 +178,9 @@ jobs:
         if: steps.qt-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
-          python -m aqt install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "$env:RUNNER_TEMP\Qt"
+          python -m venv "$env:RUNNER_TEMP\hcb-aqt-venv"
+          & "$env:RUNNER_TEMP\hcb-aqt-venv\Scripts\python.exe" -m pip install --disable-pip-version-check "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
+          & "$env:RUNNER_TEMP\hcb-aqt-venv\Scripts\python.exe" -m aqt install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "$env:RUNNER_TEMP\Qt"
 
       - name: Configure native debug build
         shell: pwsh
