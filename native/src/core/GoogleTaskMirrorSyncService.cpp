@@ -4,6 +4,7 @@
 #include "core/GoogleTaskListPullClient.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/SyncCheckpointStore.h"
+#include "core/TaskMutationService.h"
 
 #include <QDateTime>
 #include <QLocale>
@@ -133,9 +134,16 @@ GoogleTaskMirrorSyncService::GoogleTaskMirrorSyncService(
     GoogleTaskPullClient& taskClient,
     GoogleMirrorStore& mirrorStore,
     SyncCheckpointStore& checkpointStore,
-    const Clock& clock)
+    const Clock& clock,
+    TaskMutationService* taskMutationService)
     : GoogleTaskMirrorSyncService(
-          taskListClient, taskClient, mirrorStore, checkpointStore, clock, mirrorBackoffPolicy()) {}
+          taskListClient,
+          taskClient,
+          mirrorStore,
+          checkpointStore,
+          clock,
+          mirrorBackoffPolicy(),
+          taskMutationService) {}
 
 GoogleTaskMirrorSyncService::GoogleTaskMirrorSyncService(
     GoogleTaskListPullClient& taskListClient,
@@ -143,9 +151,11 @@ GoogleTaskMirrorSyncService::GoogleTaskMirrorSyncService(
     GoogleMirrorStore& mirrorStore,
     SyncCheckpointStore& checkpointStore,
     const Clock& clock,
-    SyncBackoffPolicy backoffPolicy)
+    SyncBackoffPolicy backoffPolicy,
+    TaskMutationService* taskMutationService)
     : taskListClient_(taskListClient), taskClient_(taskClient), mirrorStore_(mirrorStore),
-      checkpointStore_(checkpointStore), clock_(clock), backoffPolicy_(std::move(backoffPolicy)) {}
+      checkpointStore_(checkpointStore), clock_(clock), backoffPolicy_(std::move(backoffPolicy)),
+      taskMutationService_(taskMutationService) {}
 
 std::future<GoogleTaskMirrorSyncResultOrError>
 GoogleTaskMirrorSyncService::sync(QString accountId,
@@ -224,6 +234,20 @@ GoogleTaskMirrorSyncService::sync(QString accountId,
               .get();
       if (std::holds_alternative<AppError>(taskWrite)) {
         return GoogleTaskMirrorSyncResultOrError(std::get<AppError>(std::move(taskWrite)));
+      }
+      if (taskMutationService_ != nullptr) {
+        TaskRecurrenceReconciliationResult recurrenceResult =
+            taskMutationService_->reconcileManagedRecurrences(accountId, taskList.id).get();
+        if (std::holds_alternative<AppError>(recurrenceResult)) {
+          return GoogleTaskMirrorSyncResultOrError(
+              std::get<AppError>(std::move(recurrenceResult)));
+        }
+        const TaskRecurrenceReconciliation reconciliation =
+            std::get<TaskRecurrenceReconciliation>(std::move(recurrenceResult));
+        result.generatedRecurringTaskCount += reconciliation.createdSuccessorCount;
+        result.removedRecurringTaskDuplicateCount += reconciliation.removedDuplicateCount;
+        result.divergentRecurringTaskDuplicateGroupCount +=
+            reconciliation.divergentDuplicateGroupCount;
       }
       const QString watermark = nextWatermark(taskPage.serverDate, checkpoint, clock_);
       SyncCheckpointSaveResult saved =
