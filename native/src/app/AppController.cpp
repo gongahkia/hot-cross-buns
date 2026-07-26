@@ -97,7 +97,11 @@ AppController::AppController(FilePath databasePath,
       notesModel_(notesModel), taskListModel_(taskListModel), taskModel_(taskModel),
       timelineModel_(timelineModel), oauthConfigurationStore_(databasePath, clock),
       accountStatusService_(databasePath, clock), credentialStore_(makeCredentialStore()),
-      oauthLoopbackListener_(this), oauthTokenExchangeClient_(this), pkceStateRegistry_(clock),
+      oauthLoopbackListener_(this), oauthTokenExchangeClient_(this), oauthTokenRefreshClient_(this),
+      pkceStateRegistry_(clock), googleHttpClient_(this),
+      googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
+      googleCalendarListPullClient_(googleHttpClient_),
+      googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
       taskMutationService_(databasePath, clock),
@@ -125,6 +129,9 @@ void AppController::initialize() {
                configuration.has_value()) {
       clientId_ = configuration->clientId;
       emit clientIdChanged();
+      if (googleConnected_) {
+        syncGoogle();
+      }
     }
   });
   watch(accountStatusService_.find(QString::fromLatin1(kGoogleAccountId)),
@@ -139,6 +146,9 @@ void AppController::initialize() {
               account->connectionState == AccountConnectionState::Connected) {
             googleConnected_ = true;
             emit googleConnectedChanged();
+            if (!clientId_.isEmpty()) {
+              syncGoogle();
+            }
           }
         });
   refresh();
@@ -306,8 +316,139 @@ void AppController::finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet
                 emit googleConnectedChanged();
               }
               setStatus(QStringLiteral("Google connected"));
+              syncGoogle();
             });
       });
+}
+
+void AppController::syncGoogle() {
+  if (googleSyncInProgress_) {
+    return;
+  }
+  if (!googleConnected_ || clientId_.isEmpty() || credentialStore_ == nullptr) {
+    return;
+  }
+  googleSyncInProgress_ = true;
+  watch(
+      credentialStore_->read(QString::fromLatin1(kGoogleAccountId)),
+      [this](OAuthCredentialReadResult credential) {
+        if (std::holds_alternative<AppError>(credential)) {
+          finishGoogleSync(std::get<AppError>(credential));
+          return;
+        }
+        const std::optional<OAuthStoredCredential>& stored =
+            std::get<std::optional<OAuthStoredCredential>>(credential);
+        if (!stored.has_value() || !stored->refreshToken.has_value()) {
+          finishGoogleSync(AppError(AppErrorCode::Configuration,
+                                    QStringLiteral("Google authorization must be renewed")));
+          return;
+        }
+        const QString refreshToken = *stored->refreshToken;
+        watch(
+            oauthTokenRefreshClient_.refresh({.clientId = clientId_, .refreshToken = refreshToken}),
+            [this, refreshToken](OAuthTokenRefreshResult refreshed) {
+              if (std::holds_alternative<AppError>(refreshed)) {
+                finishGoogleSync(std::get<AppError>(refreshed));
+                return;
+              }
+              const QString accessToken = std::get<OAuthRefreshedToken>(refreshed).accessToken;
+              watch(credentialStore_->save(
+                        QString::fromLatin1(kGoogleAccountId),
+                        {.accessToken = accessToken, .refreshToken = refreshToken}),
+                    [this, accessToken](OAuthCredentialSaveResult saved) {
+                      if (std::holds_alternative<AppError>(saved)) {
+                        finishGoogleSync(std::get<AppError>(saved));
+                        return;
+                      }
+                      watch(pullGoogleData(accessToken), [this](GoogleMirrorWriteResult result) {
+                        finishGoogleSync(std::move(result));
+                      });
+                    });
+            });
+      });
+}
+
+std::future<GoogleMirrorWriteResult> AppController::pullGoogleData(QString accessToken) {
+  try {
+    return std::async(std::launch::async, [this, accessToken = std::move(accessToken)] {
+      GoogleTaskListPullResultOrError taskListResult =
+          googleTaskListPullClient_.list(accessToken).get();
+      if (std::holds_alternative<GoogleApiError>(taskListResult)) {
+        return GoogleMirrorWriteResult(
+            AppError(AppErrorCode::Network, std::get<GoogleApiError>(taskListResult).message()));
+      }
+      GoogleTaskListPullResult pulledTaskLists =
+          std::get<GoogleTaskListPullResult>(std::move(taskListResult));
+      QList<GoogleTaskMirror> tasks;
+      for (const GoogleTaskListMirror& taskList : pulledTaskLists.taskLists) {
+        GoogleTaskPullResultOrError taskResult =
+            googleTaskPullClient_.list({.taskListId = taskList.id}, accessToken).get();
+        if (std::holds_alternative<GoogleApiError>(taskResult)) {
+          return GoogleMirrorWriteResult(
+              AppError(AppErrorCode::Network, std::get<GoogleApiError>(taskResult).message()));
+        }
+        QList<GoogleTaskMirror> pulledTasks =
+            std::get<GoogleTaskPullResult>(std::move(taskResult)).tasks;
+        for (GoogleTaskMirror& task : pulledTasks) {
+          tasks.append(std::move(task));
+        }
+      }
+      GoogleMirrorWriteResult taskWrite = googleMirrorStore_
+                                              .replaceTasks(QString::fromLatin1(kGoogleAccountId),
+                                                            std::move(pulledTaskLists.taskLists),
+                                                            std::move(tasks))
+                                              .get();
+      if (std::holds_alternative<AppError>(taskWrite)) {
+        return taskWrite;
+      }
+      GoogleCalendarListPullResultOrError calendarListResult =
+          googleCalendarListPullClient_.list({}, accessToken).get();
+      if (std::holds_alternative<GoogleApiError>(calendarListResult)) {
+        return GoogleMirrorWriteResult(AppError(
+            AppErrorCode::Network, std::get<GoogleApiError>(calendarListResult).message()));
+      }
+      GoogleCalendarListPullResult pulledCalendars =
+          std::get<GoogleCalendarListPullResult>(std::move(calendarListResult));
+      QList<GoogleCalendarEventMirror> events;
+      for (const GoogleCalendarMirror& calendar : pulledCalendars.calendars) {
+        if (calendar.deleted) {
+          continue;
+        }
+        GoogleCalendarEventPullResultOrError eventResult =
+            googleCalendarEventPullClient_.list({.calendarId = calendar.id}, accessToken).get();
+        if (std::holds_alternative<GoogleApiError>(eventResult)) {
+          return GoogleMirrorWriteResult(
+              AppError(AppErrorCode::Network, std::get<GoogleApiError>(eventResult).message()));
+        }
+        QList<GoogleCalendarEventMirror> pulledEvents =
+            std::get<GoogleCalendarEventPullResult>(std::move(eventResult)).events;
+        for (GoogleCalendarEventMirror& event : pulledEvents) {
+          events.append(std::move(event));
+        }
+      }
+      return googleMirrorStore_
+          .replaceCalendars(QString::fromLatin1(kGoogleAccountId),
+                            std::move(pulledCalendars.calendars),
+                            std::move(events))
+          .get();
+    });
+  } catch (...) {
+    std::promise<GoogleMirrorWriteResult> completion;
+    std::future<GoogleMirrorWriteResult> future = completion.get_future();
+    completion.set_value(
+        AppError(AppErrorCode::Network, QStringLiteral("Google sync could not start")));
+    return future;
+  }
+}
+
+void AppController::finishGoogleSync(GoogleMirrorWriteResult result) {
+  googleSyncInProgress_ = false;
+  if (std::holds_alternative<AppError>(result)) {
+    setStatus(errorMessage(std::get<AppError>(result)));
+    return;
+  }
+  setStatus(QStringLiteral("Google synchronization complete"));
+  refresh();
 }
 
 void AppController::createTask(QString taskListId, QString parentTaskId, QString title) {

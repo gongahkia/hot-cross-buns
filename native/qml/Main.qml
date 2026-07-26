@@ -575,6 +575,14 @@ ApplicationWindow {
                     onClicked: window.controllerCall("connectGoogle", [])
                 }
 
+                Button {
+                    text: "Sync Google now"
+                    enabled: window.appController !== null && window.appController.googleConnected &&
+                             !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("syncGoogle", [])
+                }
+
                 Label {
                     Layout.fillWidth: true
                     visible: window.appController !== null && window.appController.statusMessage.length > 0

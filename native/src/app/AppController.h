@@ -4,6 +4,12 @@
 #include "core/CalendarReadService.h"
 #include "core/Clock.h"
 #include "core/FilePath.h"
+#include "core/GoogleCalendarEventPullClient.h"
+#include "core/GoogleCalendarListPullClient.h"
+#include "core/GoogleHttpClient.h"
+#include "core/GoogleMirrorStore.h"
+#include "core/GoogleTaskListPullClient.h"
+#include "core/GoogleTaskPullClient.h"
 #include "core/NoteService.h"
 #include "core/AccountStatusService.h"
 #include "core/OAuthBrowserAuthorizationLauncher.h"
@@ -11,6 +17,7 @@
 #include "core/OAuthCredentialStore.h"
 #include "core/OAuthLoopbackCallbackListener.h"
 #include "core/OAuthTokenExchangeClient.h"
+#include "core/OAuthTokenRefreshClient.h"
 #include "core/PkceAuthorization.h"
 #include "core/TaskListReadService.h"
 #include "core/TaskMutationService.h"
@@ -67,6 +74,7 @@ public:
   Q_INVOKABLE void refresh();
   Q_INVOKABLE void saveClientId(QString clientId);
   Q_INVOKABLE void connectGoogle();
+  Q_INVOKABLE void syncGoogle();
   Q_INVOKABLE void createTask(QString taskListId, QString parentTaskId, QString title);
   Q_INVOKABLE void updateTask(QString taskId,
                               QString title,
@@ -144,6 +152,8 @@ private:
   void refreshCalendarEvents(QList<QString> calendarIds);
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
+  [[nodiscard]] std::future<GoogleMirrorWriteResult> pullGoogleData(QString accessToken);
+  void finishGoogleSync(GoogleMirrorWriteResult result);
   void setStatus(QString message);
   void setBusy(bool busy);
 
@@ -160,8 +170,15 @@ private:
   std::unique_ptr<OAuthCredentialStore> credentialStore_;
   OAuthLoopbackCallbackListener oauthLoopbackListener_;
   OAuthTokenExchangeClient oauthTokenExchangeClient_;
+  OAuthTokenRefreshClient oauthTokenRefreshClient_;
   OAuthBrowserAuthorizationLauncher oauthBrowserAuthorizationLauncher_;
   PkceStateRegistry pkceStateRegistry_;
+  GoogleHttpClient googleHttpClient_;
+  GoogleTaskListPullClient googleTaskListPullClient_;
+  GoogleTaskPullClient googleTaskPullClient_;
+  GoogleCalendarListPullClient googleCalendarListPullClient_;
+  GoogleCalendarEventPullClient googleCalendarEventPullClient_;
+  GoogleMirrorStore googleMirrorStore_;
   TaskListReadService taskListReadService_;
   TaskReadService taskReadService_;
   NoteService noteService_;
@@ -170,6 +187,7 @@ private:
   CalendarMutationService calendarMutationService_;
   QString clientId_;
   bool googleConnected_{false};
+  bool googleSyncInProgress_{false};
   QString statusMessage_;
   bool busy_{false};
   bool pollScheduled_{false};

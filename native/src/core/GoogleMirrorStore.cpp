@@ -19,7 +19,11 @@ namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
 
-enum class SqlValueType { Null, Text, Integer };
+enum class SqlValueType {
+  Null,
+  Text,
+  Integer
+};
 
 struct SqlValue final {
   SqlValueType type;
@@ -65,7 +69,7 @@ struct SqlValue final {
   QCryptographicHash hash(QCryptographicHash::Sha256);
   for (const QString& part : parts) {
     hash.addData(part.toUtf8());
-    hash.addData("\0", 1);
+    hash.addData(QByteArrayView("\0", 1));
   }
   return prefix.toString() + QString::fromLatin1(hash.result().toHex());
 }
@@ -74,9 +78,8 @@ struct SqlValue final {
   return localId(u"g-tl-", {accountId, remoteId});
 }
 
-[[nodiscard]] QString taskId(const QString& accountId,
-                             const QString& taskListRemoteId,
-                             const QString& remoteId) {
+[[nodiscard]] QString
+taskId(const QString& accountId, const QString& taskListRemoteId, const QString& remoteId) {
   return localId(u"g-t-", {accountId, taskListRemoteId, remoteId});
 }
 
@@ -84,9 +87,8 @@ struct SqlValue final {
   return localId(u"g-c-", {accountId, remoteId});
 }
 
-[[nodiscard]] QString eventId(const QString& accountId,
-                              const QString& calendarRemoteId,
-                              const QString& remoteId) {
+[[nodiscard]] QString
+eventId(const QString& accountId, const QString& calendarRemoteId, const QString& remoteId) {
   return localId(u"g-e-", {accountId, calendarRemoteId, remoteId});
 }
 
@@ -129,9 +131,8 @@ execute(sqlite3* handle, const char* sql, const QList<SqlValue>& values) {
   }
   return finalizeResult == SQLITE_OK
              ? std::nullopt
-             : std::optional<AppError>(
-                   databaseError(QStringLiteral("SQLite mirror finalization failed (%1)"),
-                                 finalizeResult));
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite mirror finalization failed (%1)"), finalizeResult));
 }
 
 [[nodiscard]] std::optional<AppError>
@@ -150,12 +151,11 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
                  {textValue(now), textValue(listId)});
 }
 
-[[nodiscard]] std::optional<AppError>
-upsertTaskList(sqlite3* handle,
-               const QString& accountId,
-               const GoogleTaskListMirror& taskList,
-               sqlite3_int64 sortOrder,
-               const QString& now) {
+[[nodiscard]] std::optional<AppError> upsertTaskList(sqlite3* handle,
+                                                     const QString& accountId,
+                                                     const GoogleTaskListMirror& taskList,
+                                                     sqlite3_int64 sortOrder,
+                                                     const QString& now) {
   return execute(
       handle,
       "INSERT INTO local_task_lists (id, account_id, remote_id, title, etag, sort_order, "
@@ -165,25 +165,30 @@ upsertTaskList(sqlite3* handle,
       "title = excluded.title, etag = excluded.etag, sort_order = excluded.sort_order, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = NULL",
-      {textValue(taskListId(accountId, taskList.id)), textValue(accountId), textValue(taskList.id),
-       textValue(taskList.title), optionalTextValue(taskList.etag), integerValue(sortOrder),
-       optionalTextValue(taskList.updatedAt), textValue(now)});
+      {textValue(taskListId(accountId, taskList.id)),
+       textValue(accountId),
+       textValue(taskList.id),
+       textValue(taskList.title),
+       optionalTextValue(taskList.etag),
+       integerValue(sortOrder),
+       optionalTextValue(taskList.updatedAt),
+       textValue(now)});
 }
 
-[[nodiscard]] std::optional<AppError>
-upsertTask(sqlite3* handle,
-           const QString& accountId,
-           const GoogleTaskMirror& task,
-           sqlite3_int64 sortOrder,
-           const QString& now) {
+[[nodiscard]] std::optional<AppError> upsertTask(sqlite3* handle,
+                                                 const QString& accountId,
+                                                 const GoogleTaskMirror& task,
+                                                 sqlite3_int64 sortOrder,
+                                                 const QString& now) {
   const QString localListId = taskListId(accountId, task.taskListId);
   const std::optional<QString> parent =
       task.parentId.has_value()
           ? std::optional<QString>(taskId(accountId, task.taskListId, *task.parentId))
           : std::nullopt;
   const QString state = task.status == GoogleTaskStatus::Completed ? QStringLiteral("completed")
-                                                                     : QStringLiteral("active");
-  const std::optional<QString> deletedAt = task.deleted ? std::optional<QString>(now) : std::nullopt;
+                                                                   : QStringLiteral("active");
+  const std::optional<QString> deletedAt =
+      task.deleted ? std::optional<QString>(now) : std::nullopt;
   return execute(
       handle,
       "INSERT INTO local_tasks (id, task_list_id, remote_id, parent_task_id, title, notes, state, "
@@ -197,12 +202,22 @@ upsertTask(sqlite3* handle,
       "is_hidden = excluded.is_hidden, etag = excluded.etag, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = excluded.deleted_at",
-      {textValue(taskId(accountId, task.taskListId, task.id)), textValue(localListId),
-       textValue(task.id), optionalTextValue(parent), textValue(task.title.left(500)),
-       optionalTextValue(task.notes), textValue(state), optionalTextValue(task.dueAt),
-       optionalTextValue(task.completedAt), optionalTextValue(task.position), integerValue(sortOrder),
-       integerValue(task.hidden ? 1 : 0), optionalTextValue(task.etag),
-       optionalTextValue(task.updatedAt), textValue(now), optionalTextValue(deletedAt)});
+      {textValue(taskId(accountId, task.taskListId, task.id)),
+       textValue(localListId),
+       textValue(task.id),
+       optionalTextValue(parent),
+       textValue(task.title.left(500)),
+       optionalTextValue(task.notes),
+       textValue(state),
+       optionalTextValue(task.dueAt),
+       optionalTextValue(task.completedAt),
+       optionalTextValue(task.position),
+       integerValue(sortOrder),
+       integerValue(task.hidden ? 1 : 0),
+       optionalTextValue(task.etag),
+       optionalTextValue(task.updatedAt),
+       textValue(now),
+       optionalTextValue(deletedAt)});
 }
 
 [[nodiscard]] std::optional<QString> calendarAccessRole(GoogleCalendarAccessRole role) {
@@ -235,15 +250,14 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
                  {textValue(now), textValue(localCalendarId)});
 }
 
-[[nodiscard]] std::optional<AppError>
-upsertCalendar(sqlite3* handle,
-               const QString& accountId,
-               const GoogleCalendarMirror& calendar,
-               const QString& now) {
+[[nodiscard]] std::optional<AppError> upsertCalendar(sqlite3* handle,
+                                                     const QString& accountId,
+                                                     const GoogleCalendarMirror& calendar,
+                                                     const QString& now) {
   const std::optional<QString> accessRole =
       calendar.accessRole.has_value() ? calendarAccessRole(*calendar.accessRole) : std::nullopt;
-  const std::optional<QString> deletedAt = calendar.deleted ? std::optional<QString>(now)
-                                                            : std::nullopt;
+  const std::optional<QString> deletedAt =
+      calendar.deleted ? std::optional<QString>(now) : std::nullopt;
   return execute(
       handle,
       "INSERT INTO local_calendars (id, account_id, remote_id, title, description, time_zone, "
@@ -256,12 +270,20 @@ upsertCalendar(sqlite3* handle,
       "access_role = excluded.access_role, is_selected = excluded.is_selected, "
       "is_hidden = excluded.is_hidden, is_primary = excluded.is_primary, etag = excluded.etag, "
       "updated_at = excluded.updated_at, deleted_at = excluded.deleted_at",
-      {textValue(calendarId(accountId, calendar.id)), textValue(accountId), textValue(calendar.id),
-       textValue(calendar.title.left(500)), optionalTextValue(calendar.description),
-       optionalTextValue(calendar.timeZone), optionalTextValue(calendar.backgroundColor),
-       optionalTextValue(calendar.foregroundColor), optionalTextValue(accessRole),
-       integerValue(calendar.selected ? 1 : 0), integerValue(calendar.hidden ? 1 : 0),
-       integerValue(calendar.primary ? 1 : 0), optionalTextValue(calendar.etag), textValue(now),
+      {textValue(calendarId(accountId, calendar.id)),
+       textValue(accountId),
+       textValue(calendar.id),
+       textValue(calendar.title.left(500)),
+       optionalTextValue(calendar.description),
+       optionalTextValue(calendar.timeZone),
+       optionalTextValue(calendar.backgroundColor),
+       optionalTextValue(calendar.foregroundColor),
+       optionalTextValue(accessRole),
+       integerValue(calendar.selected ? 1 : 0),
+       integerValue(calendar.hidden ? 1 : 0),
+       integerValue(calendar.primary ? 1 : 0),
+       optionalTextValue(calendar.etag),
+       textValue(now),
        optionalTextValue(deletedAt)});
 }
 
@@ -277,14 +299,14 @@ upsertCalendar(sqlite3* handle,
   return {};
 }
 
-[[nodiscard]] std::optional<AppError>
-upsertEvent(sqlite3* handle,
-            const QString& accountId,
-            const GoogleCalendarEventMirror& event,
-            const QString& now) {
+[[nodiscard]] std::optional<AppError> upsertEvent(sqlite3* handle,
+                                                  const QString& accountId,
+                                                  const GoogleCalendarEventMirror& event,
+                                                  const QString& now) {
   const QString status = calendarEventStatus(event.status);
   const bool cancelled = event.status == GoogleCalendarEventStatus::Cancelled;
-  if (status.isEmpty() || (!cancelled && (!event.startAt.has_value() || !event.endAt.has_value()))) {
+  if (status.isEmpty() ||
+      (!cancelled && (!event.startAt.has_value() || !event.endAt.has_value()))) {
     return validationError(QStringLiteral("Google calendar event is invalid"));
   }
   const QString startAt = event.startAt.value_or(now);
@@ -303,7 +325,8 @@ upsertEvent(sqlite3* handle,
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, "
       "?18, ?19, ?20, ?21, ?22, ?23, ?24) "
       "ON CONFLICT(calendar_id, remote_id) WHERE remote_id IS NOT NULL DO UPDATE SET "
-      "recurring_remote_id = excluded.recurring_remote_id, original_start_at = excluded.original_start_at, "
+      "recurring_remote_id = excluded.recurring_remote_id, original_start_at = "
+      "excluded.original_start_at, "
       "status = excluded.status, title = excluded.title, description = excluded.description, "
       "location = excluded.location, start_at = excluded.start_at, "
       "start_time_zone = excluded.start_time_zone, end_at = excluded.end_at, "
@@ -314,24 +337,37 @@ upsertEvent(sqlite3* handle,
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = excluded.deleted_at",
       {textValue(eventId(accountId, event.calendarId, event.id)),
-       textValue(calendarId(accountId, event.calendarId)), textValue(event.id),
-       optionalTextValue(event.recurringEventId), optionalTextValue(event.originalStartAt),
-       textValue(status), textValue(event.title.left(500)), optionalTextValue(event.description),
-       optionalTextValue(event.location), textValue(startAt), optionalTextValue(event.startTimeZone),
-       textValue(endAt), optionalTextValue(event.endTimeZone), integerValue(event.allDay ? 1 : 0),
-       recurrence.isEmpty() ? nullValue() : textValue(recurrence), optionalTextValue(event.colorId),
-       optionalTextValue(event.transparency), optionalTextValue(event.visibility),
-       optionalTextValue(event.timeZone), optionalTextValue(event.etag),
+       textValue(calendarId(accountId, event.calendarId)),
+       textValue(event.id),
+       optionalTextValue(event.recurringEventId),
+       optionalTextValue(event.originalStartAt),
+       textValue(status),
+       textValue(event.title.left(500)),
+       optionalTextValue(event.description),
+       optionalTextValue(event.location),
+       textValue(startAt),
+       optionalTextValue(event.startTimeZone),
+       textValue(endAt),
+       optionalTextValue(event.endTimeZone),
+       integerValue(event.allDay ? 1 : 0),
+       recurrence.isEmpty() ? nullValue() : textValue(recurrence),
+       optionalTextValue(event.colorId),
+       optionalTextValue(event.transparency),
+       optionalTextValue(event.visibility),
+       optionalTextValue(event.timeZone),
+       optionalTextValue(event.etag),
        event.sequence.has_value() ? integerValue(*event.sequence) : nullValue(),
-       optionalTextValue(event.updatedAt), textValue(now), optionalTextValue(deletedAt)});
+       optionalTextValue(event.updatedAt),
+       textValue(now),
+       optionalTextValue(deletedAt)});
 }
 
-[[nodiscard]] GoogleMirrorWriteResult replaceStoredTasks(
-    SqliteConnection& connection,
-    const QString& accountId,
-    const QList<GoogleTaskListMirror>& taskLists,
-    const QList<GoogleTaskMirror>& tasks,
-    const Clock& clock) {
+[[nodiscard]] GoogleMirrorWriteResult
+replaceStoredTasks(SqliteConnection& connection,
+                   const QString& accountId,
+                   const QList<GoogleTaskListMirror>& taskLists,
+                   const QList<GoogleTaskMirror>& tasks,
+                   const Clock& clock) {
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
     return AppError(AppErrorCode::Database, QStringLiteral("SQLite task mirror is unavailable"));
@@ -371,7 +407,8 @@ upsertEvent(sqlite3* handle,
   }
   sqlite3_int64 listOrder = 0;
   for (const GoogleTaskListMirror& taskList : taskLists) {
-    if (const std::optional<AppError> error = upsertTaskList(handle, accountId, taskList, listOrder++, now);
+    if (const std::optional<AppError> error =
+            upsertTaskList(handle, accountId, taskList, listOrder++, now);
         error.has_value()) {
       return *error;
     }
@@ -395,12 +432,12 @@ upsertEvent(sqlite3* handle,
   return std::monostate{};
 }
 
-[[nodiscard]] GoogleMirrorWriteResult replaceStoredCalendars(
-    SqliteConnection& connection,
-    const QString& accountId,
-    const QList<GoogleCalendarMirror>& calendars,
-    const QList<GoogleCalendarEventMirror>& events,
-    const Clock& clock) {
+[[nodiscard]] GoogleMirrorWriteResult
+replaceStoredCalendars(SqliteConnection& connection,
+                       const QString& accountId,
+                       const QList<GoogleCalendarMirror>& calendars,
+                       const QList<GoogleCalendarEventMirror>& events,
+                       const Clock& clock) {
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
     return AppError(AppErrorCode::Database,
@@ -471,30 +508,26 @@ GoogleMirrorStore::GoogleMirrorStore(FilePath databasePath, const Clock& clock)
 
 std::shared_future<SqliteWriteResult> GoogleMirrorStore::ready() const { return initialization_; }
 
-std::future<GoogleMirrorWriteResult>
-GoogleMirrorStore::replaceTasks(QString accountId,
-                                QList<GoogleTaskListMirror> taskLists,
-                                QList<GoogleTaskMirror> tasks) {
-  return writerQueue_.enqueueResult(
-      [this,
-       accountId = std::move(accountId),
-       taskLists = std::move(taskLists),
-       tasks = std::move(tasks)](SqliteConnection& connection) {
-        return replaceStoredTasks(connection, accountId, taskLists, tasks, clock_);
-      });
+std::future<GoogleMirrorWriteResult> GoogleMirrorStore::replaceTasks(
+    QString accountId, QList<GoogleTaskListMirror> taskLists, QList<GoogleTaskMirror> tasks) {
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     taskLists = std::move(taskLists),
+                                     tasks = std::move(tasks)](SqliteConnection& connection) {
+    return replaceStoredTasks(connection, accountId, taskLists, tasks, clock_);
+  });
 }
 
 std::future<GoogleMirrorWriteResult>
 GoogleMirrorStore::replaceCalendars(QString accountId,
                                     QList<GoogleCalendarMirror> calendars,
                                     QList<GoogleCalendarEventMirror> events) {
-  return writerQueue_.enqueueResult(
-      [this,
-       accountId = std::move(accountId),
-       calendars = std::move(calendars),
-       events = std::move(events)](SqliteConnection& connection) {
-        return replaceStoredCalendars(connection, accountId, calendars, events, clock_);
-      });
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     calendars = std::move(calendars),
+                                     events = std::move(events)](SqliteConnection& connection) {
+    return replaceStoredCalendars(connection, accountId, calendars, events, clock_);
+  });
 }
 
 } // namespace hcb

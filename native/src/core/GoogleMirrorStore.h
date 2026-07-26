@@ -26,10 +26,8 @@ public:
   GoogleMirrorStore& operator=(const GoogleMirrorStore&) = delete;
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
-  [[nodiscard]] std::future<GoogleMirrorWriteResult>
-  replaceTasks(QString accountId,
-               QList<GoogleTaskListMirror> taskLists,
-               QList<GoogleTaskMirror> tasks);
+  [[nodiscard]] std::future<GoogleMirrorWriteResult> replaceTasks(
+      QString accountId, QList<GoogleTaskListMirror> taskLists, QList<GoogleTaskMirror> tasks);
   [[nodiscard]] std::future<GoogleMirrorWriteResult>
   replaceCalendars(QString accountId,
                    QList<GoogleCalendarMirror> calendars,
