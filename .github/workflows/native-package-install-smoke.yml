@@ -29,28 +29,15 @@ jobs:
         id: qt-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          key: qt-6.11.1-macos-universal-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          key: qt-6.11.1-macos-universal-v2-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}/Qt
 
       - name: Install Qt 6.11.1
         if: steps.qt-cache.outputs.cache-hit != 'true'
         run: |
-          installer_dmg="$RUNNER_TEMP/qt-online-installer.dmg"
-          installer_mount="$RUNNER_TEMP/qt-online-installer"
-          curl --fail --location --retry 3 --output "$installer_dmg" \
-            https://download.qt.io/official_releases/online_installers/qt-online-installer-macOS-universal.dmg
-          mkdir "$installer_mount"
-          hdiutil attach "$installer_dmg" -nobrowse -readonly -mountpoint "$installer_mount"
-          trap 'hdiutil detach "$installer_mount" -quiet || true' EXIT
-          installer="$(find "$installer_mount" -type f -path '*/Contents/MacOS/*' -perm -111 -print -quit)"
-          test -n "$installer"
-          "$installer" \
-            --root "$RUNNER_TEMP/Qt" \
-            --accept-licenses \
-            --accept-obligations \
-            --default-answer \
-            --confirm-command \
-            install qt.qt6.6111.clang_64
+          python3 -m pip install --disable-pip-version-check \
+            "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
+          python3 -m aqt install-qt mac desktop 6.11.1 clang_64 --outputdir "$RUNNER_TEMP/Qt"
 
       - name: Configure native universal package tree
         run: cmake --preset macos-universal-package -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/Qt/6.11.1/macos"
@@ -90,7 +77,7 @@ jobs:
         id: qt-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          key: qt-6.11.1-linux-gcc-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          key: qt-6.11.1-linux-gcc-64-v2-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}/Qt
 
       - name: Install native build dependencies
@@ -117,16 +104,9 @@ jobs:
       - name: Install Qt 6.11.1
         if: steps.qt-cache.outputs.cache-hit != 'true'
         run: |
-          curl --fail --location --retry 3 --output "$RUNNER_TEMP/qt-online-installer.run" \
-            https://download.qt.io/official_releases/online_installers/qt-online-installer-linux-x64-online.run
-          chmod +x "$RUNNER_TEMP/qt-online-installer.run"
-          "$RUNNER_TEMP/qt-online-installer.run" \
-            --root "$RUNNER_TEMP/Qt" \
-            --accept-licenses \
-            --accept-obligations \
-            --default-answer \
-            --confirm-command \
-            install qt.qt6.6111.linux_gcc_64
+          python3 -m pip install --disable-pip-version-check \
+            "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
+          python3 -m aqt install-qt linux desktop 6.11.1 linux_gcc_64 --outputdir "$RUNNER_TEMP/Qt"
 
       - name: Configure native Linux package tree
         run: cmake --preset linux-x64-package -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/Qt/6.11.1/gcc_64"
@@ -166,23 +146,15 @@ jobs:
         id: qt-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          key: qt-6.11.1-windows-msvc2022-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
+          key: qt-6.11.1-windows-msvc2022-64-v2-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}\Qt
 
       - name: Install Qt 6.11.1
         if: steps.qt-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $installer = "$env:RUNNER_TEMP\qt-online-installer.exe"
-          Invoke-WebRequest -Uri https://download.qt.io/official_releases/online_installers/qt-online-installer-windows-x64-online.exe -OutFile $installer
-          & $installer `
-            --root "$env:RUNNER_TEMP\Qt" `
-            --accept-licenses `
-            --accept-obligations `
-            --default-answer `
-            --confirm-command `
-            install qt.qt6.6111.win64_msvc2022_64
-          if ($LASTEXITCODE -ne 0) { throw "Qt installer failed with exit code $LASTEXITCODE" }
+          python -m pip install --disable-pip-version-check "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
+          python -m aqt install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "$env:RUNNER_TEMP\Qt"
 
       - name: Configure native Windows package tree
         shell: pwsh
