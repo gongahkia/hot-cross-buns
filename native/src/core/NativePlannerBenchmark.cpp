@@ -82,7 +82,8 @@ QByteArray NativePlannerBenchmark::toJson(const NativePlannerBenchmarkResult& re
                   static_cast<qint64>(result.allDaySegmentCount)},
                  {QStringLiteral("allDayOverflowCount"),
                   static_cast<qint64>(result.allDayOverflowCount)},
-                 {QStringLiteral("elapsedNanoseconds"), result.elapsedNanoseconds}})
+                 {QStringLiteral("elapsedNanoseconds"),
+                  static_cast<qint64>(result.elapsedNanoseconds)}})
       .toJson(QJsonDocument::Compact);
 }
 

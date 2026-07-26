@@ -94,7 +94,7 @@ QVariant TaskModel::data(const QModelIndex& index, int role) const {
   case CompletedRole:
     return task.completed;
   case SortOrderRole:
-    return task.sortOrder;
+    return static_cast<qlonglong>(task.sortOrder);
   default:
     return {};
   }

@@ -37,7 +37,7 @@ QVariant TaskListModel::data(const QModelIndex& index, int role) const {
   case AccountIdRole:
     return taskList.accountId;
   case SortOrderRole:
-    return taskList.sortOrder;
+    return static_cast<qlonglong>(taskList.sortOrder);
   case SelectedRole:
     return taskList.selected;
   case TaskCountRole:
