@@ -219,6 +219,19 @@ TestCase {
         taskList.taskSelected.connect(function(taskId) { selectedId = taskId })
         taskList.selectTask("inbox-1")
         compare(selectedId, "inbox-1")
+        let completion = null
+        taskList.taskCompletionRequested.connect(function(taskId, completed) {
+            completion = { taskId, completed }
+        })
+        tryVerify(function() {
+            return taskList.taskRows.itemAtIndex(0) !== null
+        })
+        taskList.taskRows.itemAtIndex(0).completionButton.click()
+        compare(completion.taskId, "inbox-1")
+        compare(completion.completed, true)
+        taskList.taskRows.itemAtIndex(1).completionButton.click()
+        compare(completion.taskId, "inbox-2")
+        compare(completion.completed, false)
         taskList.destroy()
         taskModel.destroy()
     }
