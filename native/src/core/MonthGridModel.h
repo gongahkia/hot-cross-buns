@@ -30,16 +30,26 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-  void setMonth(QDate month,
-                const QList<CalendarEventSummary>& events,
-                const QTimeZone& displayTimeZone);
-
-private:
   struct Cell final {
     QDate date;
     QList<CalendarEventSummary> events;
   };
 
+  struct Layout final {
+    QDate month;
+    QList<Cell> cells;
+  };
+
+  [[nodiscard]] static Layout buildLayout(QDate month,
+                                          const QList<CalendarEventSummary>& events,
+                                          const QTimeZone& displayTimeZone);
+  void applyLayout(Layout layout);
+
+  void setMonth(QDate month,
+                const QList<CalendarEventSummary>& events,
+                const QTimeZone& displayTimeZone);
+
+private:
   QDate month_;
   QList<Cell> cells_;
 };

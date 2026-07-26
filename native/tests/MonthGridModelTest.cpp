@@ -7,6 +7,7 @@ class MonthGridModelTest final : public QObject {
 
 private slots:
   void buildsSundayFirstGridAndAssignsEndExclusiveEventSpans();
+  void keepsAllDayDatesStableAcrossDisplayTimeZones();
   void clearsForInvalidMonthOrTimeZone();
 };
 
@@ -63,6 +64,27 @@ void MonthGridModelTest::buildsSundayFirstGridAndAssignsEndExclusiveEventSpans()
            QStringLiteral("multi"));
   QCOMPARE(model.roleNames().value(hcb::MonthGridModel::OutsideMonthRole),
            QByteArrayLiteral("outsideMonth"));
+}
+
+void MonthGridModelTest::keepsAllDayDatesStableAcrossDisplayTimeZones() {
+  const QTimeZone timeZone(QByteArrayLiteral("America/Los_Angeles"));
+  QVERIFY(timeZone.isValid());
+  hcb::MonthGridModel model;
+  model.setMonth(QDate(2026, 8, 1),
+                 {{.id = QStringLiteral("all-day"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Offsite"),
+                   .startAt = QStringLiteral("2026-08-01T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-02T00:00:00.000Z"),
+                   .allDay = true,
+                   .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")}},
+                 timeZone);
+
+  const QModelIndex august1 = model.index(0, 6);
+  QCOMPARE(model.data(august1, hcb::MonthGridModel::DateRole).toString(),
+           QStringLiteral("2026-08-01"));
+  QCOMPARE(model.data(august1, hcb::MonthGridModel::EventCountRole).toInt(), 1);
 }
 
 void MonthGridModelTest::clearsForInvalidMonthOrTimeZone() {

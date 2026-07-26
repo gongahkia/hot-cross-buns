@@ -24,6 +24,10 @@ ApplicationWindow {
     property var timelineModel: null
     property var transitionTimings: null
     property var selectedCalendarEventIds: []
+    property string calendarDate: appController !== null &&
+                                  typeof appController.calendarDate === "string" &&
+                                  appController.calendarDate.length > 0
+                                  ? appController.calendarDate : fallbackCalendarDate()
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
     property alias commandPalette: commandPalette
@@ -31,12 +35,14 @@ ApplicationWindow {
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias calendarVisibility: calendarVisibility
+    property alias calendarViews: calendarViews
     property alias calendarBulkControls: calendarBulkControls
     property alias eventCreateDialog: eventCreateDialog
     property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
     property alias dayTimeline: dayTimeline
     property alias weekTimeline: weekTimeline
+    property alias monthGrid: monthGrid
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias searchPopup: searchPopup
@@ -92,6 +98,61 @@ ApplicationWindow {
 
     function clearCalendarEventSelection() {
         selectedCalendarEventIds = []
+    }
+
+    function fallbackCalendarDate() {
+        return new Date().toISOString().slice(0, 10)
+    }
+
+    function shiftCalendarDate(days) {
+        const parsed = new Date(calendarDate + "T12:00:00Z")
+        if (!Number.isFinite(parsed.getTime())) {
+            return calendarDate
+        }
+        parsed.setUTCDate(parsed.getUTCDate() + days)
+        return parsed.toISOString().slice(0, 10)
+    }
+
+    function shiftCalendarMonth(months) {
+        const parsed = new Date(calendarDate + "T12:00:00Z")
+        if (!Number.isFinite(parsed.getTime())) {
+            return calendarDate
+        }
+        parsed.setUTCMonth(parsed.getUTCMonth() + months)
+        return parsed.toISOString().slice(0, 10)
+    }
+
+    function calendarWeekDayIndex() {
+        const parsed = new Date(calendarDate + "T12:00:00Z")
+        return Number.isFinite(parsed.getTime()) ? parsed.getUTCDay() : 0
+    }
+
+    function calendarWeekLabels() {
+        const start = shiftCalendarDate(-calendarWeekDayIndex())
+        const labels = []
+        for (let index = 0; index < 7; ++index) {
+            const date = new Date(start + "T12:00:00Z")
+            date.setUTCDate(date.getUTCDate() + index)
+            labels.push(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getUTCDay()] +
+                        " " + date.toISOString().slice(5, 10))
+        }
+        return labels
+    }
+
+    function navigateCalendar(direction) {
+        let nextDate = calendarDate
+        if (calendarViews.currentIndex === 3) {
+            nextDate = shiftCalendarMonth(direction)
+        } else if (calendarViews.currentIndex === 2 || calendarViews.currentIndex === 0) {
+            nextDate = shiftCalendarDate(direction * 7)
+        } else {
+            nextDate = shiftCalendarDate(direction)
+        }
+        controllerCall("setCalendarDate", [nextDate])
+    }
+
+    function goToToday() {
+        controllerCall("setCalendarDate", [fallbackCalendarDate()])
     }
 
     function hasNavigationPage(pageName) {
@@ -175,8 +236,8 @@ ApplicationWindow {
         noteEditor.open()
     }
 
-    function openEventCreate() {
-        eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId())
+    function openEventCreate(date) {
+        eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId(), date || calendarDate)
     }
 
     function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
@@ -213,6 +274,22 @@ ApplicationWindow {
         sequence: "Ctrl+F"
         autoRepeat: false
         onActivated: window.openSearch()
+    }
+
+    Shortcut {
+        sequence: "Alt+Left"
+        autoRepeat: false
+        onActivated: {
+            if (window.currentPage === "Calendar") window.navigateCalendar(-1)
+        }
+    }
+
+    Shortcut {
+        sequence: "Alt+Right"
+        autoRepeat: false
+        onActivated: {
+            if (window.currentPage === "Calendar") window.navigateCalendar(1)
+        }
     }
 
     Instantiator {
@@ -617,11 +694,34 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
 
                     Button {
+                        text: "Previous"
+                        Accessible.name: "Previous calendar period"
+                        onClicked: window.navigateCalendar(-1)
+                    }
+
+                    Button {
+                        text: "Today"
+                        Accessible.name: "Go to today"
+                        onClicked: window.goToToday()
+                    }
+
+                    Label {
+                        text: window.calendarDate
+                        Accessible.name: "Selected calendar date " + text
+                    }
+
+                    Button {
+                        text: "Next"
+                        Accessible.name: "Next calendar period"
+                        onClicked: window.navigateCalendar(1)
+                    }
+
+                    Button {
                         id: eventCreateButton
                         text: "New event"
                         enabled: calendarVisibility.calendarIds().length > 0
-                        Accessible.name: text
-                        onClicked: window.openEventCreate()
+                        Accessible.name: text + " on " + window.calendarDate
+                        onClicked: window.openEventCreate(window.calendarDate)
                     }
                 }
 
@@ -697,6 +797,8 @@ ApplicationWindow {
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        dayIndex: window.calendarWeekDayIndex()
+                        dateLabel: window.calendarDate
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -708,6 +810,15 @@ ApplicationWindow {
                             window.eventResizeRequested(eventId, endAt)
                             window.controllerCall("resizeEvent", [eventId, endAt])
                         }
+                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
+                                                        description, location, startTimeZone, colorId,
+                                                        transparency, visibility, attendeeEmailsJson,
+                                                        remindersJson, remindersUseDefault) {
+                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
+                                                 description, location, startTimeZone, colorId,
+                                                 transparency, visibility, attendeeEmailsJson,
+                                                 remindersJson, remindersUseDefault)
+                        }
                     }
 
                     WeekTimelineView {
@@ -715,6 +826,7 @@ ApplicationWindow {
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        dayLabels: window.calendarWeekLabels()
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -722,14 +834,42 @@ ApplicationWindow {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
                             window.controllerCall("moveEvent", [eventId, startAt, endAt, allDay])
                         }
+                        onEventResizeRequested: function(eventId, endAt) {
+                            window.eventResizeRequested(eventId, endAt)
+                            window.controllerCall("resizeEvent", [eventId, endAt])
+                        }
+                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
+                                                        description, location, startTimeZone, colorId,
+                                                        transparency, visibility, attendeeEmailsJson,
+                                                        remindersJson, remindersUseDefault) {
+                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
+                                                 description, location, startTimeZone, colorId,
+                                                 transparency, visibility, attendeeEmailsJson,
+                                                 remindersJson, remindersUseDefault)
+                        }
                     }
 
                     MonthGridView {
+                        id: monthGrid
                         monthGridModel: window.monthGridModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
+                        }
+                        onDateSelected: function(date) {
+                            window.controllerCall("setCalendarDate", [date])
+                            calendarViews.currentIndex = 1
+                        }
+                        onEventCreateRequested: function(date) {
+                            window.openEventCreate(date)
+                        }
+                        onEventEditRequested: function(event) {
+                            window.openEventEdit(event.id, event.calendarId, event.title, event.startAt,
+                                                 event.endAt, event.allDay, event.description, event.location,
+                                                 event.startTimeZone, event.colorId, event.transparency,
+                                                 event.visibility, event.attendeeEmailsJson, event.remindersJson,
+                                                 event.remindersUseDefault)
                         }
                     }
                 }

@@ -41,6 +41,17 @@ struct EventRange final {
 
 [[nodiscard]] std::optional<EventRange> eventRange(const CalendarEventSummary& event,
                                                    const QTimeZone& displayTimeZone) {
+  if (event.allDay) {
+    const QDate startDate = QDate::fromString(event.startAt.left(10), Qt::ISODate);
+    const QDate endDate = QDate::fromString(event.endAt.left(10), Qt::ISODate);
+    if (!startDate.isValid() || !endDate.isValid() || endDate <= startDate) {
+      return std::nullopt;
+    }
+    return EventRange{.start = QDateTime(startDate, QTime(0, 0), displayTimeZone),
+                      .end = QDateTime(endDate, QTime(0, 0), displayTimeZone),
+                      .firstDate = startDate,
+                      .lastDate = endDate.addDays(-1)};
+  }
   const std::optional<QDateTime> start = parseDateTime(event.startAt, displayTimeZone);
   const std::optional<QDateTime> end = parseDateTime(event.endAt, displayTimeZone);
   if (!start.has_value() || !end.has_value() || *end <= *start) {
@@ -87,6 +98,28 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const {
     return item.event.status;
   case ColorIdRole:
     return item.event.colorId.value_or(QString());
+  case DescriptionRole:
+    return item.event.description.value_or(QString());
+  case LocationRole:
+    return item.event.location.value_or(QString());
+  case StartAtRole:
+    return item.event.startAt;
+  case StartTimeZoneRole:
+    return item.event.startTimeZone.value_or(QString());
+  case EndAtRole:
+    return item.event.endAt;
+  case EndTimeZoneRole:
+    return item.event.endTimeZone.value_or(QString());
+  case TransparencyRole:
+    return item.event.transparency.value_or(QString());
+  case VisibilityRole:
+    return item.event.visibility.value_or(QString());
+  case AttendeeEmailsJsonRole:
+    return item.event.attendeeEmailsJson;
+  case RemindersJsonRole:
+    return item.event.remindersJson;
+  case RemindersUseDefaultRole:
+    return item.event.remindersUseDefault;
   case AllDayRole:
     return item.allDay;
   case DayIndexRole:
@@ -116,6 +149,17 @@ QHash<int, QByteArray> TimelineModel::roleNames() const {
           {TitleRole, "title"},
           {StatusRole, "status"},
           {ColorIdRole, "colorId"},
+          {DescriptionRole, "description"},
+          {LocationRole, "location"},
+          {StartAtRole, "startAt"},
+          {StartTimeZoneRole, "startTimeZone"},
+          {EndAtRole, "endAt"},
+          {EndTimeZoneRole, "endTimeZone"},
+          {TransparencyRole, "transparency"},
+          {VisibilityRole, "visibility"},
+          {AttendeeEmailsJsonRole, "attendeeEmailsJson"},
+          {RemindersJsonRole, "remindersJson"},
+          {RemindersUseDefaultRole, "remindersUseDefault"},
           {AllDayRole, "allDay"},
           {DayIndexRole, "dayIndex"},
           {StartMinuteRole, "startMinute"},
@@ -160,6 +204,33 @@ TimelineModel::moveInput(const QString& eventId, int targetDayIndex, int targetM
           {QStringLiteral("allDay"), false}};
 }
 
+QVariantMap TimelineModel::moveAllDayInput(const QString& eventId, int targetDayIndex) const {
+  if (eventId.isEmpty() || !rangeStartDate_.isValid() || dayCount_ < 1 || targetDayIndex < 0 ||
+      targetDayIndex >= dayCount_ || !displayTimeZone_.isValid()) {
+    return {};
+  }
+  const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
+    return candidate.event.id == eventId && candidate.allDay && !candidate.startsBeforeRange &&
+           !candidate.endsAfterRange;
+  });
+  if (item == items_.cend()) {
+    return {};
+  }
+  const std::optional<EventRange> range = eventRange(item->event, displayTimeZone_);
+  if (!range.has_value()) {
+    return {};
+  }
+  const QDate targetStartDate = rangeStartDate_.addDays(targetDayIndex);
+  const QDate targetEndDate =
+      targetStartDate.addDays(range->start.date().daysTo(range->end.date()));
+  return {{QStringLiteral("id"), item->event.id},
+          {QStringLiteral("startAt"),
+           QDateTime(targetStartDate, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"),
+           QDateTime(targetEndDate, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), true}};
+}
+
 QVariantMap TimelineModel::resizeInput(const QString& eventId,
                                        int targetEndDayIndex,
                                        int targetEndMinute) const {
@@ -192,15 +263,37 @@ QVariantMap TimelineModel::resizeInput(const QString& eventId,
           {QStringLiteral("endAt"), targetEnd.toUTC().toString(Qt::ISODateWithMs)}};
 }
 
-void TimelineModel::setRange(QDate startDate,
-                             int dayCount,
-                             const QList<CalendarEventSummary>& events,
-                             const QTimeZone& displayTimeZone,
-                             int visibleAllDayLaneCount) {
+QVariantMap TimelineModel::resizeAllDayInput(const QString& eventId, int targetEndDayIndex) const {
+  if (eventId.isEmpty() || !rangeStartDate_.isValid() || dayCount_ < 1 || targetEndDayIndex < 0 ||
+      targetEndDayIndex >= dayCount_ || !displayTimeZone_.isValid()) {
+    return {};
+  }
+  const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
+    return candidate.event.id == eventId && candidate.allDay && !candidate.startsBeforeRange &&
+           !candidate.endsAfterRange;
+  });
+  if (item == items_.cend()) {
+    return {};
+  }
+  const std::optional<EventRange> range = eventRange(item->event, displayTimeZone_);
+  if (!range.has_value()) {
+    return {};
+  }
+  const QDate targetEndDate = rangeStartDate_.addDays(targetEndDayIndex + 1);
+  if (targetEndDate <= range->start.date()) {
+    return {};
+  }
+  return {{QStringLiteral("id"), item->event.id},
+          {QStringLiteral("endAt"),
+           QDateTime(targetEndDate, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)}};
+}
+
+TimelineModel::Layout TimelineModel::buildLayout(QDate startDate,
+                                                 int dayCount,
+                                                 const QList<CalendarEventSummary>& events,
+                                                 const QTimeZone& displayTimeZone,
+                                                 int visibleAllDayLaneCount) {
   QList<Item> items;
-  rangeStartDate_ = startDate;
-  dayCount_ = dayCount;
-  displayTimeZone_ = displayTimeZone;
   if (startDate.isValid() && dayCount >= 1 && dayCount <= 7 && displayTimeZone.isValid() &&
       visibleAllDayLaneCount >= 0) {
     QList<CalendarAllDayLayoutEvent> allDayEvents;
@@ -281,9 +374,27 @@ void TimelineModel::setRange(QDate startDate,
       }
     }
   }
+  return {.items = std::move(items),
+          .rangeStartDate = startDate,
+          .dayCount = dayCount,
+          .displayTimeZone = displayTimeZone};
+}
+
+void TimelineModel::applyLayout(Layout layout) {
   beginResetModel();
-  items_ = std::move(items);
+  items_ = std::move(layout.items);
+  rangeStartDate_ = layout.rangeStartDate;
+  dayCount_ = layout.dayCount;
+  displayTimeZone_ = std::move(layout.displayTimeZone);
   endResetModel();
+}
+
+void TimelineModel::setRange(QDate startDate,
+                             int dayCount,
+                             const QList<CalendarEventSummary>& events,
+                             const QTimeZone& displayTimeZone,
+                             int visibleAllDayLaneCount) {
+  applyLayout(buildLayout(startDate, dayCount, events, displayTimeZone, visibleAllDayLaneCount));
 }
 
 } // namespace hcb

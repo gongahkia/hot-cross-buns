@@ -587,8 +587,9 @@ TestCase {
             visible: true
         })
         verify(dialog !== null)
-        dialog.openForCreate("calendar-primary")
+        dialog.openForCreate("calendar-primary", "2026-07-26")
         compare(dialog.eventCalendarId, "calendar-primary")
+        verify(Number.isFinite(Date.parse(dialog.eventStartAt)))
         dialog.eventTitle = "Release review"
         dialog.eventStartAt = "2026-07-26T10:00:00.000Z"
         dialog.eventEndAt = "2026-07-26T10:00:00.000Z"
@@ -976,6 +977,17 @@ TestCase {
             id: "event-1",
             calendarId: "calendar-1",
             title: "Release review",
+            description: "",
+            location: "",
+            startAt: "2026-07-26T09:00:00.000Z",
+            startTimeZone: "UTC",
+            endAt: "2026-07-26T10:00:00.000Z",
+            transparency: "opaque",
+            visibility: "default",
+            colorId: "",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
             allDay: false,
             dayIndex: 0,
             startMinute: 540,
@@ -987,6 +999,17 @@ TestCase {
             id: "event-2",
             calendarId: "calendar-1",
             title: "Team offsite",
+            description: "",
+            location: "",
+            startAt: "2026-07-26T00:00:00.000Z",
+            startTimeZone: "UTC",
+            endAt: "2026-07-27T00:00:00.000Z",
+            transparency: "opaque",
+            visibility: "default",
+            colorId: "",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
             allDay: true,
             dayIndex: 0,
             startMinute: 0,
@@ -1064,6 +1087,17 @@ TestCase {
             id: "event-1",
             calendarId: "calendar-1",
             title: "Release review",
+            description: "",
+            location: "",
+            startAt: "2026-07-29T09:00:00.000Z",
+            startTimeZone: "UTC",
+            endAt: "2026-07-29T10:00:00.000Z",
+            transparency: "opaque",
+            visibility: "default",
+            colorId: "",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
             allDay: false,
             dayIndex: 3,
             startMinute: 540,
@@ -1076,13 +1110,26 @@ TestCase {
             id: "event-2",
             calendarId: "calendar-1",
             title: "Team offsite",
+            description: "",
+            location: "",
+            startAt: "2026-07-27T00:00:00.000Z",
+            startTimeZone: "UTC",
+            endAt: "2026-07-29T00:00:00.000Z",
+            transparency: "opaque",
+            visibility: "default",
+            colorId: "",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
             allDay: true,
             dayIndex: 1,
             startMinute: 0,
             durationMinutes: 0,
             laneIndex: 0,
             laneCount: 1,
-            daySpan: 2
+            daySpan: 2,
+            startsBeforeRange: false,
+            endsAfterRange: false
         })
         const timeline = component.createObject(null, {
             timelineModel: timelineModel,
@@ -1107,7 +1154,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } }', testCase)
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } function moveAllDayInput(eventId, dayIndex) { return { id: eventId, startAt: "2026-07-28T00:00:00.000Z", endAt: "2026-07-30T00:00:00.000Z", allDay: true } } function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-27T12:00:00.000Z" } } function resizeAllDayInput(eventId, dayIndex) { return { id: eventId, endAt: "2026-07-31T00:00:00.000Z" } } }', testCase)
         const timeline = component.createObject(null, { timelineModel: timelineModel, width: 764 })
         verify(timeline !== null)
         let request = null
@@ -1119,9 +1166,23 @@ TestCase {
         compare(request.startAt, "2026-07-27T10:00:00.000Z")
         compare(request.endAt, "2026-07-27T11:00:00.000Z")
         compare(request.allDay, false)
+        timeline.requestAllDayMove("event-2", 2)
+        compare(request.eventId, "event-2")
+        compare(request.allDay, true)
+        let resize = null
+        timeline.eventResizeRequested.connect(function(eventId, endAt) {
+            resize = { eventId, endAt }
+        })
+        timeline.requestResize("event-1", 1, 720)
+        compare(resize.eventId, "event-1")
+        compare(resize.endAt, "2026-07-27T12:00:00.000Z")
+        timeline.requestAllDayResize("event-2", 4)
+        compare(resize.eventId, "event-2")
+        compare(resize.endAt, "2026-07-31T00:00:00.000Z")
         compare(timeline.dropDayIndex(-1, 764), 0)
         compare(timeline.dropDayIndex(99999, 764), 6)
         compare(timeline.dropMinute(99999), 1439)
+        compare(timeline.dropEndMinute(99999), 1440)
         timeline.destroy()
         timelineModel.destroy()
     }
@@ -1144,7 +1205,43 @@ TestCase {
         monthGrid.dateSelected.connect(function(date) { selectedDate = date })
         monthGrid.selectDate("2026-07-26")
         compare(selectedDate, "2026-07-26")
+        let createdDate = ""
+        monthGrid.eventCreateRequested.connect(function(date) { createdDate = date })
+        monthGrid.eventCreateRequested("2026-07-27")
+        compare(createdDate, "2026-07-27")
+        let edited = null
+        monthGrid.eventEditRequested.connect(function(event) { edited = event })
+        monthGrid.eventEditRequested({ id: "event-1", title: "Release review" })
+        compare(edited.id, "event-1")
         monthGrid.destroy()
+    }
+
+    function test_mainNavigatesCalendarByCurrentView() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const dates = []
+        const controller = {
+            googleConnected: true,
+            calendarDate: "2026-07-26",
+            setCalendarDate: function(date) { dates.push(date) }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        compare(mainWindow.calendarWeekDayIndex(), 0)
+        compare(mainWindow.calendarWeekLabels()[0], "Sun 07-26")
+        mainWindow.calendarViews.currentIndex = 1
+        mainWindow.navigateCalendar(1)
+        compare(dates[0], "2026-07-27")
+        mainWindow.calendarViews.currentIndex = 2
+        mainWindow.navigateCalendar(1)
+        compare(dates[1], "2026-08-02")
+        mainWindow.calendarViews.currentIndex = 3
+        mainWindow.navigateCalendar(1)
+        compare(dates[2], "2026-08-26")
+        mainWindow.destroy()
     }
 
     function test_taskListVirtualizesRows() {

@@ -7,6 +7,7 @@ Pane {
     property var timelineModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property var dayLabels: []
     property int dayCount: 7
     property int hourHeight: 48
     property int timeColumnWidth: 64
@@ -15,6 +16,12 @@ Pane {
     signal eventSelected(string eventId)
     signal eventSelectionRequested(string eventId, bool selected)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
+    signal eventResizeRequested(string eventId, string endAt)
+    signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
+                              string endAt, bool allDay, string description, string location,
+                              string startTimeZone, string colorId, string transparency,
+                              string visibility, string attendeeEmailsJson, string remindersJson,
+                              bool remindersUseDefault)
 
     function dayColumnWidth(availableWidth) {
         return (availableWidth - timeColumnWidth) / dayCount
@@ -37,6 +44,10 @@ Pane {
         return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
     }
 
+    function dropEndMinute(y) {
+        return Math.max(0, Math.min(24 * 60, Math.round(y * 60 / hourHeight)))
+    }
+
     function requestMove(eventId, targetDayIndex, targetMinute) {
         if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
             return
@@ -49,8 +60,50 @@ Pane {
         eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
     }
 
+    function requestAllDayMove(eventId, targetDayIndex) {
+        if (timelineModel === null || typeof timelineModel.moveAllDayInput !== "function") {
+            return
+        }
+        const move = timelineModel.moveAllDayInput(eventId, targetDayIndex)
+        if (move === null || typeof move.id !== "string" || typeof move.startAt !== "string" ||
+                typeof move.endAt !== "string" || move.allDay !== true) {
+            return
+        }
+        eventMoveRequested(move.id, move.startAt, move.endAt, true)
+    }
+
+    function requestResize(eventId, targetEndDayIndex, targetEndMinute) {
+        if (timelineModel === null || typeof timelineModel.resizeInput !== "function") {
+            return
+        }
+        const resize = timelineModel.resizeInput(eventId, targetEndDayIndex, targetEndMinute)
+        if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
+            return
+        }
+        eventResizeRequested(resize.id, resize.endAt)
+    }
+
+    function requestAllDayResize(eventId, targetEndDayIndex) {
+        if (timelineModel === null || typeof timelineModel.resizeAllDayInput !== "function") {
+            return
+        }
+        const resize = timelineModel.resizeAllDayInput(eventId, targetEndDayIndex)
+        if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
+            return
+        }
+        eventResizeRequested(resize.id, resize.endAt)
+    }
+
     function selectEvent(eventId) {
         eventSelected(eventId)
+    }
+
+    function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                         startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                         remindersJson, remindersUseDefault) {
+        eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault)
     }
 
     function isCalendarVisible(calendarId) {
@@ -84,7 +137,8 @@ Pane {
                     required property int index
                     x: root.dayPosition(index, dayHeader.width)
                     width: root.dayColumnWidth(dayHeader.width)
-                    text: "Day " + (index + 1)
+                    text: root.dayLabels.length === root.dayCount ? root.dayLabels[index]
+                                                                  : "Day " + (index + 1)
                     horizontalAlignment: Text.AlignHCenter
                     Accessible.name: text
                 }
@@ -101,6 +155,19 @@ Pane {
                     required property int dayIndex
                     required property int laneIndex
                     required property int daySpan
+                    required property bool startsBeforeRange
+                    required property bool endsAfterRange
+                    required property string description
+                    required property string location
+                    required property string startAt
+                    required property string startTimeZone
+                    required property string endAt
+                    required property string transparency
+                    required property string visibility
+                    required property string colorId
+                    required property string attendeeEmailsJson
+                    required property string remindersJson
+                    required property bool remindersUseDefault
                     visible: allDay && root.isCalendarVisible(calendarId)
                     x: root.dayPosition(dayIndex, dayHeader.width)
                     y: root.allDayLaneHeight + laneIndex * root.allDayLaneHeight
@@ -109,7 +176,55 @@ Pane {
                     text: title
                     accessibleName: title
                     accessibleDescription: "All-day event, starting day " + (dayIndex + 1)
-                    onClicked: root.selectEvent(id)
+                    onClicked: {
+                        root.selectEvent(id)
+                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                         location, startTimeZone, colorId, transparency, visibility,
+                                         attendeeEmailsJson, remindersJson, remindersUseDefault)
+                    }
+
+                    DragHandler {
+                        id: allDayMoveHandler
+                        enabled: !startsBeforeRange && !endsAfterRange
+                        target: null
+                        onActiveChanged: {
+                            const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                dayHeader.width)
+                            if (!active && !allDayResizeHandler.active && targetDay !== dayIndex) {
+                                root.requestAllDayMove(id, targetDay)
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        id: allDayResizeHandle
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        width: 14
+                        padding: 0
+                        text: ""
+                        enabled: !startsBeforeRange && !endsAfterRange
+                        accessibleName: "Resize " + title + " end"
+                        accessibleDescription: "Drag to change the all-day end date"
+                        onClicked: root.requestAllDayResize(id, dayIndex + daySpan)
+
+                        DragHandler {
+                            id: allDayResizeHandler
+                            target: null
+                            cursorShape: Qt.SizeHorCursor
+                            grabPermissions: PointerHandler.CanTakeOverFromAnything
+                            onActiveChanged: {
+                                const targetDay = root.dropDayIndex(
+                                            parent.parent.x + parent.parent.width - 1 + activeTranslation.x,
+                                            dayHeader.width)
+                                const initialEndDay = dayIndex + daySpan - 1
+                                if (!active && targetDay !== initialEndDay) {
+                                    root.requestAllDayResize(id, targetDay)
+                                }
+                            }
+                        }
+                    }
 
                     CheckBox {
                         anchors.top: parent.top
@@ -182,6 +297,17 @@ Pane {
                         required property int durationMinutes
                         required property int laneIndex
                         required property int laneCount
+                        required property string description
+                        required property string location
+                        required property string startAt
+                        required property string startTimeZone
+                        required property string endAt
+                        required property string transparency
+                        required property string visibility
+                        required property string colorId
+                        required property string attendeeEmailsJson
+                        required property string remindersJson
+                        required property bool remindersUseDefault
                         visible: !allDay && root.isCalendarVisible(calendarId)
                         x: root.dayPosition(dayIndex, timelineCanvas.width) + laneIndex *
                            root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
@@ -191,7 +317,12 @@ Pane {
                         text: title
                         accessibleName: title
                         accessibleDescription: "Timed event, day " + (dayIndex + 1)
-                        onClicked: root.selectEvent(id)
+                        onClicked: {
+                            root.selectEvent(id)
+                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                             location, startTimeZone, colorId, transparency, visibility,
+                                             attendeeEmailsJson, remindersJson, remindersUseDefault)
+                        }
 
                         DragHandler {
                             id: moveHandler
@@ -200,7 +331,8 @@ Pane {
                                 const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                     timelineCanvas.width)
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
-                                if (!active && (targetDay !== dayIndex || targetMinute !== startMinute)) {
+                                if (!active && !resizeHandler.active &&
+                                        (targetDay !== dayIndex || targetMinute !== startMinute)) {
                                     root.requestMove(id, targetDay, targetMinute)
                                 }
                             }
@@ -217,6 +349,47 @@ Pane {
                             Accessible.name: "Select " + title
                             Accessible.description: checked ? "Event selected" : "Event not selected"
                             onClicked: root.eventSelectionRequested(id, checked)
+                        }
+
+                        AccessibleButton {
+                            id: resizeHandle
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 14
+                            padding: 0
+                            text: ""
+                            accessibleName: "Resize " + title + " end"
+                            accessibleDescription: "Drag to change the end time"
+                            onClicked: root.requestResize(id, dayIndex,
+                                                          Math.min(24 * 60,
+                                                                   startMinute + durationMinutes + 15))
+
+                            background: Rectangle {
+                                color: Theme.accent
+                                opacity: resizeHandler.active ? 1 : 0.65
+                                radius: 1
+                            }
+
+                            DragHandler {
+                                id: resizeHandler
+                                target: null
+                                cursorShape: Qt.SizeVerCursor
+                                grabPermissions: PointerHandler.CanTakeOverFromAnything
+                                onActiveChanged: {
+                                    const targetEndDay = root.dropDayIndex(
+                                                parent.parent.x + parent.parent.width - 1 + activeTranslation.x,
+                                                timelineCanvas.width)
+                                    const targetEndMinute = root.dropEndMinute(
+                                                parent.parent.y + parent.parent.height + activeTranslation.y)
+                                    const initialEndMinute = Math.min(24 * 60,
+                                                                      startMinute + durationMinutes)
+                                    if (!active && (targetEndDay !== dayIndex ||
+                                                    targetEndMinute !== initialEndMinute)) {
+                                        root.requestResize(id, targetEndDay, targetEndMinute)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

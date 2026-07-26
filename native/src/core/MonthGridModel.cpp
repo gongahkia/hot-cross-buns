@@ -30,6 +30,13 @@ namespace {
 
 [[nodiscard]] std::optional<QPair<QDate, QDate>> eventDateRange(const CalendarEventSummary& event,
                                                                 const QTimeZone& displayTimeZone) {
+  if (event.allDay) {
+    const QDate startDate = QDate::fromString(event.startAt.left(10), Qt::ISODate);
+    const QDate endDate = QDate::fromString(event.endAt.left(10), Qt::ISODate);
+    return startDate.isValid() && endDate.isValid() && endDate > startDate
+               ? std::optional<QPair<QDate, QDate>>(qMakePair(startDate, endDate.addDays(-1)))
+               : std::nullopt;
+  }
   const std::optional<QDateTime> start = parseDateTime(event.startAt, displayTimeZone);
   const std::optional<QDateTime> end = parseDateTime(event.endAt, displayTimeZone);
   if (!start.has_value() || !end.has_value() || *end <= *start) {
@@ -51,7 +58,16 @@ namespace {
           {QStringLiteral("startAt"), event.startAt},
           {QStringLiteral("endAt"), event.endAt},
           {QStringLiteral("allDay"), event.allDay},
-          {QStringLiteral("colorId"), event.colorId.value_or(QString())}};
+          {QStringLiteral("colorId"), event.colorId.value_or(QString())},
+          {QStringLiteral("description"), event.description.value_or(QString())},
+          {QStringLiteral("location"), event.location.value_or(QString())},
+          {QStringLiteral("startTimeZone"), event.startTimeZone.value_or(QString())},
+          {QStringLiteral("endTimeZone"), event.endTimeZone.value_or(QString())},
+          {QStringLiteral("transparency"), event.transparency.value_or(QString())},
+          {QStringLiteral("visibility"), event.visibility.value_or(QString())},
+          {QStringLiteral("attendeeEmailsJson"), event.attendeeEmailsJson},
+          {QStringLiteral("remindersJson"), event.remindersJson},
+          {QStringLiteral("remindersUseDefault"), event.remindersUseDefault}};
 }
 
 } // namespace
@@ -103,9 +119,9 @@ QHash<int, QByteArray> MonthGridModel::roleNames() const {
           {EventsRole, "events"}};
 }
 
-void MonthGridModel::setMonth(QDate month,
-                              const QList<CalendarEventSummary>& events,
-                              const QTimeZone& displayTimeZone) {
+MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
+                                                   const QList<CalendarEventSummary>& events,
+                                                   const QTimeZone& displayTimeZone) {
   QList<Cell> cells;
   if (month.isValid() && displayTimeZone.isValid()) {
     const QDate firstDay(month.year(), month.month(), 1);
@@ -126,10 +142,20 @@ void MonthGridModel::setMonth(QDate month,
       }
     }
   }
+  return {.month = month, .cells = std::move(cells)};
+}
+
+void MonthGridModel::applyLayout(Layout layout) {
   beginResetModel();
-  month_ = month;
-  cells_ = std::move(cells);
+  month_ = layout.month;
+  cells_ = std::move(layout.cells);
   endResetModel();
+}
+
+void MonthGridModel::setMonth(QDate month,
+                              const QList<CalendarEventSummary>& events,
+                              const QTimeZone& displayTimeZone) {
+  applyLayout(buildLayout(month, events, displayTimeZone));
 }
 
 } // namespace hcb

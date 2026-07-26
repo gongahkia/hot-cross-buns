@@ -9,6 +9,7 @@ private slots:
   void laysOutDayAndWeekItemsInDisplayTimeZone();
   void buildsMoveInputInDisplayTimeZone();
   void buildsResizeInputInDisplayTimeZone();
+  void movesAndResizesAllDayEventsWithoutTimezoneShift();
   void clearsInvalidRanges();
 };
 
@@ -137,6 +138,38 @@ void TimelineModelTest::buildsResizeInputInDisplayTimeZone() {
   QVERIFY(model.resizeInput(QStringLiteral("event-a"), 0, 9 * 60).isEmpty());
   QVERIFY(model.resizeInput(QStringLiteral("event-a"), 0, 24 * 60 + 1).isEmpty());
   QVERIFY(model.resizeInput(QStringLiteral("missing"), 0, 12 * 60).isEmpty());
+}
+
+void TimelineModelTest::movesAndResizesAllDayEventsWithoutTimezoneShift() {
+  const QTimeZone timeZone(QByteArrayLiteral("America/Los_Angeles"));
+  QVERIFY(timeZone.isValid());
+  hcb::TimelineModel model;
+  model.setRange(QDate(2026, 8, 1),
+                 7,
+                 {{.id = QStringLiteral("all-day"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Offsite"),
+                   .startAt = QStringLiteral("2026-08-01T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-03T00:00:00.000Z"),
+                   .allDay = true,
+                   .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")}},
+                 timeZone,
+                 2);
+
+  QCOMPARE(model.rowCount(), 1);
+  QCOMPARE(model.data(model.index(0, 0), hcb::TimelineModel::DayIndexRole).toInt(), 0);
+  QCOMPARE(model.data(model.index(0, 0), hcb::TimelineModel::DaySpanRole).toInt(), 2);
+  const QVariantMap move = model.moveAllDayInput(QStringLiteral("all-day"), 3);
+  QCOMPARE(move.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-08-04T00:00:00.000Z"));
+  QCOMPARE(move.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-08-06T00:00:00.000Z"));
+  QCOMPARE(move.value(QStringLiteral("allDay")).toBool(), true);
+  QCOMPARE(model.resizeAllDayInput(QStringLiteral("all-day"), 0)
+               .value(QStringLiteral("endAt"))
+               .toString(),
+           QStringLiteral("2026-08-02T00:00:00.000Z"));
 }
 
 void TimelineModelTest::clearsInvalidRanges() {

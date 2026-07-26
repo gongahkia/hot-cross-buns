@@ -95,7 +95,8 @@ constexpr int kSearchDebounceMilliseconds = 180;
   return taskIds;
 }
 
-[[nodiscard]] std::optional<QList<QString>> eventAttendeesFromVariantList(const QVariantList& values) {
+[[nodiscard]] std::optional<QList<QString>>
+eventAttendeesFromVariantList(const QVariantList& values) {
   QList<QString> attendees;
   attendees.reserve(values.size());
   for (const QVariant& value : values) {
@@ -222,12 +223,36 @@ eventRemindersFromVariantList(bool useDefault, const QVariantList& values) {
   return rows;
 }
 
-[[nodiscard]] QString rangeStart(const QDate& today) {
-  return QDateTime(today.addMonths(-1), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+[[nodiscard]] QDate weekStart(const QDate& date) { return date.addDays(-(date.dayOfWeek() % 7)); }
+
+[[nodiscard]] QDate monthGridStart(const QDate& date) {
+  const QDate firstDay(date.year(), date.month(), 1);
+  return firstDay.addDays(-(firstDay.dayOfWeek() % 7));
 }
 
-[[nodiscard]] QString rangeEnd(const QDate& today) {
-  return QDateTime(today.addMonths(3), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+[[nodiscard]] QString calendarRangeStart(const QDate& date) {
+  return QDateTime(monthGridStart(date), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+}
+
+[[nodiscard]] QString calendarRangeEnd(const QDate& date) {
+  return QDateTime(monthGridStart(date).addDays(42), QTime(0, 0), QTimeZone::UTC)
+      .toString(Qt::ISODateWithMs);
+}
+
+struct CalendarViewLayouts final {
+  QList<CalendarEventSummary> agendaEvents;
+  TimelineModel::Layout timeline;
+  MonthGridModel::Layout month;
+};
+
+[[nodiscard]] CalendarViewLayouts buildCalendarViewLayouts(QDate date,
+                                                           QList<CalendarEventSummary> events,
+                                                           const QTimeZone& displayTimeZone) {
+  return {
+      .agendaEvents = events,
+      .timeline = TimelineModel::buildLayout(
+          weekStart(date), kCalendarTimelineDays, events, displayTimeZone, kVisibleAllDayLaneCount),
+      .month = MonthGridModel::buildLayout(date, events, displayTimeZone)};
 }
 
 } // namespace
@@ -255,10 +280,10 @@ AppController::AppController(FilePath databasePath,
       settingsService_(databasePath, clock), savedSearchStore_(settingsService_),
       optimisticMutationCoordinator_(databasePath, clock),
       syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
-      googleSyncConflictResolver_(optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
+      googleSyncConflictResolver_(
+          optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
       taskMutationService_(databasePath, clock), taskBulkMutationService_(taskMutationService_),
-      taskListMutationService_(databasePath, clock),
-      calendarMutationService_(databasePath, clock),
+      taskListMutationService_(databasePath, clock), calendarMutationService_(databasePath, clock),
       calendarEventBulkMutationService_(calendarMutationService_),
       googleSyncRecoveryService_(syncCheckpointStore_),
       googleTaskMutationPushService_(optimisticMutationCoordinator_,
@@ -268,21 +293,19 @@ AppController::AppController(FilePath databasePath,
                                      &taskMutationService_,
                                      &taskListMutationService_,
                                      &googleSyncConflictResolver_),
-      googleCalendarEventMutationPushService_(
-          optimisticMutationCoordinator_,
-          googleHttpClient_,
-          clock,
-          SyncBackoffPolicy(),
-          &calendarMutationService_,
-          &googleSyncConflictResolver_),
+      googleCalendarEventMutationPushService_(optimisticMutationCoordinator_,
+                                              googleHttpClient_,
+                                              clock,
+                                              SyncBackoffPolicy(),
+                                              &calendarMutationService_,
+                                              &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
-      localSearchService_(databasePath),
-      googleTaskMirrorSyncService_(googleTaskListPullClient_,
-                                   googleTaskPullClient_,
-                                   googleMirrorStore_,
-                                   syncCheckpointStore_,
-                                   clock),
+      localSearchService_(databasePath), googleTaskMirrorSyncService_(googleTaskListPullClient_,
+                                                                      googleTaskPullClient_,
+                                                                      googleMirrorStore_,
+                                                                      syncCheckpointStore_,
+                                                                      clock),
       googleCalendarMirrorSyncService_(googleCalendarListPullClient_,
                                        googleCalendarEventPullClient_,
                                        calendarReadService_,
@@ -337,6 +360,8 @@ bool AppController::searchLoading() const { return searchLoading_; }
 QString AppController::bulkTaskStatusMessage() const { return bulkTaskStatusMessage_; }
 
 QString AppController::bulkEventStatusMessage() const { return bulkEventStatusMessage_; }
+
+QString AppController::calendarDate() const { return calendarDate_.toString(Qt::ISODate); }
 
 bool AppController::busy() const { return busy_; }
 
@@ -425,6 +450,20 @@ void AppController::refresh() {
   refreshCalendar();
 }
 
+void AppController::setCalendarDate(QString date) {
+  const QDate parsed = QDate::fromString(date, Qt::ISODate);
+  if (!parsed.isValid()) {
+    setStatus(QStringLiteral("Calendar date is invalid"));
+    return;
+  }
+  if (calendarDate_ == parsed) {
+    return;
+  }
+  calendarDate_ = parsed;
+  emit calendarDateChanged();
+  refreshCalendar();
+}
+
 void AppController::setSearchQuery(QString query) {
   if (query == searchQuery_) {
     return;
@@ -456,10 +495,10 @@ void AppController::setSearchQuery(QString query) {
 }
 
 void AppController::applySavedSearch(QString savedSearchId) {
-  const auto found = std::find_if(savedSearches_.cbegin(), savedSearches_.cend(),
-                                  [&savedSearchId](const SavedSearch& search) {
-                                    return search.id == savedSearchId;
-                                  });
+  const auto found = std::find_if(
+      savedSearches_.cbegin(), savedSearches_.cend(), [&savedSearchId](const SavedSearch& search) {
+        return search.id == savedSearchId;
+      });
   if (found == savedSearches_.cend()) {
     setStatus(QStringLiteral("Saved search was not found"));
     return;
@@ -479,9 +518,10 @@ void AppController::saveSearch(QString name, QString query) {
     setStatus(errorMessage(std::get<AppError>(parsed)));
     return;
   }
-  if (std::any_of(savedSearches_.cbegin(), savedSearches_.cend(), [&name](const SavedSearch& search) {
-        return search.name.compare(name, Qt::CaseInsensitive) == 0;
-      })) {
+  if (std::any_of(
+          savedSearches_.cbegin(), savedSearches_.cend(), [&name](const SavedSearch& search) {
+            return search.name.compare(name, Qt::CaseInsensitive) == 0;
+          })) {
     setStatus(QStringLiteral("Saved search name already exists"));
     return;
   }
@@ -489,13 +529,14 @@ void AppController::saveSearch(QString name, QString query) {
   next.append({.id = QUuid::createUuid().toString(QUuid::WithoutBraces),
                .name = std::move(name),
                .query = std::move(query)});
-  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
-      return;
-    }
-    setSavedSearches(next);
-  });
+  watch(savedSearchStore_.save(next),
+        [this, next = std::move(next)](SavedSearchMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          setSavedSearches(next);
+        });
 }
 
 void AppController::renameSavedSearch(QString savedSearchId, QString name) {
@@ -505,9 +546,10 @@ void AppController::renameSavedSearch(QString savedSearchId, QString name) {
     return;
   }
   QList<SavedSearch> next = savedSearches_;
-  const auto found = std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
-    return search.id == savedSearchId;
-  });
+  const auto found =
+      std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
+        return search.id == savedSearchId;
+      });
   if (found == next.end()) {
     setStatus(QStringLiteral("Saved search was not found"));
     return;
@@ -519,32 +561,35 @@ void AppController::renameSavedSearch(QString savedSearchId, QString name) {
     return;
   }
   found->name = std::move(name);
-  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
-      return;
-    }
-    setSavedSearches(next);
-  });
+  watch(savedSearchStore_.save(next),
+        [this, next = std::move(next)](SavedSearchMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          setSavedSearches(next);
+        });
 }
 
 void AppController::deleteSavedSearch(QString savedSearchId) {
   QList<SavedSearch> next = savedSearches_;
-  const auto found = std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
-    return search.id == savedSearchId;
-  });
+  const auto found =
+      std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
+        return search.id == savedSearchId;
+      });
   if (found == next.end()) {
     setStatus(QStringLiteral("Saved search was not found"));
     return;
   }
   next.erase(found);
-  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
-      return;
-    }
-    setSavedSearches(next);
-  });
+  watch(savedSearchStore_.save(next),
+        [this, next = std::move(next)](SavedSearchMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          setSavedSearches(next);
+        });
 }
 
 void AppController::saveClientId(QString clientId) {
@@ -894,8 +939,7 @@ std::future<GoogleMirrorWriteResult> AppController::pullGoogleData(QString acces
           AppError(AppErrorCode::Network, std::get<GoogleApiError>(std::move(taskSync)).message()));
     }
     GoogleCalendarMirrorSyncResultOrError calendarSync =
-        googleCalendarMirrorSyncService_
-            .sync(QString::fromLatin1(kGoogleAccountId), accessToken)
+        googleCalendarMirrorSyncService_.sync(QString::fromLatin1(kGoogleAccountId), accessToken)
             .get();
     if (std::holds_alternative<AppError>(calendarSync)) {
       return GoogleMirrorWriteResult(std::get<AppError>(std::move(calendarSync)));
@@ -1085,8 +1129,8 @@ void AppController::bulkSetTaskCompleted(QVariantList taskIds, bool completed) {
     setStatus(QStringLiteral("Bulk task selection is invalid"));
     return;
   }
-  runBulkTaskMutation({.action = completed ? TaskBulkAction::Complete : TaskBulkAction::Reopen,
-                        .taskIds = *ids});
+  runBulkTaskMutation(
+      {.action = completed ? TaskBulkAction::Complete : TaskBulkAction::Reopen, .taskIds = *ids});
 }
 
 void AppController::bulkDeleteTasks(QVariantList taskIds) {
@@ -1115,9 +1159,8 @@ void AppController::bulkSetTaskDue(QVariantList taskIds, QString dueAt) {
     setStatus(QStringLiteral("Bulk task due date is invalid"));
     return;
   }
-  runBulkTaskMutation({.action = TaskBulkAction::SetDue,
-                        .taskIds = *ids,
-                        .due = TaskDue{.at = normalizedDue}});
+  runBulkTaskMutation(
+      {.action = TaskBulkAction::SetDue, .taskIds = *ids, .due = TaskDue{.at = normalizedDue}});
 }
 
 void AppController::bulkClearTaskDue(QVariantList taskIds) {
@@ -1147,10 +1190,10 @@ void AppController::bulkReparentTasks(QVariantList taskIds, QString parentTaskId
     return;
   }
   runBulkTaskMutation({.action = TaskBulkAction::Reparent,
-                        .taskIds = *ids,
-                        .parentTaskId = parentTaskId.trimmed().isEmpty()
-                                            ? std::optional<QString>{}
-                                            : std::optional<QString>(std::move(parentTaskId))});
+                       .taskIds = *ids,
+                       .parentTaskId = parentTaskId.trimmed().isEmpty()
+                                           ? std::optional<QString>{}
+                                           : std::optional<QString>(std::move(parentTaskId))});
 }
 
 void AppController::createEvent(QString calendarId,
@@ -1230,8 +1273,9 @@ void AppController::createEventDetailed(QString calendarId,
     setStatus(QStringLiteral("Calendar event metadata is invalid"));
     return;
   }
-  const std::optional<QString> eventTimeZone =
-      timeZone.trimmed().isEmpty() ? std::optional<QString>{} : std::optional<QString>(timeZone.trimmed());
+  const std::optional<QString> eventTimeZone = timeZone.trimmed().isEmpty()
+                                                   ? std::optional<QString>{}
+                                                   : std::optional<QString>(timeZone.trimmed());
   watch(calendarMutationService_.create(
             {.calendarId = std::move(calendarId),
              .title = std::move(title),
@@ -1240,11 +1284,12 @@ void AppController::createEventDetailed(QString calendarId,
              .allDay = allDay,
              .description = description.isEmpty() ? std::nullopt
                                                   : std::optional<QString>(std::move(description)),
-             .location = location.isEmpty() ? std::nullopt : std::optional<QString>(std::move(location)),
+             .location =
+                 location.isEmpty() ? std::nullopt : std::optional<QString>(std::move(location)),
              .startTimeZone = eventTimeZone,
              .endTimeZone = eventTimeZone,
              .colorId = colorId.trimmed().isEmpty() ? std::optional<QString>{}
-                                                     : std::optional<QString>(colorId.trimmed()),
+                                                    : std::optional<QString>(colorId.trimmed()),
              .transparency = available ? std::optional<QString>(QStringLiteral("transparent"))
                                        : std::optional<QString>(QStringLiteral("opaque")),
              .visibility = visibility.trimmed().isEmpty()
@@ -1283,8 +1328,9 @@ void AppController::updateEventDetailed(QString eventId,
     setStatus(QStringLiteral("Calendar event metadata is invalid"));
     return;
   }
-  const std::optional<QString> eventTimeZone =
-      timeZone.trimmed().isEmpty() ? std::optional<QString>{} : std::optional<QString>(timeZone.trimmed());
+  const std::optional<QString> eventTimeZone = timeZone.trimmed().isEmpty()
+                                                   ? std::optional<QString>{}
+                                                   : std::optional<QString>(timeZone.trimmed());
   watch(calendarMutationService_.update(
             {.eventId = std::move(eventId),
              .calendarId = std::move(calendarId),
@@ -1302,7 +1348,7 @@ void AppController::updateEventDetailed(QString eventId,
              .endTimeZone = std::optional<std::optional<QString>>(eventTimeZone),
              .colorId = std::optional<std::optional<QString>>(
                  colorId.trimmed().isEmpty() ? std::optional<QString>{}
-                                           : std::optional<QString>(colorId.trimmed())),
+                                             : std::optional<QString>(colorId.trimmed())),
              .transparency = available ? std::optional<QString>(QStringLiteral("transparent"))
                                        : std::optional<QString>(QStringLiteral("opaque")),
              .visibility = visibility.trimmed().isEmpty()
@@ -1434,23 +1480,24 @@ void AppController::runSearch() {
   searchCancellation_ = std::make_unique<CancellationSource>();
   const std::uint64_t generation = searchGeneration_;
   setSearchLoading(true);
-  watch(localSearchService_.search({.query = searchQuery_}, searchCancellation_->token()),
-        [this, generation](LocalSearchPageResult result) {
-          if (generation != searchGeneration_) {
-            return;
+  watch(
+      localSearchService_.search({.query = searchQuery_}, searchCancellation_->token()),
+      [this, generation](LocalSearchPageResult result) {
+        if (generation != searchGeneration_) {
+          return;
+        }
+        setSearchLoading(false);
+        if (std::holds_alternative<AppError>(result)) {
+          const AppError& error = std::get<AppError>(result);
+          if (error.code() != AppErrorCode::Cancelled) {
+            setSearchError(errorMessage(error));
           }
-          setSearchLoading(false);
-          if (std::holds_alternative<AppError>(result)) {
-            const AppError& error = std::get<AppError>(result);
-            if (error.code() != AppErrorCode::Cancelled) {
-              setSearchError(errorMessage(error));
-            }
-            return;
-          }
-          setSearchError({});
-          searchResultsModel().setResults(std::get<LocalSearchPage>(std::move(result)).items);
-        },
-        false);
+          return;
+        }
+        setSearchError({});
+        searchResultsModel().setResults(std::get<LocalSearchPage>(std::move(result)).items);
+      },
+      false);
 }
 
 void AppController::loadSavedSearches() {
@@ -1517,10 +1564,10 @@ void AppController::pollPending() {
       pending_.push_back(std::move(operation));
     }
   }
-  setBusy(std::any_of(pending_.cbegin(), pending_.cend(),
-                      [](const std::unique_ptr<PendingOperation>& operation) {
-                        return operation->affectsBusy();
-                      }));
+  setBusy(std::any_of(
+      pending_.cbegin(), pending_.cend(), [](const std::unique_ptr<PendingOperation>& operation) {
+        return operation->affectsBusy();
+      }));
   if (!pending_.empty()) {
     schedulePoll();
   }
@@ -1567,7 +1614,11 @@ void AppController::reorderTask(QString taskId, bool earlier) {
 }
 
 void AppController::refreshCalendar() {
-  watch(calendarReadService_.listCalendars(), [this](CalendarListPageResult result) {
+  const std::uint64_t generation = ++calendarRefreshGeneration_;
+  watch(calendarReadService_.listCalendars(), [this, generation](CalendarListPageResult result) {
+    if (generation != calendarRefreshGeneration_) {
+      return;
+    }
     if (std::holds_alternative<AppError>(result)) {
       setStatus(errorMessage(std::get<AppError>(result)));
       return;
@@ -1579,38 +1630,56 @@ void AppController::refreshCalendar() {
       ids.append(calendar.id);
     }
     calendarSourceModel_.setCalendars(std::move(calendars));
-    refreshCalendarEvents(std::move(ids));
+    refreshCalendarEvents(std::move(ids), generation);
   });
 }
 
-void AppController::refreshCalendarEvents(QList<QString> calendarIds) {
-  if (calendarIds.isEmpty()) {
-    const QDate today = QDate::currentDate();
-    const QList<CalendarEventSummary> events;
-    agendaModel_.setEvents(events);
-    timelineModel_.setRange(
-        today, kCalendarTimelineDays, events, QTimeZone::systemTimeZone(), kVisibleAllDayLaneCount);
-    monthGridModel_.setMonth(today, events, QTimeZone::systemTimeZone());
+void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation) {
+  if (generation != calendarRefreshGeneration_) {
     return;
   }
-  const QDate today = QDate::currentDate();
+  const QDate date = calendarDate_;
+  const QTimeZone displayTimeZone = QTimeZone::systemTimeZone();
+  const auto applyLayouts = [this, generation](CalendarViewLayouts layouts) {
+    if (generation != calendarRefreshGeneration_) {
+      return;
+    }
+    agendaModel_.setEvents(std::move(layouts.agendaEvents));
+    timelineModel_.applyLayout(std::move(layouts.timeline));
+    monthGridModel_.applyLayout(std::move(layouts.month));
+  };
+  if (calendarIds.isEmpty()) {
+    const QList<CalendarEventSummary> events;
+    watch(std::async(std::launch::async,
+                     [date, events, displayTimeZone]() mutable {
+                       return buildCalendarViewLayouts(date, std::move(events), displayTimeZone);
+                     }),
+          applyLayouts);
+    return;
+  }
   watch(calendarReadService_.listEvents({.calendarIds = std::move(calendarIds),
-                                         .startAt = rangeStart(today),
-                                         .endAt = rangeEnd(today),
+                                         .startAt = calendarRangeStart(date),
+                                         .endAt = calendarRangeEnd(date),
                                          .limit = 500}),
-        [this, today](CalendarEventPageResult result) {
+        [this, generation, date, displayTimeZone, applyLayouts](CalendarEventPageResult result) {
+          if (generation != calendarRefreshGeneration_) {
+            return;
+          }
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
-            QList<CalendarEventSummary> events =
-                std::get<CalendarEventPage>(std::move(result)).items;
-            agendaModel_.setEvents(events);
-            timelineModel_.setRange(today,
-                                    kCalendarTimelineDays,
-                                    events,
-                                    QTimeZone::systemTimeZone(),
-                                    kVisibleAllDayLaneCount);
-            monthGridModel_.setMonth(today, events, QTimeZone::systemTimeZone());
+            CalendarEventPage page = std::get<CalendarEventPage>(std::move(result));
+            if (page.nextOffset.has_value()) {
+              setStatus(QStringLiteral("Calendar range is limited to the first %1 events")
+                            .arg(page.items.size()));
+            }
+            QList<CalendarEventSummary> events = std::move(page.items);
+            watch(std::async(std::launch::async,
+                             [date, events = std::move(events), displayTimeZone]() mutable {
+                               return buildCalendarViewLayouts(
+                                   date, std::move(events), displayTimeZone);
+                             }),
+                  applyLayouts);
           }
         });
 }

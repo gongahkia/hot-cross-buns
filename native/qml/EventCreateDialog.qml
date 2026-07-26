@@ -68,11 +68,19 @@ HcbDialog {
         return now.toISOString()
     }
 
-    function openForCreate(calendarId) {
+    function startForDate(date) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return roundedStartAt()
+        }
+        const local = new Date(date + "T09:00:00")
+        return Number.isFinite(local.getTime()) ? local.toISOString() : roundedStartAt()
+    }
+
+    function openForCreate(calendarId, date) {
         eventCalendarId = calendarId
         titleField.clear()
         allDayCheck.checked = false
-        startField.text = roundedStartAt()
+        startField.text = startForDate(date || "")
         endField.text = new Date(Date.parse(startField.text) + 60 * 60 * 1000).toISOString()
         descriptionField.clear()
         locationField.clear()

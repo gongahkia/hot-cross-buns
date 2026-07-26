@@ -41,6 +41,7 @@
 #include "core/TaskReadService.h"
 
 #include <QObject>
+#include <QDate>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
@@ -71,18 +72,23 @@ class AppController final : public QObject {
   Q_PROPERTY(QString clientId READ clientId NOTIFY clientIdChanged)
   Q_PROPERTY(bool googleConnected READ googleConnected NOTIFY googleConnectedChanged)
   Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
-  Q_PROPERTY(QString taskListErrorMessage READ taskListErrorMessage NOTIFY taskListErrorMessageChanged)
+  Q_PROPERTY(
+      QString taskListErrorMessage READ taskListErrorMessage NOTIFY taskListErrorMessageChanged)
   Q_PROPERTY(QString syncStatus READ syncStatus NOTIFY syncStatusChanged)
   Q_PROPERTY(int conflictPolicy READ conflictPolicy NOTIFY conflictPolicyChanged)
-  Q_PROPERTY(QVariantList unresolvedConflicts READ unresolvedConflicts NOTIFY unresolvedConflictsChanged)
+  Q_PROPERTY(
+      QVariantList unresolvedConflicts READ unresolvedConflicts NOTIFY unresolvedConflictsChanged)
   Q_PROPERTY(QVariantList resolvedConflicts READ resolvedConflicts NOTIFY resolvedConflictsChanged)
   Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchQueryChanged)
   Q_PROPERTY(QString searchErrorMessage READ searchErrorMessage NOTIFY searchErrorMessageChanged)
   Q_PROPERTY(QVariantList searchFilterChips READ searchFilterChips NOTIFY searchFilterChipsChanged)
   Q_PROPERTY(QVariantList savedSearches READ savedSearches NOTIFY savedSearchesChanged)
   Q_PROPERTY(bool searchLoading READ searchLoading NOTIFY searchLoadingChanged)
-  Q_PROPERTY(QString bulkTaskStatusMessage READ bulkTaskStatusMessage NOTIFY bulkTaskStatusMessageChanged)
-  Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY bulkEventStatusMessageChanged)
+  Q_PROPERTY(
+      QString bulkTaskStatusMessage READ bulkTaskStatusMessage NOTIFY bulkTaskStatusMessageChanged)
+  Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY
+                 bulkEventStatusMessageChanged)
+  Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -115,11 +121,13 @@ public:
   [[nodiscard]] bool searchLoading() const;
   [[nodiscard]] QString bulkTaskStatusMessage() const;
   [[nodiscard]] QString bulkEventStatusMessage() const;
+  [[nodiscard]] QString calendarDate() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
 
   Q_INVOKABLE void initialize();
   Q_INVOKABLE void refresh();
+  Q_INVOKABLE void setCalendarDate(QString date);
   Q_INVOKABLE void saveClientId(QString clientId);
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
@@ -223,6 +231,7 @@ signals:
   void searchLoadingChanged();
   void bulkTaskStatusMessageChanged();
   void bulkEventStatusMessageChanged();
+  void calendarDateChanged();
   void busyChanged();
 
 private:
@@ -259,8 +268,8 @@ private:
   template <typename Result, typename Completion>
   void watch(std::future<Result> future, Completion&& completed, bool affectsBusy = true) {
     std::function<void(Result)> callback(std::forward<Completion>(completed));
-    pending_.push_back(
-        std::make_unique<PendingFuture<Result>>(std::move(future), std::move(callback), affectsBusy));
+    pending_.push_back(std::make_unique<PendingFuture<Result>>(
+        std::move(future), std::move(callback), affectsBusy));
     if (affectsBusy) {
       setBusy(true);
     }
@@ -271,7 +280,7 @@ private:
   void pollPending();
   void refreshTasks();
   void refreshCalendar();
-  void refreshCalendarEvents(QList<QString> calendarIds);
+  void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
   void runSearch();
   void loadSavedSearches();
   void runBulkTaskMutation(TaskBulkMutationInput input);
@@ -358,6 +367,8 @@ private:
   bool searchLoading_{false};
   QString bulkTaskStatusMessage_;
   QString bulkEventStatusMessage_;
+  QDate calendarDate_{QDate::currentDate()};
+  std::uint64_t calendarRefreshGeneration_{0};
   QTimer searchDebounce_;
   std::unique_ptr<CancellationSource> searchCancellation_;
   std::uint64_t searchGeneration_{0};

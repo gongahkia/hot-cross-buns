@@ -10,6 +10,8 @@ Pane {
     property alias cells: cells
     signal dateSelected(string date)
     signal eventSelectionRequested(string eventId, bool selected)
+    signal eventCreateRequested(string date)
+    signal eventEditRequested(var event)
 
     function eventSummary(events) {
         const visibleEvents = events.filter(function(event) {
@@ -33,6 +35,10 @@ Pane {
         return events.filter(function(event) {
             return root.isCalendarVisible(event.calendarId) && typeof event.id === "string" && event.id.length > 0
         }).map(function(event) { return event.id })
+    }
+
+    function visibleEvents(events) {
+        return events.filter(function(event) { return root.isCalendarVisible(event.calendarId) })
     }
 
     function isEventSelected(eventId) {
@@ -81,34 +87,112 @@ Pane {
                 return height / 6
             }
 
-            delegate: AccessibleButton {
+            delegate: Item {
                 required property string date
                 required property int day
                 required property bool outsideMonth
                 required property var events
                 implicitWidth: 100
                 implicitHeight: 72
-                text: day + "\n" + root.eventSummary(events)
                 opacity: outsideMonth ? 0.5 : 1
-                accessibleName: date
-                accessibleDescription: events.length === 0 ? "No events" : root.eventSummary(events)
-                onClicked: root.selectDate(date)
 
-                CheckBox {
-                    property var selectableEventIds: root.eventIds(events)
+                Row {
+                    id: cellActions
                     anchors.top: parent.top
+                    anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.margins: Theme.spacingSmall
-                    z: 1
-                    visible: selectableEventIds.length > 0
-                    checked: selectableEventIds.length > 0 && selectableEventIds.every(function(eventId) {
-                        return root.isEventSelected(eventId)
-                    })
-                    Accessible.name: "Select events on " + date
-                    Accessible.description: checked ? "All visible events selected" : "Visible events not selected"
-                    onClicked: {
-                        for (let index = 0; index < selectableEventIds.length; ++index) {
-                            root.eventSelectionRequested(selectableEventIds[index], checked)
+                    spacing: Theme.spacingSmall
+
+                    AccessibleButton {
+                        width: 28
+                        height: 24
+                        padding: 0
+                        text: day
+                        accessibleName: date
+                        accessibleDescription: events.length === 0 ? "No events" : root.eventSummary(events)
+                        onClicked: root.selectDate(date)
+                    }
+
+                    AccessibleButton {
+                        width: 24
+                        height: 24
+                        padding: 0
+                        text: "+"
+                        accessibleName: "New event on " + date
+                        onClicked: root.eventCreateRequested(date)
+                    }
+
+                    CheckBox {
+                        property var selectableEventIds: root.eventIds(events)
+                        width: 24
+                        height: 24
+                        visible: selectableEventIds.length > 0
+                        checked: selectableEventIds.length > 0 && selectableEventIds.every(function(eventId) {
+                            return root.isEventSelected(eventId)
+                        })
+                        Accessible.name: "Select events on " + date
+                        Accessible.description: checked ? "All visible events selected" : "Visible events not selected"
+                        onClicked: {
+                            for (let index = 0; index < selectableEventIds.length; ++index) {
+                                root.eventSelectionRequested(selectableEventIds[index], checked)
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    anchors.top: cellActions.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: Theme.spacingSmall
+                    spacing: 1
+                    clip: true
+
+                    Repeater {
+                        model: root.visibleEvents(events).slice(0, 2)
+
+                        delegate: AccessibleButton {
+                            required property var modelData
+                            width: parent.width
+                            height: 22
+                            padding: 2
+                            text: modelData.title
+                            accessibleName: modelData.title
+                            accessibleDescription: "Edit event on " + date
+                            onClicked: root.eventEditRequested(modelData)
+                        }
+                    }
+
+                    AccessibleButton {
+                        id: moreEventsButton
+                        property var visibleEventRows: root.visibleEvents(events)
+                        width: parent.width
+                        height: 22
+                        padding: 2
+                        visible: visibleEventRows.length > 2
+                        text: "+" + (visibleEventRows.length - 2) + " more"
+                        accessibleName: "More events on " + date
+                        onClicked: overflowMenu.open()
+
+                        Menu {
+                            id: overflowMenu
+
+                            MenuItem {
+                                text: "New event"
+                                onTriggered: root.eventCreateRequested(date)
+                            }
+
+                            Repeater {
+                                model: moreEventsButton.visibleEventRows.slice(2)
+
+                                delegate: MenuItem {
+                                    required property var modelData
+                                    text: modelData.title
+                                    onTriggered: root.eventEditRequested(modelData)
+                                }
+                            }
                         }
                     }
                 }

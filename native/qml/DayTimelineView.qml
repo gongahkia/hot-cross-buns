@@ -8,6 +8,7 @@ Pane {
     property var calendarVisibility: null
     property var selectedEventIds: []
     property int dayIndex: 0
+    property string dateLabel: ""
     property int hourHeight: 64
     property int timeColumnWidth: 64
     property alias eventRows: eventRows
@@ -15,6 +16,11 @@ Pane {
     signal eventSelectionRequested(string eventId, bool selected)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
+    signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
+                              string endAt, bool allDay, string description, string location,
+                              string startTimeZone, string colorId, string transparency,
+                              string visibility, string attendeeEmailsJson, string remindersJson,
+                              bool remindersUseDefault)
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -59,6 +65,14 @@ Pane {
         eventSelected(eventId)
     }
 
+    function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                         startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                         remindersJson, remindersUseDefault) {
+        eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault)
+    }
+
     function isCalendarVisible(calendarId) {
         return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
@@ -72,7 +86,7 @@ Pane {
         spacing: Theme.spacingMedium
 
         Label {
-            text: "Day"
+            text: root.dateLabel.length > 0 ? "Day — " + root.dateLabel : "Day"
             font.pixelSize: Theme.titleFontSize
             Accessible.role: Accessible.Heading
             Accessible.name: text
@@ -91,12 +105,28 @@ Pane {
                     required property string title
                     required property bool allDay
                     required property int dayIndex
+                    required property string description
+                    required property string location
+                    required property string startAt
+                    required property string startTimeZone
+                    required property string endAt
+                    required property string transparency
+                    required property string visibility
+                    required property string colorId
+                    required property string attendeeEmailsJson
+                    required property string remindersJson
+                    required property bool remindersUseDefault
                     visible: allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                     width: parent.width
                     text: title + " — All day"
                     accessibleName: title
                     accessibleDescription: "All-day event"
-                    onClicked: root.selectEvent(id)
+                    onClicked: {
+                        root.selectEvent(id)
+                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                         location, startTimeZone, colorId, transparency, visibility,
+                                         attendeeEmailsJson, remindersJson, remindersUseDefault)
+                    }
 
                     CheckBox {
                         anchors.top: parent.top
@@ -167,6 +197,17 @@ Pane {
                         required property int durationMinutes
                         required property int laneIndex
                         required property int laneCount
+                        required property string description
+                        required property string location
+                        required property string startAt
+                        required property string startTimeZone
+                        required property string endAt
+                        required property string transparency
+                        required property string visibility
+                        required property string colorId
+                        required property string attendeeEmailsJson
+                        required property string remindersJson
+                        required property bool remindersUseDefault
                         visible: !allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                         x: root.timeColumnWidth + laneIndex *
                            (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount)
@@ -176,7 +217,12 @@ Pane {
                         text: title
                         accessibleName: title
                         accessibleDescription: "Timed event"
-                        onClicked: root.selectEvent(id)
+                        onClicked: {
+                            root.selectEvent(id)
+                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                             location, startTimeZone, colorId, transparency, visibility,
+                                             attendeeEmailsJson, remindersJson, remindersUseDefault)
+                        }
 
                         DragHandler {
                             id: moveHandler

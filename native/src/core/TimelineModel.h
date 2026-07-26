@@ -21,6 +21,17 @@ public:
     TitleRole,
     StatusRole,
     ColorIdRole,
+    DescriptionRole,
+    LocationRole,
+    StartAtRole,
+    StartTimeZoneRole,
+    EndAtRole,
+    EndTimeZoneRole,
+    TransparencyRole,
+    VisibilityRole,
+    AttendeeEmailsJsonRole,
+    RemindersJsonRole,
+    RemindersUseDefaultRole,
     AllDayRole,
     DayIndexRole,
     StartMinuteRole,
@@ -42,17 +53,12 @@ public:
   Q_INVOKABLE QVariantMap moveInput(const QString& eventId,
                                     int targetDayIndex,
                                     int targetMinute) const;
+  Q_INVOKABLE QVariantMap moveAllDayInput(const QString& eventId, int targetDayIndex) const;
   Q_INVOKABLE QVariantMap resizeInput(const QString& eventId,
                                       int targetEndDayIndex,
                                       int targetEndMinute) const;
+  Q_INVOKABLE QVariantMap resizeAllDayInput(const QString& eventId, int targetEndDayIndex) const;
 
-  void setRange(QDate startDate,
-                int dayCount,
-                const QList<CalendarEventSummary>& events,
-                const QTimeZone& displayTimeZone,
-                int visibleAllDayLaneCount);
-
-private:
   struct Item final {
     CalendarEventSummary event;
     bool allDay{false};
@@ -66,6 +72,27 @@ private:
     bool endsAfterRange{false};
   };
 
+  struct Layout final {
+    QList<Item> items;
+    QDate rangeStartDate;
+    int dayCount{0};
+    QTimeZone displayTimeZone;
+  };
+
+  [[nodiscard]] static Layout buildLayout(QDate startDate,
+                                          int dayCount,
+                                          const QList<CalendarEventSummary>& events,
+                                          const QTimeZone& displayTimeZone,
+                                          int visibleAllDayLaneCount);
+  void applyLayout(Layout layout);
+
+  void setRange(QDate startDate,
+                int dayCount,
+                const QList<CalendarEventSummary>& events,
+                const QTimeZone& displayTimeZone,
+                int visibleAllDayLaneCount);
+
+private:
   QList<Item> items_;
   QDate rangeStartDate_;
   int dayCount_{0};
