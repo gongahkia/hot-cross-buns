@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <future>
 #include <limits>
 #include <memory>
@@ -45,6 +46,15 @@ struct GoogleTaskWriteResponse final {
 using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
 using GoogleTaskWriteResponseOrError = std::variant<GoogleTaskWriteResponse, QString>;
 
+enum class ParentTaskReferenceStatus : std::uint8_t {
+  Pending,
+  Unavailable,
+  Invalid
+};
+
+using ParentTaskReferenceResult =
+    std::variant<PendingMutation, ParentTaskReferenceStatus, AppError>;
+
 [[nodiscard]] AppError databaseError(const QString& message) {
   return AppError(AppErrorCode::Database, message);
 }
@@ -71,6 +81,10 @@ using GoogleTaskWriteResponseOrError = std::variant<GoogleTaskWriteResponse, QSt
 [[nodiscard]] bool isValidEtag(const QString& value) {
   return !value.isEmpty() && value.size() <= kMaximumEtagLength && !value.contains(QChar::Null) &&
          !value.contains(u'\r') && !value.contains(u'\n');
+}
+
+[[nodiscard]] bool isPendingRemoteId(const QString& value) {
+  return value.startsWith(QStringLiteral("pending:"));
 }
 
 [[nodiscard]] std::optional<QString> optionalIdentifier(const QJsonObject& object,
@@ -103,6 +117,37 @@ using GoogleTaskWriteResponseOrError = std::variant<GoogleTaskWriteResponse, QSt
     return std::nullopt;
   }
   return value.toString();
+}
+
+[[nodiscard]] ParentTaskReferenceResult
+resolveParentTaskReference(PendingMutation mutation, TaskMutationService* taskMutationService) {
+  const QJsonValue parentTaskLocalIdValue =
+      mutation.payload.value(QStringLiteral("parentTaskLocalId"));
+  if (parentTaskLocalIdValue.isUndefined() || parentTaskLocalIdValue.isNull()) {
+    return mutation;
+  }
+  const QJsonValue parentTaskIdValue = mutation.payload.value(QStringLiteral("parentTaskId"));
+  if (!parentTaskLocalIdValue.isString() ||
+      !isValidIdentifier(parentTaskLocalIdValue.toString(), kMaximumIdentifierLength) ||
+      !(parentTaskIdValue.isUndefined() || parentTaskIdValue.isNull()) ||
+      taskMutationService == nullptr) {
+    return ParentTaskReferenceStatus::Invalid;
+  }
+  TaskRemoteIdResult remoteIdResult =
+      taskMutationService->remoteTaskId(parentTaskLocalIdValue.toString()).get();
+  if (std::holds_alternative<AppError>(remoteIdResult)) {
+    return std::get<AppError>(std::move(remoteIdResult));
+  }
+  const std::optional<QString>& remoteId = std::get<std::optional<QString>>(remoteIdResult);
+  if (!remoteId.has_value()) {
+    return ParentTaskReferenceStatus::Unavailable;
+  }
+  if (isPendingRemoteId(*remoteId)) {
+    return ParentTaskReferenceStatus::Pending;
+  }
+  mutation.payload.remove(QStringLiteral("parentTaskLocalId"));
+  mutation.payload.insert(QStringLiteral("parentTaskId"), *remoteId);
+  return mutation;
 }
 
 [[nodiscard]] GoogleTaskWriteResponseOrError
@@ -207,13 +252,16 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
         optionalIdentifier(mutation.payload, u"parentTaskId");
     const std::optional<QString> previousTaskId =
         optionalIdentifier(mutation.payload, u"previousTaskId");
+    const QJsonValue parentTaskLocalIdValue =
+        mutation.payload.value(QStringLiteral("parentTaskLocalId"));
     if (!task.has_value() ||
         (!parentTaskId.has_value() &&
          !(mutation.payload.value(QStringLiteral("parentTaskId")).isUndefined() ||
            mutation.payload.value(QStringLiteral("parentTaskId")).isNull())) ||
         (!previousTaskId.has_value() &&
          !(mutation.payload.value(QStringLiteral("previousTaskId")).isUndefined() ||
-           mutation.payload.value(QStringLiteral("previousTaskId")).isNull()))) {
+           mutation.payload.value(QStringLiteral("previousTaskId")).isNull())) ||
+        (!parentTaskLocalIdValue.isUndefined() && !parentTaskLocalIdValue.isNull())) {
       return QStringLiteral("Pending task mutation payload is invalid");
     }
     GoogleHttpRequest request;
@@ -249,7 +297,8 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
     return TaskPushRequest{.request = std::move(request)};
   }
   if (mutation.operation == QStringLiteral("task.move")) {
-    const std::optional<QString> parentTaskId = optionalIdentifier(mutation.payload, u"parentTaskId");
+    const std::optional<QString> parentTaskId =
+        optionalIdentifier(mutation.payload, u"parentTaskId");
     const QJsonValue parentTaskIdValue = mutation.payload.value(QStringLiteral("parentTaskId"));
     const QJsonValue parentTaskLocalIdValue =
         mutation.payload.value(QStringLiteral("parentTaskLocalId"));
@@ -455,7 +504,42 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
               continue;
             }
           }
-          const TaskPushRequestOrError request = buildRequest(claimed);
+          ParentTaskReferenceResult resolvedParent =
+              resolveParentTaskReference(claimed, taskMutationService_);
+          if (std::holds_alternative<AppError>(resolvedParent)) {
+            completion->set_value(std::get<AppError>(std::move(resolvedParent)));
+            return;
+          }
+          if (std::holds_alternative<ParentTaskReferenceStatus>(resolvedParent)) {
+            const ParentTaskReferenceStatus status =
+                std::get<ParentTaskReferenceStatus>(resolvedParent);
+            const bool parentPending = status == ParentTaskReferenceStatus::Pending;
+            const std::optional<AppError> failure = markFailure(
+                mutations_,
+                claimed,
+                parentPending ? QStringLiteral("parent_pending")
+                : status == ParentTaskReferenceStatus::Unavailable
+                    ? QStringLiteral("parent_unavailable")
+                    : QStringLiteral("invalid_payload"),
+                parentPending ? QStringLiteral("Parent task is awaiting Google creation")
+                : status == ParentTaskReferenceStatus::Unavailable
+                    ? QStringLiteral("Parent task is unavailable")
+                    : QStringLiteral("Pending parent task reference is invalid"),
+                parentPending ? std::optional<QString>(timestampAfter(clock_, 1'000))
+                              : std::nullopt);
+            if (failure.has_value()) {
+              completion->set_value(*failure);
+              return;
+            }
+            if (parentPending) {
+              ++summary.skipped;
+            } else {
+              ++summary.failed;
+            }
+            continue;
+          }
+          const TaskPushRequestOrError request =
+              buildRequest(std::get<PendingMutation>(std::move(resolvedParent)));
           if (std::holds_alternative<QString>(request)) {
             const std::optional<AppError> failure = markFailure(mutations_,
                                                                 claimed,
@@ -473,12 +557,18 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
               httpClient_.send(std::get<TaskPushRequest>(request).request, accessToken).get();
           if (std::holds_alternative<GoogleApiError>(response)) {
             const GoogleApiError& error = std::get<GoogleApiError>(response);
-            const std::optional<AppError> failure =
-                markFailure(mutations_,
-                            claimed,
-                            errorCode(error),
-                            error.message(),
-                            retryAt(error, claimed.attemptCount, clock_, backoffPolicy_));
+            const bool createOutcomeUnknown = claimed.operation == QStringLiteral("task.create") &&
+                                              (error.kind() == GoogleApiErrorKind::Transport ||
+                                               error.kind() == GoogleApiErrorKind::Server);
+            const std::optional<AppError> failure = markFailure(
+                mutations_,
+                claimed,
+                createOutcomeUnknown ? QStringLiteral("create_outcome_unknown") : errorCode(error),
+                createOutcomeUnknown ? QStringLiteral("Google task creation outcome is unknown")
+                                     : error.message(),
+                createOutcomeUnknown
+                    ? std::nullopt
+                    : retryAt(error, claimed.attemptCount, clock_, backoffPolicy_));
             if (failure.has_value()) {
               completion->set_value(*failure);
               return;

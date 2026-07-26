@@ -1724,6 +1724,8 @@ if(BUILD_TESTING)
     src/core/SecretRedactor.h
     src/core/SyncBackoffPolicy.cpp
     src/core/SyncBackoffPolicy.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
     src/data/LocalSchema.cpp
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp

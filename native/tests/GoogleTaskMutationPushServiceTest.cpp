@@ -19,6 +19,7 @@
 #include <QTimeZone>
 #include <QUrlQuery>
 
+#include <algorithm>
 #include <chrono>
 #include <future>
 #include <memory>
@@ -35,6 +36,9 @@ class GoogleTaskMutationPushServiceTest final : public QObject {
 private slots:
   void pushesCreateUpdateAndDeleteMutations();
   void reconcilesCreatedTaskRemoteIdentity();
+  void reconcilesChangeQueuedDuringCreate();
+  void resolvesParentReferenceBeforeCreatingChild();
+  void doesNotRetryUnknownCreateOutcome();
   void recordsPermanentAndRetriableFailures();
 };
 
@@ -153,10 +157,11 @@ readTaskColumn(sqlite3* handle, const QString& taskId, const char* column) {
                          ? reinterpret_cast<const char*>(sqlite3_column_text(statement, 0))
                          : nullptr;
   const int size = stepResult == SQLITE_ROW ? sqlite3_column_bytes(statement, 0) : 0;
+  const std::optional<QString> value = stepResult == SQLITE_ROW && text != nullptr && size >= 0
+                                           ? std::optional<QString>(QString::fromUtf8(text, size))
+                                           : std::nullopt;
   const int finalizeResult = sqlite3_finalize(statement);
-  return stepResult == SQLITE_ROW && text != nullptr && size >= 0 && finalizeResult == SQLITE_OK
-             ? std::optional<QString>(QString::fromUtf8(text, size))
-             : std::nullopt;
+  return finalizeResult == SQLITE_OK ? value : std::nullopt;
 }
 
 } // namespace
@@ -302,6 +307,208 @@ void GoogleTaskMutationPushServiceTest::reconcilesCreatedTaskRemoteIdentity() {
   hcb::PendingMutationListResult pendingResult = coordinator.listDue().get();
   QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(pendingResult));
   QCOMPARE(std::get<QList<hcb::PendingMutation>>(pendingResult).size(), 0);
+}
+
+void GoogleTaskMutationPushServiceTest::reconcilesChangeQueuedDuringCreate() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::TaskMutationService taskMutations(database->databasePath(), clock);
+  verifyReady(taskMutations);
+  hcb::SqliteConnectionResult connectionResult = hcb::SqliteConnectionFactory::open(
+      database->databasePath(), hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('account-a', 'google', 'connected', '[]', '[]', '2026-07-25T00:00:00Z')");
+  execute(handle,
+          "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) VALUES "
+          "('list-a', 'account-a', 'remote-list', 'Tasks', '2026-07-25T00:00:00Z')");
+  std::future<hcb::TaskMutationResult> created = taskMutations.create(
+      {.taskListId = QStringLiteral("list-a"), .title = QStringLiteral("Initial title")});
+  const hcb::TaskMutationResult createdResult = awaitResult(created);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(createdResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(createdResult)) {
+    return;
+  }
+  const QString localTaskId = std::get<hcb::TaskMutationReceipt>(createdResult).taskId;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  hcb::PendingMutationListResult dueResult = coordinator.listDue().get();
+  QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(dueResult));
+  if (!std::holds_alternative<QList<hcb::PendingMutation>>(dueResult)) {
+    return;
+  }
+  const QList<hcb::PendingMutation>& due = std::get<QList<hcb::PendingMutation>>(dueResult);
+  QCOMPARE(due.size(), 1);
+  if (due.size() != 1) {
+    return;
+  }
+  hcb::PendingMutationResult claimedResult = coordinator.claim(due.constFirst().id, 5min).get();
+  QVERIFY(std::holds_alternative<hcb::PendingMutation>(claimedResult));
+  if (!std::holds_alternative<hcb::PendingMutation>(claimedResult)) {
+    return;
+  }
+  const hcb::PendingMutation claimed = std::get<hcb::PendingMutation>(claimedResult);
+  QVERIFY(claimed.leaseId.has_value());
+  if (!claimed.leaseId.has_value()) {
+    return;
+  }
+  std::future<hcb::TaskMutationResult> update =
+      taskMutations.update({.taskId = localTaskId, .title = QStringLiteral("Updated title")});
+  const hcb::TaskMutationResult updateResult = awaitResult(update);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(updateResult));
+  std::future<hcb::TaskMutationResult> reconciled =
+      taskMutations.reconcileGoogleTask({.localTaskId = localTaskId,
+                                         .remoteTaskId = QStringLiteral("remote-task"),
+                                         .remoteEtag = QStringLiteral("etag-created")});
+  const hcb::TaskMutationResult reconciledResult = awaitResult(reconciled);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(reconciledResult));
+  hcb::PendingMutationResult appliedResult =
+      coordinator.markApplied(claimed.id, *claimed.leaseId).get();
+  QVERIFY(std::holds_alternative<hcb::PendingMutation>(appliedResult));
+
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(R"({"id":"remote-task","etag":"etag-updated"})")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{}, &taskMutations);
+  const hcb::GoogleTaskMutationPushResult pushed = push(service);
+  QCOMPARE(pushed.applied, 1);
+  QCOMPARE(pushed.failed, 0);
+  QCOMPARE(manager.requests().size(), 1);
+  QCOMPARE(manager.requests().constFirst().request.url().path(),
+           QStringLiteral("/tasks/v1/lists/remote-list/tasks/remote-task"));
+  QCOMPARE(manager.requests().constFirst().request.rawHeader("If-Match"),
+           QByteArray("etag-created"));
+  QCOMPARE(readTaskColumn(handle, localTaskId, "etag"),
+           std::optional<QString>(QStringLiteral("etag-updated")));
+}
+
+void GoogleTaskMutationPushServiceTest::resolvesParentReferenceBeforeCreatingChild() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::TaskMutationService taskMutations(database->databasePath(), clock);
+  verifyReady(taskMutations);
+  hcb::SqliteConnectionResult connectionResult = hcb::SqliteConnectionFactory::open(
+      database->databasePath(), hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('account-a', 'google', 'connected', '[]', '[]', '2026-07-25T00:00:00Z')");
+  execute(handle,
+          "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) VALUES "
+          "('list-a', 'account-a', 'remote-list', 'Tasks', '2026-07-25T00:00:00Z')");
+  std::future<hcb::TaskMutationResult> parent = taskMutations.create(
+      {.taskListId = QStringLiteral("list-a"), .title = QStringLiteral("Parent")});
+  const hcb::TaskMutationResult parentResult = awaitResult(parent);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(parentResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(parentResult)) {
+    return;
+  }
+  const QString parentTaskId = std::get<hcb::TaskMutationReceipt>(parentResult).taskId;
+  std::future<hcb::TaskMutationResult> child =
+      taskMutations.create({.taskListId = QStringLiteral("list-a"),
+                            .parentTaskId = parentTaskId,
+                            .title = QStringLiteral("Child")});
+  const hcb::TaskMutationResult childResult = awaitResult(child);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(childResult));
+
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  hcb::PendingMutationListResult dueResult = coordinator.listDue().get();
+  QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(dueResult));
+  if (!std::holds_alternative<QList<hcb::PendingMutation>>(dueResult)) {
+    return;
+  }
+  const QList<hcb::PendingMutation>& due = std::get<QList<hcb::PendingMutation>>(dueResult);
+  const auto parentMutation =
+      std::find_if(due.cbegin(), due.cend(), [&parentTaskId](const hcb::PendingMutation& mutation) {
+        return mutation.resourceId == parentTaskId;
+      });
+  QVERIFY(parentMutation != due.cend());
+  if (parentMutation == due.cend()) {
+    return;
+  }
+  hcb::PendingMutationResult claimedResult = coordinator.claim(parentMutation->id, 5min).get();
+  QVERIFY(std::holds_alternative<hcb::PendingMutation>(claimedResult));
+  if (!std::holds_alternative<hcb::PendingMutation>(claimedResult)) {
+    return;
+  }
+  const hcb::PendingMutation claimed = std::get<hcb::PendingMutation>(claimedResult);
+  QVERIFY(claimed.leaseId.has_value());
+  if (!claimed.leaseId.has_value()) {
+    return;
+  }
+  std::future<hcb::TaskMutationResult> reconciled =
+      taskMutations.reconcileGoogleTask({.localTaskId = parentTaskId,
+                                         .remoteTaskId = QStringLiteral("remote-parent"),
+                                         .remoteEtag = QStringLiteral("etag-parent")});
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(reconciled)));
+  QVERIFY(std::holds_alternative<hcb::PendingMutation>(
+      coordinator.markApplied(claimed.id, *claimed.leaseId).get()));
+
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(R"({"id":"remote-child","etag":"etag-child"})")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{}, &taskMutations);
+  const hcb::GoogleTaskMutationPushResult pushed = push(service);
+  QCOMPARE(pushed.applied, 1);
+  QCOMPARE(pushed.failed, 0);
+  QCOMPARE(manager.requests().size(), 1);
+  const QUrlQuery query(manager.requests().constFirst().request.url());
+  QCOMPARE(query.queryItemValue(QStringLiteral("parent")), QStringLiteral("remote-parent"));
+}
+
+void GoogleTaskMutationPushServiceTest::doesNotRetryUnknownCreateOutcome() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation created = enqueue(
+      coordinator,
+      QStringLiteral("task.create"),
+      {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+       {QStringLiteral("task"), QJsonObject{{QStringLiteral("title"), QStringLiteral("x")}}}});
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.status = 503, .body = QByteArray("{}")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+  const hcb::GoogleTaskMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 0);
+  QCOMPARE(result.failed, 1);
+  QCOMPARE(manager.requests().size(), 1);
+  const hcb::PendingMutation failed = find(coordinator, created.id);
+  QCOMPARE(failed.status, hcb::PendingMutationStatus::Failed);
+  QCOMPARE(failed.lastErrorCode, std::optional<QString>(QStringLiteral("create_outcome_unknown")));
+  QVERIFY(!failed.nextRetryAt.has_value());
 }
 
 void GoogleTaskMutationPushServiceTest::recordsPermanentAndRetriableFailures() {

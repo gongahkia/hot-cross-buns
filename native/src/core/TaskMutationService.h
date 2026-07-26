@@ -56,6 +56,7 @@ struct TaskRemoteReconciliationInput final {
 };
 
 using TaskMutationResult = std::variant<TaskMutationReceipt, AppError>;
+using TaskRemoteIdResult = std::variant<std::optional<QString>, AppError>;
 
 class TaskMutationService final {
 public:
@@ -71,6 +72,7 @@ public:
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult>
   reconcileGoogleTask(TaskRemoteReconciliationInput input);
+  [[nodiscard]] std::future<TaskRemoteIdResult> remoteTaskId(QString taskId);
 
 private:
   const Clock& clock_;

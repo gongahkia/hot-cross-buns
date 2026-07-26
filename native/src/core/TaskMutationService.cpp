@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QList>
 #include <QString>
 #include <QTimeZone>
 #include <QUuid>
@@ -42,6 +43,7 @@ struct StoredTaskContext final {
   std::optional<QString> notes;
   QString state;
   std::optional<QString> dueAt;
+  std::optional<QString> dueTimeZone;
   QString priority;
 };
 
@@ -201,7 +203,7 @@ readTaskContext(SqliteConnection& connection, const QString& taskId) {
   constexpr char sql[] = R"(
 SELECT tasks.id, tasks.task_list_id, lists.account_id, lists.remote_id, tasks.remote_id, tasks.etag,
        tasks.parent_task_id, parent.remote_id, tasks.title, tasks.notes, tasks.state, tasks.due_at,
-       tasks.priority
+       tasks.due_time_zone, tasks.priority
 FROM local_tasks AS tasks
 INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
 LEFT JOIN local_tasks AS parent ON parent.id = tasks.parent_task_id
@@ -240,7 +242,7 @@ LIMIT 1
   const std::optional<QString> remoteId = optionalText(statement, 4);
   const std::optional<QString> title = optionalText(statement, 8);
   const std::optional<QString> state = optionalText(statement, 10);
-  const std::optional<QString> priority = optionalText(statement, 12);
+  const std::optional<QString> priority = optionalText(statement, 13);
   if (!storedTaskId.has_value() || !taskListId.has_value() || !accountId.has_value() ||
       !taskListRemoteId.has_value() || !remoteId.has_value() || !title.has_value() ||
       !state.has_value() || !priority.has_value()) {
@@ -259,6 +261,7 @@ LIMIT 1
                             .notes = optionalText(statement, 9),
                             .state = *state,
                             .dueAt = optionalText(statement, 11),
+                            .dueTimeZone = optionalText(statement, 12),
                             .priority = *priority};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
@@ -1034,6 +1037,11 @@ WHERE id = ?1 AND deleted_at IS NULL
 reconcileStoredGoogleTask(SqliteConnection& connection,
                           const TaskRemoteReconciliationInput& input,
                           const QString& updatedAt) {
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
     return AppError(AppErrorCode::Database,
@@ -1042,7 +1050,7 @@ reconcileStoredGoogleTask(SqliteConnection& connection,
   constexpr char sql[] = R"(
 UPDATE local_tasks
 SET remote_id = CASE WHEN remote_id LIKE 'pending:%' THEN ?2 ELSE remote_id END,
-    etag = ?3,
+    etag = COALESCE(?3, etag),
     updated_at = ?4
 WHERE id = ?1
   AND (remote_id = ?2 OR remote_id LIKE 'pending:%')
@@ -1074,10 +1082,136 @@ WHERE id = ?1
     return databaseError(QStringLiteral("SQLite task reconciliation finalization failed (%1)"),
                          finalizeResult);
   }
-  return changedRows == 1 ? TaskMutationResult(TaskMutationReceipt{.taskId = input.localTaskId,
-                                                                   .updatedAt = updatedAt})
-                          : TaskMutationResult(validationError(
-                                QStringLiteral("Task is unavailable for Google reconciliation")));
+  if (changedRows != 1) {
+    return validationError(QStringLiteral("Task is unavailable for Google reconciliation"));
+  }
+  constexpr char pendingMutationSql[] = R"(
+SELECT id, payload_json
+FROM local_pending_mutations
+WHERE resource_type = 'task' AND resource_id = ?1 AND status IN ('pending', 'failed')
+)";
+  sqlite3_stmt* pendingMutationStatement = nullptr;
+  const int pendingPrepareResult = sqlite3_prepare_v3(handle,
+                                                      pendingMutationSql,
+                                                      -1,
+                                                      SQLITE_PREPARE_PERSISTENT,
+                                                      &pendingMutationStatement,
+                                                      nullptr);
+  if (pendingPrepareResult != SQLITE_OK) {
+    sqlite3_finalize(pendingMutationStatement);
+    return databaseError(
+        QStringLiteral("SQLite pending task reconciliation preparation failed (%1)"),
+        pendingPrepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindText(pendingMutationStatement, 1, input.localTaskId);
+      error.has_value()) {
+    sqlite3_finalize(pendingMutationStatement);
+    return *error;
+  }
+  struct PendingPayload final {
+    QString mutationId;
+    QJsonObject payload;
+  };
+  QList<PendingPayload> pendingPayloads;
+  int pendingStepResult = SQLITE_ROW;
+  while ((pendingStepResult = sqlite3_step(pendingMutationStatement)) == SQLITE_ROW) {
+    const std::optional<QString> mutationId = optionalText(pendingMutationStatement, 0);
+    const std::optional<QString> payloadJson = optionalText(pendingMutationStatement, 1);
+    QJsonParseError parseError;
+    const QJsonDocument document = payloadJson.has_value()
+                                       ? QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError)
+                                       : QJsonDocument();
+    if (!mutationId.has_value() || !payloadJson.has_value() ||
+        parseError.error != QJsonParseError::NoError || !document.isObject()) {
+      sqlite3_finalize(pendingMutationStatement);
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored pending task mutation is invalid"));
+    }
+    QJsonObject payload = document.object();
+    const QJsonValue remoteTaskId = payload.value(QStringLiteral("remoteTaskId"));
+    const bool usesPendingRemoteId =
+        remoteTaskId.isString() && isPendingRemoteId(remoteTaskId.toString());
+    const bool usesReconciledRemoteId =
+        remoteTaskId.isString() && remoteTaskId.toString() == input.remoteTaskId;
+    if (usesPendingRemoteId || usesReconciledRemoteId) {
+      if (usesPendingRemoteId) {
+        payload.insert(QStringLiteral("remoteTaskId"), input.remoteTaskId);
+      }
+      if (input.remoteEtag.has_value()) {
+        const QJsonValue metadataValue = payload.value(QString::fromLatin1(kConflictMetadataKey));
+        if (!metadataValue.isObject()) {
+          sqlite3_finalize(pendingMutationStatement);
+          return AppError(AppErrorCode::Database,
+                          QStringLiteral("Stored pending task mutation is invalid"));
+        }
+        QJsonObject metadata = metadataValue.toObject();
+        metadata.insert(QStringLiteral("etag"), *input.remoteEtag);
+        payload.insert(QString::fromLatin1(kConflictMetadataKey), std::move(metadata));
+      }
+      pendingPayloads.append({.mutationId = *mutationId, .payload = std::move(payload)});
+    }
+  }
+  const int pendingFinalizeResult = sqlite3_finalize(pendingMutationStatement);
+  if (pendingStepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite pending task reconciliation lookup failed (%1)"),
+                         pendingStepResult);
+  }
+  if (pendingFinalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite pending task reconciliation lookup finalization failed (%1)"),
+        pendingFinalizeResult);
+  }
+  constexpr char updateMutationSql[] = R"(
+UPDATE local_pending_mutations
+SET payload_json = ?2, updated_at = ?3
+WHERE id = ?1 AND status IN ('pending', 'failed')
+)";
+  for (const PendingPayload& pending : pendingPayloads) {
+    sqlite3_stmt* updateMutationStatement = nullptr;
+    const int updatePrepareResult = sqlite3_prepare_v3(handle,
+                                                       updateMutationSql,
+                                                       -1,
+                                                       SQLITE_PREPARE_PERSISTENT,
+                                                       &updateMutationStatement,
+                                                       nullptr);
+    if (updatePrepareResult != SQLITE_OK) {
+      sqlite3_finalize(updateMutationStatement);
+      return databaseError(
+          QStringLiteral("SQLite pending task reconciliation update preparation failed (%1)"),
+          updatePrepareResult);
+    }
+    const QString payloadJson =
+        QString::fromUtf8(QJsonDocument(pending.payload).toJson(QJsonDocument::Compact));
+    if (const std::optional<AppError> error =
+            bindAll(updateMutationStatement,
+                    {bindText(updateMutationStatement, 1, pending.mutationId),
+                     bindText(updateMutationStatement, 2, payloadJson),
+                     bindText(updateMutationStatement, 3, updatedAt)});
+        error.has_value()) {
+      return *error;
+    }
+    const int updateStepResult = sqlite3_step(updateMutationStatement);
+    const int updateChangedRows = sqlite3_changes(handle);
+    const int updateFinalizeResult = sqlite3_finalize(updateMutationStatement);
+    if (updateStepResult != SQLITE_DONE) {
+      return databaseError(QStringLiteral("SQLite pending task reconciliation update failed (%1)"),
+                           updateStepResult);
+    }
+    if (updateFinalizeResult != SQLITE_OK) {
+      return databaseError(
+          QStringLiteral("SQLite pending task reconciliation update finalization failed (%1)"),
+          updateFinalizeResult);
+    }
+    if (updateChangedRows != 1) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Pending task mutation was unavailable for reconciliation"));
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return TaskMutationReceipt{.taskId = input.localTaskId, .updatedAt = updatedAt};
 }
 
 } // namespace
@@ -1278,7 +1412,8 @@ std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString task
     TaskCreateInput destination{.taskListId = taskListId,
                                 .title = before->title,
                                 .notes = before->notes,
-                                .due = TaskDue{.at = before->dueAt},
+                                .due =
+                                    TaskDue{.at = before->dueAt, .timeZone = before->dueTimeZone},
                                 .priority = *priority};
     TaskMutationResult created = createStoredTask(
         connection, destination, destinationTaskId, destinationRemoteId, updatedAt);
@@ -1331,7 +1466,8 @@ std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString task
     if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
       return TaskMutationResult(*error);
     }
-    return TaskMutationReceipt{.taskId = destinationTaskId, .updatedAt = updatedAt};
+    return TaskMutationResult(
+        TaskMutationReceipt{.taskId = destinationTaskId, .updatedAt = updatedAt});
   });
 }
 
@@ -1442,6 +1578,24 @@ TaskMutationService::reconcileGoogleTask(TaskRemoteReconciliationInput input) {
       [input = std::move(input), updatedAt](SqliteConnection& connection) {
         return reconcileStoredGoogleTask(connection, input, updatedAt);
       });
+}
+
+std::future<TaskRemoteIdResult> TaskMutationService::remoteTaskId(QString taskId) {
+  if (!isValidRequiredText(taskId, kMaximumIdentifierLength)) {
+    return readyFuture(TaskRemoteIdResult(
+        validationError(QStringLiteral("Task remote ID lookup input is invalid"))));
+  }
+  return writerQueue_.enqueueResult([taskId = std::move(taskId)](SqliteConnection& connection) {
+    const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+        readTaskContext(connection, taskId);
+    if (std::holds_alternative<AppError>(contextResult)) {
+      return TaskRemoteIdResult(std::get<AppError>(contextResult));
+    }
+    const std::optional<StoredTaskContext>& context =
+        std::get<std::optional<StoredTaskContext>>(contextResult);
+    return context.has_value() ? TaskRemoteIdResult(std::optional<QString>(context->remoteId))
+                               : TaskRemoteIdResult(std::optional<QString>{});
+  });
 }
 
 } // namespace hcb

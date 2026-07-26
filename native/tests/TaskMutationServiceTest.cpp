@@ -53,6 +53,7 @@ struct TaskSnapshot final {
 };
 
 struct PendingMutationSnapshot final {
+  QString id;
   QString operation;
   QJsonObject payload;
 };
@@ -186,7 +187,7 @@ WHERE id = ?1
 [[nodiscard]] std::optional<PendingMutationSnapshot>
 readPendingTaskMutation(sqlite3* handle, const QString& taskId) {
   constexpr char sql[] = R"(
-SELECT operation, payload_json
+SELECT id, operation, payload_json
 FROM local_pending_mutations
 WHERE resource_type = 'task' AND resource_id = ?1 AND status IN ('pending', 'failed')
 ORDER BY created_at DESC, id DESC
@@ -211,14 +212,16 @@ LIMIT 1
     sqlite3_finalize(statement);
     return std::nullopt;
   }
-  const std::optional<QString> operation = optionalText(statement, 0);
-  const std::optional<QString> payloadJson = optionalText(statement, 1);
+  const std::optional<QString> mutationId = optionalText(statement, 0);
+  const std::optional<QString> operation = optionalText(statement, 1);
+  const std::optional<QString> payloadJson = optionalText(statement, 2);
   const QJsonDocument payload =
       payloadJson.has_value() ? QJsonDocument::fromJson(payloadJson->toUtf8()) : QJsonDocument();
   const int finalizeResult = sqlite3_finalize(statement);
-  return finalizeResult == SQLITE_OK && operation.has_value() && payload.isObject()
-             ? std::optional<PendingMutationSnapshot>(
-                   PendingMutationSnapshot{.operation = *operation, .payload = payload.object()})
+  return finalizeResult == SQLITE_OK && mutationId.has_value() && operation.has_value() &&
+                 payload.isObject()
+             ? std::optional<PendingMutationSnapshot>(PendingMutationSnapshot{
+                   .id = *mutationId, .operation = *operation, .payload = payload.object()})
              : std::nullopt;
 }
 
@@ -566,6 +569,49 @@ void TaskMutationServiceTest::movesTaskToAnotherActiveList() {
   const hcb::TaskMutationResult deletedListResult = awaitResult(deletedListMove);
   QVERIFY(std::holds_alternative<hcb::AppError>(deletedListResult));
   QCOMPARE(std::get<hcb::AppError>(deletedListResult).code(), hcb::AppErrorCode::Validation);
+
+  execute(handle,
+          "INSERT INTO local_tasks (id, task_list_id, remote_id, title, state, due_at, "
+          "due_time_zone, etag, updated_at) VALUES "
+          "('task-remote', 'list-active', 'remote-original', 'Remote task', 'active', "
+          "'2026-08-01T00:00:00.000Z', 'Asia/Singapore', 'remote-etag', "
+          "'2026-07-25T00:00:00Z')");
+  std::future<hcb::TaskMutationResult> remoteMove =
+      service.moveToTaskList(QStringLiteral("task-remote"), QStringLiteral("list-other"));
+  const hcb::TaskMutationResult remoteMoveResult = awaitResult(remoteMove);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(remoteMoveResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(remoteMoveResult)) {
+    return;
+  }
+  const QString replacementId = std::get<hcb::TaskMutationReceipt>(remoteMoveResult).taskId;
+  QVERIFY(replacementId != QStringLiteral("task-remote"));
+  const std::optional<TaskSnapshot> original = readTask(handle, QStringLiteral("task-remote"));
+  const std::optional<TaskSnapshot> replacement = readTask(handle, replacementId);
+  QVERIFY(original.has_value());
+  QVERIFY(replacement.has_value());
+  if (!original.has_value() || !replacement.has_value()) {
+    return;
+  }
+  QVERIFY(original->deletedAt.has_value());
+  QCOMPARE(replacement->taskListId, QStringLiteral("list-other"));
+  QVERIFY(replacement->remoteId.startsWith(QStringLiteral("pending:")));
+  QCOMPARE(replacement->dueAt, std::optional<QString>(QStringLiteral("2026-08-01T00:00:00.000Z")));
+  QCOMPARE(replacement->dueTimeZone, std::optional<QString>(QStringLiteral("Asia/Singapore")));
+  const std::optional<PendingMutationSnapshot> replacementCreate =
+      readPendingTaskMutation(handle, replacementId);
+  const std::optional<PendingMutationSnapshot> originalDelete =
+      readPendingTaskMutation(handle, QStringLiteral("task-remote"));
+  QVERIFY(replacementCreate.has_value());
+  QVERIFY(originalDelete.has_value());
+  if (!replacementCreate.has_value() || !originalDelete.has_value()) {
+    return;
+  }
+  QCOMPARE(replacementCreate->operation, QStringLiteral("task.create"));
+  QCOMPARE(originalDelete->operation, QStringLiteral("task.delete"));
+  QCOMPARE(originalDelete->payload.value(QStringLiteral("remoteTaskId")).toString(),
+           QStringLiteral("remote-original"));
+  QCOMPARE(originalDelete->payload.value(QStringLiteral("dependsOnMutationId")).toString(),
+           replacementCreate->id);
 }
 
 void TaskMutationServiceTest::createsAndReparentsOneLevelSubtasks() {
