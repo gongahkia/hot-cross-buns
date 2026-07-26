@@ -113,6 +113,26 @@ QHash<int, QByteArray> TaskModel::roleNames() const {
           {SortOrderRole, "sortOrder"}};
 }
 
+QVariantList TaskModel::taskIds() const {
+  QVariantList ids;
+  ids.reserve(static_cast<qsizetype>(nodes_.size()));
+  for (const std::unique_ptr<Node>& node : nodes_) {
+    ids.append(node->task.id);
+  }
+  return ids;
+}
+
+QVariantList TaskModel::topLevelTasks() const {
+  QVariantList tasks;
+  tasks.reserve(roots_.size());
+  for (const Node* root : roots_) {
+    tasks.append(QVariantMap{{QStringLiteral("id"), root->task.id},
+                             {QStringLiteral("title"), root->task.title},
+                             {QStringLiteral("taskListId"), root->task.taskListId}});
+  }
+  return tasks;
+}
+
 void TaskModel::setTasks(QList<TaskModelTask> tasks) {
   std::vector<std::unique_ptr<Node>> nodes;
   nodes.reserve(static_cast<std::size_t>(tasks.size()));

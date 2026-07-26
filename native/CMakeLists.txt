@@ -175,6 +175,8 @@ set(HCB_NATIVE_SOURCES
   src/core/TaskListModel.h
   src/core/TaskListMutationService.cpp
   src/core/TaskListMutationService.h
+  src/core/TaskBulkMutationService.cpp
+  src/core/TaskBulkMutationService.h
   src/core/TaskModel.cpp
   src/core/TaskModel.h
   src/core/TaskMutationService.cpp
@@ -249,6 +251,9 @@ qt_add_qml_module(hcb_native
     qml/SearchPopup.qml
     qml/TaskCreateDialog.qml
     qml/TaskDeleteDialog.qml
+    qml/TaskBulkDeleteDialog.qml
+    qml/TaskBulkEditDialog.qml
+    qml/TaskBulkMoveDialog.qml
     qml/TaskEditDialog.qml
     qml/TaskListView.qml
     qml/TaskListControls.qml
@@ -1179,6 +1184,34 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_task_mutation_service_tests)
   hcb_enable_sanitizers(hcb_task_mutation_service_tests)
   add_test(NAME hcb_task_mutation_service_tests COMMAND hcb_task_mutation_service_tests)
+
+  qt_add_executable(hcb_task_bulk_mutation_service_tests
+    tests/TaskBulkMutationServiceTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/TaskBulkMutationService.cpp
+    src/core/TaskBulkMutationService.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_task_bulk_mutation_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_task_bulk_mutation_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_task_bulk_mutation_service_tests)
+  hcb_enable_sanitizers(hcb_task_bulk_mutation_service_tests)
+  add_test(NAME hcb_task_bulk_mutation_service_tests COMMAND hcb_task_bulk_mutation_service_tests)
 
   qt_add_executable(hcb_task_list_mutation_service_tests
     tests/TaskListMutationServiceTest.cpp
@@ -2417,6 +2450,7 @@ if(BUILD_TESTING)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
 
   qt_add_executable(hcb_native_qml_shell_smoke tests/NativeQmlShellSmokeTest.cpp)
+  add_dependencies(hcb_native_qml_shell_smoke hcb_native)
   target_link_libraries(hcb_native_qml_shell_smoke PRIVATE Qt6::Core Qt6::Test)
   hcb_enable_warnings(hcb_native_qml_shell_smoke)
   hcb_enable_sanitizers(hcb_native_qml_shell_smoke)
@@ -2474,6 +2508,7 @@ if(BUILD_TESTING)
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
     hcb_domain_service_contract_tests
+    hcb_task_bulk_mutation_service_tests
     hcb_task_list_read_service_tests
     hcb_task_read_service_tests
     hcb_google_mirror_store_tests
@@ -2579,6 +2614,7 @@ if(BUILD_TESTING)
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
     hcb_domain_service_contract_tests
+    hcb_task_bulk_mutation_service_tests
     hcb_task_list_read_service_tests
     hcb_task_read_service_tests
     hcb_google_mirror_store_tests

@@ -672,6 +672,60 @@ TestCase {
         taskLists.destroy()
     }
 
+    function test_bulkTaskSelectionKeyboardAndActions() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const taskModel = Qt.createQmlObject(
+            'import QtQml; QtObject { function taskIds() { return ["task-a", "task-b"] } '
+            + 'function topLevelTasks() { return [{ id: "task-parent", title: "Parent" }] } }', testCase)
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            busy: false,
+            bulkSetTaskCompleted: function(taskIds, completed) {
+                calls.push({ action: "complete", taskIds: taskIds, completed: completed })
+            },
+            bulkDeleteTasks: function(taskIds) {
+                calls.push({ action: "delete", taskIds: taskIds })
+            },
+            bulkSetTaskDue: function(taskIds, dueAt) {
+                calls.push({ action: "due", taskIds: taskIds, dueAt: dueAt })
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            taskModel: taskModel,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        mainWindow.requestActivate()
+        tryCompare(mainWindow, "active", true)
+        mainWindow.taskList.bulkSelectAllButton.forceActiveFocus()
+        keyClick(Qt.Key_A, Qt.ControlModifier)
+        tryCompare(mainWindow.taskList.selectedTaskIds, "length", 2)
+        compare(mainWindow.taskList.bulkSelectionStatus.text, "2 selected · eligibility checked before queueing")
+        compare(mainWindow.taskList.bulkCompleteButton.Accessible.name, "Complete 2 tasks")
+        mainWindow.taskList.bulkCompleteButton.click()
+        compare(calls.length, 1)
+        compare(calls[0].action, "complete")
+        compare(calls[0].taskIds.length, 2)
+        compare(calls[0].completed, true)
+        mainWindow.taskList.bulkDeleteButton.click()
+        verify(mainWindow.taskList.bulkDeleteDialog.opened)
+        verify(mainWindow.taskList.bulkDeleteDialog.primaryEnabled)
+        mainWindow.taskList.bulkDeleteDialog.primaryButton.click()
+        compare(calls.length, 2)
+        compare(calls[1].action, "delete")
+        mainWindow.taskList.bulkEditDialog.openForDue(mainWindow.taskList.selectedTaskIds)
+        mainWindow.taskList.bulkEditDialog.dueField.text = "2026-08-01"
+        mainWindow.taskList.bulkEditDialog.primaryButton.click()
+        compare(calls.length, 3)
+        compare(calls[2].action, "due")
+        compare(calls[2].dueAt, "2026-08-01")
+        mainWindow.destroy()
+        taskModel.destroy()
+    }
+
     function test_taskListDialogsNameAffectedTasksAndEmitRequests() {
         const editorComponent = Qt.createComponent("../../qml/TaskListEditorDialog.qml")
         compare(editorComponent.status, Component.Ready, editorComponent.errorString())

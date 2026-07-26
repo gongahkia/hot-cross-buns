@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QTimeZone>
 #include <QUuid>
@@ -1775,6 +1776,58 @@ std::future<TaskMutationResult> TaskMutationService::remove(QString taskId) {
         }
         return removed;
       });
+}
+
+std::future<TaskMutationSnapshotResult> TaskMutationService::inspect(QList<QString> taskIds) {
+  constexpr qsizetype kMaximumInspectionSize = 501; // one compatible parent plus a 500-task bulk selection
+  QSet<QString> uniqueIds;
+  if (taskIds.isEmpty() || taskIds.size() > kMaximumInspectionSize) {
+    return readyFuture(TaskMutationSnapshotResult(
+        validationError(QStringLiteral("Task inspection input is invalid"))));
+  }
+  for (const QString& taskId : taskIds) {
+    if (!isValidRequiredText(taskId, kMaximumIdentifierLength) || uniqueIds.contains(taskId)) {
+      return readyFuture(TaskMutationSnapshotResult(
+          validationError(QStringLiteral("Task inspection input is invalid"))));
+    }
+    uniqueIds.insert(taskId);
+  }
+  return writerQueue_.enqueueResult([taskIds = std::move(taskIds)](SqliteConnection& connection) {
+    QList<TaskMutationSnapshot> snapshots;
+    snapshots.reserve(taskIds.size());
+    for (const QString& taskId : taskIds) {
+      const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+          readTaskContext(connection, taskId);
+      if (std::holds_alternative<AppError>(contextResult)) {
+        return TaskMutationSnapshotResult(std::get<AppError>(contextResult));
+      }
+      const std::optional<StoredTaskContext>& context =
+          std::get<std::optional<StoredTaskContext>>(contextResult);
+      if (!context.has_value()) {
+        continue;
+      }
+      const std::optional<TaskPriority> priority = priorityFromText(context->priority);
+      if (!priority.has_value() ||
+          (context->state != QStringLiteral("active") &&
+           context->state != QStringLiteral("completed"))) {
+        return TaskMutationSnapshotResult(
+            AppError(AppErrorCode::Database, QStringLiteral("Stored task is invalid")));
+      }
+      const std::variant<bool, AppError> childResult = hasActiveTaskChild(connection, taskId);
+      if (std::holds_alternative<AppError>(childResult)) {
+        return TaskMutationSnapshotResult(std::get<AppError>(childResult));
+      }
+      snapshots.append({.taskId = context->taskId,
+                        .taskListId = context->taskListId,
+                        .parentTaskId = context->parentTaskId,
+                        .dueAt = context->dueAt,
+                        .dueTimeZone = context->dueTimeZone,
+                        .priority = *priority,
+                        .completed = context->state == QStringLiteral("completed"),
+                        .hasActiveChildren = std::get<bool>(childResult)});
+    }
+    return TaskMutationSnapshotResult(std::move(snapshots));
+  });
 }
 
 std::future<TaskMutationResult>

@@ -38,7 +38,7 @@ Required task capabilities:
 - delete task
 - move task between lists
 - bulk-select visible tasks
-- bulk complete/reopen, move, and delete selected tasks
+- bulk complete/reopen/delete/move/set-or-clear-due/set-priority/reparent selected tasks
 - display subtasks
 - filter completed/deleted/hidden tasks
 - support local optimistic updates through the mutation queue
@@ -200,7 +200,7 @@ Remaining Mac v1 blockers:
 - Today's local timeline is grouped into all-day, morning, afternoon, evening, and unscheduled sections using cached events, scheduled task blocks, and existing task rows. Timed tasks are represented as linked Google Calendar blocks plus local metadata; task due dates remain date-only. Today also shows next-up context, linked-block conflict warnings, and earlier/later movement controls.
 - Scheduled task blocks prevent duplicate active blocks for the same task, can surface orphaned links when the backing calendar event disappears, and can repair an orphan by recreating its linked calendar event.
 - Today block controls support duration changes in addition to earlier/later movement.
-- Tasks support per-row multi-select plus bulk complete/reopen, move, and delete actions over the active filtered task set.
+- Tasks support per-row multi-select plus bulk complete/reopen/delete/move/set-or-clear-due/set-priority/reparent actions over the active filtered task set. Each bulk action reports requested, eligible, queued, failed, and skipped counts; Google application remains asynchronous through the durable mutation queue.
 - Calendar exposes static text availability export in the renderer by calling the same typed local calendar service used by MCP and tests. Day view is an hourly planning grid where empty slots create timed event drafts directly; day/week grids accept dragged events for time/day moves, and day events expose resize handles for end-time changes.
 - Notes support markdown-style preview, `[[note title]]` outgoing links, and backlinks over loaded note bodies.
 - Calendar agenda, task, note, and search surfaces remain virtualized or range/pagination-shaped to preserve renderer and IPC budgets.

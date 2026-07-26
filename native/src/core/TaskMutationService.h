@@ -5,6 +5,7 @@
 #include "core/FilePath.h"
 #include "data/SqliteWriterQueue.h"
 
+#include <QList>
 #include <QString>
 
 #include <cstdint>
@@ -60,8 +61,20 @@ struct TaskRemoteReconciliationInput final {
   std::optional<QString> remoteEtag;
 };
 
+struct TaskMutationSnapshot final {
+  QString taskId;
+  QString taskListId;
+  std::optional<QString> parentTaskId;
+  std::optional<QString> dueAt;
+  std::optional<QString> dueTimeZone;
+  TaskPriority priority{TaskPriority::None};
+  bool completed{false};
+  bool hasActiveChildren{false};
+};
+
 using TaskMutationResult = std::variant<TaskMutationReceipt, AppError>;
 using TaskRemoteIdResult = std::variant<std::optional<QString>, AppError>;
+using TaskMutationSnapshotResult = std::variant<QList<TaskMutationSnapshot>, AppError>;
 
 class TaskMutationService final {
 public:
@@ -77,6 +90,7 @@ public:
   reorder(QString taskId, TaskReorderDirection direction);
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
+  [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);
   [[nodiscard]] std::future<TaskMutationResult>
   reconcileGoogleTask(TaskRemoteReconciliationInput input);
   [[nodiscard]] std::future<TaskRemoteIdResult> remoteTaskId(QString taskId);

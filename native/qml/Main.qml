@@ -486,6 +486,9 @@ ApplicationWindow {
                 taskListErrorMessage: window.appController !== null &&
                                       typeof window.appController.taskListErrorMessage === "string"
                                       ? window.appController.taskListErrorMessage : ""
+                bulkTaskStatusMessage: window.appController !== null &&
+                                       typeof window.appController.bulkTaskStatusMessage === "string"
+                                       ? window.appController.bulkTaskStatusMessage : ""
                 onTaskListCreateRequested: taskListEditorDialog.openForCreate()
                 onTaskListRenameRequested: function(taskListId, title) {
                     taskListEditorDialog.openForRename(taskListId, title)
@@ -518,6 +521,27 @@ ApplicationWindow {
                 }
                 onTaskMoveRequested: function(taskId, taskListId, taskTitle) {
                     taskMoveDialog.openForMove(taskId, taskTitle, taskListId)
+                }
+                onBulkTaskCompletionRequested: function(taskIds, completed) {
+                    window.controllerCall("bulkSetTaskCompleted", [taskIds, completed])
+                }
+                onBulkTaskDeleteRequested: function(taskIds) {
+                    window.controllerCall("bulkDeleteTasks", [taskIds])
+                }
+                onBulkTaskMoveRequested: function(taskIds, taskListId) {
+                    window.controllerCall("bulkMoveTasks", [taskIds, taskListId])
+                }
+                onBulkTaskDueRequested: function(taskIds, dueAt) {
+                    window.controllerCall("bulkSetTaskDue", [taskIds, dueAt])
+                }
+                onBulkTaskClearDueRequested: function(taskIds) {
+                    window.controllerCall("bulkClearTaskDue", [taskIds])
+                }
+                onBulkTaskPriorityRequested: function(taskIds, priority) {
+                    window.controllerCall("bulkSetTaskPriority", [taskIds, priority])
+                }
+                onBulkTaskReparentRequested: function(taskIds, parentTaskId) {
+                    window.controllerCall("bulkReparentTasks", [taskIds, parentTaskId])
                 }
             }
 

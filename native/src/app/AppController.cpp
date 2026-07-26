@@ -16,6 +16,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QMetaType>
 #include <QTimeZone>
 #include <QTimer>
 #include <QThread>
@@ -79,6 +80,44 @@ constexpr int kSearchDebounceMilliseconds = 180;
   default:
     return std::nullopt;
   }
+}
+
+[[nodiscard]] std::optional<QList<QString>> taskIdsFromVariantList(const QVariantList& values) {
+  QList<QString> taskIds;
+  taskIds.reserve(values.size());
+  for (const QVariant& value : values) {
+    if (value.metaType().id() != QMetaType::QString) {
+      return std::nullopt;
+    }
+    taskIds.append(value.toString());
+  }
+  return taskIds;
+}
+
+[[nodiscard]] std::optional<QString> normalizedDueAt(QString value) {
+  value = value.trimmed();
+  if (value.isEmpty()) {
+    return std::nullopt;
+  }
+  const QDate date = QDate::fromString(value, Qt::ISODate);
+  if (date.isValid()) {
+    return QDateTime(date, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+  }
+  const QDateTime dateTime = QDateTime::fromString(value, Qt::ISODate);
+  return dateTime.isValid() ? std::optional<QString>(dateTime.toUTC().toString(Qt::ISODateWithMs))
+                            : std::nullopt;
+}
+
+[[nodiscard]] QString bulkTaskSummaryMessage(const TaskBulkMutationSummary& summary) {
+  return QStringLiteral("%1 selected · %2 eligible · applied %3 · queued %4 · conflicted %5 · "
+                        "failed %6 · skipped %7. Remote sync pending.")
+      .arg(summary.requested)
+      .arg(summary.eligible)
+      .arg(summary.applied)
+      .arg(summary.queued)
+      .arg(summary.conflicted)
+      .arg(summary.failed)
+      .arg(summary.skipped);
 }
 
 [[nodiscard]] std::optional<SyncConflictPolicy> conflictPolicyForValue(int value) {
@@ -173,7 +212,8 @@ AppController::AppController(FilePath databasePath,
       optimisticMutationCoordinator_(databasePath, clock),
       syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
       googleSyncConflictResolver_(optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
-      taskMutationService_(databasePath, clock), taskListMutationService_(databasePath, clock),
+      taskMutationService_(databasePath, clock), taskBulkMutationService_(taskMutationService_),
+      taskListMutationService_(databasePath, clock),
       calendarMutationService_(databasePath, clock),
       googleSyncRecoveryService_(syncCheckpointStore_),
       googleTaskMutationPushService_(optimisticMutationCoordinator_,
@@ -248,6 +288,8 @@ QVariantList AppController::searchFilterChips() const { return searchFilterChips
 QVariantList AppController::savedSearches() const { return savedSearchRows_; }
 
 bool AppController::searchLoading() const { return searchLoading_; }
+
+QString AppController::bulkTaskStatusMessage() const { return bulkTaskStatusMessage_; }
 
 bool AppController::busy() const { return busy_; }
 
@@ -919,15 +961,21 @@ void AppController::updateTask(QString taskId,
     setStatus(QStringLiteral("Task priority is invalid"));
     return;
   }
+  const bool clearingDue = dueAt.trimmed().isEmpty();
+  const std::optional<QString> normalizedDue =
+      clearingDue ? std::optional<QString>{} : normalizedDueAt(std::move(dueAt));
+  if (!normalizedDue.has_value() && !clearingDue) {
+    setStatus(QStringLiteral("Task due date is invalid"));
+    return;
+  }
   watch(taskMutationService_.update(
             {.taskId = std::move(taskId),
              .title = std::move(title),
              .notes = std::move(notes),
-             .due = TaskDue{.at = dueAt.isEmpty() ? std::nullopt
-                                                  : std::optional<QString>(std::move(dueAt)),
-                            .timeZone = dueTimeZone.isEmpty()
-                                            ? std::nullopt
-                                            : std::optional<QString>(std::move(dueTimeZone))},
+             .due = TaskDue{.at = normalizedDue,
+                            .timeZone = normalizedDue.has_value() && !dueTimeZone.isEmpty()
+                                            ? std::optional<QString>(std::move(dueTimeZone))
+                                            : std::nullopt},
              .priority = *parsedPriority}),
         [this](TaskMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
@@ -982,6 +1030,80 @@ void AppController::reparentTask(QString taskId, QString parentTaskId) {
             refreshTasks();
           }
         });
+}
+
+void AppController::bulkSetTaskCompleted(QVariantList taskIds, bool completed) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk task selection is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = completed ? TaskBulkAction::Complete : TaskBulkAction::Reopen,
+                        .taskIds = *ids});
+}
+
+void AppController::bulkDeleteTasks(QVariantList taskIds) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk task selection is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = TaskBulkAction::Delete, .taskIds = *ids});
+}
+
+void AppController::bulkMoveTasks(QVariantList taskIds, QString taskListId) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk task selection is invalid"));
+    return;
+  }
+  runBulkTaskMutation(
+      {.action = TaskBulkAction::MoveToList, .taskIds = *ids, .taskListId = std::move(taskListId)});
+}
+
+void AppController::bulkSetTaskDue(QVariantList taskIds, QString dueAt) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  const std::optional<QString> normalizedDue = normalizedDueAt(std::move(dueAt));
+  if (!ids.has_value() || !normalizedDue.has_value()) {
+    setStatus(QStringLiteral("Bulk task due date is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = TaskBulkAction::SetDue,
+                        .taskIds = *ids,
+                        .due = TaskDue{.at = normalizedDue}});
+}
+
+void AppController::bulkClearTaskDue(QVariantList taskIds) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk task selection is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = TaskBulkAction::ClearDue, .taskIds = *ids});
+}
+
+void AppController::bulkSetTaskPriority(QVariantList taskIds, int priority) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  const std::optional<TaskPriority> parsedPriority = priorityForValue(priority);
+  if (!ids.has_value() || !parsedPriority.has_value()) {
+    setStatus(QStringLiteral("Bulk task priority is invalid"));
+    return;
+  }
+  runBulkTaskMutation(
+      {.action = TaskBulkAction::SetPriority, .taskIds = *ids, .priority = *parsedPriority});
+}
+
+void AppController::bulkReparentTasks(QVariantList taskIds, QString parentTaskId) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk task selection is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = TaskBulkAction::Reparent,
+                        .taskIds = *ids,
+                        .parentTaskId = parentTaskId.trimmed().isEmpty()
+                                            ? std::optional<QString>{}
+                                            : std::optional<QString>(std::move(parentTaskId))});
 }
 
 void AppController::createEvent(QString calendarId,
@@ -1117,6 +1239,24 @@ void AppController::loadSavedSearches() {
       return;
     }
     setSavedSearches(std::get<QList<SavedSearch>>(std::move(result)));
+  });
+}
+
+void AppController::runBulkTaskMutation(TaskBulkMutationInput input) {
+  watch(taskBulkMutationService_.execute(std::move(input)), [this](TaskBulkMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      const QString message = errorMessage(std::get<AppError>(result));
+      setBulkTaskStatusMessage(message);
+      setStatus(message);
+      return;
+    }
+    const TaskBulkMutationSummary& summary = std::get<TaskBulkMutationSummary>(result);
+    const QString message = bulkTaskSummaryMessage(summary);
+    setBulkTaskStatusMessage(message);
+    setStatus(message);
+    if (summary.queued > 0) {
+      refreshTasks();
+    }
   });
 }
 
@@ -1338,6 +1478,14 @@ void AppController::setSearchLoading(bool loading) {
   }
   searchLoading_ = loading;
   emit searchLoadingChanged();
+}
+
+void AppController::setBulkTaskStatusMessage(QString message) {
+  if (bulkTaskStatusMessage_ == message) {
+    return;
+  }
+  bulkTaskStatusMessage_ = std::move(message);
+  emit bulkTaskStatusMessageChanged();
 }
 
 void AppController::setBusy(bool busy) {

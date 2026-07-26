@@ -8,9 +8,18 @@ Pane {
     property var taskModel: null
     property bool taskListLoading: false
     property string taskListErrorMessage: ""
+    property string bulkTaskStatusMessage: ""
+    property var selectedTaskIds: []
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
     property alias taskListControls: taskListControls
+    property alias bulkSelectAllButton: bulkSelectAllButton
+    property alias bulkCompleteButton: bulkCompleteButton
+    property alias bulkDeleteButton: bulkDeleteButton
+    property alias bulkSelectionStatus: bulkSelectionStatus
+    property alias bulkDeleteDialog: bulkDeleteDialog
+    property alias bulkMoveDialog: bulkMoveDialog
+    property alias bulkEditDialog: bulkEditDialog
     signal taskSelected(string taskId)
     signal taskCreateRequested()
     signal taskSubtaskCreateRequested(string parentTaskId, string taskListId)
@@ -25,6 +34,13 @@ Pane {
     signal taskListRenameRequested(string taskListId, string title)
     signal taskListDeleteRequested(string taskListId, string title, int taskCount, var taskTitles)
     signal taskListSelectionRequested(string taskListId, bool selected)
+    signal bulkTaskCompletionRequested(var taskIds, bool completed)
+    signal bulkTaskDeleteRequested(var taskIds)
+    signal bulkTaskMoveRequested(var taskIds, string taskListId)
+    signal bulkTaskDueRequested(var taskIds, string dueAt)
+    signal bulkTaskClearDueRequested(var taskIds)
+    signal bulkTaskPriorityRequested(var taskIds, int priority)
+    signal bulkTaskReparentRequested(var taskIds, string parentTaskId)
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -62,6 +78,45 @@ Pane {
         taskReorderRequested(taskId, earlier)
     }
 
+    function isTaskSelected(taskId) {
+        return selectedTaskIds.indexOf(taskId) >= 0
+    }
+
+    function setTaskSelected(taskId, selected) {
+        const next = selectedTaskIds.slice()
+        const index = next.indexOf(taskId)
+        if (selected && index < 0) {
+            next.push(taskId)
+        } else if (!selected && index >= 0) {
+            next.splice(index, 1)
+        }
+        selectedTaskIds = next
+    }
+
+    function selectAllTasks() {
+        if (taskModel !== null && typeof taskModel.taskIds === "function") {
+            selectedTaskIds = taskModel.taskIds()
+        }
+    }
+
+    function clearTaskSelection() {
+        selectedTaskIds = []
+    }
+
+    Shortcut {
+        sequence: "Ctrl+A"
+        autoRepeat: false
+        enabled: root.visible
+        onActivated: root.selectAllTasks()
+    }
+
+    Connections {
+        target: root.taskModel
+        function onModelReset() {
+            root.clearTaskSelection()
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingMedium
@@ -85,6 +140,14 @@ Pane {
                 Accessible.description: "Create a task in an active task list"
                 onClicked: root.requestTaskCreate()
             }
+
+            Button {
+                id: bulkSelectAllButton
+                text: "Select all"
+                Accessible.name: "Select all tasks in current view"
+                enabled: !root.taskListLoading && root.taskModel !== null
+                onClicked: root.selectAllTasks()
+            }
         }
 
         TaskListControls {
@@ -103,6 +166,100 @@ Pane {
             onTaskListSelectionRequested: function(taskListId, selected) {
                 root.taskListSelectionRequested(taskListId, selected)
             }
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: Theme.spacingSmall
+            visible: selectedTaskIds.length > 0
+
+            Label {
+                id: bulkSelectionStatus
+                text: selectedTaskIds.length + " selected · eligibility checked before queueing"
+                color: Theme.textSecondary
+                Accessible.name: text
+            }
+
+            Button {
+                text: "Select all again"
+                Accessible.name: "Select all tasks in current view"
+                enabled: !root.taskListLoading
+                onClicked: root.selectAllTasks()
+            }
+
+            Button {
+                text: "Clear selection"
+                Accessible.name: text
+                enabled: !root.taskListLoading
+                onClicked: root.clearTaskSelection()
+            }
+
+            Button {
+                id: bulkCompleteButton
+                text: "Complete"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, true)
+            }
+
+            Button {
+                text: "Reopen"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, false)
+            }
+
+            Button {
+                id: bulkDeleteButton
+                text: "Delete"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkDeleteDialog.openForDelete(selectedTaskIds)
+            }
+
+            Button {
+                text: "Move"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkMoveDialog.openForMove(selectedTaskIds)
+            }
+
+            Button {
+                text: "Set due"
+                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkEditDialog.openForDue(selectedTaskIds)
+            }
+
+            Button {
+                text: "Clear due"
+                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: root.bulkTaskClearDueRequested(selectedTaskIds)
+            }
+
+            Button {
+                text: "Set priority"
+                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkEditDialog.openForPriority(selectedTaskIds)
+            }
+
+            Button {
+                text: "Reparent"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkEditDialog.openForReparent(selectedTaskIds)
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: bulkTaskStatusMessage.length > 0
+            text: bulkTaskStatusMessage
+            color: Theme.textSecondary
+            wrapMode: Text.WordWrap
+            Accessible.name: text
         }
 
         TreeView {
@@ -148,6 +305,13 @@ Pane {
                     anchors.fill: parent
                     anchors.leftMargin: depth * Theme.spacingLarge
                     spacing: Theme.spacingSmall
+
+                    CheckBox {
+                        id: taskSelectionCheck
+                        checked: root.isTaskSelected(id)
+                        Accessible.name: "Select " + title
+                        onToggled: root.setTaskSelected(id, checked)
+                    }
 
                     Button {
                         id: expandButton
@@ -244,6 +408,38 @@ Pane {
             text: "Your inbox is clear."
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
+        }
+    }
+
+    TaskBulkDeleteDialog {
+        id: bulkDeleteDialog
+        parent: Overlay.overlay
+        onBulkDeleteRequested: function(taskIds) {
+            root.bulkTaskDeleteRequested(taskIds)
+        }
+    }
+
+    TaskBulkMoveDialog {
+        id: bulkMoveDialog
+        parent: Overlay.overlay
+        taskListModel: root.taskListModel
+        onBulkMoveRequested: function(taskIds, taskListId) {
+            root.bulkTaskMoveRequested(taskIds, taskListId)
+        }
+    }
+
+    TaskBulkEditDialog {
+        id: bulkEditDialog
+        parent: Overlay.overlay
+        taskModel: root.taskModel
+        onBulkDueRequested: function(taskIds, dueAt) {
+            root.bulkTaskDueRequested(taskIds, dueAt)
+        }
+        onBulkPriorityRequested: function(taskIds, priority) {
+            root.bulkTaskPriorityRequested(taskIds, priority)
+        }
+        onBulkReparentRequested: function(taskIds, parentTaskId) {
+            root.bulkTaskReparentRequested(taskIds, parentTaskId)
         }
     }
 }

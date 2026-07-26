@@ -3,6 +3,7 @@
 #include "core/TaskMutationService.h"
 
 #include <QAbstractItemModel>
+#include <QVariantList>
 
 #include <QList>
 #include <QString>
@@ -55,6 +56,8 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
+  Q_INVOKABLE QVariantList taskIds() const;
+  Q_INVOKABLE QVariantList topLevelTasks() const;
   void setTasks(QList<TaskModelTask> tasks);
 
 private:
