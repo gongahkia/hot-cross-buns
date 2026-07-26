@@ -93,6 +93,16 @@ QVariant TaskModel::data(const QModelIndex& index, int role) const {
     return static_cast<int>(task.priority);
   case CompletedRole:
     return task.completed;
+  case ManagedRecurrenceRole:
+    return task.managedRecurrence;
+  case RecurrenceSummaryRole:
+    return task.recurrenceSummary;
+  case RecurrenceSeriesIdRole:
+    return task.recurrenceSeriesId;
+  case RecurrenceOccurrenceIdRole:
+    return task.recurrenceOccurrenceId;
+  case RecurrenceDiagnosticRole:
+    return task.recurrenceDiagnostic;
   case SortOrderRole:
     return static_cast<qlonglong>(task.sortOrder);
   default:
@@ -110,6 +120,11 @@ QHash<int, QByteArray> TaskModel::roleNames() const {
           {DueTimeZoneRole, "dueTimeZone"},
           {PriorityRole, "priority"},
           {CompletedRole, "completed"},
+          {ManagedRecurrenceRole, "managedRecurrence"},
+          {RecurrenceSummaryRole, "recurrenceSummary"},
+          {RecurrenceSeriesIdRole, "recurrenceSeriesId"},
+          {RecurrenceOccurrenceIdRole, "recurrenceOccurrenceId"},
+          {RecurrenceDiagnosticRole, "recurrenceDiagnostic"},
           {SortOrderRole, "sortOrder"}};
 }
 

@@ -1,5 +1,6 @@
 #include "core/TaskReadService.h"
 
+#include "core/TaskRecurrenceMarker.h"
 #include "data/LocalSchema.h"
 #include "sqlite3.h"
 
@@ -147,17 +148,30 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
     }
     const std::optional<QString> dueAt = optionalText(statement, 6);
     const std::optional<QString> dueTimeZone = optionalText(statement, 7);
+    const std::optional<QString> storedNotes = optionalText(statement, 5);
+    const TaskRecurrenceNotes recurrence =
+        parseTaskRecurrenceNotes(storedNotes.value_or(QString()));
     tasks.append({.id = *id,
                   .taskListId = *taskListId,
                   .taskListTitle = *taskListTitle,
                   .parentTaskId = optionalText(statement, 3),
                   .title = *title,
-                  .notes = optionalText(statement, 5),
+                  .notes = storedNotes.has_value() ? std::optional<QString>(recurrence.userNotes)
+                                                   : std::nullopt,
                   .due = dueAt.has_value() || dueTimeZone.has_value()
                              ? std::optional<TaskDue>(TaskDue{.at = dueAt, .timeZone = dueTimeZone})
                              : std::nullopt,
                   .priority = *decodedPriority,
                   .completed = *state == QStringLiteral("completed"),
+                  .managedRecurrence = recurrence.state == TaskRecurrenceNotesState::Managed,
+                  .recurrenceSummary = recurrence.marker.has_value()
+                                           ? taskRecurrenceSummary(*recurrence.marker)
+                                           : QString(),
+                  .recurrenceSeriesId =
+                      recurrence.marker.has_value() ? recurrence.marker->seriesId : QString(),
+                  .recurrenceOccurrenceId =
+                      recurrence.marker.has_value() ? recurrence.marker->occurrenceId : QString(),
+                  .recurrenceDiagnostic = recurrence.diagnostic,
                   .sortOrder = sortOrder});
   }
   const int finalizeResult = sqlite3_finalize(statement);

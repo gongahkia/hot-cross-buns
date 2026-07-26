@@ -1,6 +1,7 @@
 #include "core/LocalSearchService.h"
 
 #include "core/LocalSearchQuery.h"
+#include "core/TaskRecurrenceMarker.h"
 
 #include "sqlite3.h"
 
@@ -273,11 +274,14 @@ readCandidates(SqliteConnection& connection,
         sqlite3_finalize(statement);
         return AppError(AppErrorCode::Database, QStringLiteral("SQLite search row is invalid"));
       }
+      const QString renderedDetail = spec.resource == LocalSearchResource::Task
+                                         ? parseTaskRecurrenceNotes(*detail).userNotes
+                                         : *detail;
       StoredCandidate stored{
           .candidate = {.resource = spec.resource,
                         .id = *id,
                         .title = *title,
-                        .detail = *detail,
+                        .detail = renderedDetail,
                         .isUndatedTask =
                             spec.resource == LocalSearchResource::Task && scheduledAt->isEmpty()},
           .container = *container,

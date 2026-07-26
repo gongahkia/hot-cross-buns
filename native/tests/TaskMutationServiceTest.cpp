@@ -14,6 +14,7 @@
 #include <variant>
 
 #include "core/TaskMutationService.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "data/SqliteConnection.h"
 #include "sqlite3.h"
 
@@ -236,6 +237,7 @@ private slots:
   void movesTaskToAnotherActiveList();
   void reordersTaskAmongSiblings();
   void createsAndReparentsOneLevelSubtasks();
+  void preservesManagedRecurrenceAcrossOrdinaryEdits();
   void rejectsInvalidAndUnavailableMutations();
 };
 
@@ -392,6 +394,83 @@ void TaskMutationServiceTest::createsUpdatesCompletesAndDeletesTask() {
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
   QCOMPARE(removed->updatedAt, expectedTimestamp);
   QCOMPARE(pendingMutationCount(handle), 0);
+}
+
+void TaskMutationServiceTest::preservesManagedRecurrenceAcrossOrdinaryEdits() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::TaskMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+
+  std::future<hcb::TaskMutationResult> create = service.create(
+      hcb::TaskCreateInput{.taskListId = QStringLiteral("list-active"),
+                           .title = QStringLiteral("Original title"),
+                           .notes = QStringLiteral("Original body"),
+                           .due = hcb::TaskDue{.at = QStringLiteral("2026-07-26T00:00:00.000Z"),
+                                               .timeZone = QStringLiteral("UTC")}});
+  const hcb::TaskMutationResult createResult = awaitResult(create);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(createResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(createResult)) {
+    return;
+  }
+  const QString taskId = std::get<hcb::TaskMutationReceipt>(createResult).taskId;
+  hcb::TaskRecurrenceMarker marker{
+      .seriesId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492"),
+      .occurrenceId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492:0"),
+      .anchorDate = QStringLiteral("2026-07-26"),
+      .timeZone = QStringLiteral("UTC"),
+      .templateTitle = QStringLiteral("Original title"),
+      .templateDueDate = QStringLiteral("2026-07-26"),
+      .templatePriority = QStringLiteral("none")};
+  const hcb::TaskRecurrenceSerializationResult serialized =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("Original body"), marker);
+  QVERIFY(!serialized.error.has_value());
+  QByteArray escapedNotes = serialized.notes.toUtf8();
+  escapedNotes.replace("'", "''");
+  const QByteArray updateSql =
+      "UPDATE local_tasks SET notes = '" + escapedNotes + "' WHERE id = '" + taskId.toUtf8() + "'";
+  execute(handle, updateSql.constData());
+
+  std::future<hcb::TaskMutationResult> update = service.update(
+      hcb::TaskUpdateInput{.taskId = taskId,
+                           .title = QStringLiteral("Updated title"),
+                           .notes = QStringLiteral("Updated body"),
+                           .due = hcb::TaskDue{.at = QStringLiteral("2026-08-02T00:00:00.000Z"),
+                                               .timeZone = QStringLiteral("UTC")},
+                           .priority = hcb::TaskPriority::Medium});
+  const hcb::TaskMutationResult updateResult = awaitResult(update);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(updateResult));
+  const std::optional<TaskSnapshot> updated = readTask(handle, taskId);
+  QVERIFY(updated.has_value());
+  if (!updated.has_value() || !updated->notes.has_value()) {
+    return;
+  }
+  const hcb::TaskRecurrenceNotes parsed = hcb::parseTaskRecurrenceNotes(*updated->notes);
+  QCOMPARE(parsed.state, hcb::TaskRecurrenceNotesState::Managed);
+  QCOMPARE(parsed.userNotes, QStringLiteral("Updated body"));
+  QVERIFY(parsed.marker.has_value());
+  if (!parsed.marker.has_value()) {
+    return;
+  }
+  QCOMPARE(parsed.marker->templateTitle, QStringLiteral("Updated title"));
+  QCOMPARE(parsed.marker->templateDueDate, QStringLiteral("2026-08-02"));
+  QCOMPARE(parsed.marker->templatePriority, QStringLiteral("medium"));
 }
 
 void TaskMutationServiceTest::queuesRemoteTaskChangesWithBaseEtag() {

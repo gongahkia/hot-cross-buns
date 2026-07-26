@@ -1,10 +1,12 @@
 #include "core/TaskMutationService.h"
 
+#include "core/TaskRecurrenceMarker.h"
 #include "data/LocalSchema.h"
 #include "data/SqliteTransaction.h"
 #include "sqlite3.h"
 
 #include <QByteArray>
+#include <QDate>
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -727,6 +729,45 @@ queueTaskMutation(SqliteConnection& connection,
        !input.due.has_value() && !input.priority.has_value())) {
     return validationError(QStringLiteral("Task update input is invalid"));
   }
+  return input;
+}
+
+[[nodiscard]] std::optional<QString> recurrenceDate(const QString& timestamp) {
+  const QDateTime dateTime = QDateTime::fromString(timestamp, Qt::ISODate);
+  if (dateTime.isValid()) {
+    return dateTime.date().toString(Qt::ISODate);
+  }
+  const QDate date = QDate::fromString(timestamp, Qt::ISODate);
+  return date.isValid() ? std::optional<QString>(date.toString(Qt::ISODate)) : std::nullopt;
+}
+
+[[nodiscard]] std::variant<TaskUpdateInput, AppError>
+preserveManagedRecurrence(const StoredTaskContext& before, TaskUpdateInput input) {
+  const TaskRecurrenceNotes parsed = parseTaskRecurrenceNotes(before.notes.value_or(QString()));
+  if (parsed.state != TaskRecurrenceNotesState::Managed || !parsed.marker.has_value()) {
+    return input;
+  }
+  TaskRecurrenceMarker marker = *parsed.marker;
+  marker.templateTitle = input.title.value_or(before.title);
+  if (input.due.has_value()) {
+    if (!input.due->at.has_value()) {
+      return validationError(QStringLiteral("Managed recurring task requires a due date"));
+    }
+    const std::optional<QString> date = recurrenceDate(*input.due->at);
+    if (!date.has_value()) {
+      return validationError(QStringLiteral("Managed recurring task due date is invalid"));
+    }
+    marker.templateDueDate = *date;
+  }
+  if (input.priority.has_value()) {
+    marker.templatePriority = priorityText(*input.priority);
+  }
+  const TaskRecurrenceSerializationResult serialized =
+      serializeTaskRecurrenceNotes(input.notes.value_or(parsed.userNotes), marker);
+  if (serialized.error.has_value()) {
+    return validationError(*serialized.error);
+  }
+  input.notes = serialized.notes;
   return input;
 }
 
@@ -1467,7 +1508,13 @@ std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput inpu
     if (!before.has_value()) {
       return TaskMutationResult(validationError(QStringLiteral("Task is unavailable for update")));
     }
-    TaskMutationResult updated = updateStoredTask(connection, input, updatedAt);
+    const std::variant<TaskUpdateInput, AppError> effectiveInputResult =
+        preserveManagedRecurrence(*before, input);
+    if (std::holds_alternative<AppError>(effectiveInputResult)) {
+      return TaskMutationResult(std::get<AppError>(effectiveInputResult));
+    }
+    const TaskUpdateInput& effectiveInput = std::get<TaskUpdateInput>(effectiveInputResult);
+    TaskMutationResult updated = updateStoredTask(connection, effectiveInput, updatedAt);
     if (std::holds_alternative<AppError>(updated)) {
       return updated;
     }
@@ -1482,8 +1529,8 @@ std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput inpu
       return TaskMutationResult(
           AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable")));
     }
-    const QString operation = input.parentTaskId.has_value() ? QStringLiteral("task.move")
-                                                             : QStringLiteral("task.update");
+    const QString operation = effectiveInput.parentTaskId.has_value() ? QStringLiteral("task.move")
+                                                                       : QStringLiteral("task.update");
     if (const std::optional<AppError> error =
             queueTaskMutation(connection, *before, after, operation, updatedAt);
         error.has_value()) {

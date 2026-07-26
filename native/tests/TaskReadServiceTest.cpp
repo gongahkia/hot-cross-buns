@@ -10,6 +10,7 @@
 #include <variant>
 
 #include "core/TaskReadService.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "data/SqliteConnection.h"
 #include "sqlite3.h"
 
@@ -80,6 +81,27 @@ void seed(hcb::SqliteConnection& connection) {
           "'2026-07-24T00:00:00Z', '2026-07-24T01:00:00Z')");
 }
 
+[[nodiscard]] hcb::TaskRecurrenceMarker marker() {
+  return {.seriesId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492"),
+          .occurrenceId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492:0"),
+          .anchorDate = QStringLiteral("2026-07-26"),
+          .timeZone = QStringLiteral("UTC"),
+          .templateTitle = QStringLiteral("Visible A"),
+          .templateDueDate = QStringLiteral("2026-07-26"),
+          .templatePriority = QStringLiteral("high")};
+}
+
+void setManagedNotes(hcb::SqliteConnection& connection) {
+  const hcb::TaskRecurrenceSerializationResult serialized =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("Visible body"), marker());
+  QVERIFY(!serialized.error.has_value());
+  QByteArray notes = serialized.notes.toUtf8();
+  notes.replace("'", "''");
+  const QByteArray sql =
+      "UPDATE local_tasks SET notes = '" + notes + "' WHERE id = 'task-visible-a'";
+  execute(connection.nativeHandle(), sql.constData());
+}
+
 } // namespace
 
 void TaskReadServiceTest::readsVisibleTasksWithoutAccountFilter() {
@@ -100,6 +122,7 @@ void TaskReadServiceTest::readsVisibleTasksWithoutAccountFilter() {
   }
   hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
   seed(connection);
+  setManagedNotes(connection);
 
   std::future<hcb::TaskReadResult> future = service.list({.limit = 10});
   const hcb::TaskReadResult result = awaitResult(future);
@@ -108,6 +131,9 @@ void TaskReadServiceTest::readsVisibleTasksWithoutAccountFilter() {
   QCOMPARE(tasks.size(), 2);
   QCOMPARE(tasks.at(0).id, QStringLiteral("task-visible-a"));
   QCOMPARE(tasks.at(0).taskListTitle, QStringLiteral("A"));
+  QCOMPARE(tasks.at(0).notes, std::optional<QString>(QStringLiteral("Visible body")));
+  QVERIFY(tasks.at(0).managedRecurrence);
+  QCOMPARE(tasks.at(0).recurrenceSeriesId, QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492"));
   QCOMPARE(tasks.at(0).priority, hcb::TaskPriority::High);
   QVERIFY(!tasks.at(0).completed);
   QCOMPARE(tasks.at(1).id, QStringLiteral("task-visible-b"));

@@ -25,6 +25,11 @@ struct TaskModelTask final {
   std::optional<TaskDue> due;
   TaskPriority priority{TaskPriority::None};
   bool completed{false};
+  bool managedRecurrence{false};
+  QString recurrenceSummary;
+  QString recurrenceSeriesId;
+  QString recurrenceOccurrenceId;
+  QString recurrenceDiagnostic;
   std::int64_t sortOrder{0};
 };
 
@@ -42,6 +47,11 @@ public:
     DueTimeZoneRole,
     PriorityRole,
     CompletedRole,
+    ManagedRecurrenceRole,
+    RecurrenceSummaryRole,
+    RecurrenceSeriesIdRole,
+    RecurrenceOccurrenceIdRole,
+    RecurrenceDiagnosticRole,
     SortOrderRole
   };
   Q_ENUM(Role)

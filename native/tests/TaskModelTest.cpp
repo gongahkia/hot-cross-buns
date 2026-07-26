@@ -25,12 +25,19 @@ void TaskModelTest::exposesHierarchicalTaskRoles() {
                    .taskListId = QStringLiteral("list-a"),
                    .title = QStringLiteral("Root"),
                    .completed = true,
+                   .managedRecurrence = true,
+                   .recurrenceSummary = QStringLiteral("Every week"),
+                   .recurrenceSeriesId = QStringLiteral("series"),
+                   .recurrenceOccurrenceId = QStringLiteral("series:0"),
                    .sortOrder = 1}});
 
   QCOMPARE(model.rowCount(), 1);
   const QModelIndex root = model.index(0, 0);
   QCOMPARE(model.data(root, Qt::DisplayRole).toString(), QStringLiteral("Root"));
   QCOMPARE(model.data(root, hcb::TaskModel::CompletedRole).toBool(), true);
+  QVERIFY(model.data(root, hcb::TaskModel::ManagedRecurrenceRole).toBool());
+  QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceSummaryRole).toString(),
+           QStringLiteral("Every week"));
   QCOMPARE(model.rowCount(root), 1);
   const QModelIndex child = model.index(0, 0, root);
   QCOMPARE(model.parent(child), root);
