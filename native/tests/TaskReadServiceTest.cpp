@@ -28,7 +28,7 @@ namespace {
 [[nodiscard]] std::optional<hcb::FilePath>
 databasePathFor(const QTemporaryDir& temporaryDirectory) {
   return hcb::FilePath::fromAbsolute(QDir(QFileInfo(temporaryDirectory.path()).canonicalFilePath())
-                                             .filePath(QStringLiteral("hot-cross-buns.sqlite")));
+                                         .filePath(QStringLiteral("hot-cross-buns.sqlite")));
 }
 
 template <typename Result> [[nodiscard]] Result awaitResult(std::future<Result>& future) {
@@ -61,11 +61,12 @@ void seed(hcb::SqliteConnection& connection) {
           "missing_scopes_json, updated_at) VALUES "
           "('account-a', 'google', 'connected', '[]', '[]', '2026-07-24T00:00:00Z'), "
           "('account-b', 'google', 'connected', '[]', '[]', '2026-07-24T00:00:00Z')");
-  execute(handle,
-          "INSERT INTO local_task_lists (id, account_id, remote_id, title, sort_order, is_selected, "
-          "updated_at, deleted_at) VALUES "
-          "('list-a', 'account-a', 'a', 'A', 0, 1, '2026-07-24T00:00:00Z', NULL), "
-          "('list-b', 'account-b', 'b', 'B', 1, 0, '2026-07-24T00:00:00Z', NULL)");
+  execute(
+      handle,
+      "INSERT INTO local_task_lists (id, account_id, remote_id, title, sort_order, is_selected, "
+      "updated_at, deleted_at) VALUES "
+      "('list-a', 'account-a', 'a', 'A', 0, 1, '2026-07-24T00:00:00Z', NULL), "
+      "('list-b', 'account-b', 'b', 'B', 1, 0, '2026-07-24T00:00:00Z', NULL)");
   execute(handle,
           "INSERT INTO local_tasks (id, task_list_id, remote_id, title, state, is_hidden, "
           "sort_order, priority, updated_at, deleted_at) VALUES "
@@ -136,8 +137,7 @@ void TaskReadServiceTest::filtersSelectedListsAndRejectsInvalidRequests() {
       service.list({.accountId = QStringLiteral("account-a"), .selectedListsOnly = true});
   const hcb::TaskReadResult selectedResult = awaitResult(selected);
   QVERIFY(std::holds_alternative<QList<hcb::TaskModelTask>>(selectedResult));
-  const QList<hcb::TaskModelTask>& tasks =
-      std::get<QList<hcb::TaskModelTask>>(selectedResult);
+  const QList<hcb::TaskModelTask>& tasks = std::get<QList<hcb::TaskModelTask>>(selectedResult);
   QCOMPARE(tasks.size(), 1);
   QCOMPARE(tasks.first().id, QStringLiteral("task-visible-a"));
 

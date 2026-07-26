@@ -68,6 +68,22 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_unconnectedGoogleRestrictsNavigationToSettings() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: false }
+        })
+        verify(mainWindow !== null)
+        mainWindow.selectPage("Calendar")
+        compare(mainWindow.currentPage, "Tasks")
+        mainWindow.selectPage("Settings")
+        compare(mainWindow.currentPage, "Settings")
+        mainWindow.destroy()
+    }
+
     function test_sidebarRoutesSelectionThroughWindow() {
         startedTransitions = []
         completedTransitions = []
