@@ -53,6 +53,8 @@ void SystemTrayAdapterTest::reportsDisabledAndPlatformStatus() {
   QCOMPARE(disabled.state, hcb::TrayStatusState::Disabled);
   QVERIFY(!disabled.visible);
   QVERIFY(!disabled.supportsMessages);
+  const hcb::NotificationStatus disabledNotifications = adapter.notificationStatus();
+  QCOMPARE(disabledNotifications.state, hcb::NotificationState::Disabled);
 
   adapter.setEnabled(true);
   const hcb::TrayStatus enabled = adapter.status();
@@ -63,6 +65,13 @@ void SystemTrayAdapterTest::reportsDisabledAndPlatformStatus() {
     QCOMPARE(enabled.state, hcb::TrayStatusState::Unsupported);
     QVERIFY(!enabled.visible);
     QVERIFY(!enabled.supportsMessages);
+  }
+
+  const hcb::NotificationStatus notifications = adapter.notificationStatus();
+  if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages()) {
+    QCOMPARE(notifications.state, hcb::NotificationState::Ready);
+  } else {
+    QCOMPARE(notifications.state, hcb::NotificationState::Unsupported);
   }
 }
 

@@ -14,6 +14,10 @@ set(HCB_SYSTEM_TRAY_SOURCES
   src/app/SystemTrayAdapter.cpp
   src/app/SystemTrayAdapter.h
 )
+set(HCB_NOTIFICATION_SOURCES
+  src/app/NotificationAdapter.cpp
+  src/app/NotificationAdapter.h
+)
 qt_add_resources(HCB_SYSTEM_TRAY_RESOURCE_SOURCES resources/SystemTrayIcon.qrc)
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
@@ -31,6 +35,7 @@ set(HCB_NATIVE_SOURCES
   ${HCB_MACOS_CREDENTIAL_SOURCES}
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
+  ${HCB_NOTIFICATION_SOURCES}
   ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
   ${HCB_SYSTEM_TRAY_SOURCES}
   ${HCB_WINDOWS_CREDENTIAL_SOURCES}
@@ -1867,6 +1872,16 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_system_tray_adapter_tests)
   hcb_enable_sanitizers(hcb_system_tray_adapter_tests)
   add_test(NAME hcb_system_tray_adapter_tests COMMAND hcb_system_tray_adapter_tests)
+
+  qt_add_executable(hcb_notification_adapter_tests
+    tests/NotificationAdapterTest.cpp
+    ${HCB_NOTIFICATION_SOURCES}
+  )
+  target_link_libraries(hcb_notification_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_notification_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_notification_adapter_tests)
+  hcb_enable_sanitizers(hcb_notification_adapter_tests)
+  add_test(NAME hcb_notification_adapter_tests COMMAND hcb_notification_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp

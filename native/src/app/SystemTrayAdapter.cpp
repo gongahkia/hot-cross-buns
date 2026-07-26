@@ -28,6 +28,18 @@ namespace {
   return handlers.quit;
 }
 
+[[nodiscard]] QSystemTrayIcon::MessageIcon messageIconFor(NotificationIcon icon) {
+  switch (icon) {
+  case NotificationIcon::Information:
+    return QSystemTrayIcon::Information;
+  case NotificationIcon::Warning:
+    return QSystemTrayIcon::Warning;
+  case NotificationIcon::Critical:
+    return QSystemTrayIcon::Critical;
+  }
+  return QSystemTrayIcon::Information;
+}
+
 } // namespace
 
 TrayActionDispatcher::TrayActionDispatcher(TrayActionHandlers handlers)
@@ -78,6 +90,41 @@ TrayStatus SystemTrayAdapter::status() const {
           .message = available
                          ? QStringLiteral("Tray icon is available.")
                          : QStringLiteral("System tray is unavailable in this desktop session.")};
+}
+
+NotificationStatus SystemTrayAdapter::notificationStatus() const {
+  if (!enabled_) {
+    return {.state = NotificationState::Disabled,
+            .supportsMessages = false,
+            .message = QStringLiteral("Tray icon is disabled.")};
+  }
+  if (failed_ || icon_.isNull()) {
+    return {.state = NotificationState::Error,
+            .supportsMessages = false,
+            .message = QStringLiteral("Tray icon could not be created.")};
+  }
+  if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    return {.state = NotificationState::Unsupported,
+            .supportsMessages = false,
+            .message = QStringLiteral("System tray is unavailable in this desktop session.")};
+  }
+  if (!QSystemTrayIcon::supportsMessages()) {
+    return {.state = NotificationState::Unsupported,
+            .supportsMessages = false,
+            .message = QStringLiteral("System tray does not support notification messages.")};
+  }
+  return {.state = NotificationState::Ready,
+          .supportsMessages = true,
+          .message = QStringLiteral("System tray notifications are available.")};
+}
+
+bool SystemTrayAdapter::showNotification(const NotificationRequest& request) {
+  if (notificationStatus().state != NotificationState::Ready || tray_ == nullptr) {
+    return false;
+  }
+  tray_->showMessage(
+      request.title, request.body, messageIconFor(request.icon), request.timeoutMilliseconds);
+  return true;
 }
 
 void SystemTrayAdapter::setEnabled(bool enabled) {

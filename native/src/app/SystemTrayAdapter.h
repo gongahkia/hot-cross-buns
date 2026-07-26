@@ -1,5 +1,7 @@
 #pragma once
 
+#include "app/NotificationAdapter.h"
+
 #include <QIcon>
 #include <QObject>
 #include <QString>
@@ -55,7 +57,7 @@ struct TrayStatus final {
   QString message;
 };
 
-class SystemTrayAdapter final : public QObject {
+class SystemTrayAdapter final : public QObject, public NotificationTransport {
   Q_OBJECT
 
 public:
@@ -67,6 +69,8 @@ public:
 
   [[nodiscard]] static QIcon defaultIcon();
   [[nodiscard]] TrayStatus status() const;
+  [[nodiscard]] NotificationStatus notificationStatus() const override;
+  [[nodiscard]] bool showNotification(const NotificationRequest& request) override;
   void setEnabled(bool enabled);
 
 private:
