@@ -6,18 +6,22 @@ class NotesModelTest final : public QObject {
   Q_OBJECT
 
 private slots:
-  void exposesNoteRolesAndResets();
+  void projectsUndatedTasksAndResets();
   void rejectsInvalidIndexes();
 };
 
-void NotesModelTest::exposesNoteRolesAndResets() {
+void NotesModelTest::projectsUndatedTasksAndResets() {
   hcb::NotesModel model;
-  model.setNotes({{.id = QStringLiteral("note-a"),
+  model.setTasks({{.id = QStringLiteral("note-a"),
                    .taskListId = QStringLiteral("list-a"),
                    .taskListTitle = QStringLiteral("Notes"),
                    .title = QStringLiteral("Release plan"),
-                   .body = QStringLiteral("Ship the native models."),
-                   .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")}});
+                   .notes = QStringLiteral("Ship the native models.")},
+                  {.id = QStringLiteral("scheduled"),
+                   .taskListId = QStringLiteral("list-a"),
+                   .taskListTitle = QStringLiteral("Notes"),
+                   .title = QStringLiteral("Scheduled task"),
+                   .due = hcb::TaskDue{.at = QStringLiteral("2026-07-26T00:00:00.000Z")}}});
 
   QCOMPARE(model.rowCount(), 1);
   const QModelIndex index = model.index(0, 0);
@@ -28,12 +32,11 @@ void NotesModelTest::exposesNoteRolesAndResets() {
            QStringLiteral("Notes"));
   QCOMPARE(model.data(index, hcb::NotesModel::BodyRole).toString(),
            QStringLiteral("Ship the native models."));
-  QCOMPARE(model.data(index, hcb::NotesModel::UpdatedAtRole).toString(),
-           QStringLiteral("2026-07-25T00:00:00.000Z"));
+  QVERIFY(!model.data(index, hcb::NotesModel::CompletedRole).toBool());
   QCOMPARE(model.roleNames().value(hcb::NotesModel::TaskListTitleRole),
            QByteArrayLiteral("taskListTitle"));
 
-  model.setNotes({});
+  model.setTasks({});
   QCOMPARE(model.rowCount(), 0);
 }
 

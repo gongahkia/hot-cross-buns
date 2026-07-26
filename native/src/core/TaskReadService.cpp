@@ -94,7 +94,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
   }
   const QByteArray sql =
       QStringLiteral(
-          "SELECT tasks.id, tasks.task_list_id, tasks.parent_task_id, tasks.title, "
+          "SELECT tasks.id, tasks.task_list_id, lists.title, tasks.parent_task_id, tasks.title, "
           "tasks.notes, tasks.due_at, tasks.due_time_zone, tasks.priority, tasks.state, "
           "tasks.sort_order FROM local_tasks AS tasks INNER JOIN local_task_lists AS lists "
           "ON lists.id = tasks.task_list_id WHERE %1 ORDER BY lists.sort_order, "
@@ -132,25 +132,27 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
     }
     const std::optional<QString> id = requiredText(statement, 0);
     const std::optional<QString> taskListId = requiredText(statement, 1);
-    const std::optional<QString> title = requiredText(statement, 3);
-    const std::optional<QString> priority = requiredText(statement, 7);
-    const std::optional<QString> state = requiredText(statement, 8);
-    const std::int64_t sortOrder = sqlite3_column_int64(statement, 9);
+    const std::optional<QString> taskListTitle = requiredText(statement, 2);
+    const std::optional<QString> title = requiredText(statement, 4);
+    const std::optional<QString> priority = requiredText(statement, 8);
+    const std::optional<QString> state = requiredText(statement, 9);
+    const std::int64_t sortOrder = sqlite3_column_int64(statement, 10);
     const std::optional<TaskPriority> decodedPriority =
         priority.has_value() ? taskPriority(*priority) : std::nullopt;
-    if (!id.has_value() || !taskListId.has_value() || !title.has_value() || !state.has_value() ||
-        !decodedPriority.has_value() || sortOrder < 0 ||
+    if (!id.has_value() || !taskListId.has_value() || !taskListTitle.has_value() ||
+        !title.has_value() || !state.has_value() || !decodedPriority.has_value() || sortOrder < 0 ||
         (*state != QStringLiteral("active") && *state != QStringLiteral("completed"))) {
       sqlite3_finalize(statement);
       return AppError(AppErrorCode::Database, QStringLiteral("Stored task row is invalid"));
     }
-    const std::optional<QString> dueAt = optionalText(statement, 5);
-    const std::optional<QString> dueTimeZone = optionalText(statement, 6);
+    const std::optional<QString> dueAt = optionalText(statement, 6);
+    const std::optional<QString> dueTimeZone = optionalText(statement, 7);
     tasks.append({.id = *id,
                   .taskListId = *taskListId,
-                  .parentTaskId = optionalText(statement, 2),
+                  .taskListTitle = *taskListTitle,
+                  .parentTaskId = optionalText(statement, 3),
                   .title = *title,
-                  .notes = optionalText(statement, 4),
+                  .notes = optionalText(statement, 5),
                   .due = dueAt.has_value() || dueTimeZone.has_value()
                              ? std::optional<TaskDue>(TaskDue{.at = dueAt, .timeZone = dueTimeZone})
                              : std::nullopt,

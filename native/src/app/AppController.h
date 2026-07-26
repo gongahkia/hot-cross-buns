@@ -18,7 +18,6 @@
 #include "core/GoogleTaskMirrorSyncService.h"
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
-#include "core/NoteService.h"
 #include "core/LocalSearchService.h"
 #include "core/AccountStatusService.h"
 #include "core/OAuthBrowserAuthorizationLauncher.h"
@@ -89,6 +88,8 @@ class AppController final : public QObject {
   Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY
                  bulkEventStatusMessageChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
+  Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
+  Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -122,6 +123,8 @@ public:
   [[nodiscard]] QString bulkTaskStatusMessage() const;
   [[nodiscard]] QString bulkEventStatusMessage() const;
   [[nodiscard]] QString calendarDate() const;
+  [[nodiscard]] bool notesEnabled() const;
+  [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
 
@@ -132,6 +135,8 @@ public:
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
   Q_INVOKABLE void saveConflictPolicy(int policy);
+  Q_INVOKABLE void saveNotesEnabled(bool enabled);
+  Q_INVOKABLE void saveNotesProjectionMode(int mode);
   Q_INVOKABLE void resolveSyncConflict(QString conflictId, bool keepLocal);
   Q_INVOKABLE void setSearchQuery(QString query);
   Q_INVOKABLE void applySavedSearch(QString savedSearchId);
@@ -143,6 +148,7 @@ public:
   Q_INVOKABLE void setTaskListSelected(QString taskListId, bool selected);
   Q_INVOKABLE void deleteTaskList(QString taskListId);
   Q_INVOKABLE void createTask(QString taskListId, QString parentTaskId, QString title);
+  Q_INVOKABLE void saveNoteTask(QString taskId, QString taskListId, QString title, QString notes);
   Q_INVOKABLE void updateTask(QString taskId,
                               QString title,
                               QString notes,
@@ -232,6 +238,8 @@ signals:
   void bulkTaskStatusMessageChanged();
   void bulkEventStatusMessageChanged();
   void calendarDateChanged();
+  void notesEnabledChanged();
+  void notesProjectionModeChanged();
   void busyChanged();
 
 private:
@@ -282,6 +290,8 @@ private:
   void refreshCalendar();
   void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
   void runSearch();
+  void refreshSearchProjection();
+  void applyTaskProjections(QList<TaskModelTask> tasks);
   void loadSavedSearches();
   void runBulkTaskMutation(TaskBulkMutationInput input);
   void runBulkEventMutation(CalendarEventBulkMutationInput input);
@@ -342,7 +352,6 @@ private:
   GoogleCalendarEventMutationPushService googleCalendarEventMutationPushService_;
   TaskListReadService taskListReadService_;
   TaskReadService taskReadService_;
-  NoteService noteService_;
   CalendarReadService calendarReadService_;
   LocalSearchService localSearchService_;
   SearchResultsModel* searchResultsModelPointer_{nullptr};
@@ -368,6 +377,9 @@ private:
   QString bulkTaskStatusMessage_;
   QString bulkEventStatusMessage_;
   QDate calendarDate_{QDate::currentDate()};
+  bool notesEnabled_{false};
+  int notesProjectionMode_{0};
+  QList<TaskModelTask> taskProjectionTasks_;
   std::uint64_t calendarRefreshGeneration_{0};
   QTimer searchDebounce_;
   std::unique_ptr<CancellationSource> searchCancellation_;

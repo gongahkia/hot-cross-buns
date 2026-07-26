@@ -22,6 +22,10 @@ ApplicationWindow {
     property var taskListModel: null
     property var taskModel: null
     property var timelineModel: null
+    property bool notesEnabled: appController !== null && appController.notesEnabled === true
+    property int notesProjectionMode: appController !== null &&
+                                      typeof appController.notesProjectionMode === "number"
+                                      ? appController.notesProjectionMode : 0
     property var transitionTimings: null
     property var selectedCalendarEventIds: []
     property string calendarDate: appController !== null &&
@@ -59,7 +63,6 @@ ApplicationWindow {
     property alias taskListDeleteDialog: taskListDeleteDialog
     property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
-    signal noteSaveRequested(string noteId, string title, string body)
     signal taskCreateRequested(string taskListId, string parentTaskId, string title)
     signal taskDeleteRequested(string taskId)
     signal taskReparentRequested(string taskId, string parentTaskId)
@@ -156,6 +159,9 @@ ApplicationWindow {
     }
 
     function hasNavigationPage(pageName) {
+        if (pageName === "Notes" && !notesEnabled) {
+            return false
+        }
         if (typeof navigationCommands.containsLabel === "function") {
             return navigationCommands.containsLabel(pageName)
         }
@@ -185,16 +191,24 @@ ApplicationWindow {
     }
 
     function matchingNavigationCommands(query) {
+        let commands = []
         if (typeof navigationCommands.matchingCommands === "function") {
-            return navigationCommands.matchingCommands(query)
+            commands = navigationCommands.matchingCommands(query)
+        } else {
+            const normalizedQuery = query.trim().toLowerCase()
+            for (let row = 0; row < navigationCommands.count; ++row) {
+                const command = navigationCommands.get(row)
+                if (normalizedQuery === "" ||
+                        command.commandId.toLowerCase().indexOf(normalizedQuery) >= 0 ||
+                        command.commandLabel.toLowerCase().indexOf(normalizedQuery) >= 0) {
+                    commands.push(command)
+                }
+            }
         }
-        const normalizedQuery = query.trim().toLowerCase()
         const matches = []
-        for (let row = 0; row < navigationCommands.count; ++row) {
-            const command = navigationCommands.get(row)
-            if (normalizedQuery === "" ||
-                    command.commandId.toLowerCase().indexOf(normalizedQuery) >= 0 ||
-                    command.commandLabel.toLowerCase().indexOf(normalizedQuery) >= 0) {
+        for (let row = 0; row < commands.length; ++row) {
+            const command = commands[row]
+            if (command.commandLabel !== "Notes" || notesEnabled) {
                 matches.push(command)
             }
         }
@@ -229,11 +243,8 @@ ApplicationWindow {
         searchPopup.close()
     }
 
-    function openNoteEditor(noteId, title, body) {
-        noteEditor.noteId = noteId
-        noteEditor.noteTitle = title
-        noteEditor.noteBody = body
-        noteEditor.open()
+    function openNoteEditor(taskId, taskListId, title, body) {
+        noteEditor.openForEdit(taskId, taskListId, title, body)
     }
 
     function openEventCreate(date) {
@@ -301,6 +312,7 @@ ApplicationWindow {
             required property string commandShortcut
             sequence: commandShortcut
             autoRepeat: false
+            enabled: commandLabel !== "Notes" || window.notesEnabled
             onActivated: window.selectPage(commandLabel)
         }
     }
@@ -438,8 +450,9 @@ ApplicationWindow {
         id: noteEditor
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onNoteSaveRequested: function(noteId, title, body) {
-            window.noteSaveRequested(noteId, title, body)
+        taskListModel: window.taskListModel
+        onTaskSaveRequested: function(taskId, taskListId, title, body) {
+            window.controllerCall("saveNoteTask", [taskId, taskListId, title, body])
         }
     }
 
@@ -583,6 +596,7 @@ ApplicationWindow {
             id: navigationSidebar
             commandRegistry: window.navigationCommands
             currentPage: window.currentPage
+            notesEnabled: window.notesEnabled
             onPageSelected: pageName => window.selectPage(pageName)
         }
 
@@ -662,8 +676,22 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Notes"
                 notesModel: window.notesModel
-                onNoteSelected: function(noteId, title, body) {
-                    window.openNoteEditor(noteId, title, body)
+                loading: window.appController !== null && window.appController.busy === true
+                statusMessage: window.appController !== null &&
+                               typeof window.appController.statusMessage === "string"
+                               ? window.appController.statusMessage : ""
+                onNoteCreateRequested: noteEditor.openForCreate("")
+                onNoteEditRequested: function(taskId, taskListId, title, body) {
+                    window.openNoteEditor(taskId, taskListId, title, body)
+                }
+                onNoteCompletionRequested: function(taskId, completed) {
+                    window.controllerCall("setTaskCompleted", [taskId, completed])
+                }
+                onNoteDeleteRequested: function(taskId, title) {
+                    taskDeleteDialog.openForDelete(taskId, title)
+                }
+                onNoteMoveRequested: function(taskId, taskListId, title) {
+                    taskMoveDialog.openForMove(taskId, title, taskListId)
                 }
             }
 
@@ -928,6 +956,43 @@ ApplicationWindow {
                 }
 
                 Label {
+                    text: "Undated task presentation"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Switch {
+                    id: notesEnabledSwitch
+                    text: "Show undated tasks as Notes"
+                    checked: window.notesEnabled
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    Accessible.description: "Changes only local presentation; Google Tasks are unchanged"
+                    onToggled: window.controllerCall("saveNotesEnabled", [checked])
+                }
+
+                ComboBox {
+                    id: notesProjectionSelector
+                    Layout.fillWidth: true
+                    visible: window.notesEnabled
+                    model: ["Notes only", "Mirror in Tasks and Notes"]
+                    currentIndex: window.notesProjectionMode
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Undated task presentation mode"
+                    onActivated: index => window.controllerCall("saveNotesProjectionMode", [index])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: window.notesEnabled
+                          ? "Notes are ordinary undated Google Tasks. This setting only filters local views."
+                          : "Notes are disabled. Every Google Task remains in Tasks."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Label {
                     text: "Conflict handling"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -1041,10 +1106,16 @@ ApplicationWindow {
         if (resource === "task") {
             taskList.selectTask(resultId)
         } else if (resource === "note") {
-            notesList.selectNote(resultId, title, detail)
+            notesList.selectNote(resultId)
         } else if (resource === "event") {
             calendarViews.currentIndex = 0
             agendaView.selectEvent(resultId)
+        }
+    }
+
+    onNotesEnabledChanged: {
+        if (!notesEnabled && currentPage === "Notes") {
+            currentPage = "Tasks"
         }
     }
 

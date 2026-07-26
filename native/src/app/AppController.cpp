@@ -17,6 +17,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QMetaType>
+#include <QSet>
 #include <QTimeZone>
 #include <QTimer>
 #include <QThread>
@@ -39,6 +40,11 @@ constexpr int kVisibleAllDayLaneCount = 2;
 constexpr char kGoogleAccountId[] = "google";
 constexpr char kSyncSettingsScope[] = "sync";
 constexpr char kConflictPolicySettingsKey[] = "conflict_policy";
+constexpr char kPresentationSettingsScope[] = "presentation";
+constexpr char kNotesEnabledSettingsKey[] = "notes_enabled";
+constexpr char kNotesProjectionSettingsKey[] = "notes_projection";
+constexpr int kNotesOnlyProjection = 0;
+constexpr int kMirrorNotesProjection = 1;
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
 constexpr int kSearchDebounceMilliseconds = 180;
 
@@ -178,6 +184,52 @@ eventRemindersFromVariantList(bool useDefault, const QVariantList& values) {
   }
 }
 
+[[nodiscard]] bool isValidNotesProjectionMode(int value) {
+  return value == kNotesOnlyProjection || value == kMirrorNotesProjection;
+}
+
+[[nodiscard]] bool isUndatedTask(const TaskModelTask& task) {
+  return !task.due.has_value() || !task.due->at.has_value();
+}
+
+[[nodiscard]] QList<TaskModelTask> taskPresentation(const QList<TaskModelTask>& tasks,
+                                                    bool notesOnly) {
+  if (!notesOnly) {
+    return tasks;
+  }
+  QList<TaskModelTask> visible;
+  visible.reserve(tasks.size());
+  QSet<QString> visibleIds;
+  for (const TaskModelTask& task : tasks) {
+    if (!isUndatedTask(task)) {
+      visible.append(task);
+      visibleIds.insert(task.id);
+    }
+  }
+  for (TaskModelTask& task : visible) {
+    if (task.parentTaskId.has_value() && !visibleIds.contains(*task.parentTaskId)) {
+      task.parentTaskId.reset();
+    }
+  }
+  return visible;
+}
+
+[[nodiscard]] QList<LocalSearchRankedResult>
+searchPresentation(QList<LocalSearchRankedResult> results, bool notesEnabled, int notesMode) {
+  results.erase(std::remove_if(results.begin(),
+                               results.end(),
+                               [notesEnabled, notesMode](const LocalSearchRankedResult& result) {
+                                 if (result.resource == LocalSearchResource::Note) {
+                                   return !notesEnabled;
+                                 }
+                                 return notesEnabled && notesMode == kNotesOnlyProjection &&
+                                        result.resource == LocalSearchResource::Task &&
+                                        result.isUndatedTask;
+                               }),
+                results.end());
+  return results;
+}
+
 [[nodiscard]] QString conflictResourceText(SyncConflictResource resource) {
   switch (resource) {
   case SyncConflictResource::Task:
@@ -300,12 +352,12 @@ AppController::AppController(FilePath databasePath,
                                               &calendarMutationService_,
                                               &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
-      noteService_(databasePath, clock), calendarReadService_(databasePath),
-      localSearchService_(databasePath), googleTaskMirrorSyncService_(googleTaskListPullClient_,
-                                                                      googleTaskPullClient_,
-                                                                      googleMirrorStore_,
-                                                                      syncCheckpointStore_,
-                                                                      clock),
+      calendarReadService_(databasePath), localSearchService_(databasePath),
+      googleTaskMirrorSyncService_(googleTaskListPullClient_,
+                                   googleTaskPullClient_,
+                                   googleMirrorStore_,
+                                   syncCheckpointStore_,
+                                   clock),
       googleCalendarMirrorSyncService_(googleCalendarListPullClient_,
                                        googleCalendarEventPullClient_,
                                        calendarReadService_,
@@ -363,6 +415,10 @@ QString AppController::bulkEventStatusMessage() const { return bulkEventStatusMe
 
 QString AppController::calendarDate() const { return calendarDate_.toString(Qt::ISODate); }
 
+bool AppController::notesEnabled() const { return notesEnabled_; }
+
+int AppController::notesProjectionMode() const { return notesProjectionMode_; }
+
 bool AppController::busy() const { return busy_; }
 
 SearchResultsModel& AppController::searchResultsModel() { return *searchResultsModelPointer_; }
@@ -391,6 +447,56 @@ void AppController::initialize() {
           conflictPolicy_ = storedValue;
           googleSyncConflictResolver_.setPolicy(*policy);
           emit conflictPolicyChanged();
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kNotesEnabledSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<bool> enabled =
+              *stored == QStringLiteral("true")    ? std::optional<bool>(true)
+              : *stored == QStringLiteral("false") ? std::optional<bool>(false)
+                                                   : std::nullopt;
+          if (!enabled.has_value()) {
+            setStatus(QStringLiteral("Stored Notes setting is invalid"));
+            return;
+          }
+          if (notesEnabled_ != *enabled) {
+            notesEnabled_ = *enabled;
+            applyTaskProjections(taskProjectionTasks_);
+            refreshSearchProjection();
+            emit notesEnabledChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kNotesProjectionSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          bool valid = false;
+          const int mode = stored->toInt(&valid);
+          if (!valid || !isValidNotesProjectionMode(mode)) {
+            setStatus(QStringLiteral("Stored Notes projection is invalid"));
+            return;
+          }
+          if (notesProjectionMode_ != mode) {
+            notesProjectionMode_ = mode;
+            applyTaskProjections(taskProjectionTasks_);
+            refreshSearchProjection();
+            emit notesProjectionModeChanged();
+          }
         });
   watch(syncConflictStore_.listUnresolved(), [this](SyncConflictListResult result) {
     if (std::holds_alternative<AppError>(result)) {
@@ -491,6 +597,20 @@ void AppController::setSearchQuery(QString query) {
     setSearchLoading(false);
     return;
   }
+  searchDebounce_.start();
+}
+
+void AppController::refreshSearchProjection() {
+  if (searchQuery_.trimmed().isEmpty()) {
+    return;
+  }
+  ++searchGeneration_;
+  searchDebounce_.stop();
+  if (searchCancellation_ != nullptr) {
+    static_cast<void>(searchCancellation_->requestStop());
+  }
+  searchResultsModel().setResults({});
+  setSearchLoading(false);
   searchDebounce_.start();
 }
 
@@ -789,6 +909,48 @@ void AppController::saveConflictPolicy(int policyValue) {
         });
 }
 
+void AppController::saveNotesEnabled(bool enabled) {
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kNotesEnabledSettingsKey),
+                                   enabled ? QStringLiteral("true") : QStringLiteral("false")),
+        [this, enabled](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (notesEnabled_ != enabled) {
+            notesEnabled_ = enabled;
+            applyTaskProjections(taskProjectionTasks_);
+            refreshSearchProjection();
+            emit notesEnabledChanged();
+          }
+          setStatus(QStringLiteral("Notes presentation saved"));
+        });
+}
+
+void AppController::saveNotesProjectionMode(int mode) {
+  if (!isValidNotesProjectionMode(mode)) {
+    setStatus(QStringLiteral("Notes projection is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kNotesProjectionSettingsKey),
+                                   QString::number(mode)),
+        [this, mode](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (notesProjectionMode_ != mode) {
+            notesProjectionMode_ = mode;
+            applyTaskProjections(taskProjectionTasks_);
+            refreshSearchProjection();
+            emit notesProjectionModeChanged();
+          }
+          setStatus(QStringLiteral("Notes presentation saved"));
+        });
+}
+
 void AppController::resolveSyncConflict(QString conflictId, bool keepLocal) {
   const SyncConflictResolution resolution =
       keepLocal ? SyncConflictResolution::KeepLocal : SyncConflictResolution::KeepRemote;
@@ -980,6 +1142,51 @@ void AppController::createTask(QString taskListId, QString parentTaskId, QString
           refreshTasks();
         }
       });
+}
+
+void AppController::saveNoteTask(QString taskId, QString taskListId, QString title, QString notes) {
+  if (taskId.isEmpty()) {
+    watch(taskMutationService_.create({.taskListId = std::move(taskListId),
+                                       .title = std::move(title),
+                                       .notes = std::move(notes)}),
+          [this](TaskMutationResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+            } else {
+              refreshTasks();
+            }
+          });
+    return;
+  }
+  const auto current =
+      std::find_if(taskProjectionTasks_.cbegin(),
+                   taskProjectionTasks_.cend(),
+                   [&taskId](const TaskModelTask& task) { return task.id == taskId; });
+  if (current == taskProjectionTasks_.cend()) {
+    setStatus(QStringLiteral("Note task is unavailable"));
+    return;
+  }
+  const bool needsMove = current->taskListId != taskListId;
+  watch(taskMutationService_.update(
+            {.taskId = taskId, .title = std::move(title), .notes = std::move(notes)}),
+        [this, taskId = std::move(taskId), taskListId = std::move(taskListId), needsMove](
+            TaskMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (!needsMove) {
+            refreshTasks();
+            return;
+          }
+          watch(taskMutationService_.moveToTaskList(std::move(taskId), std::move(taskListId)),
+                [this](TaskMutationResult moveResult) {
+                  if (std::holds_alternative<AppError>(moveResult)) {
+                    setStatus(errorMessage(std::get<AppError>(moveResult)));
+                  }
+                  refreshTasks();
+                });
+        });
 }
 
 void AppController::createTaskList(QString title) {
@@ -1495,7 +1702,10 @@ void AppController::runSearch() {
           return;
         }
         setSearchError({});
-        searchResultsModel().setResults(std::get<LocalSearchPage>(std::move(result)).items);
+        searchResultsModel().setResults(
+            searchPresentation(std::get<LocalSearchPage>(std::move(result)).items,
+                               notesEnabled_,
+                               notesProjectionMode_));
       },
       false);
 }
@@ -1589,15 +1799,15 @@ void AppController::refreshTasks() {
       setStatus(errorMessage(std::get<AppError>(result)));
       return;
     }
-    taskModel_.setTasks(std::get<QList<TaskModelTask>>(std::move(result)));
+    applyTaskProjections(std::get<QList<TaskModelTask>>(std::move(result)));
   });
-  watch(noteService_.list(), [this](NotePageResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
-      return;
-    }
-    notesModel_.setNotes(std::get<NotePage>(std::move(result)).items);
-  });
+}
+
+void AppController::applyTaskProjections(QList<TaskModelTask> tasks) {
+  taskProjectionTasks_ = std::move(tasks);
+  taskModel_.setTasks(taskPresentation(
+      taskProjectionTasks_, notesEnabled_ && notesProjectionMode_ == kNotesOnlyProjection));
+  notesModel_.setTasks(taskProjectionTasks_);
 }
 
 void AppController::reorderTask(QString taskId, bool earlier) {

@@ -1,6 +1,7 @@
 #include "core/NotesModel.h"
 #include "core/ModelDiffPolicy.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace hcb {
@@ -10,7 +11,36 @@ namespace {
 [[nodiscard]] bool equivalentNote(const NoteSummary& left, const NoteSummary& right) {
   return left.id == right.id && left.taskListId == right.taskListId &&
          left.taskListTitle == right.taskListTitle && left.title == right.title &&
-         left.body == right.body && left.updatedAt == right.updatedAt;
+         left.body == right.body && left.completed == right.completed;
+}
+
+[[nodiscard]] bool isUndated(const TaskModelTask& task) {
+  return !task.due.has_value() || !task.due->at.has_value();
+}
+
+[[nodiscard]] QList<NoteSummary> noteProjection(const QList<TaskModelTask>& tasks) {
+  QList<NoteSummary> notes;
+  notes.reserve(tasks.size());
+  for (const TaskModelTask& task : tasks) {
+    if (!isUndated(task)) {
+      continue;
+    }
+    notes.append({.id = task.id,
+                  .taskListId = task.taskListId,
+                  .taskListTitle = task.taskListTitle,
+                  .title = task.title,
+                  .body = task.notes.value_or(QString()),
+                  .completed = task.completed});
+  }
+  std::sort(notes.begin(), notes.end(), [](const NoteSummary& left, const NoteSummary& right) {
+    const int list = QString::compare(left.taskListTitle, right.taskListTitle, Qt::CaseInsensitive);
+    if (list != 0) {
+      return list < 0;
+    }
+    const int title = QString::compare(left.title, right.title, Qt::CaseInsensitive);
+    return title != 0 ? title < 0 : left.id < right.id;
+  });
+  return notes;
 }
 
 } // namespace
@@ -38,8 +68,8 @@ QVariant NotesModel::data(const QModelIndex& index, int role) const {
     return note.taskListTitle;
   case BodyRole:
     return note.body;
-  case UpdatedAtRole:
-    return note.updatedAt;
+  case CompletedRole:
+    return note.completed;
   default:
     return {};
   }
@@ -51,10 +81,11 @@ QHash<int, QByteArray> NotesModel::roleNames() const {
           {TaskListTitleRole, "taskListTitle"},
           {TitleRole, "title"},
           {BodyRole, "body"},
-          {UpdatedAtRole, "updatedAt"}};
+          {CompletedRole, "completed"}};
 }
 
-void NotesModel::setNotes(QList<NoteSummary> notes) {
+void NotesModel::setTasks(const QList<TaskModelTask>& tasks) {
+  QList<NoteSummary> notes = noteProjection(tasks);
   const ModelDiffPlan plan = ModelDiffPolicy::plan(
       notes_,
       notes,

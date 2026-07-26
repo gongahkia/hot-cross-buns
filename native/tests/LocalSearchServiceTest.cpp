@@ -163,15 +163,15 @@ void LocalSearchServiceTest::appliesStructuredFiltersLocally() {
   }
   initializeDatabase(*database);
   hcb::LocalSearchService service(database->databasePath());
-  std::future<hcb::LocalSearchPageResult> taskFuture = service.search(
-      {.query = QStringLiteral("source:tasks status:open due:none priority:none")});
+  std::future<hcb::LocalSearchPageResult> taskFuture =
+      service.search({.query = QStringLiteral("source:tasks status:open due:none priority:none")});
   const hcb::LocalSearchPage tasks = awaitPage(taskFuture);
   QCOMPARE(tasks.items.size(), 1);
   QCOMPARE(tasks.items.front().resource, hcb::LocalSearchResource::Task);
   QCOMPARE(tasks.items.front().id, QStringLiteral("task"));
 
-  std::future<hcb::LocalSearchPageResult> eventFuture = service.search(
-      {.query = QStringLiteral("source:calendar start:2026-07-26")});
+  std::future<hcb::LocalSearchPageResult> eventFuture =
+      service.search({.query = QStringLiteral("source:calendar start:2026-07-26")});
   const hcb::LocalSearchPage events = awaitPage(eventFuture);
   QCOMPARE(events.items.size(), 1);
   QCOMPARE(events.items.front().resource, hcb::LocalSearchResource::Event);
@@ -182,6 +182,7 @@ void LocalSearchServiceTest::appliesStructuredFiltersLocally() {
   const hcb::LocalSearchPage notes = awaitPage(noteFuture);
   QCOMPARE(notes.items.size(), 1);
   QCOMPARE(notes.items.front().resource, hcb::LocalSearchResource::Note);
+  QCOMPARE(notes.items.front().id, QStringLiteral("task"));
 }
 
 void LocalSearchServiceTest::rejectsInvalidStructuredSyntax() {

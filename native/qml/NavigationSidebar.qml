@@ -6,6 +6,7 @@ Pane {
     id: root
     required property var commandRegistry
     required property string currentPage
+    property bool notesEnabled: false
     signal pageSelected(string pageName)
 
     SplitView.preferredWidth: Theme.navigationWidth
@@ -40,6 +41,7 @@ Pane {
                 Layout.fillWidth: true
                 pageName: commandLabel
                 currentPage: root.currentPage === commandLabel
+                visible: commandLabel !== "Notes" || root.notesEnabled
                 onPageSelected: pageName => root.selectPage(pageName)
             }
         }

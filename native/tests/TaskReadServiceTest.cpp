@@ -107,6 +107,7 @@ void TaskReadServiceTest::readsVisibleTasksWithoutAccountFilter() {
   const QList<hcb::TaskModelTask>& tasks = std::get<QList<hcb::TaskModelTask>>(result);
   QCOMPARE(tasks.size(), 2);
   QCOMPARE(tasks.at(0).id, QStringLiteral("task-visible-a"));
+  QCOMPARE(tasks.at(0).taskListTitle, QStringLiteral("A"));
   QCOMPARE(tasks.at(0).priority, hcb::TaskPriority::High);
   QVERIFY(!tasks.at(0).completed);
   QCOMPARE(tasks.at(1).id, QStringLiteral("task-visible-b"));
@@ -140,6 +141,7 @@ void TaskReadServiceTest::filtersSelectedListsAndRejectsInvalidRequests() {
   const QList<hcb::TaskModelTask>& tasks = std::get<QList<hcb::TaskModelTask>>(selectedResult);
   QCOMPARE(tasks.size(), 1);
   QCOMPARE(tasks.first().id, QStringLiteral("task-visible-a"));
+  QCOMPARE(tasks.first().taskListTitle, QStringLiteral("A"));
 
   std::future<hcb::TaskReadResult> invalid = service.list({.limit = 0});
   const hcb::TaskReadResult invalidResult = awaitResult(invalid);

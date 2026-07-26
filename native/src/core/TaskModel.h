@@ -18,6 +18,7 @@ namespace hcb {
 struct TaskModelTask final {
   QString id;
   QString taskListId;
+  QString taskListTitle;
   std::optional<QString> parentTaskId;
   QString title;
   std::optional<QString> notes;

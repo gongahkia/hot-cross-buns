@@ -1,12 +1,21 @@
 #pragma once
 
-#include "core/NoteService.h"
+#include "core/TaskModel.h"
 
 #include <QAbstractListModel>
 
 #include <cstdint>
 
 namespace hcb {
+
+struct NoteSummary final {
+  QString id;
+  QString taskListId;
+  QString taskListTitle;
+  QString title;
+  QString body;
+  bool completed{false};
+};
 
 class NotesModel final : public QAbstractListModel {
   Q_OBJECT
@@ -18,7 +27,7 @@ public:
     TaskListTitleRole,
     TitleRole,
     BodyRole,
-    UpdatedAtRole
+    CompletedRole
   };
   Q_ENUM(Role)
 
@@ -28,7 +37,7 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-  void setNotes(QList<NoteSummary> notes);
+  void setTasks(const QList<TaskModelTask>& tasks);
 
 private:
   QList<NoteSummary> notes_;

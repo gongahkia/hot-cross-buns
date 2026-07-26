@@ -100,7 +100,8 @@ QList<LocalSearchRankedResult> UnifiedLocalSearchRanker::rank(
                     .id = id,
                     .title = title,
                     .detail = candidate.detail,
-                    .score = score});
+                    .score = score,
+                    .isUndatedTask = candidate.isUndatedTask});
   }
   std::sort(results.begin(), results.end(), comesBefore);
   if (results.size() > cappedLimit) {

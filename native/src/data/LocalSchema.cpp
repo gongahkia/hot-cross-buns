@@ -678,6 +678,100 @@ WHERE tasks.deleted_at IS NULL
   AND lists.deleted_at IS NULL
 )";
 
+constexpr char allUndatedNotesSchemaSql[] = R"(
+DROP VIEW local_note_projections;
+DROP INDEX local_tasks_active_note_recency;
+CREATE VIEW local_note_projections AS
+SELECT tasks.id,
+       tasks.task_list_id AS list_id,
+       lists.title AS list_title,
+       tasks.title,
+       COALESCE(tasks.notes, '') AS body,
+       tasks.tags_json,
+       tasks.updated_at
+FROM local_tasks AS tasks
+INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+WHERE tasks.deleted_at IS NULL
+  AND tasks.is_hidden = 0
+  AND tasks.due_at IS NULL
+  AND lists.deleted_at IS NULL;
+
+CREATE INDEX local_tasks_active_note_recency
+ON local_tasks(updated_at DESC, id)
+WHERE deleted_at IS NULL
+  AND is_hidden = 0
+  AND due_at IS NULL;
+
+DROP TRIGGER local_notes_fts_task_insert;
+DROP TRIGGER local_notes_fts_task_delete;
+DROP TRIGGER local_notes_fts_task_update;
+DROP TRIGGER local_notes_fts_task_list_update;
+DROP TABLE local_notes_fts;
+
+CREATE VIRTUAL TABLE local_notes_fts
+USING fts5(
+  note_id UNINDEXED,
+  list_id UNINDEXED,
+  title,
+  body,
+  tags,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '2 3'
+);
+
+CREATE TRIGGER local_notes_fts_task_insert
+AFTER INSERT ON local_tasks
+WHEN NEW.deleted_at IS NULL
+  AND NEW.is_hidden = 0
+  AND NEW.due_at IS NULL
+  AND EXISTS (SELECT 1 FROM local_task_lists WHERE id = NEW.task_list_id AND deleted_at IS NULL)
+BEGIN
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  VALUES (NEW.id, NEW.task_list_id, NEW.title, COALESCE(NEW.notes, ''), NEW.tags_json);
+END;
+
+CREATE TRIGGER local_notes_fts_task_delete
+AFTER DELETE ON local_tasks
+BEGIN
+  DELETE FROM local_notes_fts WHERE note_id = OLD.id;
+END;
+
+CREATE TRIGGER local_notes_fts_task_update
+AFTER UPDATE OF id, task_list_id, title, notes, tags_json, deleted_at, is_hidden, state, parent_task_id, due_at ON local_tasks
+BEGIN
+  DELETE FROM local_notes_fts WHERE note_id = OLD.id;
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  SELECT NEW.id, NEW.task_list_id, NEW.title, COALESCE(NEW.notes, ''), NEW.tags_json
+  WHERE NEW.deleted_at IS NULL
+    AND NEW.is_hidden = 0
+    AND NEW.due_at IS NULL
+    AND EXISTS (SELECT 1 FROM local_task_lists WHERE id = NEW.task_list_id AND deleted_at IS NULL);
+END;
+
+CREATE TRIGGER local_notes_fts_task_list_update
+AFTER UPDATE OF id, deleted_at ON local_task_lists
+BEGIN
+  DELETE FROM local_notes_fts WHERE list_id = OLD.id OR list_id = NEW.id;
+  INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+  SELECT tasks.id, tasks.task_list_id, tasks.title, COALESCE(tasks.notes, ''), tasks.tags_json
+  FROM local_tasks AS tasks
+  WHERE tasks.task_list_id = NEW.id
+    AND NEW.deleted_at IS NULL
+    AND tasks.deleted_at IS NULL
+    AND tasks.is_hidden = 0
+    AND tasks.due_at IS NULL;
+END;
+
+INSERT INTO local_notes_fts(note_id, list_id, title, body, tags)
+SELECT tasks.id, tasks.task_list_id, tasks.title, COALESCE(tasks.notes, ''), tasks.tags_json
+FROM local_tasks AS tasks
+INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+WHERE tasks.deleted_at IS NULL
+  AND tasks.is_hidden = 0
+  AND tasks.due_at IS NULL
+  AND lists.deleted_at IS NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -730,7 +824,8 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, calendarEventTypeSchemaSql, QStringLiteral("SQLite calendar-event type schema"));
 }
 
-[[nodiscard]] std::optional<AppError> applyCalendarEventMetadataSchema(SqliteConnection& connection) {
+[[nodiscard]] std::optional<AppError>
+applyCalendarEventMetadataSchema(SqliteConnection& connection) {
   return applySchema(connection,
                      calendarEventMetadataSchemaSql,
                      QStringLiteral("SQLite calendar-event metadata schema"));
@@ -768,8 +863,13 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, noteFtsSchemaSql, QStringLiteral("SQLite note FTS schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 15>& migrations() {
-  static const std::array<SqliteMigration, 15> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyAllUndatedNotesSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, allUndatedNotesSchemaSql, QStringLiteral("SQLite all-undated-notes schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 16>& migrations() {
+  static const std::array<SqliteMigration, 16> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -818,6 +918,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("expand calendar event metadata"),
        checksum(calendarEventMetadataSchemaSql),
        applyCalendarEventMetadataSchema},
+      {16,
+       QStringLiteral("project all undated tasks as notes"),
+       checksum(allUndatedNotesSchemaSql),
+       applyAllUndatedNotesSchema},
   }};
   return catalogue;
 }

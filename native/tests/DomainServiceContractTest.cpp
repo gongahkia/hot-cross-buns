@@ -12,7 +12,6 @@
 #include <variant>
 
 #include "core/CalendarMutationService.h"
-#include "core/NoteService.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/TaskMutationService.h"
 #include "core/UndoRecoveryPolicy.h"
@@ -123,11 +122,9 @@ void DomainServiceContractTest::sharesOneInitializedDatabaseAcrossPublicServices
   QVERIFY(handle != nullptr);
 
   hcb::CalendarMutationService calendar(*databasePath, clock);
-  hcb::NoteService notes(*databasePath, clock);
   hcb::OptimisticMutationCoordinator coordinator(*databasePath, clock);
   hcb::UndoRecoveryPolicy undo(*databasePath, clock, QStringLiteral("contract-session"));
   verifyReady(calendar.ready());
-  verifyReady(notes.ready());
   verifyReady(coordinator.ready());
   verifyReady(undo.ready());
 
@@ -135,13 +132,6 @@ void DomainServiceContractTest::sharesOneInitializedDatabaseAcrossPublicServices
       .taskListId = QStringLiteral("list-a"), .title = QStringLiteral("Contract task")});
   const hcb::TaskMutationResult taskResult = awaitResult(createTask);
   QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(taskResult));
-
-  std::future<hcb::NoteMutationResult> createNote =
-      notes.create(hcb::NoteCreateInput{.taskListId = QStringLiteral("list-a"),
-                                        .title = QStringLiteral("Contract note"),
-                                        .body = QStringLiteral("Shared database")});
-  const hcb::NoteMutationResult noteResult = awaitResult(createNote);
-  QVERIFY(std::holds_alternative<hcb::NoteMutationReceipt>(noteResult));
 
   std::future<hcb::CalendarEventMutationResult> createEvent = calendar.create(
       hcb::CalendarEventCreateInput{.calendarId = QStringLiteral("calendar-a"),
@@ -180,9 +170,9 @@ void DomainServiceContractTest::sharesOneInitializedDatabaseAcrossPublicServices
              std::optional<QString>(QStringLiteral("Contract edit")));
   }
 
-  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE deleted_at IS NULL"), 2);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE deleted_at IS NULL"), 1);
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"), 1);
-  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_pending_mutations"), 1);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_pending_mutations"), 3);
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_undo_entries"), 1);
 }
 

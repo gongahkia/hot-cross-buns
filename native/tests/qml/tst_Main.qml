@@ -55,7 +55,8 @@ TestCase {
 
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
-            transitionTimings: testCase
+            transitionTimings: testCase,
+            appController: { googleConnected: true, notesEnabled: true }
         })
         verify(mainWindow !== null)
         mainWindow.selectPage("Calendar")
@@ -92,7 +93,8 @@ TestCase {
 
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
-            transitionTimings: testCase
+            transitionTimings: testCase,
+            appController: { googleConnected: true, notesEnabled: true }
         })
         verify(mainWindow !== null)
         compare(mainWindow.navigationSidebar.currentPage, "Tasks")
@@ -115,7 +117,10 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: true, notesEnabled: true }
+        })
         verify(mainWindow !== null)
         compare(mainWindow.navigationShortcuts.count, 4)
         const notesShortcut = mainWindow.navigationShortcuts.objectAt(2)
@@ -130,7 +135,10 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: true, notesEnabled: true }
+        })
         verify(mainWindow !== null)
         mainWindow.commandPaletteShortcut.activated()
         tryVerify(function() {
@@ -147,6 +155,18 @@ TestCase {
         tryVerify(function() {
             return !mainWindow.commandPalette.opened
         })
+        mainWindow.destroy()
+    }
+
+    function test_notesAreHiddenByDefault() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        mainWindow.selectPage("Notes")
+        compare(mainWindow.currentPage, "Tasks")
+        compare(mainWindow.matchingNavigationCommands("").length, 3)
         mainWindow.destroy()
     }
 
@@ -1282,22 +1302,26 @@ TestCase {
         taskModel.destroy()
     }
 
-    function test_notesListPresentsAndSelectsNotes() {
+    function test_notesListUsesUnderlyingTaskActions() {
         const component = Qt.createComponent("../../qml/NotesListView.qml")
         compare(component.status, Component.Ready, component.errorString())
 
         const notesModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
         notesModel.append({
             id: "note-1",
+            taskListId: "list-inbox",
             taskListTitle: "Inbox",
             title: "Release notes",
-            body: "Verify the package artifacts"
+            body: "Verify the package artifacts",
+            completed: false
         })
         notesModel.append({
             id: "note-2",
+            taskListId: "list-work",
             taskListTitle: "Work",
             title: "Sprint plan",
-            body: "Review the current priorities"
+            body: "Review the current priorities",
+            completed: true
         })
         const notesList = component.createObject(null, {
             notesModel: notesModel,
@@ -1307,67 +1331,95 @@ TestCase {
         })
         verify(notesList !== null)
         tryCompare(notesList.noteRows, "count", 2)
-        let selectedId = ""
-        let selectedTitle = ""
-        let selectedBody = ""
-        notesList.noteSelected.connect(function(noteId, title, body) {
-            selectedId = noteId
-            selectedTitle = title
-            selectedBody = body
+        let edited = null
+        let completed = null
+        let moved = null
+        let deleted = null
+        notesList.noteEditRequested.connect(function(taskId, taskListId, title, body) {
+            edited = { taskId: taskId, taskListId: taskListId, title: title, body: body }
         })
-        notesList.selectNote("note-1", "Release notes", "Verify the package artifacts")
-        compare(selectedId, "note-1")
-        compare(selectedTitle, "Release notes")
-        compare(selectedBody, "Verify the package artifacts")
+        notesList.noteCompletionRequested.connect(function(taskId, isCompleted) {
+            completed = { taskId: taskId, isCompleted: isCompleted }
+        })
+        notesList.noteMoveRequested.connect(function(taskId, taskListId, title) {
+            moved = { taskId: taskId, taskListId: taskListId, title: title }
+        })
+        notesList.noteDeleteRequested.connect(function(taskId, title) {
+            deleted = { taskId: taskId, title: title }
+        })
+        notesList.noteEditRequested("note-1", "list-inbox", "Release notes",
+                                    "Verify the package artifacts")
+        notesList.noteCompletionRequested("note-1", true)
+        notesList.noteMoveRequested("note-1", "list-inbox", "Release notes")
+        notesList.noteDeleteRequested("note-1", "Release notes")
+        compare(edited.taskId, "note-1")
+        compare(edited.taskListId, "list-inbox")
+        compare(completed.isCompleted, true)
+        compare(moved.title, "Release notes")
+        compare(deleted.taskId, "note-1")
         notesList.destroy()
         notesModel.destroy()
     }
 
-    function test_noteEditorEmitsSaveRequest() {
+    function test_noteEditorEmitsTaskSaveRequest() {
         const component = Qt.createComponent("../../qml/NoteEditorDialog.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const editor = component.createObject(null, {
-            noteId: "note-1",
-            noteTitle: "Release notes",
-            noteBody: "Verify the package artifacts"
-        })
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        const editor = component.createObject(null, { taskListModel: taskLists })
         verify(editor !== null)
+        editor.openForEdit("note-1", "list-inbox", "Release notes", "Verify the package artifacts")
         verify(editor.primaryEnabled)
         let saved = null
-        editor.noteSaveRequested.connect(function(noteId, title, body) {
-            saved = { noteId: noteId, title: title, body: body }
+        editor.taskSaveRequested.connect(function(taskId, taskListId, title, body) {
+            saved = { taskId: taskId, taskListId: taskListId, title: title, body: body }
         })
         editor.noteTitle = " Revised release notes "
         editor.noteBody = "Update the package checklist"
         editor.primaryButton.click()
-        compare(saved.noteId, "note-1")
+        compare(saved.taskId, "note-1")
+        compare(saved.taskListId, "list-inbox")
         compare(saved.title, "Revised release notes")
         compare(saved.body, "Update the package checklist")
         editor.destroy()
+        taskLists.destroy()
     }
 
-    function test_mainForwardsNoteSaveRequest() {
+    function test_mainSavesNotesThroughTaskMutationApi() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
-        verify(mainWindow !== null)
-        let saved = null
-        mainWindow.noteSaveRequested.connect(function(noteId, title, body) {
-            saved = { noteId: noteId, title: title, body: body }
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            notesEnabled: true,
+            saveNoteTask: function(taskId, taskListId, title, body) {
+                calls.push({ taskId: taskId, taskListId: taskListId, title: title, body: body })
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            taskListModel: taskLists,
+            appController: controller
         })
-        mainWindow.openNoteEditor("note-1", "Release notes", "Verify the package artifacts")
+        verify(mainWindow !== null)
+        mainWindow.openNoteEditor("note-1", "list-inbox", "Release notes", "Verify the package artifacts")
         tryVerify(function() {
             return mainWindow.noteEditor.opened && mainWindow.noteEditor.noteTitleField.activeFocus
         })
         mainWindow.noteEditor.noteTitle = "Revised release notes"
         mainWindow.noteEditor.noteBody = "Update the package checklist"
         mainWindow.noteEditor.primaryButton.click()
-        compare(saved.noteId, "note-1")
-        compare(saved.title, "Revised release notes")
-        compare(saved.body, "Update the package checklist")
+        compare(calls.length, 1)
+        compare(calls[0].taskId, "note-1")
+        compare(calls[0].taskListId, "list-inbox")
+        compare(calls[0].title, "Revised release notes")
+        compare(calls[0].body, "Update the package checklist")
         mainWindow.destroy()
+        taskLists.destroy()
     }
 
     function test_mainForwardsEventCreateRequest() {
@@ -1556,47 +1608,44 @@ TestCase {
         mainWindow.destroy()
     }
 
-    function test_keyboardNoteEditSubmitsSaveRequest() {
+    function test_keyboardNoteCreationSubmitsTaskMutation() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const notesModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        notesModel.append({
-            id: "note-1",
-            taskListTitle: "Inbox",
-            title: "Release notes",
-            body: "Verify the package artifacts"
-        })
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            notesEnabled: true,
+            saveNoteTask: function(taskId, taskListId, title, body) {
+                calls.push({ taskId: taskId, taskListId: taskListId, title: title, body: body })
+            }
+        }
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
-            notesModel: notesModel
+            taskListModel: taskLists,
+            appController: controller
         })
         verify(mainWindow !== null)
-        let saved = null
-        mainWindow.noteSaveRequested.connect(function(noteId, title, body) {
-            saved = { noteId: noteId, title: title, body: body }
-        })
         mainWindow.requestActivate()
         tryCompare(mainWindow, "active", true)
         keyClick(Qt.Key_3, Qt.ControlModifier)
         tryCompare(mainWindow, "currentPage", "Notes")
-        tryVerify(function() {
-            return mainWindow.notesList.noteRows.itemAtIndex(0) !== null
-        })
-        const noteRow = mainWindow.notesList.noteRows.itemAtIndex(0)
-        noteRow.forceActiveFocus()
-        tryVerify(function() { return noteRow.activeFocus })
-        keyClick(Qt.Key_Space)
+        mainWindow.notesList.noteCreateButton.click()
         tryVerify(function() {
             return mainWindow.noteEditor.opened && mainWindow.noteEditor.noteTitleField.activeFocus
         })
-        mainWindow.noteEditor.noteTitle = "Revised release notes"
+        mainWindow.noteEditor.noteTitle = "New release notes"
+        mainWindow.noteEditor.noteBody = "Verify the package artifacts"
         keyClick(Qt.Key_Return)
-        compare(saved.noteId, "note-1")
-        compare(saved.title, "Revised release notes")
-        compare(saved.body, "Verify the package artifacts")
+        compare(calls.length, 1)
+        compare(calls[0].taskId, "")
+        compare(calls[0].taskListId, "list-inbox")
+        compare(calls[0].title, "New release notes")
+        compare(calls[0].body, "Verify the package artifacts")
         mainWindow.destroy()
-        notesModel.destroy()
+        taskLists.destroy()
     }
 
     function test_usesDesignTokens() {

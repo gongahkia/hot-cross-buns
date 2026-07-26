@@ -58,9 +58,11 @@ constexpr QuerySpec querySpecs[] = {
          LIMIT ?2)"},
     {LocalSearchResource::Note,
      "local_notes_fts",
-     R"(SELECT f.note_id, f.title, f.body, lists.title, 'active', 0, '', '', 'none',
+     R"(SELECT f.note_id, f.title, f.body, lists.title, tasks.state, tasks.is_hidden,
+                COALESCE(tasks.deleted_at, ''), '', 'none',
                 CASE WHEN length(trim(f.body)) > 0 THEN 1 ELSE 0 END
          FROM local_notes_fts AS f
+         INNER JOIN local_tasks AS tasks ON tasks.id = f.note_id
          INNER JOIN local_task_lists AS lists ON lists.id = f.list_id
          WHERE local_notes_fts MATCH ?1 AND lists.deleted_at IS NULL
          LIMIT ?2)"},
@@ -201,11 +203,11 @@ constexpr QuerySpec querySpecs[] = {
   return true;
 }
 
-[[nodiscard]] std::variant<QList<LocalSearchCandidate>, AppError> readCandidates(
-    SqliteConnection& connection,
-    const QString& fts,
-    const LocalSearchParsedQuery& query,
-    const CancellationToken& cancellation) {
+[[nodiscard]] std::variant<QList<LocalSearchCandidate>, AppError>
+readCandidates(SqliteConnection& connection,
+               const QString& fts,
+               const LocalSearchParsedQuery& query,
+               const CancellationToken& cancellation) {
   if (cancellation.stop_requested()) {
     return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
   }
@@ -226,13 +228,8 @@ constexpr QuerySpec querySpecs[] = {
       sql.replace(QString::fromLatin1(spec.ftsTable) + QStringLiteral(" MATCH ?1"),
                   QStringLiteral("?1 = ?1"));
     }
-    const int prepareResult =
-        sqlite3_prepare_v3(handle,
-                           sql.toUtf8().constData(),
-                           -1,
-                           SQLITE_PREPARE_PERSISTENT,
-                           &statement,
-                           nullptr);
+    const int prepareResult = sqlite3_prepare_v3(
+        handle, sql.toUtf8().constData(), -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
     if (prepareResult != SQLITE_OK) {
       sqlite3_finalize(statement);
       return databaseError(QStringLiteral("SQLite search preparation failed (%1)"), prepareResult);
@@ -276,17 +273,20 @@ constexpr QuerySpec querySpecs[] = {
         sqlite3_finalize(statement);
         return AppError(AppErrorCode::Database, QStringLiteral("SQLite search row is invalid"));
       }
-      StoredCandidate stored{.candidate = {.resource = spec.resource,
-                                            .id = *id,
-                                            .title = *title,
-                                            .detail = *detail},
-                             .container = *container,
-                             .taskState = *state,
-                             .hidden = sqlite3_column_int(statement, 5) != 0,
-                             .deleted = !deletedAt->isEmpty(),
-                             .scheduledAt = *scheduledAt,
-                             .priority = *priority,
-                             .hasBody = sqlite3_column_int(statement, 9) != 0};
+      StoredCandidate stored{
+          .candidate = {.resource = spec.resource,
+                        .id = *id,
+                        .title = *title,
+                        .detail = *detail,
+                        .isUndatedTask =
+                            spec.resource == LocalSearchResource::Task && scheduledAt->isEmpty()},
+          .container = *container,
+          .taskState = *state,
+          .hidden = sqlite3_column_int(statement, 5) != 0,
+          .deleted = !deletedAt->isEmpty(),
+          .scheduledAt = *scheduledAt,
+          .priority = *priority,
+          .hasBody = sqlite3_column_int(statement, 9) != 0};
       if (matchesFilters(stored, query)) {
         candidates.append(std::move(stored.candidate));
       }
@@ -318,10 +318,8 @@ constexpr QuerySpec querySpecs[] = {
   if (std::holds_alternative<AppError>(candidates)) {
     return std::get<AppError>(candidates);
   }
-  const QList<LocalSearchRankedResult> ranked =
-      ranker.rank(parsed.plainText,
-                  std::get<QList<LocalSearchCandidate>>(candidates),
-                  kMaximumRankedResults);
+  const QList<LocalSearchRankedResult> ranked = ranker.rank(
+      parsed.plainText, std::get<QList<LocalSearchCandidate>>(candidates), kMaximumRankedResults);
   const int rankedCount = static_cast<int>(ranked.size());
   const int start = std::min(request.offset, rankedCount);
   const int end = std::min(start + request.limit, rankedCount);

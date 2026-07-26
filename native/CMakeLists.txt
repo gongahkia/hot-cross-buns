@@ -120,8 +120,6 @@ set(HCB_NATIVE_SOURCES
   src/core/MonthGridModel.cpp
   src/core/MonthGridModel.h
   src/core/ModelDiffPolicy.h
-  src/core/NoteService.cpp
-  src/core/NoteService.h
   src/core/NotesModel.cpp
   src/core/NotesModel.h
   src/core/OAuthBrowserAuthorizationLauncher.cpp
@@ -957,41 +955,13 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_calendar_mutation_service_tests)
   add_test(NAME hcb_calendar_mutation_service_tests COMMAND hcb_calendar_mutation_service_tests)
 
-  qt_add_executable(hcb_note_service_tests
-    tests/NoteServiceTest.cpp
-    src/core/AppError.h
-    src/core/Clock.h
-    src/core/FilePath.h
-    src/core/NoteService.cpp
-    src/core/NoteService.h
-    src/data/LocalSchema.cpp
-    src/data/LocalSchema.h
-    src/data/SqliteConnection.cpp
-    src/data/SqliteConnection.h
-    src/data/SqliteMigrationRunner.cpp
-    src/data/SqliteMigrationRunner.h
-    src/data/SqliteQueryTimingTracker.cpp
-    src/data/SqliteQueryTimingTracker.h
-    src/data/SqliteTransaction.cpp
-    src/data/SqliteTransaction.h
-    src/data/SqliteWriterQueue.cpp
-    src/data/SqliteWriterQueue.h
-  )
-  target_link_libraries(hcb_note_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
-  target_include_directories(hcb_note_service_tests PRIVATE src)
-  hcb_enable_warnings(hcb_note_service_tests)
-  hcb_enable_sanitizers(hcb_note_service_tests)
-  add_test(NAME hcb_note_service_tests COMMAND hcb_note_service_tests)
-
   qt_add_executable(hcb_notes_model_tests
     tests/NotesModelTest.cpp
-    src/core/AppError.h
-    src/core/Clock.h
-    src/core/FilePath.h
     src/core/NotesModel.cpp
     src/core/NotesModel.h
-    src/core/NoteService.h
-    src/data/SqliteWriterQueue.h
+    src/core/TaskModel.cpp
+    src/core/TaskModel.h
+    src/core/TaskMutationService.h
   )
   target_link_libraries(hcb_notes_model_tests PRIVATE Qt6::Core Qt6::Test)
   target_include_directories(hcb_notes_model_tests PRIVATE src tests)
@@ -1058,8 +1028,6 @@ if(BUILD_TESTING)
     src/core/CalendarMutationService.h
     src/core/Clock.h
     src/core/FilePath.h
-    src/core/NoteService.cpp
-    src/core/NoteService.h
     src/core/OptimisticMutationCoordinator.cpp
     src/core/OptimisticMutationCoordinator.h
     src/core/TaskMutationService.cpp
@@ -2511,7 +2479,6 @@ if(BUILD_TESTING)
     hcb_month_grid_model_tests
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
-    hcb_note_service_tests
     hcb_notes_model_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
@@ -2617,7 +2584,6 @@ if(BUILD_TESTING)
     hcb_month_grid_model_tests
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
-    hcb_note_service_tests
     hcb_notes_model_tests
     hcb_optimistic_mutation_coordinator_tests
     hcb_undo_recovery_policy_tests
