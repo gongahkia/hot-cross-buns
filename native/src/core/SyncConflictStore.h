@@ -3,6 +3,7 @@
 #include "core/AppError.h"
 #include "core/Clock.h"
 #include "core/FilePath.h"
+#include "core/SyncConflictPolicy.h"
 #include "data/SqliteWriterQueue.h"
 
 #include <QJsonObject>
@@ -34,7 +35,11 @@ struct SyncConflictInput final {
   QString mutationId;
   QString errorCode;
   QString errorMessage;
+  QJsonObject baseSnapshot;
   QJsonObject localPayload;
+  QJsonObject remoteSnapshot;
+  std::optional<QString> remoteEtag;
+  SyncConflictPolicy policy{SyncConflictPolicy::PreferGoogle};
 };
 
 struct SyncConflict final {
@@ -45,7 +50,11 @@ struct SyncConflict final {
   QString mutationId;
   QString errorCode;
   QString errorMessage;
+  QJsonObject baseSnapshot;
   QJsonObject localPayload;
+  QJsonObject remoteSnapshot;
+  std::optional<QString> remoteEtag;
+  SyncConflictPolicy policy{SyncConflictPolicy::PreferGoogle};
   QString createdAt;
   QString updatedAt;
   std::optional<SyncConflictResolution> resolution;

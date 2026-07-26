@@ -92,6 +92,7 @@ class OptimisticMutationCoordinatorTest final : public QObject {
 
 private slots:
   void enqueuesClaimsRetriesAndAppliesMutations();
+  void persistsBaseSnapshotAndRemoteEtag();
   void recoversExpiredLeasesAtStartup();
   void rejectsInvalidAndUnavailableTransitions();
 };
@@ -207,6 +208,47 @@ void OptimisticMutationCoordinatorTest::enqueuesClaimsRetriesAndAppliesMutations
   if (found.has_value()) {
     QVERIFY(found->status == hcb::PendingMutationStatus::Applied);
   }
+}
+
+void OptimisticMutationCoordinatorTest::persistsBaseSnapshotAndRemoteEtag() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::OptimisticMutationCoordinator coordinator(*databasePath, clock);
+  verifyReady(coordinator);
+  std::future<hcb::PendingMutationResult> enqueue = coordinator.enqueue(
+      {.resource = hcb::PendingMutationResource::Task,
+       .resourceId = QStringLiteral("task-1"),
+       .operation = QStringLiteral("task.update"),
+       .payload = {{QStringLiteral("task"),
+                    QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}},
+       .baseSnapshot = {{QStringLiteral("title"), QStringLiteral("Base")},
+                        {QStringLiteral("notes"), QStringLiteral("Base notes")}},
+       .remoteEtag = QStringLiteral("etag-base")});
+  const hcb::PendingMutation mutation = awaitMutation(enqueue);
+  QCOMPARE(mutation.payload,
+           QJsonObject{{QStringLiteral("task"),
+                        QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}});
+  QCOMPARE(mutation.baseSnapshot,
+           QJsonObject({{QStringLiteral("title"), QStringLiteral("Base")},
+                        {QStringLiteral("notes"), QStringLiteral("Base notes")}}));
+  QCOMPARE(mutation.remoteEtag, std::optional<QString>(QStringLiteral("etag-base")));
+  std::future<hcb::PendingMutationLookupResult> find = coordinator.find(mutation.id);
+  const hcb::PendingMutationLookupResult result = awaitResult(find);
+  QVERIFY(std::holds_alternative<std::optional<hcb::PendingMutation>>(result));
+  const std::optional<hcb::PendingMutation>& restored =
+      std::get<std::optional<hcb::PendingMutation>>(result);
+  QVERIFY(restored.has_value());
+  if (!restored.has_value()) {
+    return;
+  }
+  QCOMPARE(restored->baseSnapshot, mutation.baseSnapshot);
+  QCOMPARE(restored->remoteEtag, mutation.remoteEtag);
 }
 
 void OptimisticMutationCoordinatorTest::recoversExpiredLeasesAtStartup() {

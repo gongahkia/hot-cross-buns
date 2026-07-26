@@ -204,10 +204,11 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
     return TaskPushRequest{.request = std::move(request)};
   }
   const std::optional<QString> remoteTaskId = requiredIdentifier(mutation.payload, u"remoteTaskId");
-  const std::optional<QString> etag = optionalEtag(mutation.payload);
+  const std::optional<QString> etag =
+      mutation.remoteEtag.has_value() ? mutation.remoteEtag : optionalEtag(mutation.payload);
   const QJsonValue etagValue = mutation.payload.value(QStringLiteral("etag"));
-  if (!remoteTaskId.has_value() ||
-      (!etag.has_value() && !(etagValue.isUndefined() || etagValue.isNull()))) {
+  if (!remoteTaskId.has_value() || (!mutation.remoteEtag.has_value() && !etag.has_value() &&
+                                    !(etagValue.isUndefined() || etagValue.isNull()))) {
     return QStringLiteral("Pending task mutation payload is invalid");
   }
   GoogleHttpRequest request;

@@ -28,8 +28,10 @@ constexpr qsizetype kMaximumPayloadBytes = 262'144;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr qsizetype kMaximumErrorCodeLength = 64;
 constexpr qsizetype kMaximumErrorMessageLength = 4'096;
+constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr int kMaximumDueMutations = 100;
 constexpr auto kMaximumLeaseDuration = std::chrono::hours(1);
+constexpr char conflictMetadataKey[] = "_hcbSync";
 
 constexpr char pendingMutationColumns[] = R"(
 id, account_id, resource_type, resource_id, operation, payload_json, status, attempt_count,
@@ -196,18 +198,45 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
   const std::optional<PendingMutationResource> resource = resourceFromText(*resourceType);
   const std::optional<PendingMutationStatus> status = statusFromText(*statusText);
   QJsonParseError parseError;
-  const QJsonDocument payload = QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError);
+  const QJsonDocument payloadDocument = QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError);
   if (!resource.has_value() || !status.has_value() ||
-      parseError.error != QJsonParseError::NoError || !payload.isObject()) {
+      parseError.error != QJsonParseError::NoError || !payloadDocument.isObject()) {
     return AppError(AppErrorCode::Database,
                     QStringLiteral("Stored pending mutation row is invalid"));
+  }
+  QJsonObject payload = payloadDocument.object();
+  QJsonObject baseSnapshot;
+  std::optional<QString> remoteEtag;
+  const QJsonValue metadataValue = payload.take(QString::fromLatin1(conflictMetadataKey));
+  if (!metadataValue.isUndefined()) {
+    if (!metadataValue.isObject()) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored pending mutation conflict metadata is invalid"));
+    }
+    const QJsonObject metadata = metadataValue.toObject();
+    const QJsonValue baseValue = metadata.value(QStringLiteral("base"));
+    const QJsonValue etagValue = metadata.value(QStringLiteral("etag"));
+    if (!baseValue.isObject() ||
+        (!etagValue.isUndefined() &&
+         (!etagValue.isString() ||
+          !isValidOptionalText(std::optional<QString>(etagValue.toString()),
+                               kMaximumEtagLength)))) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored pending mutation conflict metadata is invalid"));
+    }
+    baseSnapshot = baseValue.toObject();
+    if (etagValue.isString()) {
+      remoteEtag = etagValue.toString();
+    }
   }
   return PendingMutation{.id = *id,
                          .accountId = optionalText(statement, 1),
                          .resource = *resource,
                          .resourceId = *resourceId,
                          .operation = *operation,
-                         .payload = payload.object(),
+                         .payload = std::move(payload),
+                         .baseSnapshot = std::move(baseSnapshot),
+                         .remoteEtag = std::move(remoteEtag),
                          .status = *status,
                          .attemptCount = sqlite3_column_int(statement, 7),
                          .nextRetryAt = optionalText(statement, 8),
@@ -337,6 +366,16 @@ LIMIT ?2
 
 [[nodiscard]] std::variant<OptimisticMutationInput, AppError>
 canonicalize(OptimisticMutationInput input) {
+  if (input.payload.contains(QString::fromLatin1(conflictMetadataKey)) ||
+      (input.remoteEtag.has_value() &&
+       !isValidOptionalText(input.remoteEtag, kMaximumEtagLength))) {
+    return validationError(QStringLiteral("Optimistic mutation input is invalid"));
+  }
+  QJsonObject metadata{{QStringLiteral("base"), input.baseSnapshot}};
+  if (input.remoteEtag.has_value()) {
+    metadata.insert(QStringLiteral("etag"), *input.remoteEtag);
+  }
+  input.payload.insert(QString::fromLatin1(conflictMetadataKey), std::move(metadata));
   const QByteArray payload = QJsonDocument(input.payload).toJson(QJsonDocument::Compact);
   if ((input.accountId.has_value() &&
        !isValidRequiredText(*input.accountId, kMaximumIdentifierLength)) ||

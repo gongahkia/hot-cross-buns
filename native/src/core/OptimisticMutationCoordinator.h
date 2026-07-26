@@ -37,6 +37,8 @@ struct OptimisticMutationInput final {
   QString resourceId;
   QString operation;
   QJsonObject payload;
+  QJsonObject baseSnapshot;
+  std::optional<QString> remoteEtag;
 };
 
 struct PendingMutation final {
@@ -46,6 +48,8 @@ struct PendingMutation final {
   QString resourceId;
   QString operation;
   QJsonObject payload;
+  QJsonObject baseSnapshot;
+  std::optional<QString> remoteEtag;
   PendingMutationStatus status{PendingMutationStatus::Pending};
   int attemptCount{0};
   std::optional<QString> nextRetryAt;

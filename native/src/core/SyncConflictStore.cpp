@@ -26,6 +26,7 @@ constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr qsizetype kMaximumErrorCodeLength = 64;
 constexpr qsizetype kMaximumErrorMessageLength = 4'096;
 constexpr qsizetype kMaximumPayloadBytes = 262'144;
+constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr int kMaximumListLimit = 100;
 
 constexpr char conflictColumns[] = R"(
@@ -51,6 +52,11 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 [[nodiscard]] bool isValidRequiredText(const QString& value, qsizetype maximumLength) {
   return !value.isEmpty() && value == value.trimmed() && value.size() <= maximumLength &&
          !value.contains(QChar::Null);
+}
+
+[[nodiscard]] bool isValidOptionalText(const std::optional<QString>& value,
+                                       qsizetype maximumLength) {
+  return !value.has_value() || (value->size() <= maximumLength && !value->contains(QChar::Null));
 }
 
 [[nodiscard]] QString resourceText(SyncConflictResource resource) {
@@ -94,6 +100,31 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   }
   if (value == QStringLiteral("keep_remote")) {
     return SyncConflictResolution::KeepRemote;
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] QString policyText(SyncConflictPolicy policy) {
+  switch (policy) {
+  case SyncConflictPolicy::PreferGoogle:
+    return QStringLiteral("prefer_google");
+  case SyncConflictPolicy::PreferHcb:
+    return QStringLiteral("prefer_hcb");
+  case SyncConflictPolicy::AskEachTime:
+    return QStringLiteral("ask_each_time");
+  }
+  return {};
+}
+
+[[nodiscard]] std::optional<SyncConflictPolicy> policyFromText(const QString& value) {
+  if (value == QStringLiteral("prefer_google")) {
+    return SyncConflictPolicy::PreferGoogle;
+  }
+  if (value == QStringLiteral("prefer_hcb")) {
+    return SyncConflictPolicy::PreferHcb;
+  }
+  if (value == QStringLiteral("ask_each_time")) {
+    return SyncConflictPolicy::AskEachTime;
   }
   return std::nullopt;
 }
@@ -189,6 +220,42 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
       parseError.error != QJsonParseError::NoError || !payload.isObject()) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored sync conflict row is invalid"));
   }
+  const QJsonObject storedPayload = payload.object();
+  QJsonObject baseSnapshot;
+  QJsonObject localPayload = storedPayload;
+  QJsonObject remoteSnapshot;
+  std::optional<QString> remoteEtag;
+  SyncConflictPolicy policy = SyncConflictPolicy::PreferGoogle;
+  if (storedPayload.contains(QStringLiteral("base")) ||
+      storedPayload.contains(QStringLiteral("local")) ||
+      storedPayload.contains(QStringLiteral("remote")) ||
+      storedPayload.contains(QStringLiteral("policy"))) {
+    const QJsonValue baseValue = storedPayload.value(QStringLiteral("base"));
+    const QJsonValue localValue = storedPayload.value(QStringLiteral("local"));
+    const QJsonValue remoteValue = storedPayload.value(QStringLiteral("remote"));
+    const QJsonValue etagValue = storedPayload.value(QStringLiteral("remoteEtag"));
+    const QJsonValue policyValue = storedPayload.value(QStringLiteral("policy"));
+    if (!baseValue.isObject() || !localValue.isObject() || !remoteValue.isObject() ||
+        !policyValue.isString() ||
+        (!etagValue.isUndefined() &&
+         (!etagValue.isString() || etagValue.toString().size() > kMaximumEtagLength ||
+          etagValue.toString().contains(QChar::Null)))) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored sync conflict payload is invalid"));
+    }
+    const std::optional<SyncConflictPolicy> storedPolicy = policyFromText(policyValue.toString());
+    if (!storedPolicy.has_value()) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored sync conflict payload is invalid"));
+    }
+    baseSnapshot = baseValue.toObject();
+    localPayload = localValue.toObject();
+    remoteSnapshot = remoteValue.toObject();
+    if (etagValue.isString()) {
+      remoteEtag = etagValue.toString();
+    }
+    policy = *storedPolicy;
+  }
   return SyncConflict{.id = *id,
                       .accountId = optionalText(statement, 1),
                       .resource = *resource,
@@ -196,7 +263,11 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
                       .mutationId = *mutationId,
                       .errorCode = *errorCode,
                       .errorMessage = *errorMessage,
-                      .localPayload = payload.object(),
+                      .baseSnapshot = std::move(baseSnapshot),
+                      .localPayload = std::move(localPayload),
+                      .remoteSnapshot = std::move(remoteSnapshot),
+                      .remoteEtag = std::move(remoteEtag),
+                      .policy = policy,
                       .createdAt = *createdAt,
                       .updatedAt = *updatedAt,
                       .resolution = resolution,
@@ -204,7 +275,14 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
 }
 
 [[nodiscard]] std::variant<SyncConflictInput, AppError> canonicalize(SyncConflictInput input) {
-  const QByteArray payload = QJsonDocument(input.localPayload).toJson(QJsonDocument::Compact);
+  QJsonObject payload{{QStringLiteral("base"), input.baseSnapshot},
+                      {QStringLiteral("local"), input.localPayload},
+                      {QStringLiteral("remote"), input.remoteSnapshot},
+                      {QStringLiteral("policy"), policyText(input.policy)}};
+  if (input.remoteEtag.has_value()) {
+    payload.insert(QStringLiteral("remoteEtag"), *input.remoteEtag);
+  }
+  const QByteArray payloadBytes = QJsonDocument(payload).toJson(QJsonDocument::Compact);
   if ((input.accountId.has_value() &&
        !isValidRequiredText(*input.accountId, kMaximumIdentifierLength)) ||
       resourceText(input.resource).isEmpty() ||
@@ -212,7 +290,8 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
       !isValidRequiredText(input.mutationId, kMaximumIdentifierLength) ||
       !isValidRequiredText(input.errorCode, kMaximumErrorCodeLength) ||
       !isValidRequiredText(input.errorMessage, kMaximumErrorMessageLength) ||
-      payload.size() > kMaximumPayloadBytes) {
+      !isValidOptionalText(input.remoteEtag, kMaximumEtagLength) ||
+      policyText(input.policy).isEmpty() || payloadBytes.size() > kMaximumPayloadBytes) {
     return validationError(QStringLiteral("Sync conflict input is invalid"));
   }
   return input;
@@ -252,8 +331,15 @@ ON CONFLICT(mutation_id) DO UPDATE SET
     return databaseError(QStringLiteral("SQLite sync-conflict record preparation failed (%1)"),
                          prepareResult);
   }
-  const QString payload =
-      QString::fromUtf8(QJsonDocument(input.localPayload).toJson(QJsonDocument::Compact));
+  QJsonObject payload{{QStringLiteral("base"), input.baseSnapshot},
+                      {QStringLiteral("local"), input.localPayload},
+                      {QStringLiteral("remote"), input.remoteSnapshot},
+                      {QStringLiteral("policy"), policyText(input.policy)}};
+  if (input.remoteEtag.has_value()) {
+    payload.insert(QStringLiteral("remoteEtag"), *input.remoteEtag);
+  }
+  const QString payloadText =
+      QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
   if (const std::optional<AppError> error =
           bindAll(statement,
                   {bindText(statement, 1, id),
@@ -263,7 +349,7 @@ ON CONFLICT(mutation_id) DO UPDATE SET
                    bindText(statement, 5, input.mutationId),
                    bindText(statement, 6, input.errorCode),
                    bindText(statement, 7, input.errorMessage),
-                   bindText(statement, 8, payload),
+                   bindText(statement, 8, payloadText),
                    bindText(statement, 9, now)});
       error.has_value()) {
     return *error;

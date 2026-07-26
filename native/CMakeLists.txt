@@ -155,6 +155,8 @@ set(HCB_NATIVE_SOURCES
   src/core/SyncCheckpointStore.h
   src/core/SyncConflictStore.cpp
   src/core/SyncConflictStore.h
+  src/core/SyncThreeWayMerge.cpp
+  src/core/SyncThreeWayMerge.h
   src/core/SyncScheduler.cpp
   src/core/SyncScheduler.h
   src/core/TaskListReadService.cpp
@@ -1240,6 +1242,18 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_sync_conflict_store_tests)
   add_test(NAME hcb_sync_conflict_store_tests COMMAND hcb_sync_conflict_store_tests)
 
+  qt_add_executable(hcb_sync_three_way_merge_tests
+    tests/SyncThreeWayMergeTest.cpp
+    src/core/SyncConflictStore.h
+    src/core/SyncThreeWayMerge.cpp
+    src/core/SyncThreeWayMerge.h
+  )
+  target_link_libraries(hcb_sync_three_way_merge_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_sync_three_way_merge_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_sync_three_way_merge_tests)
+  hcb_enable_sanitizers(hcb_sync_three_way_merge_tests)
+  add_test(NAME hcb_sync_three_way_merge_tests COMMAND hcb_sync_three_way_merge_tests)
+
   qt_add_executable(hcb_sync_scheduler_tests
     tests/SyncSchedulerTest.cpp
     src/core/AppError.h
@@ -2273,6 +2287,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
+    hcb_sync_three_way_merge_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
     hcb_recurrence_expansion_worker_tests
@@ -2375,6 +2390,7 @@ if(BUILD_TESTING)
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
     hcb_sync_conflict_store_tests
+    hcb_sync_three_way_merge_tests
     hcb_sync_scheduler_tests
     hcb_unified_local_search_ranker_tests
     hcb_recurrence_expansion_worker_tests

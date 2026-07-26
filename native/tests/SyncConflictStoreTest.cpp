@@ -82,9 +82,19 @@ void SyncConflictStoreTest::recordsListsResolvesAndReopensConflicts() {
               .mutationId = QStringLiteral("mutation:event:1"),
               .errorCode = QStringLiteral("precondition_failed"),
               .errorMessage = QStringLiteral("Remote event changed"),
-              .localPayload = QJsonObject{{QStringLiteral("summary"), QStringLiteral("Local")}}});
+              .baseSnapshot = QJsonObject{{QStringLiteral("summary"), QStringLiteral("Base")}},
+              .localPayload = QJsonObject{{QStringLiteral("summary"), QStringLiteral("Local")}},
+              .remoteSnapshot = QJsonObject{{QStringLiteral("summary"), QStringLiteral("Remote")}},
+              .remoteEtag = QStringLiteral("etag-remote"),
+              .policy = hcb::SyncConflictPolicy::AskEachTime});
   QVERIFY(first.id.startsWith(QStringLiteral("conflict:")));
   QCOMPARE(first.resolution, std::optional<hcb::SyncConflictResolution>{});
+  QCOMPARE(first.baseSnapshot, QJsonObject({{QStringLiteral("summary"), QStringLiteral("Base")}}));
+  QCOMPARE(first.localPayload, QJsonObject({{QStringLiteral("summary"), QStringLiteral("Local")}}));
+  QCOMPARE(first.remoteSnapshot,
+           QJsonObject({{QStringLiteral("summary"), QStringLiteral("Remote")}}));
+  QCOMPARE(first.remoteEtag, std::optional<QString>(QStringLiteral("etag-remote")));
+  QCOMPARE(first.policy, hcb::SyncConflictPolicy::AskEachTime);
   std::future<hcb::SyncConflictListResult> listedFuture = store.listUnresolved();
   const hcb::SyncConflictListResult listedResult = awaitResult(listedFuture);
   QVERIFY(std::holds_alternative<QList<hcb::SyncConflict>>(listedResult));

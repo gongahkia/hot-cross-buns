@@ -235,10 +235,11 @@ using EventPushRequestOrError = std::variant<EventPushRequest, QString>;
   }
   const std::optional<QString> remoteEventId =
       requiredIdentifier(mutation.payload, u"remoteEventId");
-  const std::optional<QString> etag = optionalEtag(mutation.payload);
+  const std::optional<QString> etag =
+      mutation.remoteEtag.has_value() ? mutation.remoteEtag : optionalEtag(mutation.payload);
   const QJsonValue etagValue = mutation.payload.value(QStringLiteral("etag"));
-  if (!remoteEventId.has_value() ||
-      (!etag.has_value() && !(etagValue.isUndefined() || etagValue.isNull()))) {
+  if (!remoteEventId.has_value() || (!mutation.remoteEtag.has_value() && !etag.has_value() &&
+                                     !(etagValue.isUndefined() || etagValue.isNull()))) {
     return QStringLiteral("Pending event mutation payload is invalid");
   }
   GoogleHttpRequest request;
