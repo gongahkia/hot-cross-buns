@@ -125,6 +125,7 @@ jobs:
             libxcb-keysyms1 \
             libxcb-randr0 \
             libxcb-render-util0 \
+            libxcb-shape0 \
             libxcb-xinerama0 \
             libxkbcommon-x11-0 \
             ninja-build \
@@ -139,6 +140,7 @@ jobs:
           "$RUNNER_TEMP/qt-online-installer.run" \
             --root "$RUNNER_TEMP/Qt" \
             --accept-licenses \
+            --accept-obligations \
             --default-answer \
             --confirm-command \
             install qt.qt6.6111.linux_gcc_64
@@ -187,6 +189,7 @@ jobs:
           & $installer `
             --root "$env:RUNNER_TEMP\Qt" `
             --accept-licenses `
+            --accept-obligations `
             --default-answer `
             --confirm-command `
             install qt.qt6.6111.win64_msvc2022_64
