@@ -5,8 +5,11 @@
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
+#include "core/TaskMutationService.h"
+#include "data/SqliteConnection.h"
 #include "support/MockNetworkAccessManager.h"
 #include "support/TemporarySqliteDatabase.h"
+#include "sqlite3.h"
 
 #include <QDateTime>
 #include <QCoreApplication>
@@ -31,6 +34,7 @@ class GoogleTaskMutationPushServiceTest final : public QObject {
 
 private slots:
   void pushesCreateUpdateAndDeleteMutations();
+  void reconcilesCreatedTaskRemoteIdentity();
   void recordsPermanentAndRetriableFailures();
 };
 
@@ -73,6 +77,12 @@ void verifyReady(hcb::OptimisticMutationCoordinator& coordinator) {
   QVERIFY(!ready.get().has_value());
 }
 
+void verifyReady(hcb::TaskMutationService& service) {
+  const std::shared_future<hcb::SqliteWriteResult> ready = service.ready();
+  QCOMPARE(ready.wait_for(2s), std::future_status::ready);
+  QVERIFY(!ready.get().has_value());
+}
+
 [[nodiscard]] hcb::PendingMutation
 enqueue(hcb::OptimisticMutationCoordinator& coordinator, QString operation, QJsonObject payload) {
   std::future<hcb::PendingMutationResult> future =
@@ -106,6 +116,47 @@ enqueue(hcb::OptimisticMutationCoordinator& coordinator, QString operation, QJso
     qFatal("task mutation push failed");
   }
   return std::get<hcb::GoogleTaskMutationPushResult>(result);
+}
+
+void execute(sqlite3* handle, const char* sql) {
+  char* errorMessage = nullptr;
+  const int result = sqlite3_exec(handle, sql, nullptr, nullptr, &errorMessage);
+  const QString message = errorMessage == nullptr ? QString() : QString::fromUtf8(errorMessage);
+  sqlite3_free(errorMessage);
+  if (result != SQLITE_OK) {
+    qFatal("%s", qPrintable(message));
+  }
+}
+
+[[nodiscard]] std::optional<QString>
+readTaskColumn(sqlite3* handle, const QString& taskId, const char* column) {
+  const QString sql =
+      QStringLiteral("SELECT %1 FROM local_tasks WHERE id = ?1").arg(QString::fromLatin1(column));
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(
+          handle, sql.toUtf8().constData(), -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr) !=
+      SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const QByteArray taskIdUtf8 = taskId.toUtf8();
+  if (sqlite3_bind_text(statement,
+                        1,
+                        taskIdUtf8.constData(),
+                        static_cast<int>(taskIdUtf8.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const auto* text = stepResult == SQLITE_ROW
+                         ? reinterpret_cast<const char*>(sqlite3_column_text(statement, 0))
+                         : nullptr;
+  const int size = stepResult == SQLITE_ROW ? sqlite3_column_bytes(statement, 0) : 0;
+  const int finalizeResult = sqlite3_finalize(statement);
+  return stepResult == SQLITE_ROW && text != nullptr && size >= 0 && finalizeResult == SQLITE_OK
+             ? std::optional<QString>(QString::fromUtf8(text, size))
+             : std::nullopt;
 }
 
 } // namespace
@@ -195,6 +246,62 @@ void GoogleTaskMutationPushServiceTest::pushesCreateUpdateAndDeleteMutations() {
   QCOMPARE(find(coordinator, created.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleTaskMutationPushServiceTest::reconcilesCreatedTaskRemoteIdentity() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::TaskMutationService taskMutations(database->databasePath(), clock);
+  verifyReady(taskMutations);
+  hcb::SqliteConnectionResult connectionResult = hcb::SqliteConnectionFactory::open(
+      database->databasePath(), hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('account-a', 'google', 'connected', '[]', '[]', '2026-07-25T00:00:00Z')");
+  execute(handle,
+          "INSERT INTO local_task_lists (id, account_id, remote_id, title, updated_at) VALUES "
+          "('list-a', 'account-a', 'remote-list', 'Tasks', '2026-07-25T00:00:00Z')");
+  std::future<hcb::TaskMutationResult> created = taskMutations.create(
+      {.taskListId = QStringLiteral("list-a"), .title = QStringLiteral("Write release notes")});
+  const hcb::TaskMutationResult createdResult = awaitResult(created);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(createdResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(createdResult)) {
+    return;
+  }
+  const QString localTaskId = std::get<hcb::TaskMutationReceipt>(createdResult).taskId;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(R"({"id":"remote-task","etag":"etag-created"})")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{}, &taskMutations);
+
+  const hcb::GoogleTaskMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 1);
+  QCOMPARE(result.failed, 0);
+  QCOMPARE(manager.requests().size(), 1);
+  QCOMPARE(manager.requests().constFirst().request.url().path(),
+           QStringLiteral("/tasks/v1/lists/remote-list/tasks"));
+  QCOMPARE(readTaskColumn(handle, localTaskId, "remote_id"),
+           std::optional<QString>(QStringLiteral("remote-task")));
+  QCOMPARE(readTaskColumn(handle, localTaskId, "etag"),
+           std::optional<QString>(QStringLiteral("etag-created")));
+  hcb::PendingMutationListResult pendingResult = coordinator.listDue().get();
+  QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(pendingResult));
+  QCOMPARE(std::get<QList<hcb::PendingMutation>>(pendingResult).size(), 0);
 }
 
 void GoogleTaskMutationPushServiceTest::recordsPermanentAndRetriableFailures() {
