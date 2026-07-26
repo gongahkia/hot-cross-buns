@@ -54,11 +54,18 @@ void execute(sqlite3* handle, const char* sql) {
 
 [[nodiscard]] int count(sqlite3* handle, const char* sql) {
   sqlite3_stmt* statement = nullptr;
-  QCOMPARE(sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr),
-           SQLITE_OK);
-  QCOMPARE(sqlite3_step(statement), SQLITE_ROW);
+  if (sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr) !=
+      SQLITE_OK) {
+    qFatal("SQLite count preparation failed");
+  }
+  if (sqlite3_step(statement) != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    qFatal("SQLite count query failed");
+  }
   const int value = sqlite3_column_int(statement, 0);
-  QCOMPARE(sqlite3_finalize(statement), SQLITE_OK);
+  if (sqlite3_finalize(statement) != SQLITE_OK) {
+    qFatal("SQLite count finalization failed");
+  }
   return value;
 }
 
