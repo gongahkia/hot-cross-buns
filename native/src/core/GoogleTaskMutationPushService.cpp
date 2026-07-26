@@ -363,6 +363,63 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
             return;
           }
           PendingMutation claimed = std::get<PendingMutation>(std::move(claimResult));
+          const std::optional<QString> dependency =
+              optionalIdentifier(claimed.payload, u"dependsOnMutationId");
+          const QJsonValue dependencyValue = claimed.payload.value(QStringLiteral("dependsOnMutationId"));
+          if (!dependency.has_value() &&
+              !(dependencyValue.isUndefined() || dependencyValue.isNull())) {
+            const std::optional<AppError> failure = markFailure(mutations_,
+                                                                claimed,
+                                                                QStringLiteral("invalid_payload"),
+                                                                QStringLiteral("Task mutation dependency is invalid"),
+                                                                std::nullopt);
+            if (failure.has_value()) {
+              completion->set_value(*failure);
+              return;
+            }
+            ++summary.failed;
+            continue;
+          }
+          if (dependency.has_value()) {
+            PendingMutationLookupResult dependencyResult = mutations_.find(*dependency).get();
+            if (std::holds_alternative<AppError>(dependencyResult)) {
+              completion->set_value(std::get<AppError>(std::move(dependencyResult)));
+              return;
+            }
+            const std::optional<PendingMutation>& prerequisite =
+                std::get<std::optional<PendingMutation>>(dependencyResult);
+            if (!prerequisite.has_value() ||
+                prerequisite->status == PendingMutationStatus::Cancelled) {
+              const std::optional<AppError> failure =
+                  markFailure(mutations_,
+                              claimed,
+                              QStringLiteral("dependency_failed"),
+                              QStringLiteral("Task mutation prerequisite is unavailable"),
+                              std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              continue;
+            }
+            if (prerequisite->status != PendingMutationStatus::Applied) {
+              if (claimed.leaseId.has_value()) {
+                MutationFailureInput deferred{.mutationId = claimed.id,
+                                              .leaseId = *claimed.leaseId,
+                                              .errorCode = QStringLiteral("dependency_pending"),
+                                              .errorMessage = QStringLiteral("Task mutation prerequisite is pending"),
+                                              .nextRetryAt = timestampAfter(clock_, 0)};
+                PendingMutationResult deferredResult = mutations_.markFailed(std::move(deferred)).get();
+                if (std::holds_alternative<AppError>(deferredResult)) {
+                  completion->set_value(std::get<AppError>(std::move(deferredResult)));
+                  return;
+                }
+              }
+              ++summary.skipped;
+              continue;
+            }
+          }
           const TaskPushRequestOrError request = buildRequest(claimed);
           if (std::holds_alternative<QString>(request)) {
             const std::optional<AppError> failure = markFailure(mutations_,
