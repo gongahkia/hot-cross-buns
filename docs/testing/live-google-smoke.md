@@ -1,34 +1,37 @@
-# Live Google Smoke
+# macOS Live Google Acceptance v1
 
-Use a disposable Google account or clearly marked test data. This preview reads Google Tasks and Calendar into the local SQLite mirror; it does not push local edits to Google.
+This is the macOS release acceptance procedure for Hot Cross Buns' user-owned Google Tasks and Google Calendar connection. It needs a disposable user-owned Google account and Cloud project. Do not put credentials, IDs, task/calendar titles, request logs, local databases, or screenshots containing personal data in the repository or attestation.
 
-## Preconditions
+The redacted attestation is [macos-live-google-acceptance-v1.json](macos-live-google-acceptance-v1.json). It starts incomplete. A `v*` release workflow fails until every required check is passed and the attestation is accepted.
 
-- Create a Google Cloud OAuth **Desktop app** client in the tester's own project.
-- Enable Google Tasks API and Google Calendar API in that project.
-- Add the tester as an OAuth consent-screen test user when the project is in testing mode.
-- Keep the client secret out of HCB; the desktop flow uses its client ID only.
-- Open Google Calendar and Google Tasks in a browser for comparison.
+## Google Cloud setup
 
-## Startup
+1. Create a separate Google Cloud project and OAuth **Desktop app** client. HCB accepts only the client ID; do not enter or commit a client secret.
+2. Enable Google Tasks API and Google Calendar API.
+3. Configure the OAuth consent screen. For an External app in Testing, add the disposable Google account as a test user. Test-mode grants expire after seven days; reconnect before testing if needed.
+4. Use only the scopes HCB requests: `https://www.googleapis.com/auth/tasks` and `https://www.googleapis.com/auth/calendar`.
+5. Open Google Tasks and Google Calendar in a browser. Create a dedicated empty task list and calendar. All test records must be clearly disposable.
 
-- Launch HCB and open Settings.
-- Enter and save the Desktop OAuth client ID.
-- Select **Connect Google**, complete browser consent, and wait for `Google synchronization complete`.
-- Relaunch HCB. Confirm the cached task lists, tasks, calendars, and events render, then the background read sync completes.
+Google's current setup and token rules: [consent screen and test users](https://support.google.com/cloud/answer/13461325), [test-mode expiry and limits](https://support.google.com/cloud/answer/15549945), [Calendar incremental sync](https://developers.google.com/workspace/calendar/api/guides/sync), and [Google Tasks methods](https://developers.google.com/workspace/tasks/reference/rest).
 
-## Read sync
+## Runbook
 
-- Create or edit a task in Google Tasks. Select **Sync Google now** in HCB and confirm the task list, task title, completion state, and parent relationship match Google.
-- Create or edit an event in Google Calendar. Sync and confirm calendar metadata, title, time range, all-day state, description, and location match Google.
-- Delete a Google task or cancel a Google event. Sync and confirm it disappears from the active HCB views.
+Record only the outcome in the attestation. `manual` requires the real account/browser comparison. `automated` is allowed only for quota/retry and invalid-sync-token coverage because deliberately exhausting a Google project is unsafe; run `hcb_google_http_client_tests` and `hcb_google_sync_recovery_service_tests`, then record the commit and test command without raw output.
 
-## Current limitation check
+1. Install the candidate macOS app, enter the Desktop client ID in Settings, connect Google, and wait for the first sync. Relaunch and verify cached data appears before the background sync finishes.
+2. Make browser-side task and event changes, invoke **Sync Google now**, then verify HCB reflects additions, edits, deletions, task parents, event all-day/time/description/location fields, and a second sync is delta-only in effect.
+3. Create, rename, select, and delete a disposable task list in HCB; after each sync, verify the browser result. Create, edit, complete, delete, reorder, reparent, and cross-list-move disposable tasks. A cross-list move is expected to recreate the remote task then delete the original, so its Google remote ID changes.
+4. Enable Notes. Create an undated note in HCB; verify it is a Google Task with no due date. Verify both Notes-only and mirrored Tasks+Notes presentation modes, then edit and delete it from each side.
+5. Run task and event bulk operations against at least three disposable records each. Verify every selected remote record, then search for a changed task and event locally.
+6. Exercise a recurring Google Calendar event plus an exception from the browser and confirm the series and exception render after sync. Exercise managed Google Task recurrence only through the released recurrence UI. If that UI is unavailable, leave `task_recurrence` incomplete; do not hand-edit HCB's internal marker.
+7. For each policy (**Prefer Google**, **Prefer HCB**, **Ask each time**), create a stale-ETag conflict: queue an offline local edit, edit the same record in Google, restore connectivity, sync, and verify the selected result remotely. For Ask each time, resolve both choices through Settings.
+8. Queue one task and one event write while offline, quit HCB, relaunch while still offline, restore connectivity, and sync. Verify both remote records and that the queue does not replay them again on a second sync.
+9. Revoke the app in the test account's Google Account permissions, sync, and verify the app requires reauthorization without clearing cached data. Reconnect and verify a later sync succeeds.
+10. Force a transient network failure while syncing, then restore connectivity. Verify cache retention, retry/recovery, and no duplicate mutation. Run the native quota/retry and invalid-sync-token tests listed in the attestation; Calendar `410 Gone` must clear the stored token and full-resync.
 
-- Do not use HCB local task or event edits as Google write tests. They remain local and a later full Google sync can replace them.
-- Reconnect after revoking the app's access in Google Account settings. Confirm the app reports that authorization must be renewed.
+## Attestation rules
 
-## Failure checks
-
-- Disconnect the network, select **Sync Google now**, and confirm the status reports a sync failure without clearing cached data.
-- Reconnect and sync again; confirm cached data refreshes.
+- Change `attestation_status` to `accepted` only when every check is `passed`.
+- Keep `redacted` true. Evidence may contain candidate commit, package version, macOS version, architecture, UTC execution time, and test command names only.
+- A failure, unavailable recurrence editor, missing OAuth setup, or missing manual browser comparison remains `incomplete`; it blocks release promotion by design.
+- Never include the Desktop client ID, account email, task/calendar IDs or titles, tokens, cookies, SQLite paths, raw API payloads, screenshots, or logs.

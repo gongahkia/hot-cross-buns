@@ -13,6 +13,10 @@ foreach(hcb_required_pattern IN ITEMS
     "tags:"
     "- \"v\\*\""
     "native-package-install-smoke.yml"
+    "native-macos-live-google-attestation"
+    "check-macos-live-google-acceptance.sh"
+    "macos-live-google-acceptance-v1.json"
+    "needs: native-macos-live-google-attestation"
 )
   if(NOT hcb_workflow MATCHES "${hcb_required_pattern}")
     message(FATAL_ERROR "native release acceptance workflow is missing: ${hcb_required_pattern}")
