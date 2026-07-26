@@ -226,6 +226,44 @@ LIMIT 1
              : std::nullopt;
 }
 
+[[nodiscard]] std::optional<QString>
+readRecurrenceSuccessor(sqlite3* handle, const QString& seriesId, const QString& occurrenceId) {
+  constexpr char sql[] = R"(
+SELECT successor_task_id
+FROM local_task_recurrence_claims
+WHERE account_id = 'account-a' AND series_id = ?1 AND occurrence_id = ?2
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr) !=
+      SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const QByteArray seriesUtf8 = seriesId.toUtf8();
+  const QByteArray occurrenceUtf8 = occurrenceId.toUtf8();
+  if (sqlite3_bind_text(statement,
+                        1,
+                        seriesUtf8.constData(),
+                        static_cast<int>(seriesUtf8.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK ||
+      sqlite3_bind_text(statement,
+                        2,
+                        occurrenceUtf8.constData(),
+                        static_cast<int>(occurrenceUtf8.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  if (sqlite3_step(statement) != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const std::optional<QString> successor = optionalText(statement, 0);
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK ? successor : std::nullopt;
+}
+
 } // namespace
 
 class TaskMutationServiceTest final : public QObject {
@@ -238,6 +276,7 @@ private slots:
   void reordersTaskAmongSiblings();
   void createsAndReparentsOneLevelSubtasks();
   void preservesManagedRecurrenceAcrossOrdinaryEdits();
+  void completesManagedRecurrenceAtomicallyAndIdempotently();
   void rejectsInvalidAndUnavailableMutations();
 };
 
@@ -471,6 +510,107 @@ void TaskMutationServiceTest::preservesManagedRecurrenceAcrossOrdinaryEdits() {
   QCOMPARE(parsed.marker->templateTitle, QStringLiteral("Updated title"));
   QCOMPARE(parsed.marker->templateDueDate, QStringLiteral("2026-08-02"));
   QCOMPARE(parsed.marker->templatePriority, QStringLiteral("medium"));
+}
+
+void TaskMutationServiceTest::completesManagedRecurrenceAtomicallyAndIdempotently() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::TaskMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+
+  hcb::TaskRecurrenceMarker marker{
+      .seriesId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492"),
+      .occurrenceId = QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492:0"),
+      .frequency = hcb::TaskRecurrenceFrequency::Weekly,
+      .anchorDate = QStringLiteral("2026-07-26"),
+      .timeZone = QStringLiteral("Asia/Singapore"),
+      .end = {.kind = hcb::TaskRecurrenceEndKind::Count, .count = 2},
+      .templateTitle = QStringLiteral("Weekly review"),
+      .templateDueDate = QStringLiteral("2026-07-26"),
+      .templatePriority = QStringLiteral("high")};
+  const hcb::TaskRecurrenceSerializationResult serialized =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("Review notes"), marker);
+  QVERIFY(!serialized.error.has_value());
+  QByteArray escapedNotes = serialized.notes.toUtf8();
+  escapedNotes.replace("'", "''");
+  const QByteArray insertSql =
+      "INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, state, due_at, "
+      "due_time_zone, priority, etag, updated_at) VALUES "
+      "('task-recurring', 'list-active', 'remote-recurring', 'Weekly review', '" +
+      escapedNotes +
+      "', 'active', '2026-07-26T00:00:00.000Z', 'Asia/Singapore', 'high', 'etag-recurring', "
+      "'2026-07-25T00:00:00Z')";
+  execute(handle, insertSql.constData());
+
+  std::future<hcb::TaskMutationResult> completion =
+      service.setCompleted(QStringLiteral("task-recurring"), true);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(completion)));
+  const std::optional<TaskSnapshot> source = readTask(handle, QStringLiteral("task-recurring"));
+  QVERIFY(source.has_value());
+  if (!source.has_value()) {
+    return;
+  }
+  QCOMPARE(source->state, QStringLiteral("completed"));
+  const std::optional<QString> successorId =
+      readRecurrenceSuccessor(handle, marker.seriesId, marker.occurrenceId);
+  QVERIFY(successorId.has_value());
+  if (!successorId.has_value()) {
+    return;
+  }
+  const std::optional<TaskSnapshot> successor = readTask(handle, *successorId);
+  QVERIFY(successor.has_value());
+  if (!successor.has_value() || !successor->notes.has_value()) {
+    return;
+  }
+  QCOMPARE(successor->title, QStringLiteral("Weekly review"));
+  QCOMPARE(successor->state, QStringLiteral("active"));
+  QCOMPARE(successor->priority, QStringLiteral("high"));
+  QCOMPARE(successor->dueAt, std::optional<QString>(QStringLiteral("2026-08-02T00:00:00.000Z")));
+  QCOMPARE(successor->dueTimeZone, std::optional<QString>(QStringLiteral("Asia/Singapore")));
+  const hcb::TaskRecurrenceNotes successorNotes =
+      hcb::parseTaskRecurrenceNotes(*successor->notes);
+  QCOMPARE(successorNotes.state, hcb::TaskRecurrenceNotesState::Managed);
+  QVERIFY(successorNotes.marker.has_value());
+  if (!successorNotes.marker.has_value()) {
+    return;
+  }
+  QCOMPARE(successorNotes.marker->occurrenceId,
+           QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492:1"));
+  QCOMPARE(successorNotes.userNotes, QStringLiteral("Review notes"));
+  const std::optional<PendingMutationSnapshot> sourceMutation =
+      readPendingTaskMutation(handle, QStringLiteral("task-recurring"));
+  const std::optional<PendingMutationSnapshot> successorMutation =
+      readPendingTaskMutation(handle, *successorId);
+  QVERIFY(sourceMutation.has_value());
+  QVERIFY(successorMutation.has_value());
+  if (!sourceMutation.has_value() || !successorMutation.has_value()) {
+    return;
+  }
+  QCOMPARE(sourceMutation->operation, QStringLiteral("task.update"));
+  QCOMPARE(successorMutation->operation, QStringLiteral("task.create"));
+  QCOMPARE(successorMutation->payload.value(QStringLiteral("dependsOnMutationId")).toString(),
+           sourceMutation->id);
+
+  std::future<hcb::TaskMutationResult> repeatCompletion =
+      service.setCompleted(QStringLiteral("task-recurring"), true);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(repeatCompletion)));
+  QCOMPARE(readRecurrenceSuccessor(handle, marker.seriesId, marker.occurrenceId), successorId);
 }
 
 void TaskMutationServiceTest::queuesRemoteTaskChangesWithBaseEtag() {

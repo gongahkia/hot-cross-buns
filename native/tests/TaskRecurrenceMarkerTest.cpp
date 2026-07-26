@@ -9,6 +9,7 @@ private slots:
   void roundTripsWithoutChangingUserNotes();
   void rejectsMalformedAndUnknownMarkersWithoutDiscardingNotes();
   void enforcesGoogleNotesLimit();
+  void advancesDatesFromTheAnchorAcrossDstAndMonthEnds();
 };
 
 namespace {
@@ -87,6 +88,47 @@ void TaskRecurrenceMarkerTest::enforcesGoogleNotesLimit() {
   const hcb::TaskRecurrenceSerializationResult invalidSerialized =
       hcb::serializeTaskRecurrenceNotes(QString(), invalid);
   QVERIFY(invalidSerialized.error.has_value());
+}
+
+void TaskRecurrenceMarkerTest::advancesDatesFromTheAnchorAcrossDstAndMonthEnds() {
+  hcb::TaskRecurrenceMarker weekly = marker();
+  weekly.interval = 1;
+  weekly.anchorDate = QStringLiteral("2026-03-08");
+  weekly.templateDueDate = weekly.anchorDate;
+  weekly.timeZone = QStringLiteral("America/New_York");
+  weekly.ordinal = 0;
+  weekly.occurrenceId = weekly.seriesId + QStringLiteral(":0");
+  const std::optional<hcb::TaskRecurrenceMarker> weeklySuccessor =
+      hcb::taskRecurrenceSuccessor(weekly);
+  QVERIFY(weeklySuccessor.has_value());
+  if (!weeklySuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(weeklySuccessor->templateDueDate, QStringLiteral("2026-03-15"));
+
+  hcb::TaskRecurrenceMarker monthly = marker();
+  monthly.frequency = hcb::TaskRecurrenceFrequency::Monthly;
+  monthly.interval = 1;
+  monthly.anchorDate = QStringLiteral("2024-01-31");
+  monthly.templateDueDate = monthly.anchorDate;
+  monthly.end = {.kind = hcb::TaskRecurrenceEndKind::Count, .count = 3};
+  monthly.ordinal = 0;
+  monthly.occurrenceId = monthly.seriesId + QStringLiteral(":0");
+  const std::optional<hcb::TaskRecurrenceMarker> february =
+      hcb::taskRecurrenceSuccessor(monthly);
+  QVERIFY(february.has_value());
+  if (!february.has_value()) {
+    return;
+  }
+  QCOMPARE(february->templateDueDate, QStringLiteral("2024-02-29"));
+  const std::optional<hcb::TaskRecurrenceMarker> march =
+      hcb::taskRecurrenceSuccessor(*february);
+  QVERIFY(march.has_value());
+  if (!march.has_value()) {
+    return;
+  }
+  QCOMPARE(march->templateDueDate, QStringLiteral("2024-03-31"));
+  QVERIFY(!hcb::taskRecurrenceSuccessor(*march).has_value());
 }
 
 QTEST_GUILESS_MAIN(TaskRecurrenceMarkerTest)

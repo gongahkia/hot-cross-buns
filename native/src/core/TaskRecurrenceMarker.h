@@ -62,6 +62,10 @@ struct TaskRecurrenceSerializationResult final {
 [[nodiscard]] TaskRecurrenceNotes parseTaskRecurrenceNotes(const QString& notes);
 [[nodiscard]] TaskRecurrenceSerializationResult
 serializeTaskRecurrenceNotes(const QString& userNotes, const TaskRecurrenceMarker& marker);
+[[nodiscard]] std::optional<QString> taskRecurrenceDate(const TaskRecurrenceMarker& marker,
+                                                         std::int32_t ordinal);
+[[nodiscard]] std::optional<TaskRecurrenceMarker>
+taskRecurrenceSuccessor(const TaskRecurrenceMarker& marker);
 [[nodiscard]] QString taskRecurrenceSummary(const TaskRecurrenceMarker& marker);
 
 } // namespace hcb

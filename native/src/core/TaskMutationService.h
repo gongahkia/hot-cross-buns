@@ -27,6 +27,12 @@ enum class TaskReorderDirection : std::uint8_t {
   Later
 };
 
+enum class TaskRecurrenceScope : std::uint8_t {
+  ThisOccurrence,
+  ThisAndFollowing,
+  EntireSeries
+};
+
 struct TaskDue final {
   std::optional<QString> at;
   std::optional<QString> timeZone;
@@ -72,9 +78,16 @@ struct TaskMutationSnapshot final {
   bool hasActiveChildren{false};
 };
 
+struct TaskRecurrenceReconciliation final {
+  std::int64_t createdSuccessorCount{0};
+  std::int64_t removedDuplicateCount{0};
+  std::int64_t divergentDuplicateGroupCount{0};
+};
+
 using TaskMutationResult = std::variant<TaskMutationReceipt, AppError>;
 using TaskRemoteIdResult = std::variant<std::optional<QString>, AppError>;
 using TaskMutationSnapshotResult = std::variant<QList<TaskMutationSnapshot>, AppError>;
+using TaskRecurrenceReconciliationResult = std::variant<TaskRecurrenceReconciliation, AppError>;
 
 class TaskMutationService final {
 public:
@@ -89,10 +102,15 @@ public:
   [[nodiscard]] std::future<TaskMutationResult>
   reorder(QString taskId, TaskReorderDirection direction);
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
+  [[nodiscard]] std::future<TaskMutationResult>
+  stopManagedRecurrence(QString taskId, TaskRecurrenceScope scope);
+  [[nodiscard]] std::future<TaskMutationResult> splitManagedRecurrence(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);
   [[nodiscard]] std::future<TaskMutationResult>
   reconcileGoogleTask(TaskRemoteReconciliationInput input);
+  [[nodiscard]] std::future<TaskRecurrenceReconciliationResult>
+  reconcileManagedRecurrences(QString accountId, QString taskListRemoteId);
   [[nodiscard]] std::future<TaskRemoteIdResult> remoteTaskId(QString taskId);
 
 private:

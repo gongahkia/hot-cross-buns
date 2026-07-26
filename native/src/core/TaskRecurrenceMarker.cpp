@@ -359,6 +359,57 @@ TaskRecurrenceSerializationResult serializeTaskRecurrenceNotes(const QString& us
   return {.notes = notes};
 }
 
+std::optional<QString> taskRecurrenceDate(const TaskRecurrenceMarker& marker,
+                                          std::int32_t ordinal) {
+  if (ordinal < 0 || validate(marker).has_value()) {
+    return std::nullopt;
+  }
+  const QDate anchor = QDate::fromString(marker.anchorDate, Qt::ISODate);
+  const qint64 intervals = static_cast<qint64>(marker.interval) * ordinal;
+  QDate date;
+  switch (marker.frequency) {
+  case TaskRecurrenceFrequency::Daily:
+    date = anchor.addDays(intervals);
+    break;
+  case TaskRecurrenceFrequency::Weekly:
+    date = anchor.addDays(intervals * 7);
+    break;
+  case TaskRecurrenceFrequency::Monthly:
+    if (intervals > std::numeric_limits<int>::max()) {
+      return std::nullopt;
+    }
+    date = anchor.addMonths(static_cast<int>(intervals));
+    break;
+  case TaskRecurrenceFrequency::Yearly:
+    if (intervals > std::numeric_limits<int>::max()) {
+      return std::nullopt;
+    }
+    date = anchor.addYears(static_cast<int>(intervals));
+    break;
+  }
+  return date.isValid() ? std::optional<QString>(date.toString(Qt::ISODate)) : std::nullopt;
+}
+
+std::optional<TaskRecurrenceMarker> taskRecurrenceSuccessor(const TaskRecurrenceMarker& marker) {
+  if (marker.ordinal == std::numeric_limits<std::int32_t>::max()) {
+    return std::nullopt;
+  }
+  TaskRecurrenceMarker successor = marker;
+  successor.ordinal += 1;
+  successor.occurrenceId = successor.seriesId + QStringLiteral(":") +
+                           QString::number(successor.ordinal);
+  const std::optional<QString> dueDate = taskRecurrenceDate(successor, successor.ordinal);
+  if (!dueDate.has_value() ||
+      (successor.end.kind == TaskRecurrenceEndKind::Until &&
+       *dueDate > *successor.end.untilDate) ||
+      (successor.end.kind == TaskRecurrenceEndKind::Count &&
+       successor.ordinal >= *successor.end.count)) {
+    return std::nullopt;
+  }
+  successor.templateDueDate = *dueDate;
+  return successor;
+}
+
 QString taskRecurrenceSummary(const TaskRecurrenceMarker& marker) {
   const QString singular = frequencyText(marker.frequency);
   const QString plural =

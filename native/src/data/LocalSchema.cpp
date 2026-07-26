@@ -772,6 +772,23 @@ WHERE tasks.deleted_at IS NULL
   AND lists.deleted_at IS NULL
 )";
 
+constexpr char taskRecurrenceClaimsSchemaSql[] = R"(
+CREATE TABLE local_task_recurrence_claims (
+  account_id TEXT NOT NULL REFERENCES local_accounts(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  series_id TEXT NOT NULL CHECK(length(trim(series_id)) BETWEEN 1 AND 64),
+  occurrence_id TEXT NOT NULL CHECK(length(trim(occurrence_id)) BETWEEN 3 AND 80),
+  source_task_id TEXT NOT NULL UNIQUE REFERENCES local_tasks(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  successor_task_id TEXT UNIQUE REFERENCES local_tasks(id) ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+  created_at TEXT NOT NULL CHECK(length(trim(created_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64),
+  PRIMARY KEY(account_id, series_id, occurrence_id)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_task_recurrence_claims_successor
+ON local_task_recurrence_claims(successor_task_id)
+WHERE successor_task_id IS NOT NULL
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -868,8 +885,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
       connection, allUndatedNotesSchemaSql, QStringLiteral("SQLite all-undated-notes schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 16>& migrations() {
-  static const std::array<SqliteMigration, 16> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyTaskRecurrenceClaimsSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     taskRecurrenceClaimsSchemaSql,
+                     QStringLiteral("SQLite task-recurrence claims schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 17>& migrations() {
+  static const std::array<SqliteMigration, 17> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -922,6 +945,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("project all undated tasks as notes"),
        checksum(allUndatedNotesSchemaSql),
        applyAllUndatedNotesSchema},
+      {17,
+       QStringLiteral("add task recurrence claims"),
+       checksum(taskRecurrenceClaimsSchemaSql),
+       applyTaskRecurrenceClaimsSchema},
   }};
   return catalogue;
 }

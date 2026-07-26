@@ -13,6 +13,7 @@
 #include <QList>
 #include <QSet>
 #include <QString>
+#include <QTime>
 #include <QTimeZone>
 #include <QUuid>
 
@@ -59,6 +60,10 @@ struct ActiveTaskMutation final {
 struct TaskPositionReference final {
   std::optional<QString> previousRemoteId;
   std::optional<QString> previousLocalId;
+};
+
+struct TaskRecurrenceClaim final {
+  QString successorTaskId;
 };
 
 struct StoredTaskSibling final {
@@ -397,7 +402,8 @@ LIMIT 1
 
 [[nodiscard]] QJsonObject taskPayload(const StoredTaskContext& task,
                                       bool includeRemoteIdentity,
-                                      const TaskPositionReference& position = {}) {
+                                      const TaskPositionReference& position = {},
+                                      const std::optional<QString>& dependsOnMutationId = {}) {
   QJsonObject body = googleTaskBody(task);
   if (!includeRemoteIdentity && !task.dueAt.has_value()) {
     body.remove(QStringLiteral("due"));
@@ -420,6 +426,9 @@ LIMIT 1
     payload.insert(QStringLiteral("previousTaskId"), *position.previousRemoteId);
   } else if (position.previousLocalId.has_value()) {
     payload.insert(QStringLiteral("previousTaskLocalId"), *position.previousLocalId);
+  }
+  if (dependsOnMutationId.has_value()) {
+    payload.insert(QStringLiteral("dependsOnMutationId"), *dependsOnMutationId);
   }
   return payload;
 }
@@ -679,7 +688,18 @@ queueTaskMutation(SqliteConnection& connection,
       if (!after.has_value()) {
         return AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable"));
       }
-      QJsonObject payload = taskPayload(*after, false, position);
+      std::optional<QString> dependency = dependsOnMutationId;
+      const QJsonValue existingDependency = active->payload.value(QStringLiteral("dependsOnMutationId"));
+      if (!dependency.has_value() && !existingDependency.isUndefined() &&
+          !existingDependency.isNull()) {
+        if (!existingDependency.isString() ||
+            !isValidRequiredText(existingDependency.toString(), kMaximumIdentifierLength)) {
+          return AppError(AppErrorCode::Database,
+                          QStringLiteral("Stored task mutation dependency is invalid"));
+        }
+        dependency = existingDependency.toString();
+      }
+      QJsonObject payload = taskPayload(*after, false, position, dependency);
       payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
       return replaceActiveTaskMutation(
           connection, *active, QStringLiteral("task.create"), std::move(payload), updatedAt);
@@ -694,7 +714,10 @@ queueTaskMutation(SqliteConnection& connection,
   }
   QJsonObject payload =
       deleting ? deletePayload(before, dependsOnMutationId)
-               : taskPayload(*after, operation != QStringLiteral("task.create"), position);
+               : taskPayload(*after,
+                             operation != QStringLiteral("task.create"),
+                             position,
+                             dependsOnMutationId);
   payload = withConflictMetadata(
       std::move(payload),
       operation == QStringLiteral("task.create") ? QJsonObject() : taskSnapshot(before),
@@ -983,6 +1006,213 @@ WHERE id = ?1 AND deleted_at IS NULL
     return validationError(QStringLiteral("Task is unavailable for completion"));
   }
   return TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt};
+}
+
+[[nodiscard]] std::variant<std::optional<TaskRecurrenceClaim>, AppError>
+findTaskRecurrenceClaim(SqliteConnection& connection,
+                        const QString& accountId,
+                        const QString& seriesId,
+                        const QString& occurrenceId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT successor_task_id
+FROM local_task_recurrence_claims
+WHERE account_id = ?1 AND series_id = ?2 AND occurrence_id = ?3
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurrence-claim lookup preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, accountId),
+                   bindText(statement, 2, seriesId),
+                   bindText(statement, 3, occurrenceId)});
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  if (stepResult == SQLITE_DONE) {
+    const int finalizeResult = sqlite3_finalize(statement);
+    return finalizeResult == SQLITE_OK
+               ? std::variant<std::optional<TaskRecurrenceClaim>, AppError>(
+                     std::optional<TaskRecurrenceClaim>{})
+               : std::variant<std::optional<TaskRecurrenceClaim>, AppError>(databaseError(
+                     QStringLiteral("SQLite recurrence-claim lookup finalization failed (%1)"),
+                     finalizeResult));
+  }
+  if (stepResult != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurrence-claim lookup failed (%1)"), stepResult);
+  }
+  const std::optional<QString> successorTaskId = optionalText(statement, 0);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (!successorTaskId.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Stored recurrence claim is invalid"));
+  }
+  return finalizeResult == SQLITE_OK
+             ? std::variant<std::optional<TaskRecurrenceClaim>, AppError>(
+                   TaskRecurrenceClaim{.successorTaskId = *successorTaskId})
+             : std::variant<std::optional<TaskRecurrenceClaim>, AppError>(databaseError(
+                   QStringLiteral("SQLite recurrence-claim lookup finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+insertTaskRecurrenceClaim(SqliteConnection& connection,
+                          const StoredTaskContext& source,
+                          const TaskRecurrenceMarker& marker,
+                          const QString& successorTaskId,
+                          const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+INSERT INTO local_task_recurrence_claims (
+  account_id, series_id, occurrence_id, source_task_id, successor_task_id, created_at, updated_at
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurrence-claim insertion preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, source.accountId),
+                   bindText(statement, 2, marker.seriesId),
+                   bindText(statement, 3, marker.occurrenceId),
+                   bindText(statement, 4, source.taskId),
+                   bindText(statement, 5, successorTaskId),
+                   bindText(statement, 6, updatedAt)});
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite recurrence-claim insertion failed (%1)"), stepResult);
+  }
+  return finalizeResult == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite recurrence-claim insertion finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::variant<std::optional<QString>, AppError>
+createTaskRecurrenceSuccessor(SqliteConnection& connection,
+                              const StoredTaskContext& source,
+                              const TaskRecurrenceNotes& recurrence,
+                              const QString& updatedAt,
+                              const std::optional<QString>& dependsOnMutationId = {}) {
+  if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value()) {
+    return std::optional<QString>{};
+  }
+  if (source.parentTaskId.has_value()) {
+    return validationError(QStringLiteral("Managed recurring task cannot be a subtask"));
+  }
+  const std::variant<bool, AppError> childResult = hasActiveTaskChild(connection, source.taskId);
+  if (std::holds_alternative<AppError>(childResult)) {
+    return std::get<AppError>(childResult);
+  }
+  if (std::get<bool>(childResult)) {
+    return validationError(QStringLiteral("Managed recurring task cannot have subtasks"));
+  }
+  const std::variant<std::optional<TaskRecurrenceClaim>, AppError> claimResult =
+      findTaskRecurrenceClaim(
+          connection, source.accountId, recurrence.marker->seriesId, recurrence.marker->occurrenceId);
+  if (std::holds_alternative<AppError>(claimResult)) {
+    return std::get<AppError>(claimResult);
+  }
+  const std::optional<TaskRecurrenceClaim>& claim =
+      std::get<std::optional<TaskRecurrenceClaim>>(claimResult);
+  if (claim.has_value()) {
+    return claim->successorTaskId;
+  }
+  const std::optional<TaskRecurrenceMarker> successorMarker =
+      taskRecurrenceSuccessor(*recurrence.marker);
+  if (!successorMarker.has_value()) {
+    return std::optional<QString>{};
+  }
+  const std::optional<TaskPriority> priority = priorityFromText(source.priority);
+  if (!priority.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Stored task priority is invalid"));
+  }
+  TaskRecurrenceMarker marker = *successorMarker;
+  marker.templateTitle = source.title;
+  marker.templatePriority = source.priority;
+  const TaskRecurrenceSerializationResult serialized =
+      serializeTaskRecurrenceNotes(recurrence.userNotes, marker);
+  if (serialized.error.has_value()) {
+    return validationError(*serialized.error);
+  }
+  const QDate successorDue = QDate::fromString(marker.templateDueDate, Qt::ISODate);
+  if (!successorDue.isValid()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Managed recurrence successor date is invalid"));
+  }
+  const QString localId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  const QString successorTaskId = QStringLiteral("task:") + localId;
+  const QString successorRemoteId = QStringLiteral("pending:") + localId;
+  const TaskCreateInput successor{
+      .taskListId = source.taskListId,
+      .title = source.title,
+      .notes = serialized.notes,
+      .due = TaskDue{.at = QDateTime(successorDue, QTime(0, 0), QTimeZone::UTC)
+                                .toString(Qt::ISODateWithMs),
+                     .timeZone = marker.timeZone},
+      .priority = *priority};
+  const TaskMutationResult created =
+      createStoredTask(connection, successor, successorTaskId, successorRemoteId, updatedAt);
+  if (std::holds_alternative<AppError>(created)) {
+    return std::get<AppError>(created);
+  }
+  const std::variant<std::optional<StoredTaskContext>, AppError> successorContextResult =
+      readTaskContext(connection, successorTaskId);
+  if (std::holds_alternative<AppError>(successorContextResult)) {
+    return std::get<AppError>(successorContextResult);
+  }
+  const std::optional<StoredTaskContext>& successorContext =
+      std::get<std::optional<StoredTaskContext>>(successorContextResult);
+  if (!successorContext.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Managed recurrence successor is unavailable"));
+  }
+  if (const std::optional<AppError> error =
+          queueTaskMutation(connection,
+                            *successorContext,
+                            successorContext,
+                            QStringLiteral("task.create"),
+                            updatedAt,
+                            dependsOnMutationId);
+      error.has_value()) {
+    return *error;
+  }
+  if (const std::optional<AppError> error =
+          insertTaskRecurrenceClaim(connection, source, *recurrence.marker, successorTaskId, updatedAt);
+      error.has_value()) {
+    return *error;
+  }
+  return successorTaskId;
 }
 
 [[nodiscard]] TaskMutationResult moveStoredTaskToList(SqliteConnection& connection,
@@ -1758,6 +1988,10 @@ std::future<TaskMutationResult> TaskMutationService::setCompleted(QString taskId
       return TaskMutationResult(
           validationError(QStringLiteral("Task is unavailable for completion")));
     }
+    const TaskRecurrenceNotes recurrence =
+        parseTaskRecurrenceNotes(before->notes.value_or(QString()));
+    const bool shouldCreateSuccessor = completed && before->state != QStringLiteral("completed") &&
+                                       recurrence.state == TaskRecurrenceNotesState::Managed;
     TaskMutationResult changed = setStoredTaskCompletion(connection, taskId, completed, updatedAt);
     if (std::holds_alternative<AppError>(changed)) {
       return changed;
@@ -1777,6 +2011,26 @@ std::future<TaskMutationResult> TaskMutationService::setCompleted(QString taskId
             queueTaskMutation(connection, *before, after, QStringLiteral("task.update"), updatedAt);
         error.has_value()) {
       return TaskMutationResult(*error);
+    }
+    if (shouldCreateSuccessor) {
+      const std::variant<std::optional<ActiveTaskMutation>, AppError> completionMutationResult =
+          findActiveTaskMutation(connection, taskId);
+      if (std::holds_alternative<AppError>(completionMutationResult)) {
+        return TaskMutationResult(std::get<AppError>(completionMutationResult));
+      }
+      const std::optional<ActiveTaskMutation>& completionMutation =
+          std::get<std::optional<ActiveTaskMutation>>(completionMutationResult);
+      if (!completionMutation.has_value()) {
+        return TaskMutationResult(AppError(
+            AppErrorCode::Database,
+            QStringLiteral("Managed recurrence completion mutation is unavailable")));
+      }
+      const std::variant<std::optional<QString>, AppError> successorResult =
+          createTaskRecurrenceSuccessor(
+              connection, *after, recurrence, updatedAt, completionMutation->id);
+      if (std::holds_alternative<AppError>(successorResult)) {
+        return TaskMutationResult(std::get<AppError>(successorResult));
+      }
     }
     if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
       return TaskMutationResult(*error);
