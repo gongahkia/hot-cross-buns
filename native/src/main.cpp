@@ -26,6 +26,7 @@
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
+#include "core/TaskListModel.h"
 #include "core/TaskModel.h"
 #include "core/TimelineModel.h"
 #include "core/UiTransitionTimingTracker.h"
@@ -107,6 +108,7 @@ int runApplication(int argc, char* argv[]) {
   hcb::CommandRegistryModel navigationCommands;
   hcb::MonthGridModel monthGridModel;
   hcb::NotesModel notesModel;
+  hcb::TaskListModel taskListModel;
   hcb::TaskModel taskModel;
   hcb::TimelineModel timelineModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
@@ -117,6 +119,7 @@ int runApplication(int argc, char* argv[]) {
        {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
        {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
+       {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});

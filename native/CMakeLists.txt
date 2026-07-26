@@ -224,6 +224,7 @@ qt_add_qml_module(hcb_native
     qml/QuickCaptureDialog.qml
     qml/TaskDeleteDialog.qml
     qml/TaskListView.qml
+    qml/TaskMoveDialog.qml
     qml/Theme.qml
     qml/WeekTimelineView.qml
 )

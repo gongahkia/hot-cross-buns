@@ -17,6 +17,7 @@ ApplicationWindow {
     property var calendarSourceModel: null
     property var monthGridModel: null
     property var notesModel: null
+    property var taskListModel: null
     property var taskModel: null
     property var timelineModel: null
     property var transitionTimings: null
@@ -38,9 +39,11 @@ ApplicationWindow {
     property alias notesList: notesList
     property alias taskDeleteDialog: taskDeleteDialog
     property alias taskList: taskList
+    property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
     signal taskDeleteRequested(string taskId)
+    signal taskMoveRequested(string taskId, string taskListId)
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
                                 bool allDay, string description, string location)
     signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
@@ -287,6 +290,16 @@ ApplicationWindow {
         onTaskDeleteRequested: taskId => window.taskDeleteRequested(taskId)
     }
 
+    TaskMoveDialog {
+        id: taskMoveDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        taskListModel: window.taskListModel
+        onTaskMoveRequested: function(taskId, taskListId) {
+            window.taskMoveRequested(taskId, taskListId)
+        }
+    }
+
     EventCreateDialog {
         id: eventCreateDialog
         parent: Overlay.overlay
@@ -355,6 +368,9 @@ ApplicationWindow {
                 taskModel: window.taskModel
                 onTaskDeleteRequested: function(taskId, taskTitle) {
                     taskDeleteDialog.openForDelete(taskId, taskTitle)
+                }
+                onTaskMoveRequested: function(taskId, taskListId, taskTitle) {
+                    taskMoveDialog.openForMove(taskId, taskTitle, taskListId)
                 }
             }
 

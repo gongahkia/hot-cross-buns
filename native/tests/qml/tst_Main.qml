@@ -205,8 +205,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskModel.append({ id: "inbox-1", title: "Plan release", completed: false })
-        taskModel.append({ id: "inbox-2", title: "Review sync", completed: true })
+        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", completed: false })
+        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", completed: true })
         const taskList = component.createObject(null, {
             taskModel: taskModel,
             width: 480,
@@ -239,6 +239,14 @@ TestCase {
         taskList.taskRows.itemAtIndex(0).deleteButton.click()
         compare(deletion.taskId, "inbox-1")
         compare(deletion.taskTitle, "Plan release")
+        let move = null
+        taskList.taskMoveRequested.connect(function(taskId, taskListId, taskTitle) {
+            move = { taskId, taskListId, taskTitle }
+        })
+        taskList.taskRows.itemAtIndex(0).moveButton.click()
+        compare(move.taskId, "inbox-1")
+        compare(move.taskListId, "list-active")
+        compare(move.taskTitle, "Plan release")
         taskList.destroy()
         taskModel.destroy()
     }
@@ -456,6 +464,40 @@ TestCase {
         dialog.destroy()
     }
 
+    function test_taskMoveDialogShowsAllActiveListsAndEmitsMoveRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-active", title: "Inbox", selected: true })
+        taskLists.append({ id: "list-other", title: "Archive", selected: false })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            taskListModel: taskLists,
+        })
+        verify(mainWindow !== null)
+        const dialog = mainWindow.taskMoveDialog
+        dialog.openForMove("task-1", "Plan release", "list-active")
+        tryCompare(dialog.taskListRows, "count", 2)
+        tryVerify(function() {
+            return dialog.taskListRows.itemAtIndex(0) !== null &&
+                    dialog.taskListRows.itemAtIndex(1) !== null
+        })
+        verify(!dialog.taskListRows.itemAtIndex(0).enabled)
+        verify(dialog.taskListRows.itemAtIndex(1).enabled)
+        dialog.taskListRows.itemAtIndex(1).click()
+        verify(dialog.primaryEnabled)
+        let move = null
+        dialog.taskMoveRequested.connect(function(taskId, taskListId) {
+            move = { taskId, taskListId }
+        })
+        dialog.primaryButton.click()
+        compare(move.taskId, "task-1")
+        compare(move.taskListId, "list-other")
+        mainWindow.destroy()
+        taskLists.destroy()
+    }
+
     function test_dayTimelinePresentsAndSelectsEvents() {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -644,6 +686,7 @@ TestCase {
         for (let index = 0; index < 1000; ++index) {
             taskModel.append({
                 id: "task-" + index,
+                taskListId: "list-active",
                 title: "Task " + index,
                 completed: false
             })
@@ -830,6 +873,22 @@ TestCase {
         mainWindow.taskDeleteRequested.connect(function(taskId) { deletedId = taskId })
         mainWindow.taskDeleteDialog.taskDeleteRequested("task-1")
         compare(deletedId, "task-1")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsTaskMoveRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let move = null
+        mainWindow.taskMoveRequested.connect(function(taskId, taskListId) {
+            move = { taskId, taskListId }
+        })
+        mainWindow.taskMoveDialog.taskMoveRequested("task-1", "list-other")
+        compare(move.taskId, "task-1")
+        compare(move.taskListId, "list-other")
         mainWindow.destroy()
     }
 

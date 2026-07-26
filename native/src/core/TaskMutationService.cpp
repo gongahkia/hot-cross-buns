@@ -382,6 +382,75 @@ WHERE id = ?1 AND deleted_at IS NULL
   return TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt};
 }
 
+[[nodiscard]] TaskMutationResult moveStoredTaskToList(SqliteConnection& connection,
+                                                      const QString& taskId,
+                                                      const QString& taskListId,
+                                                      const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_tasks
+SET task_list_id = ?2,
+    parent_task_id = NULL,
+    sort_order = COALESCE((SELECT MAX(sibling.sort_order) + 1
+                           FROM local_tasks AS sibling
+                           WHERE sibling.task_list_id = ?2
+                             AND sibling.parent_task_id IS NULL
+                             AND sibling.id != local_tasks.id
+                             AND sibling.deleted_at IS NULL), 0),
+    updated_at = ?3
+WHERE id = ?1
+  AND deleted_at IS NULL
+  AND task_list_id != ?2
+  AND NOT EXISTS (SELECT 1 FROM local_tasks AS child
+                  WHERE child.parent_task_id = local_tasks.id)
+  AND EXISTS (SELECT 1
+              FROM local_task_lists AS target
+              INNER JOIN local_task_lists AS source
+                ON source.id = local_tasks.task_list_id
+              WHERE target.id = ?2
+                AND target.deleted_at IS NULL
+                AND source.deleted_at IS NULL
+                AND target.account_id = source.account_id)
+  AND NOT EXISTS (SELECT 1
+                  FROM local_tasks AS sibling
+                  WHERE sibling.task_list_id = ?2
+                    AND sibling.remote_id = local_tasks.remote_id
+                    AND sibling.id != local_tasks.id)
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task move preparation failed (%1)"), prepareResult);
+  }
+  if (const std::optional<AppError> error = bindAll(statement,
+                                                    {bindText(statement, 1, taskId),
+                                                     bindText(statement, 2, taskListId),
+                                                     bindText(statement, 3, updatedAt)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task move failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite task move finalization failed (%1)"),
+                         finalizeResult);
+  }
+  if (changedRows != 1) {
+    return validationError(QStringLiteral("Task is unavailable for list assignment"));
+  }
+  return TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt};
+}
+
 [[nodiscard]] TaskMutationResult
 removeStoredTask(SqliteConnection& connection, const QString& taskId, const QString& updatedAt) {
   sqlite3* const handle = connection.nativeHandle();
@@ -466,6 +535,21 @@ std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput inpu
       [input = std::get<TaskUpdateInput>(canonical), updatedAt](SqliteConnection& connection) {
         return updateStoredTask(connection, input, updatedAt);
       });
+}
+
+std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString taskId,
+                                                                    QString taskListId) {
+  if (!isValidRequiredText(taskId, kMaximumIdentifierLength) ||
+      !isValidRequiredText(taskListId, kMaximumIdentifierLength)) {
+    return readyFuture(
+        TaskMutationResult(validationError(QStringLiteral("Task move input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult([taskId = std::move(taskId),
+                                     taskListId = std::move(taskListId),
+                                     updatedAt](SqliteConnection& connection) {
+    return moveStoredTaskToList(connection, taskId, taskListId, updatedAt);
+  });
 }
 
 std::future<TaskMutationResult> TaskMutationService::setCompleted(QString taskId, bool completed) {

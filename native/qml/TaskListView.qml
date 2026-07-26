@@ -9,6 +9,7 @@ Pane {
     signal taskSelected(string taskId)
     signal taskCompletionRequested(string taskId, bool completed)
     signal taskDeleteRequested(string taskId, string taskTitle)
+    signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -20,6 +21,10 @@ Pane {
 
     function requestTaskDelete(taskId, taskTitle) {
         taskDeleteRequested(taskId, taskTitle)
+    }
+
+    function requestTaskMove(taskId, taskListId, taskTitle) {
+        taskMoveRequested(taskId, taskListId, taskTitle)
     }
 
     ColumnLayout {
@@ -45,6 +50,7 @@ Pane {
 
             delegate: RowLayout {
                 required property string id
+                required property string taskListId
                 required property string title
                 required property bool completed
                 width: ListView.view.width
@@ -52,6 +58,7 @@ Pane {
 
                 property alias completionButton: completionButton
                 property alias deleteButton: deleteButton
+                property alias moveButton: moveButton
 
                 Button {
                     id: completionButton
@@ -67,6 +74,14 @@ Pane {
                     Accessible.name: text + " " + title
                     Accessible.description: "Delete this task"
                     onClicked: root.requestTaskDelete(id, title)
+                }
+
+                Button {
+                    id: moveButton
+                    text: "Move"
+                    Accessible.name: text + " " + title
+                    Accessible.description: "Move this task to another task list"
+                    onClicked: root.requestTaskMove(id, taskListId, title)
                 }
 
                 AccessibleButton {
