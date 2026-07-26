@@ -63,6 +63,8 @@ set(HCB_NATIVE_SOURCES
   src/core/CalendarReadService.h
   src/core/CalendarSourceModel.cpp
   src/core/CalendarSourceModel.h
+  src/core/CalendarEventBulkMutationService.cpp
+  src/core/CalendarEventBulkMutationService.h
   src/core/CalendarMutationService.cpp
   src/core/CalendarMutationService.h
   src/core/Cancellation.h
@@ -236,8 +238,12 @@ qt_add_qml_module(hcb_native
     qml/AccessibleButton.qml
     qml/AccessibleNavigationButton.qml
     qml/AgendaView.qml
+    qml/CalendarBulkControls.qml
     qml/CalendarSourceControls.qml
     qml/DayTimelineView.qml
+    qml/EventBulkDeleteDialog.qml
+    qml/EventBulkEditDialog.qml
+    qml/EventBulkMoveDialog.qml
     qml/EventCreateDialog.qml
     qml/EventDeleteDialog.qml
     qml/EventEditDialog.qml
@@ -926,6 +932,8 @@ if(BUILD_TESTING)
   qt_add_executable(hcb_calendar_mutation_service_tests
     tests/CalendarMutationServiceTest.cpp
     src/core/AppError.h
+    src/core/CalendarEventBulkMutationService.cpp
+    src/core/CalendarEventBulkMutationService.h
     src/core/CalendarMutationService.cpp
     src/core/CalendarMutationService.h
     src/core/Clock.h

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/CalendarMutationService.h"
+#include "core/CalendarEventBulkMutationService.h"
 #include "core/CalendarReadService.h"
 #include "core/Cancellation.h"
 #include "core/Clock.h"
@@ -81,6 +82,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList savedSearches READ savedSearches NOTIFY savedSearchesChanged)
   Q_PROPERTY(bool searchLoading READ searchLoading NOTIFY searchLoadingChanged)
   Q_PROPERTY(QString bulkTaskStatusMessage READ bulkTaskStatusMessage NOTIFY bulkTaskStatusMessageChanged)
+  Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY bulkEventStatusMessageChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -112,6 +114,7 @@ public:
   [[nodiscard]] QVariantList savedSearches() const;
   [[nodiscard]] bool searchLoading() const;
   [[nodiscard]] QString bulkTaskStatusMessage() const;
+  [[nodiscard]] QString bulkEventStatusMessage() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
 
@@ -168,6 +171,12 @@ public:
   Q_INVOKABLE void deleteEvent(QString eventId);
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);
+  Q_INVOKABLE void bulkDeleteEvents(QVariantList eventIds);
+  Q_INVOKABLE void bulkMoveEvents(QVariantList eventIds, QString calendarId);
+  Q_INVOKABLE void bulkSetEventColor(QVariantList eventIds, QString colorId);
+  Q_INVOKABLE void bulkSetEventAvailability(QVariantList eventIds, bool available);
+  Q_INVOKABLE void bulkSetEventVisibility(QVariantList eventIds, QString visibility);
+  Q_INVOKABLE void bulkShiftEventTimes(QVariantList eventIds, int shiftMinutes);
 
 signals:
   void clientIdChanged();
@@ -184,6 +193,7 @@ signals:
   void savedSearchesChanged();
   void searchLoadingChanged();
   void bulkTaskStatusMessageChanged();
+  void bulkEventStatusMessageChanged();
   void busyChanged();
 
 private:
@@ -236,6 +246,7 @@ private:
   void runSearch();
   void loadSavedSearches();
   void runBulkTaskMutation(TaskBulkMutationInput input);
+  void runBulkEventMutation(CalendarEventBulkMutationInput input);
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
   void requestGoogleSync(SyncScheduleTrigger trigger);
@@ -252,6 +263,7 @@ private:
   void setSavedSearches(QList<SavedSearch> searches);
   void setSearchLoading(bool loading);
   void setBulkTaskStatusMessage(QString message);
+  void setBulkEventStatusMessage(QString message);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -286,6 +298,7 @@ private:
   TaskBulkMutationService taskBulkMutationService_;
   TaskListMutationService taskListMutationService_;
   CalendarMutationService calendarMutationService_;
+  CalendarEventBulkMutationService calendarEventBulkMutationService_;
   GoogleSyncRecoveryService googleSyncRecoveryService_;
   GoogleTaskMutationPushService googleTaskMutationPushService_;
   GoogleCalendarEventMutationPushService googleCalendarEventMutationPushService_;
@@ -315,6 +328,7 @@ private:
   QVariantList savedSearchRows_;
   bool searchLoading_{false};
   QString bulkTaskStatusMessage_;
+  QString bulkEventStatusMessage_;
   QTimer searchDebounce_;
   std::unique_ptr<CancellationSource> searchCancellation_;
   std::uint64_t searchGeneration_{0};

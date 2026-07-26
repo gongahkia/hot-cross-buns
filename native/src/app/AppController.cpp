@@ -120,6 +120,18 @@ constexpr int kSearchDebounceMilliseconds = 180;
       .arg(summary.skipped);
 }
 
+[[nodiscard]] QString bulkEventSummaryMessage(const CalendarEventBulkMutationSummary& summary) {
+  return QStringLiteral("%1 selected · %2 eligible · applied %3 · queued %4 · conflicted %5 · "
+                        "failed %6 · skipped %7. Remote sync pending.")
+      .arg(summary.requested)
+      .arg(summary.eligible)
+      .arg(summary.applied)
+      .arg(summary.queued)
+      .arg(summary.conflicted)
+      .arg(summary.failed)
+      .arg(summary.skipped);
+}
+
 [[nodiscard]] std::optional<SyncConflictPolicy> conflictPolicyForValue(int value) {
   switch (value) {
   case static_cast<int>(SyncConflictPolicy::PreferGoogle):
@@ -215,6 +227,7 @@ AppController::AppController(FilePath databasePath,
       taskMutationService_(databasePath, clock), taskBulkMutationService_(taskMutationService_),
       taskListMutationService_(databasePath, clock),
       calendarMutationService_(databasePath, clock),
+      calendarEventBulkMutationService_(calendarMutationService_),
       googleSyncRecoveryService_(syncCheckpointStore_),
       googleTaskMutationPushService_(optimisticMutationCoordinator_,
                                      googleHttpClient_,
@@ -290,6 +303,8 @@ QVariantList AppController::savedSearches() const { return savedSearchRows_; }
 bool AppController::searchLoading() const { return searchLoading_; }
 
 QString AppController::bulkTaskStatusMessage() const { return bulkTaskStatusMessage_; }
+
+QString AppController::bulkEventStatusMessage() const { return bulkEventStatusMessage_; }
 
 bool AppController::busy() const { return busy_; }
 
@@ -1198,6 +1213,70 @@ void AppController::resizeEvent(QString eventId, QString endAt) {
         });
 }
 
+void AppController::bulkDeleteEvents(QVariantList eventIds) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::Delete, .eventIds = *ids});
+}
+
+void AppController::bulkMoveEvents(QVariantList eventIds, QString calendarId) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::MoveToCalendar,
+                        .eventIds = *ids,
+                        .calendarId = std::move(calendarId)});
+}
+
+void AppController::bulkSetEventColor(QVariantList eventIds, QString colorId) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::SetColor,
+                        .eventIds = *ids,
+                        .colorId = std::move(colorId)});
+}
+
+void AppController::bulkSetEventAvailability(QVariantList eventIds, bool available) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::SetAvailability,
+                        .eventIds = *ids,
+                        .available = available});
+}
+
+void AppController::bulkSetEventVisibility(QVariantList eventIds, QString visibility) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::SetVisibility,
+                        .eventIds = *ids,
+                        .visibility = std::move(visibility)});
+}
+
+void AppController::bulkShiftEventTimes(QVariantList eventIds, int shiftMinutes) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value()) {
+    setStatus(QStringLiteral("Bulk event selection is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::ShiftTime,
+                        .eventIds = *ids,
+                        .shiftMinutes = shiftMinutes});
+}
+
 void AppController::runSearch() {
   const LocalSearchQueryResult parsed = LocalSearchQuery::parse(searchQuery_);
   if (std::holds_alternative<AppError>(parsed)) {
@@ -1258,6 +1337,26 @@ void AppController::runBulkTaskMutation(TaskBulkMutationInput input) {
       refreshTasks();
     }
   });
+}
+
+void AppController::runBulkEventMutation(CalendarEventBulkMutationInput input) {
+  watch(calendarEventBulkMutationService_.execute(std::move(input)),
+        [this](CalendarEventBulkMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            const QString message = errorMessage(std::get<AppError>(result));
+            setBulkEventStatusMessage(message);
+            setStatus(message);
+            return;
+          }
+          const CalendarEventBulkMutationSummary& summary =
+              std::get<CalendarEventBulkMutationSummary>(result);
+          const QString message = bulkEventSummaryMessage(summary);
+          setBulkEventStatusMessage(message);
+          setStatus(message);
+          if (summary.queued > 0) {
+            refreshCalendar();
+          }
+        });
 }
 
 void AppController::schedulePoll() {
@@ -1486,6 +1585,14 @@ void AppController::setBulkTaskStatusMessage(QString message) {
   }
   bulkTaskStatusMessage_ = std::move(message);
   emit bulkTaskStatusMessageChanged();
+}
+
+void AppController::setBulkEventStatusMessage(QString message) {
+  if (bulkEventStatusMessage_ == message) {
+    return;
+  }
+  bulkEventStatusMessage_ = std::move(message);
+  emit bulkEventStatusMessageChanged();
 }
 
 void AppController::setBusy(bool busy) {

@@ -6,11 +6,13 @@ Pane {
     id: root
     property var timelineModel: null
     property var calendarVisibility: null
+    property var selectedEventIds: []
     property int dayIndex: 0
     property int hourHeight: 64
     property int timeColumnWidth: 64
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
+    signal eventSelectionRequested(string eventId, bool selected)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
 
@@ -61,6 +63,10 @@ Pane {
         return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
 
+    function isEventSelected(eventId) {
+        return selectedEventIds.indexOf(eventId) >= 0
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingMedium
@@ -91,6 +97,17 @@ Pane {
                     accessibleName: title
                     accessibleDescription: "All-day event"
                     onClicked: root.selectEvent(id)
+
+                    CheckBox {
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: Theme.spacingSmall
+                        z: 1
+                        checked: root.isEventSelected(id)
+                        Accessible.name: "Select " + title
+                        Accessible.description: checked ? "Event selected" : "Event not selected"
+                        onClicked: root.eventSelectionRequested(id, checked)
+                    }
                 }
             }
         }
@@ -173,6 +190,17 @@ Pane {
                         }
 
                         opacity: moveHandler.active ? 0.7 : 1
+
+                        CheckBox {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: Theme.spacingSmall
+                            z: 1
+                            checked: root.isEventSelected(id)
+                            Accessible.name: "Select " + title
+                            Accessible.description: checked ? "Event selected" : "Event not selected"
+                            onClicked: root.eventSelectionRequested(id, checked)
+                        }
 
                         AccessibleButton {
                             id: resizeHandle

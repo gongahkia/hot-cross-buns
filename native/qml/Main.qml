@@ -23,6 +23,7 @@ ApplicationWindow {
     property var taskModel: null
     property var timelineModel: null
     property var transitionTimings: null
+    property var selectedCalendarEventIds: []
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
     property alias commandPalette: commandPalette
@@ -30,6 +31,7 @@ ApplicationWindow {
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
     property alias calendarVisibility: calendarVisibility
+    property alias calendarBulkControls: calendarBulkControls
     property alias eventCreateDialog: eventCreateDialog
     property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
@@ -71,6 +73,25 @@ ApplicationWindow {
         if (appController !== null && typeof appController[method] === "function") {
             appController[method].apply(appController, args)
         }
+    }
+
+    function isCalendarEventSelected(eventId) {
+        return selectedCalendarEventIds.indexOf(eventId) >= 0
+    }
+
+    function setCalendarEventSelected(eventId, selected) {
+        const next = selectedCalendarEventIds.slice()
+        const index = next.indexOf(eventId)
+        if (selected && index < 0) {
+            next.push(eventId)
+        } else if (!selected && index >= 0) {
+            next.splice(index, 1)
+        }
+        selectedCalendarEventIds = next
+    }
+
+    function clearCalendarEventSelection() {
+        selectedCalendarEventIds = []
     }
 
     function hasNavigationPage(pageName) {
@@ -564,6 +585,7 @@ ApplicationWindow {
                     id: calendarVisibility
                     Layout.fillWidth: true
                     calendarSourceModel: window.calendarSourceModel
+                    onVisibleCalendarIdsChanged: window.clearCalendarEventSelection()
                 }
 
                 RowLayout {
@@ -599,6 +621,40 @@ ApplicationWindow {
                     TabButton { text: "Month" }
                 }
 
+                CalendarBulkControls {
+                    id: calendarBulkControls
+                    Layout.fillWidth: true
+                    selectedEventIds: window.selectedCalendarEventIds
+                    calendarSourceModel: window.calendarSourceModel
+                    statusMessage: window.appController !== null
+                                   ? window.appController.bulkEventStatusMessage : ""
+                    onClearSelectionRequested: window.clearCalendarEventSelection()
+                    onBulkDeleteRequested: function(eventIds) {
+                        window.controllerCall("bulkDeleteEvents", [eventIds])
+                        window.clearCalendarEventSelection()
+                    }
+                    onBulkMoveRequested: function(eventIds, calendarId) {
+                        window.controllerCall("bulkMoveEvents", [eventIds, calendarId])
+                        window.clearCalendarEventSelection()
+                    }
+                    onBulkColorRequested: function(eventIds, colorId) {
+                        window.controllerCall("bulkSetEventColor", [eventIds, colorId])
+                        window.clearCalendarEventSelection()
+                    }
+                    onBulkAvailabilityRequested: function(eventIds, available) {
+                        window.controllerCall("bulkSetEventAvailability", [eventIds, available])
+                        window.clearCalendarEventSelection()
+                    }
+                    onBulkVisibilityRequested: function(eventIds, visibility) {
+                        window.controllerCall("bulkSetEventVisibility", [eventIds, visibility])
+                        window.clearCalendarEventSelection()
+                    }
+                    onBulkShiftRequested: function(eventIds, shiftMinutes) {
+                        window.controllerCall("bulkShiftEventTimes", [eventIds, shiftMinutes])
+                        window.clearCalendarEventSelection()
+                    }
+                }
+
                 StackLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -608,6 +664,10 @@ ApplicationWindow {
                         id: agendaView
                         agendaModel: window.agendaModel
                         calendarVisibility: calendarVisibility
+                        selectedEventIds: window.selectedCalendarEventIds
+                        onEventSelectionRequested: function(eventId, selected) {
+                            window.setCalendarEventSelected(eventId, selected)
+                        }
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
                         }
@@ -617,6 +677,10 @@ ApplicationWindow {
                         id: dayTimeline
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
+                        selectedEventIds: window.selectedCalendarEventIds
+                        onEventSelectionRequested: function(eventId, selected) {
+                            window.setCalendarEventSelected(eventId, selected)
+                        }
                         onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
                             window.controllerCall("moveEvent", [eventId, startAt, endAt, allDay])
@@ -631,6 +695,10 @@ ApplicationWindow {
                         id: weekTimeline
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
+                        selectedEventIds: window.selectedCalendarEventIds
+                        onEventSelectionRequested: function(eventId, selected) {
+                            window.setCalendarEventSelected(eventId, selected)
+                        }
                         onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
                             window.controllerCall("moveEvent", [eventId, startAt, endAt, allDay])
@@ -640,6 +708,10 @@ ApplicationWindow {
                     MonthGridView {
                         monthGridModel: window.monthGridModel
                         calendarVisibility: calendarVisibility
+                        selectedEventIds: window.selectedCalendarEventIds
+                        onEventSelectionRequested: function(eventId, selected) {
+                            window.setCalendarEventSelected(eventId, selected)
+                        }
                     }
                 }
             }

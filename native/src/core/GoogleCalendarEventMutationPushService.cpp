@@ -220,6 +220,32 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
       return std::nullopt;
     }
   }
+  const QJsonValue colorId = event.value(QStringLiteral("colorId"));
+  if (!colorId.isUndefined()) {
+    if (!colorId.isString() || !isValidRequiredText(colorId.toString(), 32)) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("colorId"), colorId.toString());
+  }
+  const QJsonValue transparency = event.value(QStringLiteral("transparency"));
+  if (!transparency.isUndefined()) {
+    if (!transparency.isString() ||
+        (transparency.toString() != QStringLiteral("opaque") &&
+         transparency.toString() != QStringLiteral("transparent"))) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("transparency"), transparency.toString());
+  }
+  const QJsonValue visibility = event.value(QStringLiteral("visibility"));
+  if (!visibility.isUndefined()) {
+    if (!visibility.isString() ||
+        (visibility.toString() != QStringLiteral("default") &&
+         visibility.toString() != QStringLiteral("public") &&
+         visibility.toString() != QStringLiteral("private"))) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("visibility"), visibility.toString());
+  }
   const QJsonValue startValue = event.value(QStringLiteral("start"));
   const QJsonValue endValue = event.value(QStringLiteral("end"));
   const std::optional<CanonicalEventTime> start =

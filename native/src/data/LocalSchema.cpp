@@ -233,6 +233,13 @@ ON local_calendar_events(calendar_id, recurring_remote_id, original_start_at, id
 WHERE deleted_at IS NULL AND recurring_remote_id IS NOT NULL
 )";
 
+constexpr char calendarEventTypeSchemaSql[] = R"(
+ALTER TABLE local_calendar_events
+ADD COLUMN event_type TEXT CHECK(event_type IS NULL OR event_type IN (
+  'default', 'birthday', 'focusTime', 'fromGmail', 'outOfOffice', 'workingLocation'
+))
+)";
+
 constexpr char noteProjectionSchemaSql[] = R"(
 CREATE VIEW local_note_projections AS
 SELECT tasks.id,
@@ -616,6 +623,11 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
       connection, calendarEventSchemaSql, QStringLiteral("SQLite calendar-event schema"));
 }
 
+[[nodiscard]] std::optional<AppError> applyCalendarEventTypeSchema(SqliteConnection& connection) {
+  return applySchema(
+      connection, calendarEventTypeSchemaSql, QStringLiteral("SQLite calendar-event type schema"));
+}
+
 [[nodiscard]] std::optional<AppError> applyNoteProjectionSchema(SqliteConnection& connection) {
   return applySchema(
       connection, noteProjectionSchemaSql, QStringLiteral("SQLite note projection schema"));
@@ -648,8 +660,8 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
   return applySchema(connection, noteFtsSchemaSql, QStringLiteral("SQLite note FTS schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 13>& migrations() {
-  static const std::array<SqliteMigration, 13> catalogue = {{
+[[nodiscard]] const std::array<SqliteMigration, 14>& migrations() {
+  static const std::array<SqliteMigration, 14> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -690,6 +702,10 @@ applySchema(SqliteConnection& connection, const char* sql, const QString& descri
        QStringLiteral("create local note FTS index"),
        checksum(noteFtsSchemaSql),
        applyNoteFtsSchema},
+      {14,
+       QStringLiteral("add calendar event type"),
+       checksum(calendarEventTypeSchemaSql),
+       applyCalendarEventTypeSchema},
   }};
   return catalogue;
 }

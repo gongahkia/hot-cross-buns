@@ -143,7 +143,7 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
   const std::optional<QString> title = requiredText(statement, 6);
   const std::optional<QString> startAt = requiredText(statement, 9);
   const std::optional<QString> endAt = requiredText(statement, 11);
-  const std::optional<QString> updatedAt = requiredText(statement, 23);
+  const std::optional<QString> updatedAt = requiredText(statement, 24);
   if (!id.has_value() || !calendarId.has_value() || !status.has_value() || !title.has_value() ||
       !startAt.has_value() || !endAt.has_value() || !updatedAt.has_value() ||
       !isStoredBoolean(statement, 13)) {
@@ -169,9 +169,10 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                               .visibility = optionalText(statement, 17),
                               .timeZone = optionalText(statement, 18),
                               .hcbKind = optionalText(statement, 19),
-                              .etag = optionalText(statement, 20),
-                              .sequence = optionalInteger(statement, 21),
-                              .remoteUpdatedAt = optionalText(statement, 22),
+                              .eventType = optionalText(statement, 20),
+                              .etag = optionalText(statement, 21),
+                              .sequence = optionalInteger(statement, 22),
+                              .remoteUpdatedAt = optionalText(statement, 23),
                               .updatedAt = *updatedAt};
 }
 
@@ -407,7 +408,8 @@ readStoredCalendarEvents(SqliteConnection& connection,
                      "events.start_time_zone, events.end_at, events.end_time_zone, "
                      "events.is_all_day, events.recurrence_rule, events.color_id, "
                      "events.transparency, events.visibility, events.time_zone, events.hcb_kind, "
-                     "events.etag, events.sequence, events.remote_updated_at, events.updated_at "
+                     "events.event_type, events.etag, events.sequence, events.remote_updated_at, "
+                     "events.updated_at "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
                      "WHERE %1 "

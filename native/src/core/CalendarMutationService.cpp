@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
 #include <QTimeZone>
 #include <QUuid>
@@ -28,6 +29,7 @@ constexpr qsizetype kMaximumDescriptionLength = 20'000;
 constexpr qsizetype kMaximumLocationLength = 1'000;
 constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumTimestampLength = 64;
+constexpr qsizetype kMaximumColorIdLength = 32;
 constexpr char kConflictMetadataKey[] = "_hcbSync";
 
 struct StoredEventContext final {
@@ -35,6 +37,7 @@ struct StoredEventContext final {
   QString accountId;
   QString calendarId;
   QString calendarRemoteId;
+  std::optional<QString> calendarAccessRole;
   QString remoteId;
   std::optional<QString> remoteEtag;
   QString title;
@@ -46,6 +49,12 @@ struct StoredEventContext final {
   std::optional<QString> endTimeZone;
   bool allDay{false};
   std::optional<QString> recurrenceRule;
+  std::optional<QString> recurringRemoteId;
+  QString status;
+  std::optional<QString> colorId;
+  std::optional<QString> transparency;
+  std::optional<QString> visibility;
+  std::optional<QString> eventType;
 };
 
 struct ActiveEventMutation final {
@@ -93,6 +102,24 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 [[nodiscard]] bool isValidTimeZone(const std::optional<QString>& value) {
   return !value.has_value() || (isValidRequiredText(*value, kMaximumTimeZoneLength) &&
                                 QTimeZone(value->toUtf8()).isValid());
+}
+
+[[nodiscard]] bool isValidColorId(const QString& value) {
+  return isValidRequiredText(value, kMaximumColorIdLength);
+}
+
+[[nodiscard]] bool isValidTransparency(const QString& value) {
+  return value == QStringLiteral("opaque") || value == QStringLiteral("transparent");
+}
+
+[[nodiscard]] bool isValidVisibility(const QString& value) {
+  return value == QStringLiteral("default") || value == QStringLiteral("public") ||
+         value == QStringLiteral("private");
+}
+
+[[nodiscard]] bool isWritableCalendar(const std::optional<QString>& accessRole) {
+  return !accessRole.has_value() || *accessRole == QStringLiteral("writer") ||
+         *accessRole == QStringLiteral("owner");
 }
 
 [[nodiscard]] QString timestamp(const Clock& clock) {
@@ -166,10 +193,11 @@ readEventContext(SqliteConnection& connection, const QString& eventId) {
                     QStringLiteral("SQLite calendar-event connection is unavailable"));
   }
   constexpr char sql[] = R"(
-SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id, events.remote_id,
-       events.etag, events.title, events.description, events.location, events.start_at,
-       events.start_time_zone, events.end_at, events.end_time_zone, events.is_all_day,
-       events.recurrence_rule
+SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id,
+       calendars.access_role, events.remote_id, events.etag, events.title, events.description,
+       events.location, events.start_at, events.start_time_zone, events.end_at,
+       events.end_time_zone, events.is_all_day, events.recurrence_rule, events.recurring_remote_id,
+       events.status, events.color_id, events.transparency, events.visibility, events.event_type
 FROM local_calendar_events AS events
 INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
 WHERE events.id = ?1 AND events.deleted_at IS NULL AND calendars.deleted_at IS NULL
@@ -205,10 +233,10 @@ LIMIT 1
   const std::optional<QString> accountId = optionalText(statement, 1);
   const std::optional<QString> calendarId = optionalText(statement, 2);
   const std::optional<QString> calendarRemoteId = optionalText(statement, 3);
-  const std::optional<QString> remoteId = optionalText(statement, 4);
-  const std::optional<QString> title = optionalText(statement, 6);
-  const std::optional<QString> startAt = optionalText(statement, 9);
-  const std::optional<QString> endAt = optionalText(statement, 11);
+  const std::optional<QString> remoteId = optionalText(statement, 5);
+  const std::optional<QString> title = optionalText(statement, 7);
+  const std::optional<QString> startAt = optionalText(statement, 10);
+  const std::optional<QString> endAt = optionalText(statement, 12);
   if (!storedEventId.has_value() || !accountId.has_value() || !calendarId.has_value() ||
       !calendarRemoteId.has_value() || !remoteId.has_value() || !title.has_value() ||
       !startAt.has_value() || !endAt.has_value()) {
@@ -219,17 +247,24 @@ LIMIT 1
                              .accountId = *accountId,
                              .calendarId = *calendarId,
                              .calendarRemoteId = *calendarRemoteId,
+                             .calendarAccessRole = optionalText(statement, 4),
                              .remoteId = *remoteId,
-                             .remoteEtag = optionalText(statement, 5),
+                             .remoteEtag = optionalText(statement, 6),
                              .title = *title,
-                             .description = optionalText(statement, 7),
-                             .location = optionalText(statement, 8),
+                             .description = optionalText(statement, 8),
+                             .location = optionalText(statement, 9),
                              .startAt = *startAt,
-                             .startTimeZone = optionalText(statement, 10),
+                             .startTimeZone = optionalText(statement, 11),
                              .endAt = *endAt,
-                             .endTimeZone = optionalText(statement, 12),
-                             .allDay = sqlite3_column_int(statement, 13) != 0,
-                             .recurrenceRule = optionalText(statement, 14)};
+                             .endTimeZone = optionalText(statement, 13),
+                             .allDay = sqlite3_column_int(statement, 14) != 0,
+                             .recurrenceRule = optionalText(statement, 15),
+                             .recurringRemoteId = optionalText(statement, 16),
+                             .status = optionalText(statement, 17).value_or(QString()),
+                             .colorId = optionalText(statement, 18),
+                             .transparency = optionalText(statement, 19),
+                             .visibility = optionalText(statement, 20),
+                             .eventType = optionalText(statement, 21)};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
              ? std::variant<std::optional<StoredEventContext>, AppError>(std::move(context))
@@ -261,7 +296,13 @@ LIMIT 1
           {QStringLiteral("location"),
            event.location.has_value() ? QJsonValue(*event.location) : QJsonValue::Null},
           {QStringLiteral("start"), eventTime(event.startAt, event.startTimeZone, event.allDay)},
-          {QStringLiteral("end"), eventTime(event.endAt, event.endTimeZone, event.allDay)}};
+          {QStringLiteral("end"), eventTime(event.endAt, event.endTimeZone, event.allDay)},
+          {QStringLiteral("colorId"),
+           event.colorId.has_value() ? QJsonValue(*event.colorId) : QJsonValue::Null},
+          {QStringLiteral("transparency"),
+           event.transparency.has_value() ? QJsonValue(*event.transparency) : QJsonValue::Null},
+          {QStringLiteral("visibility"),
+           event.visibility.has_value() ? QJsonValue(*event.visibility) : QJsonValue::Null}};
 }
 
 [[nodiscard]] QJsonObject eventBody(const StoredEventContext& event, bool creating) {
@@ -278,6 +319,15 @@ LIMIT 1
     body.insert(QStringLiteral("location"), *event.location);
   } else if (!creating) {
     body.insert(QStringLiteral("location"), QJsonValue::Null);
+  }
+  if (event.colorId.has_value()) {
+    body.insert(QStringLiteral("colorId"), *event.colorId);
+  }
+  if (event.transparency.has_value()) {
+    body.insert(QStringLiteral("transparency"), *event.transparency);
+  }
+  if (event.visibility.has_value()) {
+    body.insert(QStringLiteral("visibility"), *event.visibility);
   }
   return body;
 }
@@ -695,7 +745,8 @@ canonicalize(CalendarEventUpdateInput input) {
   const bool hasPatch =
       input.calendarId.has_value() || input.title.has_value() || input.description.has_value() ||
       input.location.has_value() || input.startAt.has_value() || input.endAt.has_value() ||
-      input.allDay.has_value() || input.startTimeZone.has_value() || input.endTimeZone.has_value();
+      input.allDay.has_value() || input.startTimeZone.has_value() || input.endTimeZone.has_value() ||
+      input.colorId.has_value() || input.transparency.has_value() || input.visibility.has_value();
   if (!isValidRequiredText(input.eventId, kMaximumIdentifierLength) ||
       (input.calendarId.has_value() &&
        !isValidRequiredText(*input.calendarId, kMaximumIdentifierLength)) ||
@@ -706,6 +757,11 @@ canonicalize(CalendarEventUpdateInput input) {
        !isValidOptionalText(*input.location, kMaximumLocationLength)) ||
       (input.startTimeZone.has_value() && !isValidTimeZone(*input.startTimeZone)) ||
       (input.endTimeZone.has_value() && !isValidTimeZone(*input.endTimeZone)) || !hasPatch) {
+    return validationError(QStringLiteral("Calendar event update input is invalid"));
+  }
+  if ((input.colorId.has_value() && !isValidColorId(*input.colorId)) ||
+      (input.transparency.has_value() && !isValidTransparency(*input.transparency)) ||
+      (input.visibility.has_value() && !isValidVisibility(*input.visibility))) {
     return validationError(QStringLiteral("Calendar event update input is invalid"));
   }
   if (input.startAt.has_value() && input.endAt.has_value() &&
@@ -795,17 +851,22 @@ SET calendar_id = CASE WHEN ?2 = 1 THEN ?3 ELSE calendar_id END,
     is_all_day = CASE WHEN ?14 = 1 THEN ?15 ELSE is_all_day END,
     start_time_zone = CASE WHEN ?16 = 1 THEN ?17 ELSE start_time_zone END,
     end_time_zone = CASE WHEN ?18 = 1 THEN ?19 ELSE end_time_zone END,
-    updated_at = ?20
+    color_id = CASE WHEN ?20 = 1 THEN ?21 ELSE color_id END,
+    transparency = CASE WHEN ?22 = 1 THEN ?23 ELSE transparency END,
+    visibility = CASE WHEN ?24 = 1 THEN ?25 ELSE visibility END,
+    updated_at = ?26
 WHERE id = ?1
   AND deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM local_calendars AS source
               WHERE source.id = local_calendar_events.calendar_id
-                AND source.deleted_at IS NULL)
+                AND source.deleted_at IS NULL
+                AND (source.access_role IS NULL OR source.access_role IN ('writer', 'owner')))
   AND (?2 = 0 OR EXISTS (SELECT 1 FROM local_calendars AS target
                           INNER JOIN local_calendars AS source ON source.id = local_calendar_events.calendar_id
                           WHERE target.id = ?3
                             AND target.deleted_at IS NULL
                             AND source.deleted_at IS NULL
+                            AND (target.access_role IS NULL OR target.access_role IN ('writer', 'owner'))
                             AND target.account_id = source.account_id))
   AND julianday(CASE WHEN ?10 = 1 THEN ?11 ELSE start_at END) IS NOT NULL
   AND julianday(CASE WHEN ?12 = 1 THEN ?13 ELSE end_at END) >
@@ -848,7 +909,13 @@ WHERE id = ?1
                    bindOptionalText(statement, 17, startTimeZone),
                    bindInteger(statement, 18, input.endTimeZone.has_value()),
                    bindOptionalText(statement, 19, endTimeZone),
-                   bindText(statement, 20, updatedAt)});
+                   bindInteger(statement, 20, input.colorId.has_value()),
+                   bindOptionalText(statement, 21, input.colorId),
+                   bindInteger(statement, 22, input.transparency.has_value()),
+                   bindOptionalText(statement, 23, input.transparency),
+                   bindInteger(statement, 24, input.visibility.has_value()),
+                   bindOptionalText(statement, 25, input.visibility),
+                   bindText(statement, 26, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -1171,6 +1238,10 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
       return CalendarEventMutationResult(
           validationError(QStringLiteral("Calendar event is unavailable for update")));
     }
+    if (!isWritableCalendar(before->calendarAccessRole)) {
+      return CalendarEventMutationResult(
+          validationError(QStringLiteral("Calendar is read-only for event updates")));
+    }
     CalendarEventMutationResult updated = updateStoredEvent(connection, input, updatedAt);
     if (std::holds_alternative<AppError>(updated)) {
       return updated;
@@ -1225,6 +1296,10 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar event is unavailable for deletion")));
         }
+        if (!isWritableCalendar(before->calendarAccessRole)) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar is read-only for event deletion")));
+        }
         CalendarEventMutationResult removed = removeStoredEvent(connection, eventId, updatedAt);
         if (std::holds_alternative<AppError>(removed)) {
           return removed;
@@ -1239,6 +1314,54 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
         }
         return removed;
       });
+}
+
+std::future<CalendarEventMutationSnapshotResult>
+CalendarMutationService::inspect(QList<QString> eventIds) {
+  constexpr qsizetype kMaximumInspectionSize = 500;
+  if (eventIds.isEmpty() || eventIds.size() > kMaximumInspectionSize) {
+    return readyFuture(CalendarEventMutationSnapshotResult(
+        validationError(QStringLiteral("Calendar event inspection input is invalid"))));
+  }
+  QSet<QString> uniqueIds;
+  for (const QString& eventId : eventIds) {
+    if (!isValidRequiredText(eventId, kMaximumIdentifierLength) || uniqueIds.contains(eventId)) {
+      return readyFuture(CalendarEventMutationSnapshotResult(
+          validationError(QStringLiteral("Calendar event inspection input is invalid"))));
+    }
+    uniqueIds.insert(eventId);
+  }
+  return writerQueue_.enqueueResult([eventIds = std::move(eventIds)](SqliteConnection& connection) {
+    QList<CalendarEventMutationSnapshot> snapshots;
+    snapshots.reserve(eventIds.size());
+    for (const QString& eventId : eventIds) {
+      const std::variant<std::optional<StoredEventContext>, AppError> contextResult =
+          readEventContext(connection, eventId);
+      if (std::holds_alternative<AppError>(contextResult)) {
+        return CalendarEventMutationSnapshotResult(std::get<AppError>(contextResult));
+      }
+      const std::optional<StoredEventContext>& context =
+          std::get<std::optional<StoredEventContext>>(contextResult);
+      if (!context.has_value()) {
+        continue;
+      }
+      snapshots.append({.eventId = context->eventId,
+                        .accountId = context->accountId,
+                        .calendarId = context->calendarId,
+                        .calendarAccessRole = context->calendarAccessRole,
+                        .status = context->status,
+                        .recurringRemoteId = context->recurringRemoteId,
+                        .recurrenceRule = context->recurrenceRule,
+                        .eventType = context->eventType,
+                        .startAt = context->startAt,
+                        .endAt = context->endAt,
+                        .allDay = context->allDay,
+                        .colorId = context->colorId,
+                        .transparency = context->transparency,
+                        .visibility = context->visibility});
+    }
+    return CalendarEventMutationSnapshotResult(std::move(snapshots));
+  });
 }
 
 std::future<CalendarEventMutationResult>

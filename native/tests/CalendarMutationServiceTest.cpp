@@ -14,6 +14,7 @@
 #include <variant>
 
 #include "core/CalendarMutationService.h"
+#include "core/CalendarEventBulkMutationService.h"
 #include "data/SqliteConnection.h"
 #include "sqlite3.h"
 
@@ -43,6 +44,9 @@ struct EventSnapshot final {
   std::optional<QString> startTimeZone;
   QString endAt;
   std::optional<QString> endTimeZone;
+  std::optional<QString> colorId;
+  std::optional<QString> transparency;
+  std::optional<QString> visibility;
   bool allDay;
   std::optional<QString> deletedAt;
   QString updatedAt;
@@ -115,7 +119,7 @@ void seed(hcb::SqliteConnection& connection) {
 [[nodiscard]] std::optional<EventSnapshot> readEvent(sqlite3* handle, const QString& eventId) {
   constexpr char sql[] = R"(
 SELECT remote_id, calendar_id, title, description, location, start_at, start_time_zone, end_at,
-       end_time_zone, is_all_day, deleted_at, updated_at
+       end_time_zone, color_id, transparency, visibility, is_all_day, deleted_at, updated_at
 FROM local_calendar_events
 WHERE id = ?1
 )";
@@ -144,9 +148,12 @@ WHERE id = ?1
                                .startTimeZone = optionalText(statement, 6),
                                .endAt = optionalText(statement, 7).value_or(QString()),
                                .endTimeZone = optionalText(statement, 8),
-                               .allDay = sqlite3_column_int(statement, 9) == 1,
-                               .deletedAt = optionalText(statement, 10),
-                               .updatedAt = optionalText(statement, 11).value_or(QString())};
+                               .colorId = optionalText(statement, 9),
+                               .transparency = optionalText(statement, 10),
+                               .visibility = optionalText(statement, 11),
+                               .allDay = sqlite3_column_int(statement, 12) == 1,
+                               .deletedAt = optionalText(statement, 13),
+                               .updatedAt = optionalText(statement, 14).value_or(QString())};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK ? std::optional<EventSnapshot>(snapshot) : std::nullopt;
 }
@@ -205,6 +212,7 @@ private slots:
   void createsUpdatesMovesAndDeletesEvents();
   void journalsRemoteUpdatesMovesAndCreateReconciliation();
   void rejectsInvalidAndUnavailableMutations();
+  void bulkClassifiesAndQueuesEligibleEvents();
 };
 
 void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
@@ -482,6 +490,90 @@ void CalendarMutationServiceTest::rejectsInvalidAndUnavailableMutations() {
   const hcb::CalendarEventMutationResult crossAccountMoveResult = awaitResult(crossAccountMove);
   QVERIFY(std::holds_alternative<hcb::AppError>(crossAccountMoveResult));
   QCOMPARE(std::get<hcb::AppError>(crossAccountMoveResult).code(), hcb::AppErrorCode::Validation);
+}
+
+void CalendarMutationServiceTest::bulkClassifiesAndQueuesEligibleEvents() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "UPDATE local_calendars SET access_role = 'owner' WHERE id = 'calendar-work'; "
+          "UPDATE local_calendars SET access_role = 'reader' WHERE id = 'calendar-other'; "
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, start_at, "
+          "end_at, is_all_day, recurrence_rule, etag, updated_at, event_type) VALUES "
+          "('event-editable', 'calendar-work', 'remote-editable', 'confirmed', 'Editable', "
+          "'2026-07-26T01:00:00.000Z', '2026-07-26T02:00:00.000Z', 0, NULL, "
+          "'etag-editable', '2026-07-25T00:00:00Z', NULL), "
+          "('event-recurring', 'calendar-work', 'remote-recurring', 'confirmed', 'Recurring', "
+          "'2026-07-27T01:00:00.000Z', '2026-07-27T02:00:00.000Z', 0, 'RRULE:FREQ=DAILY', "
+          "'etag-recurring', '2026-07-25T00:00:00Z', NULL), "
+          "('event-read-only', 'calendar-other', 'remote-read-only', 'confirmed', 'Read only', "
+          "'2026-07-28T01:00:00.000Z', '2026-07-28T02:00:00.000Z', 0, NULL, "
+          "'etag-read-only', '2026-07-25T00:00:00Z', NULL), "
+          "('event-immutable', 'calendar-work', 'remote-immutable', 'confirmed', 'Immutable', "
+          "'2026-07-29T01:00:00.000Z', '2026-07-29T02:00:00.000Z', 0, NULL, "
+          "'etag-immutable', '2026-07-25T00:00:00Z', 'focusTime')");
+
+  hcb::CalendarEventBulkMutationService bulk(service);
+  std::future<hcb::CalendarEventBulkMutationResult> availability = bulk.execute(
+      {.action = hcb::CalendarEventBulkAction::SetAvailability,
+       .eventIds = {QStringLiteral("event-editable"),
+                    QStringLiteral("event-recurring"),
+                    QStringLiteral("event-read-only"),
+                    QStringLiteral("event-immutable")},
+       .available = true});
+  const hcb::CalendarEventBulkMutationResult availabilityResult = awaitResult(availability);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(availabilityResult));
+  if (!std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(availabilityResult)) {
+    return;
+  }
+  const hcb::CalendarEventBulkMutationSummary availabilitySummary =
+      std::get<hcb::CalendarEventBulkMutationSummary>(availabilityResult);
+  QCOMPARE(availabilitySummary.requested, 4);
+  QCOMPARE(availabilitySummary.eligible, 1);
+  QCOMPARE(availabilitySummary.queued, 1);
+  QCOMPARE(availabilitySummary.skipped, 3);
+  const std::optional<EventSnapshot> editable = readEvent(handle, QStringLiteral("event-editable"));
+  QVERIFY(editable.has_value());
+  if (!editable.has_value()) {
+    return;
+  }
+  QCOMPARE(editable->transparency, std::optional<QString>(QStringLiteral("transparent")));
+
+  std::future<hcb::CalendarEventBulkMutationResult> shift = bulk.execute(
+      {.action = hcb::CalendarEventBulkAction::ShiftTime,
+       .eventIds = {QStringLiteral("event-editable")},
+       .shiftMinutes = 60});
+  const hcb::CalendarEventBulkMutationResult shiftResult = awaitResult(shift);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(shiftResult));
+  if (!std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(shiftResult)) {
+    return;
+  }
+  QCOMPARE(std::get<hcb::CalendarEventBulkMutationSummary>(shiftResult).queued, 1);
+  const std::optional<EventSnapshot> shifted = readEvent(handle, QStringLiteral("event-editable"));
+  QVERIFY(shifted.has_value());
+  if (!shifted.has_value()) {
+    return;
+  }
+  QCOMPARE(shifted->startAt, QStringLiteral("2026-07-26T02:00:00.000Z"));
+  QCOMPARE(shifted->endAt, QStringLiteral("2026-07-26T03:00:00.000Z"));
 }
 
 QTEST_GUILESS_MAIN(CalendarMutationServiceTest)

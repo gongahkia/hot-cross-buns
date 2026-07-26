@@ -278,13 +278,37 @@ void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWi
        {QStringLiteral("etag"), QStringLiteral("etag-2")},
        {QStringLiteral("event"), QJsonObject{{QStringLiteral("summary"), QStringLiteral("Two")}}}},
       QStringLiteral("event-two"));
+  const hcb::PendingMutation third = enqueue(
+      coordinator,
+      QStringLiteral("event.update"),
+      {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
+       {QStringLiteral("remoteEventId"), QStringLiteral("remote-3")},
+       {QStringLiteral("etag"), QStringLiteral("etag-3")},
+       {QStringLiteral("event"),
+        QJsonObject{{QStringLiteral("summary"), QStringLiteral("Three")}}}},
+      QStringLiteral("event-three"));
+  std::future<hcb::PendingMutationListResult> dueFuture = coordinator.listDue(100);
+  const hcb::PendingMutationListResult dueResult = awaitResult(dueFuture);
+  QVERIFY(std::holds_alternative<QList<hcb::PendingMutation>>(dueResult));
+  if (!std::holds_alternative<QList<hcb::PendingMutation>>(dueResult)) {
+    return;
+  }
+  const QList<hcb::PendingMutation>& due = std::get<QList<hcb::PendingMutation>>(dueResult);
+  QCOMPARE(due.size(), 3);
   const QByteArray batchResponse = QByteArrayLiteral(
       "--batch_response\r\n"
       "Content-Type: application/http\r\n"
-      "Content-ID: <response-item-1>\r\n\r\n"
-      "HTTP/1.1 403 Forbidden\r\n"
+      "Content-ID: <response-item-2>\r\n\r\n"
+      "HTTP/1.1 412 Precondition Failed\r\n"
       "Content-Type: application/json\r\n\r\n"
-      "{\"error\":{\"message\":\"denied\"}}\r\n"
+      "{\"error\":{\"message\":\"stale\"}}\r\n"
+      "--batch_response\r\n"
+      "Content-Type: application/http\r\n"
+      "Content-ID: <response-item-1>\r\n\r\n"
+      "HTTP/1.1 503 Service Unavailable\r\n"
+      "Content-Type: application/json\r\n"
+      "Retry-After: 3\r\n\r\n"
+      "{\"error\":{\"message\":\"busy\"}}\r\n"
       "--batch_response\r\n"
       "Content-Type: application/http\r\n"
       "Content-ID: <response-item-0>\r\n\r\n"
@@ -300,7 +324,7 @@ void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWi
 
   const hcb::GoogleCalendarEventMutationPushResult result = push(service);
   QCOMPARE(result.applied, 1);
-  QCOMPARE(result.failed, 1);
+  QCOMPARE(result.failed, 2);
   QCOMPARE(manager.requests().size(), 1);
   const hcb::test::CapturedNetworkRequest& request = manager.requests().constFirst();
   QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
@@ -309,14 +333,24 @@ void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWi
   QCOMPARE(request.request.rawHeader("Accept"), QByteArray("multipart/mixed"));
   QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-1 HTTP/1.1"));
   QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-2 HTTP/1.1"));
+  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-3 HTTP/1.1"));
   QVERIFY(request.body.contains("If-Match: etag-1"));
   QVERIFY(request.body.contains("If-Match: etag-2"));
-  const hcb::PendingMutationStatus firstStatus = find(coordinator, first.id).status;
-  const hcb::PendingMutationStatus secondStatus = find(coordinator, second.id).status;
-  QVERIFY((firstStatus == hcb::PendingMutationStatus::Applied &&
-           secondStatus == hcb::PendingMutationStatus::Failed) ||
-          (firstStatus == hcb::PendingMutationStatus::Failed &&
-           secondStatus == hcb::PendingMutationStatus::Applied));
+  const hcb::PendingMutation applied = find(coordinator, due.at(0).id);
+  const hcb::PendingMutation retriable = find(coordinator, due.at(1).id);
+  const hcb::PendingMutation conflicted = find(coordinator, due.at(2).id);
+  QCOMPARE(applied.status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(retriable.status, hcb::PendingMutationStatus::Failed);
+  QCOMPARE(retriable.lastErrorCode, std::optional<QString>(QStringLiteral("server")));
+  QCOMPARE(retriable.nextRetryAt,
+           std::optional<QString>(QStringLiteral("2025-07-25T01:46:43.123Z")));
+  QCOMPARE(conflicted.status, hcb::PendingMutationStatus::Failed);
+  QCOMPARE(conflicted.lastErrorCode,
+           std::optional<QString>(QStringLiteral("precondition_failed")));
+  QVERIFY(!conflicted.nextRetryAt.has_value());
+  Q_UNUSED(first);
+  Q_UNUSED(second);
+  Q_UNUSED(third);
 }
 
 void GoogleCalendarEventMutationPushServiceTest::pushesMoveBeforeDependentPatch() {

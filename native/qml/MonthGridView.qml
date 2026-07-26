@@ -6,8 +6,10 @@ Pane {
     id: root
     property var monthGridModel: null
     property var calendarVisibility: null
+    property var selectedEventIds: []
     property alias cells: cells
     signal dateSelected(string date)
+    signal eventSelectionRequested(string eventId, bool selected)
 
     function eventSummary(events) {
         const visibleEvents = events.filter(function(event) {
@@ -25,6 +27,16 @@ Pane {
 
     function isCalendarVisible(calendarId) {
         return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
+    }
+
+    function eventIds(events) {
+        return events.filter(function(event) {
+            return root.isCalendarVisible(event.calendarId) && typeof event.id === "string" && event.id.length > 0
+        }).map(function(event) { return event.id })
+    }
+
+    function isEventSelected(eventId) {
+        return selectedEventIds.indexOf(eventId) >= 0
     }
 
     ColumnLayout {
@@ -81,6 +93,25 @@ Pane {
                 accessibleName: date
                 accessibleDescription: events.length === 0 ? "No events" : root.eventSummary(events)
                 onClicked: root.selectDate(date)
+
+                CheckBox {
+                    property var selectableEventIds: root.eventIds(events)
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.margins: Theme.spacingSmall
+                    z: 1
+                    visible: selectableEventIds.length > 0
+                    checked: selectableEventIds.length > 0 && selectableEventIds.every(function(eventId) {
+                        return root.isEventSelected(eventId)
+                    })
+                    Accessible.name: "Select events on " + date
+                    Accessible.description: checked ? "All visible events selected" : "Visible events not selected"
+                    onClicked: {
+                        for (let index = 0; index < selectableEventIds.length; ++index) {
+                            root.eventSelectionRequested(selectableEventIds[index], checked)
+                        }
+                    }
+                }
             }
         }
     }

@@ -215,10 +215,21 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
   const std::optional<QString> summary = optionalString(object, u"summary", 500);
   const std::optional<QString> description = optionalString(object, u"description", 20'000);
   const std::optional<QString> location = optionalString(object, u"location", 1'000);
+  const std::optional<QString> colorId = optionalString(object, u"colorId", 32);
+  const std::optional<QString> transparency = optionalString(object, u"transparency", 32);
+  const std::optional<QString> visibility = optionalString(object, u"visibility", 32);
   const QJsonValue status = object.value(QStringLiteral("status"));
   if (!id.has_value() || *id != expectedId || !etag.has_value() || !summary.has_value() ||
       hasInvalidOptional(description, object, u"description") ||
       hasInvalidOptional(location, object, u"location") ||
+      hasInvalidOptional(colorId, object, u"colorId") ||
+      hasInvalidOptional(transparency, object, u"transparency") ||
+      hasInvalidOptional(visibility, object, u"visibility") ||
+      (transparency.has_value() && *transparency != QStringLiteral("opaque") &&
+       *transparency != QStringLiteral("transparent")) ||
+      (visibility.has_value() && *visibility != QStringLiteral("default") &&
+       *visibility != QStringLiteral("public") && *visibility != QStringLiteral("private") &&
+       *visibility != QStringLiteral("confidential")) ||
       (!status.isUndefined() &&
        (!status.isString() || (status.toString() != QStringLiteral("confirmed") &&
                                status.toString() != QStringLiteral("tentative") &&
@@ -237,7 +248,13 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
                                                            ? QJsonValue(*description)
                                                            : QJsonValue::Null},
                      {QStringLiteral("location"), location.has_value() ? QJsonValue(*location)
-                                                                         : QJsonValue::Null}};
+                                                                         : QJsonValue::Null},
+                     {QStringLiteral("colorId"), colorId.has_value() ? QJsonValue(*colorId)
+                                                                        : QJsonValue::Null},
+                     {QStringLiteral("transparency"),
+                      transparency.has_value() ? QJsonValue(*transparency) : QJsonValue::Null},
+                     {QStringLiteral("visibility"),
+                      visibility.has_value() ? QJsonValue(*visibility) : QJsonValue::Null}};
   if (start.has_value() && end.has_value()) {
     fields.insert(QStringLiteral("start"), *start);
     fields.insert(QStringLiteral("end"), *end);

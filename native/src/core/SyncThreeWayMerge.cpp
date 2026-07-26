@@ -133,7 +133,10 @@ SyncThreeWayMergeResult SyncThreeWayMerge::merge(SyncThreeWayMergeInput input) {
   }
   if (input.resource == SyncConflictResource::Event) {
     return mergeFields(
-        input, u"event", {u"summary", u"description", u"location", u"start", u"end"});
+        input,
+        u"event",
+        {u"summary", u"description", u"location", u"start", u"end", u"colorId",
+         u"transparency", u"visibility"});
   }
   return structuralResult(input);
 }

@@ -6,8 +6,10 @@ Pane {
     id: root
     property var agendaModel: null
     property var calendarVisibility: null
+    property var selectedEventIds: []
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
+    signal eventSelectionRequested(string eventId, bool selected)
     signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
                               string endAt, bool allDay, string description, string location)
 
@@ -25,6 +27,10 @@ Pane {
 
     function isCalendarVisible(calendarId) {
         return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
+    }
+
+    function isEventSelected(eventId) {
+        return selectedEventIds.indexOf(eventId) >= 0
     }
 
     ColumnLayout {
@@ -65,6 +71,17 @@ Pane {
                 onClicked: {
                     root.selectEvent(id)
                     root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location)
+                }
+
+                CheckBox {
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.margins: Theme.spacingSmall
+                    z: 1
+                    checked: root.isEventSelected(id)
+                    Accessible.name: "Select " + title
+                    Accessible.description: checked ? "Event selected" : "Event not selected"
+                    onClicked: root.eventSelectionRequested(id, checked)
                 }
             }
         }

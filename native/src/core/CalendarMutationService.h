@@ -5,6 +5,7 @@
 #include "core/FilePath.h"
 #include "data/SqliteWriterQueue.h"
 
+#include <QList>
 #include <QString>
 
 #include <future>
@@ -36,6 +37,9 @@ struct CalendarEventUpdateInput final {
   std::optional<bool> allDay;
   std::optional<std::optional<QString>> startTimeZone;
   std::optional<std::optional<QString>> endTimeZone;
+  std::optional<QString> colorId;
+  std::optional<QString> transparency;
+  std::optional<QString> visibility;
 };
 
 struct CalendarEventMutationReceipt final {
@@ -49,7 +53,26 @@ struct CalendarEventRemoteReconciliationInput final {
   std::optional<QString> remoteEtag;
 };
 
+struct CalendarEventMutationSnapshot final {
+  QString eventId;
+  QString accountId;
+  QString calendarId;
+  std::optional<QString> calendarAccessRole;
+  QString status;
+  std::optional<QString> recurringRemoteId;
+  std::optional<QString> recurrenceRule;
+  std::optional<QString> eventType;
+  QString startAt;
+  QString endAt;
+  bool allDay{false};
+  std::optional<QString> colorId;
+  std::optional<QString> transparency;
+  std::optional<QString> visibility;
+};
+
 using CalendarEventMutationResult = std::variant<CalendarEventMutationReceipt, AppError>;
+using CalendarEventMutationSnapshotResult =
+    std::variant<QList<CalendarEventMutationSnapshot>, AppError>;
 
 class CalendarMutationService final {
 public:
@@ -61,6 +84,7 @@ public:
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);
+  [[nodiscard]] std::future<CalendarEventMutationSnapshotResult> inspect(QList<QString> eventIds);
   [[nodiscard]] std::future<CalendarEventMutationResult>
   reconcileGoogleEvent(CalendarEventRemoteReconciliationInput input);
 

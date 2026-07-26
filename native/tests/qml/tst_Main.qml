@@ -423,6 +423,98 @@ TestCase {
         agendaModel.destroy()
     }
 
+    function test_calendarEventSelectionHelpers() {
+        const agendaComponent = Qt.createComponent("../../qml/AgendaView.qml")
+        compare(agendaComponent.status, Component.Ready, agendaComponent.errorString())
+        const agenda = agendaComponent.createObject(null, { selectedEventIds: ["event-1"] })
+        verify(agenda !== null)
+        verify(agenda.isEventSelected("event-1"))
+        verify(!agenda.isEventSelected("event-2"))
+        let agendaSelection = null
+        agenda.eventSelectionRequested.connect(function(eventId, selected) {
+            agendaSelection = { eventId: eventId, selected: selected }
+        })
+        agenda.eventSelectionRequested("event-2", true)
+        compare(agendaSelection.eventId, "event-2")
+        compare(agendaSelection.selected, true)
+        agenda.destroy()
+
+        const monthComponent = Qt.createComponent("../../qml/MonthGridView.qml")
+        compare(monthComponent.status, Component.Ready, monthComponent.errorString())
+        const month = monthComponent.createObject(null, { selectedEventIds: ["event-visible"] })
+        verify(month !== null)
+        compare(month.eventIds([{ id: "event-hidden", calendarId: "hidden" },
+                                { id: "event-visible", calendarId: "visible" }]).length, 2)
+        verify(month.isEventSelected("event-visible"))
+        month.destroy()
+    }
+
+    function test_bulkCalendarSelectionAndActions() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        calendars.append({ id: "calendar-owner", title: "Owner", accessRole: "owner", selected: true })
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            bulkEventStatusMessage: "",
+            bulkDeleteEvents: function(eventIds) {
+                calls.push({ action: "delete", eventIds: eventIds })
+            },
+            bulkMoveEvents: function(eventIds, calendarId) {
+                calls.push({ action: "move", eventIds: eventIds, calendarId: calendarId })
+            },
+            bulkSetEventColor: function(eventIds, colorId) {
+                calls.push({ action: "color", eventIds: eventIds, colorId: colorId })
+            },
+            bulkSetEventAvailability: function(eventIds, available) {
+                calls.push({ action: "availability", eventIds: eventIds, available: available })
+            },
+            bulkSetEventVisibility: function(eventIds, visibility) {
+                calls.push({ action: "visibility", eventIds: eventIds, visibility: visibility })
+            },
+            bulkShiftEventTimes: function(eventIds, shiftMinutes) {
+                calls.push({ action: "shift", eventIds: eventIds, shiftMinutes: shiftMinutes })
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller,
+            calendarSourceModel: calendars
+        })
+        verify(mainWindow !== null)
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.setCalendarEventSelected("event-b", true)
+        compare(mainWindow.selectedCalendarEventIds.length, 2)
+        mainWindow.calendarBulkControls.bulkDeleteRequested(mainWindow.selectedCalendarEventIds)
+        compare(calls[0].action, "delete")
+        compare(calls[0].eventIds.length, 2)
+        compare(mainWindow.selectedCalendarEventIds.length, 0)
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.calendarBulkControls.bulkMoveRequested(mainWindow.selectedCalendarEventIds,
+                                                           "calendar-owner")
+        compare(calls[1].action, "move")
+        compare(calls[1].calendarId, "calendar-owner")
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.calendarBulkControls.bulkColorRequested(mainWindow.selectedCalendarEventIds, "4")
+        compare(calls[2].action, "color")
+        compare(calls[2].colorId, "4")
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.calendarBulkControls.bulkAvailabilityRequested(mainWindow.selectedCalendarEventIds, true)
+        compare(calls[3].action, "availability")
+        compare(calls[3].available, true)
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.calendarBulkControls.bulkVisibilityRequested(mainWindow.selectedCalendarEventIds, "private")
+        compare(calls[4].action, "visibility")
+        compare(calls[4].visibility, "private")
+        mainWindow.setCalendarEventSelected("event-a", true)
+        mainWindow.calendarBulkControls.bulkShiftRequested(mainWindow.selectedCalendarEventIds, 60)
+        compare(calls[5].action, "shift")
+        compare(calls[5].shiftMinutes, 60)
+        mainWindow.destroy()
+        calendars.destroy()
+    }
+
     function test_calendarSourceControlsFilterVisibleCalendars() {
         const component = Qt.createComponent("../../qml/CalendarSourceControls.qml")
         compare(component.status, Component.Ready, component.errorString())
