@@ -7,11 +7,13 @@
 #include "core/GoogleCalendarEventPullClient.h"
 #include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleCalendarListPullClient.h"
+#include "core/GoogleCalendarMirrorSyncService.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
 #include "core/GoogleSyncRecoveryService.h"
 #include "core/GoogleSyncConflictResolver.h"
 #include "core/GoogleTaskListPullClient.h"
+#include "core/GoogleTaskMirrorSyncService.h"
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/NoteService.h"
@@ -235,6 +237,8 @@ private:
   TaskReadService taskReadService_;
   NoteService noteService_;
   CalendarReadService calendarReadService_;
+  GoogleTaskMirrorSyncService googleTaskMirrorSyncService_;
+  GoogleCalendarMirrorSyncService googleCalendarMirrorSyncService_;
   SyncScheduler syncScheduler_;
   std::mutex syncConfigurationMutex_;
   QString syncClientId_;

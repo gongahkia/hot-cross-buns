@@ -83,6 +83,10 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleHttpClient.h
   src/core/GoogleMirrorStore.cpp
   src/core/GoogleMirrorStore.h
+  src/core/GoogleTaskMirrorSyncService.cpp
+  src/core/GoogleTaskMirrorSyncService.h
+  src/core/GoogleCalendarMirrorSyncService.cpp
+  src/core/GoogleCalendarMirrorSyncService.h
   src/core/GoogleSyncRecoveryService.cpp
   src/core/GoogleSyncRecoveryService.h
   src/core/GoogleSyncConflictResolver.cpp
@@ -1248,6 +1252,60 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_sync_checkpoint_store_tests)
   add_test(NAME hcb_sync_checkpoint_store_tests COMMAND hcb_sync_checkpoint_store_tests)
 
+  qt_add_executable(hcb_google_mirror_sync_service_tests
+    tests/GoogleMirrorSyncServiceTest.cpp
+    tests/support/MockNetworkAccessManager.h
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/CalendarReadService.cpp
+    src/core/CalendarReadService.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleCalendarEventPullClient.cpp
+    src/core/GoogleCalendarEventPullClient.h
+    src/core/GoogleCalendarListPullClient.cpp
+    src/core/GoogleCalendarListPullClient.h
+    src/core/GoogleCalendarMirrorSyncService.cpp
+    src/core/GoogleCalendarMirrorSyncService.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/GoogleMirrorStore.cpp
+    src/core/GoogleMirrorStore.h
+    src/core/GoogleSyncRecoveryService.cpp
+    src/core/GoogleSyncRecoveryService.h
+    src/core/GoogleTaskListPullClient.cpp
+    src/core/GoogleTaskListPullClient.h
+    src/core/GoogleTaskMirrorSyncService.cpp
+    src/core/GoogleTaskMirrorSyncService.h
+    src/core/GoogleTaskPullClient.cpp
+    src/core/GoogleTaskPullClient.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+    src/core/SyncCheckpointStore.cpp
+    src/core/SyncCheckpointStore.h
+    src/core/SyncBackoffPolicy.cpp
+    src/core/SyncBackoffPolicy.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_google_mirror_sync_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_google_mirror_sync_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_google_mirror_sync_service_tests)
+  hcb_enable_sanitizers(hcb_google_mirror_sync_service_tests)
+  add_test(NAME hcb_google_mirror_sync_service_tests COMMAND hcb_google_mirror_sync_service_tests)
+
   qt_add_executable(hcb_sync_conflict_store_tests
     tests/SyncConflictStoreTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -2382,6 +2440,7 @@ if(BUILD_TESTING)
     hcb_google_mirror_store_tests
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
+    hcb_google_mirror_sync_service_tests
     hcb_sync_conflict_store_tests
     hcb_sync_three_way_merge_tests
     hcb_sync_scheduler_tests
@@ -2485,6 +2544,7 @@ if(BUILD_TESTING)
     hcb_google_mirror_store_tests
     hcb_settings_service_tests
     hcb_sync_checkpoint_store_tests
+    hcb_google_mirror_sync_service_tests
     hcb_sync_conflict_store_tests
     hcb_sync_three_way_merge_tests
     hcb_sync_scheduler_tests

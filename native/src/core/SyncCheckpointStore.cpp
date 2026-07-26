@@ -6,6 +6,7 @@
 #include <QByteArray>
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QJsonDocument>
 #include <QTimeZone>
 
 #include <array>
@@ -20,6 +21,7 @@ namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr qsizetype kMaximumSyncTokenLength = 8'192;
+constexpr qsizetype kMaximumMetadataBytes = 16'384;
 constexpr qsizetype kMaximumTimestampLength = 64;
 
 [[nodiscard]] AppError databaseError(const QString& message, int result) {
@@ -47,12 +49,21 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
          !value.contains(QChar::Null);
 }
 
+[[nodiscard]] std::optional<QByteArray> encodedMetadata(const QJsonObject& metadata) {
+  const QByteArray encoded = QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+  return encoded.isEmpty() || encoded.size() > kMaximumMetadataBytes || encoded.contains('\0')
+             ? std::nullopt
+             : std::optional<QByteArray>(encoded);
+}
+
 [[nodiscard]] bool isValidKey(const SyncCheckpointKey& key) {
   return isValidIdentifier(key.accountId) && isValidIdentifier(key.resourceId);
 }
 
 [[nodiscard]] QString resourceTypeText(SyncCheckpointResourceType resourceType) {
   switch (resourceType) {
+  case SyncCheckpointResourceType::TaskListWatermark:
+    return QStringLiteral("tasks");
   case SyncCheckpointResourceType::CalendarList:
     return QStringLiteral("calendar_list");
   case SyncCheckpointResourceType::CalendarEvent:
@@ -110,7 +121,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
                     QStringLiteral("SQLite sync-checkpoint connection is unavailable"));
   }
   constexpr char sql[] = R"(
-SELECT checkpoint_value, last_successful_sync_at, updated_at
+SELECT checkpoint_value, metadata_json, last_successful_sync_at, updated_at
 FROM local_sync_checkpoints
 WHERE account_id = ?1 AND resource_type = ?2 AND resource_id = ?3 AND checkpoint_type = 'sync_token'
 LIMIT 1
@@ -146,10 +157,15 @@ LIMIT 1
     return databaseError(QStringLiteral("SQLite sync-checkpoint read failed (%1)"), stepResult);
   }
   const std::optional<QString> token = requiredText(statement, 0);
-  const std::optional<QString> successfulAt = requiredText(statement, 1);
-  const std::optional<QString> updatedAt = requiredText(statement, 2);
+  const std::optional<QString> metadataText = requiredText(statement, 1);
+  const std::optional<QString> successfulAt = requiredText(statement, 2);
+  const std::optional<QString> updatedAt = requiredText(statement, 3);
   const int finalizeResult = sqlite3_finalize(statement);
-  if (!token.has_value() || !successfulAt.has_value() || !updatedAt.has_value() ||
+  const QJsonDocument metadata = metadataText.has_value()
+                                     ? QJsonDocument::fromJson(metadataText->toUtf8())
+                                     : QJsonDocument();
+  if (!token.has_value() || !metadataText.has_value() || !metadata.isObject() ||
+      !successfulAt.has_value() || !updatedAt.has_value() ||
       successfulAt->size() > kMaximumTimestampLength ||
       updatedAt->size() > kMaximumTimestampLength) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored sync checkpoint is invalid"));
@@ -160,6 +176,7 @@ LIMIT 1
   }
   return std::optional<SyncCheckpoint>(SyncCheckpoint{.key = key,
                                                       .syncToken = *token,
+                                                      .metadata = metadata.object(),
                                                       .lastSuccessfulSyncAt = *successfulAt,
                                                       .updatedAt = *updatedAt});
 }
@@ -174,10 +191,11 @@ LIMIT 1
   constexpr char sql[] = R"(
 INSERT INTO local_sync_checkpoints (
   id, account_id, resource_type, resource_id, checkpoint_type, checkpoint_value,
-  last_successful_sync_at, updated_at
-) VALUES (?1, ?2, ?3, ?4, 'sync_token', ?5, ?6, ?7)
+  metadata_json, last_successful_sync_at, updated_at
+) VALUES (?1, ?2, ?3, ?4, 'sync_token', ?5, ?6, ?7, ?8)
 ON CONFLICT(account_id, resource_type, resource_id, checkpoint_type) DO UPDATE SET
   checkpoint_value = excluded.checkpoint_value,
+  metadata_json = excluded.metadata_json,
   last_successful_sync_at = excluded.last_successful_sync_at,
   updated_at = excluded.updated_at
 )";
@@ -191,14 +209,20 @@ ON CONFLICT(account_id, resource_type, resource_id, checkpoint_type) DO UPDATE S
   }
   const QString id = checkpointId(checkpoint.key);
   const QString resourceType = resourceTypeText(checkpoint.key.resourceType);
-  const std::array<std::pair<int, const QString*>, 7> bindings = {
+  const std::optional<QByteArray> metadata = encodedMetadata(checkpoint.metadata);
+  if (!metadata.has_value()) {
+    return validationError(QStringLiteral("Sync checkpoint metadata is invalid"));
+  }
+  const QString metadataText = QString::fromUtf8(*metadata);
+  const std::array<std::pair<int, const QString*>, 8> bindings = {
       std::pair{1, &id},
       std::pair{2, &checkpoint.key.accountId},
       std::pair{3, &resourceType},
       std::pair{4, &checkpoint.key.resourceId},
       std::pair{5, &checkpoint.syncToken},
-      std::pair{6, &checkpoint.lastSuccessfulSyncAt},
-      std::pair{7, &checkpoint.updatedAt}};
+      std::pair{6, &metadataText},
+      std::pair{7, &checkpoint.lastSuccessfulSyncAt},
+      std::pair{8, &checkpoint.updatedAt}};
   for (const auto& [index, value] : bindings) {
     if (const std::optional<AppError> error = bindText(statement, index, *value);
         error.has_value()) {
@@ -286,14 +310,16 @@ std::future<SyncCheckpointLookupResult> SyncCheckpointStore::find(SyncCheckpoint
 }
 
 std::future<SyncCheckpointSaveResult> SyncCheckpointStore::save(SyncCheckpointKey key,
-                                                                const QString& syncToken) {
-  if (!isValidKey(key) || !isValidToken(syncToken)) {
+                                                                const QString& syncToken,
+                                                                QJsonObject metadata) {
+  if (!isValidKey(key) || !isValidToken(syncToken) || !encodedMetadata(metadata).has_value()) {
     return readyFuture(SyncCheckpointSaveResult(
         validationError(QStringLiteral("Sync checkpoint input is invalid"))));
   }
   const QString savedAt = timestamp(clock_);
   SyncCheckpoint checkpoint{.key = std::move(key),
                             .syncToken = syncToken,
+                            .metadata = std::move(metadata),
                             .lastSuccessfulSyncAt = savedAt,
                             .updatedAt = savedAt};
   return writerQueue_.enqueueResult(

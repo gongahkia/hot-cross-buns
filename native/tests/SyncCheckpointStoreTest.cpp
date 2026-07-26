@@ -98,7 +98,9 @@ void SyncCheckpointStoreTest::persistsAndReplacesCalendarCheckpoints() {
                                    .resourceType = hcb::SyncCheckpointResourceType::CalendarEvent,
                                    .resourceId = QStringLiteral("calendar-1")};
 
-  std::future<hcb::SyncCheckpointSaveResult> firstSave = store.save(key, QStringLiteral("sync-1"));
+  const QJsonObject metadata{{QStringLiteral("singleEvents"), false}};
+  std::future<hcb::SyncCheckpointSaveResult> firstSave =
+      store.save(key, QStringLiteral("sync-1"), metadata);
   const hcb::SyncCheckpointSaveResult firstResult = awaitResult(firstSave);
   QVERIFY(std::holds_alternative<hcb::SyncCheckpoint>(firstResult));
   QCOMPARE(std::get<hcb::SyncCheckpoint>(firstResult).syncToken, QStringLiteral("sync-1"));
@@ -109,9 +111,10 @@ void SyncCheckpointStoreTest::persistsAndReplacesCalendarCheckpoints() {
   QVERIFY(std::get<std::optional<hcb::SyncCheckpoint>>(loadedResult).has_value());
   QCOMPARE(std::get<std::optional<hcb::SyncCheckpoint>>(loadedResult)->syncToken,
            QStringLiteral("sync-1"));
+  QCOMPARE(std::get<std::optional<hcb::SyncCheckpoint>>(loadedResult)->metadata, metadata);
 
   std::future<hcb::SyncCheckpointSaveResult> replacement =
-      store.save(key, QStringLiteral("sync-2"));
+      store.save(key, QStringLiteral("sync-2"), metadata);
   QVERIFY(std::holds_alternative<hcb::SyncCheckpoint>(awaitResult(replacement)));
   std::future<hcb::SyncCheckpointLookupResult> replaced = store.find(key);
   const hcb::SyncCheckpointLookupResult replacedResult = awaitResult(replaced);

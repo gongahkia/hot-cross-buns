@@ -5,6 +5,7 @@
 #include "core/FilePath.h"
 #include "data/SqliteWriterQueue.h"
 
+#include <QJsonObject>
 #include <QString>
 
 #include <cstdint>
@@ -15,6 +16,7 @@
 namespace hcb {
 
 enum class SyncCheckpointResourceType : std::uint8_t {
+  TaskListWatermark,
   CalendarList,
   CalendarEvent
 };
@@ -28,6 +30,7 @@ struct SyncCheckpointKey final {
 struct SyncCheckpoint final {
   SyncCheckpointKey key;
   QString syncToken;
+  QJsonObject metadata;
   QString lastSuccessfulSyncAt;
   QString updatedAt;
 };
@@ -45,7 +48,8 @@ public:
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<SyncCheckpointLookupResult> find(SyncCheckpointKey key);
   [[nodiscard]] std::future<SyncCheckpointSaveResult> save(SyncCheckpointKey key,
-                                                           const QString& syncToken);
+                                                           const QString& syncToken,
+                                                           QJsonObject metadata = {});
   [[nodiscard]] std::future<SyncCheckpointEraseResult> erase(SyncCheckpointKey key);
 
 private:

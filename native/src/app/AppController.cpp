@@ -177,6 +177,17 @@ AppController::AppController(FilePath databasePath,
           &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
+      googleTaskMirrorSyncService_(googleTaskListPullClient_,
+                                   googleTaskPullClient_,
+                                   googleMirrorStore_,
+                                   syncCheckpointStore_,
+                                   clock),
+      googleCalendarMirrorSyncService_(googleCalendarListPullClient_,
+                                       googleCalendarEventPullClient_,
+                                       calendarReadService_,
+                                       googleMirrorStore_,
+                                       syncCheckpointStore_,
+                                       googleSyncRecoveryService_),
       syncScheduler_([this](const SyncSchedulerRequest& request) { return runGoogleSync(request); },
                      clock) {
   connect(&oauthLoopbackListener_,
@@ -624,66 +635,27 @@ std::future<GoogleMirrorWriteResult> AppController::pullGoogleData(QString acces
   auto completion = std::make_shared<std::promise<GoogleMirrorWriteResult>>();
   std::future<GoogleMirrorWriteResult> future = completion->get_future();
   auto pull = [this, accessToken = std::move(accessToken)] {
-    GoogleTaskListPullResultOrError taskListResult =
-        googleTaskListPullClient_.list(accessToken).get();
-    if (std::holds_alternative<GoogleApiError>(taskListResult)) {
+    GoogleTaskMirrorSyncResultOrError taskSync =
+        googleTaskMirrorSyncService_.sync(QString::fromLatin1(kGoogleAccountId), accessToken).get();
+    if (std::holds_alternative<AppError>(taskSync)) {
+      return GoogleMirrorWriteResult(std::get<AppError>(std::move(taskSync)));
+    }
+    if (std::holds_alternative<GoogleApiError>(taskSync)) {
       return GoogleMirrorWriteResult(
-          AppError(AppErrorCode::Network, std::get<GoogleApiError>(taskListResult).message()));
+          AppError(AppErrorCode::Network, std::get<GoogleApiError>(std::move(taskSync)).message()));
     }
-    GoogleTaskListPullResult pulledTaskLists =
-        std::get<GoogleTaskListPullResult>(std::move(taskListResult));
-    QList<GoogleTaskMirror> tasks;
-    for (const GoogleTaskListMirror& taskList : pulledTaskLists.taskLists) {
-      GoogleTaskPullResultOrError taskResult =
-          googleTaskPullClient_.list({.taskListId = taskList.id}, accessToken).get();
-      if (std::holds_alternative<GoogleApiError>(taskResult)) {
-        return GoogleMirrorWriteResult(
-            AppError(AppErrorCode::Network, std::get<GoogleApiError>(taskResult).message()));
-      }
-      QList<GoogleTaskMirror> pulledTasks =
-          std::get<GoogleTaskPullResult>(std::move(taskResult)).tasks;
-      for (GoogleTaskMirror& task : pulledTasks) {
-        tasks.append(std::move(task));
-      }
+    GoogleCalendarMirrorSyncResultOrError calendarSync =
+        googleCalendarMirrorSyncService_
+            .sync(QString::fromLatin1(kGoogleAccountId), accessToken)
+            .get();
+    if (std::holds_alternative<AppError>(calendarSync)) {
+      return GoogleMirrorWriteResult(std::get<AppError>(std::move(calendarSync)));
     }
-    GoogleMirrorWriteResult taskWrite = googleMirrorStore_
-                                            .replaceTasks(QString::fromLatin1(kGoogleAccountId),
-                                                          std::move(pulledTaskLists.taskLists),
-                                                          std::move(tasks))
-                                            .get();
-    if (std::holds_alternative<AppError>(taskWrite)) {
-      return taskWrite;
+    if (std::holds_alternative<GoogleApiError>(calendarSync)) {
+      return GoogleMirrorWriteResult(AppError(
+          AppErrorCode::Network, std::get<GoogleApiError>(std::move(calendarSync)).message()));
     }
-    GoogleCalendarListPullResultOrError calendarListResult =
-        googleCalendarListPullClient_.list({}, accessToken).get();
-    if (std::holds_alternative<GoogleApiError>(calendarListResult)) {
-      return GoogleMirrorWriteResult(
-          AppError(AppErrorCode::Network, std::get<GoogleApiError>(calendarListResult).message()));
-    }
-    GoogleCalendarListPullResult pulledCalendars =
-        std::get<GoogleCalendarListPullResult>(std::move(calendarListResult));
-    QList<GoogleCalendarEventMirror> events;
-    for (const GoogleCalendarMirror& calendar : pulledCalendars.calendars) {
-      if (calendar.deleted) {
-        continue;
-      }
-      GoogleCalendarEventPullResultOrError eventResult =
-          googleCalendarEventPullClient_.list({.calendarId = calendar.id}, accessToken).get();
-      if (std::holds_alternative<GoogleApiError>(eventResult)) {
-        return GoogleMirrorWriteResult(
-            AppError(AppErrorCode::Network, std::get<GoogleApiError>(eventResult).message()));
-      }
-      QList<GoogleCalendarEventMirror> pulledEvents =
-          std::get<GoogleCalendarEventPullResult>(std::move(eventResult)).events;
-      for (GoogleCalendarEventMirror& event : pulledEvents) {
-        events.append(std::move(event));
-      }
-    }
-    return googleMirrorStore_
-        .replaceCalendars(QString::fromLatin1(kGoogleAccountId),
-                          std::move(pulledCalendars.calendars),
-                          std::move(events))
-        .get();
+    return GoogleMirrorWriteResult(std::monostate{});
   };
   try {
     std::thread([completion, pull = std::move(pull)]() mutable {

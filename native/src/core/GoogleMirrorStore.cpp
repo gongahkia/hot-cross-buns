@@ -143,12 +143,14 @@ markTaskListsDeleted(sqlite3* handle, const QString& accountId, const QString& n
                  "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
                  "WHERE mutations.resource_type = 'task_list' "
                  "AND mutations.resource_id = local_task_lists.id "
-                 "AND mutations.status IN ('pending', 'applying')) "
+                 "AND (mutations.status IN ('pending', 'applying') "
+                 "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL))) "
                  "AND NOT EXISTS (SELECT 1 FROM local_tasks AS tasks "
                  "JOIN local_pending_mutations AS mutations ON mutations.resource_id = tasks.id "
                  "WHERE tasks.task_list_id = local_task_lists.id "
                  "AND mutations.resource_type = 'task' "
-                 "AND mutations.status IN ('pending', 'applying'))",
+                 "AND (mutations.status IN ('pending', 'applying') "
+                 "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
                  {textValue(now), textValue(accountId)});
 }
 
@@ -160,7 +162,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
                  "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
                  "WHERE mutations.resource_type = 'task' "
                  "AND mutations.resource_id = local_tasks.id "
-                 "AND mutations.status IN ('pending', 'applying'))",
+                 "AND (mutations.status IN ('pending', 'applying') "
+                 "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
                  {textValue(now), textValue(listId)});
 }
 
@@ -181,7 +184,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
       "WHERE mutations.resource_type = 'task_list' "
       "AND mutations.resource_id = local_task_lists.id "
-      "AND mutations.status IN ('pending', 'applying'))",
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
       {textValue(taskListId(accountId, taskList.id)),
        textValue(accountId),
        textValue(taskList.id),
@@ -222,7 +226,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
       "WHERE mutations.resource_type = 'task' "
       "AND mutations.resource_id = local_tasks.id "
-      "AND mutations.status IN ('pending', 'applying'))",
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
       {textValue(taskId(accountId, task.taskListId, task.id)),
        textValue(localListId),
        textValue(task.id),
@@ -264,7 +269,8 @@ markCalendarsDeleted(sqlite3* handle, const QString& accountId, const QString& n
                  "JOIN local_pending_mutations AS mutations ON mutations.resource_id = events.id "
                  "WHERE events.calendar_id = local_calendars.id "
                  "AND mutations.resource_type = 'event' "
-                 "AND mutations.status IN ('pending', 'applying'))",
+                 "AND (mutations.status IN ('pending', 'applying') "
+                 "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
                  {textValue(now), textValue(accountId)});
 }
 
@@ -276,7 +282,8 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
                  "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
                  "WHERE mutations.resource_type = 'event' "
                  "AND mutations.resource_id = local_calendar_events.id "
-                 "AND mutations.status IN ('pending', 'applying'))",
+                 "AND (mutations.status IN ('pending', 'applying') "
+                 "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
                  {textValue(now), textValue(localCalendarId)});
 }
 
@@ -299,7 +306,15 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "background_color = excluded.background_color, foreground_color = excluded.foreground_color, "
       "access_role = excluded.access_role, is_selected = excluded.is_selected, "
       "is_hidden = excluded.is_hidden, is_primary = excluded.is_primary, etag = excluded.etag, "
-      "updated_at = excluded.updated_at, deleted_at = excluded.deleted_at",
+      "updated_at = excluded.updated_at, "
+      "deleted_at = CASE WHEN excluded.deleted_at IS NOT NULL AND EXISTS ("
+      "SELECT 1 FROM local_calendar_events AS events "
+      "JOIN local_pending_mutations AS mutations ON mutations.resource_id = events.id "
+      "WHERE events.calendar_id = local_calendars.id "
+      "AND mutations.resource_type = 'event' "
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL))) "
+      "THEN local_calendars.deleted_at ELSE excluded.deleted_at END",
       {textValue(calendarId(accountId, calendar.id)),
        textValue(accountId),
        textValue(calendar.id),
@@ -369,7 +384,8 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
       "WHERE mutations.resource_type = 'event' "
       "AND mutations.resource_id = local_calendar_events.id "
-      "AND mutations.status IN ('pending', 'applying'))",
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
       {textValue(eventId(accountId, event.calendarId, event.id)),
        textValue(calendarId(accountId, event.calendarId)),
        textValue(event.id),
@@ -467,6 +483,105 @@ replaceStoredTasks(SqliteConnection& connection,
 }
 
 [[nodiscard]] GoogleMirrorWriteResult
+mergeStoredTaskLists(SqliteConnection& connection,
+                     const QString& accountId,
+                     const QList<GoogleTaskListMirror>& taskLists,
+                     bool fullReconciliation,
+                     const Clock& clock) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database, QStringLiteral("SQLite task mirror is unavailable"));
+  }
+  if (!validIdentifier(accountId)) {
+    return validationError(QStringLiteral("Google account identifier is invalid"));
+  }
+  for (const GoogleTaskListMirror& taskList : taskLists) {
+    if (!validIdentifier(taskList.id) || taskList.title.trimmed().isEmpty()) {
+      return validationError(QStringLiteral("Google task list is invalid"));
+    }
+  }
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  const QString now = timestamp(clock);
+  if (fullReconciliation) {
+    if (const std::optional<AppError> error = markTaskListsDeleted(handle, accountId, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  sqlite3_int64 sortOrder = 0;
+  for (const GoogleTaskListMirror& taskList : taskLists) {
+    if (const std::optional<AppError> error =
+            upsertTaskList(handle, accountId, taskList, sortOrder++, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return std::monostate{};
+}
+
+[[nodiscard]] GoogleMirrorWriteResult
+mergeStoredTasks(SqliteConnection& connection,
+                 const QString& accountId,
+                 const QString& taskListRemoteId,
+                 const QList<GoogleTaskMirror>& tasks,
+                 bool fullReconciliation,
+                 const Clock& clock) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database, QStringLiteral("SQLite task mirror is unavailable"));
+  }
+  if (!validIdentifier(accountId) || !validIdentifier(taskListRemoteId)) {
+    return validationError(QStringLiteral("Google task mirror identity is invalid"));
+  }
+  QSet<QString> taskIds;
+  for (const GoogleTaskMirror& task : tasks) {
+    if (!validIdentifier(task.id) || task.taskListId != taskListRemoteId ||
+        task.title.trimmed().isEmpty()) {
+      return validationError(QStringLiteral("Google task is invalid"));
+    }
+    taskIds.insert(task.id);
+  }
+  if (fullReconciliation) {
+    for (const GoogleTaskMirror& task : tasks) {
+      if (task.parentId.has_value() && !taskIds.contains(*task.parentId)) {
+        return validationError(QStringLiteral("Google task parent is unavailable"));
+      }
+    }
+  }
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  const QString now = timestamp(clock);
+  const QString localListId = taskListId(accountId, taskListRemoteId);
+  if (fullReconciliation) {
+    if (const std::optional<AppError> error = markTasksDeleted(handle, localListId, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  sqlite3_int64 sortOrder = 0;
+  for (const GoogleTaskMirror& task : tasks) {
+    if (const std::optional<AppError> error = upsertTask(handle, accountId, task, sortOrder++, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return std::monostate{};
+}
+
+[[nodiscard]] GoogleMirrorWriteResult
 replaceStoredCalendars(SqliteConnection& connection,
                        const QString& accountId,
                        const QList<GoogleCalendarMirror>& calendars,
@@ -526,6 +641,95 @@ replaceStoredCalendars(SqliteConnection& connection,
   return std::monostate{};
 }
 
+[[nodiscard]] GoogleMirrorWriteResult
+mergeStoredCalendars(SqliteConnection& connection,
+                     const QString& accountId,
+                     const QList<GoogleCalendarMirror>& calendars,
+                     bool fullReconciliation,
+                     const Clock& clock) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar mirror is unavailable"));
+  }
+  if (!validIdentifier(accountId)) {
+    return validationError(QStringLiteral("Google account identifier is invalid"));
+  }
+  for (const GoogleCalendarMirror& calendar : calendars) {
+    if (!validIdentifier(calendar.id) || calendar.title.trimmed().isEmpty()) {
+      return validationError(QStringLiteral("Google calendar is invalid"));
+    }
+  }
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  const QString now = timestamp(clock);
+  if (fullReconciliation) {
+    if (const std::optional<AppError> error = markCalendarsDeleted(handle, accountId, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  for (const GoogleCalendarMirror& calendar : calendars) {
+    if (const std::optional<AppError> error = upsertCalendar(handle, accountId, calendar, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return std::monostate{};
+}
+
+[[nodiscard]] GoogleMirrorWriteResult
+mergeStoredCalendarEvents(SqliteConnection& connection,
+                          const QString& accountId,
+                          const QString& calendarRemoteId,
+                          const QList<GoogleCalendarEventMirror>& events,
+                          bool fullReconciliation,
+                          const Clock& clock) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar mirror is unavailable"));
+  }
+  if (!validIdentifier(accountId) || !validIdentifier(calendarRemoteId)) {
+    return validationError(QStringLiteral("Google calendar mirror identity is invalid"));
+  }
+  for (const GoogleCalendarEventMirror& event : events) {
+    if (!validIdentifier(event.id) || event.calendarId != calendarRemoteId ||
+        event.title.trimmed().isEmpty()) {
+      return validationError(QStringLiteral("Google calendar event is invalid"));
+    }
+  }
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  const QString now = timestamp(clock);
+  if (fullReconciliation) {
+    if (const std::optional<AppError> error =
+            markEventsDeleted(handle, calendarId(accountId, calendarRemoteId), now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  for (const GoogleCalendarEventMirror& event : events) {
+    if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return std::monostate{};
+}
+
 } // namespace
 
 GoogleMirrorStore::GoogleMirrorStore(FilePath databasePath, const Clock& clock)
@@ -553,6 +757,33 @@ std::future<GoogleMirrorWriteResult> GoogleMirrorStore::replaceTasks(
 }
 
 std::future<GoogleMirrorWriteResult>
+GoogleMirrorStore::mergeTaskLists(QString accountId,
+                                  QList<GoogleTaskListMirror> taskLists,
+                                  bool fullReconciliation) {
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     taskLists = std::move(taskLists),
+                                     fullReconciliation](SqliteConnection& connection) {
+    return mergeStoredTaskLists(connection, accountId, taskLists, fullReconciliation, clock_);
+  });
+}
+
+std::future<GoogleMirrorWriteResult>
+GoogleMirrorStore::mergeTasks(QString accountId,
+                              QString taskListRemoteId,
+                              QList<GoogleTaskMirror> tasks,
+                              bool fullReconciliation) {
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     taskListRemoteId = std::move(taskListRemoteId),
+                                     tasks = std::move(tasks),
+                                     fullReconciliation](SqliteConnection& connection) {
+    return mergeStoredTasks(
+        connection, accountId, taskListRemoteId, tasks, fullReconciliation, clock_);
+  });
+}
+
+std::future<GoogleMirrorWriteResult>
 GoogleMirrorStore::replaceCalendars(QString accountId,
                                     QList<GoogleCalendarMirror> calendars,
                                     QList<GoogleCalendarEventMirror> events) {
@@ -561,6 +792,33 @@ GoogleMirrorStore::replaceCalendars(QString accountId,
                                      calendars = std::move(calendars),
                                      events = std::move(events)](SqliteConnection& connection) {
     return replaceStoredCalendars(connection, accountId, calendars, events, clock_);
+  });
+}
+
+std::future<GoogleMirrorWriteResult>
+GoogleMirrorStore::mergeCalendars(QString accountId,
+                                  QList<GoogleCalendarMirror> calendars,
+                                  bool fullReconciliation) {
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     calendars = std::move(calendars),
+                                     fullReconciliation](SqliteConnection& connection) {
+    return mergeStoredCalendars(connection, accountId, calendars, fullReconciliation, clock_);
+  });
+}
+
+std::future<GoogleMirrorWriteResult>
+GoogleMirrorStore::mergeCalendarEvents(QString accountId,
+                                       QString calendarRemoteId,
+                                       QList<GoogleCalendarEventMirror> events,
+                                       bool fullReconciliation) {
+  return writerQueue_.enqueueResult([this,
+                                     accountId = std::move(accountId),
+                                     calendarRemoteId = std::move(calendarRemoteId),
+                                     events = std::move(events),
+                                     fullReconciliation](SqliteConnection& connection) {
+    return mergeStoredCalendarEvents(
+        connection, accountId, calendarRemoteId, events, fullReconciliation, clock_);
   });
 }
 

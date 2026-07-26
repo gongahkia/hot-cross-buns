@@ -20,7 +20,8 @@ class GoogleMirrorStoreTest final : public QObject {
 
 private slots:
   void atomicallyReplacesTaskAndCalendarSnapshots();
-  void preservesQueuedAndApplyingRowsDuringPull();
+  void preservesQueuedApplyingAndRetryableRowsDuringPull();
+  void appliesDeltasWithoutDeletingUnreturnedRows();
 };
 
 namespace {
@@ -167,7 +168,7 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_task_lists WHERE deleted_at IS NULL"), 0);
 }
 
-void GoogleMirrorStoreTest::preservesQueuedAndApplyingRowsDuringPull() {
+void GoogleMirrorStoreTest::preservesQueuedApplyingAndRetryableRowsDuringPull() {
   QTemporaryDir temporaryDirectory;
   QVERIFY(temporaryDirectory.isValid());
   const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
@@ -214,15 +215,17 @@ void GoogleMirrorStoreTest::preservesQueuedAndApplyingRowsDuringPull() {
   execute(handle,
           "INSERT INTO local_pending_mutations "
           "(id, account_id, resource_type, resource_id, operation, payload_json, status, "
-          "attempt_count, created_at, updated_at) "
-          "SELECT 'task-mutation', 'google', 'task', id, 'update', '{}', 'pending', 0, "
-          "'2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z' FROM local_tasks LIMIT 1");
+          "attempt_count, next_retry_at, created_at, updated_at) "
+          "SELECT 'task-mutation', 'google', 'task', id, 'update', '{}', 'failed', 1, "
+          "'2026-07-26T01:00:00Z', '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z' "
+          "FROM local_tasks LIMIT 1");
   execute(handle,
           "INSERT INTO local_pending_mutations "
           "(id, account_id, resource_type, resource_id, operation, payload_json, status, "
-          "attempt_count, lease_id, lease_expires_at, created_at, updated_at) "
-          "SELECT 'event-mutation', 'google', 'event', id, 'update', '{}', 'applying', 1, "
-          "'lease', '2026-07-26T01:00:00Z', '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z' "
+          "attempt_count, lease_id, lease_expires_at, next_retry_at, created_at, updated_at) "
+          "SELECT 'event-mutation', 'google', 'event', id, 'update', '{}', 'failed', 1, "
+          "NULL, NULL, '2026-07-26T01:00:00Z', '2026-07-26T00:00:00Z', "
+          "'2026-07-26T00:00:00Z' "
           "FROM local_calendar_events LIMIT 1");
   std::future<hcb::GoogleMirrorWriteResult> refreshedTasks =
       store.replaceTasks(QStringLiteral("google"), {}, {});
@@ -234,6 +237,114 @@ void GoogleMirrorStoreTest::preservesQueuedAndApplyingRowsDuringPull() {
            QStringLiteral("Local title"));
   QCOMPARE(text(handle, "SELECT title FROM local_calendar_events WHERE deleted_at IS NULL"),
            QStringLiteral("Local event"));
+  std::future<hcb::GoogleMirrorWriteResult> calendarDeletion = store.mergeCalendars(
+      QStringLiteral("google"),
+      {{.id = QStringLiteral("primary"),
+        .title = QStringLiteral("Deleted remotely"),
+        .accessRole = hcb::GoogleCalendarAccessRole::Owner,
+        .deleted = true}},
+      false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(calendarDeletion)));
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
+}
+
+void GoogleMirrorStoreTest::appliesDeltasWithoutDeletingUnreturnedRows() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::SystemClock clock;
+  hcb::GoogleMirrorStore store(*databasePath, clock);
+  verifyReady(store);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('google', 'google', 'connected', '[]', '[]', '2026-07-26T00:00:00Z')");
+  std::future<hcb::GoogleMirrorWriteResult> initialTasks =
+      store.replaceTasks(QStringLiteral("google"),
+                         {{.id = QStringLiteral("inbox"), .title = QStringLiteral("Inbox")}},
+                         {{.id = QStringLiteral("changed"),
+                           .taskListId = QStringLiteral("inbox"),
+                           .title = QStringLiteral("Before"),
+                           .status = hcb::GoogleTaskStatus::NeedsAction},
+                          {.id = QStringLiteral("untouched"),
+                           .taskListId = QStringLiteral("inbox"),
+                           .title = QStringLiteral("Untouched"),
+                           .status = hcb::GoogleTaskStatus::NeedsAction},
+                          {.id = QStringLiteral("deleted"),
+                           .taskListId = QStringLiteral("inbox"),
+                           .title = QStringLiteral("Deleted"),
+                           .status = hcb::GoogleTaskStatus::NeedsAction}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(initialTasks)));
+  std::future<hcb::GoogleMirrorWriteResult> taskDelta =
+      store.mergeTasks(QStringLiteral("google"),
+                       QStringLiteral("inbox"),
+                       {{.id = QStringLiteral("changed"),
+                         .taskListId = QStringLiteral("inbox"),
+                         .title = QStringLiteral("After"),
+                         .status = hcb::GoogleTaskStatus::NeedsAction},
+                        {.id = QStringLiteral("deleted"),
+                         .taskListId = QStringLiteral("inbox"),
+                         .title = QStringLiteral("Deleted"),
+                         .status = hcb::GoogleTaskStatus::NeedsAction,
+                         .deleted = true}},
+                       false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(taskDelta)));
+  QCOMPARE(text(handle, "SELECT title FROM local_tasks WHERE remote_id = 'changed'"),
+           QStringLiteral("After"));
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE remote_id = 'untouched' "
+                        "AND deleted_at IS NULL"),
+           1);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE remote_id = 'deleted' "
+                        "AND deleted_at IS NOT NULL"),
+           1);
+
+  std::future<hcb::GoogleMirrorWriteResult> initialCalendars =
+      store.replaceCalendars(QStringLiteral("google"),
+                             {{.id = QStringLiteral("primary"),
+                               .title = QStringLiteral("Primary"),
+                               .accessRole = hcb::GoogleCalendarAccessRole::Owner}},
+                             {{.id = QStringLiteral("changed-event"),
+                               .calendarId = QStringLiteral("primary"),
+                               .status = hcb::GoogleCalendarEventStatus::Confirmed,
+                               .title = QStringLiteral("Before"),
+                               .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+                               .endAt = QStringLiteral("2026-07-26T10:00:00.000Z")},
+                              {.id = QStringLiteral("untouched-event"),
+                               .calendarId = QStringLiteral("primary"),
+                               .status = hcb::GoogleCalendarEventStatus::Confirmed,
+                               .title = QStringLiteral("Untouched"),
+                               .startAt = QStringLiteral("2026-07-26T11:00:00.000Z"),
+                               .endAt = QStringLiteral("2026-07-26T12:00:00.000Z")}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(initialCalendars)));
+  std::future<hcb::GoogleMirrorWriteResult> eventDelta =
+      store.mergeCalendarEvents(QStringLiteral("google"),
+                                QStringLiteral("primary"),
+                                {{.id = QStringLiteral("changed-event"),
+                                  .calendarId = QStringLiteral("primary"),
+                                  .status = hcb::GoogleCalendarEventStatus::Confirmed,
+                                  .title = QStringLiteral("After"),
+                                  .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+                                  .endAt = QStringLiteral("2026-07-26T10:00:00.000Z")}},
+                                false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(eventDelta)));
+  QCOMPARE(text(handle, "SELECT title FROM local_calendar_events WHERE remote_id = 'changed-event'"),
+           QStringLiteral("After"));
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE remote_id = "
+                        "'untouched-event' AND deleted_at IS NULL"),
+           1);
 }
 
 QTEST_GUILESS_MAIN(GoogleMirrorStoreTest)
