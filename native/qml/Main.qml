@@ -44,8 +44,9 @@ ApplicationWindow {
     property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
-    signal taskCreateRequested(string taskListId, string title)
+    signal taskCreateRequested(string taskListId, string parentTaskId, string title)
     signal taskDeleteRequested(string taskId)
+    signal taskReparentRequested(string taskId, string parentTaskId)
     signal taskUpdateRequested(string taskId, string title, string notes, string dueAt,
                                string dueTimeZone, int priority)
     signal taskMoveRequested(string taskId, string taskListId)
@@ -309,8 +310,8 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         taskListModel: window.taskListModel
-        onTaskCreateRequested: function(taskListId, title) {
-            window.taskCreateRequested(taskListId, title)
+        onTaskCreateRequested: function(taskListId, parentTaskId, title) {
+            window.taskCreateRequested(taskListId, parentTaskId, title)
         }
     }
 
@@ -390,7 +391,13 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Tasks"
                 taskModel: window.taskModel
-                onTaskCreateRequested: taskCreateDialog.openForCreate("")
+                onTaskCreateRequested: taskCreateDialog.openForCreate("", "")
+                onTaskSubtaskCreateRequested: function(parentTaskId, taskListId) {
+                    taskCreateDialog.openForCreate(taskListId, parentTaskId)
+                }
+                onTaskReparentRequested: function(taskId, parentTaskId) {
+                    window.taskReparentRequested(taskId, parentTaskId)
+                }
                 onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
                     taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority)
                 }

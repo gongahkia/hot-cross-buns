@@ -214,7 +214,7 @@ TestCase {
             visible: true
         })
         verify(taskList !== null)
-        tryCompare(taskList.taskRows, "count", 2)
+        tryCompare(taskList.taskRows, "rows", 2)
         let selectedId = ""
         taskList.taskSelected.connect(function(taskId) { selectedId = taskId })
         taskList.selectTask("inbox-1")
@@ -223,42 +223,49 @@ TestCase {
         taskList.taskCreateRequested.connect(function() { createRequested = true })
         taskList.taskCreateButton.click()
         verify(createRequested)
+        let subtaskCreate = null
+        taskList.taskSubtaskCreateRequested.connect(function(parentTaskId, taskListId) {
+            subtaskCreate = { parentTaskId, taskListId }
+        })
         let edit = null
         taskList.taskEditRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
             edit = { taskId, title, notes, dueAt, dueTimeZone, priority }
         })
-        taskList.taskRows.itemAtIndex(0).editButton.click()
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).editButton.click()
         compare(edit.taskId, "inbox-1")
         compare(edit.title, "Plan release")
         compare(edit.notes, "Prepare checklist")
         compare(edit.dueAt, "2026-07-26")
         compare(edit.dueTimeZone, "Asia/Singapore")
         compare(edit.priority, 2)
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).subtaskButton.click()
+        compare(subtaskCreate.parentTaskId, "inbox-1")
+        compare(subtaskCreate.taskListId, "list-active")
         let completion = null
         taskList.taskCompletionRequested.connect(function(taskId, completed) {
             completion = { taskId, completed }
         })
         tryVerify(function() {
-            return taskList.taskRows.itemAtIndex(0) !== null
+            return taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)) !== null
         })
-        taskList.taskRows.itemAtIndex(0).completionButton.click()
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).completionButton.click()
         compare(completion.taskId, "inbox-1")
         compare(completion.completed, true)
-        taskList.taskRows.itemAtIndex(1).completionButton.click()
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(1, 0)).completionButton.click()
         compare(completion.taskId, "inbox-2")
         compare(completion.completed, false)
         let deletion = null
         taskList.taskDeleteRequested.connect(function(taskId, taskTitle) {
             deletion = { taskId, taskTitle }
         })
-        taskList.taskRows.itemAtIndex(0).deleteButton.click()
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).deleteButton.click()
         compare(deletion.taskId, "inbox-1")
         compare(deletion.taskTitle, "Plan release")
         let move = null
         taskList.taskMoveRequested.connect(function(taskId, taskListId, taskTitle) {
             move = { taskId, taskListId, taskTitle }
         })
-        taskList.taskRows.itemAtIndex(0).moveButton.click()
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).moveButton.click()
         compare(move.taskId, "inbox-1")
         compare(move.taskListId, "list-active")
         compare(move.taskTitle, "Plan release")
@@ -493,11 +500,12 @@ TestCase {
         dialog.taskTitle = "Plan release"
         verify(dialog.primaryEnabled)
         let request = null
-        dialog.taskCreateRequested.connect(function(taskListId, title) {
-            request = { taskListId, title }
+        dialog.taskCreateRequested.connect(function(taskListId, parentTaskId, title) {
+            request = { taskListId, parentTaskId, title }
         })
         dialog.primaryButton.click()
         compare(request.taskListId, "list-other")
+        compare(request.parentTaskId, "")
         compare(request.title, "Plan release")
         dialog.destroy()
         taskLists.destroy()
@@ -777,18 +785,17 @@ TestCase {
             height: 320
         })
         verify(taskList !== null)
-        tryCompare(taskList.taskRows, "count", 1000)
+        tryCompare(taskList.taskRows, "rows", 1000)
         verify(taskList.taskRows.reuseItems)
-        compare(taskList.taskRows.cacheBuffer, taskList.taskRows.height)
         tryVerify(function() {
-            return taskList.taskRows.itemAtIndex(0) !== null
+            return taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)) !== null
         })
-        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.count)
+        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.rows)
         taskList.taskRows.contentY = taskList.taskRows.contentHeight - taskList.taskRows.height
         tryVerify(function() {
-            return taskList.taskRows.itemAtIndex(999) !== null
+            return taskList.taskRows.itemAtIndex(taskList.taskRows.index(999, 0)) !== null
         })
-        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.count)
+        verify(taskList.taskRows.contentItem.children.length < taskList.taskRows.rows)
         taskList.destroy()
         taskModel.destroy()
     }
@@ -963,12 +970,29 @@ TestCase {
         const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
         verify(mainWindow !== null)
         let request = null
-        mainWindow.taskCreateRequested.connect(function(taskListId, title) {
-            request = { taskListId, title }
+        mainWindow.taskCreateRequested.connect(function(taskListId, parentTaskId, title) {
+            request = { taskListId, parentTaskId, title }
         })
-        mainWindow.taskCreateDialog.taskCreateRequested("list-active", "Plan release")
+        mainWindow.taskCreateDialog.taskCreateRequested("list-active", "", "Plan release")
         compare(request.taskListId, "list-active")
+        compare(request.parentTaskId, "")
         compare(request.title, "Plan release")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsTaskReparentRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.taskReparentRequested.connect(function(taskId, parentTaskId) {
+            request = { taskId, parentTaskId }
+        })
+        mainWindow.taskList.taskReparentRequested("task-1", "")
+        compare(request.taskId, "task-1")
+        compare(request.parentTaskId, "")
         mainWindow.destroy()
     }
 

@@ -1368,6 +1368,21 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_task_model_tests)
   add_test(NAME hcb_task_model_tests COMMAND hcb_task_model_tests)
 
+  qt_add_executable(hcb_task_tree_view_tests
+    tests/TaskTreeViewTest.cpp
+    src/core/TaskModel.cpp
+    src/core/TaskModel.h
+    src/core/TaskMutationService.h
+  )
+  target_compile_definitions(hcb_task_tree_view_tests PRIVATE
+    HCB_NATIVE_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
+  )
+  target_link_libraries(hcb_task_tree_view_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+  target_include_directories(hcb_task_tree_view_tests PRIVATE src)
+  hcb_enable_warnings(hcb_task_tree_view_tests)
+  hcb_enable_sanitizers(hcb_task_tree_view_tests)
+  add_test(NAME hcb_task_tree_view_tests COMMAND hcb_task_tree_view_tests -platform offscreen)
+
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -2193,6 +2208,7 @@ if(BUILD_TESTING)
     hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
+    hcb_task_tree_view_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests
@@ -2292,6 +2308,7 @@ if(BUILD_TESTING)
     hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
+    hcb_task_tree_view_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests

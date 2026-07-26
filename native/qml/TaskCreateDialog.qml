@@ -9,20 +9,22 @@ HcbDialog {
     primaryEnabled: taskListId.length > 0 && titleField.text.trim().length > 0
     property var taskListModel: null
     property string taskListId: ""
+    property string parentTaskId: ""
     property alias taskTitle: titleField.text
     property alias taskListPicker: taskListPicker
     property alias taskTitleField: titleField
-    signal taskCreateRequested(string taskListId, string title)
+    signal taskCreateRequested(string taskListId, string parentTaskId, string title)
 
-    function openForCreate(initialTaskListId) {
+    function openForCreate(initialTaskListId, initialParentTaskId) {
         titleField.clear()
         taskListPicker.currentIndex = taskListPicker.indexOfValue(initialTaskListId || "")
         taskListId = taskListPicker.currentValue || ""
+        parentTaskId = initialParentTaskId || ""
         open()
     }
 
     onOpened: titleField.forceActiveFocus()
-    onPrimaryAction: taskCreateRequested(taskListId, titleField.text.trim())
+    onPrimaryAction: taskCreateRequested(taskListId, parentTaskId, titleField.text.trim())
 
     TextField {
         id: titleField
