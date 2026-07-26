@@ -60,6 +60,7 @@ public:
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<TaskMutationResult> create(TaskCreateInput input);
   [[nodiscard]] std::future<TaskMutationResult> update(TaskUpdateInput input);
+  [[nodiscard]] std::future<TaskMutationResult> moveToTaskList(QString taskId, QString taskListId);
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
 

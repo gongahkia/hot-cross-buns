@@ -40,6 +40,12 @@ public:
                                        : hcb::OAuthCredentialReadResult(credential));
   }
 
+  [[nodiscard]] std::future<hcb::OAuthCredentialSaveResult>
+  save(QString, hcb::OAuthStoredCredential value) override {
+    credential = std::move(value);
+    return ready(hcb::OAuthCredentialSaveResult(std::monostate{}));
+  }
+
   [[nodiscard]] std::future<hcb::OAuthCredentialDeleteResult> erase(QString) override {
     return ready(hcb::OAuthCredentialDeleteResult(std::monostate{}));
   }

@@ -22,14 +22,14 @@ void NativeCalendarNavigationBenchmarkTest::measuresMonthNavigationFrames() {
   if (!result.has_value()) {
     return;
   }
-  QCOMPARE(result->eventCount, std::size_t{1'000});
+  QCOMPARE(result->eventCount, std::size_t{15'000});
   QCOMPARE(result->samplesNanoseconds.size(), std::size_t{3});
   QVERIFY(result->minimumNanoseconds >= 0);
   QVERIFY(result->medianNanoseconds >= result->minimumNanoseconds);
   QVERIFY(result->maximumNanoseconds >= result->medianNanoseconds);
   const QJsonObject json =
       QJsonDocument::fromJson(hcb::NativeCalendarNavigationBenchmark::toJson(*result)).object();
-  QCOMPARE(json.value(QStringLiteral("event_count")).toInteger(), qint64{1'000});
+  QCOMPARE(json.value(QStringLiteral("event_count")).toInteger(), qint64{15'000});
   QCOMPARE(json.value(QStringLiteral("frames")).toInteger(), qint64{3});
 }
 

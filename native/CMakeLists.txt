@@ -1,9 +1,51 @@
+set(HCB_MACOS_CREDENTIAL_SOURCES
+  src/app/MacOSCredentialAdapter.cpp
+  src/app/MacOSCredentialAdapter.h
+)
+set(HCB_WINDOWS_CREDENTIAL_SOURCES
+  src/app/WindowsCredentialAdapter.cpp
+  src/app/WindowsCredentialAdapter.h
+)
+set(HCB_LINUX_CREDENTIAL_SOURCES
+  src/app/LinuxCredentialAdapter.cpp
+  src/app/LinuxCredentialAdapter.h
+)
+set(HCB_SYSTEM_TRAY_SOURCES
+  src/app/SystemTrayAdapter.cpp
+  src/app/SystemTrayAdapter.h
+)
+set(HCB_NOTIFICATION_SOURCES
+  src/app/NotificationAdapter.cpp
+  src/app/NotificationAdapter.h
+)
+set(HCB_DEEP_LINK_SOURCES
+  src/app/DeepLinkAdapter.cpp
+  src/app/DeepLinkAdapter.h
+)
+qt_add_resources(HCB_SYSTEM_TRAY_RESOURCE_SOURCES resources/SystemTrayIcon.qrc)
+if(APPLE)
+  find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
+endif()
+
 set(HCB_NATIVE_SOURCES
   src/app/ApplicationLifecycle.h
   src/app/AppPaths.cpp
   src/app/AppPaths.h
   src/app/AppServices.cpp
   src/app/AppServices.h
+  ${HCB_DEEP_LINK_SOURCES}
+  ${HCB_LINUX_CREDENTIAL_SOURCES}
+  src/app/LinuxPathsAdapter.cpp
+  src/app/LinuxPathsAdapter.h
+  ${HCB_MACOS_CREDENTIAL_SOURCES}
+  src/app/MacOSPathsAdapter.cpp
+  src/app/MacOSPathsAdapter.h
+  ${HCB_NOTIFICATION_SOURCES}
+  ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
+  ${HCB_SYSTEM_TRAY_SOURCES}
+  ${HCB_WINDOWS_CREDENTIAL_SOURCES}
+  src/app/WindowsPathsAdapter.cpp
+  src/app/WindowsPathsAdapter.h
   src/core/AccountStatusService.cpp
   src/core/AccountStatusService.h
   src/core/AgendaModel.cpp
@@ -13,6 +55,8 @@ set(HCB_NATIVE_SOURCES
   src/core/CalendarLayoutEngine.h
   src/core/NativeCalendarNavigationBenchmark.cpp
   src/core/NativeCalendarNavigationBenchmark.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
   src/core/CalendarReadService.cpp
   src/core/CalendarReadService.h
   src/core/CalendarSourceModel.cpp
@@ -151,6 +195,11 @@ qt_add_executable(hcb_native
   src/main.cpp
   ${HCB_NATIVE_SOURCES}
 )
+if(APPLE)
+  set_target_properties(hcb_native PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/resources/Info.plist.in"
+  )
+endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -160,9 +209,26 @@ qt_add_qml_module(hcb_native
   QML_FILES
     qml/AccessibleButton.qml
     qml/AccessibleNavigationButton.qml
+    qml/AgendaView.qml
+    qml/CalendarSourceControls.qml
+    qml/DayTimelineView.qml
+    qml/EventCreateDialog.qml
+    qml/EventDeleteDialog.qml
+    qml/EventEditDialog.qml
+    qml/HcbDialog.qml
     qml/Main.qml
+    qml/MonthGridView.qml
     qml/NavigationSidebar.qml
+    qml/NoteEditorDialog.qml
+    qml/NotesListView.qml
+    qml/QuickCaptureDialog.qml
+    qml/TaskCreateDialog.qml
+    qml/TaskDeleteDialog.qml
+    qml/TaskEditDialog.qml
+    qml/TaskListView.qml
+    qml/TaskMoveDialog.qml
     qml/Theme.qml
+    qml/WeekTimelineView.qml
 )
 
 target_link_libraries(hcb_native PRIVATE
@@ -172,14 +238,21 @@ target_link_libraries(hcb_native PRIVATE
   Qt6::Qml
   Qt6::Quick
   Qt6::QuickControls2
+  Qt6::Widgets
   hcb::sqlite
 )
+if(APPLE)
+  target_link_libraries(hcb_native PRIVATE ${HCB_SECURITY_FRAMEWORK})
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(hcb_native PRIVATE Qt6::DBus)
+endif()
 
 target_include_directories(hcb_native PRIVATE src)
 hcb_enable_warnings(hcb_native)
 hcb_enable_sanitizers(hcb_native)
 if(WIN32)
-  target_link_libraries(hcb_native PRIVATE Psapi)
+  target_link_libraries(hcb_native PRIVATE Advapi32 Psapi)
 endif()
 
 qt_add_executable(hcb_launch_benchmark
@@ -332,6 +405,8 @@ qt_add_executable(hcb_calendar_navigation_benchmark
   src/core/MonthGridModel.h
   src/core/NativeCalendarNavigationBenchmark.cpp
   src/core/NativeCalendarNavigationBenchmark.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
   src/core/CalendarReadService.h
   src/data/SqliteWriterQueue.h
 )
@@ -573,6 +648,12 @@ if(BUILD_TESTING)
     tests/AppPathsTest.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
+    src/app/LinuxPathsAdapter.cpp
+    src/app/LinuxPathsAdapter.h
+    src/app/MacOSPathsAdapter.cpp
+    src/app/MacOSPathsAdapter.h
+    src/app/WindowsPathsAdapter.cpp
+    src/app/WindowsPathsAdapter.h
     src/core/AppError.h
     src/core/FilePath.h
   )
@@ -599,6 +680,12 @@ if(BUILD_TESTING)
     src/app/AppPaths.h
     src/app/AppServices.cpp
     src/app/AppServices.h
+    src/app/LinuxPathsAdapter.cpp
+    src/app/LinuxPathsAdapter.h
+    src/app/MacOSPathsAdapter.cpp
+    src/app/MacOSPathsAdapter.h
+    src/app/WindowsPathsAdapter.cpp
+    src/app/WindowsPathsAdapter.h
     src/core/Clock.h
     src/core/FilePath.h
     src/core/SettingsRegistry.h
@@ -1237,6 +1324,8 @@ if(BUILD_TESTING)
     src/core/MonthGridModel.h
     src/core/NativeCalendarNavigationBenchmark.cpp
     src/core/NativeCalendarNavigationBenchmark.h
+    src/core/NativePerformanceFixture.cpp
+    src/core/NativePerformanceFixture.h
     src/core/CalendarReadService.h
     src/data/SqliteWriterQueue.h
   )
@@ -1278,6 +1367,21 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_task_model_tests)
   hcb_enable_sanitizers(hcb_task_model_tests)
   add_test(NAME hcb_task_model_tests COMMAND hcb_task_model_tests)
+
+  qt_add_executable(hcb_task_tree_view_tests
+    tests/TaskTreeViewTest.cpp
+    src/core/TaskModel.cpp
+    src/core/TaskModel.h
+    src/core/TaskMutationService.h
+  )
+  target_compile_definitions(hcb_task_tree_view_tests PRIVATE
+    HCB_NATIVE_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
+  )
+  target_link_libraries(hcb_task_tree_view_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+  target_include_directories(hcb_task_tree_view_tests PRIVATE src)
+  hcb_enable_warnings(hcb_task_tree_view_tests)
+  hcb_enable_sanitizers(hcb_task_tree_view_tests)
+  add_test(NAME hcb_task_tree_view_tests COMMAND hcb_task_tree_view_tests -platform offscreen)
 
   qt_add_executable(hcb_local_search_service_tests
     tests/LocalSearchServiceTest.cpp
@@ -1742,6 +1846,82 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_credential_health_diagnostics_tests)
   add_test(NAME hcb_credential_health_diagnostics_tests COMMAND hcb_credential_health_diagnostics_tests)
 
+  qt_add_executable(hcb_macos_credential_adapter_tests
+    tests/MacOSCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_MACOS_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_macos_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(APPLE)
+    target_link_libraries(hcb_macos_credential_adapter_tests PRIVATE ${HCB_SECURITY_FRAMEWORK})
+  endif()
+  target_include_directories(hcb_macos_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_macos_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_macos_credential_adapter_tests)
+  add_test(NAME hcb_macos_credential_adapter_tests COMMAND hcb_macos_credential_adapter_tests)
+
+  qt_add_executable(hcb_windows_credential_adapter_tests
+    tests/WindowsCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_WINDOWS_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_windows_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(WIN32)
+    target_link_libraries(hcb_windows_credential_adapter_tests PRIVATE Advapi32)
+  endif()
+  target_include_directories(hcb_windows_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_windows_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_windows_credential_adapter_tests)
+  add_test(NAME hcb_windows_credential_adapter_tests COMMAND hcb_windows_credential_adapter_tests)
+
+  qt_add_executable(hcb_linux_credential_adapter_tests
+    tests/LinuxCredentialAdapterTest.cpp
+    src/core/AppError.h
+    src/core/OAuthCredentialStore.h
+    ${HCB_LINUX_CREDENTIAL_SOURCES}
+  )
+  target_link_libraries(hcb_linux_credential_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(hcb_linux_credential_adapter_tests PRIVATE Qt6::DBus)
+  endif()
+  target_include_directories(hcb_linux_credential_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_linux_credential_adapter_tests)
+  hcb_enable_sanitizers(hcb_linux_credential_adapter_tests)
+  add_test(NAME hcb_linux_credential_adapter_tests COMMAND hcb_linux_credential_adapter_tests)
+
+  qt_add_executable(hcb_system_tray_adapter_tests
+    tests/SystemTrayAdapterTest.cpp
+    ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
+    ${HCB_SYSTEM_TRAY_SOURCES}
+  )
+  target_link_libraries(hcb_system_tray_adapter_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Test Qt6::Widgets)
+  target_include_directories(hcb_system_tray_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_system_tray_adapter_tests)
+  hcb_enable_sanitizers(hcb_system_tray_adapter_tests)
+  add_test(NAME hcb_system_tray_adapter_tests COMMAND hcb_system_tray_adapter_tests)
+
+  qt_add_executable(hcb_notification_adapter_tests
+    tests/NotificationAdapterTest.cpp
+    ${HCB_NOTIFICATION_SOURCES}
+  )
+  target_link_libraries(hcb_notification_adapter_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_notification_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_notification_adapter_tests)
+  hcb_enable_sanitizers(hcb_notification_adapter_tests)
+  add_test(NAME hcb_notification_adapter_tests COMMAND hcb_notification_adapter_tests)
+
+  qt_add_executable(hcb_deep_link_adapter_tests
+    tests/DeepLinkAdapterTest.cpp
+    ${HCB_DEEP_LINK_SOURCES}
+  )
+  target_link_libraries(hcb_deep_link_adapter_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  target_include_directories(hcb_deep_link_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_deep_link_adapter_tests)
+  hcb_enable_sanitizers(hcb_deep_link_adapter_tests)
+  add_test(NAME hcb_deep_link_adapter_tests COMMAND hcb_deep_link_adapter_tests)
+
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
     src/core/AppError.h
@@ -2028,6 +2208,7 @@ if(BUILD_TESTING)
     hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
+    hcb_task_tree_view_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests
@@ -2127,6 +2308,7 @@ if(BUILD_TESTING)
     hcb_native_calendar_navigation_benchmark_tests
     hcb_task_list_model_tests
     hcb_task_model_tests
+    hcb_task_tree_view_tests
     hcb_local_search_service_tests
     hcb_search_results_model_tests
     hcb_model_diff_policy_tests

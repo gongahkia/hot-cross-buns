@@ -1,6 +1,7 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QElapsedTimer>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QQmlApplicationEngine>
 #include <QTextStream>
 #include <QTimer>
@@ -13,12 +14,21 @@
 
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
+#include "app/DeepLinkAdapter.h"
+#include "app/SystemTrayAdapter.h"
+#include "core/AgendaModel.h"
+#include "core/CalendarSourceModel.h"
 #include "core/Clock.h"
 #include "core/CommandRegistryModel.h"
+#include "core/MonthGridModel.h"
 #include "core/NativeProcessMemory.h"
+#include "core/NotesModel.h"
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
+#include "core/TaskListModel.h"
+#include "core/TaskModel.h"
+#include "core/TimelineModel.h"
 #include "core/UiTransitionTimingTracker.h"
 
 namespace {
@@ -26,7 +36,7 @@ namespace {
 constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
 constexpr int kCommandPaletteBenchmarkTimeoutMilliseconds = 5'000;
 
-void scheduleCommandPaletteBenchmark(QGuiApplication& application, QObject* rootObject) {
+void scheduleCommandPaletteBenchmark(QApplication& application, QObject* rootObject) {
   QTimer::singleShot(0, &application, [&application, rootObject] {
     auto timer = std::make_shared<QElapsedTimer>();
     timer->start();
@@ -57,13 +67,28 @@ void scheduleCommandPaletteBenchmark(QGuiApplication& application, QObject* root
   });
 }
 
+void selectMainPage(QObject* rootObject, QString pageName) {
+  static_cast<void>(QMetaObject::invokeMethod(rootObject,
+                                              "selectPage",
+                                              Qt::QueuedConnection,
+                                              Q_ARG(QVariant, QVariant(std::move(pageName)))));
+}
+
 } // namespace
 
 int runApplication(int argc, char* argv[]) {
   hcb::SystemClock clock;
   hcb::StructuredLogger logger(clock);
   hcb::StartupTimingTracker startupTimings(clock, logger);
-  QGuiApplication application(argc, argv);
+  QApplication application(argc, argv);
+  application.setWindowIcon(hcb::SystemTrayAdapter::defaultIcon());
+  hcb::DeepLinkDispatcher deepLinks;
+  hcb::DeepLinkFileOpenEventFilter deepLinkFileOpenEvents(deepLinks, &application);
+  application.installEventFilter(&deepLinkFileOpenEvents);
+  for (const hcb::DeepLink& link :
+       hcb::DeepLinkAdapter::parseLaunchArguments(application.arguments())) {
+    deepLinks.handle(link);
+  }
   QCoreApplication::setOrganizationName("Hot Cross Buns");
   QCoreApplication::setOrganizationDomain("gongahkia.github.io");
   QCoreApplication::setApplicationName("Hot Cross Buns");
@@ -78,11 +103,25 @@ int runApplication(int argc, char* argv[]) {
   hcb::SettingsRegistry settings;
   const hcb::AppServices services(std::move(*paths), clock, settings);
   startupTimings.mark(u"core.services.initialized");
+  hcb::AgendaModel agendaModel;
+  hcb::CalendarSourceModel calendarSourceModel;
   hcb::CommandRegistryModel navigationCommands;
+  hcb::MonthGridModel monthGridModel;
+  hcb::NotesModel notesModel;
+  hcb::TaskListModel taskListModel;
+  hcb::TaskModel taskModel;
+  hcb::TimelineModel timelineModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
-      {{QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+      {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
+       {QStringLiteral("calendarSourceModel"), QVariant::fromValue(&calendarSourceModel)},
+       {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+       {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
+       {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
+       {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
+       {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
+       {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(
@@ -98,6 +137,47 @@ int runApplication(int argc, char* argv[]) {
     return 1;
   }
   startupTimings.mark(u"qml.loaded");
+
+  QObject* rootObject = engine.rootObjects().constFirst();
+  auto showMainWindow = [rootObject] {
+    auto* window = qobject_cast<QQuickWindow*>(rootObject);
+    if (window == nullptr) {
+      return;
+    }
+    window->showNormal();
+    window->raise();
+    window->requestActivate();
+  };
+  deepLinks.setHandler([rootObject, showMainWindow](const hcb::DeepLink& link) {
+    showMainWindow();
+    selectMainPage(rootObject, hcb::DeepLinkAdapter::pageName(link.destination));
+  });
+  hcb::TrayActionHandlers trayActions{
+      .openMainWindow = showMainWindow,
+      .toggleMainWindow =
+          [rootObject, showMainWindow] {
+            auto* window = qobject_cast<QQuickWindow*>(rootObject);
+            if (window != nullptr && window->isVisible()) {
+              window->hide();
+              return;
+            }
+            showMainWindow();
+          },
+      .openQuickCapture =
+          [rootObject, showMainWindow] {
+            showMainWindow();
+            static_cast<void>(
+                QMetaObject::invokeMethod(rootObject, "openQuickCapture", Qt::QueuedConnection));
+          },
+      .refresh = {},
+      .openSettings =
+          [rootObject, showMainWindow] {
+            showMainWindow();
+            selectMainPage(rootObject, QStringLiteral("Settings"));
+          },
+      .quit = [&application] { application.quit(); }};
+  hcb::SystemTrayAdapter tray(application.windowIcon(), std::move(trayActions), &application);
+  tray.setEnabled(true);
 
   const bool benchmarkCommandPalette =
       qEnvironmentVariable("HCB_BENCHMARK_COMMAND_PALETTE_AFTER_LOAD") == QStringLiteral("1");
@@ -118,7 +198,7 @@ int runApplication(int argc, char* argv[]) {
     });
   } else if (benchmarkCommandPalette) {
     startupTimings.mark(u"benchmark.command_palette.scheduled");
-    scheduleCommandPaletteBenchmark(application, engine.rootObjects().constFirst());
+    scheduleCommandPaletteBenchmark(application, rootObject);
   } else if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
     startupTimings.mark(u"benchmark.exit.scheduled");
     QTimer::singleShot(0, &application, &QCoreApplication::quit);

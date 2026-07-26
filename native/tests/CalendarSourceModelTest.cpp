@@ -1,4 +1,5 @@
 #include <QtTest/QTest>
+#include <QtTest/QSignalSpy>
 
 #include "core/CalendarSourceModel.h"
 
@@ -12,6 +13,7 @@ private slots:
 
 void CalendarSourceModelTest::exposesCalendarSourceRolesAndResets() {
   hcb::CalendarSourceModel model;
+  QSignalSpy revisions(&model, &hcb::CalendarSourceModel::revisionChanged);
   model.setCalendars({{.id = QStringLiteral("calendar-a"),
                        .accountId = QStringLiteral("account-a"),
                        .remoteId = QStringLiteral("remote-a"),
@@ -44,9 +46,17 @@ void CalendarSourceModelTest::exposesCalendarSourceRolesAndResets() {
   QCOMPARE(model.data(index, hcb::CalendarSourceModel::EventCountRole).toLongLong(), qint64{4});
   QCOMPARE(model.roleNames().value(hcb::CalendarSourceModel::ForegroundColorRole),
            QByteArrayLiteral("foregroundColor"));
+  QCOMPARE(model.revision(), 1);
+  QCOMPARE(revisions.count(), 1);
+  QCOMPARE(model.calendarIds(), QStringList({QStringLiteral("calendar-a")}));
+  QCOMPARE(model.selectedCalendarIds(), QStringList({QStringLiteral("calendar-a")}));
 
   model.setCalendars({});
   QCOMPARE(model.rowCount(), 0);
+  QCOMPARE(model.revision(), 2);
+  QCOMPARE(revisions.count(), 2);
+  QCOMPARE(model.calendarIds(), QStringList());
+  QCOMPARE(model.selectedCalendarIds(), QStringList());
 }
 
 void CalendarSourceModelTest::rejectsInvalidIndexes() {

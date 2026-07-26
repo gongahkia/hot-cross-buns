@@ -13,6 +13,13 @@ ApplicationWindow {
     title: "Hot Cross Buns"
     property string currentPage: "Tasks"
     required property var navigationCommands
+    property var agendaModel: null
+    property var calendarSourceModel: null
+    property var monthGridModel: null
+    property var notesModel: null
+    property var taskListModel: null
+    property var taskModel: null
+    property var timelineModel: null
     property var transitionTimings: null
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
@@ -20,6 +27,36 @@ ApplicationWindow {
     property alias commandPaletteQuery: commandPaletteQuery
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
+    property alias calendarVisibility: calendarVisibility
+    property alias eventCreateDialog: eventCreateDialog
+    property alias eventDeleteDialog: eventDeleteDialog
+    property alias eventEditDialog: eventEditDialog
+    property alias dayTimeline: dayTimeline
+    property alias weekTimeline: weekTimeline
+    property alias quickCapture: quickCapture
+    property alias quickCaptureShortcut: quickCaptureShortcut
+    property alias noteEditor: noteEditor
+    property alias notesList: notesList
+    property alias taskCreateDialog: taskCreateDialog
+    property alias taskDeleteDialog: taskDeleteDialog
+    property alias taskEditDialog: taskEditDialog
+    property alias taskList: taskList
+    property alias taskMoveDialog: taskMoveDialog
+    signal quickCaptureRequested(string title)
+    signal noteSaveRequested(string noteId, string title, string body)
+    signal taskCreateRequested(string taskListId, string parentTaskId, string title)
+    signal taskDeleteRequested(string taskId)
+    signal taskReparentRequested(string taskId, string parentTaskId)
+    signal taskUpdateRequested(string taskId, string title, string notes, string dueAt,
+                               string dueTimeZone, int priority)
+    signal taskMoveRequested(string taskId, string taskListId)
+    signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
+                                bool allDay, string description, string location)
+    signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
+                                string endAt, bool allDay, string description, string location)
+    signal eventDeleteRequested(string eventId)
+    signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
+    signal eventResizeRequested(string eventId, string endAt)
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -72,6 +109,25 @@ ApplicationWindow {
         commandPaletteQuery.forceActiveFocus()
     }
 
+    function openQuickCapture() {
+        quickCapture.open()
+    }
+
+    function openNoteEditor(noteId, title, body) {
+        noteEditor.noteId = noteId
+        noteEditor.noteTitle = title
+        noteEditor.noteBody = body
+        noteEditor.open()
+    }
+
+    function openEventCreate() {
+        eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId())
+    }
+
+    function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+        eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+    }
+
     color: Theme.background
     palette.window: Theme.background
     palette.windowText: Theme.textPrimary
@@ -84,6 +140,13 @@ ApplicationWindow {
         sequence: "Ctrl+P"
         autoRepeat: false
         onActivated: window.openCommandPalette()
+    }
+
+    Shortcut {
+        id: quickCaptureShortcut
+        sequence: "Ctrl+Shift+N"
+        autoRepeat: false
+        onActivated: window.openQuickCapture()
     }
 
     Instantiator {
@@ -210,6 +273,88 @@ ApplicationWindow {
         }
     }
 
+    QuickCaptureDialog {
+        id: quickCapture
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskRequested: title => window.quickCaptureRequested(title)
+    }
+
+    NoteEditorDialog {
+        id: noteEditor
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onNoteSaveRequested: function(noteId, title, body) {
+            window.noteSaveRequested(noteId, title, body)
+        }
+    }
+
+    TaskDeleteDialog {
+        id: taskDeleteDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskDeleteRequested: taskId => window.taskDeleteRequested(taskId)
+    }
+
+    TaskEditDialog {
+        id: taskEditDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            window.taskUpdateRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
+        }
+    }
+
+    TaskCreateDialog {
+        id: taskCreateDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        taskListModel: window.taskListModel
+        onTaskCreateRequested: function(taskListId, parentTaskId, title) {
+            window.taskCreateRequested(taskListId, parentTaskId, title)
+        }
+    }
+
+    TaskMoveDialog {
+        id: taskMoveDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        taskListModel: window.taskListModel
+        onTaskMoveRequested: function(taskId, taskListId) {
+            window.taskMoveRequested(taskId, taskListId)
+        }
+    }
+
+    EventCreateDialog {
+        id: eventCreateDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        calendarSourceModel: window.calendarSourceModel
+        onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location) {
+            window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
+        }
+    }
+
+    EventEditDialog {
+        id: eventEditDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        calendarSourceModel: window.calendarSourceModel
+        onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+            window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+        }
+        onEventDeleteRequested: function(eventId, title) {
+            eventDeleteDialog.openForDelete(eventId, title)
+        }
+    }
+
+    EventDeleteDialog {
+        id: eventDeleteDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onEventDeleteRequested: eventId => window.eventDeleteRequested(eventId)
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -241,8 +386,128 @@ ApplicationWindow {
 
         Pane {
             SplitView.fillWidth: true
+            TaskListView {
+                id: taskList
+                anchors.fill: parent
+                visible: window.currentPage === "Tasks"
+                taskModel: window.taskModel
+                onTaskCreateRequested: taskCreateDialog.openForCreate("", "")
+                onTaskSubtaskCreateRequested: function(parentTaskId, taskListId) {
+                    taskCreateDialog.openForCreate(taskListId, parentTaskId)
+                }
+                onTaskReparentRequested: function(taskId, parentTaskId) {
+                    window.taskReparentRequested(taskId, parentTaskId)
+                }
+                onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+                    taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority)
+                }
+                onTaskDeleteRequested: function(taskId, taskTitle) {
+                    taskDeleteDialog.openForDelete(taskId, taskTitle)
+                }
+                onTaskMoveRequested: function(taskId, taskListId, taskTitle) {
+                    taskMoveDialog.openForMove(taskId, taskTitle, taskListId)
+                }
+            }
+
+            NotesListView {
+                id: notesList
+                anchors.fill: parent
+                visible: window.currentPage === "Notes"
+                notesModel: window.notesModel
+                onNoteSelected: function(noteId, title, body) {
+                    window.openNoteEditor(noteId, title, body)
+                }
+            }
+
             ColumnLayout {
                 anchors.fill: parent
+                visible: window.currentPage === "Calendar"
+                spacing: 0
+
+                CalendarSourceControls {
+                    id: calendarVisibility
+                    Layout.fillWidth: true
+                    calendarSourceModel: window.calendarSourceModel
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.spacingMedium
+                    Layout.rightMargin: Theme.spacingMedium
+
+                    Label {
+                        text: "Calendar"
+                        font.pixelSize: Theme.titleFontSize
+                        Accessible.role: Accessible.Heading
+                        Accessible.name: text
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        id: eventCreateButton
+                        text: "New event"
+                        enabled: calendarVisibility.calendarIds().length > 0
+                        Accessible.name: text
+                        onClicked: window.openEventCreate()
+                    }
+                }
+
+                TabBar {
+                    id: calendarViews
+                    Layout.fillWidth: true
+
+                    TabButton { text: "Agenda" }
+                    TabButton { text: "Day" }
+                    TabButton { text: "Week" }
+                    TabButton { text: "Month" }
+                }
+
+                StackLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: calendarViews.currentIndex
+
+                    AgendaView {
+                        agendaModel: window.agendaModel
+                        calendarVisibility: calendarVisibility
+                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+                        }
+                    }
+
+                    DayTimelineView {
+                        id: dayTimeline
+                        timelineModel: window.timelineModel
+                        calendarVisibility: calendarVisibility
+                        onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
+                            window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                        }
+                        onEventResizeRequested: function(eventId, endAt) {
+                            window.eventResizeRequested(eventId, endAt)
+                        }
+                    }
+
+                    WeekTimelineView {
+                        id: weekTimeline
+                        timelineModel: window.timelineModel
+                        calendarVisibility: calendarVisibility
+                        onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
+                            window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                        }
+                    }
+
+                    MonthGridView {
+                        monthGridModel: window.monthGridModel
+                        calendarVisibility: calendarVisibility
+                    }
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes" &&
+                         window.currentPage !== "Calendar"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage

@@ -34,6 +34,7 @@ private:
 
 struct TaskSnapshot final {
   QString id;
+  QString taskListId;
   QString remoteId;
   std::optional<QString> parentTaskId;
   QString title;
@@ -107,8 +108,8 @@ void seed(hcb::SqliteConnection& connection) {
 
 [[nodiscard]] std::optional<TaskSnapshot> readTask(sqlite3* handle, const QString& taskId) {
   constexpr char sql[] = R"(
-SELECT id, remote_id, parent_task_id, title, notes, state, due_at, due_time_zone, priority,
-       completed_at, deleted_at, sort_order, created_at, updated_at
+SELECT id, task_list_id, remote_id, parent_task_id, title, notes, state, due_at, due_time_zone,
+       priority, completed_at, deleted_at, sort_order, created_at, updated_at
 FROM local_tasks
 WHERE id = ?1
 )";
@@ -132,24 +133,26 @@ WHERE id = ?1
     return std::nullopt;
   }
   const std::optional<QString> id = optionalText(statement, 0);
-  const std::optional<QString> remoteId = optionalText(statement, 1);
-  const std::optional<QString> title = optionalText(statement, 3);
-  const std::optional<QString> state = optionalText(statement, 5);
-  const std::optional<QString> priority = optionalText(statement, 8);
-  const std::optional<QString> createdAt = optionalText(statement, 12);
-  const std::optional<QString> updatedAt = optionalText(statement, 13);
+  const std::optional<QString> taskListId = optionalText(statement, 1);
+  const std::optional<QString> remoteId = optionalText(statement, 2);
+  const std::optional<QString> title = optionalText(statement, 4);
+  const std::optional<QString> state = optionalText(statement, 6);
+  const std::optional<QString> priority = optionalText(statement, 9);
+  const std::optional<QString> createdAt = optionalText(statement, 13);
+  const std::optional<QString> updatedAt = optionalText(statement, 14);
   const TaskSnapshot snapshot{.id = id.value_or(QString()),
+                              .taskListId = taskListId.value_or(QString()),
                               .remoteId = remoteId.value_or(QString()),
-                              .parentTaskId = optionalText(statement, 2),
+                              .parentTaskId = optionalText(statement, 3),
                               .title = title.value_or(QString()),
-                              .notes = optionalText(statement, 4),
+                              .notes = optionalText(statement, 5),
                               .state = state.value_or(QString()),
-                              .dueAt = optionalText(statement, 6),
-                              .dueTimeZone = optionalText(statement, 7),
+                              .dueAt = optionalText(statement, 7),
+                              .dueTimeZone = optionalText(statement, 8),
                               .priority = priority.value_or(QString()),
-                              .completedAt = optionalText(statement, 9),
-                              .deletedAt = optionalText(statement, 10),
-                              .sortOrder = sqlite3_column_int64(statement, 11),
+                              .completedAt = optionalText(statement, 10),
+                              .deletedAt = optionalText(statement, 11),
+                              .sortOrder = sqlite3_column_int64(statement, 12),
                               .createdAt = createdAt.value_or(QString()),
                               .updatedAt = updatedAt.value_or(QString())};
   const int finalizeResult = sqlite3_finalize(statement);
@@ -180,6 +183,7 @@ class TaskMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesCompletesAndDeletesTask();
+  void movesTaskToAnotherActiveList();
   void createsAndReparentsOneLevelSubtasks();
   void rejectsInvalidAndUnavailableMutations();
 };
@@ -293,6 +297,89 @@ void TaskMutationServiceTest::createsUpdatesCompletesAndDeletesTask() {
   }
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
   QCOMPARE(removed->updatedAt, expectedTimestamp);
+}
+
+void TaskMutationServiceTest::movesTaskToAnotherActiveList() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::TaskMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+
+  std::future<hcb::TaskMutationResult> createDestinationTask = service.create(hcb::TaskCreateInput{
+      .taskListId = QStringLiteral("list-other"), .title = QStringLiteral("Destination task")});
+  const hcb::TaskMutationResult destinationResult = awaitResult(createDestinationTask);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(destinationResult));
+
+  std::future<hcb::TaskMutationResult> createMovableTask = service.create(hcb::TaskCreateInput{
+      .taskListId = QStringLiteral("list-active"), .title = QStringLiteral("Move me")});
+  const hcb::TaskMutationResult movableResult = awaitResult(createMovableTask);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(movableResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(movableResult)) {
+    return;
+  }
+  const QString movableId = std::get<hcb::TaskMutationReceipt>(movableResult).taskId;
+
+  std::future<hcb::TaskMutationResult> move =
+      service.moveToTaskList(movableId, QStringLiteral("list-other"));
+  const hcb::TaskMutationResult moveResult = awaitResult(move);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(moveResult));
+  const std::optional<TaskSnapshot> moved = readTask(handle, movableId);
+  QVERIFY(moved.has_value());
+  if (!moved.has_value()) {
+    return;
+  }
+  QCOMPARE(moved->taskListId, QStringLiteral("list-other"));
+  QVERIFY(!moved->parentTaskId.has_value());
+  QCOMPARE(moved->sortOrder, 1);
+
+  std::future<hcb::TaskMutationResult> sameListMove =
+      service.moveToTaskList(movableId, QStringLiteral("list-other"));
+  const hcb::TaskMutationResult sameListResult = awaitResult(sameListMove);
+  QVERIFY(std::holds_alternative<hcb::AppError>(sameListResult));
+  QCOMPARE(std::get<hcb::AppError>(sameListResult).code(), hcb::AppErrorCode::Validation);
+
+  std::future<hcb::TaskMutationResult> createParent = service.create(hcb::TaskCreateInput{
+      .taskListId = QStringLiteral("list-active"), .title = QStringLiteral("Parent")});
+  const hcb::TaskMutationResult parentResult = awaitResult(createParent);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(parentResult));
+  if (!std::holds_alternative<hcb::TaskMutationReceipt>(parentResult)) {
+    return;
+  }
+  const QString parentId = std::get<hcb::TaskMutationReceipt>(parentResult).taskId;
+  std::future<hcb::TaskMutationResult> createChild =
+      service.create(hcb::TaskCreateInput{.taskListId = QStringLiteral("list-active"),
+                                          .parentTaskId = parentId,
+                                          .title = QStringLiteral("Child")});
+  const hcb::TaskMutationResult childResult = awaitResult(createChild);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(childResult));
+
+  std::future<hcb::TaskMutationResult> parentMove =
+      service.moveToTaskList(parentId, QStringLiteral("list-other"));
+  const hcb::TaskMutationResult parentMoveResult = awaitResult(parentMove);
+  QVERIFY(std::holds_alternative<hcb::AppError>(parentMoveResult));
+  QCOMPARE(std::get<hcb::AppError>(parentMoveResult).code(), hcb::AppErrorCode::Validation);
+
+  std::future<hcb::TaskMutationResult> deletedListMove =
+      service.moveToTaskList(parentId, QStringLiteral("list-deleted"));
+  const hcb::TaskMutationResult deletedListResult = awaitResult(deletedListMove);
+  QVERIFY(std::holds_alternative<hcb::AppError>(deletedListResult));
+  QCOMPARE(std::get<hcb::AppError>(deletedListResult).code(), hcb::AppErrorCode::Validation);
 }
 
 void TaskMutationServiceTest::createsAndReparentsOneLevelSubtasks() {
