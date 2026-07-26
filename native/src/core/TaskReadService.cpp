@@ -87,7 +87,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
   QString filter = QStringLiteral("tasks.deleted_at IS NULL AND tasks.is_hidden = 0 "
                                   "AND lists.deleted_at IS NULL");
   if (request.accountId.has_value()) {
-    filter.append(QStringLiteral(" AND lists.account_id = ?1"));
+    filter.append(QStringLiteral(" AND lists.account_id = ?"));
   }
   if (request.selectedListsOnly) {
     filter.append(QStringLiteral(" AND lists.is_selected = 1"));
@@ -98,7 +98,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
           "tasks.notes, tasks.due_at, tasks.due_time_zone, tasks.priority, tasks.state, "
           "tasks.sort_order FROM local_tasks AS tasks INNER JOIN local_task_lists AS lists "
           "ON lists.id = tasks.task_list_id WHERE %1 ORDER BY lists.sort_order, "
-          "lists.title COLLATE NOCASE, tasks.sort_order, tasks.id LIMIT ?2")
+          "lists.title COLLATE NOCASE, tasks.sort_order, tasks.id LIMIT ?")
           .arg(filter)
           .toUtf8();
   sqlite3_stmt* statement = nullptr;

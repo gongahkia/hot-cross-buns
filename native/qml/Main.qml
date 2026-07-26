@@ -81,6 +81,9 @@ ApplicationWindow {
         if (!hasNavigationPage(pageName) || pageName === currentPage) {
             return
         }
+        if (appController !== null && !appController.googleConnected && pageName !== "Settings") {
+            return
+        }
         const spanName = "navigation." + pageName.toLowerCase()
         const tracked = transitionTimings !== null && transitionTimings.begin(spanName)
         currentPage = pageName
@@ -610,6 +613,41 @@ ApplicationWindow {
                     color: Theme.textSecondary
                 }
                 Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: appController !== null && !appController.googleConnected && currentPage !== "Settings"
+        z: 1
+        color: Theme.background
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Theme.spacingLarge * 2, 440)
+            spacing: Theme.spacingMedium
+
+            Label {
+                Layout.fillWidth: true
+                text: "Connect Google to continue"
+                font.pixelSize: Theme.titleFontSize
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: "This preview requires your Google account before tasks and calendar are available."
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                color: Theme.textSecondary
+            }
+
+            Button {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Open Google setup"
+                Accessible.name: text
+                onClicked: window.selectPage("Settings")
             }
         }
     }
