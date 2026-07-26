@@ -105,20 +105,16 @@ AppController::AppController(FilePath databasePath,
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
-      optimisticMutationCoordinator_(databasePath, clock), syncCheckpointStore_(databasePath, clock),
-      syncConflictStore_(databasePath, clock), googleSyncRecoveryService_(syncCheckpointStore_),
-      googleTaskMutationPushService_(optimisticMutationCoordinator_,
-                                     googleHttpClient_,
-                                     clock,
-                                     SyncBackoffPolicy()),
-      googleCalendarEventMutationPushService_(optimisticMutationCoordinator_,
-                                              googleHttpClient_,
-                                              clock,
-                                              SyncBackoffPolicy()),
+      optimisticMutationCoordinator_(databasePath, clock),
+      syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
+      googleSyncRecoveryService_(syncCheckpointStore_),
+      googleTaskMutationPushService_(
+          optimisticMutationCoordinator_, googleHttpClient_, clock, SyncBackoffPolicy()),
+      googleCalendarEventMutationPushService_(
+          optimisticMutationCoordinator_, googleHttpClient_, clock, SyncBackoffPolicy()),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
-      taskMutationService_(databasePath, clock),
-      calendarMutationService_(databasePath, clock),
+      taskMutationService_(databasePath, clock), calendarMutationService_(databasePath, clock),
       syncScheduler_([this](const SyncSchedulerRequest& request) { return runGoogleSync(request); },
                      clock) {
   connect(&oauthLoopbackListener_,
@@ -147,9 +143,14 @@ void AppController::initialize() {
                    std::get<std::optional<OAuthClientConfiguration>>(result);
                configuration.has_value()) {
       clientId_ = configuration->clientId;
+      {
+        std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
+        syncClientId_ = clientId_;
+      }
       emit clientIdChanged();
       if (googleConnected_) {
-        syncGoogle();
+        requestGoogleSync(SyncScheduleTrigger::Startup);
+        startPeriodicGoogleSync();
       }
     }
   });
@@ -166,7 +167,8 @@ void AppController::initialize() {
             googleConnected_ = true;
             emit googleConnectedChanged();
             if (!clientId_.isEmpty()) {
-              syncGoogle();
+              requestGoogleSync(SyncScheduleTrigger::Startup);
+              startPeriodicGoogleSync();
             }
           }
         });
@@ -192,6 +194,10 @@ void AppController::saveClientId(QString clientId) {
                                    std::get<std::optional<OAuthClientConfiguration>>(loaded);
                                configuration.has_value()) {
                       clientId_ = configuration->clientId;
+                      {
+                        std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
+                        syncClientId_ = clientId_;
+                      }
                       emit clientIdChanged();
                       setStatus(QStringLiteral("Google client ID saved"));
                     }
@@ -375,69 +381,83 @@ void AppController::startPeriodicGoogleSync() {
 }
 
 std::optional<AppError> AppController::runGoogleSync(const SyncSchedulerRequest&) {
-  if (credentialStore_ == nullptr || clientId_.isEmpty()) {
-    return AppError(AppErrorCode::Configuration,
-                    QStringLiteral("Google authorization must be renewed"));
+  const auto fail = [this](AppError error) {
+    setSyncStatus(error.code() == AppErrorCode::Configuration ? QStringLiteral("auth-required")
+                                                              : QStringLiteral("retrying"));
+    return std::optional<AppError>(std::move(error));
+  };
+  setSyncStatus(QStringLiteral("pulling"));
+  QString clientId;
+  {
+    std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
+    clientId = syncClientId_;
+  }
+  if (credentialStore_ == nullptr || clientId.isEmpty()) {
+    return fail(AppError(AppErrorCode::Configuration,
+                         QStringLiteral("Google authorization must be renewed")));
   }
   if (const std::optional<AppError> initialization = optimisticMutationCoordinator_.ready().get();
       initialization.has_value()) {
-    return initialization;
+    return fail(*initialization);
   }
   if (const std::optional<AppError> initialization = syncCheckpointStore_.ready().get();
       initialization.has_value()) {
-    return initialization;
+    return fail(*initialization);
   }
   if (const std::optional<AppError> initialization = syncConflictStore_.ready().get();
       initialization.has_value()) {
-    return initialization;
+    return fail(*initialization);
   }
   OAuthCredentialReadResult credential =
       credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
   if (std::holds_alternative<AppError>(credential)) {
-    return std::get<AppError>(std::move(credential));
+    return fail(std::get<AppError>(std::move(credential)));
   }
   const std::optional<OAuthStoredCredential>& stored =
       std::get<std::optional<OAuthStoredCredential>>(credential);
   if (!stored.has_value() || !stored->refreshToken.has_value()) {
-    return AppError(AppErrorCode::Configuration,
-                    QStringLiteral("Google authorization must be renewed"));
+    return fail(AppError(AppErrorCode::Configuration,
+                         QStringLiteral("Google authorization must be renewed")));
   }
   const QString refreshToken = *stored->refreshToken;
   OAuthTokenRefreshResult refreshed =
-      oauthTokenRefreshClient_.refresh({.clientId = clientId_, .refreshToken = refreshToken}).get();
+      oauthTokenRefreshClient_
+          .refresh({.clientId = std::move(clientId), .refreshToken = refreshToken})
+          .get();
   if (std::holds_alternative<AppError>(refreshed)) {
-    return std::get<AppError>(std::move(refreshed));
+    return fail(std::get<AppError>(std::move(refreshed)));
   }
   const QString accessToken = std::get<OAuthRefreshedToken>(std::move(refreshed)).accessToken;
   OAuthCredentialSaveResult saved =
-      credentialStore_->save(QString::fromLatin1(kGoogleAccountId),
-                             {.accessToken = accessToken, .refreshToken = refreshToken})
+      credentialStore_
+          ->save(QString::fromLatin1(kGoogleAccountId),
+                 {.accessToken = accessToken, .refreshToken = refreshToken})
           .get();
   if (std::holds_alternative<AppError>(saved)) {
-    return std::get<AppError>(std::move(saved));
+    return fail(std::get<AppError>(std::move(saved)));
   }
   setSyncStatus(QStringLiteral("pushing"));
   GoogleTaskMutationPushResultOrError taskPush =
       googleTaskMutationPushService_.pushDue(accessToken).get();
   if (std::holds_alternative<AppError>(taskPush)) {
-    return std::get<AppError>(std::move(taskPush));
+    return fail(std::get<AppError>(std::move(taskPush)));
   }
   GoogleCalendarEventMutationPushResultOrError eventPush =
       googleCalendarEventMutationPushService_.pushDue(accessToken).get();
   if (std::holds_alternative<AppError>(eventPush)) {
-    return std::get<AppError>(std::move(eventPush));
+    return fail(std::get<AppError>(std::move(eventPush)));
   }
   const bool hasDeferredMutations =
       std::get<GoogleTaskMutationPushResult>(taskPush).failed > 0 ||
       std::get<GoogleCalendarEventMutationPushResult>(eventPush).failed > 0;
   SyncConflictListResult conflicts = syncConflictStore_.listUnresolved().get();
   if (std::holds_alternative<AppError>(conflicts)) {
-    return std::get<AppError>(std::move(conflicts));
+    return fail(std::get<AppError>(std::move(conflicts)));
   }
   setSyncStatus(QStringLiteral("pulling"));
   GoogleMirrorWriteResult pulled = pullGoogleData(accessToken).get();
   if (std::holds_alternative<AppError>(pulled)) {
-    return std::get<AppError>(std::move(pulled));
+    return fail(std::get<AppError>(std::move(pulled)));
   }
   if (!std::get<QList<SyncConflict>>(conflicts).isEmpty()) {
     setSyncStatus(QStringLiteral("conflict"));

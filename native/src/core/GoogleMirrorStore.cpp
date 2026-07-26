@@ -143,6 +143,11 @@ markTaskListsDeleted(sqlite3* handle, const QString& accountId, const QString& n
                  "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
                  "WHERE mutations.resource_type = 'task_list' "
                  "AND mutations.resource_id = local_task_lists.id "
+                 "AND mutations.status IN ('pending', 'applying')) "
+                 "AND NOT EXISTS (SELECT 1 FROM local_tasks AS tasks "
+                 "JOIN local_pending_mutations AS mutations ON mutations.resource_id = tasks.id "
+                 "WHERE tasks.task_list_id = local_task_lists.id "
+                 "AND mutations.resource_type = 'task' "
                  "AND mutations.status IN ('pending', 'applying'))",
                  {textValue(now), textValue(accountId)});
 }
@@ -254,7 +259,12 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
 markCalendarsDeleted(sqlite3* handle, const QString& accountId, const QString& now) {
   return execute(handle,
                  "UPDATE local_calendars SET deleted_at = ?1, updated_at = ?1 "
-                 "WHERE account_id = ?2 AND deleted_at IS NULL",
+                 "WHERE account_id = ?2 AND deleted_at IS NULL "
+                 "AND NOT EXISTS (SELECT 1 FROM local_calendar_events AS events "
+                 "JOIN local_pending_mutations AS mutations ON mutations.resource_id = events.id "
+                 "WHERE events.calendar_id = local_calendars.id "
+                 "AND mutations.resource_type = 'event' "
+                 "AND mutations.status IN ('pending', 'applying'))",
                  {textValue(now), textValue(accountId)});
 }
 

@@ -225,24 +225,10 @@ void GoogleMirrorStoreTest::preservesQueuedAndApplyingRowsDuringPull() {
           "'lease', '2026-07-26T01:00:00Z', '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z' "
           "FROM local_calendar_events LIMIT 1");
   std::future<hcb::GoogleMirrorWriteResult> refreshedTasks =
-      store.replaceTasks(QStringLiteral("google"),
-                         {{.id = QStringLiteral("inbox"), .title = QStringLiteral("Inbox")}},
-                         {{.id = QStringLiteral("task"),
-                           .taskListId = QStringLiteral("inbox"),
-                           .title = QStringLiteral("Remote title"),
-                           .status = hcb::GoogleTaskStatus::NeedsAction}});
+      store.replaceTasks(QStringLiteral("google"), {}, {});
   QVERIFY(std::holds_alternative<std::monostate>(awaitResult(refreshedTasks)));
   std::future<hcb::GoogleMirrorWriteResult> refreshedCalendars =
-      store.replaceCalendars(QStringLiteral("google"),
-                             {{.id = QStringLiteral("primary"),
-                               .title = QStringLiteral("Primary"),
-                               .accessRole = hcb::GoogleCalendarAccessRole::Owner}},
-                             {{.id = QStringLiteral("event"),
-                               .calendarId = QStringLiteral("primary"),
-                               .status = hcb::GoogleCalendarEventStatus::Confirmed,
-                               .title = QStringLiteral("Remote event"),
-                               .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
-                               .endAt = QStringLiteral("2026-07-26T10:00:00.000Z")}});
+      store.replaceCalendars(QStringLiteral("google"), {}, {});
   QVERIFY(std::holds_alternative<std::monostate>(awaitResult(refreshedCalendars)));
   QCOMPARE(text(handle, "SELECT title FROM local_tasks WHERE deleted_at IS NULL"),
            QStringLiteral("Local title"));

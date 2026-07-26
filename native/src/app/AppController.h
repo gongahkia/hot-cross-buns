@@ -38,6 +38,7 @@
 #include <future>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -165,8 +166,7 @@ private:
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
   void requestGoogleSync(SyncScheduleTrigger trigger);
   void startPeriodicGoogleSync();
-  [[nodiscard]] std::optional<AppError>
-  runGoogleSync(const SyncSchedulerRequest& request);
+  [[nodiscard]] std::optional<AppError> runGoogleSync(const SyncSchedulerRequest& request);
   [[nodiscard]] std::future<GoogleMirrorWriteResult> pullGoogleData(QString accessToken);
   void setStatus(QString message);
   void setSyncStatus(QString status);
@@ -207,6 +207,8 @@ private:
   TaskMutationService taskMutationService_;
   CalendarMutationService calendarMutationService_;
   SyncScheduler syncScheduler_;
+  std::mutex syncConfigurationMutex_;
+  QString syncClientId_;
   QString clientId_;
   bool googleConnected_{false};
   QString statusMessage_;

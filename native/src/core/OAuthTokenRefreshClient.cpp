@@ -77,6 +77,11 @@ OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
   const QByteArray body = form.toString(QUrl::FullyEncoded).toUtf8();
   auto completion = std::make_shared<Completion>();
   std::future<OAuthTokenRefreshResult> future = completion->promise.get_future();
+  connect(this, &QObject::destroyed, [completion] {
+    complete(
+        completion,
+        OAuthTokenRefreshResult(networkError(QStringLiteral("OAuth token refresh was cancelled"))));
+  });
   if (!QMetaObject::invokeMethod(
           this,
           [this, body, completion] {
@@ -109,9 +114,9 @@ OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
             });
           },
           Qt::QueuedConnection)) {
-    complete(completion,
-             OAuthTokenRefreshResult(
-                 networkError(QStringLiteral("OAuth token refresh was cancelled"))));
+    complete(
+        completion,
+        OAuthTokenRefreshResult(networkError(QStringLiteral("OAuth token refresh was cancelled"))));
   }
   return future;
 }
