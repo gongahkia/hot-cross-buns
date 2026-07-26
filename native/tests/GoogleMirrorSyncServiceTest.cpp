@@ -1,3 +1,6 @@
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QtTest/QTest>
 
 #include "core/CalendarReadService.h"
@@ -12,6 +15,8 @@
 #include "core/GoogleTaskMirrorSyncService.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/SyncCheckpointStore.h"
+#include "core/TaskMutationService.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "data/LocalSchema.h"
 #include "data/SqliteConnection.h"
 #include "sqlite3.h"
@@ -34,6 +39,7 @@ class GoogleMirrorSyncServiceTest final : public QObject {
 
 private slots:
   void tasksUsePersistedOverlapWatermark();
+  void tasksReconcileExactRecurringDuplicatesAfterPull();
   void calendarReusesTokensAndRecoversInvalidEventToken();
 };
 
@@ -203,6 +209,87 @@ void GoogleMirrorSyncServiceTest::tasksUsePersistedOverlapWatermark() {
   QVERIFY(std::holds_alternative<hcb::AppError>(cancelledResult));
   QCOMPARE(std::get<hcb::AppError>(cancelledResult).code(), hcb::AppErrorCode::Cancelled);
   QCOMPARE(manager.requests().size(), 5);
+}
+
+void GoogleMirrorSyncServiceTest::tasksReconcileExactRecurringDuplicatesAfterPull() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = makeDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  prepareAccount(*database);
+  TestClock clock;
+  hcb::GoogleMirrorStore mirror(database->databasePath(), clock);
+  hcb::SyncCheckpointStore checkpoints(database->databasePath(), clock);
+  hcb::TaskMutationService mutations(database->databasePath(), clock);
+  verifyReady(mirror.ready());
+  verifyReady(checkpoints.ready());
+  verifyReady(mutations.ready());
+  hcb::TaskRecurrenceMarker marker{
+      .seriesId = QStringLiteral("18e14b9a-30df-459c-9e94-a10f6f6babb2"),
+      .occurrenceId = QStringLiteral("18e14b9a-30df-459c-9e94-a10f6f6babb2:0"),
+      .frequency = hcb::TaskRecurrenceFrequency::Weekly,
+      .anchorDate = QStringLiteral("2026-07-26"),
+      .timeZone = QStringLiteral("Asia/Singapore"),
+      .templateTitle = QStringLiteral("Duplicate"),
+      .templateDueDate = QStringLiteral("2026-07-26"),
+      .templatePriority = QStringLiteral("medium")};
+  const hcb::TaskRecurrenceSerializationResult serialized =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("body"), marker);
+  QVERIFY(!serialized.error.has_value());
+  if (serialized.error.has_value()) {
+    return;
+  }
+  const QJsonArray tasks{QJsonObject{{QStringLiteral("id"), QStringLiteral("duplicate-a")},
+                                     {QStringLiteral("title"), QStringLiteral("Duplicate")},
+                                     {QStringLiteral("notes"), serialized.notes},
+                                     {QStringLiteral("status"), QStringLiteral("needsAction")},
+                                     {QStringLiteral("etag"), QStringLiteral("etag-a")}},
+                         QJsonObject{{QStringLiteral("id"), QStringLiteral("duplicate-b")},
+                                     {QStringLiteral("title"), QStringLiteral("Duplicate")},
+                                     {QStringLiteral("notes"), serialized.notes},
+                                     {QStringLiteral("status"), QStringLiteral("needsAction")},
+                                     {QStringLiteral("etag"), QStringLiteral("etag-b")}}};
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{\"items\":[{\"id\":\"list-1\",\"title\":\"Inbox\"}]}")});
+  manager.enqueue({.body = QJsonDocument(QJsonObject{{QStringLiteral("items"), tasks}})
+                               .toJson(QJsonDocument::Compact)});
+  hcb::GoogleHttpClient http(nullptr, &manager);
+  hcb::GoogleTaskListPullClient listClient(http);
+  hcb::GoogleTaskPullClient taskClient(http);
+  hcb::GoogleTaskMirrorSyncService service(listClient,
+                                           taskClient,
+                                           mirror,
+                                           checkpoints,
+                                           clock,
+                                           hcb::SyncBackoffPolicy({.baseDelayMilliseconds = 0,
+                                                                   .maximumDelayMilliseconds = 0,
+                                                                   .jitterMilliseconds = 0,
+                                                                   .maximumAttempts = 2}),
+                                           &mutations);
+  std::future<hcb::GoogleTaskMirrorSyncResultOrError> sync =
+      service.sync(QStringLiteral("google"), QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(sync.wait_for(0ms) == std::future_status::ready, 2'000);
+  const hcb::GoogleTaskMirrorSyncResultOrError syncResult = sync.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleTaskMirrorSyncResult>(syncResult));
+  if (!std::holds_alternative<hcb::GoogleTaskMirrorSyncResult>(syncResult)) {
+    return;
+  }
+  QCOMPARE(std::get<hcb::GoogleTaskMirrorSyncResult>(syncResult).removedRecurringTaskDuplicateCount,
+           1);
+  hcb::SqliteConnectionResult connectionResult =
+      database->open(hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE deleted_at IS NOT NULL"), 1);
 }
 
 void GoogleMirrorSyncServiceTest::calendarReusesTokensAndRecoversInvalidEventToken() {

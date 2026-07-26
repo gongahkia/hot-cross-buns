@@ -48,9 +48,11 @@ struct StoredTaskContext final {
   QString title;
   std::optional<QString> notes;
   QString state;
+  std::optional<QString> completedAt;
   std::optional<QString> dueAt;
   std::optional<QString> dueTimeZone;
   QString priority;
+  bool isHidden{false};
 };
 
 struct ActiveTaskMutation final {
@@ -223,7 +225,7 @@ readTaskContext(SqliteConnection& connection, const QString& taskId) {
   constexpr char sql[] = R"(
 SELECT tasks.id, tasks.task_list_id, lists.account_id, lists.remote_id, tasks.remote_id, tasks.etag,
        tasks.parent_task_id, parent.remote_id, tasks.title, tasks.notes, tasks.state, tasks.due_at,
-       tasks.due_time_zone, tasks.priority
+       tasks.completed_at, tasks.due_time_zone, tasks.priority, tasks.is_hidden
 FROM local_tasks AS tasks
 INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
 LEFT JOIN local_tasks AS parent ON parent.id = tasks.parent_task_id
@@ -262,7 +264,7 @@ LIMIT 1
   const std::optional<QString> remoteId = optionalText(statement, 4);
   const std::optional<QString> title = optionalText(statement, 8);
   const std::optional<QString> state = optionalText(statement, 10);
-  const std::optional<QString> priority = optionalText(statement, 13);
+  const std::optional<QString> priority = optionalText(statement, 14);
   if (!storedTaskId.has_value() || !taskListId.has_value() || !accountId.has_value() ||
       !taskListRemoteId.has_value() || !remoteId.has_value() || !title.has_value() ||
       !state.has_value() || !priority.has_value()) {
@@ -280,9 +282,11 @@ LIMIT 1
                             .title = *title,
                             .notes = optionalText(statement, 9),
                             .state = *state,
+                            .completedAt = optionalText(statement, 12),
                             .dueAt = optionalText(statement, 11),
-                            .dueTimeZone = optionalText(statement, 12),
-                            .priority = *priority};
+                            .dueTimeZone = optionalText(statement, 13),
+                            .priority = *priority,
+                            .isHidden = sqlite3_column_int(statement, 15) != 0};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
              ? std::variant<std::optional<StoredTaskContext>, AppError>(std::move(context))
@@ -1310,20 +1314,23 @@ readManagedTaskRecurrenceCandidates(SqliteConnection& connection,
     if (std::holds_alternative<AppError>(mutationResult)) {
       return std::get<AppError>(mutationResult);
     }
-    candidates.append({.task = *task,
-                       .recurrence = std::move(recurrence),
-                       .hasActiveMutation =
-                           std::get<std::optional<ActiveTaskMutation>>(mutationResult).has_value()});
+    candidates.append(
+        {.task = *task,
+         .recurrence = std::move(recurrence),
+         .hasActiveMutation =
+             std::get<std::optional<ActiveTaskMutation>>(mutationResult).has_value()});
   }
   return candidates;
 }
 
 [[nodiscard]] bool sameTaskRecurrencePayload(const StoredTaskContext& left,
-                                              const StoredTaskContext& right) {
+                                             const StoredTaskContext& right) {
   return left.taskListRemoteId == right.taskListRemoteId &&
-         left.parentRemoteId == right.parentRemoteId && left.title == right.title &&
-         left.notes == right.notes && left.state == right.state && left.dueAt == right.dueAt &&
-         left.dueTimeZone == right.dueTimeZone && left.priority == right.priority;
+         left.parentTaskId == right.parentTaskId && left.parentRemoteId == right.parentRemoteId &&
+         left.title == right.title && left.notes == right.notes && left.state == right.state &&
+         left.completedAt == right.completedAt && left.dueAt == right.dueAt &&
+         left.dueTimeZone == right.dueTimeZone && left.priority == right.priority &&
+         left.isHidden == right.isHidden;
 }
 
 [[nodiscard]] QString recurrenceGroupKey(const TaskRecurrenceMarker& marker) {
@@ -1331,7 +1338,7 @@ readManagedTaskRecurrenceCandidates(SqliteConnection& connection,
 }
 
 [[nodiscard]] bool recurrenceCandidateComesFirst(const ManagedTaskRecurrenceCandidate& left,
-                                                  const ManagedTaskRecurrenceCandidate& right) {
+                                                 const ManagedTaskRecurrenceCandidate& right) {
   const bool leftPending = isPendingRemoteId(left.task.remoteId);
   const bool rightPending = isPendingRemoteId(right.task.remoteId);
   if (leftPending != rightPending) {
@@ -2520,6 +2527,10 @@ TaskMutationService::reconcileManagedRecurrences(QString accountId, QString task
           QList<ManagedTaskRecurrenceCandidate>& occurrences = group.value();
           std::sort(occurrences.begin(), occurrences.end(), recurrenceCandidateComesFirst);
           const ManagedTaskRecurrenceCandidate& canonical = occurrences.first();
+          if (occurrences.size() == 1) {
+            unambiguousTaskIds.insert(group.key(), canonical.task.taskId);
+            continue;
+          }
           bool exact = !canonical.hasActiveMutation;
           for (const ManagedTaskRecurrenceCandidate& occurrence : occurrences) {
             exact = exact && !occurrence.hasActiveMutation &&
