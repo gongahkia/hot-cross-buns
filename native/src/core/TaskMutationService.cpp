@@ -2233,6 +2233,13 @@ TaskMutationService::stopManagedRecurrence(QString taskId, TaskRecurrenceScope s
       return TaskMutationResult(
           validationError(QStringLiteral("Task does not have managed recurrence")));
     }
+    if (scope == TaskRecurrenceScope::ThisOccurrence) {
+      const std::variant<std::optional<QString>, AppError> successorResult =
+          createTaskRecurrenceSuccessor(connection, *selected, selectedRecurrence, updatedAt);
+      if (std::holds_alternative<AppError>(successorResult)) {
+        return TaskMutationResult(std::get<AppError>(successorResult));
+      }
+    }
     QList<ManagedTaskRecurrenceCandidate> candidates;
     if (scope == TaskRecurrenceScope::ThisOccurrence) {
       candidates.append({.task = *selected, .recurrence = selectedRecurrence});

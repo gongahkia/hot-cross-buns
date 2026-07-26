@@ -707,6 +707,45 @@ void TaskMutationServiceTest::stopsAndSplitsManagedRecurrenceSeries() {
   QCOMPARE(*stoppedCurrent->notes, QStringLiteral("Recurring body"));
   QCOMPARE(*stoppedFollowing->notes, QStringLiteral("Recurring body"));
 
+  const QString thisOccurrenceSeries = QStringLiteral("064a1a45-63ba-4922-9f0c-42a49b31d54b");
+  const hcb::TaskRecurrenceMarker thisOccurrenceMarker =
+      recurrenceMarker(thisOccurrenceSeries, 0, 2);
+  insertManagedTask(handle,
+                    QStringLiteral("this-occurrence"),
+                    QStringLiteral("remote-this-occurrence"),
+                    thisOccurrenceMarker);
+  std::future<hcb::TaskMutationResult> stopThisOccurrence = service.stopManagedRecurrence(
+      QStringLiteral("this-occurrence"), hcb::TaskRecurrenceScope::ThisOccurrence);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(stopThisOccurrence)));
+  const std::optional<TaskSnapshot> stoppedThisOccurrence =
+      readTask(handle, QStringLiteral("this-occurrence"));
+  const std::optional<QString> thisOccurrenceSuccessor =
+      readRecurrenceSuccessor(handle, thisOccurrenceSeries, thisOccurrenceMarker.occurrenceId);
+  QVERIFY(stoppedThisOccurrence.has_value());
+  QVERIFY(thisOccurrenceSuccessor.has_value());
+  if (!stoppedThisOccurrence.has_value() || !stoppedThisOccurrence->notes.has_value() ||
+      !thisOccurrenceSuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(hcb::parseTaskRecurrenceNotes(*stoppedThisOccurrence->notes).state,
+           hcb::TaskRecurrenceNotesState::Unmanaged);
+  QCOMPARE(*stoppedThisOccurrence->notes, QStringLiteral("Recurring body"));
+  const std::optional<TaskSnapshot> continuingOccurrence =
+      readTask(handle, *thisOccurrenceSuccessor);
+  QVERIFY(continuingOccurrence.has_value());
+  if (!continuingOccurrence.has_value() || !continuingOccurrence->notes.has_value()) {
+    return;
+  }
+  QCOMPARE(continuingOccurrence->state, QStringLiteral("active"));
+  const hcb::TaskRecurrenceNotes continuingNotes =
+      hcb::parseTaskRecurrenceNotes(*continuingOccurrence->notes);
+  QVERIFY(continuingNotes.marker.has_value());
+  if (!continuingNotes.marker.has_value()) {
+    return;
+  }
+  QCOMPARE(continuingNotes.marker->seriesId, thisOccurrenceSeries);
+  QCOMPARE(continuingNotes.marker->ordinal, 1);
+
   const QString splitSeries = QStringLiteral("d0c6c909-18a8-4d00-86e0-6d38a5497654");
   insertManagedTask(handle, QStringLiteral("split-1"), QStringLiteral("remote-split-1"),
                     recurrenceMarker(splitSeries, 1));
