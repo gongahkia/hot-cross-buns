@@ -18,6 +18,7 @@ public:
 
 private slots:
   void loadsCompiledQmlModuleOffscreen();
+  void routesLaunchDeepLinkOffscreen();
 
 private:
   QString executable_;
@@ -45,6 +46,34 @@ void NativeQmlShellSmokeTest::loadsCompiledQmlModuleOffscreen() {
   const QByteArray standardError = process.readAllStandardError();
   QCOMPARE(process.exitStatus(), QProcess::NormalExit);
   QVERIFY2(process.exitCode() == 0, standardError.constData());
+}
+
+void NativeQmlShellSmokeTest::routesLaunchDeepLinkOffscreen() {
+  QProcess process;
+  QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("HCB_BENCHMARK_EXIT_AFTER_LOAD"), QStringLiteral("1"));
+  process.setProcessEnvironment(environment);
+  process.setProcessChannelMode(QProcess::SeparateChannels);
+  process.start(executable_,
+                {QStringLiteral("-platform"),
+                 QStringLiteral("offscreen"),
+                 QStringLiteral("hotcrossbuns://settings")});
+
+  if (!process.waitForStarted(kStartTimeoutMilliseconds)) {
+    QFAIL(qPrintable(process.errorString()));
+    return;
+  }
+  if (!process.waitForFinished(kExitTimeoutMilliseconds)) {
+    process.kill();
+    process.waitForFinished();
+    QFAIL(qPrintable(process.errorString()));
+    return;
+  }
+
+  const QByteArray standardError = process.readAllStandardError();
+  QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+  QVERIFY2(process.exitCode() == 0, standardError.constData());
+  QVERIFY2(!standardError.contains("No such method"), standardError.constData());
 }
 
 } // namespace

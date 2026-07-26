@@ -14,6 +14,7 @@
 
 #include "app/AppPaths.h"
 #include "app/AppServices.h"
+#include "app/DeepLinkAdapter.h"
 #include "app/SystemTrayAdapter.h"
 #include "core/AgendaModel.h"
 #include "core/CalendarSourceModel.h"
@@ -65,6 +66,13 @@ void scheduleCommandPaletteBenchmark(QApplication& application, QObject* rootObj
   });
 }
 
+void selectMainPage(QObject* rootObject, QString pageName) {
+  static_cast<void>(QMetaObject::invokeMethod(rootObject,
+                                              "selectPage",
+                                              Qt::QueuedConnection,
+                                              Q_ARG(QVariant, QVariant(std::move(pageName)))));
+}
+
 } // namespace
 
 int runApplication(int argc, char* argv[]) {
@@ -73,6 +81,13 @@ int runApplication(int argc, char* argv[]) {
   hcb::StartupTimingTracker startupTimings(clock, logger);
   QApplication application(argc, argv);
   application.setWindowIcon(hcb::SystemTrayAdapter::defaultIcon());
+  hcb::DeepLinkDispatcher deepLinks;
+  hcb::DeepLinkFileOpenEventFilter deepLinkFileOpenEvents(deepLinks, &application);
+  application.installEventFilter(&deepLinkFileOpenEvents);
+  for (const hcb::DeepLink& link :
+       hcb::DeepLinkAdapter::parseLaunchArguments(application.arguments())) {
+    deepLinks.handle(link);
+  }
   QCoreApplication::setOrganizationName("Hot Cross Buns");
   QCoreApplication::setOrganizationDomain("gongahkia.github.io");
   QCoreApplication::setApplicationName("Hot Cross Buns");
@@ -130,6 +145,10 @@ int runApplication(int argc, char* argv[]) {
     window->raise();
     window->requestActivate();
   };
+  deepLinks.setHandler([rootObject, showMainWindow](const hcb::DeepLink& link) {
+    showMainWindow();
+    selectMainPage(rootObject, hcb::DeepLinkAdapter::pageName(link.destination));
+  });
   hcb::TrayActionHandlers trayActions{
       .openMainWindow = showMainWindow,
       .toggleMainWindow =
@@ -151,11 +170,7 @@ int runApplication(int argc, char* argv[]) {
       .openSettings =
           [rootObject, showMainWindow] {
             showMainWindow();
-            static_cast<void>(
-                QMetaObject::invokeMethod(rootObject,
-                                          "selectPage",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(QString, QStringLiteral("Settings"))));
+            selectMainPage(rootObject, QStringLiteral("Settings"));
           },
       .quit = [&application] { application.quit(); }};
   hcb::SystemTrayAdapter tray(application.windowIcon(), std::move(trayActions), &application);

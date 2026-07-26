@@ -18,6 +18,10 @@ set(HCB_NOTIFICATION_SOURCES
   src/app/NotificationAdapter.cpp
   src/app/NotificationAdapter.h
 )
+set(HCB_DEEP_LINK_SOURCES
+  src/app/DeepLinkAdapter.cpp
+  src/app/DeepLinkAdapter.h
+)
 qt_add_resources(HCB_SYSTEM_TRAY_RESOURCE_SOURCES resources/SystemTrayIcon.qrc)
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
@@ -29,6 +33,7 @@ set(HCB_NATIVE_SOURCES
   src/app/AppPaths.h
   src/app/AppServices.cpp
   src/app/AppServices.h
+  ${HCB_DEEP_LINK_SOURCES}
   ${HCB_LINUX_CREDENTIAL_SOURCES}
   src/app/LinuxPathsAdapter.cpp
   src/app/LinuxPathsAdapter.h
@@ -190,6 +195,11 @@ qt_add_executable(hcb_native
   src/main.cpp
   ${HCB_NATIVE_SOURCES}
 )
+if(APPLE)
+  set_target_properties(hcb_native PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/resources/Info.plist.in"
+  )
+endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -1882,6 +1892,16 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_notification_adapter_tests)
   hcb_enable_sanitizers(hcb_notification_adapter_tests)
   add_test(NAME hcb_notification_adapter_tests COMMAND hcb_notification_adapter_tests)
+
+  qt_add_executable(hcb_deep_link_adapter_tests
+    tests/DeepLinkAdapterTest.cpp
+    ${HCB_DEEP_LINK_SOURCES}
+  )
+  target_link_libraries(hcb_deep_link_adapter_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  target_include_directories(hcb_deep_link_adapter_tests PRIVATE src)
+  hcb_enable_warnings(hcb_deep_link_adapter_tests)
+  hcb_enable_sanitizers(hcb_deep_link_adapter_tests)
+  add_test(NAME hcb_deep_link_adapter_tests COMMAND hcb_deep_link_adapter_tests)
 
   qt_add_executable(hcb_oauth_token_revocation_client_tests
     tests/OAuthTokenRevocationClientTest.cpp
