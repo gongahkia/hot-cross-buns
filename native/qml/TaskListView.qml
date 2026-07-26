@@ -8,6 +8,7 @@ Pane {
     property alias taskRows: taskRows
     signal taskSelected(string taskId)
     signal taskCompletionRequested(string taskId, bool completed)
+    signal taskDeleteRequested(string taskId, string taskTitle)
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -15,6 +16,10 @@ Pane {
 
     function requestTaskCompletion(taskId, completed) {
         taskCompletionRequested(taskId, completed)
+    }
+
+    function requestTaskDelete(taskId, taskTitle) {
+        taskDeleteRequested(taskId, taskTitle)
     }
 
     ColumnLayout {
@@ -46,6 +51,7 @@ Pane {
                 spacing: Theme.spacingSmall
 
                 property alias completionButton: completionButton
+                property alias deleteButton: deleteButton
 
                 Button {
                     id: completionButton
@@ -53,6 +59,14 @@ Pane {
                     Accessible.name: text + " " + title
                     Accessible.description: completed ? "Mark task active" : "Mark task completed"
                     onClicked: root.requestTaskCompletion(id, !completed)
+                }
+
+                Button {
+                    id: deleteButton
+                    text: "Delete"
+                    Accessible.name: text + " " + title
+                    Accessible.description: "Delete this task"
+                    onClicked: root.requestTaskDelete(id, title)
                 }
 
                 AccessibleButton {

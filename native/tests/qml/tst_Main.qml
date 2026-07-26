@@ -232,6 +232,13 @@ TestCase {
         taskList.taskRows.itemAtIndex(1).completionButton.click()
         compare(completion.taskId, "inbox-2")
         compare(completion.completed, false)
+        let deletion = null
+        taskList.taskDeleteRequested.connect(function(taskId, taskTitle) {
+            deletion = { taskId, taskTitle }
+        })
+        taskList.taskRows.itemAtIndex(0).deleteButton.click()
+        compare(deletion.taskId, "inbox-1")
+        compare(deletion.taskTitle, "Plan release")
         taskList.destroy()
         taskModel.destroy()
     }
@@ -431,6 +438,21 @@ TestCase {
         dialog.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
         dialog.primaryButton.click()
         compare(deletedId, "event-1")
+        dialog.destroy()
+    }
+
+    function test_taskDeleteDialogEmitsDeleteRequest() {
+        const component = Qt.createComponent("../../qml/TaskDeleteDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null)
+        verify(dialog !== null)
+        dialog.openForDelete("task-1", "Plan release")
+        verify(dialog.primaryEnabled)
+        let deletedId = ""
+        dialog.taskDeleteRequested.connect(function(taskId) { deletedId = taskId })
+        dialog.primaryButton.click()
+        compare(deletedId, "task-1")
         dialog.destroy()
     }
 
@@ -795,6 +817,19 @@ TestCase {
         mainWindow.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
         mainWindow.eventDeleteDialog.eventDeleteRequested("event-1")
         compare(deletedId, "event-1")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsTaskDeleteRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let deletedId = ""
+        mainWindow.taskDeleteRequested.connect(function(taskId) { deletedId = taskId })
+        mainWindow.taskDeleteDialog.taskDeleteRequested("task-1")
+        compare(deletedId, "task-1")
         mainWindow.destroy()
     }
 
