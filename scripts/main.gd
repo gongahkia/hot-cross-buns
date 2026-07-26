@@ -195,9 +195,10 @@ func _build_course(level: Dictionary) -> void:
 	player.reset_requested.connect(_restart_level)
 	course.add_child(player)
 	var segments := int(ceil(float(level.length) / 4.8))
+	var route_offset: float = float(level.get("offset", 0.0))
 	for index in range(segments):
 		var z := -3.5 - index * 4.8
-		var x := sin(float(index) * 0.85) * (1.1 + abs(float(level.offset)) * 0.36) + float(level.offset)
+		var x: float = sin(float(index) * 0.85) * (1.1 + abs(route_offset) * 0.36) + route_offset
 		var y := 0.0
 		if level.launches and index > 7:
 			y = sin(float(index) * 0.75) * 1.4 + 1.0
@@ -213,7 +214,7 @@ func _build_course(level: Dictionary) -> void:
 			_add_tree(Vector3(x + 5.5, y, z + 1.0), 0.8 + float(index % 3) * 0.18)
 			_add_tree(Vector3(x - 5.2, y, z - 1.0), 0.7 + float((index + 1) % 3) * 0.2)
 	var goal_z := -4.5 - segments * 4.8
-	var goal_x := sin(float(segments) * 0.85) * (1.1 + abs(float(level.offset)) * 0.36) + float(level.offset)
+	var goal_x: float = sin(float(segments) * 0.85) * (1.1 + abs(route_offset) * 0.36) + route_offset
 	course.add_child(_make_platform(Vector3(goal_x, 0.0, goal_z), Vector3(8.0, 0.7, 7.0), Color("#5b7749")))
 	course.add_child(_make_goal(Vector3(goal_x, 1.1, goal_z - 1.0)))
 	ghost = RunGhost.new()
