@@ -11,6 +11,9 @@ concurrency:
 env:
   CI: true
 
+permissions:
+  contents: read
+
 jobs:
   native-macos-package-install-smoke:
     name: macOS universal install tree
@@ -21,11 +24,13 @@ jobs:
       HCB_INSTALL_ROOT: ${{ runner.temp }}/hcb-package-install
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Restore Qt SDK cache
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           key: qt-6.11.1-macos-universal-v1-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}/Qt
@@ -66,7 +71,7 @@ jobs:
 
       - name: Upload macOS package diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-macos-package-install-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
@@ -82,11 +87,13 @@ jobs:
       HCB_INSTALL_ROOT: ${{ runner.temp }}/hcb-package-install
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Restore Qt SDK cache
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           key: qt-6.11.1-linux-gcc-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}/Qt
@@ -141,7 +148,7 @@ jobs:
 
       - name: Upload Linux package diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-linux-package-install-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
@@ -157,11 +164,13 @@ jobs:
       HCB_INSTALL_ROOT: ${{ runner.temp }}\hcb-package-install
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Restore Qt SDK cache
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           key: qt-6.11.1-windows-msvc2022-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}\Qt
@@ -203,7 +212,7 @@ jobs:
 
       - name: Upload Windows package diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-windows-package-install-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore

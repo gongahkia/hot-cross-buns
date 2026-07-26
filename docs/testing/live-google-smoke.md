@@ -1,56 +1,34 @@
 # Live Google Smoke
 
-Use this only with a disposable Google account or a clearly marked test calendar/task list.
+Use a disposable Google account or clearly marked test data. This preview reads Google Tasks and Calendar into the local SQLite mirror; it does not push local edits to Google.
 
 ## Preconditions
 
-- HCB is connected to Google Tasks and Google Calendar.
-- Sync mode is not paused.
-- Diagnostics performance collection is enabled.
-- Open Google Calendar and Google Tasks web in a browser for confirmation.
+- Create a Google Cloud OAuth **Desktop app** client in the tester's own project.
+- Enable Google Tasks API and Google Calendar API in that project.
+- Add the tester as an OAuth consent-screen test user when the project is in testing mode.
+- Keep the client secret out of HCB; the desktop flow uses its client ID only.
+- Open Google Calendar and Google Tasks in a browser for comparison.
 
 ## Startup
 
-- Launch HCB.
-- Confirm cached data renders before any long sync dialog blocks interaction.
-- Open Diagnostics and confirm recent performance timings include `startup.bootstrap.light`.
-- If bootstrap failed, confirm a `startup.bootstrap.fallback-fanout` timing explains the fallback reason.
-- Confirm deferred timing appears for `startup.schedule-suggest.deferred`.
+- Launch HCB and open Settings.
+- Enter and save the Desktop OAuth client ID.
+- Select **Connect Google**, complete browser consent, and wait for `Google synchronization complete`.
+- Relaunch HCB. Confirm the cached task lists, tasks, calendars, and events render, then the background read sync completes.
 
-## Create
+## Read sync
 
-- Create one task in HCB.
-- Confirm the task appears locally immediately.
-- Confirm pending mutations briefly increase.
-- Confirm a recent `sync.post-crud-drain` timing appears with `accepted=true`.
-- Confirm the task appears in Google Tasks web after drain.
-- Create one calendar event in HCB and repeat the local/pending/drain/Google Calendar checks.
-- Create one note in HCB and confirm it appears in Google Tasks web as the task-backed note model.
+- Create or edit a task in Google Tasks. Select **Sync Google now** in HCB and confirm the task list, task title, completion state, and parent relationship match Google.
+- Create or edit an event in Google Calendar. Sync and confirm calendar metadata, title, time range, all-day state, description, and location match Google.
+- Delete a Google task or cancel a Google event. Sync and confirm it disappears from the active HCB views.
 
-## Update
+## Current limitation check
 
-- Edit the test task title/date.
-- Confirm local UI updates immediately.
-- Confirm Google Tasks web reflects the update after drain.
-- Edit the test event title/time.
-- Confirm Google Calendar web reflects the update after drain.
-- Edit the test note body/title and confirm Google Tasks web reflects it after drain.
+- Do not use HCB local task or event edits as Google write tests. They remain local and a later full Google sync can replace them.
+- Reconnect after revoking the app's access in Google Account settings. Confirm the app reports that authorization must be renewed.
 
-## Delete
+## Failure checks
 
-- Delete the test task.
-- Confirm it disappears locally immediately.
-- Confirm Google Tasks web removes it after drain.
-- Delete the test event.
-- Confirm Google Calendar web removes it after drain.
-- Delete the test note.
-- Confirm Google Tasks web removes the backing task after drain.
-
-## Diagnostics Failure Checks
-
-- Temporarily disconnect network.
-- Create a task.
-- Confirm local UI updates and pending mutation remains pending or failed.
-- Confirm `sync.post-crud-drain` records `accepted=false` or pending counts remain nonzero.
-- Reconnect network and run manual sync.
-- Confirm the pending mutation drains and Google web reflects the change.
+- Disconnect the network, select **Sync Google now**, and confirm the status reports a sync failure without clearing cached data.
+- Reconnect and sync again; confirm cached data refreshes.

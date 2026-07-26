@@ -1,6 +1,6 @@
 # Hot Cross Buns Documentation
 
-Hot Cross Buns is a keyboard-first Electron desktop planner. The repository started with specs first, and now includes Electron, React, TypeScript, IPC, renderer shell, performance harness, local SQLite connection foundations, and cache-backed core product workflows.
+Hot Cross Buns is a keyboard-first native C++20/Qt desktop planner. Older Electron references are historical only.
 
 ## Starting Point For Agents
 
@@ -17,20 +17,17 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 
 - Product name: Hot Cross Buns
 - Platforms: macOS DMG, Linux x64 AppImage, Windows x64 NSIS
-- Default stack: Electron, React, TypeScript, Vite, Tailwind, SQLite
+- Default stack: C++20, Qt 6, CMake, SQLite
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: Google Tasks/Calendar cache, settings, checkpoints, offline mutations, diagnostics
 - Agent access: opt-in local MCP server on `127.0.0.1`
 
 ## Implementation Status
 
-- Electron/Vite/React scaffold exists with hardened renderer settings and a typed preload bridge.
-- Renderer screens read bounded task, calendar, note, settings, sync, diagnostics, and search view models through the typed preload bridge. Local mock data remains only as fixture fallback for isolated renderer tests and command metadata.
-- Core IPC contracts are versioned under `src/shared/ipc/`, with read and write routes for tasks, task lists, calendar events, notes, local search, sync, settings, MCP, native capabilities, and diagnostics.
-- Main-side SQLite domain services are shared by UI IPC handlers and MCP tool handlers. Task, note, task-list, note-list, and calendar writes update optimistic local mirror rows and enqueue Google-backed pending mutations.
-- Local data now includes migrations, repositories, temporary-database integration tests, search over current task/event/note state, pending mutation tracking, and sanitized performance timing storage.
-- Performance smoke runs in report-only mode with generated local fixtures and temporary app data paths.
-- Native shell support is adapter-driven. macOS has menu bar surfaces and DMG packaging. Linux has AppImage packaging, Secret Service-backed credentials, release checks, and explicit unsupported states for notifications, global shortcuts, tray/status area, deep links, and autostart. Windows has NSIS packaging, Windows safeStorage-backed credentials, installer smoke coverage, and manual install/uninstall support guidance.
+- Qt Quick views bind to C++ task, notes, calendar, and navigation models.
+- SQLite domain services own local reads and mutations; the app controller applies completed results only on the Qt GUI thread.
+- The private preview supports bring-your-own Google Desktop OAuth client IDs, PKCE loopback authorization, platform credential storage, and full read synchronization for Google Tasks and Calendar.
+- Native shell support is adapter-driven across macOS, Linux, and Windows, with package-install and QML shell smoke coverage.
 
 ## Documentation Map
 

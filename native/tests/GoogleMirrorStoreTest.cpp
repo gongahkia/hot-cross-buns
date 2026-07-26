@@ -96,20 +96,20 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
           "missing_scopes_json, updated_at) VALUES "
           "('google', 'google', 'connected', '[]', '[]', '2026-07-26T00:00:00Z')");
 
-  std::future<hcb::GoogleMirrorWriteResult> taskWrite = store.replaceTasks(
-      QStringLiteral("google"),
-      {{.id = QStringLiteral("inbox"),
-        .title = QStringLiteral("Inbox"),
-        .updatedAt = QStringLiteral("2026-07-26T00:00:00Z")}},
-      {{.id = QStringLiteral("parent"),
-        .taskListId = QStringLiteral("inbox"),
-        .title = QStringLiteral("Parent"),
-        .status = hcb::GoogleTaskStatus::NeedsAction},
-       {.id = QStringLiteral("child"),
-        .taskListId = QStringLiteral("inbox"),
-        .parentId = QStringLiteral("parent"),
-        .title = QStringLiteral("Child"),
-        .status = hcb::GoogleTaskStatus::Completed}});
+  std::future<hcb::GoogleMirrorWriteResult> taskWrite =
+      store.replaceTasks(QStringLiteral("google"),
+                         {{.id = QStringLiteral("inbox"),
+                           .title = QStringLiteral("Inbox"),
+                           .updatedAt = QStringLiteral("2026-07-26T00:00:00Z")}},
+                         {{.id = QStringLiteral("parent"),
+                           .taskListId = QStringLiteral("inbox"),
+                           .title = QStringLiteral("Parent"),
+                           .status = hcb::GoogleTaskStatus::NeedsAction},
+                          {.id = QStringLiteral("child"),
+                           .taskListId = QStringLiteral("inbox"),
+                           .parentId = QStringLiteral("parent"),
+                           .title = QStringLiteral("Child"),
+                           .status = hcb::GoogleTaskStatus::Completed}});
   const hcb::GoogleMirrorWriteResult taskResult = awaitResult(taskWrite);
   QVERIFY(std::holds_alternative<std::monostate>(taskResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_task_lists WHERE deleted_at IS NULL"), 1);
@@ -119,27 +119,26 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                  "AND state = 'completed'"),
            1);
 
-  std::future<hcb::GoogleMirrorWriteResult> calendarWrite = store.replaceCalendars(
-      QStringLiteral("google"),
-      {{.id = QStringLiteral("primary"),
-        .title = QStringLiteral("Primary"),
-        .timeZone = QStringLiteral("UTC"),
-        .accessRole = hcb::GoogleCalendarAccessRole::Owner,
-        .selected = true,
-        .hidden = false,
-        .primary = true}},
-      {{.id = QStringLiteral("event"),
-        .calendarId = QStringLiteral("primary"),
-        .status = hcb::GoogleCalendarEventStatus::Confirmed,
-        .title = QStringLiteral("Planning"),
-        .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
-        .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
-        .allDay = false}});
+  std::future<hcb::GoogleMirrorWriteResult> calendarWrite =
+      store.replaceCalendars(QStringLiteral("google"),
+                             {{.id = QStringLiteral("primary"),
+                               .title = QStringLiteral("Primary"),
+                               .timeZone = QStringLiteral("UTC"),
+                               .accessRole = hcb::GoogleCalendarAccessRole::Owner,
+                               .selected = true,
+                               .hidden = false,
+                               .primary = true}},
+                             {{.id = QStringLiteral("event"),
+                               .calendarId = QStringLiteral("primary"),
+                               .status = hcb::GoogleCalendarEventStatus::Confirmed,
+                               .title = QStringLiteral("Planning"),
+                               .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+                               .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
+                               .allDay = false}});
   const hcb::GoogleMirrorWriteResult calendarResult = awaitResult(calendarWrite);
   QVERIFY(std::holds_alternative<std::monostate>(calendarResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
-  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"),
-           1);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"), 1);
 
   std::future<hcb::GoogleMirrorWriteResult> emptyTasks =
       store.replaceTasks(QStringLiteral("google"), {}, {});

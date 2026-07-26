@@ -16,6 +16,9 @@ concurrency:
 env:
   CI: true
 
+permissions:
+  contents: read
+
 jobs:
   native-macos:
     name: Native Qt build and tests (macOS)
@@ -23,7 +26,9 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Install native build dependencies
         run: brew install cmake ninja qt
@@ -39,12 +44,57 @@ jobs:
 
       - name: Upload native test diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-macos-test-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
           retention-days: 14
           path: build/macos-debug-xcode/Testing/Temporary/**
+
+  native-quality:
+    name: Native format, static analysis, and sanitizers (macOS)
+    runs-on: macos-14
+    timeout-minutes: 55
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install native quality dependencies
+        run: brew install cmake ninja qt llvm
+
+      - name: Configure format check
+        run: cmake --preset macos-format
+
+      - name: Check native formatting
+        run: cmake --build --preset macos-format --parallel 3
+
+      - name: Configure static analysis
+        run: cmake --preset macos-analysis
+
+      - name: Run static analysis
+        run: cmake --build --preset macos-analysis --parallel 3
+
+      - name: Configure sanitizer build
+        run: cmake --preset macos-sanitize
+
+      - name: Build sanitizer targets
+        run: cmake --build --preset macos-sanitize --parallel 3
+
+      - name: Run sanitizer tests
+        run: ctest --preset macos-sanitize --output-on-failure
+
+      - name: Upload quality diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-quality-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            build/macos-analysis/compile_commands.json
+            build/macos-sanitize-xcode/Testing/Temporary/**
 
   native-linux:
     name: Native Qt build and tests (Linux)
@@ -54,11 +104,13 @@ jobs:
       HCB_QT_ROOT: ${{ runner.temp }}/Qt
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Restore Qt SDK cache
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           key: qt-6.11.1-linux-gcc-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}/Qt
@@ -104,7 +156,7 @@ jobs:
 
       - name: Upload native test diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-linux-test-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
@@ -119,11 +171,13 @@ jobs:
       HCB_QT_ROOT: ${{ runner.temp }}\Qt
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Restore Qt SDK cache
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           key: qt-6.11.1-windows-msvc2022-64-v1-${{ hashFiles('native/dependencies/manifest.json') }}
           path: ${{ runner.temp }}\Qt
@@ -157,7 +211,7 @@ jobs:
 
       - name: Upload native test diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-windows-test-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
@@ -170,7 +224,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Install native build dependencies
         run: brew install cmake ninja qt
@@ -186,7 +242,7 @@ jobs:
 
       - name: Upload native shell smoke diagnostics
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-macos-smoke-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
@@ -200,7 +256,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Install native build dependencies
         run: brew install cmake ninja qt
@@ -226,7 +284,7 @@ jobs:
 
       - name: Upload native performance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-performance-report-${{ github.run_id }}
           if-no-files-found: warn

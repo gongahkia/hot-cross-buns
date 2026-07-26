@@ -10,6 +10,9 @@ concurrency:
   group: native-release-acceptance-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   native-release-acceptance:
     name: Build, test, install, and launch

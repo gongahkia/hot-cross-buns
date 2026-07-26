@@ -22,13 +22,7 @@ Required Google scopes:
 - `https://www.googleapis.com/auth/tasks`
 - `https://www.googleapis.com/auth/calendar`
 
-Requested identity scopes for account display:
-
-- `openid`
-- `email`
-- `profile`
-
-Do not request Google Drive or broader account scopes in v1.
+Do not request identity, Google Drive, or broader account scopes in the private preview.
 
 ## Tasks Mapping
 
@@ -128,14 +122,9 @@ Required tests:
 - Invalid Calendar sync token triggers full resync for that calendar.
 - Offline mutation queue retries and reconciles a successful Google response.
 
-## Current Implementation Notes
+## Current Native Preview
 
-- Read-sync service diagnostics and progress events store resource names, counts, durations, retry delays, and sanitized error codes only.
-- Task, task-list, and calendar-event UI writes now share SQLite-backed domain services with MCP tools. Those services apply optimistic local mirror changes and insert rows into `google_pending_mutations`.
-- Pending mutation behavior is consistent for task and event writes: successful local writes return queued acknowledgements or queued detail DTOs, pending counts come from SQLite, and Google reconciliation is owned by a main-process `GooglePendingMutationWorker`.
-- The mutation worker drains due task, task-list, and calendar-event mutations when write transports are supplied, transitions rows through `applying`, `applied`, and `failed`, records retry/auth diagnostics, and is not exposed through renderer or preload APIs.
-- Core `sync.status` and `sync.runNow` IPC handlers remain startup-safe. They do not perform Google network work during app startup.
-- macOS preview builds now wire bring-your-own Desktop OAuth client setup through Settings, PKCE loopback browser handoff, token exchange/refresh transport, Keychain-backed Google token storage, sanitized Google status IPC, latest connected-account transport selection, and a small manual/balanced/near-real-time scheduler.
-- `sync.runNow` uses authenticated Google Tasks/Calendar read transports once a connected account and Keychain token are present; cached notes and settings remain usable when Google setup is skipped.
-- Runtime Google writes are wired by default for connected accounts. Task, task-list, and calendar-event CRUD uses the shared mutation queue, authenticated Google write transports, and reconciliation through `GooglePendingMutationWorker`.
-- Remaining sync hardening before broad release: live-account manual QA, conflict recovery UX, clearer account email/profile display if narrower scopes do not identify the account, and package-level verification that native SQLite remains active in signed/notarized builds.
+- Settings persists a tester-supplied Desktop OAuth client ID in SQLite.
+- The app uses browser-based PKCE with a temporary `127.0.0.1` callback, exchanges the authorization code without a client secret, and stores access/refresh tokens in the platform credential adapter.
+- Connect, launch, and manual sync refresh the access token and perform full Google Tasks and Calendar pulls. Each resource family is replaced atomically in the SQLite mirror before GUI models update on the Qt GUI thread.
+- The preview does not yet use incremental checkpoints, polling/backoff, profile identity, outbound mutation processing, or conflict resolution. Local task and calendar mutations are therefore not safe to use as Google write tests.
