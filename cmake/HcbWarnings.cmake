@@ -16,6 +16,7 @@ function(hcb_enable_warnings target)
     -Wconversion
     -Wsign-conversion
     -Wshadow
+    -Wno-missing-field-initializers
   )
   if(HCB_WARNINGS_AS_ERRORS)
     target_compile_options(${target} PRIVATE -Werror)

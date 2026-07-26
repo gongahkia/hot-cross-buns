@@ -81,7 +81,7 @@ constexpr QuerySpec querySpecs[] = {
 }
 
 [[nodiscard]] std::variant<QList<LocalSearchCandidate>, AppError> readCandidates(
-    SqliteConnection& connection, const QString& query, const std::stop_token& cancellation) {
+    SqliteConnection& connection, const QString& query, const CancellationToken& cancellation) {
   if (cancellation.stop_requested()) {
     return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
   }
@@ -149,7 +149,7 @@ constexpr QuerySpec querySpecs[] = {
 [[nodiscard]] LocalSearchPageResult searchStored(SqliteConnection& connection,
                                                  const LocalSearchRequest& request,
                                                  const UnifiedLocalSearchRanker& ranker,
-                                                 const std::stop_token& cancellation) {
+                                                 const CancellationToken& cancellation) {
   if (cancellation.stop_requested()) {
     return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
   }
@@ -186,8 +186,8 @@ std::shared_future<std::optional<AppError>> LocalSearchService::ready() const {
   return readPool_->ready();
 }
 
-std::future<LocalSearchPageResult> LocalSearchService::search(LocalSearchRequest request,
-                                                              const std::stop_token& cancellation) {
+std::future<LocalSearchPageResult>
+LocalSearchService::search(LocalSearchRequest request, const CancellationToken& cancellation) {
   if (cancellation.stop_requested()) {
     std::promise<LocalSearchPageResult> completion;
     std::future<LocalSearchPageResult> future = completion.get_future();

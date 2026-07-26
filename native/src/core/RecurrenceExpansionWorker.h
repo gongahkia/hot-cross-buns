@@ -1,13 +1,13 @@
 #pragma once
 
 #include "core/AppError.h"
+#include "core/Cancellation.h"
 
 #include <QList>
 #include <QString>
 
 #include <future>
 #include <optional>
-#include <stop_token>
 #include <variant>
 
 namespace hcb {
@@ -32,7 +32,7 @@ using RecurrenceExpansionResult = std::variant<QList<RecurrenceOccurrence>, AppE
 class RecurrenceExpansionWorker final {
 public:
   [[nodiscard]] std::future<RecurrenceExpansionResult>
-  expand(RecurrenceExpansionRequest request, const std::stop_token& cancellation = {}) const;
+  expand(RecurrenceExpansionRequest request, const CancellationToken& cancellation = {}) const;
 };
 
 } // namespace hcb

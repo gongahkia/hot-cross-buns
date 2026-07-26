@@ -12,7 +12,7 @@ private slots:
 
 void CancellationTest::stopRequestPropagatesToToken() {
   hcb::CancellationSource source;
-  const std::stop_token token = source.token();
+  const hcb::CancellationToken token = source.token();
 
   QVERIFY(token.stop_possible());
   QVERIFY(!token.stop_requested());

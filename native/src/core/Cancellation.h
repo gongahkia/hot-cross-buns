@@ -1,8 +1,27 @@
 #pragma once
 
-#include <stop_token>
+#include <atomic>
+#include <memory>
+#include <utility>
 
 namespace hcb {
+
+class CancellationToken final {
+public:
+  CancellationToken() = default;
+
+  [[nodiscard]] bool stop_possible() const noexcept { return state_ != nullptr; }
+  [[nodiscard]] bool stop_requested() const noexcept {
+    return state_ != nullptr && state_->load(std::memory_order_acquire);
+  }
+
+private:
+  explicit CancellationToken(std::shared_ptr<std::atomic_bool> state) : state_(std::move(state)) {}
+
+  std::shared_ptr<std::atomic_bool> state_;
+
+  friend class CancellationSource;
+};
 
 class CancellationSource final {
 public:
@@ -10,12 +29,17 @@ public:
   CancellationSource(const CancellationSource&) = delete;
   CancellationSource& operator=(const CancellationSource&) = delete;
 
-  [[nodiscard]] std::stop_token token() const noexcept { return source_.get_token(); }
-  [[nodiscard]] bool requestStop() noexcept { return source_.request_stop(); }
-  [[nodiscard]] bool stopRequested() const noexcept { return source_.stop_requested(); }
+  [[nodiscard]] CancellationToken token() const noexcept { return CancellationToken(state_); }
+  [[nodiscard]] bool requestStop() noexcept {
+    bool expected = false;
+    return state_->compare_exchange_strong(expected, true, std::memory_order_acq_rel);
+  }
+  [[nodiscard]] bool stopRequested() const noexcept {
+    return state_->load(std::memory_order_acquire);
+  }
 
 private:
-  std::stop_source source_;
+  std::shared_ptr<std::atomic_bool> state_{std::make_shared<std::atomic_bool>(false)};
 };
 
 } // namespace hcb

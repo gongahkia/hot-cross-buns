@@ -338,7 +338,7 @@ matchesRecurrenceWeek(const QDateTime& seriesStart, const QDateTime& candidate, 
 }
 
 [[nodiscard]] RecurrenceExpansionResult expandStored(const RecurrenceExpansionRequest& request,
-                                                     const std::stop_token& cancellation) {
+                                                     const CancellationToken& cancellation) {
   if (cancellation.stop_requested()) {
     return AppError(AppErrorCode::Cancelled, QStringLiteral("Recurrence expansion was cancelled"));
   }
@@ -396,7 +396,7 @@ matchesRecurrenceWeek(const QDateTime& seriesStart, const QDateTime& candidate, 
 
 std::future<RecurrenceExpansionResult>
 RecurrenceExpansionWorker::expand(RecurrenceExpansionRequest request,
-                                  const std::stop_token& cancellation) const {
+                                  const CancellationToken& cancellation) const {
   return std::async(std::launch::async, [request = std::move(request), cancellation]() {
     return expandStored(request, cancellation);
   });
