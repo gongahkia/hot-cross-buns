@@ -32,6 +32,8 @@ namespace {
 constexpr int kCalendarTimelineDays = 7;
 constexpr int kVisibleAllDayLaneCount = 2;
 constexpr char kGoogleAccountId[] = "google";
+constexpr char kSyncSettingsScope[] = "sync";
+constexpr char kConflictPolicySettingsKey[] = "conflict_policy";
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
 
 [[nodiscard]] std::unique_ptr<OAuthCredentialStore> makeCredentialStore() {
@@ -75,6 +77,53 @@ constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
   }
 }
 
+[[nodiscard]] std::optional<SyncConflictPolicy> conflictPolicyForValue(int value) {
+  switch (value) {
+  case static_cast<int>(SyncConflictPolicy::PreferGoogle):
+    return SyncConflictPolicy::PreferGoogle;
+  case static_cast<int>(SyncConflictPolicy::PreferHcb):
+    return SyncConflictPolicy::PreferHcb;
+  case static_cast<int>(SyncConflictPolicy::AskEachTime):
+    return SyncConflictPolicy::AskEachTime;
+  default:
+    return std::nullopt;
+  }
+}
+
+[[nodiscard]] QString conflictResourceText(SyncConflictResource resource) {
+  switch (resource) {
+  case SyncConflictResource::Task:
+    return QStringLiteral("Task");
+  case SyncConflictResource::TaskList:
+    return QStringLiteral("Task list");
+  case SyncConflictResource::Event:
+    return QStringLiteral("Calendar event");
+  }
+  return QStringLiteral("Google resource");
+}
+
+[[nodiscard]] QVariantList conflictRows(QList<SyncConflict> conflicts) {
+  QVariantList rows;
+  rows.reserve(conflicts.size());
+  for (const SyncConflict& conflict : conflicts) {
+    QVariantMap row;
+    row.insert(QStringLiteral("id"), conflict.id);
+    row.insert(QStringLiteral("resource"), conflictResourceText(conflict.resource));
+    row.insert(QStringLiteral("message"), conflict.errorMessage);
+    row.insert(QStringLiteral("canKeepLocal"),
+               conflict.remoteEtag.has_value() &&
+                   !conflict.remoteSnapshot.value(QStringLiteral("_deleted")).toBool());
+    row.insert(QStringLiteral("resolution"),
+               !conflict.resolution.has_value() ? QString()
+               : *conflict.resolution == SyncConflictResolution::KeepLocal
+                   ? QStringLiteral("Kept HCB")
+                   : QStringLiteral("Kept Google"));
+    row.insert(QStringLiteral("resolvedAt"), conflict.resolvedAt.value_or(QString()));
+    rows.append(std::move(row));
+  }
+  return rows;
+}
+
 [[nodiscard]] QString rangeStart(const QDate& today) {
   return QDateTime(today.addMonths(-1), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
 }
@@ -105,17 +154,27 @@ AppController::AppController(FilePath databasePath,
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
+      settingsService_(databasePath, clock),
       optimisticMutationCoordinator_(databasePath, clock),
       syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
-      taskMutationService_(databasePath, clock), calendarMutationService_(databasePath, clock),
+      googleSyncConflictResolver_(optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
+      taskMutationService_(databasePath, clock), taskListMutationService_(databasePath, clock),
+      calendarMutationService_(databasePath, clock),
       googleSyncRecoveryService_(syncCheckpointStore_),
       googleTaskMutationPushService_(optimisticMutationCoordinator_,
                                      googleHttpClient_,
                                      clock,
                                      SyncBackoffPolicy(),
-                                     &taskMutationService_),
+                                     &taskMutationService_,
+                                     &taskListMutationService_,
+                                     &googleSyncConflictResolver_),
       googleCalendarEventMutationPushService_(
-          optimisticMutationCoordinator_, googleHttpClient_, clock, SyncBackoffPolicy()),
+          optimisticMutationCoordinator_,
+          googleHttpClient_,
+          clock,
+          SyncBackoffPolicy(),
+          &calendarMutationService_,
+          &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
       syncScheduler_([this](const SyncSchedulerRequest& request) { return runGoogleSync(request); },
@@ -134,11 +193,56 @@ bool AppController::googleConnected() const { return googleConnected_; }
 
 QString AppController::statusMessage() const { return statusMessage_; }
 
+QString AppController::taskListErrorMessage() const { return taskListErrorMessage_; }
+
 QString AppController::syncStatus() const { return syncStatus_; }
+
+int AppController::conflictPolicy() const { return conflictPolicy_; }
+
+QVariantList AppController::unresolvedConflicts() const { return unresolvedConflicts_; }
+
+QVariantList AppController::resolvedConflicts() const { return resolvedConflicts_; }
 
 bool AppController::busy() const { return busy_; }
 
 void AppController::initialize() {
+  watch(settingsService_.readJson(QString::fromLatin1(kSyncSettingsScope),
+                                  QString::fromLatin1(kConflictPolicySettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          bool valid = false;
+          const int storedValue = stored->toInt(&valid);
+          const std::optional<SyncConflictPolicy> policy =
+              valid ? conflictPolicyForValue(storedValue) : std::nullopt;
+          if (!policy.has_value()) {
+            setStatus(QStringLiteral("Stored sync conflict policy is invalid"));
+            return;
+          }
+          conflictPolicy_ = storedValue;
+          googleSyncConflictResolver_.setPolicy(*policy);
+          emit conflictPolicyChanged();
+        });
+  watch(syncConflictStore_.listUnresolved(), [this](SyncConflictListResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setUnresolvedConflicts(std::get<QList<SyncConflict>>(std::move(result)));
+  });
+  watch(syncConflictStore_.listResolved(), [this](SyncConflictListResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setResolvedConflicts(std::get<QList<SyncConflict>>(std::move(result)));
+  });
   watch(oauthConfigurationStore_.load(), [this](OAuthClientConfigurationReadResult result) {
     if (std::holds_alternative<AppError>(result)) {
       setStatus(errorMessage(std::get<AppError>(result)));
@@ -357,6 +461,43 @@ void AppController::syncGoogle() {
   startPeriodicGoogleSync();
 }
 
+void AppController::saveConflictPolicy(int policyValue) {
+  const std::optional<SyncConflictPolicy> policy = conflictPolicyForValue(policyValue);
+  if (!policy.has_value()) {
+    setStatus(QStringLiteral("Sync conflict policy is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kSyncSettingsScope),
+                                   QString::fromLatin1(kConflictPolicySettingsKey),
+                                   QString::number(policyValue)),
+        [this, policyValue, policy](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (conflictPolicy_ != policyValue) {
+            conflictPolicy_ = policyValue;
+            emit conflictPolicyChanged();
+          }
+          googleSyncConflictResolver_.setPolicy(*policy);
+          setStatus(QStringLiteral("Sync conflict policy saved"));
+        });
+}
+
+void AppController::resolveSyncConflict(QString conflictId, bool keepLocal) {
+  const SyncConflictResolution resolution =
+      keepLocal ? SyncConflictResolution::KeepLocal : SyncConflictResolution::KeepRemote;
+  watch(googleSyncConflictResolver_.resolve(std::move(conflictId), resolution),
+        [this](std::optional<AppError> result) {
+          if (result.has_value()) {
+            setStatus(errorMessage(*result));
+            return;
+          }
+          setStatus(QStringLiteral("Sync conflict resolved"));
+          syncGoogle();
+        });
+}
+
 void AppController::requestGoogleSync(SyncScheduleTrigger trigger) {
   if (!googleConnected_ || clientId_.isEmpty() || credentialStore_ == nullptr) {
     return;
@@ -457,12 +598,19 @@ std::optional<AppError> AppController::runGoogleSync(const SyncSchedulerRequest&
   if (std::holds_alternative<AppError>(conflicts)) {
     return fail(std::get<AppError>(std::move(conflicts)));
   }
+  const QList<SyncConflict>& unresolved = std::get<QList<SyncConflict>>(conflicts);
+  setUnresolvedConflicts(unresolved);
+  SyncConflictListResult history = syncConflictStore_.listResolved().get();
+  if (std::holds_alternative<AppError>(history)) {
+    return fail(std::get<AppError>(std::move(history)));
+  }
+  setResolvedConflicts(std::get<QList<SyncConflict>>(std::move(history)));
   setSyncStatus(QStringLiteral("pulling"));
   GoogleMirrorWriteResult pulled = pullGoogleData(accessToken).get();
   if (std::holds_alternative<AppError>(pulled)) {
     return fail(std::get<AppError>(std::move(pulled)));
   }
-  if (!std::get<QList<SyncConflict>>(conflicts).isEmpty()) {
+  if (!unresolved.isEmpty()) {
     setSyncStatus(QStringLiteral("conflict"));
   } else if (hasDeferredMutations) {
     setSyncStatus(QStringLiteral("retrying"));
@@ -567,6 +715,65 @@ void AppController::createTask(QString taskListId, QString parentTaskId, QString
           refreshTasks();
         }
       });
+}
+
+void AppController::createTaskList(QString title) {
+  watch(taskListMutationService_.create(
+            {.accountId = QString::fromLatin1(kGoogleAccountId), .title = std::move(title)}),
+        [this](TaskListMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            const QString message = errorMessage(std::get<AppError>(result));
+            setStatus(message);
+            setTaskListError(message);
+          } else {
+            setTaskListError({});
+            refreshTasks();
+          }
+        });
+}
+
+void AppController::renameTaskList(QString taskListId, QString title) {
+  watch(taskListMutationService_.update(
+            {.taskListId = std::move(taskListId), .title = std::move(title)}),
+        [this](TaskListMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            const QString message = errorMessage(std::get<AppError>(result));
+            setStatus(message);
+            setTaskListError(message);
+          } else {
+            setTaskListError({});
+            refreshTasks();
+          }
+        });
+}
+
+void AppController::setTaskListSelected(QString taskListId, bool selected) {
+  watch(taskListMutationService_.setSelected(
+            {.taskListId = std::move(taskListId), .selected = selected}),
+        [this](TaskListMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            const QString message = errorMessage(std::get<AppError>(result));
+            setStatus(message);
+            setTaskListError(message);
+          } else {
+            setTaskListError({});
+            refreshTasks();
+          }
+        });
+}
+
+void AppController::deleteTaskList(QString taskListId) {
+  watch(taskListMutationService_.remove(std::move(taskListId)),
+        [this](TaskListMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            const QString message = errorMessage(std::get<AppError>(result));
+            setStatus(message);
+            setTaskListError(message);
+          } else {
+            setTaskListError({});
+            refreshTasks();
+          }
+        });
 }
 
 void AppController::updateTask(QString taskId,
@@ -762,12 +969,15 @@ void AppController::pollPending() {
 void AppController::refreshTasks() {
   watch(taskListReadService_.list(), [this](TaskListPageResult result) {
     if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
+      const QString message = errorMessage(std::get<AppError>(result));
+      setStatus(message);
+      setTaskListError(message);
       return;
     }
+    setTaskListError({});
     taskListModel_.setTaskLists(std::get<TaskListPage>(std::move(result)).items);
   });
-  watch(taskReadService_.list(), [this](TaskReadResult result) {
+  watch(taskReadService_.list({.selectedListsOnly = true}), [this](TaskReadResult result) {
     if (std::holds_alternative<AppError>(result)) {
       setStatus(errorMessage(std::get<AppError>(result)));
       return;
@@ -781,6 +991,19 @@ void AppController::refreshTasks() {
     }
     notesModel_.setNotes(std::get<NotePage>(std::move(result)).items);
   });
+}
+
+void AppController::reorderTask(QString taskId, bool earlier) {
+  watch(taskMutationService_.reorder(std::move(taskId),
+                                     earlier ? TaskReorderDirection::Earlier
+                                             : TaskReorderDirection::Later),
+        [this](TaskMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshTasks();
+          }
+        });
 }
 
 void AppController::refreshCalendar() {
@@ -840,6 +1063,14 @@ void AppController::setStatus(QString message) {
   emit statusMessageChanged();
 }
 
+void AppController::setTaskListError(QString message) {
+  if (taskListErrorMessage_ == message) {
+    return;
+  }
+  taskListErrorMessage_ = std::move(message);
+  emit taskListErrorMessageChanged();
+}
+
 void AppController::setSyncStatus(QString status) {
   if (QThread::currentThread() != thread()) {
     static_cast<void>(QMetaObject::invokeMethod(
@@ -853,6 +1084,42 @@ void AppController::setSyncStatus(QString status) {
   }
   syncStatus_ = std::move(status);
   emit syncStatusChanged();
+}
+
+void AppController::setUnresolvedConflicts(QList<SyncConflict> conflicts) {
+  if (QThread::currentThread() != thread()) {
+    static_cast<void>(QMetaObject::invokeMethod(
+        this,
+        [this, conflicts = std::move(conflicts)]() mutable {
+          setUnresolvedConflicts(std::move(conflicts));
+        },
+        Qt::QueuedConnection));
+    return;
+  }
+  QVariantList rows = conflictRows(std::move(conflicts));
+  if (unresolvedConflicts_ == rows) {
+    return;
+  }
+  unresolvedConflicts_ = std::move(rows);
+  emit unresolvedConflictsChanged();
+}
+
+void AppController::setResolvedConflicts(QList<SyncConflict> conflicts) {
+  if (QThread::currentThread() != thread()) {
+    static_cast<void>(QMetaObject::invokeMethod(
+        this,
+        [this, conflicts = std::move(conflicts)]() mutable {
+          setResolvedConflicts(std::move(conflicts));
+        },
+        Qt::QueuedConnection));
+    return;
+  }
+  QVariantList rows = conflictRows(std::move(conflicts));
+  if (resolvedConflicts_ == rows) {
+    return;
+  }
+  resolvedConflicts_ = std::move(rows);
+  emit resolvedConflictsChanged();
 }
 
 void AppController::setBusy(bool busy) {

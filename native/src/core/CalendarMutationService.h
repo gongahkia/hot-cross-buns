@@ -43,6 +43,12 @@ struct CalendarEventMutationReceipt final {
   QString updatedAt;
 };
 
+struct CalendarEventRemoteReconciliationInput final {
+  QString localEventId;
+  QString remoteEventId;
+  std::optional<QString> remoteEtag;
+};
+
 using CalendarEventMutationResult = std::variant<CalendarEventMutationReceipt, AppError>;
 
 class CalendarMutationService final {
@@ -55,6 +61,8 @@ public:
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);
+  [[nodiscard]] std::future<CalendarEventMutationResult>
+  reconcileGoogleEvent(CalendarEventRemoteReconciliationInput input);
 
 private:
   const Clock& clock_;

@@ -6,6 +6,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 #include <cstdint>
 #include <future>
@@ -26,6 +27,7 @@ struct TaskListSummary final {
   QString updatedAt;
   std::int64_t taskCount;
   std::int64_t activeTaskCount;
+  QStringList taskTitles;
 };
 
 struct TaskListReadRequest final {

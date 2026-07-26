@@ -1,6 +1,8 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTimeZone>
 #include <QtTest/QTest>
@@ -44,6 +46,12 @@ struct EventSnapshot final {
   bool allDay;
   std::optional<QString> deletedAt;
   QString updatedAt;
+};
+
+struct PendingMutationSnapshot final {
+  QString id;
+  QString operation;
+  QJsonObject payload;
 };
 
 [[nodiscard]] std::optional<hcb::FilePath>
@@ -143,6 +151,51 @@ WHERE id = ?1
   return finalizeResult == SQLITE_OK ? std::optional<EventSnapshot>(snapshot) : std::nullopt;
 }
 
+[[nodiscard]] QList<PendingMutationSnapshot>
+readPendingEventMutations(sqlite3* handle, const QString& eventId) {
+  constexpr char sql[] = R"(
+SELECT id, operation, payload_json
+FROM local_pending_mutations
+WHERE resource_type = 'event' AND resource_id = ?1 AND status IN ('pending', 'failed')
+ORDER BY created_at ASC, id ASC
+)";
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr) !=
+      SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return {};
+  }
+  const QByteArray eventIdUtf8 = eventId.toUtf8();
+  if (sqlite3_bind_text(statement,
+                        1,
+                        eventIdUtf8.constData(),
+                        static_cast<int>(eventIdUtf8.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return {};
+  }
+  QList<PendingMutationSnapshot> mutations;
+  int stepResult = SQLITE_ROW;
+  while ((stepResult = sqlite3_step(statement)) == SQLITE_ROW) {
+    const std::optional<QString> id = optionalText(statement, 0);
+    const std::optional<QString> operation = optionalText(statement, 1);
+    const std::optional<QString> payloadJson = optionalText(statement, 2);
+    QJsonParseError parseError;
+    const QJsonDocument payload = payloadJson.has_value()
+                                      ? QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError)
+                                      : QJsonDocument();
+    if (!id.has_value() || !operation.has_value() || !payloadJson.has_value() ||
+        parseError.error != QJsonParseError::NoError || !payload.isObject()) {
+      sqlite3_finalize(statement);
+      return {};
+    }
+    mutations.append({.id = *id, .operation = *operation, .payload = payload.object()});
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return stepResult == SQLITE_DONE && finalizeResult == SQLITE_OK ? mutations
+                                                                    : QList<PendingMutationSnapshot>{};
+}
+
 } // namespace
 
 class CalendarMutationServiceTest final : public QObject {
@@ -150,6 +203,7 @@ class CalendarMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesMovesAndDeletesEvents();
+  void journalsRemoteUpdatesMovesAndCreateReconciliation();
   void rejectsInvalidAndUnavailableMutations();
 };
 
@@ -242,6 +296,127 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
     return;
   }
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
+}
+
+void CalendarMutationServiceTest::journalsRemoteUpdatesMovesAndCreateReconciliation() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, "
+          "description, location, start_at, end_at, is_all_day, etag, created_at, updated_at) "
+          "VALUES ('event-remote', 'calendar-work', 'remote-event', 'confirmed', 'Remote', "
+          "'old description', 'Old room', '2026-07-26T01:00:00.000Z', "
+          "'2026-07-26T02:00:00.000Z', 0, 'etag-old', '2026-07-25T00:00:00Z', "
+          "'2026-07-25T00:00:00Z')");
+
+  std::future<hcb::CalendarEventMutationResult> update = service.update(
+      {.eventId = QStringLiteral("event-remote"), .title = QStringLiteral("Local title")});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(update)));
+  QList<PendingMutationSnapshot> mutations =
+      readPendingEventMutations(handle, QStringLiteral("event-remote"));
+  QCOMPARE(mutations.size(), 1);
+  if (mutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(mutations.constFirst().operation, QStringLiteral("event.update"));
+  QCOMPARE(mutations.constFirst().payload.value(QStringLiteral("calendarId")).toString(),
+           QStringLiteral("work"));
+  QCOMPARE(mutations.constFirst()
+               .payload.value(QStringLiteral("event"))
+               .toObject()
+               .value(QStringLiteral("summary"))
+               .toString(),
+           QStringLiteral("Local title"));
+  const QJsonObject metadata =
+      mutations.constFirst().payload.value(QStringLiteral("_hcbSync")).toObject();
+  QCOMPARE(metadata.value(QStringLiteral("etag")).toString(), QStringLiteral("etag-old"));
+  QCOMPARE(metadata.value(QStringLiteral("base")).toObject().value(QStringLiteral("summary")).toString(),
+           QStringLiteral("Remote"));
+
+  std::future<hcb::CalendarEventMutationResult> move = service.update(
+      {.eventId = QStringLiteral("event-remote"), .calendarId = QStringLiteral("calendar-other")});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(move)));
+  mutations = readPendingEventMutations(handle, QStringLiteral("event-remote"));
+  QCOMPARE(mutations.size(), 2);
+  if (mutations.size() != 2) {
+    return;
+  }
+  const PendingMutationSnapshot* moveMutation = nullptr;
+  const PendingMutationSnapshot* followUpMutation = nullptr;
+  for (const PendingMutationSnapshot& mutation : mutations) {
+    if (mutation.operation == QStringLiteral("event.move")) {
+      moveMutation = &mutation;
+    } else if (mutation.operation == QStringLiteral("event.update")) {
+      followUpMutation = &mutation;
+    }
+  }
+  QVERIFY(moveMutation != nullptr);
+  QVERIFY(followUpMutation != nullptr);
+  if (moveMutation == nullptr || followUpMutation == nullptr) {
+    return;
+  }
+  QCOMPARE(moveMutation->payload.value(QStringLiteral("sourceCalendarId")).toString(),
+           QStringLiteral("work"));
+  QCOMPARE(moveMutation->payload.value(QStringLiteral("destinationCalendarId")).toString(),
+           QStringLiteral("other"));
+  QCOMPARE(followUpMutation->payload.value(QStringLiteral("dependsOnMutationId")).toString(),
+           moveMutation->id);
+
+  std::future<hcb::CalendarEventMutationResult> created = service.create(
+      {.calendarId = QStringLiteral("calendar-work"),
+       .title = QStringLiteral("New event"),
+       .startAt = QStringLiteral("2026-08-01T09:00:00Z"),
+       .endAt = QStringLiteral("2026-08-01T10:00:00Z")});
+  const hcb::CalendarEventMutationResult createdResult = awaitResult(created);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createdResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createdResult)) {
+    return;
+  }
+  const QString createdId = std::get<hcb::CalendarEventMutationReceipt>(createdResult).eventId;
+  std::future<hcb::CalendarEventMutationResult> reconciled = service.reconcileGoogleEvent(
+      {.localEventId = createdId,
+       .remoteEventId = QStringLiteral("remote-created"),
+       .remoteEtag = QStringLiteral("etag-created")});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(reconciled)));
+  const std::optional<EventSnapshot> createdSnapshot = readEvent(handle, createdId);
+  QVERIFY(createdSnapshot.has_value());
+  if (!createdSnapshot.has_value()) {
+    return;
+  }
+  QCOMPARE(createdSnapshot->remoteId, QStringLiteral("remote-created"));
+  std::future<hcb::CalendarEventMutationResult> afterCreateUpdate = service.update(
+      {.eventId = createdId, .location = std::optional<std::optional<QString>>(QStringLiteral("HQ"))});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(afterCreateUpdate)));
+  const QList<PendingMutationSnapshot> createdMutations =
+      readPendingEventMutations(handle, createdId);
+  QCOMPARE(createdMutations.size(), 1);
+  if (createdMutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(createdMutations.constFirst().operation, QStringLiteral("event.create"));
+  QCOMPARE(createdMutations.constFirst().payload.value(QStringLiteral("_hcbSync"))
+               .toObject()
+               .value(QStringLiteral("etag"))
+               .toString(),
+           QStringLiteral("etag-created"));
 }
 
 void CalendarMutationServiceTest::rejectsInvalidAndUnavailableMutations() {

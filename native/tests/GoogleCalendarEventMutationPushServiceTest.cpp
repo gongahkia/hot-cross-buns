@@ -1,17 +1,21 @@
 #include <QtTest/QTest>
 
 #include "core/Clock.h"
+#include "core/CalendarMutationService.h"
 #include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleHttpClient.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
 #include "support/MockNetworkAccessManager.h"
 #include "support/TemporarySqliteDatabase.h"
+#include "data/SqliteConnection.h"
+#include "sqlite3.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrlQuery>
 
 #include <chrono>
 #include <future>
@@ -28,6 +32,9 @@ class GoogleCalendarEventMutationPushServiceTest final : public QObject {
 
 private slots:
   void pushesCreateUpdateAndDeleteMutations();
+  void batchesIndependentEventWritesWithPerItemResults();
+  void pushesMoveBeforeDependentPatch();
+  void reconcilesCreatedEventIdentity();
   void recordsPermanentAndRetriableFailures();
 };
 
@@ -70,11 +77,57 @@ void verifyReady(hcb::OptimisticMutationCoordinator& coordinator) {
   QVERIFY(!ready.get().has_value());
 }
 
-[[nodiscard]] hcb::PendingMutation
-enqueue(hcb::OptimisticMutationCoordinator& coordinator, QString operation, QJsonObject payload) {
+void verifyReady(hcb::CalendarMutationService& service) {
+  const std::shared_future<hcb::SqliteWriteResult> ready = service.ready();
+  QCOMPARE(ready.wait_for(2s), std::future_status::ready);
+  QVERIFY(!ready.get().has_value());
+}
+
+void execute(sqlite3* handle, const char* sql) {
+  char* errorMessage = nullptr;
+  const int result = sqlite3_exec(handle, sql, nullptr, nullptr, &errorMessage);
+  const QString message = errorMessage == nullptr ? QString() : QString::fromUtf8(errorMessage);
+  sqlite3_free(errorMessage);
+  QVERIFY2(result == SQLITE_OK, qPrintable(message));
+}
+
+[[nodiscard]] std::optional<QString>
+readEventRemoteId(sqlite3* handle, const QString& eventId) {
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(handle,
+                         "SELECT remote_id FROM local_calendar_events WHERE id = ?1",
+                         -1,
+                         SQLITE_PREPARE_PERSISTENT,
+                         &statement,
+                         nullptr) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const QByteArray eventIdUtf8 = eventId.toUtf8();
+  if (sqlite3_bind_text(statement,
+                        1,
+                        eventIdUtf8.constData(),
+                        static_cast<int>(eventIdUtf8.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK ||
+      sqlite3_step(statement) != SQLITE_ROW || sqlite3_column_type(statement, 0) != SQLITE_TEXT) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const auto* raw = reinterpret_cast<const char*>(sqlite3_column_text(statement, 0));
+  const int size = sqlite3_column_bytes(statement, 0);
+  const std::optional<QString> result =
+      raw == nullptr || size < 0 ? std::nullopt
+                                 : std::optional<QString>(QString::fromUtf8(raw, size));
+  return sqlite3_finalize(statement) == SQLITE_OK ? result : std::nullopt;
+}
+
+[[nodiscard]] hcb::PendingMutation enqueue(hcb::OptimisticMutationCoordinator& coordinator,
+                                           QString operation,
+                                           QJsonObject payload,
+                                           QString resourceId = QStringLiteral("event-local")) {
   std::future<hcb::PendingMutationResult> future =
       coordinator.enqueue({.resource = hcb::PendingMutationResource::Event,
-                           .resourceId = QStringLiteral("event-local"),
+                           .resourceId = std::move(resourceId),
                            .operation = std::move(operation),
                            .payload = std::move(payload)});
   const hcb::PendingMutationResult result = awaitResult(future);
@@ -198,6 +251,180 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
   QCOMPARE(find(coordinator, created.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWithPerItemResults() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation first = enqueue(
+      coordinator,
+      QStringLiteral("event.update"),
+      {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
+       {QStringLiteral("remoteEventId"), QStringLiteral("remote-1")},
+       {QStringLiteral("etag"), QStringLiteral("etag-1")},
+       {QStringLiteral("event"), QJsonObject{{QStringLiteral("summary"), QStringLiteral("One")}}}},
+      QStringLiteral("event-one"));
+  const hcb::PendingMutation second = enqueue(
+      coordinator,
+      QStringLiteral("event.update"),
+      {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
+       {QStringLiteral("remoteEventId"), QStringLiteral("remote-2")},
+       {QStringLiteral("etag"), QStringLiteral("etag-2")},
+       {QStringLiteral("event"), QJsonObject{{QStringLiteral("summary"), QStringLiteral("Two")}}}},
+      QStringLiteral("event-two"));
+  const QByteArray batchResponse = QByteArrayLiteral(
+      "--batch_response\r\n"
+      "Content-Type: application/http\r\n"
+      "Content-ID: <response-item-1>\r\n\r\n"
+      "HTTP/1.1 403 Forbidden\r\n"
+      "Content-Type: application/json\r\n\r\n"
+      "{\"error\":{\"message\":\"denied\"}}\r\n"
+      "--batch_response\r\n"
+      "Content-Type: application/http\r\n"
+      "Content-ID: <response-item-0>\r\n\r\n"
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: application/json\r\n\r\n"
+      "{}\r\n"
+      "--batch_response--\r\n");
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = batchResponse});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+
+  const hcb::GoogleCalendarEventMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 1);
+  QCOMPARE(result.failed, 1);
+  QCOMPARE(manager.requests().size(), 1);
+  const hcb::test::CapturedNetworkRequest& request = manager.requests().constFirst();
+  QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(request.request.url().path(), QStringLiteral("/batch/calendar/v3"));
+  QVERIFY(request.request.rawHeader("Content-Type").startsWith("multipart/mixed; boundary=hcb_"));
+  QCOMPARE(request.request.rawHeader("Accept"), QByteArray("multipart/mixed"));
+  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-1 HTTP/1.1"));
+  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-2 HTTP/1.1"));
+  QVERIFY(request.body.contains("If-Match: etag-1"));
+  QVERIFY(request.body.contains("If-Match: etag-2"));
+  const hcb::PendingMutationStatus firstStatus = find(coordinator, first.id).status;
+  const hcb::PendingMutationStatus secondStatus = find(coordinator, second.id).status;
+  QVERIFY((firstStatus == hcb::PendingMutationStatus::Applied &&
+           secondStatus == hcb::PendingMutationStatus::Failed) ||
+          (firstStatus == hcb::PendingMutationStatus::Failed &&
+           secondStatus == hcb::PendingMutationStatus::Applied));
+}
+
+void GoogleCalendarEventMutationPushServiceTest::pushesMoveBeforeDependentPatch() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation moved = enqueue(
+      coordinator,
+      QStringLiteral("event.move"),
+      {{QStringLiteral("calendarId"), QStringLiteral("destination-calendar")},
+       {QStringLiteral("sourceCalendarId"), QStringLiteral("source-calendar")},
+       {QStringLiteral("destinationCalendarId"), QStringLiteral("destination-calendar")},
+       {QStringLiteral("remoteEventId"), QStringLiteral("remote-event")},
+       {QStringLiteral("etag"), QStringLiteral("etag-move")}});
+  const hcb::PendingMutation updated = enqueue(
+      coordinator,
+      QStringLiteral("event.update"),
+      {{QStringLiteral("calendarId"), QStringLiteral("destination-calendar")},
+       {QStringLiteral("remoteEventId"), QStringLiteral("remote-event")},
+       {QStringLiteral("etag"), QStringLiteral("etag-after-move")},
+       {QStringLiteral("dependsOnMutationId"), moved.id},
+       {QStringLiteral("event"),
+        QJsonObject{{QStringLiteral("summary"), QStringLiteral("Moved event")}}}});
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{}")});
+  manager.enqueue({.body = QByteArray("{}")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+
+  const hcb::GoogleCalendarEventMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 2);
+  QCOMPARE(result.failed, 0);
+  QCOMPARE(manager.requests().size(), 2);
+  if (manager.requests().size() != 2) {
+    return;
+  }
+  const hcb::test::CapturedNetworkRequest& moveRequest = manager.requests().at(0);
+  QCOMPARE(moveRequest.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(moveRequest.request.url().path(),
+           QStringLiteral("/calendar/v3/calendars/source-calendar/events/remote-event/move"));
+  QCOMPARE(QUrlQuery(moveRequest.request.url()).queryItemValue(QStringLiteral("destination")),
+           QStringLiteral("destination-calendar"));
+  QCOMPARE(moveRequest.request.rawHeader("If-Match"), QByteArray("etag-move"));
+  QVERIFY(moveRequest.body.isEmpty());
+  const hcb::test::CapturedNetworkRequest& updateRequest = manager.requests().at(1);
+  QCOMPARE(updateRequest.operation, QNetworkAccessManager::CustomOperation);
+  QCOMPARE(updateRequest.request.url().path(),
+           QStringLiteral("/calendar/v3/calendars/destination-calendar/events/remote-event"));
+  QCOMPARE(updateRequest.request.rawHeader("If-Match"), QByteArray("etag-after-move"));
+  QCOMPARE(find(coordinator, moved.id).status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleCalendarEventMutationPushServiceTest::reconcilesCreatedEventIdentity() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  hcb::CalendarMutationService calendarMutations(database->databasePath(), clock);
+  verifyReady(coordinator);
+  verifyReady(calendarMutations);
+  hcb::SqliteConnectionResult connectionResult = hcb::SqliteConnectionFactory::open(
+      database->databasePath(), hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES ('account-a', 'google', 'connected', '[]', "
+          "'[]', '2026-07-25T00:00:00Z')");
+  execute(handle,
+          "INSERT INTO local_calendars (id, account_id, remote_id, title, updated_at) VALUES "
+          "('calendar-local', 'account-a', 'calendar-remote', 'Calendar', "
+          "'2026-07-25T00:00:00Z')");
+  std::future<hcb::CalendarEventMutationResult> created = calendarMutations.create(
+      {.calendarId = QStringLiteral("calendar-local"),
+       .title = QStringLiteral("Created"),
+       .startAt = QStringLiteral("2026-08-01T09:00:00Z"),
+       .endAt = QStringLiteral("2026-08-01T10:00:00Z")});
+  const hcb::CalendarEventMutationResult createdResult = awaitResult(created);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createdResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createdResult)) {
+    return;
+  }
+  const QString eventId = std::get<hcb::CalendarEventMutationReceipt>(createdResult).eventId;
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(R"({"id":"remote-created","etag":"etag-created"})")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{}, &calendarMutations);
+
+  const hcb::GoogleCalendarEventMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 1);
+  QCOMPARE(result.failed, 0);
+  QCOMPARE(readEventRemoteId(handle, eventId), std::optional<QString>(QStringLiteral("remote-created")));
 }
 
 void GoogleCalendarEventMutationPushServiceTest::recordsPermanentAndRetriableFailures() {

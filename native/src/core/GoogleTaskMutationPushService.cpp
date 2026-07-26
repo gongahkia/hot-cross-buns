@@ -3,20 +3,25 @@
 #include "core/Clock.h"
 #include "core/GoogleApiError.h"
 #include "core/GoogleHttpClient.h"
+#include "core/GoogleSyncConflictResolver.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
+#include "core/TaskListMutationService.h"
 #include "core/TaskMutationService.h"
 
 #include <QDate>
 #include <QDateTime>
+#include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QTimeZone>
 
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -34,19 +39,31 @@ constexpr qsizetype kMaximumNotesLength = 8'192;
 constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr auto kMutationLeaseDuration = std::chrono::minutes(5);
 
-struct TaskPushRequest final {
+struct MutationPushRequest final {
   GoogleHttpRequest request;
 };
 
-struct GoogleTaskWriteResponse final {
-  QString remoteTaskId;
+struct GoogleMutationWriteResponse final {
+  QString remoteId;
   std::optional<QString> remoteEtag;
 };
 
-using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
-using GoogleTaskWriteResponseOrError = std::variant<GoogleTaskWriteResponse, QString>;
+using MutationPushRequestOrError = std::variant<MutationPushRequest, QString>;
+using GoogleMutationWriteResponseOrError = std::variant<GoogleMutationWriteResponse, QString>;
 
 enum class ParentTaskReferenceStatus : std::uint8_t {
+  Pending,
+  Unavailable,
+  Invalid
+};
+
+enum class PreviousTaskReferenceStatus : std::uint8_t {
+  Pending,
+  Unavailable,
+  Invalid
+};
+
+enum class TaskListReferenceStatus : std::uint8_t {
   Pending,
   Unavailable,
   Invalid
@@ -97,6 +114,38 @@ using ParentTaskReferenceResult =
     return std::nullopt;
   }
   return value.toString();
+}
+
+[[nodiscard]] QList<PendingMutation> orderByDependencies(QList<PendingMutation> mutations) {
+  QHash<QString, qsizetype> indices;
+  for (qsizetype index = 0; index < mutations.size(); ++index) {
+    indices.insert(mutations.at(index).id, index);
+  }
+  QList<PendingMutation> ordered;
+  QSet<QString> appended;
+  QSet<QString> visiting;
+  std::function<void(qsizetype)> append = [&](qsizetype index) {
+    const PendingMutation& mutation = mutations.at(index);
+    if (appended.contains(mutation.id) || visiting.contains(mutation.id)) {
+      return;
+    }
+    visiting.insert(mutation.id);
+    const std::optional<QString> dependency =
+        optionalIdentifier(mutation.payload, u"dependsOnMutationId");
+    if (dependency.has_value()) {
+      const auto prerequisite = indices.constFind(*dependency);
+      if (prerequisite != indices.cend()) {
+        append(*prerequisite);
+      }
+    }
+    visiting.remove(mutation.id);
+    appended.insert(mutation.id);
+    ordered.append(mutation);
+  };
+  for (qsizetype index = 0; index < mutations.size(); ++index) {
+    append(index);
+  }
+  return ordered;
 }
 
 [[nodiscard]] std::optional<QString> requiredIdentifier(const QJsonObject& object,
@@ -150,22 +199,97 @@ resolveParentTaskReference(PendingMutation mutation, TaskMutationService* taskMu
   return mutation;
 }
 
-[[nodiscard]] GoogleTaskWriteResponseOrError
-decodeTaskWriteResponse(const GoogleHttpResponse& response) {
+using PreviousTaskReferenceResult =
+    std::variant<PendingMutation, PreviousTaskReferenceStatus, AppError>;
+
+[[nodiscard]] PreviousTaskReferenceResult
+resolvePreviousTaskReference(PendingMutation mutation, TaskMutationService* taskMutationService) {
+  const QJsonValue previousTaskLocalIdValue =
+      mutation.payload.value(QStringLiteral("previousTaskLocalId"));
+  if (previousTaskLocalIdValue.isUndefined() || previousTaskLocalIdValue.isNull()) {
+    return mutation;
+  }
+  const QJsonValue previousTaskIdValue = mutation.payload.value(QStringLiteral("previousTaskId"));
+  if (!previousTaskLocalIdValue.isString() ||
+      !isValidIdentifier(previousTaskLocalIdValue.toString(), kMaximumIdentifierLength) ||
+      !(previousTaskIdValue.isUndefined() || previousTaskIdValue.isNull()) ||
+      taskMutationService == nullptr) {
+    return PreviousTaskReferenceStatus::Invalid;
+  }
+  TaskRemoteIdResult remoteIdResult =
+      taskMutationService->remoteTaskId(previousTaskLocalIdValue.toString()).get();
+  if (std::holds_alternative<AppError>(remoteIdResult)) {
+    return std::get<AppError>(std::move(remoteIdResult));
+  }
+  const std::optional<QString>& remoteId = std::get<std::optional<QString>>(remoteIdResult);
+  if (!remoteId.has_value()) {
+    return PreviousTaskReferenceStatus::Unavailable;
+  }
+  if (isPendingRemoteId(*remoteId)) {
+    return PreviousTaskReferenceStatus::Pending;
+  }
+  mutation.payload.remove(QStringLiteral("previousTaskLocalId"));
+  mutation.payload.insert(QStringLiteral("previousTaskId"), *remoteId);
+  return mutation;
+}
+
+using TaskListReferenceResult =
+    std::variant<PendingMutation, TaskListReferenceStatus, AppError>;
+
+[[nodiscard]] TaskListReferenceResult
+resolveTaskListReference(PendingMutation mutation, TaskListMutationService* taskListMutationService) {
+  const QJsonValue localTaskListIdValue =
+      mutation.payload.value(QStringLiteral("localTaskListId"));
+  if (localTaskListIdValue.isUndefined() || localTaskListIdValue.isNull()) {
+    return mutation;
+  }
+  if (!localTaskListIdValue.isString() ||
+      !isValidIdentifier(localTaskListIdValue.toString(), kMaximumIdentifierLength)) {
+    return TaskListReferenceStatus::Invalid;
+  }
+  const std::optional<QString> currentRemoteId =
+      requiredIdentifier(mutation.payload, u"taskListId");
+  if (!currentRemoteId.has_value()) {
+    return TaskListReferenceStatus::Invalid;
+  }
+  if (taskListMutationService == nullptr) {
+    if (isPendingRemoteId(*currentRemoteId)) {
+      return TaskListReferenceStatus::Pending;
+    }
+    return mutation;
+  }
+  TaskListRemoteIdResult remoteIdResult =
+      taskListMutationService->remoteTaskListId(localTaskListIdValue.toString()).get();
+  if (std::holds_alternative<AppError>(remoteIdResult)) {
+    return std::get<AppError>(std::move(remoteIdResult));
+  }
+  const std::optional<QString>& remoteId = std::get<std::optional<QString>>(remoteIdResult);
+  if (!remoteId.has_value()) {
+    return TaskListReferenceStatus::Unavailable;
+  }
+  if (isPendingRemoteId(*remoteId)) {
+    return TaskListReferenceStatus::Pending;
+  }
+  mutation.payload.insert(QStringLiteral("taskListId"), *remoteId);
+  return mutation;
+}
+
+[[nodiscard]] GoogleMutationWriteResponseOrError
+decodeWriteResponse(const GoogleHttpResponse& response) {
   QJsonParseError parseError;
   const QJsonDocument document = QJsonDocument::fromJson(response.body, &parseError);
   if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-    return QStringLiteral("Google task write response is invalid");
+    return QStringLiteral("Google mutation write response is invalid");
   }
   const QJsonObject object = document.object();
-  const std::optional<QString> remoteTaskId = requiredIdentifier(object, u"id");
+  const std::optional<QString> remoteId = requiredIdentifier(object, u"id");
   const std::optional<QString> remoteEtag = optionalEtag(object);
   const QJsonValue etagValue = object.value(QStringLiteral("etag"));
-  if (!remoteTaskId.has_value() ||
+  if (!remoteId.has_value() ||
       (!remoteEtag.has_value() && !(etagValue.isUndefined() || etagValue.isNull()))) {
-    return QStringLiteral("Google task write response is invalid");
+    return QStringLiteral("Google mutation write response is invalid");
   }
-  return GoogleTaskWriteResponse{.remoteTaskId = *remoteTaskId, .remoteEtag = remoteEtag};
+  return GoogleMutationWriteResponse{.remoteId = *remoteId, .remoteEtag = remoteEtag};
 }
 
 [[nodiscard]] std::optional<QString> normalizedDue(const QJsonValue& value) {
@@ -238,7 +362,11 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
   return QStringLiteral("/tasks/v1/lists/") + taskListId + QStringLiteral("/tasks");
 }
 
-[[nodiscard]] TaskPushRequestOrError buildRequest(const PendingMutation& mutation) {
+[[nodiscard]] QString taskListCollectionPath() {
+  return QStringLiteral("/tasks/v1/users/@me/lists");
+}
+
+[[nodiscard]] MutationPushRequestOrError buildTaskRequest(const PendingMutation& mutation) {
   if (mutation.resource != PendingMutationResource::Task) {
     return QStringLiteral("Pending mutation resource is not a task");
   }
@@ -254,6 +382,8 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
         optionalIdentifier(mutation.payload, u"previousTaskId");
     const QJsonValue parentTaskLocalIdValue =
         mutation.payload.value(QStringLiteral("parentTaskLocalId"));
+    const QJsonValue previousTaskLocalIdValue =
+        mutation.payload.value(QStringLiteral("previousTaskLocalId"));
     if (!task.has_value() ||
         (!parentTaskId.has_value() &&
          !(mutation.payload.value(QStringLiteral("parentTaskId")).isUndefined() ||
@@ -261,7 +391,8 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
         (!previousTaskId.has_value() &&
          !(mutation.payload.value(QStringLiteral("previousTaskId")).isUndefined() ||
            mutation.payload.value(QStringLiteral("previousTaskId")).isNull())) ||
-        (!parentTaskLocalIdValue.isUndefined() && !parentTaskLocalIdValue.isNull())) {
+        (!parentTaskLocalIdValue.isUndefined() && !parentTaskLocalIdValue.isNull()) ||
+        (!previousTaskLocalIdValue.isUndefined() && !previousTaskLocalIdValue.isNull())) {
       return QStringLiteral("Pending task mutation payload is invalid");
     }
     GoogleHttpRequest request;
@@ -274,7 +405,7 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
     if (previousTaskId.has_value()) {
       request.query.append({.name = QStringLiteral("previous"), .value = *previousTaskId});
     }
-    return TaskPushRequest{.request = std::move(request)};
+    return MutationPushRequest{.request = std::move(request)};
   }
   const std::optional<QString> remoteTaskId = requiredIdentifier(mutation.payload, u"remoteTaskId");
   const std::optional<QString> etag =
@@ -294,17 +425,26 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
     }
     request.method = GoogleHttpMethod::Patch;
     request.body = QJsonDocument(*task).toJson(QJsonDocument::Compact);
-    return TaskPushRequest{.request = std::move(request)};
+    return MutationPushRequest{.request = std::move(request)};
   }
   if (mutation.operation == QStringLiteral("task.move")) {
     const std::optional<QString> parentTaskId =
         optionalIdentifier(mutation.payload, u"parentTaskId");
+    const std::optional<QString> previousTaskId =
+        optionalIdentifier(mutation.payload, u"previousTaskId");
     const QJsonValue parentTaskIdValue = mutation.payload.value(QStringLiteral("parentTaskId"));
     const QJsonValue parentTaskLocalIdValue =
         mutation.payload.value(QStringLiteral("parentTaskLocalId"));
+    const QJsonValue previousTaskIdValue =
+        mutation.payload.value(QStringLiteral("previousTaskId"));
+    const QJsonValue previousTaskLocalIdValue =
+        mutation.payload.value(QStringLiteral("previousTaskLocalId"));
     if ((!parentTaskId.has_value() &&
          !(parentTaskIdValue.isUndefined() || parentTaskIdValue.isNull())) ||
-        (!parentTaskLocalIdValue.isUndefined() && !parentTaskLocalIdValue.isNull())) {
+        (!previousTaskId.has_value() &&
+         !(previousTaskIdValue.isUndefined() || previousTaskIdValue.isNull())) ||
+        (!parentTaskLocalIdValue.isUndefined() && !parentTaskLocalIdValue.isNull()) ||
+        (!previousTaskLocalIdValue.isUndefined() && !previousTaskLocalIdValue.isNull())) {
       return QStringLiteral("Pending task mutation payload is invalid");
     }
     request.method = GoogleHttpMethod::Post;
@@ -312,13 +452,77 @@ decodeTaskWriteResponse(const GoogleHttpResponse& response) {
     if (parentTaskId.has_value()) {
       request.query.append({.name = QStringLiteral("parent"), .value = *parentTaskId});
     }
-    return TaskPushRequest{.request = std::move(request)};
+    if (previousTaskId.has_value()) {
+      request.query.append({.name = QStringLiteral("previous"), .value = *previousTaskId});
+    }
+    return MutationPushRequest{.request = std::move(request)};
   }
   if (mutation.operation == QStringLiteral("task.delete")) {
     request.method = GoogleHttpMethod::Delete;
-    return TaskPushRequest{.request = std::move(request)};
+    return MutationPushRequest{.request = std::move(request)};
   }
   return QStringLiteral("Pending task mutation operation is invalid");
+}
+
+[[nodiscard]] std::optional<QJsonObject> canonicalTaskList(const QJsonObject& payload) {
+  const QJsonValue taskListValue = payload.value(QStringLiteral("taskList"));
+  if (!taskListValue.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonValue titleValue = taskListValue.toObject().value(QStringLiteral("title"));
+  if (!titleValue.isString()) {
+    return std::nullopt;
+  }
+  const QString title = titleValue.toString().trimmed();
+  if (!isValidRequiredText(title, kMaximumTitleLength)) {
+    return std::nullopt;
+  }
+  return QJsonObject{{QStringLiteral("title"), title}};
+}
+
+[[nodiscard]] MutationPushRequestOrError
+buildTaskListRequest(const PendingMutation& mutation) {
+  if (mutation.resource != PendingMutationResource::TaskList) {
+    return QStringLiteral("Pending mutation resource is not a task list");
+  }
+  if (mutation.operation == QStringLiteral("task_list.create")) {
+    const std::optional<QJsonObject> taskList = canonicalTaskList(mutation.payload);
+    if (!taskList.has_value()) {
+      return QStringLiteral("Pending task-list mutation payload is invalid");
+    }
+    GoogleHttpRequest request;
+    request.method = GoogleHttpMethod::Post;
+    request.path = taskListCollectionPath();
+    request.body = QJsonDocument(*taskList).toJson(QJsonDocument::Compact);
+    return MutationPushRequest{.request = std::move(request)};
+  }
+  const std::optional<QString> remoteTaskListId =
+      requiredIdentifier(mutation.payload, u"remoteTaskListId");
+  const std::optional<QString> etag =
+      mutation.remoteEtag.has_value() ? mutation.remoteEtag : optionalEtag(mutation.payload);
+  const QJsonValue etagValue = mutation.payload.value(QStringLiteral("etag"));
+  if (!remoteTaskListId.has_value() ||
+      (!mutation.remoteEtag.has_value() && !etag.has_value() &&
+       !(etagValue.isUndefined() || etagValue.isNull()))) {
+    return QStringLiteral("Pending task-list mutation payload is invalid");
+  }
+  GoogleHttpRequest request;
+  request.path = taskListCollectionPath() + QStringLiteral("/") + *remoteTaskListId;
+  request.ifMatch = etag;
+  if (mutation.operation == QStringLiteral("task_list.update")) {
+    const std::optional<QJsonObject> taskList = canonicalTaskList(mutation.payload);
+    if (!taskList.has_value()) {
+      return QStringLiteral("Pending task-list mutation payload is invalid");
+    }
+    request.method = GoogleHttpMethod::Patch;
+    request.body = QJsonDocument(*taskList).toJson(QJsonDocument::Compact);
+    return MutationPushRequest{.request = std::move(request)};
+  }
+  if (mutation.operation == QStringLiteral("task_list.delete")) {
+    request.method = GoogleHttpMethod::Delete;
+    return MutationPushRequest{.request = std::move(request)};
+  }
+  return QStringLiteral("Pending task-list mutation operation is invalid");
 }
 
 [[nodiscard]] QString errorCode(const GoogleApiError& error) {
@@ -394,9 +598,12 @@ GoogleTaskMutationPushService::GoogleTaskMutationPushService(
     GoogleHttpClient& httpClient,
     const Clock& clock,
     SyncBackoffPolicy backoffPolicy,
-    TaskMutationService* taskMutationService)
+    TaskMutationService* taskMutationService,
+    TaskListMutationService* taskListMutationService,
+    GoogleSyncConflictResolver* conflictResolver)
     : mutations_(mutations), httpClient_(httpClient), clock_(clock),
-      backoffPolicy_(std::move(backoffPolicy)), taskMutationService_(taskMutationService) {}
+      backoffPolicy_(std::move(backoffPolicy)), taskMutationService_(taskMutationService),
+      taskListMutationService_(taskListMutationService), conflictResolver_(conflictResolver) {}
 
 std::future<GoogleTaskMutationPushResultOrError>
 GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
@@ -411,10 +618,21 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
           completion->set_value(std::get<AppError>(std::move(dueResult)));
           return;
         }
+        QList<PendingMutation> due = std::get<QList<PendingMutation>>(std::move(dueResult));
+        const auto priority = [](PendingMutationResource resource) {
+          return resource == PendingMutationResource::TaskList ? 0
+                 : resource == PendingMutationResource::Task ? 1
+                                                          : 2;
+        };
+        std::stable_sort(due.begin(), due.end(), [&priority](const auto& left, const auto& right) {
+          return priority(left.resource) < priority(right.resource);
+        });
+        due = orderByDependencies(std::move(due));
         GoogleTaskMutationPushResult summary;
         int processed = 0;
-        for (const PendingMutation& pending : std::get<QList<PendingMutation>>(dueResult)) {
-          if (pending.resource != PendingMutationResource::Task) {
+        for (const PendingMutation& pending : due) {
+          if (pending.resource != PendingMutationResource::Task &&
+              pending.resource != PendingMutationResource::TaskList) {
             ++summary.skipped;
             continue;
           }
@@ -439,7 +657,7 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                 markFailure(mutations_,
                             claimed,
                             QStringLiteral("invalid_payload"),
-                            QStringLiteral("Task mutation dependency is invalid"),
+                            QStringLiteral("Pending mutation dependency is invalid"),
                             std::nullopt);
             if (failure.has_value()) {
               completion->set_value(*failure);
@@ -462,7 +680,7 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                   markFailure(mutations_,
                               claimed,
                               QStringLiteral("dependency_failed"),
-                              QStringLiteral("Task mutation prerequisite is unavailable"),
+                              QStringLiteral("Pending mutation prerequisite is unavailable"),
                               std::nullopt);
               if (failure.has_value()) {
                 completion->set_value(*failure);
@@ -483,8 +701,8 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                                      ? QStringLiteral("dependency_failed")
                                      : QStringLiteral("dependency_pending"),
                     .errorMessage = dependencyIsPermanentFailure
-                                        ? QStringLiteral("Task mutation prerequisite failed")
-                                        : QStringLiteral("Task mutation prerequisite is pending"),
+                                        ? QStringLiteral("Pending mutation prerequisite failed")
+                                        : QStringLiteral("Pending mutation prerequisite is pending"),
                     .nextRetryAt = dependencyIsPermanentFailure ? std::nullopt
                                    : prerequisite->nextRetryAt.has_value()
                                        ? prerequisite->nextRetryAt
@@ -504,42 +722,117 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
               continue;
             }
           }
-          ParentTaskReferenceResult resolvedParent =
-              resolveParentTaskReference(claimed, taskMutationService_);
-          if (std::holds_alternative<AppError>(resolvedParent)) {
-            completion->set_value(std::get<AppError>(std::move(resolvedParent)));
-            return;
-          }
-          if (std::holds_alternative<ParentTaskReferenceStatus>(resolvedParent)) {
-            const ParentTaskReferenceStatus status =
-                std::get<ParentTaskReferenceStatus>(resolvedParent);
-            const bool parentPending = status == ParentTaskReferenceStatus::Pending;
-            const std::optional<AppError> failure = markFailure(
-                mutations_,
-                claimed,
-                parentPending ? QStringLiteral("parent_pending")
-                : status == ParentTaskReferenceStatus::Unavailable
-                    ? QStringLiteral("parent_unavailable")
-                    : QStringLiteral("invalid_payload"),
-                parentPending ? QStringLiteral("Parent task is awaiting Google creation")
-                : status == ParentTaskReferenceStatus::Unavailable
-                    ? QStringLiteral("Parent task is unavailable")
-                    : QStringLiteral("Pending parent task reference is invalid"),
-                parentPending ? std::optional<QString>(timestampAfter(clock_, 1'000))
-                              : std::nullopt);
-            if (failure.has_value()) {
-              completion->set_value(*failure);
+          PendingMutation prepared = claimed;
+          if (claimed.resource == PendingMutationResource::Task) {
+            ParentTaskReferenceResult resolvedParent =
+                resolveParentTaskReference(std::move(prepared), taskMutationService_);
+            if (std::holds_alternative<AppError>(resolvedParent)) {
+              completion->set_value(std::get<AppError>(std::move(resolvedParent)));
               return;
             }
-            if (parentPending) {
-              ++summary.skipped;
-            } else {
-              ++summary.failed;
+            if (std::holds_alternative<ParentTaskReferenceStatus>(resolvedParent)) {
+              const ParentTaskReferenceStatus status =
+                  std::get<ParentTaskReferenceStatus>(resolvedParent);
+              const bool parentPending = status == ParentTaskReferenceStatus::Pending;
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  parentPending ? QStringLiteral("parent_pending")
+                  : status == ParentTaskReferenceStatus::Unavailable
+                      ? QStringLiteral("parent_unavailable")
+                      : QStringLiteral("invalid_payload"),
+                  parentPending ? QStringLiteral("Parent task is awaiting Google creation")
+                  : status == ParentTaskReferenceStatus::Unavailable
+                      ? QStringLiteral("Parent task is unavailable")
+                      : QStringLiteral("Pending parent task reference is invalid"),
+                  parentPending ? std::optional<QString>(timestampAfter(clock_, 1'000))
+                                : std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              if (parentPending) {
+                ++summary.skipped;
+              } else {
+                ++summary.failed;
+              }
+              continue;
             }
-            continue;
+            prepared = std::get<PendingMutation>(std::move(resolvedParent));
+            PreviousTaskReferenceResult resolvedPrevious =
+                resolvePreviousTaskReference(std::move(prepared), taskMutationService_);
+            if (std::holds_alternative<AppError>(resolvedPrevious)) {
+              completion->set_value(std::get<AppError>(std::move(resolvedPrevious)));
+              return;
+            }
+            if (std::holds_alternative<PreviousTaskReferenceStatus>(resolvedPrevious)) {
+              const PreviousTaskReferenceStatus status =
+                  std::get<PreviousTaskReferenceStatus>(resolvedPrevious);
+              const bool previousPending = status == PreviousTaskReferenceStatus::Pending;
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  previousPending ? QStringLiteral("previous_pending")
+                  : status == PreviousTaskReferenceStatus::Unavailable
+                      ? QStringLiteral("previous_unavailable")
+                      : QStringLiteral("invalid_payload"),
+                  previousPending ? QStringLiteral("Previous task is awaiting Google creation")
+                  : status == PreviousTaskReferenceStatus::Unavailable
+                      ? QStringLiteral("Previous task is unavailable")
+                      : QStringLiteral("Pending previous-task reference is invalid"),
+                  previousPending ? std::optional<QString>(timestampAfter(clock_, 1'000))
+                                  : std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              if (previousPending) {
+                ++summary.skipped;
+              } else {
+                ++summary.failed;
+              }
+              continue;
+            }
+            prepared = std::get<PendingMutation>(std::move(resolvedPrevious));
+            TaskListReferenceResult resolvedTaskList =
+                resolveTaskListReference(std::move(prepared), taskListMutationService_);
+            if (std::holds_alternative<AppError>(resolvedTaskList)) {
+              completion->set_value(std::get<AppError>(std::move(resolvedTaskList)));
+              return;
+            }
+            if (std::holds_alternative<TaskListReferenceStatus>(resolvedTaskList)) {
+              const TaskListReferenceStatus status =
+                  std::get<TaskListReferenceStatus>(resolvedTaskList);
+              const bool taskListPending = status == TaskListReferenceStatus::Pending;
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  taskListPending ? QStringLiteral("task_list_pending")
+                  : status == TaskListReferenceStatus::Unavailable
+                      ? QStringLiteral("task_list_unavailable")
+                      : QStringLiteral("invalid_payload"),
+                  taskListPending ? QStringLiteral("Task list is awaiting Google creation")
+                  : status == TaskListReferenceStatus::Unavailable
+                      ? QStringLiteral("Task list is unavailable")
+                      : QStringLiteral("Pending task-list reference is invalid"),
+                  taskListPending ? std::optional<QString>(timestampAfter(clock_, 1'000))
+                                  : std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              if (taskListPending) {
+                ++summary.skipped;
+              } else {
+                ++summary.failed;
+              }
+              continue;
+            }
+            prepared = std::get<PendingMutation>(std::move(resolvedTaskList));
           }
-          const TaskPushRequestOrError request =
-              buildRequest(std::get<PendingMutation>(std::move(resolvedParent)));
+          const MutationPushRequestOrError request =
+              prepared.resource == PendingMutationResource::Task ? buildTaskRequest(prepared)
+                                                                 : buildTaskListRequest(prepared);
           if (std::holds_alternative<QString>(request)) {
             const std::optional<AppError> failure = markFailure(mutations_,
                                                                 claimed,
@@ -554,17 +847,40 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
             continue;
           }
           GoogleHttpResult response =
-              httpClient_.send(std::get<TaskPushRequest>(request).request, accessToken).get();
+              httpClient_.send(std::get<MutationPushRequest>(request).request, accessToken).get();
           if (std::holds_alternative<GoogleApiError>(response)) {
-            const GoogleApiError& error = std::get<GoogleApiError>(response);
-            const bool createOutcomeUnknown = claimed.operation == QStringLiteral("task.create") &&
+            GoogleApiError error = std::get<GoogleApiError>(response);
+            if ((error.kind() == GoogleApiErrorKind::Conflict ||
+                 error.kind() == GoogleApiErrorKind::PreconditionFailed) &&
+                conflictResolver_ != nullptr) {
+              GoogleSyncConflictResult handled = conflictResolver_->handle(
+                  prepared, errorCode(error), error.message(), accessToken);
+              if (std::holds_alternative<GoogleSyncConflictOutcome>(handled)) {
+                const GoogleSyncConflictOutcome outcome =
+                    std::get<GoogleSyncConflictOutcome>(handled);
+                if (outcome == GoogleSyncConflictOutcome::AwaitingUser) {
+                  ++summary.failed;
+                } else {
+                  ++summary.skipped;
+                }
+                continue;
+              }
+              if (std::holds_alternative<AppError>(handled)) {
+                completion->set_value(std::get<AppError>(std::move(handled)));
+                return;
+              }
+              error = std::get<GoogleApiError>(std::move(handled));
+            }
+            const bool createOutcomeUnknown =
+                (claimed.operation == QStringLiteral("task.create") ||
+                 claimed.operation == QStringLiteral("task_list.create")) &&
                                               (error.kind() == GoogleApiErrorKind::Transport ||
                                                error.kind() == GoogleApiErrorKind::Server);
             const std::optional<AppError> failure = markFailure(
                 mutations_,
                 claimed,
                 createOutcomeUnknown ? QStringLiteral("create_outcome_unknown") : errorCode(error),
-                createOutcomeUnknown ? QStringLiteral("Google task creation outcome is unknown")
+                createOutcomeUnknown ? QStringLiteral("Google resource creation outcome is unknown")
                                      : error.message(),
                 createOutcomeUnknown
                     ? std::nullopt
@@ -576,12 +892,12 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
             ++summary.failed;
             continue;
           }
-          if (taskMutationService_ != nullptr &&
-              claimed.operation != QStringLiteral("task.delete")) {
+          if (claimed.resource == PendingMutationResource::Task &&
+              taskMutationService_ != nullptr && claimed.operation != QStringLiteral("task.delete")) {
             const std::optional<QString> localTaskId =
-                optionalIdentifier(claimed.payload, u"localTaskId");
-            const GoogleTaskWriteResponseOrError written =
-                decodeTaskWriteResponse(std::get<GoogleHttpResponse>(response));
+                optionalIdentifier(prepared.payload, u"localTaskId");
+            const GoogleMutationWriteResponseOrError written =
+                decodeWriteResponse(std::get<GoogleHttpResponse>(response));
             if (!localTaskId.has_value() || std::holds_alternative<QString>(written)) {
               const std::optional<AppError> failure =
                   markFailure(mutations_,
@@ -598,12 +914,12 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
               ++summary.failed;
               continue;
             }
-            const GoogleTaskWriteResponse remote =
-                std::get<GoogleTaskWriteResponse>(std::move(written));
+            const GoogleMutationWriteResponse remote =
+                std::get<GoogleMutationWriteResponse>(std::move(written));
             TaskMutationResult reconciled =
                 taskMutationService_
                     ->reconcileGoogleTask({.localTaskId = *localTaskId,
-                                           .remoteTaskId = remote.remoteTaskId,
+                                           .remoteTaskId = remote.remoteId,
                                            .remoteEtag = remote.remoteEtag})
                     .get();
             if (std::holds_alternative<AppError>(reconciled)) {
@@ -613,6 +929,52 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                               QStringLiteral("reconciliation_failed"),
                               std::get<AppError>(std::move(reconciled)).message(),
                               std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              continue;
+            }
+          }
+          if (claimed.resource == PendingMutationResource::TaskList &&
+              taskListMutationService_ != nullptr &&
+              claimed.operation != QStringLiteral("task_list.delete")) {
+            const std::optional<QString> localTaskListId =
+                optionalIdentifier(prepared.payload, u"localTaskListId");
+            const GoogleMutationWriteResponseOrError written =
+                decodeWriteResponse(std::get<GoogleHttpResponse>(response));
+            if (!localTaskListId.has_value() || std::holds_alternative<QString>(written)) {
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  QStringLiteral("invalid_response"),
+                  localTaskListId.has_value()
+                      ? std::get<QString>(written)
+                      : QStringLiteral("Pending task-list mutation local ID is invalid"),
+                  std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              continue;
+            }
+            const GoogleMutationWriteResponse remote =
+                std::get<GoogleMutationWriteResponse>(std::move(written));
+            TaskListMutationResult reconciled =
+                taskListMutationService_
+                    ->reconcileGoogleTaskList({.localTaskListId = *localTaskListId,
+                                                .remoteTaskListId = remote.remoteId,
+                                                .remoteEtag = remote.remoteEtag})
+                    .get();
+            if (std::holds_alternative<AppError>(reconciled)) {
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  QStringLiteral("reconciliation_failed"),
+                  std::get<AppError>(std::move(reconciled)).message(),
+                  std::nullopt);
               if (failure.has_value()) {
                 completion->set_value(*failure);
                 return;
@@ -636,11 +998,11 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
         }
         completion->set_value(summary);
       } catch (...) {
-        completion->set_value(networkError(QStringLiteral("Google task mutation push failed")));
+        completion->set_value(networkError(QStringLiteral("Google mutation push failed")));
       }
     }).detach();
   } catch (...) {
-    completion->set_value(networkError(QStringLiteral("Google task mutation push failed")));
+    completion->set_value(networkError(QStringLiteral("Google mutation push failed")));
   }
   return future;
 }

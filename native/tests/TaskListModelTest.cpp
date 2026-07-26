@@ -7,6 +7,7 @@ class TaskListModelTest final : public QObject {
 
 private slots:
   void exposesTaskListRolesAndResets();
+  void returnsSelectedTaskLists();
   void rejectsInvalidIndexes();
 };
 
@@ -36,6 +37,28 @@ void TaskListModelTest::exposesTaskListRolesAndResets() {
 
   model.setTaskLists({});
   QCOMPARE(model.rowCount(), 0);
+}
+
+void TaskListModelTest::returnsSelectedTaskLists() {
+  hcb::TaskListModel model;
+  model.setTaskLists({{.id = QStringLiteral("list-a"),
+                       .accountId = QStringLiteral("account-a"),
+                       .remoteId = QStringLiteral("remote-a"),
+                       .title = QStringLiteral("Inbox"),
+                       .selected = true,
+                       .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")},
+                      {.id = QStringLiteral("list-b"),
+                       .accountId = QStringLiteral("account-a"),
+                       .remoteId = QStringLiteral("remote-b"),
+                       .title = QStringLiteral("Hidden"),
+                       .selected = false,
+                       .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")}});
+  const QVariantList selected = model.selectedTaskLists();
+  QCOMPARE(selected.size(), 1);
+  const QVariantMap row = selected.constFirst().toMap();
+  QCOMPARE(row.value(QStringLiteral("id")).toString(), QStringLiteral("list-a"));
+  QCOMPARE(row.value(QStringLiteral("title")).toString(), QStringLiteral("Inbox"));
+  QCOMPARE(model.revision(), 1);
 }
 
 void TaskListModelTest::rejectsInvalidIndexes() {

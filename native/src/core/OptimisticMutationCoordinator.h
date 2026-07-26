@@ -70,6 +70,14 @@ struct MutationFailureInput final {
   std::optional<QString> nextRetryAt;
 };
 
+struct MutationRebaseInput final {
+  QString mutationId;
+  std::optional<QString> leaseId;
+  QJsonObject payload;
+  QJsonObject baseSnapshot;
+  std::optional<QString> remoteEtag;
+};
+
 using PendingMutationLookupResult = std::variant<std::optional<PendingMutation>, AppError>;
 using PendingMutationListResult = std::variant<QList<PendingMutation>, AppError>;
 using PendingMutationResult = std::variant<PendingMutation, AppError>;
@@ -88,6 +96,7 @@ public:
                                                          std::chrono::seconds leaseDuration);
   [[nodiscard]] std::future<PendingMutationResult> markApplied(QString mutationId, QString leaseId);
   [[nodiscard]] std::future<PendingMutationResult> markFailed(MutationFailureInput input);
+  [[nodiscard]] std::future<PendingMutationResult> rebase(MutationRebaseInput input);
   [[nodiscard]] std::future<PendingMutationResult> retry(QString mutationId);
   [[nodiscard]] std::future<PendingMutationResult> cancel(QString mutationId);
 

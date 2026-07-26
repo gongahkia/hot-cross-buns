@@ -92,6 +92,13 @@ void SyncThreeWayMergeTest::classifiesDeleteMoveAndRecurrenceAsStructural() {
             .remoteSnapshot = remote,
             .policy = hcb::SyncConflictPolicy::PreferGoogle},
         hcb::SyncThreeWayMergeInput{
+            .resource = hcb::SyncConflictResource::Task,
+            .operation = QStringLiteral("task.update"),
+            .localIntent = {{QStringLiteral("task"),
+                             QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}},
+            .remoteSnapshot = {{QStringLiteral("_deleted"), true}},
+            .policy = hcb::SyncConflictPolicy::AskEachTime},
+        hcb::SyncThreeWayMergeInput{
             .resource = hcb::SyncConflictResource::Event,
             .operation = QStringLiteral("event.update"),
             .localIntent = {{QStringLiteral("event"),

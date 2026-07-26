@@ -93,6 +93,7 @@ class OptimisticMutationCoordinatorTest final : public QObject {
 private slots:
   void enqueuesClaimsRetriesAndAppliesMutations();
   void persistsBaseSnapshotAndRemoteEtag();
+  void rebasesClaimedAndFailedMutations();
   void recoversExpiredLeasesAtStartup();
   void rejectsInvalidAndUnavailableTransitions();
 };
@@ -232,8 +233,8 @@ void OptimisticMutationCoordinatorTest::persistsBaseSnapshotAndRemoteEtag() {
        .remoteEtag = QStringLiteral("etag-base")});
   const hcb::PendingMutation mutation = awaitMutation(enqueue);
   QCOMPARE(mutation.payload,
-           QJsonObject{{QStringLiteral("task"),
-                        QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}});
+           (QJsonObject{{QStringLiteral("task"),
+                         QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}}));
   QCOMPARE(mutation.baseSnapshot,
            QJsonObject({{QStringLiteral("title"), QStringLiteral("Base")},
                         {QStringLiteral("notes"), QStringLiteral("Base notes")}}));
@@ -249,6 +250,65 @@ void OptimisticMutationCoordinatorTest::persistsBaseSnapshotAndRemoteEtag() {
   }
   QCOMPARE(restored->baseSnapshot, mutation.baseSnapshot);
   QCOMPARE(restored->remoteEtag, mutation.remoteEtag);
+}
+
+void OptimisticMutationCoordinatorTest::rebasesClaimedAndFailedMutations() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::OptimisticMutationCoordinator coordinator(*databasePath, clock);
+  verifyReady(coordinator);
+  std::future<hcb::PendingMutationResult> enqueued = coordinator.enqueue(
+      {.resource = hcb::PendingMutationResource::Task,
+       .resourceId = QStringLiteral("task-1"),
+       .operation = QStringLiteral("task.update"),
+       .payload = {{QStringLiteral("task"),
+                    QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}},
+       .baseSnapshot = {{QStringLiteral("title"), QStringLiteral("Base")}},
+       .remoteEtag = QStringLiteral("etag-base")});
+  const hcb::PendingMutation pending = awaitMutation(enqueued);
+  std::future<hcb::PendingMutationResult> claimed = coordinator.claim(pending.id, 30s);
+  const hcb::PendingMutation lease = awaitMutation(claimed);
+  QVERIFY(lease.leaseId.has_value());
+  std::future<hcb::PendingMutationResult> rebased = coordinator.rebase(
+      {.mutationId = lease.id,
+       .leaseId = lease.leaseId,
+       .payload = {{QStringLiteral("task"),
+                    QJsonObject{{QStringLiteral("title"), QStringLiteral("Local")}}}},
+       .baseSnapshot = {{QStringLiteral("title"), QStringLiteral("Remote")}},
+       .remoteEtag = QStringLiteral("etag-remote")});
+  const hcb::PendingMutation rebasedMutation = awaitMutation(rebased);
+  QCOMPARE(rebasedMutation.status, hcb::PendingMutationStatus::Pending);
+  QVERIFY(!rebasedMutation.leaseId.has_value());
+  QCOMPARE(rebasedMutation.baseSnapshot,
+           QJsonObject({{QStringLiteral("title"), QStringLiteral("Remote")}}));
+  QCOMPARE(rebasedMutation.remoteEtag, std::optional<QString>(QStringLiteral("etag-remote")));
+
+  std::future<hcb::PendingMutationResult> retryLease = coordinator.claim(pending.id, 30s);
+  const hcb::PendingMutation secondLease = awaitMutation(retryLease);
+  QVERIFY(secondLease.leaseId.has_value());
+  std::future<hcb::PendingMutationResult> failed = coordinator.markFailed(
+      {.mutationId = secondLease.id,
+       .leaseId = *secondLease.leaseId,
+       .errorCode = QStringLiteral("conflict"),
+       .errorMessage = QStringLiteral("changed"),
+       .nextRetryAt = std::nullopt});
+  QVERIFY(awaitMutation(failed).status == hcb::PendingMutationStatus::Failed);
+  std::future<hcb::PendingMutationResult> rebaseFailed = coordinator.rebase(
+      {.mutationId = pending.id,
+       .payload = {{QStringLiteral("task"),
+                    QJsonObject{{QStringLiteral("title"), QStringLiteral("Reapplied")}}}},
+       .baseSnapshot = {{QStringLiteral("title"), QStringLiteral("Remote again")}},
+       .remoteEtag = QStringLiteral("etag-remote-2")});
+  const hcb::PendingMutation reapplied = awaitMutation(rebaseFailed);
+  QCOMPARE(reapplied.status, hcb::PendingMutationStatus::Pending);
+  QCOMPARE(reapplied.payload.value(QStringLiteral("task")).toObject().value(QStringLiteral("title")),
+           QJsonValue(QStringLiteral("Reapplied")));
 }
 
 void OptimisticMutationCoordinatorTest::recoversExpiredLeasesAtStartup() {

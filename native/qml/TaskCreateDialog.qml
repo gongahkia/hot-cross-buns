@@ -8,6 +8,15 @@ HcbDialog {
     primaryText: "Create task"
     primaryEnabled: taskListId.length > 0 && titleField.text.trim().length > 0
     property var taskListModel: null
+    property int taskListRevision: taskListModel !== null && taskListModel.revision !== undefined
+                                   ? taskListModel.revision : 0
+    property var activeTaskLists: {
+        const revision = taskListRevision
+        if (taskListModel !== null && typeof taskListModel.selectedTaskLists === "function") {
+            return taskListModel.selectedTaskLists()
+        }
+        return taskListModel
+    }
     property string taskListId: ""
     property string parentTaskId: ""
     property alias taskTitle: titleField.text
@@ -18,6 +27,9 @@ HcbDialog {
     function openForCreate(initialTaskListId, initialParentTaskId) {
         titleField.clear()
         taskListPicker.currentIndex = taskListPicker.indexOfValue(initialTaskListId || "")
+        if (taskListPicker.currentIndex < 0 && taskListPicker.count > 0) {
+            taskListPicker.currentIndex = 0
+        }
         taskListId = taskListPicker.currentValue || ""
         parentTaskId = initialParentTaskId || ""
         open()
@@ -42,7 +54,7 @@ HcbDialog {
     ComboBox {
         id: taskListPicker
         Layout.fillWidth: true
-        model: root.taskListModel
+        model: root.activeTaskLists
         textRole: "title"
         valueRole: "id"
         Accessible.name: "Task list"

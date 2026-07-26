@@ -234,6 +234,7 @@ private slots:
   void createsUpdatesCompletesAndDeletesTask();
   void queuesRemoteTaskChangesWithBaseEtag();
   void movesTaskToAnotherActiveList();
+  void reordersTaskAmongSiblings();
   void createsAndReparentsOneLevelSubtasks();
   void rejectsInvalidAndUnavailableMutations();
 };
@@ -612,6 +613,81 @@ void TaskMutationServiceTest::movesTaskToAnotherActiveList() {
            QStringLiteral("remote-original"));
   QCOMPARE(originalDelete->payload.value(QStringLiteral("dependsOnMutationId")).toString(),
            replacementCreate->id);
+}
+
+void TaskMutationServiceTest::reordersTaskAmongSiblings() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::TaskMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_tasks (id, task_list_id, remote_id, title, state, sort_order, "
+          "updated_at) VALUES "
+          "('task-a', 'list-active', 'remote-a', 'A', 'active', 0, '2026-07-25T00:00:00Z'), "
+          "('task-b', 'list-active', 'remote-b', 'B', 'active', 1, '2026-07-25T00:00:00Z'), "
+          "('task-c', 'list-active', 'remote-c', 'C', 'active', 2, '2026-07-25T00:00:00Z')");
+
+  std::future<hcb::TaskMutationResult> reordered =
+      service.reorder(QStringLiteral("task-b"), hcb::TaskReorderDirection::Earlier);
+  const hcb::TaskMutationResult reorderedResult = awaitResult(reordered);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(reorderedResult));
+  const std::optional<TaskSnapshot> taskA = readTask(handle, QStringLiteral("task-a"));
+  const std::optional<TaskSnapshot> taskB = readTask(handle, QStringLiteral("task-b"));
+  const std::optional<TaskSnapshot> taskC = readTask(handle, QStringLiteral("task-c"));
+  QVERIFY(taskA.has_value());
+  QVERIFY(taskB.has_value());
+  QVERIFY(taskC.has_value());
+  if (!taskA.has_value() || !taskB.has_value() || !taskC.has_value()) {
+    return;
+  }
+  QCOMPARE(taskB->sortOrder, 0);
+  QCOMPARE(taskA->sortOrder, 1);
+  QCOMPARE(taskC->sortOrder, 2);
+  const std::optional<PendingMutationSnapshot> moveMutation =
+      readPendingTaskMutation(handle, QStringLiteral("task-b"));
+  QVERIFY(moveMutation.has_value());
+  if (!moveMutation.has_value()) {
+    return;
+  }
+  QCOMPARE(moveMutation->operation, QStringLiteral("task.move"));
+  QCOMPARE(moveMutation->payload.value(QStringLiteral("remoteTaskId")).toString(),
+           QStringLiteral("remote-b"));
+  QVERIFY(!moveMutation->payload.contains(QStringLiteral("previousTaskId")));
+
+  std::future<hcb::TaskMutationResult> noFurtherMove =
+      service.reorder(QStringLiteral("task-c"), hcb::TaskReorderDirection::Later);
+  const hcb::TaskMutationResult noFurtherMoveResult = awaitResult(noFurtherMove);
+  QVERIFY(std::holds_alternative<hcb::AppError>(noFurtherMoveResult));
+  QCOMPARE(std::get<hcb::AppError>(noFurtherMoveResult).code(), hcb::AppErrorCode::Validation);
+
+  std::future<hcb::TaskMutationResult> movedLater =
+      service.reorder(QStringLiteral("task-a"), hcb::TaskReorderDirection::Later);
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(movedLater)));
+  const std::optional<PendingMutationSnapshot> moveLaterMutation =
+      readPendingTaskMutation(handle, QStringLiteral("task-a"));
+  QVERIFY(moveLaterMutation.has_value());
+  if (!moveLaterMutation.has_value()) {
+    return;
+  }
+  QCOMPARE(moveLaterMutation->operation, QStringLiteral("task.move"));
+  QCOMPARE(moveLaterMutation->payload.value(QStringLiteral("previousTaskId")).toString(),
+           QStringLiteral("remote-c"));
 }
 
 void TaskMutationServiceTest::createsAndReparentsOneLevelSubtasks() {

@@ -405,6 +405,27 @@ canonicalize(MutationFailureInput input) {
   return input;
 }
 
+[[nodiscard]] std::variant<MutationRebaseInput, AppError>
+canonicalize(MutationRebaseInput input) {
+  if (input.payload.contains(QString::fromLatin1(conflictMetadataKey)) ||
+      !isValidRequiredText(input.mutationId, kMaximumIdentifierLength) ||
+      (input.leaseId.has_value() &&
+       !isValidRequiredText(*input.leaseId, kMaximumIdentifierLength)) ||
+      (input.remoteEtag.has_value() &&
+       !isValidOptionalText(input.remoteEtag, kMaximumEtagLength))) {
+    return validationError(QStringLiteral("Pending mutation rebase input is invalid"));
+  }
+  QJsonObject metadata{{QStringLiteral("base"), input.baseSnapshot}};
+  if (input.remoteEtag.has_value()) {
+    metadata.insert(QStringLiteral("etag"), *input.remoteEtag);
+  }
+  input.payload.insert(QString::fromLatin1(conflictMetadataKey), std::move(metadata));
+  if (QJsonDocument(input.payload).toJson(QJsonDocument::Compact).size() > kMaximumPayloadBytes) {
+    return validationError(QStringLiteral("Pending mutation rebase input is invalid"));
+  }
+  return input;
+}
+
 [[nodiscard]] bool isValidMutationId(const QString& value) {
   return isValidRequiredText(value, kMaximumIdentifierLength);
 }
@@ -669,6 +690,63 @@ WHERE id = ?1 AND status = 'failed'
   return requireStoredMutation(connection, mutationId);
 }
 
+[[nodiscard]] PendingMutationResult rebaseStoredMutation(SqliteConnection& connection,
+                                                          const MutationRebaseInput& input,
+                                                          const QString& now) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite mutation connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_pending_mutations
+SET payload_json = ?3,
+    status = 'pending',
+    next_retry_at = NULL,
+    lease_id = NULL,
+    lease_expires_at = NULL,
+    last_error_code = NULL,
+    last_error_message = NULL,
+    updated_at = ?4
+WHERE id = ?1 AND (
+  status = 'failed' OR (status = 'applying' AND lease_id = ?2)
+)
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite mutation rebase preparation failed (%1)"),
+                         prepareResult);
+  }
+  const QString payloadJson =
+      QString::fromUtf8(QJsonDocument(input.payload).toJson(QJsonDocument::Compact));
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, input.mutationId),
+                   bindOptionalText(statement, 2, input.leaseId),
+                   bindText(statement, 3, payloadJson),
+                   bindText(statement, 4, now)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite mutation rebase failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite mutation rebase finalization failed (%1)"),
+                         finalizeResult);
+  }
+  if (changedRows != 1) {
+    return validationError(QStringLiteral("Pending mutation cannot be rebased"));
+  }
+  return requireStoredMutation(connection, input.mutationId);
+}
+
 [[nodiscard]] std::optional<AppError> recoverExpiredStoredMutations(SqliteConnection& connection,
                                                                     const QString& now) {
   sqlite3* const handle = connection.nativeHandle();
@@ -806,6 +884,20 @@ OptimisticMutationCoordinator::markFailed(MutationFailureInput input) {
   return writerQueue_.enqueueResult(
       [input = storedInput, now](SqliteConnection& connection) -> PendingMutationResult {
         return markStoredMutationFailed(connection, input, now);
+      });
+}
+
+std::future<PendingMutationResult>
+OptimisticMutationCoordinator::rebase(MutationRebaseInput input) {
+  const std::variant<MutationRebaseInput, AppError> canonical = canonicalize(std::move(input));
+  if (std::holds_alternative<AppError>(canonical)) {
+    return readyFuture(PendingMutationResult(std::get<AppError>(canonical)));
+  }
+  const MutationRebaseInput storedInput = std::get<MutationRebaseInput>(canonical);
+  const QString now = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [input = storedInput, now](SqliteConnection& connection) -> PendingMutationResult {
+        return rebaseStoredMutation(connection, input, now);
       });
 }
 

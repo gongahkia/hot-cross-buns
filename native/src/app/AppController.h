@@ -10,6 +10,7 @@
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
 #include "core/GoogleSyncRecoveryService.h"
+#include "core/GoogleSyncConflictResolver.h"
 #include "core/GoogleTaskListPullClient.h"
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
@@ -25,14 +26,17 @@
 #include "core/PkceAuthorization.h"
 #include "core/SyncCheckpointStore.h"
 #include "core/SyncConflictStore.h"
+#include "core/SettingsService.h"
 #include "core/SyncScheduler.h"
 #include "core/TaskListReadService.h"
+#include "core/TaskListMutationService.h"
 #include "core/TaskMutationService.h"
 #include "core/TaskReadService.h"
 
 #include <QObject>
 #include <QString>
 #include <QUrl>
+#include <QVariantList>
 
 #include <chrono>
 #include <future>
@@ -57,7 +61,11 @@ class AppController final : public QObject {
   Q_PROPERTY(QString clientId READ clientId NOTIFY clientIdChanged)
   Q_PROPERTY(bool googleConnected READ googleConnected NOTIFY googleConnectedChanged)
   Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+  Q_PROPERTY(QString taskListErrorMessage READ taskListErrorMessage NOTIFY taskListErrorMessageChanged)
   Q_PROPERTY(QString syncStatus READ syncStatus NOTIFY syncStatusChanged)
+  Q_PROPERTY(int conflictPolicy READ conflictPolicy NOTIFY conflictPolicyChanged)
+  Q_PROPERTY(QVariantList unresolvedConflicts READ unresolvedConflicts NOTIFY unresolvedConflictsChanged)
+  Q_PROPERTY(QVariantList resolvedConflicts READ resolvedConflicts NOTIFY resolvedConflictsChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -78,7 +86,11 @@ public:
   [[nodiscard]] QString clientId() const;
   [[nodiscard]] bool googleConnected() const;
   [[nodiscard]] QString statusMessage() const;
+  [[nodiscard]] QString taskListErrorMessage() const;
   [[nodiscard]] QString syncStatus() const;
+  [[nodiscard]] int conflictPolicy() const;
+  [[nodiscard]] QVariantList unresolvedConflicts() const;
+  [[nodiscard]] QVariantList resolvedConflicts() const;
   [[nodiscard]] bool busy() const;
 
   Q_INVOKABLE void initialize();
@@ -86,6 +98,12 @@ public:
   Q_INVOKABLE void saveClientId(QString clientId);
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
+  Q_INVOKABLE void saveConflictPolicy(int policy);
+  Q_INVOKABLE void resolveSyncConflict(QString conflictId, bool keepLocal);
+  Q_INVOKABLE void createTaskList(QString title);
+  Q_INVOKABLE void renameTaskList(QString taskListId, QString title);
+  Q_INVOKABLE void setTaskListSelected(QString taskListId, bool selected);
+  Q_INVOKABLE void deleteTaskList(QString taskListId);
   Q_INVOKABLE void createTask(QString taskListId, QString parentTaskId, QString title);
   Q_INVOKABLE void updateTask(QString taskId,
                               QString title,
@@ -97,6 +115,7 @@ public:
   Q_INVOKABLE void deleteTask(QString taskId);
   Q_INVOKABLE void moveTask(QString taskId, QString taskListId);
   Q_INVOKABLE void reparentTask(QString taskId, QString parentTaskId);
+  Q_INVOKABLE void reorderTask(QString taskId, bool earlier);
   Q_INVOKABLE void createEvent(QString calendarId,
                                QString title,
                                QString startAt,
@@ -120,7 +139,11 @@ signals:
   void clientIdChanged();
   void googleConnectedChanged();
   void statusMessageChanged();
+  void taskListErrorMessageChanged();
   void syncStatusChanged();
+  void conflictPolicyChanged();
+  void unresolvedConflictsChanged();
+  void resolvedConflictsChanged();
   void busyChanged();
 
 private:
@@ -169,7 +192,10 @@ private:
   [[nodiscard]] std::optional<AppError> runGoogleSync(const SyncSchedulerRequest& request);
   [[nodiscard]] std::future<GoogleMirrorWriteResult> pullGoogleData(QString accessToken);
   void setStatus(QString message);
+  void setTaskListError(QString message);
   void setSyncStatus(QString status);
+  void setUnresolvedConflicts(QList<SyncConflict> conflicts);
+  void setResolvedConflicts(QList<SyncConflict> conflicts);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -194,10 +220,13 @@ private:
   GoogleCalendarListPullClient googleCalendarListPullClient_;
   GoogleCalendarEventPullClient googleCalendarEventPullClient_;
   GoogleMirrorStore googleMirrorStore_;
+  SettingsService settingsService_;
   OptimisticMutationCoordinator optimisticMutationCoordinator_;
   SyncCheckpointStore syncCheckpointStore_;
   SyncConflictStore syncConflictStore_;
+  GoogleSyncConflictResolver googleSyncConflictResolver_;
   TaskMutationService taskMutationService_;
+  TaskListMutationService taskListMutationService_;
   CalendarMutationService calendarMutationService_;
   GoogleSyncRecoveryService googleSyncRecoveryService_;
   GoogleTaskMutationPushService googleTaskMutationPushService_;
@@ -212,7 +241,11 @@ private:
   QString clientId_;
   bool googleConnected_{false};
   QString statusMessage_;
+  QString taskListErrorMessage_;
   QString syncStatus_{QStringLiteral("idle")};
+  int conflictPolicy_{static_cast<int>(SyncConflictPolicy::PreferGoogle)};
+  QVariantList unresolvedConflicts_;
+  QVariantList resolvedConflicts_;
   bool busy_{false};
   bool pollScheduled_{false};
   std::vector<std::unique_ptr<PendingOperation>> pending_;

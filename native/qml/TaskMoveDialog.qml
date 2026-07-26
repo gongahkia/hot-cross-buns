@@ -8,6 +8,15 @@ HcbDialog {
     primaryText: "Move task"
     primaryEnabled: taskId.length > 0 && destinationTaskListId.length > 0
     property var taskListModel: null
+    property int taskListRevision: taskListModel !== null && taskListModel.revision !== undefined
+                                   ? taskListModel.revision : 0
+    property var activeTaskLists: {
+        const revision = taskListRevision
+        if (taskListModel !== null && typeof taskListModel.selectedTaskLists === "function") {
+            return taskListModel.selectedTaskLists()
+        }
+        return taskListModel
+    }
     property alias taskListRows: taskListRows
     property string taskId: ""
     property string taskTitle: ""
@@ -37,7 +46,7 @@ HcbDialog {
         Layout.fillWidth: true
         Layout.preferredHeight: Math.min(contentHeight, 280)
         clip: true
-        model: root.taskListModel
+        model: root.activeTaskLists
 
         delegate: RadioButton {
             required property string id

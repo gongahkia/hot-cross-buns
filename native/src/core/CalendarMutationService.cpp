@@ -1,10 +1,13 @@
 #include "core/CalendarMutationService.h"
 
 #include "data/LocalSchema.h"
+#include "data/SqliteTransaction.h"
 #include "sqlite3.h"
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 #include <QTimeZone>
 #include <QUuid>
@@ -25,6 +28,31 @@ constexpr qsizetype kMaximumDescriptionLength = 20'000;
 constexpr qsizetype kMaximumLocationLength = 1'000;
 constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumTimestampLength = 64;
+constexpr char kConflictMetadataKey[] = "_hcbSync";
+
+struct StoredEventContext final {
+  QString eventId;
+  QString accountId;
+  QString calendarId;
+  QString calendarRemoteId;
+  QString remoteId;
+  std::optional<QString> remoteEtag;
+  QString title;
+  std::optional<QString> description;
+  std::optional<QString> location;
+  QString startAt;
+  std::optional<QString> startTimeZone;
+  QString endAt;
+  std::optional<QString> endTimeZone;
+  bool allDay{false};
+  std::optional<QString> recurrenceRule;
+};
+
+struct ActiveEventMutation final {
+  QString id;
+  QString operation;
+  QJsonObject payload;
+};
 
 [[nodiscard]] AppError databaseError(const QString& message, int result) {
   return AppError(AppErrorCode::Database, message.arg(result));
@@ -114,6 +142,515 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
     }
   }
   return std::nullopt;
+}
+
+[[nodiscard]] std::optional<QString> optionalText(sqlite3_stmt* statement, int index) {
+  if (sqlite3_column_type(statement, index) == SQLITE_NULL) {
+    return std::nullopt;
+  }
+  const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(statement, index));
+  const int size = sqlite3_column_bytes(statement, index);
+  return value == nullptr || size < 0 ? std::nullopt
+                                      : std::optional<QString>(QString::fromUtf8(value, size));
+}
+
+[[nodiscard]] bool isPendingRemoteId(const QString& remoteId) {
+  return remoteId.startsWith(QStringLiteral("pending:"));
+}
+
+[[nodiscard]] std::variant<std::optional<StoredEventContext>, AppError>
+readEventContext(SqliteConnection& connection, const QString& eventId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id, events.remote_id,
+       events.etag, events.title, events.description, events.location, events.start_at,
+       events.start_time_zone, events.end_at, events.end_time_zone, events.is_all_day,
+       events.recurrence_rule
+FROM local_calendar_events AS events
+INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
+WHERE events.id = ?1 AND events.deleted_at IS NULL AND calendars.deleted_at IS NULL
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-event context preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, eventId); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  if (stepResult == SQLITE_DONE) {
+    const int finalizeResult = sqlite3_finalize(statement);
+    return finalizeResult == SQLITE_OK
+               ? std::optional<StoredEventContext>{}
+               : std::variant<std::optional<StoredEventContext>, AppError>(databaseError(
+                     QStringLiteral("SQLite calendar-event context finalization failed (%1)"),
+                     finalizeResult));
+  }
+  if (stepResult != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-event context lookup failed (%1)"),
+                         stepResult);
+  }
+  const std::optional<QString> storedEventId = optionalText(statement, 0);
+  const std::optional<QString> accountId = optionalText(statement, 1);
+  const std::optional<QString> calendarId = optionalText(statement, 2);
+  const std::optional<QString> calendarRemoteId = optionalText(statement, 3);
+  const std::optional<QString> remoteId = optionalText(statement, 4);
+  const std::optional<QString> title = optionalText(statement, 6);
+  const std::optional<QString> startAt = optionalText(statement, 9);
+  const std::optional<QString> endAt = optionalText(statement, 11);
+  if (!storedEventId.has_value() || !accountId.has_value() || !calendarId.has_value() ||
+      !calendarRemoteId.has_value() || !remoteId.has_value() || !title.has_value() ||
+      !startAt.has_value() || !endAt.has_value()) {
+    sqlite3_finalize(statement);
+    return AppError(AppErrorCode::Database, QStringLiteral("Stored calendar event is invalid"));
+  }
+  StoredEventContext context{.eventId = *storedEventId,
+                             .accountId = *accountId,
+                             .calendarId = *calendarId,
+                             .calendarRemoteId = *calendarRemoteId,
+                             .remoteId = *remoteId,
+                             .remoteEtag = optionalText(statement, 5),
+                             .title = *title,
+                             .description = optionalText(statement, 7),
+                             .location = optionalText(statement, 8),
+                             .startAt = *startAt,
+                             .startTimeZone = optionalText(statement, 10),
+                             .endAt = *endAt,
+                             .endTimeZone = optionalText(statement, 12),
+                             .allDay = sqlite3_column_int(statement, 13) != 0,
+                             .recurrenceRule = optionalText(statement, 14)};
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? std::variant<std::optional<StoredEventContext>, AppError>(std::move(context))
+             : std::variant<std::optional<StoredEventContext>, AppError>(databaseError(
+                   QStringLiteral("SQLite calendar-event context finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] QJsonObject eventTime(const QString& at,
+                                    const std::optional<QString>& timeZone,
+                                    bool allDay) {
+  const QDateTime parsed = QDateTime::fromString(at, Qt::ISODate);
+  QJsonObject result;
+  if (allDay) {
+    result.insert(QStringLiteral("date"), parsed.date().toString(Qt::ISODate));
+  } else {
+    result.insert(QStringLiteral("dateTime"), parsed.toUTC().toString(Qt::ISODateWithMs));
+  }
+  if (timeZone.has_value()) {
+    result.insert(QStringLiteral("timeZone"), *timeZone);
+  }
+  return result;
+}
+
+[[nodiscard]] QJsonObject eventSnapshot(const StoredEventContext& event) {
+  return {{QStringLiteral("summary"), event.title},
+          {QStringLiteral("description"),
+           event.description.has_value() ? QJsonValue(*event.description) : QJsonValue::Null},
+          {QStringLiteral("location"),
+           event.location.has_value() ? QJsonValue(*event.location) : QJsonValue::Null},
+          {QStringLiteral("start"), eventTime(event.startAt, event.startTimeZone, event.allDay)},
+          {QStringLiteral("end"), eventTime(event.endAt, event.endTimeZone, event.allDay)}};
+}
+
+[[nodiscard]] QJsonObject eventBody(const StoredEventContext& event, bool creating) {
+  QJsonObject body{{QStringLiteral("summary"), event.title},
+                   {QStringLiteral("start"),
+                    eventTime(event.startAt, event.startTimeZone, event.allDay)},
+                   {QStringLiteral("end"), eventTime(event.endAt, event.endTimeZone, event.allDay)}};
+  if (event.description.has_value()) {
+    body.insert(QStringLiteral("description"), *event.description);
+  } else if (!creating) {
+    body.insert(QStringLiteral("description"), QJsonValue::Null);
+  }
+  if (event.location.has_value()) {
+    body.insert(QStringLiteral("location"), *event.location);
+  } else if (!creating) {
+    body.insert(QStringLiteral("location"), QJsonValue::Null);
+  }
+  return body;
+}
+
+[[nodiscard]] QJsonObject eventPayload(const StoredEventContext& event,
+                                      bool includeRemoteIdentity) {
+  QJsonObject payload{{QStringLiteral("calendarId"), event.calendarRemoteId},
+                      {QStringLiteral("localCalendarId"), event.calendarId},
+                      {QStringLiteral("localEventId"), event.eventId},
+                      {QStringLiteral("event"), eventBody(event, !includeRemoteIdentity)}};
+  if (includeRemoteIdentity) {
+    payload.insert(QStringLiteral("remoteEventId"), event.remoteId);
+  }
+  return payload;
+}
+
+[[nodiscard]] QJsonObject movePayload(const StoredEventContext& before,
+                                     const StoredEventContext& after) {
+  QJsonObject payload = eventPayload(after, true);
+  payload.insert(QStringLiteral("sourceCalendarId"), before.calendarRemoteId);
+  payload.insert(QStringLiteral("destinationCalendarId"), after.calendarRemoteId);
+  payload.insert(QStringLiteral("remoteEventId"), before.remoteId);
+  return payload;
+}
+
+[[nodiscard]] QJsonObject deletePayload(const StoredEventContext& event) {
+  return {{QStringLiteral("calendarId"), event.calendarRemoteId},
+          {QStringLiteral("localCalendarId"), event.calendarId},
+          {QStringLiteral("localEventId"), event.eventId},
+          {QStringLiteral("remoteEventId"), event.remoteId}};
+}
+
+[[nodiscard]] QJsonObject withConflictMetadata(QJsonObject payload,
+                                               QJsonObject baseSnapshot,
+                                               const std::optional<QString>& remoteEtag) {
+  QJsonObject metadata{{QStringLiteral("base"), std::move(baseSnapshot)}};
+  if (remoteEtag.has_value()) {
+    metadata.insert(QStringLiteral("etag"), *remoteEtag);
+  }
+  payload.insert(QString::fromLatin1(kConflictMetadataKey), std::move(metadata));
+  return payload;
+}
+
+[[nodiscard]] std::optional<QString> mutationDependency(const QJsonObject& payload) {
+  const QJsonValue value = payload.value(QStringLiteral("dependsOnMutationId"));
+  if (value.isUndefined() || value.isNull()) {
+    return std::nullopt;
+  }
+  if (!value.isString() || !isValidRequiredText(value.toString(), kMaximumIdentifierLength)) {
+    return std::nullopt;
+  }
+  return value.toString();
+}
+
+[[nodiscard]] std::variant<std::optional<ActiveEventMutation>, AppError>
+findActiveEventMutation(SqliteConnection& connection, const QString& eventId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT id, operation, payload_json
+FROM local_pending_mutations
+WHERE resource_type = 'event' AND resource_id = ?1 AND status IN ('pending', 'failed')
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-event mutation lookup preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, eventId); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  if (stepResult == SQLITE_DONE) {
+    const int finalizeResult = sqlite3_finalize(statement);
+    return finalizeResult == SQLITE_OK
+               ? std::optional<ActiveEventMutation>{}
+               : std::variant<std::optional<ActiveEventMutation>, AppError>(databaseError(
+                     QStringLiteral("SQLite calendar-event mutation lookup finalization failed (%1)"),
+                     finalizeResult));
+  }
+  if (stepResult != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-event mutation lookup failed (%1)"),
+                         stepResult);
+  }
+  const std::optional<QString> mutationId = optionalText(statement, 0);
+  const std::optional<QString> operation = optionalText(statement, 1);
+  const std::optional<QString> payloadJson = optionalText(statement, 2);
+  QJsonParseError parseError;
+  const QJsonDocument payloadDocument =
+      payloadJson.has_value() ? QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError)
+                              : QJsonDocument();
+  if (!mutationId.has_value() || !operation.has_value() || !payloadJson.has_value() ||
+      parseError.error != QJsonParseError::NoError || !payloadDocument.isObject()) {
+    sqlite3_finalize(statement);
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Stored calendar-event mutation is invalid"));
+  }
+  ActiveEventMutation mutation{
+      .id = *mutationId, .operation = *operation, .payload = payloadDocument.object()};
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? std::variant<std::optional<ActiveEventMutation>, AppError>(std::move(mutation))
+             : std::variant<std::optional<ActiveEventMutation>, AppError>(databaseError(
+                   QStringLiteral("SQLite calendar-event mutation lookup finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError> replaceActiveEventMutation(SqliteConnection& connection,
+                                                                 const ActiveEventMutation& mutation,
+                                                                 QString operation,
+                                                                 QJsonObject payload,
+                                                                 const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_pending_mutations
+SET operation = ?2, payload_json = ?3, status = 'pending', next_retry_at = NULL,
+    last_error_code = NULL, last_error_message = NULL, updated_at = ?4
+WHERE id = ?1 AND status IN ('pending', 'failed')
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(
+        QStringLiteral("SQLite calendar-event mutation replacement preparation failed (%1)"),
+        prepareResult);
+  }
+  const QString payloadJson =
+      QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
+  if (const std::optional<AppError> error = bindAll(statement,
+                                                    {bindText(statement, 1, mutation.id),
+                                                     bindText(statement, 2, operation),
+                                                     bindText(statement, 3, payloadJson),
+                                                     bindText(statement, 4, updatedAt)});
+      error.has_value()) {
+    return error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-event mutation replacement failed (%1)"),
+                         stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite calendar-event mutation replacement finalization failed (%1)"),
+        finalizeResult);
+  }
+  return changedRows == 1
+             ? std::nullopt
+             : std::optional<AppError>(AppError(
+                   AppErrorCode::Database,
+                   QStringLiteral("Active calendar-event mutation was not replaced")));
+}
+
+[[nodiscard]] std::optional<AppError> removeActiveEventMutation(SqliteConnection& connection,
+                                                                const ActiveEventMutation& mutation) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult = sqlite3_prepare_v3(handle,
+                                               "DELETE FROM local_pending_mutations "
+                                               "WHERE id = ?1 AND status IN ('pending', 'failed')",
+                                               -1,
+                                               SQLITE_PREPARE_PERSISTENT,
+                                               &statement,
+                                               nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(
+        QStringLiteral("SQLite calendar-event mutation removal preparation failed (%1)"),
+        prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, mutation.id);
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-event mutation removal failed (%1)"),
+                         stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite calendar-event mutation removal finalization failed (%1)"),
+        finalizeResult);
+  }
+  return changedRows == 1
+             ? std::nullopt
+             : std::optional<AppError>(AppError(
+                   AppErrorCode::Database,
+                   QStringLiteral("Active calendar-event mutation was not removed")));
+}
+
+using EventMutationInsertResult = std::variant<QString, AppError>;
+
+[[nodiscard]] EventMutationInsertResult insertEventMutation(SqliteConnection& connection,
+                                                             const StoredEventContext& event,
+                                                             QString operation,
+                                                             QJsonObject payload,
+                                                             const QString& createdAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+INSERT INTO local_pending_mutations (
+  id, account_id, resource_type, resource_id, operation, payload_json, status, attempt_count,
+  created_at, updated_at
+) VALUES (?1, ?2, 'event', ?3, ?4, ?5, 'pending', 0, ?6, ?6)
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(
+        QStringLiteral("SQLite calendar-event mutation enqueue preparation failed (%1)"),
+        prepareResult);
+  }
+  const QString mutationId =
+      QStringLiteral("mutation:event:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+  const QString payloadJson =
+      QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
+  if (const std::optional<AppError> error = bindAll(statement,
+                                                    {bindText(statement, 1, mutationId),
+                                                     bindText(statement, 2, event.accountId),
+                                                     bindText(statement, 3, event.eventId),
+                                                     bindText(statement, 4, operation),
+                                                     bindText(statement, 5, payloadJson),
+                                                     bindText(statement, 6, createdAt)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-event mutation enqueue failed (%1)"),
+                         stepResult);
+  }
+  return finalizeResult == SQLITE_OK
+             ? EventMutationInsertResult(mutationId)
+             : EventMutationInsertResult(databaseError(
+                   QStringLiteral("SQLite calendar-event mutation enqueue finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+queueEventMutation(SqliteConnection& connection,
+                   const StoredEventContext& before,
+                   const std::optional<StoredEventContext>& after,
+                   const QString& operation,
+                   const QString& updatedAt) {
+  const std::variant<std::optional<ActiveEventMutation>, AppError> activeResult =
+      findActiveEventMutation(connection, before.eventId);
+  if (std::holds_alternative<AppError>(activeResult)) {
+    return std::get<AppError>(activeResult);
+  }
+  const std::optional<ActiveEventMutation>& active =
+      std::get<std::optional<ActiveEventMutation>>(activeResult);
+  const bool deleting = operation == QStringLiteral("event.delete");
+  if (active.has_value()) {
+    const QJsonValue metadata = active->payload.value(QString::fromLatin1(kConflictMetadataKey));
+    if (!metadata.isObject()) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored calendar-event mutation is invalid"));
+    }
+    if (active->operation == QStringLiteral("event.create")) {
+      if (deleting) {
+        return removeActiveEventMutation(connection, *active);
+      }
+      if (!after.has_value()) {
+        return AppError(AppErrorCode::Database,
+                        QStringLiteral("Updated calendar event is unavailable"));
+      }
+      QJsonObject payload = eventPayload(*after, false);
+      payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+      return replaceActiveEventMutation(
+          connection, *active, QStringLiteral("event.create"), std::move(payload), updatedAt);
+    }
+    std::optional<QString> dependency = mutationDependency(active->payload);
+    if (operation == QStringLiteral("event.move")) {
+      if (!after.has_value()) {
+        return AppError(AppErrorCode::Database,
+                        QStringLiteral("Moved calendar event is unavailable"));
+      }
+      QJsonObject payload = movePayload(before, *after);
+      if (dependency.has_value()) {
+        payload.insert(QStringLiteral("dependsOnMutationId"), *dependency);
+      }
+      payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+      if (const std::optional<AppError> error = replaceActiveEventMutation(
+              connection, *active, QStringLiteral("event.move"), std::move(payload), updatedAt);
+          error.has_value()) {
+        return error;
+      }
+      QJsonObject followUp = eventPayload(*after, true);
+      followUp.insert(QStringLiteral("dependsOnMutationId"), active->id);
+      followUp = withConflictMetadata(std::move(followUp), eventSnapshot(before), before.remoteEtag);
+      const EventMutationInsertResult inserted = insertEventMutation(
+          connection, *after, QStringLiteral("event.update"), std::move(followUp), updatedAt);
+      return std::holds_alternative<AppError>(inserted)
+                 ? std::optional<AppError>(std::get<AppError>(inserted))
+                 : std::nullopt;
+    }
+    QJsonObject payload = deleting ? deletePayload(before) : eventPayload(*after, true);
+    if (dependency.has_value()) {
+      payload.insert(QStringLiteral("dependsOnMutationId"), *dependency);
+    }
+    payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+    return replaceActiveEventMutation(connection, *active, operation, std::move(payload), updatedAt);
+  }
+  QJsonObject payload;
+  if (deleting) {
+    payload = deletePayload(before);
+  } else if (operation == QStringLiteral("event.move")) {
+    if (!after.has_value()) {
+      return AppError(AppErrorCode::Database, QStringLiteral("Moved calendar event is unavailable"));
+    }
+    payload = movePayload(before, *after);
+  } else {
+    if (!after.has_value()) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Updated calendar event is unavailable"));
+    }
+    payload = eventPayload(*after, operation != QStringLiteral("event.create"));
+  }
+  payload = withConflictMetadata(
+      std::move(payload),
+      operation == QStringLiteral("event.create") ? QJsonObject() : eventSnapshot(before),
+      operation == QStringLiteral("event.create") ? std::optional<QString>{} : before.remoteEtag);
+  const EventMutationInsertResult inserted =
+      insertEventMutation(connection, before, operation, std::move(payload), updatedAt);
+  if (std::holds_alternative<AppError>(inserted)) {
+    return std::get<AppError>(inserted);
+  }
+  if (operation != QStringLiteral("event.move")) {
+    return std::nullopt;
+  }
+  if (!after.has_value()) {
+    return AppError(AppErrorCode::Database, QStringLiteral("Moved calendar event is unavailable"));
+  }
+  QJsonObject followUp = eventPayload(*after, true);
+  followUp.insert(QStringLiteral("dependsOnMutationId"), std::get<QString>(inserted));
+  followUp = withConflictMetadata(std::move(followUp), eventSnapshot(before), before.remoteEtag);
+  const EventMutationInsertResult followUpInserted = insertEventMutation(
+      connection, *after, QStringLiteral("event.update"), std::move(followUp), updatedAt);
+  return std::holds_alternative<AppError>(followUpInserted)
+             ? std::optional<AppError>(std::get<AppError>(followUpInserted))
+             : std::nullopt;
 }
 
 [[nodiscard]] std::variant<CalendarEventCreateInput, AppError>
@@ -373,6 +910,178 @@ WHERE id = ?1 AND deleted_at IS NULL
   return CalendarEventMutationReceipt{.eventId = eventId, .updatedAt = updatedAt};
 }
 
+[[nodiscard]] CalendarEventMutationResult
+reconcileStoredGoogleEvent(SqliteConnection& connection,
+                           const CalendarEventRemoteReconciliationInput& input,
+                           const QString& updatedAt) {
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char eventSql[] = R"(
+UPDATE local_calendar_events
+SET remote_id = CASE WHEN remote_id LIKE 'pending:%' THEN ?2 ELSE remote_id END,
+    etag = COALESCE(?3, etag),
+    updated_at = ?4
+WHERE id = ?1
+  AND (remote_id = ?2 OR remote_id LIKE 'pending:%')
+)";
+  sqlite3_stmt* eventStatement = nullptr;
+  const int eventPrepareResult = sqlite3_prepare_v3(
+      handle, eventSql, -1, SQLITE_PREPARE_PERSISTENT, &eventStatement, nullptr);
+  if (eventPrepareResult != SQLITE_OK) {
+    sqlite3_finalize(eventStatement);
+    return databaseError(
+        QStringLiteral("SQLite calendar-event reconciliation preparation failed (%1)"),
+        eventPrepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(eventStatement,
+                  {bindText(eventStatement, 1, input.localEventId),
+                   bindText(eventStatement, 2, input.remoteEventId),
+                   bindOptionalText(eventStatement, 3, input.remoteEtag),
+                   bindText(eventStatement, 4, updatedAt)});
+      error.has_value()) {
+    return *error;
+  }
+  const int eventStepResult = sqlite3_step(eventStatement);
+  const int eventChangedRows = sqlite3_changes(handle);
+  const int eventFinalizeResult = sqlite3_finalize(eventStatement);
+  if (eventStepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-event reconciliation failed (%1)"),
+                         eventStepResult);
+  }
+  if (eventFinalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite calendar-event reconciliation finalization failed (%1)"),
+        eventFinalizeResult);
+  }
+  if (eventChangedRows != 1) {
+    return validationError(QStringLiteral("Calendar event is unavailable for Google reconciliation"));
+  }
+  constexpr char pendingSql[] = R"(
+SELECT id, payload_json
+FROM local_pending_mutations
+WHERE resource_type = 'event' AND resource_id = ?1 AND status IN ('pending', 'failed')
+)";
+  sqlite3_stmt* pendingStatement = nullptr;
+  const int pendingPrepareResult = sqlite3_prepare_v3(
+      handle, pendingSql, -1, SQLITE_PREPARE_PERSISTENT, &pendingStatement, nullptr);
+  if (pendingPrepareResult != SQLITE_OK) {
+    sqlite3_finalize(pendingStatement);
+    return databaseError(
+        QStringLiteral("SQLite pending calendar-event reconciliation preparation failed (%1)"),
+        pendingPrepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(pendingStatement, 1, input.localEventId);
+      error.has_value()) {
+    sqlite3_finalize(pendingStatement);
+    return *error;
+  }
+  struct PendingPayload final {
+    QString mutationId;
+    QJsonObject payload;
+  };
+  QList<PendingPayload> pendingPayloads;
+  int pendingStepResult = SQLITE_ROW;
+  while ((pendingStepResult = sqlite3_step(pendingStatement)) == SQLITE_ROW) {
+    const std::optional<QString> mutationId = optionalText(pendingStatement, 0);
+    const std::optional<QString> payloadJson = optionalText(pendingStatement, 1);
+    QJsonParseError parseError;
+    const QJsonDocument document = payloadJson.has_value()
+                                       ? QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError)
+                                       : QJsonDocument();
+    if (!mutationId.has_value() || !payloadJson.has_value() ||
+        parseError.error != QJsonParseError::NoError || !document.isObject()) {
+      sqlite3_finalize(pendingStatement);
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored pending calendar-event mutation is invalid"));
+    }
+    QJsonObject payload = document.object();
+    const QJsonValue remoteEventId = payload.value(QStringLiteral("remoteEventId"));
+    if (remoteEventId.isString() && isPendingRemoteId(remoteEventId.toString())) {
+      payload.insert(QStringLiteral("remoteEventId"), input.remoteEventId);
+    }
+    if (input.remoteEtag.has_value()) {
+      const QJsonValue metadataValue = payload.value(QString::fromLatin1(kConflictMetadataKey));
+      if (!metadataValue.isObject()) {
+        sqlite3_finalize(pendingStatement);
+        return AppError(AppErrorCode::Database,
+                        QStringLiteral("Stored pending calendar-event mutation is invalid"));
+      }
+      QJsonObject metadata = metadataValue.toObject();
+      metadata.insert(QStringLiteral("etag"), *input.remoteEtag);
+      payload.insert(QString::fromLatin1(kConflictMetadataKey), std::move(metadata));
+    }
+    pendingPayloads.append({.mutationId = *mutationId, .payload = std::move(payload)});
+  }
+  const int pendingFinalizeResult = sqlite3_finalize(pendingStatement);
+  if (pendingStepResult != SQLITE_DONE) {
+    return databaseError(
+        QStringLiteral("SQLite pending calendar-event reconciliation lookup failed (%1)"),
+        pendingStepResult);
+  }
+  if (pendingFinalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite pending calendar-event reconciliation lookup finalization failed (%1)"),
+        pendingFinalizeResult);
+  }
+  constexpr char updateSql[] = R"(
+UPDATE local_pending_mutations
+SET payload_json = ?2, updated_at = ?3
+WHERE id = ?1 AND status IN ('pending', 'failed')
+)";
+  for (const PendingPayload& pending : pendingPayloads) {
+    sqlite3_stmt* updateStatement = nullptr;
+    const int updatePrepareResult =
+        sqlite3_prepare_v3(handle, updateSql, -1, SQLITE_PREPARE_PERSISTENT, &updateStatement,
+                           nullptr);
+    if (updatePrepareResult != SQLITE_OK) {
+      sqlite3_finalize(updateStatement);
+      return databaseError(
+          QStringLiteral("SQLite pending calendar-event reconciliation update preparation failed (%1)"),
+          updatePrepareResult);
+    }
+    const QString payloadJson =
+        QString::fromUtf8(QJsonDocument(pending.payload).toJson(QJsonDocument::Compact));
+    if (const std::optional<AppError> error =
+            bindAll(updateStatement,
+                    {bindText(updateStatement, 1, pending.mutationId),
+                     bindText(updateStatement, 2, payloadJson),
+                     bindText(updateStatement, 3, updatedAt)});
+        error.has_value()) {
+      return *error;
+    }
+    const int updateStepResult = sqlite3_step(updateStatement);
+    const int updateChangedRows = sqlite3_changes(handle);
+    const int updateFinalizeResult = sqlite3_finalize(updateStatement);
+    if (updateStepResult != SQLITE_DONE) {
+      return databaseError(
+          QStringLiteral("SQLite pending calendar-event reconciliation update failed (%1)"),
+          updateStepResult);
+    }
+    if (updateFinalizeResult != SQLITE_OK) {
+      return databaseError(
+          QStringLiteral("SQLite pending calendar-event reconciliation update finalization failed (%1)"),
+          updateFinalizeResult);
+    }
+    if (updateChangedRows != 1) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Pending calendar-event mutation was unavailable for reconciliation"));
+    }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return CalendarEventMutationReceipt{.eventId = input.localEventId, .updatedAt = updatedAt};
+}
+
 } // namespace
 
 CalendarMutationService::CalendarMutationService(FilePath databasePath, const Clock& clock)
@@ -404,7 +1113,36 @@ CalendarMutationService::create(CalendarEventCreateInput input) {
   return writerQueue_.enqueueResult(
       [input = std::get<CalendarEventCreateInput>(canonical), eventId, remoteId, updatedAt](
           SqliteConnection& connection) {
-        return createStoredEvent(connection, input, eventId, remoteId, updatedAt);
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        CalendarEventMutationResult created =
+            createStoredEvent(connection, input, eventId, remoteId, updatedAt);
+        if (std::holds_alternative<AppError>(created)) {
+          return created;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> contextResult =
+            readEventContext(connection, eventId);
+        if (std::holds_alternative<AppError>(contextResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(contextResult));
+        }
+        const std::optional<StoredEventContext>& context =
+            std::get<std::optional<StoredEventContext>>(contextResult);
+        if (!context.has_value()) {
+          return CalendarEventMutationResult(
+              AppError(AppErrorCode::Database, QStringLiteral("Created calendar event is unavailable")));
+        }
+        if (const std::optional<AppError> error = queueEventMutation(
+                connection, *context, context, QStringLiteral("event.create"), updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        return created;
       });
 }
 
@@ -417,7 +1155,49 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
   const QString updatedAt = timestamp(clock_);
   return writerQueue_.enqueueResult([input = std::get<CalendarEventUpdateInput>(canonical),
                                      updatedAt](SqliteConnection& connection) {
-    return updateStoredEvent(connection, input, updatedAt);
+    SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+    if (std::holds_alternative<AppError>(transactionResult)) {
+      return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+    }
+    SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    const std::variant<std::optional<StoredEventContext>, AppError> beforeResult =
+        readEventContext(connection, input.eventId);
+    if (std::holds_alternative<AppError>(beforeResult)) {
+      return CalendarEventMutationResult(std::get<AppError>(beforeResult));
+    }
+    const std::optional<StoredEventContext>& before =
+        std::get<std::optional<StoredEventContext>>(beforeResult);
+    if (!before.has_value()) {
+      return CalendarEventMutationResult(
+          validationError(QStringLiteral("Calendar event is unavailable for update")));
+    }
+    CalendarEventMutationResult updated = updateStoredEvent(connection, input, updatedAt);
+    if (std::holds_alternative<AppError>(updated)) {
+      return updated;
+    }
+    const std::variant<std::optional<StoredEventContext>, AppError> afterResult =
+        readEventContext(connection, input.eventId);
+    if (std::holds_alternative<AppError>(afterResult)) {
+      return CalendarEventMutationResult(std::get<AppError>(afterResult));
+    }
+    const std::optional<StoredEventContext>& after =
+        std::get<std::optional<StoredEventContext>>(afterResult);
+    if (!after.has_value()) {
+      return CalendarEventMutationResult(
+          AppError(AppErrorCode::Database, QStringLiteral("Updated calendar event is unavailable")));
+    }
+    const QString operation = before->calendarId == after->calendarId
+                                  ? QStringLiteral("event.update")
+                                  : QStringLiteral("event.move");
+    if (const std::optional<AppError> error =
+            queueEventMutation(connection, *before, after, operation, updatedAt);
+        error.has_value()) {
+      return CalendarEventMutationResult(*error);
+    }
+    if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+      return CalendarEventMutationResult(*error);
+    }
+    return updated;
   });
 }
 
@@ -429,7 +1209,53 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
   const QString updatedAt = timestamp(clock_);
   return writerQueue_.enqueueResult(
       [eventId = std::move(eventId), updatedAt](SqliteConnection& connection) {
-        return removeStoredEvent(connection, eventId, updatedAt);
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<StoredEventContext>, AppError> beforeResult =
+            readEventContext(connection, eventId);
+        if (std::holds_alternative<AppError>(beforeResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(beforeResult));
+        }
+        const std::optional<StoredEventContext>& before =
+            std::get<std::optional<StoredEventContext>>(beforeResult);
+        if (!before.has_value()) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar event is unavailable for deletion")));
+        }
+        CalendarEventMutationResult removed = removeStoredEvent(connection, eventId, updatedAt);
+        if (std::holds_alternative<AppError>(removed)) {
+          return removed;
+        }
+        if (const std::optional<AppError> error = queueEventMutation(
+                connection, *before, std::nullopt, QStringLiteral("event.delete"), updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        return removed;
+      });
+}
+
+std::future<CalendarEventMutationResult>
+CalendarMutationService::reconcileGoogleEvent(CalendarEventRemoteReconciliationInput input) {
+  if (!isValidRequiredText(input.localEventId, kMaximumIdentifierLength) ||
+      !isValidRequiredText(input.remoteEventId, kMaximumIdentifierLength) ||
+      isPendingRemoteId(input.remoteEventId) ||
+      (input.remoteEtag.has_value() &&
+       (!isValidRequiredText(*input.remoteEtag, 4'096) || input.remoteEtag->contains(u'\r') ||
+        input.remoteEtag->contains(u'\n')))) {
+    return readyFuture(CalendarEventMutationResult(
+        validationError(QStringLiteral("Google calendar-event reconciliation input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [input = std::move(input), updatedAt](SqliteConnection& connection) {
+        return reconcileStoredGoogleEvent(connection, input, updatedAt);
       });
 }
 

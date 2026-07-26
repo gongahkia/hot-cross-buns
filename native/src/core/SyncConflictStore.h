@@ -73,6 +73,7 @@ public:
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<SyncConflictResult> record(SyncConflictInput input);
   [[nodiscard]] std::future<SyncConflictListResult> listUnresolved(int limit = 50);
+  [[nodiscard]] std::future<SyncConflictListResult> listResolved(int limit = 20);
   [[nodiscard]] std::future<SyncConflictResult> resolve(QString conflictId,
                                                         SyncConflictResolution resolution);
 

@@ -22,6 +22,7 @@ constexpr qsizetype kMaximumQueryTextLength = 8'192;
 constexpr qsizetype kMaximumIfMatchLength = 8'192;
 constexpr qsizetype kMaximumRequestBodyBytes = 10 * 1024 * 1024;
 constexpr qsizetype kMaximumServerDateLength = 256;
+constexpr qsizetype kMaximumHeaderValueLength = 1'024;
 
 struct Completion final {
   std::atomic_bool completed{false};
@@ -82,9 +83,17 @@ void complete(const std::shared_ptr<Completion>& completion, GoogleHttpResult re
                                   !ifMatch->contains(u'\n'));
 }
 
+[[nodiscard]] bool isValidHeaderValue(const std::optional<QByteArray>& value) {
+  return !value.has_value() ||
+         (!value->isEmpty() && value->size() <= kMaximumHeaderValueLength &&
+          !value->contains('\0') && !value->contains('\r') && !value->contains('\n'));
+}
+
 [[nodiscard]] bool isValidRequest(const GoogleHttpRequest& request) {
   if (!isValidPath(request.path) || request.query.size() > kMaximumQueryParameterCount ||
       !isValidIfMatch(request.ifMatch) ||
+      !isValidHeaderValue(request.contentType) || !isValidHeaderValue(request.accept) ||
+      (request.contentType.has_value() && !request.body.has_value()) ||
       (request.body.has_value() && request.body->size() > kMaximumRequestBodyBytes)) {
     return false;
   }
@@ -180,14 +189,14 @@ std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
             QNetworkRequest networkRequest(url);
             networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                                         QNetworkRequest::ManualRedirectPolicy);
-            networkRequest.setRawHeader("Accept", "application/json");
+            networkRequest.setRawHeader("Accept", request.accept.value_or("application/json"));
             networkRequest.setRawHeader("Authorization", "Bearer " + accessToken.toUtf8());
             if (request.ifMatch.has_value()) {
               networkRequest.setRawHeader("If-Match", request.ifMatch->toUtf8());
             }
             if (request.body.has_value()) {
-              networkRequest.setHeader(QNetworkRequest::ContentTypeHeader,
-                                       QStringLiteral("application/json"));
+              networkRequest.setRawHeader(
+                  "Content-Type", request.contentType.value_or("application/json"));
             }
             const QByteArray body = request.body.value_or(QByteArray());
             QNetworkReply* reply = nullptr;

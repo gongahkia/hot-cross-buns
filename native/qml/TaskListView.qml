@@ -4,9 +4,13 @@ import QtQuick.Layouts
 
 Pane {
     id: root
+    property var taskListModel: null
     property var taskModel: null
+    property bool taskListLoading: false
+    property string taskListErrorMessage: ""
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
+    property alias taskListControls: taskListControls
     signal taskSelected(string taskId)
     signal taskCreateRequested()
     signal taskSubtaskCreateRequested(string parentTaskId, string taskListId)
@@ -16,6 +20,11 @@ Pane {
     signal taskDeleteRequested(string taskId, string taskTitle)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
     signal taskReparentRequested(string taskId, string parentTaskId)
+    signal taskReorderRequested(string taskId, bool earlier)
+    signal taskListCreateRequested()
+    signal taskListRenameRequested(string taskListId, string title)
+    signal taskListDeleteRequested(string taskListId, string title, int taskCount, var taskTitles)
+    signal taskListSelectionRequested(string taskListId, bool selected)
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -49,6 +58,10 @@ Pane {
         taskReparentRequested(taskId, parentTaskId)
     }
 
+    function requestTaskReorder(taskId, earlier) {
+        taskReorderRequested(taskId, earlier)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingMedium
@@ -71,6 +84,24 @@ Pane {
                 Accessible.name: text
                 Accessible.description: "Create a task in an active task list"
                 onClicked: root.requestTaskCreate()
+            }
+        }
+
+        TaskListControls {
+            id: taskListControls
+            Layout.fillWidth: true
+            taskListModel: root.taskListModel
+            loading: root.taskListLoading
+            errorMessage: root.taskListErrorMessage
+            onTaskListCreateRequested: root.taskListCreateRequested()
+            onTaskListRenameRequested: function(taskListId, title) {
+                root.taskListRenameRequested(taskListId, title)
+            }
+            onTaskListDeleteRequested: function(taskListId, title, taskCount, taskTitles) {
+                root.taskListDeleteRequested(taskListId, title, taskCount, taskTitles)
+            }
+            onTaskListSelectionRequested: function(taskListId, selected) {
+                root.taskListSelectionRequested(taskListId, selected)
             }
         }
 
@@ -109,6 +140,8 @@ Pane {
                 property alias moveButton: moveButton
                 property alias promoteButton: promoteButton
                 property alias subtaskButton: subtaskButton
+                property alias moveEarlierButton: moveEarlierButton
+                property alias moveLaterButton: moveLaterButton
 
                 RowLayout {
                     id: taskRow
@@ -176,6 +209,22 @@ Pane {
                         Accessible.name: text + " " + title
                         Accessible.description: "Move this subtask to the top level"
                         onClicked: root.requestTaskReparent(id, "")
+                    }
+
+                    Button {
+                        id: moveEarlierButton
+                        text: "Move earlier"
+                        Accessible.name: text + " " + title
+                        Accessible.description: "Move this task earlier among its siblings"
+                        onClicked: root.requestTaskReorder(id, true)
+                    }
+
+                    Button {
+                        id: moveLaterButton
+                        text: "Move later"
+                        Accessible.name: text + " " + title
+                        Accessible.description: "Move this task later among its siblings"
+                        onClicked: root.requestTaskReorder(id, false)
                     }
 
                     AccessibleButton {

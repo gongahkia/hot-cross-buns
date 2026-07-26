@@ -117,6 +117,13 @@ void SyncConflictStoreTest::recordsListsResolvesAndReopensConflicts() {
   const hcb::SyncConflictListResult emptyResult = awaitResult(emptyFuture);
   QVERIFY(std::holds_alternative<QList<hcb::SyncConflict>>(emptyResult));
   QVERIFY(std::get<QList<hcb::SyncConflict>>(emptyResult).isEmpty());
+  std::future<hcb::SyncConflictListResult> historyFuture = store.listResolved();
+  const hcb::SyncConflictListResult historyResult = awaitResult(historyFuture);
+  QVERIFY(std::holds_alternative<QList<hcb::SyncConflict>>(historyResult));
+  QCOMPARE(std::get<QList<hcb::SyncConflict>>(historyResult).size(), 1);
+  QCOMPARE(std::get<QList<hcb::SyncConflict>>(historyResult).constFirst().id, first.id);
+  QCOMPARE(std::get<QList<hcb::SyncConflict>>(historyResult).constFirst().resolution,
+           std::optional<hcb::SyncConflictResolution>(hcb::SyncConflictResolution::KeepRemote));
   const hcb::SyncConflict reopened =
       record(store,
              {.resource = hcb::SyncConflictResource::Event,

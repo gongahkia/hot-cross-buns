@@ -449,6 +449,59 @@ LIMIT ?1
                    finalizeResult));
 }
 
+[[nodiscard]] SyncConflictListResult listStoredResolvedConflicts(SqliteConnection& connection,
+                                                                 int limit) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite sync-conflict connection is unavailable"));
+  }
+  const QByteArray sql = QStringLiteral(R"(
+SELECT %1 FROM local_sync_conflicts
+WHERE status = 'resolved'
+ORDER BY resolved_at DESC, id ASC
+LIMIT ?1
+)")
+                             .arg(QString::fromLatin1(conflictColumns))
+                             .toUtf8();
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult = sqlite3_prepare_v3(
+      handle, sql.constData(), -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite sync-conflict history preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindInteger(statement, 1, limit); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  QList<SyncConflict> conflicts;
+  while (true) {
+    const int stepResult = sqlite3_step(statement);
+    if (stepResult == SQLITE_DONE) {
+      break;
+    }
+    if (stepResult != SQLITE_ROW) {
+      sqlite3_finalize(statement);
+      return databaseError(QStringLiteral("SQLite sync-conflict history lookup failed (%1)"),
+                           stepResult);
+    }
+    const SyncConflictResult decoded = decodeConflict(statement);
+    if (std::holds_alternative<AppError>(decoded)) {
+      sqlite3_finalize(statement);
+      return std::get<AppError>(decoded);
+    }
+    conflicts.append(std::get<SyncConflict>(decoded));
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? SyncConflictListResult(std::move(conflicts))
+             : SyncConflictListResult(databaseError(
+                   QStringLiteral("SQLite sync-conflict history finalization failed (%1)"),
+                   finalizeResult));
+}
+
 [[nodiscard]] SyncConflictResult resolveStoredConflict(SqliteConnection& connection,
                                                        const QString& conflictIdValue,
                                                        SyncConflictResolution resolution,
@@ -561,6 +614,14 @@ std::future<SyncConflictListResult> SyncConflictStore::listUnresolved(int limit)
   return writerQueue_.enqueueResult(
       [cappedLimit](SqliteConnection& connection) -> SyncConflictListResult {
         return listStoredUnresolvedConflicts(connection, cappedLimit);
+      });
+}
+
+std::future<SyncConflictListResult> SyncConflictStore::listResolved(int limit) {
+  const int cappedLimit = std::clamp(limit, 1, kMaximumListLimit);
+  return writerQueue_.enqueueResult(
+      [cappedLimit](SqliteConnection& connection) -> SyncConflictListResult {
+        return listStoredResolvedConflicts(connection, cappedLimit);
       });
 }
 

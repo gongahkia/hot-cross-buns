@@ -53,6 +53,16 @@ struct ActiveTaskMutation final {
   QJsonObject payload;
 };
 
+struct TaskPositionReference final {
+  std::optional<QString> previousRemoteId;
+  std::optional<QString> previousLocalId;
+};
+
+struct StoredTaskSibling final {
+  QString taskId;
+  QString remoteId;
+};
+
 [[nodiscard]] AppError databaseError(const QString& message, int result) {
   return AppError(AppErrorCode::Database, message.arg(result));
 }
@@ -382,12 +392,15 @@ LIMIT 1
   return body;
 }
 
-[[nodiscard]] QJsonObject taskPayload(const StoredTaskContext& task, bool includeRemoteIdentity) {
+[[nodiscard]] QJsonObject taskPayload(const StoredTaskContext& task,
+                                      bool includeRemoteIdentity,
+                                      const TaskPositionReference& position = {}) {
   QJsonObject body = googleTaskBody(task);
   if (!includeRemoteIdentity && !task.dueAt.has_value()) {
     body.remove(QStringLiteral("due"));
   }
   QJsonObject payload{{QStringLiteral("taskListId"), task.taskListRemoteId},
+                      {QStringLiteral("localTaskListId"), task.taskListId},
                       {QStringLiteral("localTaskId"), task.taskId},
                       {QStringLiteral("task"), std::move(body)}};
   if (includeRemoteIdentity) {
@@ -400,12 +413,18 @@ LIMIT 1
       payload.insert(QStringLiteral("parentTaskLocalId"), *task.parentTaskId);
     }
   }
+  if (position.previousRemoteId.has_value()) {
+    payload.insert(QStringLiteral("previousTaskId"), *position.previousRemoteId);
+  } else if (position.previousLocalId.has_value()) {
+    payload.insert(QStringLiteral("previousTaskLocalId"), *position.previousLocalId);
+  }
   return payload;
 }
 
 [[nodiscard]] QJsonObject deletePayload(const StoredTaskContext& task,
                                         const std::optional<QString>& dependsOnMutationId = {}) {
   QJsonObject payload{{QStringLiteral("taskListId"), task.taskListRemoteId},
+                      {QStringLiteral("localTaskListId"), task.taskListId},
                       {QStringLiteral("remoteTaskId"), task.remoteId},
                       {QStringLiteral("localTaskId"), task.taskId}};
   if (dependsOnMutationId.has_value()) {
@@ -635,7 +654,8 @@ queueTaskMutation(SqliteConnection& connection,
                   const std::optional<StoredTaskContext>& after,
                   QString operation,
                   const QString& updatedAt,
-                  const std::optional<QString>& dependsOnMutationId = {}) {
+                  const std::optional<QString>& dependsOnMutationId = {},
+                  const TaskPositionReference& position = {}) {
   const std::variant<std::optional<ActiveTaskMutation>, AppError> activeResult =
       findActiveTaskMutation(connection, before.taskId);
   if (std::holds_alternative<AppError>(activeResult)) {
@@ -656,21 +676,22 @@ queueTaskMutation(SqliteConnection& connection,
       if (!after.has_value()) {
         return AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable"));
       }
-      QJsonObject payload = taskPayload(*after, false);
+      QJsonObject payload = taskPayload(*after, false, position);
       payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
       return replaceActiveTaskMutation(
           connection, *active, QStringLiteral("task.create"), std::move(payload), updatedAt);
     }
     if (active->operation == QStringLiteral("task.update")) {
-      QJsonObject payload =
-          deleting ? deletePayload(before, dependsOnMutationId) : taskPayload(*after, true);
+      QJsonObject payload = deleting ? deletePayload(before, dependsOnMutationId)
+                                     : taskPayload(*after, true, position);
       payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
       return replaceActiveTaskMutation(
           connection, *active, std::move(operation), std::move(payload), updatedAt);
     }
   }
-  QJsonObject payload = deleting ? deletePayload(before, dependsOnMutationId)
-                                 : taskPayload(*after, operation != QStringLiteral("task.create"));
+  QJsonObject payload =
+      deleting ? deletePayload(before, dependsOnMutationId)
+               : taskPayload(*after, operation != QStringLiteral("task.create"), position);
   payload = withConflictMetadata(
       std::move(payload),
       operation == QStringLiteral("task.create") ? QJsonObject() : taskSnapshot(before),
@@ -989,6 +1010,153 @@ WHERE id = ?1
     return validationError(QStringLiteral("Task is unavailable for list assignment"));
   }
   return TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt};
+}
+
+[[nodiscard]] std::variant<QList<StoredTaskSibling>, AppError>
+readTaskSiblings(SqliteConnection& connection, const StoredTaskContext& task) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT id, remote_id
+FROM local_tasks
+WHERE task_list_id = ?1
+  AND ((?2 IS NULL AND parent_task_id IS NULL) OR parent_task_id = ?2)
+  AND deleted_at IS NULL
+ORDER BY sort_order ASC, id ASC
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task sibling lookup preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, task.taskListId),
+                   bindOptionalText(statement, 2, task.parentTaskId)});
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  QList<StoredTaskSibling> siblings;
+  int stepResult = SQLITE_ROW;
+  while ((stepResult = sqlite3_step(statement)) == SQLITE_ROW) {
+    const std::optional<QString> taskId = optionalText(statement, 0);
+    const std::optional<QString> remoteId = optionalText(statement, 1);
+    if (!taskId.has_value() || !remoteId.has_value()) {
+      sqlite3_finalize(statement);
+      return AppError(AppErrorCode::Database, QStringLiteral("Stored task sibling is invalid"));
+    }
+    siblings.append({.taskId = *taskId, .remoteId = *remoteId});
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task sibling lookup failed (%1)"), stepResult);
+  }
+  return finalizeResult == SQLITE_OK
+             ? std::variant<QList<StoredTaskSibling>, AppError>(std::move(siblings))
+             : std::variant<QList<StoredTaskSibling>, AppError>(databaseError(
+                   QStringLiteral("SQLite task sibling lookup finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+writeTaskSiblingOrder(SqliteConnection& connection,
+                      const QList<StoredTaskSibling>& siblings,
+                      const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_tasks
+SET sort_order = ?2, updated_at = ?3
+WHERE id = ?1 AND deleted_at IS NULL
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task reorder preparation failed (%1)"),
+                         prepareResult);
+  }
+  for (qsizetype index = 0; index < siblings.size(); ++index) {
+    sqlite3_reset(statement);
+    sqlite3_clear_bindings(statement);
+    if (const std::optional<AppError> error =
+            bindAll(statement,
+                    {bindText(statement, 1, siblings.at(index).taskId),
+                     bindInteger(statement, 2, static_cast<int>(index)),
+                     bindText(statement, 3, updatedAt)});
+        error.has_value()) {
+      sqlite3_finalize(statement);
+      return error;
+    }
+    const int stepResult = sqlite3_step(statement);
+    const int changedRows = sqlite3_changes(handle);
+    if (stepResult != SQLITE_DONE || changedRows != 1) {
+      sqlite3_finalize(statement);
+      return stepResult != SQLITE_DONE
+                 ? std::optional<AppError>(databaseError(
+                       QStringLiteral("SQLite task reorder failed (%1)"), stepResult))
+                 : std::optional<AppError>(AppError(
+                       AppErrorCode::Database,
+                       QStringLiteral("Task was unavailable while reordering siblings")));
+    }
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite task reorder finalization failed (%1)"), finalizeResult));
+}
+
+[[nodiscard]] std::variant<TaskPositionReference, AppError>
+reorderStoredTask(SqliteConnection& connection,
+                  const StoredTaskContext& task,
+                  TaskReorderDirection direction,
+                  const QString& updatedAt) {
+  const std::variant<QList<StoredTaskSibling>, AppError> siblingsResult =
+      readTaskSiblings(connection, task);
+  if (std::holds_alternative<AppError>(siblingsResult)) {
+    return std::get<AppError>(siblingsResult);
+  }
+  QList<StoredTaskSibling> siblings = std::get<QList<StoredTaskSibling>>(siblingsResult);
+  const auto current = std::find_if(siblings.cbegin(), siblings.cend(), [&task](const auto& sibling) {
+    return sibling.taskId == task.taskId;
+  });
+  if (current == siblings.cend()) {
+    return AppError(AppErrorCode::Database, QStringLiteral("Task is missing from its sibling set"));
+  }
+  const qsizetype currentIndex = static_cast<qsizetype>(std::distance(siblings.cbegin(), current));
+  const bool movingEarlier = direction == TaskReorderDirection::Earlier;
+  if ((movingEarlier && currentIndex == 0) ||
+      (!movingEarlier && currentIndex + 1 >= siblings.size())) {
+    return validationError(movingEarlier ? QStringLiteral("Task is already first among siblings")
+                                         : QStringLiteral("Task is already last among siblings"));
+  }
+  const qsizetype targetIndex = movingEarlier ? currentIndex - 1 : currentIndex + 1;
+  const StoredTaskSibling moved = *current;
+  siblings.removeAt(currentIndex);
+  siblings.insert(targetIndex, moved);
+  if (const std::optional<AppError> error = writeTaskSiblingOrder(connection, siblings, updatedAt);
+      error.has_value()) {
+    return *error;
+  }
+  if (targetIndex == 0) {
+    return TaskPositionReference{};
+  }
+  const StoredTaskSibling& previous = siblings.at(targetIndex - 1);
+  return isPendingRemoteId(previous.remoteId)
+             ? TaskPositionReference{.previousLocalId = previous.taskId}
+             : TaskPositionReference{.previousRemoteId = previous.remoteId};
 }
 
 [[nodiscard]] TaskMutationResult
@@ -1468,6 +1636,53 @@ std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString task
     }
     return TaskMutationResult(
         TaskMutationReceipt{.taskId = destinationTaskId, .updatedAt = updatedAt});
+  });
+}
+
+std::future<TaskMutationResult>
+TaskMutationService::reorder(QString taskId, TaskReorderDirection direction) {
+  if (!isValidRequiredText(taskId, kMaximumIdentifierLength)) {
+    return readyFuture(TaskMutationResult(
+        validationError(QStringLiteral("Task reorder input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult([taskId = std::move(taskId), direction, updatedAt](
+                                        SqliteConnection& connection) {
+    SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+    if (std::holds_alternative<AppError>(transactionResult)) {
+      return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+    }
+    SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    const std::variant<std::optional<StoredTaskContext>, AppError> beforeResult =
+        readTaskContext(connection, taskId);
+    if (std::holds_alternative<AppError>(beforeResult)) {
+      return TaskMutationResult(std::get<AppError>(beforeResult));
+    }
+    const std::optional<StoredTaskContext>& before =
+        std::get<std::optional<StoredTaskContext>>(beforeResult);
+    if (!before.has_value()) {
+      return TaskMutationResult(validationError(QStringLiteral("Task is unavailable for reorder")));
+    }
+    const std::variant<TaskPositionReference, AppError> positionResult =
+        reorderStoredTask(connection, *before, direction, updatedAt);
+    if (std::holds_alternative<AppError>(positionResult)) {
+      return TaskMutationResult(std::get<AppError>(positionResult));
+    }
+    if (const std::optional<AppError> error = queueTaskMutation(
+            connection,
+            *before,
+            before,
+            QStringLiteral("task.move"),
+            updatedAt,
+            {},
+            std::get<TaskPositionReference>(positionResult));
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    return TaskMutationResult(TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt});
   });
 }
 

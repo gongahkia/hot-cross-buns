@@ -285,6 +285,16 @@ TestCase {
         compare(move.taskId, "inbox-1")
         compare(move.taskListId, "list-active")
         compare(move.taskTitle, "Plan release")
+        let reorder = null
+        taskList.taskReorderRequested.connect(function(taskId, earlier) {
+            reorder = { taskId, earlier }
+        })
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(0, 0)).moveEarlierButton.click()
+        compare(reorder.taskId, "inbox-1")
+        compare(reorder.earlier, true)
+        taskList.taskRows.itemAtIndex(taskList.taskRows.index(1, 0)).moveLaterButton.click()
+        compare(reorder.taskId, "inbox-2")
+        compare(reorder.earlier, false)
         taskList.destroy()
         taskModel.destroy()
     }
@@ -502,6 +512,133 @@ TestCase {
         dialog.destroy()
     }
 
+    function test_taskListControlsExposeListActionsAndStates() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-inbox", title: "Inbox", selected: true, taskCount: 2,
+                           taskTitles: ["Plan release", "Review sync"] })
+        taskLists.append({ id: "list-archive", title: "Archive", selected: false, taskCount: 0,
+                           taskTitles: [] })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            taskListModel: taskLists
+        })
+        verify(mainWindow !== null)
+        const controls = mainWindow.taskList.taskListControls
+        verify(controls !== null)
+        tryCompare(controls.taskListRows, "count", 2)
+        let created = 0
+        let renamed = null
+        let deleted = null
+        let selection = null
+        mainWindow.taskList.taskListCreateRequested.connect(function() { created += 1 })
+        mainWindow.taskList.taskListRenameRequested.connect(function(taskListId, title) {
+            renamed = { taskListId, title }
+        })
+        mainWindow.taskList.taskListDeleteRequested.connect(function(taskListId, title, taskCount, taskTitles) {
+            deleted = { taskListId, title, taskCount, taskTitles }
+        })
+        mainWindow.taskList.taskListSelectionRequested.connect(function(taskListId, selected) {
+            selection = { taskListId, selected }
+        })
+        controls.newTaskListButton.click()
+        compare(created, 1)
+        tryVerify(function() {
+            return controls.taskListRows.itemAtIndex(0) !== null
+        })
+        const inbox = controls.taskListRows.itemAtIndex(0)
+        inbox.selectionCheck.click()
+        compare(selection.taskListId, "list-inbox")
+        compare(selection.selected, false)
+        inbox.renameButton.click()
+        compare(renamed.taskListId, "list-inbox")
+        compare(renamed.title, "Inbox")
+        inbox.deleteButton.click()
+        compare(deleted.taskListId, "list-inbox")
+        compare(deleted.taskCount, 2)
+        compare(deleted.taskTitles.count, 2)
+        mainWindow.destroy()
+        taskLists.destroy()
+
+        const controlsComponent = Qt.createComponent("../../qml/TaskListControls.qml")
+        compare(controlsComponent.status, Component.Ready, controlsComponent.errorString())
+        const loading = controlsComponent.createObject(null, { loading: true, visible: true })
+        verify(loading !== null)
+        verify(loading.loadingLabel.visible)
+        loading.destroy()
+        const errored = controlsComponent.createObject(null, {
+            errorMessage: "Could not load Google Task lists", visible: true
+        })
+        verify(errored !== null)
+        verify(errored.errorLabel.visible)
+        errored.destroy()
+    }
+
+    function test_keyboardTaskListCreationOpensEditor() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-inbox", title: "Inbox", selected: true, taskCount: 0,
+                           taskTitles: [] })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            taskListModel: taskLists
+        })
+        verify(mainWindow !== null)
+        mainWindow.requestActivate()
+        tryCompare(mainWindow, "active", true)
+        mainWindow.taskList.taskListControls.newTaskListButton.forceActiveFocus()
+        tryVerify(function() {
+            return mainWindow.taskList.taskListControls.newTaskListButton.activeFocus
+        })
+        keyClick(Qt.Key_Space)
+        tryVerify(function() {
+            return mainWindow.taskListEditorDialog.opened &&
+                    mainWindow.taskListEditorDialog.taskListTitleField.activeFocus
+        })
+        mainWindow.destroy()
+        taskLists.destroy()
+    }
+
+    function test_taskListDialogsNameAffectedTasksAndEmitRequests() {
+        const editorComponent = Qt.createComponent("../../qml/TaskListEditorDialog.qml")
+        compare(editorComponent.status, Component.Ready, editorComponent.errorString())
+        const editor = editorComponent.createObject(null)
+        verify(editor !== null)
+        let saved = null
+        editor.taskListSaveRequested.connect(function(taskListId, title) {
+            saved = { taskListId, title }
+        })
+        editor.openForCreate()
+        editor.taskListTitleField.text = "Work"
+        editor.primaryButton.click()
+        compare(saved.taskListId, "")
+        compare(saved.title, "Work")
+        editor.openForRename("list-work", "Work")
+        editor.taskListTitleField.text = "Projects"
+        editor.primaryButton.click()
+        compare(saved.taskListId, "list-work")
+        compare(saved.title, "Projects")
+        editor.destroy()
+
+        const deleteComponent = Qt.createComponent("../../qml/TaskListDeleteDialog.qml")
+        compare(deleteComponent.status, Component.Ready, deleteComponent.errorString())
+        const deleteDialog = deleteComponent.createObject(null)
+        verify(deleteDialog !== null)
+        deleteDialog.openForDelete("list-work", "Projects", 3,
+                                    ["Plan release", "Review sync"])
+        tryCompare(deleteDialog.taskRows, "count", 2)
+        compare(deleteDialog.taskTitles[0], "Plan release")
+        compare(deleteDialog.taskTitles[1], "Review sync")
+        let deletedId = ""
+        deleteDialog.taskListDeleteRequested.connect(function(taskListId) { deletedId = taskListId })
+        deleteDialog.primaryButton.click()
+        compare(deletedId, "list-work")
+        deleteDialog.destroy()
+    }
+
     function test_taskCreateDialogEmitsCreateRequest() {
         const component = Qt.createComponent("../../qml/TaskCreateDialog.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -569,8 +706,10 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskLists.append({ id: "list-active", title: "Inbox", selected: true })
-        taskLists.append({ id: "list-other", title: "Archive", selected: false })
+        taskLists.append({ id: "list-active", title: "Inbox", selected: true, taskCount: 0,
+                           taskTitles: [] })
+        taskLists.append({ id: "list-other", title: "Archive", selected: false, taskCount: 0,
+                           taskTitles: [] })
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
             taskListModel: taskLists,

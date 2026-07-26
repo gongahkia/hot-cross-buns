@@ -35,6 +35,8 @@ struct GoogleHttpRequest final {
   QList<GoogleHttpQueryParameter> query;
   std::optional<QByteArray> body;
   std::optional<QString> ifMatch;
+  std::optional<QByteArray> contentType;
+  std::optional<QByteArray> accept;
 };
 
 struct GoogleHttpResponse final {

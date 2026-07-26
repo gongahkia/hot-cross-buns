@@ -16,6 +16,10 @@ namespace {
 }
 
 [[nodiscard]] bool isStructural(const SyncThreeWayMergeInput& input) {
+  if (input.remoteSnapshot.value(QStringLiteral("_deleted")).toBool() ||
+      input.remoteSnapshot.value(QStringLiteral("_recurrence")).toBool()) {
+    return true;
+  }
   if (input.operation.endsWith(QStringLiteral(".delete")) ||
       input.operation.contains(QStringLiteral("move"), Qt::CaseInsensitive)) {
     return true;

@@ -85,6 +85,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleMirrorStore.h
   src/core/GoogleSyncRecoveryService.cpp
   src/core/GoogleSyncRecoveryService.h
+  src/core/GoogleSyncConflictResolver.cpp
+  src/core/GoogleSyncConflictResolver.h
   src/core/GoogleCalendarListPullClient.cpp
   src/core/GoogleCalendarListPullClient.h
   src/core/GoogleCalendarEventPullClient.cpp
@@ -163,6 +165,8 @@ set(HCB_NATIVE_SOURCES
   src/core/TaskListReadService.h
   src/core/TaskListModel.cpp
   src/core/TaskListModel.h
+  src/core/TaskListMutationService.cpp
+  src/core/TaskListMutationService.h
   src/core/TaskModel.cpp
   src/core/TaskModel.h
   src/core/TaskMutationService.cpp
@@ -238,6 +242,9 @@ qt_add_qml_module(hcb_native
     qml/TaskDeleteDialog.qml
     qml/TaskEditDialog.qml
     qml/TaskListView.qml
+    qml/TaskListControls.qml
+    qml/TaskListDeleteDialog.qml
+    qml/TaskListEditorDialog.qml
     qml/TaskMoveDialog.qml
     qml/Theme.qml
     qml/WeekTimelineView.qml
@@ -1162,6 +1169,32 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_task_mutation_service_tests)
   add_test(NAME hcb_task_mutation_service_tests COMMAND hcb_task_mutation_service_tests)
 
+  qt_add_executable(hcb_task_list_mutation_service_tests
+    tests/TaskListMutationServiceTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/TaskListMutationService.cpp
+    src/core/TaskListMutationService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_task_list_mutation_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_task_list_mutation_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_task_list_mutation_service_tests)
+  hcb_enable_sanitizers(hcb_task_list_mutation_service_tests)
+  add_test(NAME hcb_task_list_mutation_service_tests COMMAND hcb_task_list_mutation_service_tests)
+
   qt_add_executable(hcb_settings_service_tests
     tests/SettingsServiceTest.cpp
     src/core/AppError.h
@@ -1253,6 +1286,47 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_sync_three_way_merge_tests)
   hcb_enable_sanitizers(hcb_sync_three_way_merge_tests)
   add_test(NAME hcb_sync_three_way_merge_tests COMMAND hcb_sync_three_way_merge_tests)
+
+  qt_add_executable(hcb_google_sync_conflict_resolver_tests
+    tests/GoogleSyncConflictResolverTest.cpp
+    tests/support/MockNetworkAccessManager.h
+    tests/support/TemporarySqliteDatabase.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/GoogleSyncConflictResolver.cpp
+    src/core/GoogleSyncConflictResolver.h
+    src/core/OptimisticMutationCoordinator.cpp
+    src/core/OptimisticMutationCoordinator.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+    src/core/SyncConflictPolicy.h
+    src/core/SyncConflictStore.cpp
+    src/core/SyncConflictStore.h
+    src/core/SyncThreeWayMerge.cpp
+    src/core/SyncThreeWayMerge.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_google_sync_conflict_resolver_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_google_sync_conflict_resolver_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_google_sync_conflict_resolver_tests)
+  hcb_enable_sanitizers(hcb_google_sync_conflict_resolver_tests)
+  add_test(NAME hcb_google_sync_conflict_resolver_tests COMMAND hcb_google_sync_conflict_resolver_tests)
 
   qt_add_executable(hcb_sync_scheduler_tests
     tests/SyncSchedulerTest.cpp
@@ -1634,6 +1708,8 @@ if(BUILD_TESTING)
     tests/support/MockNetworkAccessManager.h
     tests/support/TemporarySqliteDatabase.h
     src/core/AppError.h
+    src/core/CalendarMutationService.cpp
+    src/core/CalendarMutationService.h
     src/core/Clock.h
     src/core/FilePath.h
     src/core/GoogleApiError.cpp
@@ -1642,12 +1718,19 @@ if(BUILD_TESTING)
     src/core/GoogleCalendarEventMutationPushService.h
     src/core/GoogleHttpClient.cpp
     src/core/GoogleHttpClient.h
+    src/core/GoogleSyncConflictResolver.cpp
+    src/core/GoogleSyncConflictResolver.h
     src/core/OptimisticMutationCoordinator.cpp
     src/core/OptimisticMutationCoordinator.h
     src/core/SecretRedactor.cpp
     src/core/SecretRedactor.h
     src/core/SyncBackoffPolicy.cpp
     src/core/SyncBackoffPolicy.h
+    src/core/SyncConflictPolicy.h
+    src/core/SyncConflictStore.cpp
+    src/core/SyncConflictStore.h
+    src/core/SyncThreeWayMerge.cpp
+    src/core/SyncThreeWayMerge.h
     src/core/TaskMutationService.cpp
     src/core/TaskMutationService.h
     src/data/LocalSchema.cpp
@@ -1716,6 +1799,8 @@ if(BUILD_TESTING)
     src/core/GoogleApiError.h
     src/core/GoogleHttpClient.cpp
     src/core/GoogleHttpClient.h
+    src/core/GoogleSyncConflictResolver.cpp
+    src/core/GoogleSyncConflictResolver.h
     src/core/GoogleTaskMutationPushService.cpp
     src/core/GoogleTaskMutationPushService.h
     src/core/OptimisticMutationCoordinator.cpp
@@ -1724,8 +1809,15 @@ if(BUILD_TESTING)
     src/core/SecretRedactor.h
     src/core/SyncBackoffPolicy.cpp
     src/core/SyncBackoffPolicy.h
+    src/core/SyncConflictPolicy.h
+    src/core/SyncConflictStore.cpp
+    src/core/SyncConflictStore.h
+    src/core/SyncThreeWayMerge.cpp
+    src/core/SyncThreeWayMerge.h
     src/core/TaskMutationService.cpp
     src/core/TaskMutationService.h
+    src/core/TaskListMutationService.cpp
+    src/core/TaskListMutationService.h
     src/data/LocalSchema.cpp
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp

@@ -12,7 +12,8 @@ namespace {
          left.remoteId == right.remoteId && left.title == right.title && left.etag == right.etag &&
          left.sortOrder == right.sortOrder && left.selected == right.selected &&
          left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt &&
-         left.taskCount == right.taskCount && left.activeTaskCount == right.activeTaskCount;
+         left.taskCount == right.taskCount && left.activeTaskCount == right.activeTaskCount &&
+         left.taskTitles == right.taskTitles;
 }
 
 } // namespace
@@ -44,6 +45,8 @@ QVariant TaskListModel::data(const QModelIndex& index, int role) const {
     return static_cast<qlonglong>(taskList.taskCount);
   case ActiveTaskCountRole:
     return static_cast<qlonglong>(taskList.activeTaskCount);
+  case TaskTitlesRole:
+    return taskList.taskTitles;
   default:
     return {};
   }
@@ -56,7 +59,25 @@ QHash<int, QByteArray> TaskListModel::roleNames() const {
           {SortOrderRole, "sortOrder"},
           {SelectedRole, "selected"},
           {TaskCountRole, "taskCount"},
-          {ActiveTaskCountRole, "activeTaskCount"}};
+          {ActiveTaskCountRole, "activeTaskCount"},
+          {TaskTitlesRole, "taskTitles"}};
+}
+
+int TaskListModel::revision() const { return revision_; }
+
+QVariantList TaskListModel::selectedTaskLists() const {
+  QVariantList selected;
+  for (const TaskListSummary& taskList : taskLists_) {
+    if (!taskList.selected) {
+      continue;
+    }
+    selected.append(QVariantMap{{QStringLiteral("id"), taskList.id},
+                                {QStringLiteral("title"), taskList.title},
+                                {QStringLiteral("taskCount"), taskList.taskCount},
+                                {QStringLiteral("activeTaskCount"),
+                                 taskList.activeTaskCount}});
+  }
+  return selected;
 }
 
 void TaskListModel::setTaskLists(QList<TaskListSummary> taskLists) {
@@ -69,12 +90,16 @@ void TaskListModel::setTaskLists(QList<TaskListSummary> taskLists) {
     beginResetModel();
     taskLists_ = std::move(taskLists);
     endResetModel();
+    ++revision_;
+    emit revisionChanged();
     return;
   }
   taskLists_ = std::move(taskLists);
   for (const ModelDataChangeRange& range : plan.changedRanges) {
     emit dataChanged(index(range.firstRow, 0), index(range.lastRow, 0));
   }
+  ++revision_;
+  emit revisionChanged();
 }
 
 } // namespace hcb

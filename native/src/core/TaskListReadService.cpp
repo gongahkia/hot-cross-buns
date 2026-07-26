@@ -17,8 +17,10 @@ namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr std::int64_t kMaximumPageLimit = 100;
+constexpr std::int64_t kTaskPreviewLimit = 8;
 
 using TaskListDecodeResult = std::variant<TaskListSummary, AppError>;
+using TaskTitleListResult = std::variant<QStringList, AppError>;
 
 [[nodiscard]] AppError databaseError(const QString& message, int result) {
   return AppError(AppErrorCode::Database, message.arg(result));
@@ -108,6 +110,66 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                          .activeTaskCount = activeTaskCount};
 }
 
+[[nodiscard]] TaskTitleListResult readTaskTitles(SqliteConnection& connection,
+                                                  const QString& taskListId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task-list connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT title
+FROM local_tasks
+WHERE task_list_id = ?1 AND deleted_at IS NULL AND is_hidden = 0
+ORDER BY sort_order ASC, id ASC
+LIMIT ?2
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task-list preview preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindText(statement, 1, taskListId);
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  if (const std::optional<AppError> error = bindInteger(statement, 2, kTaskPreviewLimit);
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  QStringList titles;
+  while (true) {
+    const int stepResult = sqlite3_step(statement);
+    if (stepResult == SQLITE_DONE) {
+      break;
+    }
+    if (stepResult != SQLITE_ROW) {
+      sqlite3_finalize(statement);
+      return databaseError(QStringLiteral("SQLite task-list preview lookup failed (%1)"),
+                           stepResult);
+    }
+    const std::optional<QString> title = requiredText(statement, 0);
+    if (!title.has_value()) {
+      sqlite3_finalize(statement);
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored task-list preview task is invalid"));
+    }
+    titles.append(*title);
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? TaskTitleListResult(std::move(titles))
+             : TaskTitleListResult(databaseError(
+                   QStringLiteral("SQLite task-list preview finalization failed (%1)"),
+                   finalizeResult));
+}
+
 constexpr char taskListProjectionSql[] = R"(
 SELECT lists.id, lists.account_id, lists.remote_id, lists.title, lists.etag, lists.sort_order,
        lists.is_selected, lists.remote_updated_at, lists.updated_at,
@@ -174,7 +236,13 @@ WHERE lists.deleted_at IS NULL
     return databaseError(QStringLiteral("SQLite task-list lookup finalization failed (%1)"),
                          finalizeResult);
   }
-  return std::optional<TaskListSummary>(std::get<TaskListSummary>(decoded));
+  TaskListSummary taskList = std::get<TaskListSummary>(decoded);
+  TaskTitleListResult taskTitles = readTaskTitles(connection, taskList.id);
+  if (std::holds_alternative<AppError>(taskTitles)) {
+    return std::get<AppError>(std::move(taskTitles));
+  }
+  taskList.taskTitles = std::get<QStringList>(std::move(taskTitles));
+  return std::optional<TaskListSummary>(std::move(taskList));
 }
 
 [[nodiscard]] TaskListPageResult readStoredTaskLists(SqliteConnection& connection,
@@ -246,6 +314,14 @@ WHERE lists.deleted_at IS NULL
   if (finalizeResult != SQLITE_OK) {
     return databaseError(QStringLiteral("SQLite task-list list finalization failed (%1)"),
                          finalizeResult);
+  }
+
+  for (TaskListSummary& taskList : items) {
+    TaskTitleListResult taskTitles = readTaskTitles(connection, taskList.id);
+    if (std::holds_alternative<AppError>(taskTitles)) {
+      return std::get<AppError>(std::move(taskTitles));
+    }
+    taskList.taskTitles = std::get<QStringList>(std::move(taskTitles));
   }
 
   QString countSql = QStringLiteral("SELECT COUNT(*) FROM local_task_lists "

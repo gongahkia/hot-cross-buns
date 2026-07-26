@@ -11,7 +11,9 @@
 namespace hcb {
 
 class Clock;
+class CalendarMutationService;
 class GoogleHttpClient;
+class GoogleSyncConflictResolver;
 class OptimisticMutationCoordinator;
 
 struct GoogleCalendarEventMutationPushResult final {
@@ -28,7 +30,9 @@ public:
   GoogleCalendarEventMutationPushService(OptimisticMutationCoordinator& mutations,
                                          GoogleHttpClient& httpClient,
                                          const Clock& clock,
-                                         SyncBackoffPolicy backoffPolicy);
+                                         SyncBackoffPolicy backoffPolicy,
+                                         CalendarMutationService* calendarMutationService = nullptr,
+                                         GoogleSyncConflictResolver* conflictResolver = nullptr);
 
   [[nodiscard]] std::future<GoogleCalendarEventMutationPushResultOrError>
   pushDue(QString accessToken, int limit = 25);
@@ -38,6 +42,8 @@ private:
   GoogleHttpClient& httpClient_;
   const Clock& clock_;
   SyncBackoffPolicy backoffPolicy_;
+  CalendarMutationService* calendarMutationService_;
+  GoogleSyncConflictResolver* conflictResolver_;
 };
 
 } // namespace hcb

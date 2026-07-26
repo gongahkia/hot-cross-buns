@@ -21,6 +21,11 @@ enum class TaskPriority : std::uint8_t {
   High
 };
 
+enum class TaskReorderDirection : std::uint8_t {
+  Earlier,
+  Later
+};
+
 struct TaskDue final {
   std::optional<QString> at;
   std::optional<QString> timeZone;
@@ -68,6 +73,8 @@ public:
   [[nodiscard]] std::future<TaskMutationResult> create(TaskCreateInput input);
   [[nodiscard]] std::future<TaskMutationResult> update(TaskUpdateInput input);
   [[nodiscard]] std::future<TaskMutationResult> moveToTaskList(QString taskId, QString taskListId);
+  [[nodiscard]] std::future<TaskMutationResult>
+  reorder(QString taskId, TaskReorderDirection direction);
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult>

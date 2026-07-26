@@ -8,6 +8,8 @@
 #include <QString>
 
 #include <optional>
+#include <chrono>
+#include <thread>
 #include <utility>
 
 namespace hcb {
@@ -46,29 +48,39 @@ namespace {
 }
 
 [[nodiscard]] std::optional<AppError> setWalJournalMode(sqlite3* handle) {
-  sqlite3_stmt* statement = nullptr;
-  const int prepareResult =
-      sqlite3_prepare_v2(handle, "PRAGMA journal_mode = WAL", -1, &statement, nullptr);
-  if (prepareResult != SQLITE_OK) {
-    sqlite3_finalize(statement);
-    return configurationError(prepareResult);
+  constexpr int kAttempts = 50;
+  for (int attempt = 0; attempt < kAttempts; ++attempt) {
+    sqlite3_stmt* statement = nullptr;
+    const int prepareResult =
+        sqlite3_prepare_v2(handle, "PRAGMA journal_mode = WAL", -1, &statement, nullptr);
+    if (prepareResult != SQLITE_OK) {
+      sqlite3_finalize(statement);
+      if (prepareResult != SQLITE_BUSY && prepareResult != SQLITE_LOCKED) {
+        return configurationError(prepareResult);
+      }
+    } else {
+      const int stepResult = sqlite3_step(statement);
+      const auto* journalMode = stepResult == SQLITE_ROW
+                                    ? reinterpret_cast<const char*>(sqlite3_column_text(statement, 0))
+                                    : nullptr;
+      const bool isWal = journalMode != nullptr && QString::fromUtf8(journalMode) == u"wal";
+      const int finalizeResult = sqlite3_finalize(statement);
+      if (finalizeResult != SQLITE_OK && finalizeResult != SQLITE_BUSY &&
+          finalizeResult != SQLITE_LOCKED) {
+        return configurationError(finalizeResult);
+      }
+      if (stepResult == SQLITE_ROW && finalizeResult == SQLITE_OK) {
+        return isWal ? std::optional<AppError>{}
+                     : std::optional<AppError>(AppError(
+                           AppErrorCode::Database, QStringLiteral("SQLite journal mode is not WAL")));
+      }
+      if (stepResult != SQLITE_BUSY && stepResult != SQLITE_LOCKED && finalizeResult == SQLITE_OK) {
+        return configurationError(stepResult);
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-
-  const int stepResult = sqlite3_step(statement);
-  if (stepResult != SQLITE_ROW) {
-    sqlite3_finalize(statement);
-    return configurationError(stepResult);
-  }
-  const auto* journalMode = reinterpret_cast<const char*>(sqlite3_column_text(statement, 0));
-  const bool isWal = journalMode != nullptr && QString::fromUtf8(journalMode) == u"wal";
-  const int finalizeResult = sqlite3_finalize(statement);
-  if (finalizeResult != SQLITE_OK) {
-    return configurationError(finalizeResult);
-  }
-  if (!isWal) {
-    return AppError(AppErrorCode::Database, QStringLiteral("SQLite journal mode is not WAL"));
-  }
-  return std::nullopt;
+  return configurationError(SQLITE_BUSY);
 }
 
 [[nodiscard]] std::optional<AppError> applyProductionPragmas(sqlite3* handle, SqliteOpenMode mode) {

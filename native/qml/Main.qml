@@ -42,6 +42,8 @@ ApplicationWindow {
     property alias taskDeleteDialog: taskDeleteDialog
     property alias taskEditDialog: taskEditDialog
     property alias taskList: taskList
+    property alias taskListEditorDialog: taskListEditorDialog
+    property alias taskListDeleteDialog: taskListDeleteDialog
     property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
@@ -343,6 +345,28 @@ ApplicationWindow {
         }
     }
 
+    TaskListEditorDialog {
+        id: taskListEditorDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskListSaveRequested: function(taskListId, title) {
+            if (taskListId.length === 0) {
+                window.controllerCall("createTaskList", [title])
+            } else {
+                window.controllerCall("renameTaskList", [taskListId, title])
+            }
+        }
+    }
+
+    TaskListDeleteDialog {
+        id: taskListDeleteDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskListDeleteRequested: function(taskListId) {
+            window.controllerCall("deleteTaskList", [taskListId])
+        }
+    }
+
     EventCreateDialog {
         id: eventCreateDialog
         parent: Overlay.overlay
@@ -413,7 +437,22 @@ ApplicationWindow {
                 id: taskList
                 anchors.fill: parent
                 visible: window.currentPage === "Tasks"
+                taskListModel: window.taskListModel
                 taskModel: window.taskModel
+                taskListLoading: window.appController !== null && window.appController.busy === true
+                taskListErrorMessage: window.appController !== null &&
+                                      typeof window.appController.taskListErrorMessage === "string"
+                                      ? window.appController.taskListErrorMessage : ""
+                onTaskListCreateRequested: taskListEditorDialog.openForCreate()
+                onTaskListRenameRequested: function(taskListId, title) {
+                    taskListEditorDialog.openForRename(taskListId, title)
+                }
+                onTaskListDeleteRequested: function(taskListId, title, taskCount, taskTitles) {
+                    taskListDeleteDialog.openForDelete(taskListId, title, taskCount, taskTitles)
+                }
+                onTaskListSelectionRequested: function(taskListId, selected) {
+                    window.controllerCall("setTaskListSelected", [taskListId, selected])
+                }
                 onTaskCreateRequested: taskCreateDialog.openForCreate("", "")
                 onTaskSubtaskCreateRequested: function(parentTaskId, taskListId) {
                     taskCreateDialog.openForCreate(taskListId, parentTaskId)
@@ -421,6 +460,9 @@ ApplicationWindow {
                 onTaskReparentRequested: function(taskId, parentTaskId) {
                     window.taskReparentRequested(taskId, parentTaskId)
                     window.controllerCall("reparentTask", [taskId, parentTaskId])
+                }
+                onTaskReorderRequested: function(taskId, earlier) {
+                    window.controllerCall("reorderTask", [taskId, earlier])
                 }
                 onTaskCompletionRequested: function(taskId, completed) {
                     window.controllerCall("setTaskCompleted", [taskId, completed])
@@ -584,6 +626,85 @@ ApplicationWindow {
                              !window.appController.busy
                     Accessible.name: text
                     onClicked: window.controllerCall("syncGoogle", [])
+                }
+
+                Label {
+                    text: "Conflict handling"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                ComboBox {
+                    id: conflictPolicySelector
+                    Layout.fillWidth: true
+                    model: ["Prefer Google", "Prefer Hot Cross Buns", "Ask each time"]
+                    currentIndex: window.appController !== null &&
+                                  typeof window.appController.conflictPolicy === "number"
+                                  ? window.appController.conflictPolicy : 0
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Sync conflict handling"
+                    onActivated: index => window.controllerCall("saveConflictPolicy", [index])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Google is the default. ‘Ask each time’ keeps conflicting changes pending until you choose."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Repeater {
+                    model: window.appController !== null && window.appController.unresolvedConflicts !== undefined
+                           ? window.appController.unresolvedConflicts : []
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingSmall
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: modelData.resource + ": " + modelData.message
+                            wrapMode: Text.WordWrap
+                            color: Theme.textSecondary
+                        }
+
+                        Button {
+                            text: "Keep Google"
+                            enabled: !window.appController.busy
+                            Accessible.name: text
+                            onClicked: window.controllerCall("resolveSyncConflict", [modelData.id, false])
+                        }
+
+                        Button {
+                            text: "Keep HCB"
+                            enabled: modelData.canKeepLocal && !window.appController.busy
+                            Accessible.name: text
+                            onClicked: window.controllerCall("resolveSyncConflict", [modelData.id, true])
+                        }
+                    }
+                }
+
+                Label {
+                    visible: window.appController !== null && window.appController.resolvedConflicts !== undefined &&
+                             window.appController.resolvedConflicts.length > 0
+                    text: "Recent conflict resolutions"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Repeater {
+                    model: window.appController !== null && window.appController.resolvedConflicts !== undefined
+                           ? window.appController.resolvedConflicts : []
+                    delegate: Label {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        text: modelData.resource + ": " + modelData.resolution + " — " + modelData.message
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                        Accessible.name: text
+                    }
                 }
 
                 Label {
