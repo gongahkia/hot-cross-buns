@@ -12,9 +12,10 @@
 namespace hcb {
 namespace {
 
-constexpr NativePerformanceFixtureCounts kSmallCounts{50, 20, 10};
-constexpr NativePerformanceFixtureCounts kMediumCounts{1'000, 1'000, 200};
-constexpr NativePerformanceFixtureCounts kEvent15kCounts{1'000, 15'000, 500};
+constexpr NativePerformanceFixtureCounts kSmallCounts{50, 20, 10, 0, 0};
+constexpr NativePerformanceFixtureCounts kMediumCounts{1'000, 1'000, 200, 0, 0};
+constexpr NativePerformanceFixtureCounts kEvent15kCounts{1'000, 15'000, 500, 0, 0};
+constexpr NativePerformanceFixtureCounts kWrapperScaleCounts{10'000, 25'000, 2'000, 500, 500};
 constexpr qint64 kBaseTimeMilliseconds = 1'767'603'600'000;
 constexpr std::array<QStringView, 4> kTaskListIds{
     u"generated-inbox", u"generated-work", u"generated-personal", u"generated-later"};
@@ -42,6 +43,10 @@ QString noteId(QStringView size, std::size_t index) {
   return QStringLiteral("generated-%1-note-%2").arg(size, padded(index + 1));
 }
 
+QString mutationId(QStringView size, std::size_t index) {
+  return QStringLiteral("generated-%1-mutation-%2").arg(size, padded(index + 1));
+}
+
 QJsonValue optionalString(const std::optional<QString>& value) {
   return value.has_value() ? QJsonValue(*value) : QJsonValue(QJsonValue::Null);
 }
@@ -53,6 +58,7 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
                                    true,
                                    timestamp(0),
                                    counts,
+                                   {},
                                    {},
                                    {},
                                    {},
@@ -91,13 +97,21 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
     const qint64 indexOffset = static_cast<qint64>(index);
     const qint64 startsAtOffset = indexOffset * 45;
     const qint64 durationMinutes = 30 + static_cast<qint64>(index % 4) * 15;
-    fixture.eventInstances.push_back({eventId(size, index),
-                                      kCalendarIds[index % kCalendarIds.size()].toString(),
-                                      QStringLiteral("Generated event %1").arg(padded(index + 1)),
-                                      timestamp(startsAtOffset),
-                                      timestamp(startsAtOffset + durationMinutes),
-                                      index % 31 == 0,
-                                      timestamp(indexOffset - 90)});
+    const bool recurrenceException = index < fixture.counts.recurrenceExceptions;
+    fixture.eventInstances.push_back(
+        {eventId(size, index),
+         kCalendarIds[index % kCalendarIds.size()].toString(),
+         QStringLiteral("Generated event %1").arg(padded(index + 1)),
+         timestamp(startsAtOffset),
+         timestamp(startsAtOffset + durationMinutes),
+         index % 31 == 0,
+         recurrenceException
+             ? std::optional<QString>(
+                   QStringLiteral("generated-%1-recurring-%2").arg(size).arg(index / 10 + 1))
+             : std::nullopt,
+         recurrenceException ? std::optional<QString>(timestamp(startsAtOffset - 60))
+                             : std::nullopt,
+         timestamp(indexOffset - 90)});
   }
 
   fixture.notes.reserve(fixture.counts.notes);
@@ -118,6 +132,15 @@ NativePerformanceFixture generate(QStringView size, NativePerformanceFixtureCoun
              .arg(padded(index + 1)),
          timestamp(static_cast<qint64>(index) - 360)});
   }
+  fixture.queuedMutations.reserve(fixture.counts.queuedMutations);
+  for (std::size_t index = 0; index < fixture.counts.queuedMutations; ++index) {
+    const bool task = index % 2 == 0;
+    fixture.queuedMutations.push_back({mutationId(size, index),
+                                       task ? QStringLiteral("task") : QStringLiteral("event"),
+                                       task
+                                           ? taskId(size, index % fixture.counts.tasks)
+                                           : eventId(size, index % fixture.counts.eventInstances)});
+  }
   return fixture;
 }
 
@@ -133,6 +156,10 @@ NativePerformanceFixture NativePerformanceFixtureGenerator::medium() {
 
 NativePerformanceFixture NativePerformanceFixtureGenerator::event15k() {
   return generate(u"event15k", kEvent15kCounts);
+}
+
+NativePerformanceFixture NativePerformanceFixtureGenerator::wrapperScale() {
+  return generate(u"wrapper-scale", kWrapperScaleCounts);
 }
 
 QByteArray NativePerformanceFixtureGenerator::toJson(const NativePerformanceFixture& fixture) {
@@ -158,13 +185,22 @@ QByteArray NativePerformanceFixtureGenerator::toJson(const NativePerformanceFixt
   }
   QJsonArray eventInstances;
   for (const NativePerformanceEventFixture& event : fixture.eventInstances) {
-    eventInstances.append(QJsonObject{{QStringLiteral("id"), event.id},
-                                      {QStringLiteral("calendarId"), event.calendarId},
-                                      {QStringLiteral("title"), event.title},
-                                      {QStringLiteral("startsAt"), event.startsAt},
-                                      {QStringLiteral("endsAt"), event.endsAt},
-                                      {QStringLiteral("isAllDay"), event.isAllDay},
-                                      {QStringLiteral("updatedAt"), event.updatedAt}});
+    eventInstances.append(
+        QJsonObject{{QStringLiteral("id"), event.id},
+                    {QStringLiteral("calendarId"), event.calendarId},
+                    {QStringLiteral("title"), event.title},
+                    {QStringLiteral("startsAt"), event.startsAt},
+                    {QStringLiteral("endsAt"), event.endsAt},
+                    {QStringLiteral("isAllDay"), event.isAllDay},
+                    {QStringLiteral("recurringEventId"), optionalString(event.recurringEventId)},
+                    {QStringLiteral("originalStartAt"), optionalString(event.originalStartAt)},
+                    {QStringLiteral("updatedAt"), event.updatedAt}});
+  }
+  QJsonArray queuedMutations;
+  for (const NativePerformanceQueuedMutationFixture& mutation : fixture.queuedMutations) {
+    queuedMutations.append(QJsonObject{{QStringLiteral("id"), mutation.id},
+                                       {QStringLiteral("resourceType"), mutation.resourceType},
+                                       {QStringLiteral("resourceId"), mutation.resourceId}});
   }
   QJsonArray notes;
   for (const NativePerformanceNoteFixture& note : fixture.notes) {
@@ -187,12 +223,17 @@ QByteArray NativePerformanceFixtureGenerator::toJson(const NativePerformanceFixt
        QJsonObject{
            {QStringLiteral("tasks"), static_cast<qint64>(fixture.counts.tasks)},
            {QStringLiteral("eventInstances"), static_cast<qint64>(fixture.counts.eventInstances)},
-           {QStringLiteral("notes"), static_cast<qint64>(fixture.counts.notes)}}},
+           {QStringLiteral("notes"), static_cast<qint64>(fixture.counts.notes)},
+           {QStringLiteral("recurrenceExceptions"),
+            static_cast<qint64>(fixture.counts.recurrenceExceptions)},
+           {QStringLiteral("queuedMutations"),
+            static_cast<qint64>(fixture.counts.queuedMutations)}}},
       {QStringLiteral("taskLists"), taskLists},
       {QStringLiteral("calendars"), calendars},
       {QStringLiteral("tasks"), tasks},
       {QStringLiteral("eventInstances"), eventInstances},
-      {QStringLiteral("notes"), notes}};
+      {QStringLiteral("notes"), notes},
+      {QStringLiteral("queuedMutations"), queuedMutations}};
   return QJsonDocument(document).toJson(QJsonDocument::Compact);
 }
 

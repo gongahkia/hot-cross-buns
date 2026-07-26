@@ -19,7 +19,7 @@ namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr std::int64_t kMaximumCalendarPageLimit = 100;
-constexpr std::int64_t kMaximumEventPageLimit = 500;
+constexpr std::int64_t kMaximumEventPageLimit = 25'000;
 constexpr qsizetype kMaximumCalendarFilterCount = 25;
 constexpr qint64 kMaximumRangeDurationMilliseconds = 397LL * 24 * 60 * 60 * 1000;
 

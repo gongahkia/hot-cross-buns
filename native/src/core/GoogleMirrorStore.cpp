@@ -282,7 +282,12 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "WHERE mutations.resource_type = 'task_list' "
       "AND mutations.resource_id = local_task_lists.id "
       "AND (mutations.status IN ('pending', 'applying') "
-      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL))) "
+      "AND (local_task_lists.title IS NOT excluded.title "
+      "OR local_task_lists.etag IS NOT excluded.etag "
+      "OR local_task_lists.sort_order IS NOT excluded.sort_order "
+      "OR local_task_lists.remote_updated_at IS NOT excluded.remote_updated_at "
+      "OR local_task_lists.deleted_at IS NOT NULL)",
       {textValue(taskListId(accountId, taskList.id)),
        textValue(accountId),
        textValue(taskList.id),
@@ -314,7 +319,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "INSERT INTO local_tasks (id, task_list_id, remote_id, parent_task_id, title, notes, state, "
       "due_at, completed_at, remote_position, sort_order, is_hidden, etag, remote_updated_at, "
       "is_assigned, recurrence_diagnostic, created_at, updated_at, deleted_at) "
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17, ?18) "
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17, "
+      "?18) "
       "ON CONFLICT(task_list_id, remote_id) DO UPDATE SET "
       "parent_task_id = excluded.parent_task_id, title = excluded.title, notes = excluded.notes, "
       "state = excluded.state, due_at = excluded.due_at, completed_at = excluded.completed_at, "
@@ -327,7 +333,21 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "WHERE mutations.resource_type = 'task' "
       "AND mutations.resource_id = local_tasks.id "
       "AND (mutations.status IN ('pending', 'applying') "
-      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL))) "
+      "AND (local_tasks.parent_task_id IS NOT excluded.parent_task_id "
+      "OR local_tasks.title IS NOT excluded.title "
+      "OR local_tasks.notes IS NOT excluded.notes "
+      "OR local_tasks.state IS NOT excluded.state "
+      "OR local_tasks.due_at IS NOT excluded.due_at "
+      "OR local_tasks.completed_at IS NOT excluded.completed_at "
+      "OR local_tasks.remote_position IS NOT excluded.remote_position "
+      "OR local_tasks.sort_order IS NOT excluded.sort_order "
+      "OR local_tasks.is_hidden IS NOT excluded.is_hidden "
+      "OR local_tasks.is_assigned IS NOT excluded.is_assigned "
+      "OR local_tasks.recurrence_diagnostic IS NOT excluded.recurrence_diagnostic "
+      "OR local_tasks.etag IS NOT excluded.etag "
+      "OR local_tasks.remote_updated_at IS NOT excluded.remote_updated_at "
+      "OR local_tasks.deleted_at IS NOT excluded.deleted_at)",
       {textValue(taskId(accountId, task.taskListId, task.id)),
        textValue(localListId),
        textValue(task.id),
@@ -491,7 +511,8 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "INSERT INTO local_calendar_events (id, calendar_id, remote_id, recurring_remote_id, "
       "original_start_at, status, title, description, location, start_at, start_time_zone, end_at, "
       "end_time_zone, is_all_day, recurrence_rule, color_id, transparency, visibility, time_zone, "
-      "event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, reminders_json, "
+      "event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, "
+      "reminders_json, "
       "reminders_use_default, etag, sequence, remote_updated_at, updated_at, deleted_at) "
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, "
       "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30) "
@@ -507,7 +528,8 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "time_zone = excluded.time_zone, event_type = excluded.event_type, "
       "attendee_emails_json = excluded.attendee_emails_json, "
       "attendee_details_json = excluded.attendee_details_json, "
-      "reminder_minutes_json = excluded.reminder_minutes_json, reminders_json = excluded.reminders_json, "
+      "reminder_minutes_json = excluded.reminder_minutes_json, reminders_json = "
+      "excluded.reminders_json, "
       "reminders_use_default = excluded.reminders_use_default, etag = excluded.etag, "
       "sequence = excluded.sequence, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
@@ -516,7 +538,33 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "WHERE mutations.resource_type = 'event' "
       "AND mutations.resource_id = local_calendar_events.id "
       "AND (mutations.status IN ('pending', 'applying') "
-      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL))) "
+      "AND (local_calendar_events.recurring_remote_id IS NOT excluded.recurring_remote_id "
+      "OR local_calendar_events.original_start_at IS NOT excluded.original_start_at "
+      "OR local_calendar_events.status IS NOT excluded.status "
+      "OR local_calendar_events.title IS NOT excluded.title "
+      "OR local_calendar_events.description IS NOT excluded.description "
+      "OR local_calendar_events.location IS NOT excluded.location "
+      "OR local_calendar_events.start_at IS NOT excluded.start_at "
+      "OR local_calendar_events.start_time_zone IS NOT excluded.start_time_zone "
+      "OR local_calendar_events.end_at IS NOT excluded.end_at "
+      "OR local_calendar_events.end_time_zone IS NOT excluded.end_time_zone "
+      "OR local_calendar_events.is_all_day IS NOT excluded.is_all_day "
+      "OR local_calendar_events.recurrence_rule IS NOT excluded.recurrence_rule "
+      "OR local_calendar_events.color_id IS NOT excluded.color_id "
+      "OR local_calendar_events.transparency IS NOT excluded.transparency "
+      "OR local_calendar_events.visibility IS NOT excluded.visibility "
+      "OR local_calendar_events.time_zone IS NOT excluded.time_zone "
+      "OR local_calendar_events.event_type IS NOT excluded.event_type "
+      "OR local_calendar_events.attendee_emails_json IS NOT excluded.attendee_emails_json "
+      "OR local_calendar_events.attendee_details_json IS NOT excluded.attendee_details_json "
+      "OR local_calendar_events.reminder_minutes_json IS NOT excluded.reminder_minutes_json "
+      "OR local_calendar_events.reminders_json IS NOT excluded.reminders_json "
+      "OR local_calendar_events.reminders_use_default IS NOT excluded.reminders_use_default "
+      "OR local_calendar_events.etag IS NOT excluded.etag "
+      "OR local_calendar_events.sequence IS NOT excluded.sequence "
+      "OR local_calendar_events.remote_updated_at IS NOT excluded.remote_updated_at "
+      "OR local_calendar_events.deleted_at IS NOT excluded.deleted_at)",
       {textValue(eventId(accountId, event.calendarId, event.id)),
        textValue(calendarId(accountId, event.calendarId)),
        textValue(event.id),

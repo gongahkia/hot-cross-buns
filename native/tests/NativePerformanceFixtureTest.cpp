@@ -12,6 +12,7 @@ private slots:
   void generatesExpectedSmallFixture();
   void generatesExpectedMediumFixture();
   void generatesExpected15kEventFixture();
+  void generatesExpectedWrapperScaleFixture();
   void serializesDeterministicallyWithoutCredentials();
 };
 
@@ -79,6 +80,22 @@ void NativePerformanceFixtureTest::generatesExpected15kEventFixture() {
   QCOMPARE(fixture.eventInstances.size(), std::size_t{15'000});
   QCOMPARE(fixture.eventInstances.at(14'999).id,
            QStringLiteral("generated-event15k-event-instance-15000"));
+}
+
+void NativePerformanceFixtureTest::generatesExpectedWrapperScaleFixture() {
+  const hcb::NativePerformanceFixture fixture =
+      hcb::NativePerformanceFixtureGenerator::wrapperScale();
+
+  QCOMPARE(fixture.size, QStringLiteral("wrapper-scale"));
+  QCOMPARE(fixture.seed, QStringLiteral("hot-cross-buns-perf-wrapper-scale-v1"));
+  QCOMPARE(fixture.counts.tasks, std::size_t{10'000});
+  QCOMPARE(fixture.counts.eventInstances, std::size_t{25'000});
+  QCOMPARE(fixture.counts.notes, std::size_t{2'000});
+  QCOMPARE(fixture.counts.recurrenceExceptions, std::size_t{500});
+  QCOMPARE(fixture.counts.queuedMutations, std::size_t{500});
+  QCOMPARE(fixture.eventInstances.at(499).recurringEventId.has_value(), true);
+  QCOMPARE(fixture.eventInstances.at(500).recurringEventId.has_value(), false);
+  QCOMPARE(fixture.queuedMutations.size(), std::size_t{500});
 }
 
 void NativePerformanceFixtureTest::serializesDeterministicallyWithoutCredentials() {

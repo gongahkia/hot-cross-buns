@@ -21,7 +21,7 @@ void NativeLocalSearchBenchmarkTest::measuresIndexedSearches() {
   if (!result.has_value()) {
     return;
   }
-  QCOMPARE(result->corpusTaskCount, std::size_t{250});
+  QCOMPARE(result->corpusTaskCount, std::size_t{10'000});
   QCOMPARE(result->matchedResultCount, std::size_t{100});
   QCOMPARE(result->samplesNanoseconds.size(), std::size_t{3});
   QVERIFY(result->minimumNanoseconds >= 0);
@@ -29,7 +29,7 @@ void NativeLocalSearchBenchmarkTest::measuresIndexedSearches() {
   QVERIFY(result->maximumNanoseconds >= result->medianNanoseconds);
   const QJsonObject json =
       QJsonDocument::fromJson(hcb::NativeLocalSearchBenchmark::toJson(*result)).object();
-  QCOMPARE(json.value(QStringLiteral("corpus_task_count")).toInteger(), qint64{250});
+  QCOMPARE(json.value(QStringLiteral("corpus_task_count")).toInteger(), qint64{10'000});
   QCOMPARE(json.value(QStringLiteral("matched_result_count")).toInteger(), qint64{100});
   QCOMPARE(json.value(QStringLiteral("iterations")).toInteger(), qint64{3});
 }

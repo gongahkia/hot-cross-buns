@@ -88,7 +88,7 @@ NativeCalendarNavigationBenchmark::run(std::size_t frameCount) {
   }
   const QTimeZone timeZone = QTimeZone::utc();
   const QList<CalendarEventSummary> events =
-      createEvents(NativePerformanceFixtureGenerator::event15k());
+      createEvents(NativePerformanceFixtureGenerator::wrapperScale());
   if (events.empty()) {
     return std::nullopt;
   }

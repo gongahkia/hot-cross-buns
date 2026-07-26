@@ -15,7 +15,7 @@ namespace hcb {
 namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
-constexpr std::int64_t kMaximumPageLimit = 2'000;
+constexpr std::int64_t kMaximumPageLimit = 10'000;
 
 [[nodiscard]] AppError databaseError(QString message, int result) {
   return AppError(AppErrorCode::Database, message.arg(result));

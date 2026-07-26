@@ -55,28 +55,17 @@ Electron's own performance guidance emphasizes profiling running code and optimi
 
 ## Performance Fixtures
 
-The test suite should eventually include deterministic large local datasets:
+The native test suite includes deterministic generated fixtures:
 
 - Small: 50 tasks, 20 events, 10 notes
 - Medium: 1000 tasks, 1000 events, 200 notes
-- Large: 10000 tasks, 25000 event instances, 2000 notes
+- Wrapper scale: 10000 tasks, 25000 event instances, 2000 notes, 500 recurrence exceptions, 500 queued mutations
 
 Large fixtures must use generated local data only. They must not hit Google or a user's real app data.
 
 ## Regression Gates
 
-Before Mac v1 release, add a performance smoke suite that records:
-
-- cold launch timing
-- warm launch timing
-- command palette open latency
-- quick capture open latency
-- local search latency against medium fixture
-- Tasks list scroll stability against large fixture
-- Calendar month navigation latency against large fixture
-- SQLite query plan checks for core queries
-
-The suite should report numbers even before it fails builds. Hard failure thresholds should be introduced once baseline numbers are stable.
+The scheduled/manual macOS native-wrapper gate records and enforces cold/warm launch, cached first render, local search, task scroll, bulk selection, calendar navigation, sync apply, and RSS at wrapper scale. Budgets, measurement semantics, and artifact hardware evidence are versioned in [Native Wrapper Scale Budgets v1](native-wrapper-scale-budgets-v1.md).
 
 ## Reference Docs
 
@@ -89,4 +78,3 @@ Useful upstream docs:
 - TanStack Query render optimizations: https://tanstack.com/query/latest/docs/framework/react/guides/render-optimizations
 - TanStack Virtual introduction: https://tanstack.com/virtual/v3/docs/introduction
 - SQLite query planner: https://www.sqlite.org/queryplanner.html
-

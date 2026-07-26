@@ -18,7 +18,7 @@ namespace hcb {
 struct TaskReadRequest final {
   std::optional<QString> accountId;
   bool selectedListsOnly{false};
-  std::int64_t limit{500};
+  std::int64_t limit{10'000};
 };
 
 using TaskReadResult = std::variant<QList<TaskModelTask>, AppError>;

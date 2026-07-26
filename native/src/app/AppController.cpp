@@ -1871,7 +1871,7 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
   watch(calendarReadService_.listEvents({.calendarIds = std::move(calendarIds),
                                          .startAt = calendarRangeStart(date),
                                          .endAt = calendarRangeEnd(date),
-                                         .limit = 500}),
+                                         .limit = 25'000}),
         [this, generation, date, displayTimeZone, applyLayouts](CalendarEventPageResult result) {
           if (generation != calendarRefreshGeneration_) {
             return;

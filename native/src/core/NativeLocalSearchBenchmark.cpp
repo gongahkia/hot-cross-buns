@@ -24,7 +24,7 @@
 namespace hcb {
 namespace {
 
-constexpr std::size_t kCorpusTaskCount = 250;
+constexpr std::size_t kCorpusTaskCount = 10'000;
 constexpr std::size_t kMaximumIterations = 20;
 constexpr auto kReadyTimeout = std::chrono::seconds(5);
 
@@ -58,7 +58,7 @@ constexpr auto kReadyTimeout = std::chrono::seconds(5);
       "('search-list', 'search-account', 'search-list', 'Release planning', "
       "'2026-01-01T00:00:00.000Z'); "
       "WITH RECURSIVE sequence(value) AS ("
-      "SELECT 1 UNION ALL SELECT value + 1 FROM sequence WHERE value < 250"
+      "SELECT 1 UNION ALL SELECT value + 1 FROM sequence WHERE value < 10000"
       ") INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, updated_at) "
       "SELECT printf('search-task-%03d', value), 'search-list', printf('search-%03d', value), "
       "printf('Release planning %03d', value), "

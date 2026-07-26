@@ -15,6 +15,8 @@ struct NativePerformanceFixtureCounts final {
   std::size_t tasks;
   std::size_t eventInstances;
   std::size_t notes;
+  std::size_t recurrenceExceptions;
+  std::size_t queuedMutations;
 };
 
 struct NativePerformanceTaskFixture final {
@@ -36,6 +38,8 @@ struct NativePerformanceEventFixture final {
   QString startsAt;
   QString endsAt;
   bool isAllDay;
+  std::optional<QString> recurringEventId;
+  std::optional<QString> originalStartAt;
   QString updatedAt;
 };
 
@@ -46,6 +50,12 @@ struct NativePerformanceNoteFixture final {
   QString title;
   QString body;
   QString updatedAt;
+};
+
+struct NativePerformanceQueuedMutationFixture final {
+  QString id;
+  QString resourceType;
+  QString resourceId;
 };
 
 struct NativePerformanceFixture final {
@@ -60,6 +70,7 @@ struct NativePerformanceFixture final {
   std::vector<NativePerformanceTaskFixture> tasks;
   std::vector<NativePerformanceEventFixture> eventInstances;
   std::vector<NativePerformanceNoteFixture> notes;
+  std::vector<NativePerformanceQueuedMutationFixture> queuedMutations;
 };
 
 class NativePerformanceFixtureGenerator final {
@@ -67,6 +78,7 @@ public:
   [[nodiscard]] static NativePerformanceFixture small();
   [[nodiscard]] static NativePerformanceFixture medium();
   [[nodiscard]] static NativePerformanceFixture event15k();
+  [[nodiscard]] static NativePerformanceFixture wrapperScale();
   [[nodiscard]] static QByteArray toJson(const NativePerformanceFixture& fixture);
 };
 

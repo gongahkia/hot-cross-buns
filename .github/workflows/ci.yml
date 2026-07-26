@@ -252,21 +252,48 @@ jobs:
       - name: Configure native build
         run: cmake --preset macos-debug
 
-      - name: Build native report runner
-        run: cmake --build --preset macos-debug --target hcb_native hcb_performance_report --parallel 3
+      - name: Build release-scale benchmarks
+        run: >-
+          cmake --build --preset macos-debug --config Release --parallel 3 --target
+          hcb_native hcb_performance_report hcb_wrapper_scale_performance_fixture
+          hcb_local_search_benchmark hcb_task_scroll_benchmark hcb_calendar_navigation_benchmark
+          hcb_sync_apply_benchmark
 
-      - name: Generate report-only native performance JSON
+      - name: Generate and enforce native-wrapper scale reports
         run: |
           mkdir -p artifacts/native-performance
-          build/macos-debug-xcode/native/Debug/hcb_performance_report \
-            --executable "build/macos-debug-xcode/native/Debug/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
+          build/macos-debug-xcode/native/Release/hcb_wrapper_scale_performance_fixture \
+            > artifacts/native-performance/wrapper-scale-fixture.json
+          build/macos-debug-xcode/native/Release/hcb_performance_report \
+            --executable "build/macos-debug-xcode/native/Release/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
+            --launch-iterations 1 \
+            --idle-duration-ms 1000 \
+            --timeout-ms 30000 \
+            -- -platform offscreen \
+            > artifacts/native-performance/macos-cold.json
+          build/macos-debug-xcode/native/Release/hcb_performance_report \
+            --executable "build/macos-debug-xcode/native/Release/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
             --launch-iterations 3 \
             --idle-duration-ms 1000 \
             --timeout-ms 30000 \
             -- -platform offscreen \
-            > artifacts/native-performance/macos.json
-          jq --exit-status '.schema_version == 1 and .launch.iterations == 3 and .idle_rss.bytes > 0' \
-            artifacts/native-performance/macos.json
+            > artifacts/native-performance/macos-warm.json
+          build/macos-debug-xcode/native/Release/hcb_local_search_benchmark \
+            > artifacts/native-performance/local-search.json
+          build/macos-debug-xcode/native/Release/hcb_task_scroll_benchmark -platform offscreen \
+            > artifacts/native-performance/task-scroll.json
+          build/macos-debug-xcode/native/Release/hcb_calendar_navigation_benchmark -platform offscreen \
+            > artifacts/native-performance/calendar-navigation.json
+          build/macos-debug-xcode/native/Release/hcb_sync_apply_benchmark \
+            > artifacts/native-performance/sync-apply.json
+          {
+            sw_vers
+            uname -a
+            sysctl -n machdep.cpu.brand_string 2>/dev/null || true
+            cmake --version
+            git rev-parse HEAD
+          } > artifacts/native-performance/environment.txt
+          bash .github/scripts/check-native-wrapper-performance.sh artifacts/native-performance
 
       - name: Upload native performance report
         if: always()
@@ -275,4 +302,4 @@ jobs:
           name: native-performance-report-${{ github.run_id }}
           if-no-files-found: warn
           retention-days: 14
-          path: artifacts/native-performance/macos.json
+          path: artifacts/native-performance/**

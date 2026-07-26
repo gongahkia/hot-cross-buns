@@ -354,6 +354,16 @@ target_include_directories(hcb_event15k_performance_fixture PRIVATE src)
 hcb_enable_warnings(hcb_event15k_performance_fixture)
 hcb_enable_sanitizers(hcb_event15k_performance_fixture)
 
+qt_add_executable(hcb_wrapper_scale_performance_fixture
+  benchmarks/NativeWrapperScalePerformanceFixtureMain.cpp
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
+)
+target_link_libraries(hcb_wrapper_scale_performance_fixture PRIVATE Qt6::Core)
+target_include_directories(hcb_wrapper_scale_performance_fixture PRIVATE src)
+hcb_enable_warnings(hcb_wrapper_scale_performance_fixture)
+hcb_enable_sanitizers(hcb_wrapper_scale_performance_fixture)
+
 qt_add_executable(hcb_planner_benchmark
   benchmarks/NativePlannerBenchmarkMain.cpp
   src/core/CalendarLayoutEngine.cpp
@@ -407,6 +417,8 @@ qt_add_executable(hcb_local_search_benchmark
   src/core/LocalSearchQuery.h
   src/core/NativeLocalSearchBenchmark.cpp
   src/core/NativeLocalSearchBenchmark.h
+  src/core/TaskRecurrenceMarker.cpp
+  src/core/TaskRecurrenceMarker.h
   src/core/UnifiedLocalSearchRanker.cpp
   src/core/UnifiedLocalSearchRanker.h
   src/data/LocalSchema.cpp
@@ -429,6 +441,8 @@ hcb_enable_sanitizers(hcb_local_search_benchmark)
 
 qt_add_executable(hcb_task_scroll_benchmark
   benchmarks/NativeTaskScrollBenchmarkMain.cpp
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
   src/core/NativeTaskScrollBenchmark.cpp
   src/core/NativeTaskScrollBenchmark.h
   src/core/TaskModel.cpp
@@ -457,6 +471,41 @@ target_link_libraries(hcb_calendar_navigation_benchmark PRIVATE Qt6::Core Qt6::G
 target_include_directories(hcb_calendar_navigation_benchmark PRIVATE src)
 hcb_enable_warnings(hcb_calendar_navigation_benchmark)
 hcb_enable_sanitizers(hcb_calendar_navigation_benchmark)
+
+qt_add_executable(hcb_sync_apply_benchmark
+  benchmarks/NativeSyncApplyBenchmarkMain.cpp
+  src/core/AppError.h
+  src/core/Clock.h
+  src/core/FilePath.h
+  src/core/GoogleCalendarEventPullClient.h
+  src/core/GoogleCalendarListPullClient.h
+  src/core/GoogleMirrorStore.cpp
+  src/core/GoogleMirrorStore.h
+  src/core/GoogleTaskListPullClient.h
+  src/core/GoogleTaskPullClient.h
+  src/core/NativePerformanceFixture.cpp
+  src/core/NativePerformanceFixture.h
+  src/core/NativeSyncApplyBenchmark.cpp
+  src/core/NativeSyncApplyBenchmark.h
+  src/core/TaskRecurrenceMarker.cpp
+  src/core/TaskRecurrenceMarker.h
+  src/data/LocalSchema.cpp
+  src/data/LocalSchema.h
+  src/data/SqliteConnection.cpp
+  src/data/SqliteConnection.h
+  src/data/SqliteMigrationRunner.cpp
+  src/data/SqliteMigrationRunner.h
+  src/data/SqliteQueryTimingTracker.cpp
+  src/data/SqliteQueryTimingTracker.h
+  src/data/SqliteTransaction.cpp
+  src/data/SqliteTransaction.h
+  src/data/SqliteWriterQueue.cpp
+  src/data/SqliteWriterQueue.h
+)
+target_link_libraries(hcb_sync_apply_benchmark PRIVATE hcb::sqlite Qt6::Core)
+target_include_directories(hcb_sync_apply_benchmark PRIVATE src)
+hcb_enable_warnings(hcb_sync_apply_benchmark)
+hcb_enable_sanitizers(hcb_sync_apply_benchmark)
 
 qt_add_executable(hcb_performance_report
   benchmarks/NativePerformanceReportMain.cpp
@@ -1576,6 +1625,8 @@ if(BUILD_TESTING)
     src/core/LocalSearchQuery.h
     src/core/NativeLocalSearchBenchmark.cpp
     src/core/NativeLocalSearchBenchmark.h
+    src/core/TaskRecurrenceMarker.cpp
+    src/core/TaskRecurrenceMarker.h
     src/core/UnifiedLocalSearchRanker.cpp
     src/core/UnifiedLocalSearchRanker.h
     src/data/LocalSchema.cpp
@@ -1599,6 +1650,8 @@ if(BUILD_TESTING)
 
   qt_add_executable(hcb_native_task_scroll_benchmark_tests
     tests/NativeTaskScrollBenchmarkTest.cpp
+    src/core/NativePerformanceFixture.cpp
+    src/core/NativePerformanceFixture.h
     src/core/NativeTaskScrollBenchmark.cpp
     src/core/NativeTaskScrollBenchmark.h
     src/core/TaskModel.cpp

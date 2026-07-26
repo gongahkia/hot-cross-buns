@@ -11,6 +11,9 @@ namespace hcb {
 
 struct NativeTaskScrollBenchmarkResult final {
   std::size_t taskCount;
+  std::vector<qint64> bulkSelectionSamplesNanoseconds;
+  qint64 bulkSelectionMedianNanoseconds;
+  qint64 firstCachedRenderNanoseconds;
   std::vector<qint64> samplesNanoseconds;
   qint64 minimumNanoseconds;
   qint64 medianNanoseconds;
@@ -21,7 +24,10 @@ class NativeTaskScrollBenchmark final {
 public:
   [[nodiscard]] static std::optional<NativeTaskScrollBenchmarkResult> run(std::size_t frameCount);
   [[nodiscard]] static std::optional<NativeTaskScrollBenchmarkResult>
-  summarize(std::size_t taskCount, std::vector<qint64> samplesNanoseconds);
+  summarize(std::size_t taskCount,
+            std::vector<qint64> bulkSelectionSamplesNanoseconds,
+            qint64 firstCachedRenderNanoseconds,
+            std::vector<qint64> samplesNanoseconds);
   [[nodiscard]] static QByteArray toJson(const NativeTaskScrollBenchmarkResult& result);
 };
 
