@@ -114,21 +114,53 @@ void TaskRecurrenceMarkerTest::advancesDatesFromTheAnchorAcrossDstAndMonthEnds()
   monthly.end = {.kind = hcb::TaskRecurrenceEndKind::Count, .count = 3};
   monthly.ordinal = 0;
   monthly.occurrenceId = monthly.seriesId + QStringLiteral(":0");
-  const std::optional<hcb::TaskRecurrenceMarker> february =
-      hcb::taskRecurrenceSuccessor(monthly);
+  const std::optional<hcb::TaskRecurrenceMarker> february = hcb::taskRecurrenceSuccessor(monthly);
   QVERIFY(february.has_value());
   if (!february.has_value()) {
     return;
   }
   QCOMPARE(february->templateDueDate, QStringLiteral("2024-02-29"));
-  const std::optional<hcb::TaskRecurrenceMarker> march =
-      hcb::taskRecurrenceSuccessor(*february);
+  const std::optional<hcb::TaskRecurrenceMarker> march = hcb::taskRecurrenceSuccessor(*february);
   QVERIFY(march.has_value());
   if (!march.has_value()) {
     return;
   }
   QCOMPARE(march->templateDueDate, QStringLiteral("2024-03-31"));
   QVERIFY(!hcb::taskRecurrenceSuccessor(*march).has_value());
+
+  hcb::TaskRecurrenceMarker daily = marker();
+  daily.frequency = hcb::TaskRecurrenceFrequency::Daily;
+  daily.interval = 3;
+  daily.anchorDate = QStringLiteral("2026-07-26");
+  daily.templateDueDate = daily.anchorDate;
+  daily.end = {.kind = hcb::TaskRecurrenceEndKind::Until,
+               .untilDate = QStringLiteral("2026-07-31")};
+  daily.ordinal = 0;
+  daily.occurrenceId = daily.seriesId + QStringLiteral(":0");
+  const std::optional<hcb::TaskRecurrenceMarker> dailySuccessor =
+      hcb::taskRecurrenceSuccessor(daily);
+  QVERIFY(dailySuccessor.has_value());
+  if (!dailySuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(dailySuccessor->templateDueDate, QStringLiteral("2026-07-29"));
+  QVERIFY(!hcb::taskRecurrenceSuccessor(*dailySuccessor).has_value());
+
+  hcb::TaskRecurrenceMarker yearly = marker();
+  yearly.frequency = hcb::TaskRecurrenceFrequency::Yearly;
+  yearly.interval = 1;
+  yearly.anchorDate = QStringLiteral("2024-02-29");
+  yearly.templateDueDate = yearly.anchorDate;
+  yearly.end = {.kind = hcb::TaskRecurrenceEndKind::Never};
+  yearly.ordinal = 0;
+  yearly.occurrenceId = yearly.seriesId + QStringLiteral(":0");
+  const std::optional<hcb::TaskRecurrenceMarker> yearlySuccessor =
+      hcb::taskRecurrenceSuccessor(yearly);
+  QVERIFY(yearlySuccessor.has_value());
+  if (!yearlySuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(yearlySuccessor->templateDueDate, QStringLiteral("2025-02-28"));
 }
 
 QTEST_GUILESS_MAIN(TaskRecurrenceMarkerTest)

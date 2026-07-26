@@ -105,9 +105,9 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult first =
       std::get<hcb::SqliteMigrationRunResult>(std::move(firstResult));
-  QCOMPARE(first.version, 16);
+  QCOMPARE(first.version, 17);
   QCOMPARE(first.appliedVersions,
-           std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}));
+           std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}));
   QCOMPARE(scalar(connection->nativeHandle(),
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_settings'"),
@@ -176,6 +176,14 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 16 "
                   "AND name = 'project all undated tasks as notes' AND length(checksum) = 64"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM local_schema_migrations WHERE version = 17 "
+                  "AND name = 'add task recurrence claims' AND length(checksum) = 64"),
+           1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'local_task_recurrence_claims'"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -191,7 +199,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 16);
+  QCOMPARE(second.version, 17);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -942,32 +950,35 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
 
   QCOMPARE(
-      execute(handle,
-              "DROP TRIGGER local_task_lists_fts_insert; "
-              "DROP TRIGGER local_task_lists_fts_delete; "
-              "DROP TRIGGER local_task_lists_fts_update; "
-              "DROP TRIGGER local_tasks_fts_insert; "
-              "DROP TRIGGER local_tasks_fts_delete; "
-              "DROP TRIGGER local_tasks_fts_update; "
-              "DROP TRIGGER local_calendars_fts_insert; "
-              "DROP TRIGGER local_calendars_fts_delete; "
-              "DROP TRIGGER local_calendars_fts_update; "
-              "DROP TRIGGER local_calendar_events_fts_insert; "
-              "DROP TRIGGER local_calendar_events_fts_delete; "
-              "DROP TRIGGER local_calendar_events_fts_update; "
-              "DROP TRIGGER local_notes_fts_task_insert; "
-              "DROP TRIGGER local_notes_fts_task_delete; "
-              "DROP TRIGGER local_notes_fts_task_update; "
-              "DROP TRIGGER local_notes_fts_task_list_update; "
-              "DROP TABLE local_task_lists_fts; "
-              "DROP TABLE local_tasks_fts; "
-              "DROP TABLE local_calendars_fts; "
-              "DROP TABLE local_calendar_events_fts; "
-              "DROP TABLE local_notes_fts; "
-              "DROP TABLE local_undo_entries; "
-              "DROP TABLE local_sync_conflicts; "
-              "ALTER TABLE local_calendar_events DROP COLUMN event_type; "
-              "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16)"),
+      execute(
+          handle,
+          "DROP TRIGGER local_task_lists_fts_insert; "
+          "DROP TRIGGER local_task_lists_fts_delete; "
+          "DROP TRIGGER local_task_lists_fts_update; "
+          "DROP TRIGGER local_tasks_fts_insert; "
+          "DROP TRIGGER local_tasks_fts_delete; "
+          "DROP TRIGGER local_tasks_fts_update; "
+          "DROP TRIGGER local_calendars_fts_insert; "
+          "DROP TRIGGER local_calendars_fts_delete; "
+          "DROP TRIGGER local_calendars_fts_update; "
+          "DROP TRIGGER local_calendar_events_fts_insert; "
+          "DROP TRIGGER local_calendar_events_fts_delete; "
+          "DROP TRIGGER local_calendar_events_fts_update; "
+          "DROP TRIGGER local_notes_fts_task_insert; "
+          "DROP TRIGGER local_notes_fts_task_delete; "
+          "DROP TRIGGER local_notes_fts_task_update; "
+          "DROP TRIGGER local_notes_fts_task_list_update; "
+          "DROP TABLE local_task_lists_fts; "
+          "DROP TABLE local_tasks_fts; "
+          "DROP TABLE local_calendars_fts; "
+          "DROP TABLE local_calendar_events_fts; "
+          "DROP TABLE local_notes_fts; "
+          "DROP TABLE local_undo_entries; "
+          "DROP TABLE local_sync_conflicts; "
+          "DROP INDEX local_task_recurrence_claims_successor; "
+          "DROP TABLE local_task_recurrence_claims; "
+          "ALTER TABLE local_calendar_events DROP COLUMN event_type; "
+          "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16, 17)"),
       SQLITE_OK);
   hcb::SqliteMigrationRunResultOrError backfillResult = hcb::LocalSchema::initialize(*connection);
   QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(backfillResult));
@@ -976,7 +987,7 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
   }
   const hcb::SqliteMigrationRunResult backfill =
       std::get<hcb::SqliteMigrationRunResult>(std::move(backfillResult));
-  QCOMPARE(backfill.appliedVersions, std::vector<int>({10, 11, 12, 13, 14, 15, 16}));
+  QCOMPARE(backfill.appliedVersions, std::vector<int>({10, 11, 12, 13, 14, 15, 16, 17}));
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_task_lists_fts"), 1);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendars_fts"), 1);
