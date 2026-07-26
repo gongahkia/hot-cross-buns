@@ -39,12 +39,15 @@ ApplicationWindow {
     property alias notesList: notesList
     property alias taskCreateDialog: taskCreateDialog
     property alias taskDeleteDialog: taskDeleteDialog
+    property alias taskEditDialog: taskEditDialog
     property alias taskList: taskList
     property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
     signal taskCreateRequested(string taskListId, string title)
     signal taskDeleteRequested(string taskId)
+    signal taskUpdateRequested(string taskId, string title, string notes, string dueAt,
+                               string dueTimeZone, int priority)
     signal taskMoveRequested(string taskId, string taskListId)
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
                                 bool allDay, string description, string location)
@@ -292,6 +295,15 @@ ApplicationWindow {
         onTaskDeleteRequested: taskId => window.taskDeleteRequested(taskId)
     }
 
+    TaskEditDialog {
+        id: taskEditDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            window.taskUpdateRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
+        }
+    }
+
     TaskCreateDialog {
         id: taskCreateDialog
         parent: Overlay.overlay
@@ -379,6 +391,9 @@ ApplicationWindow {
                 visible: window.currentPage === "Tasks"
                 taskModel: window.taskModel
                 onTaskCreateRequested: taskCreateDialog.openForCreate("")
+                onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+                    taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority)
+                }
                 onTaskDeleteRequested: function(taskId, taskTitle) {
                     taskDeleteDialog.openForDelete(taskId, taskTitle)
                 }

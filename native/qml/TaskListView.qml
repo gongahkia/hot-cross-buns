@@ -9,6 +9,8 @@ Pane {
     property alias taskCreateButton: taskCreateButton
     signal taskSelected(string taskId)
     signal taskCreateRequested()
+    signal taskEditRequested(string taskId, string title, string notes, string dueAt,
+                             string dueTimeZone, int priority)
     signal taskCompletionRequested(string taskId, bool completed)
     signal taskDeleteRequested(string taskId, string taskTitle)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
@@ -19,6 +21,10 @@ Pane {
 
     function requestTaskCreate() {
         taskCreateRequested()
+    }
+
+    function requestTaskEdit(taskId, title, notes, dueAt, dueTimeZone, priority) {
+        taskEditRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
     }
 
     function requestTaskCompletion(taskId, completed) {
@@ -72,12 +78,17 @@ Pane {
                 required property string id
                 required property string taskListId
                 required property string title
+                required property string notes
+                required property string dueAt
+                required property string dueTimeZone
+                required property int priority
                 required property bool completed
                 width: ListView.view.width
                 spacing: Theme.spacingSmall
 
                 property alias completionButton: completionButton
                 property alias deleteButton: deleteButton
+                property alias editButton: editButton
                 property alias moveButton: moveButton
 
                 Button {
@@ -94,6 +105,14 @@ Pane {
                     Accessible.name: text + " " + title
                     Accessible.description: "Delete this task"
                     onClicked: root.requestTaskDelete(id, title)
+                }
+
+                Button {
+                    id: editButton
+                    text: "Edit"
+                    Accessible.name: text + " " + title
+                    Accessible.description: "Edit this task"
+                    onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority)
                 }
 
                 Button {

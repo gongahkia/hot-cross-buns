@@ -205,8 +205,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", completed: false })
-        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", completed: true })
+        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", notes: "Prepare checklist", dueAt: "2026-07-26", dueTimeZone: "Asia/Singapore", priority: 2, completed: false })
+        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", notes: "", dueAt: "", dueTimeZone: "", priority: 0, completed: true })
         const taskList = component.createObject(null, {
             taskModel: taskModel,
             width: 480,
@@ -223,6 +223,17 @@ TestCase {
         taskList.taskCreateRequested.connect(function() { createRequested = true })
         taskList.taskCreateButton.click()
         verify(createRequested)
+        let edit = null
+        taskList.taskEditRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            edit = { taskId, title, notes, dueAt, dueTimeZone, priority }
+        })
+        taskList.taskRows.itemAtIndex(0).editButton.click()
+        compare(edit.taskId, "inbox-1")
+        compare(edit.title, "Plan release")
+        compare(edit.notes, "Prepare checklist")
+        compare(edit.dueAt, "2026-07-26")
+        compare(edit.dueTimeZone, "Asia/Singapore")
+        compare(edit.priority, 2)
         let completion = null
         taskList.taskCompletionRequested.connect(function(taskId, completed) {
             completion = { taskId, completed }
@@ -492,6 +503,43 @@ TestCase {
         taskLists.destroy()
     }
 
+    function test_taskEditDialogEmitsUpdateRequest() {
+        const component = Qt.createComponent("../../qml/TaskEditDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null)
+        verify(dialog !== null)
+        dialog.openForEdit("task-1", "Plan release", "Prepare checklist", "2026-07-26",
+                           "Asia/Singapore", 2)
+        compare(dialog.taskPriority, 2)
+        dialog.taskTitle = "Revised release plan"
+        dialog.taskNotes = "Confirm rollout"
+        dialog.taskDueAt = "2026-07-27"
+        dialog.taskPriorityPicker.currentIndex = 3
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            request = { taskId, title, notes, dueAt, dueTimeZone, priority }
+        })
+        dialog.primaryButton.click()
+        compare(request.taskId, "task-1")
+        compare(request.title, "Revised release plan")
+        compare(request.notes, "Confirm rollout")
+        compare(request.dueAt, "2026-07-27")
+        compare(request.dueTimeZone, "Asia/Singapore")
+        compare(request.priority, 3)
+        dialog.openForEdit("task-1", "Plan release", "", "2026-07-26", "Asia/Singapore", 0)
+        dialog.taskDueAt = ""
+        let clearedDueRequest = null
+        dialog.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            clearedDueRequest = { taskId, title, notes, dueAt, dueTimeZone, priority }
+        })
+        dialog.primaryButton.click()
+        compare(clearedDueRequest.dueAt, "")
+        compare(clearedDueRequest.dueTimeZone, "")
+        dialog.destroy()
+    }
+
     function test_taskMoveDialogShowsAllActiveListsAndEmitsMoveRequest() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -716,6 +764,10 @@ TestCase {
                 id: "task-" + index,
                 taskListId: "list-active",
                 title: "Task " + index,
+                notes: "",
+                dueAt: "",
+                dueTimeZone: "",
+                priority: 0,
                 completed: false
             })
         }
@@ -917,6 +969,27 @@ TestCase {
         mainWindow.taskCreateDialog.taskCreateRequested("list-active", "Plan release")
         compare(request.taskListId, "list-active")
         compare(request.title, "Plan release")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsTaskUpdateRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+            request = { taskId, title, notes, dueAt, dueTimeZone, priority }
+        })
+        mainWindow.taskEditDialog.taskUpdateRequested("task-1", "Plan release", "Prepare checklist",
+                                                      "2026-07-26", "Asia/Singapore", 2)
+        compare(request.taskId, "task-1")
+        compare(request.title, "Plan release")
+        compare(request.notes, "Prepare checklist")
+        compare(request.dueAt, "2026-07-26")
+        compare(request.dueTimeZone, "Asia/Singapore")
+        compare(request.priority, 2)
         mainWindow.destroy()
     }
 
