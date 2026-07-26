@@ -54,7 +54,7 @@ QVariant CalendarSourceModel::data(const QModelIndex& index, int role) const {
   case PrimaryRole:
     return calendar.primary;
   case EventCountRole:
-    return calendar.eventCount;
+    return static_cast<qlonglong>(calendar.eventCount);
   default:
     return {};
   }

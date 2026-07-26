@@ -41,9 +41,9 @@ QVariant TaskListModel::data(const QModelIndex& index, int role) const {
   case SelectedRole:
     return taskList.selected;
   case TaskCountRole:
-    return taskList.taskCount;
+    return static_cast<qlonglong>(taskList.taskCount);
   case ActiveTaskCountRole:
-    return taskList.activeTaskCount;
+    return static_cast<qlonglong>(taskList.activeTaskCount);
   default:
     return {};
   }
