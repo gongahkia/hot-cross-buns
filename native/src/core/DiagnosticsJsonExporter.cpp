@@ -67,7 +67,7 @@ QJsonArray startupTimingsArray(const std::vector<StartupTimingSpan>& spans) {
     const StartupTimingSpan& span = spans[index];
     timings.append(QJsonObject{
         {QStringLiteral("name"), safeText(span.name, 120, QStringLiteral("startup.unknown"))},
-        {QStringLiteral("elapsed_ms"), span.elapsed.count()}});
+        {QStringLiteral("elapsed_ms"), static_cast<qint64>(span.elapsed.count())}});
   }
   return timings;
 }
@@ -79,7 +79,7 @@ QJsonArray uiTransitionTimingsArray(const std::vector<UiTransitionTimingSpan>& s
     const UiTransitionTimingSpan& span = spans[index];
     timings.append(QJsonObject{
         {QStringLiteral("name"), safeText(span.name, 120, QStringLiteral("transition.unknown"))},
-        {QStringLiteral("elapsed_ms"), span.elapsed.count()}});
+        {QStringLiteral("elapsed_ms"), static_cast<qint64>(span.elapsed.count())}});
   }
   return timings;
 }
