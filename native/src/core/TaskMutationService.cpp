@@ -265,10 +265,23 @@ LIMIT 1
           {QStringLiteral("due"), googleDue(task.dueAt)}};
 }
 
+[[nodiscard]] QJsonObject googleTaskBody(const StoredTaskContext& task) {
+  QJsonObject body{{QStringLiteral("title"), task.title},
+                   {QStringLiteral("status"),
+                    task.state == QStringLiteral("completed")
+                        ? QJsonValue(QStringLiteral("completed"))
+                        : QJsonValue(QStringLiteral("needsAction"))},
+                   {QStringLiteral("due"), googleDue(task.dueAt)}};
+  if (task.notes.has_value()) {
+    body.insert(QStringLiteral("notes"), *task.notes);
+  }
+  return body;
+}
+
 [[nodiscard]] QJsonObject taskPayload(const StoredTaskContext& task, bool includeRemoteIdentity) {
   QJsonObject payload{{QStringLiteral("taskListId"), task.taskListRemoteId},
                       {QStringLiteral("localTaskId"), task.taskId},
-                      {QStringLiteral("task"), taskSnapshot(task)}};
+                      {QStringLiteral("task"), googleTaskBody(task)}};
   if (includeRemoteIdentity) {
     payload.insert(QStringLiteral("remoteTaskId"), task.remoteId);
   }
@@ -905,6 +918,56 @@ WHERE id = ?1 AND deleted_at IS NULL
   return TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt};
 }
 
+[[nodiscard]] TaskMutationResult
+reconcileStoredGoogleTask(SqliteConnection& connection,
+                          const TaskRemoteReconciliationInput& input,
+                          const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_tasks
+SET remote_id = CASE WHEN remote_id LIKE 'pending:%' THEN ?2 ELSE remote_id END,
+    etag = ?3,
+    updated_at = ?4
+WHERE id = ?1
+  AND (remote_id = ?2 OR remote_id LIKE 'pending:%')
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task reconciliation preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, input.localTaskId),
+                   bindText(statement, 2, input.remoteTaskId),
+                   bindOptionalText(statement, 3, input.remoteEtag),
+                   bindText(statement, 4, updatedAt)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task reconciliation failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite task reconciliation finalization failed (%1)"),
+                         finalizeResult);
+  }
+  return changedRows == 1 ? TaskMutationResult(TaskMutationReceipt{.taskId = input.localTaskId,
+                                                                   .updatedAt = updatedAt})
+                          : TaskMutationResult(validationError(
+                                QStringLiteral("Task is unavailable for Google reconciliation")));
+}
+
 } // namespace
 
 TaskMutationService::TaskMutationService(FilePath databasePath, const Clock& clock)
@@ -1119,6 +1182,24 @@ std::future<TaskMutationResult> TaskMutationService::remove(QString taskId) {
           return TaskMutationResult(*error);
         }
         return removed;
+      });
+}
+
+std::future<TaskMutationResult>
+TaskMutationService::reconcileGoogleTask(TaskRemoteReconciliationInput input) {
+  if (!isValidRequiredText(input.localTaskId, kMaximumIdentifierLength) ||
+      !isValidRequiredText(input.remoteTaskId, kMaximumIdentifierLength) ||
+      isPendingRemoteId(input.remoteTaskId) ||
+      (input.remoteEtag.has_value() &&
+       (!isValidRequiredText(*input.remoteEtag, 4'096) || input.remoteEtag->contains(u'\r') ||
+        input.remoteEtag->contains(u'\n')))) {
+    return readyFuture(TaskMutationResult(
+        validationError(QStringLiteral("Google task reconciliation input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [input = std::move(input), updatedAt](SqliteConnection& connection) {
+        return reconcileStoredGoogleTask(connection, input, updatedAt);
       });
 }
 

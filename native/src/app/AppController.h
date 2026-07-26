@@ -197,6 +197,8 @@ private:
   OptimisticMutationCoordinator optimisticMutationCoordinator_;
   SyncCheckpointStore syncCheckpointStore_;
   SyncConflictStore syncConflictStore_;
+  TaskMutationService taskMutationService_;
+  CalendarMutationService calendarMutationService_;
   GoogleSyncRecoveryService googleSyncRecoveryService_;
   GoogleTaskMutationPushService googleTaskMutationPushService_;
   GoogleCalendarEventMutationPushService googleCalendarEventMutationPushService_;
@@ -204,8 +206,6 @@ private:
   TaskReadService taskReadService_;
   NoteService noteService_;
   CalendarReadService calendarReadService_;
-  TaskMutationService taskMutationService_;
-  CalendarMutationService calendarMutationService_;
   SyncScheduler syncScheduler_;
   std::mutex syncConfigurationMutex_;
   QString syncClientId_;

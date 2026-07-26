@@ -49,6 +49,12 @@ struct TaskMutationReceipt final {
   QString updatedAt;
 };
 
+struct TaskRemoteReconciliationInput final {
+  QString localTaskId;
+  QString remoteTaskId;
+  std::optional<QString> remoteEtag;
+};
+
 using TaskMutationResult = std::variant<TaskMutationReceipt, AppError>;
 
 class TaskMutationService final {
@@ -63,6 +69,8 @@ public:
   [[nodiscard]] std::future<TaskMutationResult> moveToTaskList(QString taskId, QString taskListId);
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
+  [[nodiscard]] std::future<TaskMutationResult>
+  reconcileGoogleTask(TaskRemoteReconciliationInput input);
 
 private:
   const Clock& clock_;

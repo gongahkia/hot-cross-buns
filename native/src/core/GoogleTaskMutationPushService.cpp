@@ -5,6 +5,7 @@
 #include "core/GoogleHttpClient.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
+#include "core/TaskMutationService.h"
 
 #include <QDate>
 #include <QDateTime>
@@ -36,7 +37,13 @@ struct TaskPushRequest final {
   GoogleHttpRequest request;
 };
 
+struct GoogleTaskWriteResponse final {
+  QString remoteTaskId;
+  std::optional<QString> remoteEtag;
+};
+
 using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
+using GoogleTaskWriteResponseOrError = std::variant<GoogleTaskWriteResponse, QString>;
 
 [[nodiscard]] AppError databaseError(const QString& message) {
   return AppError(AppErrorCode::Database, message);
@@ -96,6 +103,24 @@ using TaskPushRequestOrError = std::variant<TaskPushRequest, QString>;
     return std::nullopt;
   }
   return value.toString();
+}
+
+[[nodiscard]] GoogleTaskWriteResponseOrError
+decodeTaskWriteResponse(const GoogleHttpResponse& response) {
+  QJsonParseError parseError;
+  const QJsonDocument document = QJsonDocument::fromJson(response.body, &parseError);
+  if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+    return QStringLiteral("Google task write response is invalid");
+  }
+  const QJsonObject object = document.object();
+  const std::optional<QString> remoteTaskId = requiredIdentifier(object, u"id");
+  const std::optional<QString> remoteEtag = optionalEtag(object);
+  const QJsonValue etagValue = object.value(QStringLiteral("etag"));
+  if (!remoteTaskId.has_value() ||
+      (!remoteEtag.has_value() && !(etagValue.isUndefined() || etagValue.isNull()))) {
+    return QStringLiteral("Google task write response is invalid");
+  }
+  return GoogleTaskWriteResponse{.remoteTaskId = *remoteTaskId, .remoteEtag = remoteEtag};
 }
 
 [[nodiscard]] std::optional<QString> normalizedDue(const QJsonValue& value) {
@@ -302,9 +327,10 @@ GoogleTaskMutationPushService::GoogleTaskMutationPushService(
     OptimisticMutationCoordinator& mutations,
     GoogleHttpClient& httpClient,
     const Clock& clock,
-    SyncBackoffPolicy backoffPolicy)
+    SyncBackoffPolicy backoffPolicy,
+    TaskMutationService* taskMutationService)
     : mutations_(mutations), httpClient_(httpClient), clock_(clock),
-      backoffPolicy_(std::move(backoffPolicy)) {}
+      backoffPolicy_(std::move(backoffPolicy)), taskMutationService_(taskMutationService) {}
 
 std::future<GoogleTaskMutationPushResultOrError>
 GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
@@ -367,6 +393,51 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
             }
             ++summary.failed;
             continue;
+          }
+          if (taskMutationService_ != nullptr &&
+              claimed.operation != QStringLiteral("task.delete")) {
+            const std::optional<QString> localTaskId =
+                optionalIdentifier(claimed.payload, u"localTaskId");
+            const GoogleTaskWriteResponseOrError written =
+                decodeTaskWriteResponse(std::get<GoogleHttpResponse>(response));
+            if (!localTaskId.has_value() || std::holds_alternative<QString>(written)) {
+              const std::optional<AppError> failure =
+                  markFailure(mutations_,
+                              claimed,
+                              QStringLiteral("invalid_response"),
+                              localTaskId.has_value()
+                                  ? std::get<QString>(written)
+                                  : QStringLiteral("Pending task mutation local ID is invalid"),
+                              std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              continue;
+            }
+            const GoogleTaskWriteResponse remote =
+                std::get<GoogleTaskWriteResponse>(std::move(written));
+            TaskMutationResult reconciled =
+                taskMutationService_
+                    ->reconcileGoogleTask({.localTaskId = *localTaskId,
+                                           .remoteTaskId = remote.remoteTaskId,
+                                           .remoteEtag = remote.remoteEtag})
+                    .get();
+            if (std::holds_alternative<AppError>(reconciled)) {
+              const std::optional<AppError> failure =
+                  markFailure(mutations_,
+                              claimed,
+                              QStringLiteral("reconciliation_failed"),
+                              std::get<AppError>(std::move(reconciled)).message(),
+                              std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              continue;
+            }
           }
           if (!claimed.leaseId.has_value()) {
             completion->set_value(
