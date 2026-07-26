@@ -1,6 +1,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -247,7 +248,8 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                                     .description = QStringLiteral("Quarterly review"),
                                     .location = QStringLiteral("Room 5"),
                                     .startTimeZone = QStringLiteral("Asia/Singapore"),
-                                    .endTimeZone = QStringLiteral("Asia/Singapore")});
+                                    .endTimeZone = QStringLiteral("Asia/Singapore"),
+                                    .colorId = QStringLiteral("4")});
   const hcb::CalendarEventMutationResult createResult = awaitResult(create);
   QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult));
   if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult)) {
@@ -267,6 +269,18 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
   QCOMPARE(created->startAt, QStringLiteral("2026-07-26T01:30:00.000Z"));
   QCOMPARE(created->endAt, QStringLiteral("2026-07-26T02:30:00.000Z"));
   QCOMPARE(created->updatedAt, expectedTimestamp);
+  const QList<PendingMutationSnapshot> createMutations =
+      readPendingEventMutations(handle, receipt.eventId);
+  QCOMPARE(createMutations.size(), 1);
+  if (createMutations.size() != 1) {
+    return;
+  }
+  const QJsonObject createPayload = createMutations.constFirst().payload.value(QStringLiteral("event")).toObject();
+  QCOMPARE(createPayload.value(QStringLiteral("attendees")).toArray(), QJsonArray());
+  QCOMPARE(createPayload.value(QStringLiteral("reminders")).toObject()
+               .value(QStringLiteral("useDefault"))
+               .toBool(),
+           true);
 
   const std::optional<std::optional<QString>> clearText{std::optional<QString>{}};
   std::future<hcb::CalendarEventMutationResult> update = service.update(
@@ -278,7 +292,9 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                                     .startAt = QStringLiteral("2026-07-26T02:00:00Z"),
                                     .allDay = true,
                                     .startTimeZone = clearText,
-                                    .endTimeZone = clearText});
+                                    .endTimeZone = clearText,
+                                    .colorId = std::optional<std::optional<QString>>(
+                                        std::optional<QString>{})});
   const hcb::CalendarEventMutationResult updateResult = awaitResult(update);
   QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(updateResult));
   const std::optional<EventSnapshot> updated = readEvent(handle, receipt.eventId);
@@ -294,6 +310,7 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
   QCOMPARE(updated->endAt, QStringLiteral("2026-07-26T02:30:00.000Z"));
   QVERIFY(updated->allDay);
   QVERIFY(!updated->startTimeZone.has_value());
+  QVERIFY(!updated->colorId.has_value());
 
   std::future<hcb::CalendarEventMutationResult> remove = service.remove(receipt.eventId);
   const hcb::CalendarEventMutationResult removeResult = awaitResult(remove);
@@ -353,11 +370,49 @@ void CalendarMutationServiceTest::journalsRemoteUpdatesMovesAndCreateReconciliat
                .value(QStringLiteral("summary"))
                .toString(),
            QStringLiteral("Local title"));
+  QVERIFY(!mutations.constFirst().payload.value(QStringLiteral("event"))
+                .toObject()
+                .contains(QStringLiteral("attendees")));
+  QVERIFY(!mutations.constFirst().payload.value(QStringLiteral("event"))
+                .toObject()
+                .contains(QStringLiteral("reminders")));
   const QJsonObject metadata =
       mutations.constFirst().payload.value(QStringLiteral("_hcbSync")).toObject();
   QCOMPARE(metadata.value(QStringLiteral("etag")).toString(), QStringLiteral("etag-old"));
   QCOMPARE(metadata.value(QStringLiteral("base")).toObject().value(QStringLiteral("summary")).toString(),
            QStringLiteral("Remote"));
+
+  std::future<hcb::CalendarEventMutationResult> metadataUpdate = service.update(
+      {.eventId = QStringLiteral("event-remote"),
+       .attendeeEmails = QList<QString>{QStringLiteral("guest@example.com")},
+       .reminders = hcb::CalendarEventReminderSettings{
+           .useDefault = false,
+           .overrides = {{.method = QStringLiteral("popup"), .minutes = 10}}}});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(metadataUpdate)));
+  mutations = readPendingEventMutations(handle, QStringLiteral("event-remote"));
+  QCOMPARE(mutations.size(), 1);
+  if (mutations.size() != 1) {
+    return;
+  }
+  const QJsonObject metadataPatch = mutations.constFirst().payload.value(QStringLiteral("event")).toObject();
+  QCOMPARE(metadataPatch.value(QStringLiteral("attendees")).toArray().at(0)
+               .toObject()
+               .value(QStringLiteral("email"))
+               .toString(),
+           QStringLiteral("guest@example.com"));
+  QCOMPARE(metadataPatch.value(QStringLiteral("reminders")).toObject()
+               .value(QStringLiteral("overrides"))
+               .toArray()
+               .at(0)
+               .toObject()
+               .value(QStringLiteral("minutes"))
+               .toInteger(),
+           10);
+
+  std::future<hcb::CalendarEventMutationResult> noOp = service.update(
+      {.eventId = QStringLiteral("event-remote"), .title = QStringLiteral("Local title")});
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(awaitResult(noOp)));
+  QCOMPARE(readPendingEventMutations(handle, QStringLiteral("event-remote")).size(), 1);
 
   std::future<hcb::CalendarEventMutationResult> move = service.update(
       {.eventId = QStringLiteral("event-remote"), .calendarId = QStringLiteral("calendar-other")});
@@ -456,6 +511,17 @@ void CalendarMutationServiceTest::rejectsInvalidAndUnavailableMutations() {
   QVERIFY(std::holds_alternative<hcb::AppError>(unavailableCreateResult));
   QCOMPARE(std::get<hcb::AppError>(unavailableCreateResult).code(), hcb::AppErrorCode::Validation);
 
+  execute(connection.nativeHandle(),
+          "UPDATE local_calendars SET access_role = 'reader' WHERE id = 'calendar-other'");
+  std::future<hcb::CalendarEventMutationResult> readOnlyCreate = service.create(
+      hcb::CalendarEventCreateInput{.calendarId = QStringLiteral("calendar-other"),
+                                    .title = QStringLiteral("Read-only"),
+                                    .startAt = QStringLiteral("2026-07-26T09:00:00Z"),
+                                    .endAt = QStringLiteral("2026-07-26T10:00:00Z")});
+  const hcb::CalendarEventMutationResult readOnlyCreateResult = awaitResult(readOnlyCreate);
+  QVERIFY(std::holds_alternative<hcb::AppError>(readOnlyCreateResult));
+  QCOMPARE(std::get<hcb::AppError>(readOnlyCreateResult).code(), hcb::AppErrorCode::Validation);
+
   std::future<hcb::CalendarEventMutationResult> invalidCreate = service.create(
       hcb::CalendarEventCreateInput{.calendarId = QStringLiteral("calendar-work"),
                                     .title = QStringLiteral("Invalid"),
@@ -464,6 +530,28 @@ void CalendarMutationServiceTest::rejectsInvalidAndUnavailableMutations() {
   const hcb::CalendarEventMutationResult invalidCreateResult = awaitResult(invalidCreate);
   QVERIFY(std::holds_alternative<hcb::AppError>(invalidCreateResult));
   QCOMPARE(std::get<hcb::AppError>(invalidCreateResult).code(), hcb::AppErrorCode::Validation);
+
+  std::future<hcb::CalendarEventMutationResult> invalidAttendee = service.create(
+      hcb::CalendarEventCreateInput{.calendarId = QStringLiteral("calendar-work"),
+                                    .title = QStringLiteral("Invalid attendee"),
+                                    .startAt = QStringLiteral("2026-07-26T09:00:00Z"),
+                                    .endAt = QStringLiteral("2026-07-26T10:00:00Z"),
+                                    .attendeeEmails = {QStringLiteral("not-an-email")}});
+  const hcb::CalendarEventMutationResult invalidAttendeeResult = awaitResult(invalidAttendee);
+  QVERIFY(std::holds_alternative<hcb::AppError>(invalidAttendeeResult));
+  QCOMPARE(std::get<hcb::AppError>(invalidAttendeeResult).code(), hcb::AppErrorCode::Validation);
+
+  std::future<hcb::CalendarEventMutationResult> invalidReminder = service.create(
+      hcb::CalendarEventCreateInput{
+          .calendarId = QStringLiteral("calendar-work"),
+          .title = QStringLiteral("Invalid reminder"),
+          .startAt = QStringLiteral("2026-07-26T09:00:00Z"),
+          .endAt = QStringLiteral("2026-07-26T10:00:00Z"),
+          .reminders = {.useDefault = false,
+                        .overrides = {{.method = QStringLiteral("sms"), .minutes = 10}}}});
+  const hcb::CalendarEventMutationResult invalidReminderResult = awaitResult(invalidReminder);
+  QVERIFY(std::holds_alternative<hcb::AppError>(invalidReminderResult));
+  QCOMPARE(std::get<hcb::AppError>(invalidReminderResult).code(), hcb::AppErrorCode::Validation);
 
   std::future<hcb::CalendarEventMutationResult> create = service.create(
       hcb::CalendarEventCreateInput{.calendarId = QStringLiteral("calendar-work"),
@@ -556,6 +644,12 @@ void CalendarMutationServiceTest::bulkClassifiesAndQueuesEligibleEvents() {
     return;
   }
   QCOMPARE(editable->transparency, std::optional<QString>(QStringLiteral("transparent")));
+
+  std::future<hcb::CalendarEventMutationResult> immutableUpdate = service.update(
+      {.eventId = QStringLiteral("event-immutable"), .title = QStringLiteral("Changed")});
+  const hcb::CalendarEventMutationResult immutableUpdateResult = awaitResult(immutableUpdate);
+  QVERIFY(std::holds_alternative<hcb::AppError>(immutableUpdateResult));
+  QCOMPARE(std::get<hcb::AppError>(immutableUpdateResult).code(), hcb::AppErrorCode::Validation);
 
   std::future<hcb::CalendarEventBulkMutationResult> shift = bulk.execute(
       {.action = hcb::CalendarEventBulkAction::ShiftTime,

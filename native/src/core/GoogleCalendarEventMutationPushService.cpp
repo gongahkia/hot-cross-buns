@@ -11,6 +11,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
@@ -42,6 +43,8 @@ constexpr qsizetype kMaximumDescriptionLength = 20'000;
 constexpr qsizetype kMaximumLocationLength = 1'000;
 constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumEtagLength = 4'096;
+constexpr qsizetype kMaximumAttendeeCount = 200;
+constexpr qsizetype kMaximumReminderCount = 5;
 constexpr auto kMutationLeaseDuration = std::chrono::minutes(5);
 
 struct CanonicalEventTime final {
@@ -184,6 +187,103 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   return CanonicalEventTime{.json = std::move(json), .at = parsed, .allDay = false};
 }
 
+[[nodiscard]] std::optional<QJsonArray> canonicalAttendees(const QJsonValue& value) {
+  if (!value.isArray() || value.toArray().size() > kMaximumAttendeeCount) {
+    return std::nullopt;
+  }
+  QJsonArray result;
+  QSet<QString> emails;
+  for (const QJsonValue& attendeeValue : value.toArray()) {
+    if (!attendeeValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject attendee = attendeeValue.toObject();
+    const QJsonValue email = attendee.value(QStringLiteral("email"));
+    const QJsonValue displayName = attendee.value(QStringLiteral("displayName"));
+    const QJsonValue comment = attendee.value(QStringLiteral("comment"));
+    const QJsonValue optional = attendee.value(QStringLiteral("optional"));
+    const QJsonValue status = attendee.value(QStringLiteral("responseStatus"));
+    const QJsonValue additionalGuests = attendee.value(QStringLiteral("additionalGuests"));
+    const QJsonValue resource = attendee.value(QStringLiteral("resource"));
+    const bool validStatus = status.isUndefined() ||
+                             (status.isString() &&
+                              (status.toString() == QStringLiteral("needsAction") ||
+                               status.toString() == QStringLiteral("declined") ||
+                               status.toString() == QStringLiteral("tentative") ||
+                               status.toString() == QStringLiteral("accepted")));
+    if (!email.isString() || !isValidRequiredText(email.toString(), 254) ||
+        !email.toString().contains(u'@') ||
+        (!displayName.isUndefined() &&
+         (!displayName.isString() || !isValidOptionalText(displayName.toString(), 1'024))) ||
+        (!comment.isUndefined() &&
+         (!comment.isString() || !isValidOptionalText(comment.toString(), 4'096))) ||
+        (!optional.isUndefined() && !optional.isBool()) || !validStatus ||
+        (!additionalGuests.isUndefined() &&
+         (!additionalGuests.isDouble() || additionalGuests.toInteger(-1) < 0 ||
+          additionalGuests.toInteger(-1) > 10'000)) ||
+        (!resource.isUndefined() && !resource.isBool())) {
+      return std::nullopt;
+    }
+    const QString key = email.toString().toCaseFolded();
+    if (emails.contains(key)) {
+      return std::nullopt;
+    }
+    emails.insert(key);
+    QJsonObject canonical{{QStringLiteral("email"), email.toString()}};
+    if (!displayName.isUndefined()) {
+      canonical.insert(QStringLiteral("displayName"), displayName);
+    }
+    if (!comment.isUndefined()) {
+      canonical.insert(QStringLiteral("comment"), comment);
+    }
+    if (!optional.isUndefined()) {
+      canonical.insert(QStringLiteral("optional"), optional);
+    }
+    if (!status.isUndefined()) {
+      canonical.insert(QStringLiteral("responseStatus"), status);
+    }
+    if (!additionalGuests.isUndefined()) {
+      canonical.insert(QStringLiteral("additionalGuests"), additionalGuests.toInteger());
+    }
+    if (!resource.isUndefined()) {
+      canonical.insert(QStringLiteral("resource"), resource);
+    }
+    result.append(canonical);
+  }
+  return result;
+}
+
+[[nodiscard]] std::optional<QJsonObject> canonicalReminders(const QJsonValue& value) {
+  if (!value.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject source = value.toObject();
+  const QJsonValue useDefault = source.value(QStringLiteral("useDefault"));
+  const QJsonValue overrides = source.value(QStringLiteral("overrides"));
+  if (!useDefault.isBool() || !overrides.isArray() ||
+      overrides.toArray().size() > kMaximumReminderCount) {
+    return std::nullopt;
+  }
+  QJsonArray canonicalOverrides;
+  for (const QJsonValue& reminderValue : overrides.toArray()) {
+    if (!reminderValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject reminder = reminderValue.toObject();
+    const QJsonValue method = reminder.value(QStringLiteral("method"));
+    const QJsonValue minutes = reminder.value(QStringLiteral("minutes"));
+    if (!method.isString() || (method.toString() != QStringLiteral("email") &&
+                               method.toString() != QStringLiteral("popup")) ||
+        !minutes.isDouble() || minutes.toInteger(-1) < 0 || minutes.toInteger(-1) > 40'320) {
+      return std::nullopt;
+    }
+    canonicalOverrides.append(QJsonObject{{QStringLiteral("method"), method.toString()},
+                                          {QStringLiteral("minutes"), minutes.toInteger()}});
+  }
+  return QJsonObject{{QStringLiteral("useDefault"), useDefault.toBool()},
+                     {QStringLiteral("overrides"), canonicalOverrides}};
+}
+
 [[nodiscard]] std::optional<QJsonObject> canonicalEvent(const QJsonObject& payload, bool creating) {
   const QJsonValue eventValue = payload.value(QStringLiteral("event"));
   if (!eventValue.isObject()) {
@@ -222,10 +322,16 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   }
   const QJsonValue colorId = event.value(QStringLiteral("colorId"));
   if (!colorId.isUndefined()) {
-    if (!colorId.isString() || !isValidRequiredText(colorId.toString(), 32)) {
+    if (colorId.isNull()) {
+      if (creating) {
+        return std::nullopt;
+      }
+      result.insert(QStringLiteral("colorId"), QJsonValue::Null);
+    } else if (!colorId.isString() || !isValidRequiredText(colorId.toString(), 32)) {
       return std::nullopt;
+    } else {
+      result.insert(QStringLiteral("colorId"), colorId.toString());
     }
-    result.insert(QStringLiteral("colorId"), colorId.toString());
   }
   const QJsonValue transparency = event.value(QStringLiteral("transparency"));
   if (!transparency.isUndefined()) {
@@ -241,7 +347,8 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     if (!visibility.isString() ||
         (visibility.toString() != QStringLiteral("default") &&
          visibility.toString() != QStringLiteral("public") &&
-         visibility.toString() != QStringLiteral("private"))) {
+         visibility.toString() != QStringLiteral("private") &&
+         visibility.toString() != QStringLiteral("confidential"))) {
       return std::nullopt;
     }
     result.insert(QStringLiteral("visibility"), visibility.toString());
@@ -263,6 +370,22 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     result.insert(QStringLiteral("start"), start->json);
     result.insert(QStringLiteral("end"), end->json);
   }
+  const QJsonValue attendees = event.value(QStringLiteral("attendees"));
+  if (!attendees.isUndefined()) {
+    const std::optional<QJsonArray> canonical = canonicalAttendees(attendees);
+    if (!canonical.has_value()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("attendees"), *canonical);
+  }
+  const QJsonValue reminders = event.value(QStringLiteral("reminders"));
+  if (!reminders.isUndefined()) {
+    const std::optional<QJsonObject> canonical = canonicalReminders(reminders);
+    if (!canonical.has_value()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("reminders"), *canonical);
+  }
   return !result.isEmpty() ? std::optional<QJsonObject>(result) : std::nullopt;
 }
 
@@ -283,10 +406,13 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     if (!event.has_value()) {
       return QStringLiteral("Pending event mutation payload is invalid");
     }
-    return EventPushRequest{
-        .request = {.method = GoogleHttpMethod::Post,
-                    .path = eventCollectionPath(*calendarId),
-                    .body = QJsonDocument(*event).toJson(QJsonDocument::Compact)}};
+    GoogleHttpRequest request{.method = GoogleHttpMethod::Post,
+                              .path = eventCollectionPath(*calendarId),
+                              .body = QJsonDocument(*event).toJson(QJsonDocument::Compact)};
+    if (event->contains(QStringLiteral("attendees"))) {
+      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    }
+    return EventPushRequest{.request = std::move(request)};
   }
   const std::optional<QString> remoteEventId =
       requiredIdentifier(mutation.payload, u"remoteEventId");
@@ -307,6 +433,9 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     }
     request.method = GoogleHttpMethod::Patch;
     request.body = QJsonDocument(*event).toJson(QJsonDocument::Compact);
+    if (event->contains(QStringLiteral("attendees"))) {
+      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    }
     return EventPushRequest{.request = std::move(request)};
   }
   if (mutation.operation == QStringLiteral("event.move")) {

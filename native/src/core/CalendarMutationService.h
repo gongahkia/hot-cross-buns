@@ -14,6 +14,16 @@
 
 namespace hcb {
 
+struct CalendarEventReminder final {
+  QString method;
+  int minutes{0};
+};
+
+struct CalendarEventReminderSettings final {
+  bool useDefault{true};
+  QList<CalendarEventReminder> overrides;
+};
+
 struct CalendarEventCreateInput final {
   QString calendarId;
   QString title;
@@ -24,6 +34,11 @@ struct CalendarEventCreateInput final {
   std::optional<QString> location;
   std::optional<QString> startTimeZone;
   std::optional<QString> endTimeZone;
+  std::optional<QString> colorId;
+  std::optional<QString> transparency;
+  std::optional<QString> visibility;
+  QList<QString> attendeeEmails;
+  CalendarEventReminderSettings reminders;
 };
 
 struct CalendarEventUpdateInput final {
@@ -37,9 +52,11 @@ struct CalendarEventUpdateInput final {
   std::optional<bool> allDay;
   std::optional<std::optional<QString>> startTimeZone;
   std::optional<std::optional<QString>> endTimeZone;
-  std::optional<QString> colorId;
+  std::optional<std::optional<QString>> colorId;
   std::optional<QString> transparency;
   std::optional<QString> visibility;
+  std::optional<QList<QString>> attendeeEmails;
+  std::optional<CalendarEventReminderSettings> reminders;
 };
 
 struct CalendarEventMutationReceipt final {
@@ -68,6 +85,9 @@ struct CalendarEventMutationSnapshot final {
   std::optional<QString> colorId;
   std::optional<QString> transparency;
   std::optional<QString> visibility;
+  QString attendeeEmailsJson;
+  QString remindersJson;
+  bool remindersUseDefault{true};
 };
 
 using CalendarEventMutationResult = std::variant<CalendarEventMutationReceipt, AppError>;

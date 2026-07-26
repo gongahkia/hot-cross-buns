@@ -29,7 +29,10 @@ public:
     ColorIdRole,
     TransparencyRole,
     VisibilityRole,
-    HcbKindRole
+    HcbKindRole,
+    AttendeeEmailsJsonRole,
+    RemindersJsonRole,
+    RemindersUseDefaultRole
   };
   Q_ENUM(Role)
 

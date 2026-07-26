@@ -6,7 +6,7 @@ HcbDialog {
     id: root
     title: "New event"
     primaryText: "Create event"
-    primaryEnabled: eventCalendarId.length > 0 && titleField.text.trim().length > 0 && validRange()
+    primaryEnabled: eventCalendarId.length > 0 && titleField.text.trim().length > 0 && validRange() && validMetadata()
     property var calendarSourceModel: null
     property string eventCalendarId: ""
     property alias eventTitle: titleField.text
@@ -18,12 +18,48 @@ HcbDialog {
     property alias calendarPicker: calendarPicker
     property alias eventTitleField: titleField
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
-                                bool allDay, string description, string location)
+                                bool allDay, string description, string location, string timeZone,
+                                string colorId, bool available, string visibility, var attendees,
+                                bool remindersUseDefault, var reminders)
 
     function validRange() {
         const start = Date.parse(startField.text)
         const end = Date.parse(endField.text)
         return Number.isFinite(start) && Number.isFinite(end) && end > start
+    }
+
+    function attendeeValues() {
+        const seen = {}
+        const values = attendeeField.text.split(/[\n,;]/).map(function(value) { return value.trim() })
+            .filter(function(value) { return value.length > 0 })
+        for (let index = 0; index < values.length; ++index) {
+            const key = values[index].toLowerCase()
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values[index]) || seen[key]) return null
+            seen[key] = true
+        }
+        return values.length <= 200 ? values : null
+    }
+
+    function reminderValues() {
+        const text = reminderField.text.trim()
+        if (text.length === 0) return []
+        const values = text.split(/[\n,;]/).map(function(value) { return value.trim() })
+            .filter(function(value) { return value.length > 0 })
+        const reminders = []
+        for (let index = 0; index < values.length; ++index) {
+            const match = /^(email|popup)\s*:\s*(\d+)$/.exec(values[index])
+            if (match === null) return null
+            const minutes = Number(match[2])
+            if (!Number.isInteger(minutes) || minutes < 0 || minutes > 40320) return null
+            reminders.push({ method: match[1], minutes: minutes })
+        }
+        return reminders.length <= 5 ? reminders : null
+    }
+
+    function validMetadata() {
+        return attendeeValues() !== null && reminderValues() !== null &&
+               (timeZoneField.text.trim().length === 0 ||
+                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim()))
     }
 
     function roundedStartAt() {
@@ -40,6 +76,13 @@ HcbDialog {
         endField.text = new Date(Date.parse(startField.text) + 60 * 60 * 1000).toISOString()
         descriptionField.clear()
         locationField.clear()
+        timeZoneField.clear()
+        colorIdField.clear()
+        availableCheck.checked = false
+        visibilityPicker.currentIndex = visibilityPicker.indexOfValue("default")
+        attendeeField.clear()
+        defaultRemindersCheck.checked = true
+        reminderField.clear()
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
         open()
     }
@@ -47,7 +90,10 @@ HcbDialog {
     onOpened: titleField.forceActiveFocus()
     onPrimaryAction: eventCreateRequested(eventCalendarId, titleField.text.trim(), startField.text,
                                           endField.text, allDayCheck.checked, descriptionField.text,
-                                          locationField.text)
+                                          locationField.text, timeZoneField.text.trim(),
+                                          colorIdField.text.trim(), availableCheck.checked,
+                                          visibilityPicker.currentValue, attendeeValues(),
+                                          defaultRemindersCheck.checked, reminderValues())
 
     TextField {
         id: titleField
@@ -60,6 +106,61 @@ HcbDialog {
                 root.primaryButton.click()
             }
         }
+    }
+
+    TextField {
+        id: timeZoneField
+        Layout.fillWidth: true
+        placeholderText: "Time zone (IANA, optional)"
+        Accessible.name: "Event time zone"
+        selectByMouse: true
+    }
+
+    TextField {
+        id: colorIdField
+        Layout.fillWidth: true
+        placeholderText: "Google color ID (optional)"
+        Accessible.name: "Event color"
+        selectByMouse: true
+    }
+
+    CheckBox {
+        id: availableCheck
+        text: "Show as available"
+        Accessible.name: text
+    }
+
+    ComboBox {
+        id: visibilityPicker
+        Layout.fillWidth: true
+        model: [{ text: "Default", value: "default" }, { text: "Public", value: "public" },
+                { text: "Private", value: "private" }, { text: "Confidential", value: "confidential" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Event visibility"
+    }
+
+    TextField {
+        id: attendeeField
+        Layout.fillWidth: true
+        placeholderText: "Guests (comma-separated email addresses)"
+        Accessible.name: "Event guests"
+        selectByMouse: true
+    }
+
+    CheckBox {
+        id: defaultRemindersCheck
+        text: "Use calendar default reminders"
+        Accessible.name: text
+    }
+
+    TextField {
+        id: reminderField
+        Layout.fillWidth: true
+        enabled: !defaultRemindersCheck.checked
+        placeholderText: "Custom reminders, e.g. popup:10, email:60"
+        Accessible.name: "Event custom reminders"
+        selectByMouse: true
     }
 
     ComboBox {

@@ -624,13 +624,20 @@ TestCase {
         verify(dialog !== null)
         dialog.openForEdit("event-1", "calendar-primary", "Release review",
                            "2026-07-26T10:00:00.000Z", "2026-07-26T11:00:00.000Z", false,
-                           "Verify the native package", "Studio")
+                           "Verify the native package", "Studio", "Asia/Singapore", "4",
+                           "transparent", "confidential", "[\"guest@example.com\"]",
+                           "[{\"method\":\"popup\",\"minutes\":10}]", false)
         verify(dialog.primaryEnabled)
         let request = null
-        dialog.eventUpdateRequested.connect(function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
-            request = { eventId, calendarId, title, startAt, endAt, allDay, description, location }
+        dialog.eventUpdateRequested.connect(function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                                                     timeZone, colorId, available, visibility, attendees,
+                                                     remindersUseDefault, reminders) {
+            request = { eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                        timeZone, colorId, available, visibility, attendees, remindersUseDefault, reminders }
         })
         dialog.eventTitle = "Revised release review"
+        dialog.eventTimeZone = "UTC"
+        verify(dialog.primaryEnabled)
         dialog.primaryButton.click()
         compare(request.eventId, "event-1")
         compare(request.calendarId, "calendar-primary")
@@ -640,6 +647,13 @@ TestCase {
         compare(request.allDay, false)
         compare(request.description, "Verify the native package")
         compare(request.location, "Studio")
+        compare(request.timeZone, "UTC")
+        compare(request.colorId, "4")
+        compare(request.available, true)
+        compare(request.visibility, "confidential")
+        compare(request.attendees[0], "guest@example.com")
+        compare(request.remindersUseDefault, false)
+        compare(request.reminders[0].minutes, 10)
         dialog.destroy()
         sourceModel.destroy()
     }
@@ -1272,7 +1286,10 @@ TestCase {
         mainWindow.eventCreateDialog.eventCreateRequested("calendar-primary", "Release review",
                                                           "2026-07-26T10:00:00.000Z",
                                                           "2026-07-26T11:00:00.000Z", false,
-                                                          "Verify the native package", "Studio")
+                                                          "Verify the native package", "Studio",
+                                                          "Asia/Singapore", "4", true, "private",
+                                                          ["guest@example.com"], false,
+                                                          [{ method: "popup", minutes: 10 }])
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")
         compare(request.startAt, "2026-07-26T10:00:00.000Z")
@@ -1296,7 +1313,10 @@ TestCase {
         mainWindow.eventEditDialog.eventUpdateRequested("event-1", "calendar-primary", "Release review",
                                                         "2026-07-26T10:00:00.000Z",
                                                         "2026-07-26T11:00:00.000Z", false,
-                                                        "Verify the native package", "Studio")
+                                                        "Verify the native package", "Studio",
+                                                        "Asia/Singapore", "4", true, "private",
+                                                        ["guest@example.com"], false,
+                                                        [{ method: "popup", minutes: 10 }])
         compare(request.eventId, "event-1")
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")

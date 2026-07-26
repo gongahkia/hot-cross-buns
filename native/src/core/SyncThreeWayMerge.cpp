@@ -136,7 +136,7 @@ SyncThreeWayMergeResult SyncThreeWayMerge::merge(SyncThreeWayMergeInput input) {
         input,
         u"event",
         {u"summary", u"description", u"location", u"start", u"end", u"colorId",
-         u"transparency", u"visibility"});
+         u"transparency", u"visibility", u"attendees", u"reminders"});
   }
   return structuralResult(input);
 }

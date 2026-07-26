@@ -1,5 +1,7 @@
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
@@ -155,11 +157,31 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                                .title = QStringLiteral("Planning"),
                                .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
                                .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
-                               .allDay = false}});
+                               .allDay = false,
+                               .visibility = QStringLiteral("confidential"),
+                               .attendees = QJsonArray{QJsonObject{{QStringLiteral("email"),
+                                                                    QStringLiteral("guest@example.com")},
+                                                        {QStringLiteral("displayName"),
+                                                         QStringLiteral("Guest")}}},
+                               .reminders = QJsonObject{
+                                   {QStringLiteral("useDefault"), false},
+                                   {QStringLiteral("overrides"),
+                                    QJsonArray{QJsonObject{{QStringLiteral("method"),
+                                                             QStringLiteral("popup")},
+                                                           {QStringLiteral("minutes"), 10}}}}}}});
   const hcb::GoogleMirrorWriteResult calendarResult = awaitResult(calendarWrite);
   QVERIFY(std::holds_alternative<std::monostate>(calendarResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"), 1);
+  QCOMPARE(text(handle, "SELECT visibility FROM local_calendar_events"),
+           QStringLiteral("confidential"));
+  QCOMPARE(text(handle, "SELECT attendee_emails_json FROM local_calendar_events"),
+           QStringLiteral("[\"guest@example.com\"]"));
+  QCOMPARE(text(handle, "SELECT attendee_details_json FROM local_calendar_events"),
+           QStringLiteral("[{\"displayName\":\"Guest\",\"email\":\"guest@example.com\"}]"));
+  QCOMPARE(text(handle, "SELECT reminders_json FROM local_calendar_events"),
+           QStringLiteral("[{\"method\":\"popup\",\"minutes\":10}]"));
+  QCOMPARE(count(handle, "SELECT reminders_use_default FROM local_calendar_events"), 0);
 
   std::future<hcb::GoogleMirrorWriteResult> emptyTasks =
       store.replaceTasks(QStringLiteral("google"), {}, {});

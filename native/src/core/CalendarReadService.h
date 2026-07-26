@@ -61,6 +61,9 @@ struct CalendarEventSummary final {
   std::optional<QString> timeZone;
   std::optional<QString> hcbKind;
   std::optional<QString> eventType;
+  QString attendeeEmailsJson;
+  QString remindersJson;
+  bool remindersUseDefault{true};
   std::optional<QString> etag;
   std::optional<std::int64_t> sequence;
   std::optional<QString> remoteUpdatedAt;

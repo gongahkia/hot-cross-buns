@@ -2,6 +2,8 @@
 
 #include "core/GoogleApiError.h"
 
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QList>
 #include <QString>
 
@@ -40,6 +42,8 @@ struct GoogleCalendarEventMirror final {
   std::optional<QString> visibility;
   std::optional<QString> timeZone;
   std::optional<QString> eventType;
+  QJsonArray attendees;
+  QJsonObject reminders;
   std::optional<QString> etag;
   std::optional<qint64> sequence;
   std::optional<QString> updatedAt;

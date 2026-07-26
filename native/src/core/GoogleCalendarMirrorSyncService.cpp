@@ -69,7 +69,7 @@ template <typename Result, typename Pull>
   return {{QStringLiteral("fields"),
            QStringLiteral("nextPageToken,nextSyncToken,items(id,status,summary,description,"
                           "location,start,end,recurringEventId,originalStartTime,recurrence,"
-                          "colorId,transparency,visibility,timeZone,eventType,etag,sequence,"
+                          "colorId,transparency,visibility,eventType,attendees,reminders,etag,sequence,"
                           "updated)")},
           {QStringLiteral("maxResults"), QStringLiteral("250")},
           {QStringLiteral("showDeleted"), true},

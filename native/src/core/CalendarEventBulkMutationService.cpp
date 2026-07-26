@@ -53,7 +53,7 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 
 [[nodiscard]] bool isValidVisibility(const QString& value) {
   return value == QStringLiteral("default") || value == QStringLiteral("public") ||
-         value == QStringLiteral("private");
+         value == QStringLiteral("private") || value == QStringLiteral("confidential");
 }
 
 [[nodiscard]] std::optional<AppError> validate(const CalendarEventBulkMutationInput& input) {
@@ -168,7 +168,8 @@ submit(CalendarMutationService& service,
   case CalendarEventBulkAction::MoveToCalendar:
     return service.update({.eventId = event.eventId, .calendarId = input.calendarId});
   case CalendarEventBulkAction::SetColor:
-    return service.update({.eventId = event.eventId, .colorId = input.colorId});
+    return service.update(
+        {.eventId = event.eventId, .colorId = std::optional<std::optional<QString>>(input.colorId)});
   case CalendarEventBulkAction::SetAvailability:
     return service.update({.eventId = event.eventId,
                            .transparency = *input.available ? QStringLiteral("transparent")

@@ -13,6 +13,7 @@
 
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUrlQuery>
@@ -170,21 +171,29 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
   FixedClock clock;
   hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
   verifyReady(coordinator);
+  const QJsonObject createdEvent{
+      {QStringLiteral("summary"), QStringLiteral(" Planning/Q3 ")},
+      {QStringLiteral("description"), QStringLiteral("draft")},
+      {QStringLiteral("location"), QStringLiteral("HQ")},
+      {QStringLiteral("start"),
+       QJsonObject{{QStringLiteral("dateTime"), QStringLiteral("2026-08-01T09:00:00")},
+                   {QStringLiteral("timeZone"), QStringLiteral("Asia/Singapore")}}},
+      {QStringLiteral("end"),
+       QJsonObject{{QStringLiteral("dateTime"), QStringLiteral("2026-08-01T10:00:00")},
+                   {QStringLiteral("timeZone"), QStringLiteral("Asia/Singapore")}}},
+      {QStringLiteral("attendees"),
+       QJsonArray{QJsonObject{{QStringLiteral("email"), QStringLiteral("guest@example.com")},
+                              {QStringLiteral("responseStatus"), QStringLiteral("needsAction")}}}},
+      {QStringLiteral("reminders"),
+       QJsonObject{{QStringLiteral("useDefault"), false},
+                   {QStringLiteral("overrides"),
+                    QJsonArray{QJsonObject{{QStringLiteral("method"), QStringLiteral("popup")},
+                                          {QStringLiteral("minutes"), 10}}}}}}};
   const hcb::PendingMutation created = enqueue(
       coordinator,
       QStringLiteral("event.create"),
       {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
-       {QStringLiteral("event"),
-        QJsonObject{
-            {QStringLiteral("summary"), QStringLiteral(" Planning/Q3 ")},
-            {QStringLiteral("description"), QStringLiteral("draft")},
-            {QStringLiteral("location"), QStringLiteral("HQ")},
-            {QStringLiteral("start"),
-             QJsonObject{{QStringLiteral("dateTime"), QStringLiteral("2026-08-01T09:00:00")},
-                         {QStringLiteral("timeZone"), QStringLiteral("Asia/Singapore")}}},
-            {QStringLiteral("end"),
-             QJsonObject{{QStringLiteral("dateTime"), QStringLiteral("2026-08-01T10:00:00")},
-                         {QStringLiteral("timeZone"), QStringLiteral("Asia/Singapore")}}}}}});
+       {QStringLiteral("event"), createdEvent}});
   const hcb::PendingMutation updated =
       enqueue(coordinator,
               QStringLiteral("event.update"),
@@ -193,7 +202,8 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                {QStringLiteral("etag"), QStringLiteral("etag-1")},
                {QStringLiteral("event"),
                 QJsonObject{{QStringLiteral("description"), QJsonValue::Null},
-                            {QStringLiteral("location"), QStringLiteral("Remote")}}}});
+                            {QStringLiteral("location"), QStringLiteral("Remote")},
+                            {QStringLiteral("colorId"), QJsonValue::Null}}}});
   const hcb::PendingMutation removed =
       enqueue(coordinator,
               QStringLiteral("event.delete"),
@@ -239,11 +249,27 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                .value(QStringLiteral("dateTime"))
                .toString(),
            QStringLiteral("2026-08-01T01:00:00.000Z"));
+  QCOMPARE(QUrlQuery(createRequest->request.url()).queryItemValue(QStringLiteral("sendUpdates")),
+           QStringLiteral("all"));
+  QCOMPARE(createBody.value(QStringLiteral("attendees")).toArray().at(0)
+               .toObject()
+               .value(QStringLiteral("email"))
+               .toString(),
+           QStringLiteral("guest@example.com"));
+  QCOMPARE(createBody.value(QStringLiteral("reminders")).toObject()
+               .value(QStringLiteral("overrides"))
+               .toArray()
+               .at(0)
+               .toObject()
+               .value(QStringLiteral("minutes"))
+               .toInteger(),
+           10);
   QCOMPARE(updateRequest->request.url().path(),
            QStringLiteral("/calendar/v3/calendars/calendar-1/events/remote-1"));
   QCOMPARE(updateRequest->request.rawHeader("If-Match"), QByteArray("etag-1"));
   const QJsonObject updateBody = QJsonDocument::fromJson(updateRequest->body).object();
   QVERIFY(updateBody.value(QStringLiteral("description")).isNull());
+  QVERIFY(updateBody.value(QStringLiteral("colorId")).isNull());
   QCOMPARE(updateBody.value(QStringLiteral("location")).toString(), QStringLiteral("Remote"));
   QCOMPARE(deleteRequest->request.url().path(),
            QStringLiteral("/calendar/v3/calendars/calendar-1/events/remote-1"));

@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
 #include <QTime>
 #include <QTimeZone>
@@ -23,6 +24,8 @@ namespace {
 constexpr qsizetype kMaximumResponseBytes = 262'144;
 constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr qsizetype kMaximumEtagLength = 4'096;
+constexpr qsizetype kMaximumAttendeeCount = 200;
+constexpr qsizetype kMaximumReminderCount = 5;
 
 struct RemoteSnapshot final {
   QJsonObject fields;
@@ -139,6 +142,101 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
   return result;
 }
 
+[[nodiscard]] std::optional<QJsonArray> eventAttendees(const QJsonValue& value) {
+  if (value.isUndefined()) {
+    return QJsonArray();
+  }
+  if (!value.isArray() || value.toArray().size() > kMaximumAttendeeCount) {
+    return std::nullopt;
+  }
+  QJsonArray result;
+  QSet<QString> emails;
+  for (const QJsonValue& attendeeValue : value.toArray()) {
+    if (!attendeeValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject attendee = attendeeValue.toObject();
+    const std::optional<QString> email = optionalString(attendee, u"email", 254);
+    const std::optional<QString> displayName = optionalString(attendee, u"displayName", 1'024);
+    const std::optional<QString> comment = optionalString(attendee, u"comment", 4'096);
+    const QJsonValue optional = attendee.value(QStringLiteral("optional"));
+    const QJsonValue responseStatus = attendee.value(QStringLiteral("responseStatus"));
+    const QJsonValue additionalGuests = attendee.value(QStringLiteral("additionalGuests"));
+    const QJsonValue resource = attendee.value(QStringLiteral("resource"));
+    const bool validStatus = responseStatus.isUndefined() ||
+                             (responseStatus.isString() &&
+                              (responseStatus.toString() == QStringLiteral("needsAction") ||
+                               responseStatus.toString() == QStringLiteral("declined") ||
+                               responseStatus.toString() == QStringLiteral("tentative") ||
+                               responseStatus.toString() == QStringLiteral("accepted")));
+    if (hasInvalidOptional(email, attendee, u"email") ||
+        hasInvalidOptional(displayName, attendee, u"displayName") ||
+        hasInvalidOptional(comment, attendee, u"comment") ||
+        (!optional.isUndefined() && !optional.isBool()) || !validStatus ||
+        (!additionalGuests.isUndefined() &&
+         (!additionalGuests.isDouble() || additionalGuests.toInteger(-1) < 0 ||
+          additionalGuests.toInteger(-1) > 10'000)) ||
+        (!resource.isUndefined() && !resource.isBool())) {
+      return std::nullopt;
+    }
+    QJsonObject canonical;
+    if (email.has_value()) {
+      const QString key = email->toCaseFolded();
+      if (email->trimmed() != *email || emails.contains(key)) {
+        return std::nullopt;
+      }
+      emails.insert(key);
+      canonical.insert(QStringLiteral("email"), *email);
+    }
+    if (displayName.has_value()) canonical.insert(QStringLiteral("displayName"), *displayName);
+    if (comment.has_value()) canonical.insert(QStringLiteral("comment"), *comment);
+    if (!optional.isUndefined()) canonical.insert(QStringLiteral("optional"), optional);
+    if (!responseStatus.isUndefined()) canonical.insert(QStringLiteral("responseStatus"), responseStatus);
+    if (!additionalGuests.isUndefined()) {
+      canonical.insert(QStringLiteral("additionalGuests"), additionalGuests.toInteger());
+    }
+    if (!resource.isUndefined()) canonical.insert(QStringLiteral("resource"), resource);
+    result.append(canonical);
+  }
+  return result;
+}
+
+[[nodiscard]] std::optional<QJsonObject> eventReminders(const QJsonValue& value) {
+  if (value.isUndefined()) {
+    return QJsonObject{{QStringLiteral("useDefault"), true},
+                       {QStringLiteral("overrides"), QJsonArray()}};
+  }
+  if (!value.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject source = value.toObject();
+  const QJsonValue useDefault = source.value(QStringLiteral("useDefault"));
+  const QJsonValue overrides = source.value(QStringLiteral("overrides"));
+  if ((!useDefault.isUndefined() && !useDefault.isBool()) ||
+      (!overrides.isUndefined() && !overrides.isArray()) ||
+      (overrides.isArray() && overrides.toArray().size() > kMaximumReminderCount)) {
+    return std::nullopt;
+  }
+  QJsonArray canonical;
+  if (overrides.isArray()) {
+    for (const QJsonValue& reminderValue : overrides.toArray()) {
+      const QJsonObject reminder = reminderValue.toObject();
+      const QJsonValue method = reminder.value(QStringLiteral("method"));
+      const QJsonValue minutes = reminder.value(QStringLiteral("minutes"));
+      if (!reminderValue.isObject() || !method.isString() ||
+          (method.toString() != QStringLiteral("email") &&
+           method.toString() != QStringLiteral("popup")) ||
+          !minutes.isDouble() || minutes.toInteger(-1) < 0 || minutes.toInteger(-1) > 40'320) {
+        return std::nullopt;
+      }
+      canonical.append(QJsonObject{{QStringLiteral("method"), method.toString()},
+                                   {QStringLiteral("minutes"), minutes.toInteger()}});
+    }
+  }
+  return QJsonObject{{QStringLiteral("useDefault"), useDefault.toBool(true)},
+                     {QStringLiteral("overrides"), canonical}};
+}
+
 [[nodiscard]] std::optional<RemoteSnapshot> decodeTask(const GoogleHttpResponse& response,
                                                         const QString& expectedId) {
   if (response.body.size() > kMaximumResponseBytes) {
@@ -218,6 +316,10 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
   const std::optional<QString> colorId = optionalString(object, u"colorId", 32);
   const std::optional<QString> transparency = optionalString(object, u"transparency", 32);
   const std::optional<QString> visibility = optionalString(object, u"visibility", 32);
+  const std::optional<QJsonArray> attendees =
+      eventAttendees(object.value(QStringLiteral("attendees")));
+  const std::optional<QJsonObject> reminders =
+      eventReminders(object.value(QStringLiteral("reminders")));
   const QJsonValue status = object.value(QStringLiteral("status"));
   if (!id.has_value() || *id != expectedId || !etag.has_value() || !summary.has_value() ||
       hasInvalidOptional(description, object, u"description") ||
@@ -230,6 +332,7 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
       (visibility.has_value() && *visibility != QStringLiteral("default") &&
        *visibility != QStringLiteral("public") && *visibility != QStringLiteral("private") &&
        *visibility != QStringLiteral("confidential")) ||
+      !attendees.has_value() || !reminders.has_value() ||
       (!status.isUndefined() &&
        (!status.isString() || (status.toString() != QStringLiteral("confirmed") &&
                                status.toString() != QStringLiteral("tentative") &&
@@ -254,7 +357,9 @@ using RemoteSnapshotResult = std::variant<RemoteSnapshot, GoogleApiError, AppErr
                      {QStringLiteral("transparency"),
                       transparency.has_value() ? QJsonValue(*transparency) : QJsonValue::Null},
                      {QStringLiteral("visibility"),
-                      visibility.has_value() ? QJsonValue(*visibility) : QJsonValue::Null}};
+                      visibility.has_value() ? QJsonValue(*visibility) : QJsonValue::Null},
+                     {QStringLiteral("attendees"), *attendees},
+                     {QStringLiteral("reminders"), *reminders}};
   if (start.has_value() && end.has_value()) {
     fields.insert(QStringLiteral("start"), *start);
     fields.insert(QStringLiteral("end"), *end);

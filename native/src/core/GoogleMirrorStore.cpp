@@ -7,6 +7,7 @@
 #include <QByteArray>
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QJsonDocument>
 #include <QSet>
 #include <QTimeZone>
 
@@ -361,14 +362,38 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
     return validationError(QStringLiteral("Google calendar recurrence is too large"));
   }
   const std::optional<QString> deletedAt = cancelled ? std::optional<QString>(now) : std::nullopt;
+  const QString attendeeDetails =
+      QString::fromUtf8(QJsonDocument(event.attendees).toJson(QJsonDocument::Compact));
+  QJsonArray attendeeEmails;
+  for (const QJsonValue& attendee : event.attendees) {
+    const QJsonValue email = attendee.toObject().value(QStringLiteral("email"));
+    if (email.isString()) {
+      attendeeEmails.append(email.toString());
+    }
+  }
+  const QString attendeeEmailJson =
+      QString::fromUtf8(QJsonDocument(attendeeEmails).toJson(QJsonDocument::Compact));
+  const QJsonArray reminderOverrides =
+      event.reminders.value(QStringLiteral("overrides")).toArray();
+  const QString reminderJson =
+      QString::fromUtf8(QJsonDocument(reminderOverrides).toJson(QJsonDocument::Compact));
+  QJsonArray reminderMinutes;
+  for (const QJsonValue& reminder : reminderOverrides) {
+    reminderMinutes.append(reminder.toObject().value(QStringLiteral("minutes")).toInteger());
+  }
+  const QString reminderMinuteJson =
+      QString::fromUtf8(QJsonDocument(reminderMinutes).toJson(QJsonDocument::Compact));
+  const QJsonValue useDefault = event.reminders.value(QStringLiteral("useDefault"));
+  const bool remindersUseDefault = !useDefault.isBool() || useDefault.toBool();
   return execute(
       handle,
       "INSERT INTO local_calendar_events (id, calendar_id, remote_id, recurring_remote_id, "
       "original_start_at, status, title, description, location, start_at, start_time_zone, end_at, "
       "end_time_zone, is_all_day, recurrence_rule, color_id, transparency, visibility, time_zone, "
-      "event_type, etag, sequence, remote_updated_at, updated_at, deleted_at) "
+      "event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, reminders_json, "
+      "reminders_use_default, etag, sequence, remote_updated_at, updated_at, deleted_at) "
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, "
-      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25) "
+      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30) "
       "ON CONFLICT(calendar_id, remote_id) WHERE remote_id IS NOT NULL DO UPDATE SET "
       "recurring_remote_id = excluded.recurring_remote_id, original_start_at = "
       "excluded.original_start_at, "
@@ -378,7 +403,11 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "end_time_zone = excluded.end_time_zone, is_all_day = excluded.is_all_day, "
       "recurrence_rule = excluded.recurrence_rule, color_id = excluded.color_id, "
       "transparency = excluded.transparency, visibility = excluded.visibility, "
-      "time_zone = excluded.time_zone, event_type = excluded.event_type, etag = excluded.etag, "
+      "time_zone = excluded.time_zone, event_type = excluded.event_type, "
+      "attendee_emails_json = excluded.attendee_emails_json, "
+      "attendee_details_json = excluded.attendee_details_json, "
+      "reminder_minutes_json = excluded.reminder_minutes_json, reminders_json = excluded.reminders_json, "
+      "reminders_use_default = excluded.reminders_use_default, etag = excluded.etag, "
       "sequence = excluded.sequence, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = excluded.deleted_at "
@@ -405,8 +434,13 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
        optionalTextValue(event.colorId),
        optionalTextValue(event.transparency),
        optionalTextValue(event.visibility),
-       optionalTextValue(event.timeZone),
+       nullValue(),
        optionalTextValue(event.eventType),
+       textValue(attendeeEmailJson),
+       textValue(attendeeDetails),
+       textValue(reminderMinuteJson),
+       textValue(reminderJson),
+       integerValue(remindersUseDefault ? 1 : 0),
        optionalTextValue(event.etag),
        event.sequence.has_value() ? integerValue(*event.sequence) : nullValue(),
        optionalTextValue(event.updatedAt),

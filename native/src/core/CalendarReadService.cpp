@@ -143,10 +143,13 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
   const std::optional<QString> title = requiredText(statement, 6);
   const std::optional<QString> startAt = requiredText(statement, 9);
   const std::optional<QString> endAt = requiredText(statement, 11);
-  const std::optional<QString> updatedAt = requiredText(statement, 24);
+  const std::optional<QString> attendeeEmailsJson = requiredText(statement, 21);
+  const std::optional<QString> remindersJson = requiredText(statement, 22);
+  const std::optional<QString> updatedAt = requiredText(statement, 27);
   if (!id.has_value() || !calendarId.has_value() || !status.has_value() || !title.has_value() ||
       !startAt.has_value() || !endAt.has_value() || !updatedAt.has_value() ||
-      !isStoredBoolean(statement, 13)) {
+      !isStoredBoolean(statement, 13) || !attendeeEmailsJson.has_value() ||
+      !remindersJson.has_value() || !isStoredBoolean(statement, 23)) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored calendar event row is invalid"));
   }
   return CalendarEventSummary{.id = *id,
@@ -170,9 +173,12 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                               .timeZone = optionalText(statement, 18),
                               .hcbKind = optionalText(statement, 19),
                               .eventType = optionalText(statement, 20),
-                              .etag = optionalText(statement, 21),
-                              .sequence = optionalInteger(statement, 22),
-                              .remoteUpdatedAt = optionalText(statement, 23),
+                              .attendeeEmailsJson = *attendeeEmailsJson,
+                              .remindersJson = *remindersJson,
+                              .remindersUseDefault = sqlite3_column_int(statement, 23) == 1,
+                              .etag = optionalText(statement, 24),
+                              .sequence = optionalInteger(statement, 25),
+                              .remoteUpdatedAt = optionalText(statement, 26),
                               .updatedAt = *updatedAt};
 }
 
@@ -408,8 +414,9 @@ readStoredCalendarEvents(SqliteConnection& connection,
                      "events.start_time_zone, events.end_at, events.end_time_zone, "
                      "events.is_all_day, events.recurrence_rule, events.color_id, "
                      "events.transparency, events.visibility, events.time_zone, events.hcb_kind, "
-                     "events.event_type, events.etag, events.sequence, events.remote_updated_at, "
-                     "events.updated_at "
+                     "events.event_type, events.attendee_emails_json, events.reminders_json, "
+                     "events.reminders_use_default, events.etag, events.sequence, "
+                     "events.remote_updated_at, events.updated_at "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
                      "WHERE %1 "

@@ -168,6 +168,35 @@ public:
                                bool allDay,
                                QString description,
                                QString location);
+  Q_INVOKABLE void createEventDetailed(QString calendarId,
+                                       QString title,
+                                       QString startAt,
+                                       QString endAt,
+                                       bool allDay,
+                                       QString description,
+                                       QString location,
+                                       QString timeZone,
+                                       QString colorId,
+                                       bool available,
+                                       QString visibility,
+                                       QVariantList attendees,
+                                       bool remindersUseDefault,
+                                       QVariantList reminders);
+  Q_INVOKABLE void updateEventDetailed(QString eventId,
+                                       QString calendarId,
+                                       QString title,
+                                       QString startAt,
+                                       QString endAt,
+                                       bool allDay,
+                                       QString description,
+                                       QString location,
+                                       QString timeZone,
+                                       QString colorId,
+                                       bool available,
+                                       QString visibility,
+                                       QVariantList attendees,
+                                       bool remindersUseDefault,
+                                       QVariantList reminders);
   Q_INVOKABLE void deleteEvent(QString eventId);
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);

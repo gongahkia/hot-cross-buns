@@ -11,7 +11,10 @@ Pane {
     signal eventSelected(string eventId)
     signal eventSelectionRequested(string eventId, bool selected)
     signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
-                              string endAt, bool allDay, string description, string location)
+                              string endAt, bool allDay, string description, string location,
+                              string startTimeZone, string colorId, string transparency,
+                              string visibility, string attendeeEmailsJson, string remindersJson,
+                              bool remindersUseDefault)
 
     function scheduleLabel(startAt, allDay) {
         return allDay ? "All day" : startAt
@@ -21,8 +24,12 @@ Pane {
         eventSelected(eventId)
     }
 
-    function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
-        eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+    function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                         startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                         remindersJson, remindersUseDefault) {
+        eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault)
     }
 
     function isCalendarVisible(calendarId) {
@@ -61,6 +68,13 @@ Pane {
                 required property bool allDay
                 required property string description
                 required property string location
+                required property string startTimeZone
+                required property string colorId
+                required property string transparency
+                required property string visibility
+                required property string attendeeEmailsJson
+                required property string remindersJson
+                required property bool remindersUseDefault
                 width: ListView.view.width
                 visible: root.isCalendarVisible(calendarId)
                 height: visible ? implicitHeight : 0
@@ -70,7 +84,9 @@ Pane {
                 accessibleDescription: root.scheduleLabel(startAt, allDay) + ". Calendar " + calendarId
                 onClicked: {
                     root.selectEvent(id)
-                    root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location)
+                    root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location,
+                                     startTimeZone, colorId, transparency, visibility,
+                                     attendeeEmailsJson, remindersJson, remindersUseDefault)
                 }
 
                 CheckBox {

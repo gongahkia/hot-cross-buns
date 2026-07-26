@@ -179,8 +179,12 @@ ApplicationWindow {
         eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId())
     }
 
-    function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
-        eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+    function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault) {
+        eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description,
+                                    location, startTimeZone, colorId, transparency, visibility,
+                                    attendeeEmailsJson, remindersJson, remindersUseDefault)
     }
 
     color: Theme.background
@@ -431,9 +435,14 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
-        onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location) {
+        onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location,
+                                         timeZone, colorId, available, visibility, attendees,
+                                         remindersUseDefault, reminders) {
             window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
-            window.controllerCall("createEvent", [calendarId, title, startAt, endAt, allDay, description, location])
+            window.controllerCall("createEventDetailed", [calendarId, title, startAt, endAt, allDay,
+                                                            description, location, timeZone, colorId,
+                                                            available, visibility, attendees,
+                                                            remindersUseDefault, reminders])
         }
     }
 
@@ -442,9 +451,14 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
-        onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
+        onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                                         timeZone, colorId, available, visibility, attendees,
+                                         remindersUseDefault, reminders) {
             window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
-            window.controllerCall("updateEvent", [eventId, calendarId, title, startAt, endAt, allDay, description, location])
+            window.controllerCall("updateEventDetailed", [eventId, calendarId, title, startAt, endAt,
+                                                            allDay, description, location, timeZone,
+                                                            colorId, available, visibility, attendees,
+                                                            remindersUseDefault, reminders])
         }
         onEventDeleteRequested: function(eventId, title) {
             eventDeleteDialog.openForDelete(eventId, title)
@@ -668,8 +682,13 @@ ApplicationWindow {
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
-                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
-                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+                        onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                                                       startTimeZone, colorId, transparency, visibility,
+                                                       attendeeEmailsJson, remindersJson, remindersUseDefault) {
+                            window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
+                                                 description, location, startTimeZone, colorId,
+                                                 transparency, visibility, attendeeEmailsJson,
+                                                 remindersJson, remindersUseDefault)
                         }
                     }
 

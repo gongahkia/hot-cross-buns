@@ -30,9 +30,25 @@ Dialog {
         Accessible.name: text
     }
 
-    contentItem: ColumnLayout {
-        id: bodyLayout
-        spacing: Theme.spacingMedium
+    contentItem: Flickable {
+        id: bodyFlickable
+        implicitWidth: bodyLayout.implicitWidth
+        implicitHeight: Math.min(bodyLayout.implicitHeight, root.parent ? root.parent.height * 0.65 : 600)
+        contentWidth: width
+        contentHeight: bodyLayout.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+
+        ScrollBar.vertical: ScrollBar {
+            policy: bodyFlickable.contentHeight > bodyFlickable.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        }
+
+        ColumnLayout {
+            id: bodyLayout
+            width: bodyFlickable.width
+            spacing: Theme.spacingMedium
+        }
     }
 
     footer: DialogButtonBox {

@@ -19,6 +19,9 @@ namespace {
          left.recurrenceRule == right.recurrenceRule && left.colorId == right.colorId &&
          left.transparency == right.transparency && left.visibility == right.visibility &&
          left.timeZone == right.timeZone && left.hcbKind == right.hcbKind &&
+         left.attendeeEmailsJson == right.attendeeEmailsJson &&
+         left.remindersJson == right.remindersJson &&
+         left.remindersUseDefault == right.remindersUseDefault &&
          left.etag == right.etag && left.sequence == right.sequence &&
          left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt;
 }
@@ -72,6 +75,12 @@ QVariant AgendaModel::data(const QModelIndex& index, int role) const {
     return event.visibility.value_or(QString());
   case HcbKindRole:
     return event.hcbKind.value_or(QString());
+  case AttendeeEmailsJsonRole:
+    return event.attendeeEmailsJson;
+  case RemindersJsonRole:
+    return event.remindersJson;
+  case RemindersUseDefaultRole:
+    return event.remindersUseDefault;
   default:
     return {};
   }
@@ -94,7 +103,10 @@ QHash<int, QByteArray> AgendaModel::roleNames() const {
           {ColorIdRole, "colorId"},
           {TransparencyRole, "transparency"},
           {VisibilityRole, "visibility"},
-          {HcbKindRole, "hcbKind"}};
+          {HcbKindRole, "hcbKind"},
+          {AttendeeEmailsJsonRole, "attendeeEmailsJson"},
+          {RemindersJsonRole, "remindersJson"},
+          {RemindersUseDefaultRole, "remindersUseDefault"}};
 }
 
 void AgendaModel::setEvents(QList<CalendarEventSummary> events) {

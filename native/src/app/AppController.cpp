@@ -22,6 +22,7 @@
 #include <QThread>
 #include <QUrlQuery>
 #include <QUuid>
+#include <QVariantMap>
 
 #include <algorithm>
 #include <chrono>
@@ -92,6 +93,37 @@ constexpr int kSearchDebounceMilliseconds = 180;
     taskIds.append(value.toString());
   }
   return taskIds;
+}
+
+[[nodiscard]] std::optional<QList<QString>> eventAttendeesFromVariantList(const QVariantList& values) {
+  QList<QString> attendees;
+  attendees.reserve(values.size());
+  for (const QVariant& value : values) {
+    if (value.metaType().id() != QMetaType::QString) {
+      return std::nullopt;
+    }
+    attendees.append(value.toString());
+  }
+  return attendees;
+}
+
+[[nodiscard]] std::optional<CalendarEventReminderSettings>
+eventRemindersFromVariantList(bool useDefault, const QVariantList& values) {
+  CalendarEventReminderSettings settings{.useDefault = useDefault};
+  settings.overrides.reserve(values.size());
+  for (const QVariant& value : values) {
+    if (!value.canConvert<QVariantMap>()) {
+      return std::nullopt;
+    }
+    const QVariantMap reminder = value.toMap();
+    const QVariant method = reminder.value(QStringLiteral("method"));
+    const QVariant minutes = reminder.value(QStringLiteral("minutes"));
+    if (method.metaType().id() != QMetaType::QString || !minutes.canConvert<int>()) {
+      return std::nullopt;
+    }
+    settings.overrides.append({.method = method.toString(), .minutes = minutes.toInt()});
+  }
+  return settings;
 }
 
 [[nodiscard]] std::optional<QString> normalizedDueAt(QString value) {
@@ -1168,6 +1200,116 @@ void AppController::updateEvent(QString eventId,
              .startAt = std::move(startAt),
              .endAt = std::move(endAt),
              .allDay = allDay}),
+        [this](CalendarEventMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::createEventDetailed(QString calendarId,
+                                        QString title,
+                                        QString startAt,
+                                        QString endAt,
+                                        bool allDay,
+                                        QString description,
+                                        QString location,
+                                        QString timeZone,
+                                        QString colorId,
+                                        bool available,
+                                        QString visibility,
+                                        QVariantList attendees,
+                                        bool remindersUseDefault,
+                                        QVariantList reminders) {
+  const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
+  const std::optional<CalendarEventReminderSettings> parsedReminders =
+      eventRemindersFromVariantList(remindersUseDefault, reminders);
+  if (!parsedAttendees.has_value() || !parsedReminders.has_value()) {
+    setStatus(QStringLiteral("Calendar event metadata is invalid"));
+    return;
+  }
+  const std::optional<QString> eventTimeZone =
+      timeZone.trimmed().isEmpty() ? std::optional<QString>{} : std::optional<QString>(timeZone.trimmed());
+  watch(calendarMutationService_.create(
+            {.calendarId = std::move(calendarId),
+             .title = std::move(title),
+             .startAt = std::move(startAt),
+             .endAt = std::move(endAt),
+             .allDay = allDay,
+             .description = description.isEmpty() ? std::nullopt
+                                                  : std::optional<QString>(std::move(description)),
+             .location = location.isEmpty() ? std::nullopt : std::optional<QString>(std::move(location)),
+             .startTimeZone = eventTimeZone,
+             .endTimeZone = eventTimeZone,
+             .colorId = colorId.trimmed().isEmpty() ? std::optional<QString>{}
+                                                     : std::optional<QString>(colorId.trimmed()),
+             .transparency = available ? std::optional<QString>(QStringLiteral("transparent"))
+                                       : std::optional<QString>(QStringLiteral("opaque")),
+             .visibility = visibility.trimmed().isEmpty()
+                               ? std::optional<QString>{}
+                               : std::optional<QString>(visibility.trimmed()),
+             .attendeeEmails = *parsedAttendees,
+             .reminders = *parsedReminders}),
+        [this](CalendarEventMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::updateEventDetailed(QString eventId,
+                                        QString calendarId,
+                                        QString title,
+                                        QString startAt,
+                                        QString endAt,
+                                        bool allDay,
+                                        QString description,
+                                        QString location,
+                                        QString timeZone,
+                                        QString colorId,
+                                        bool available,
+                                        QString visibility,
+                                        QVariantList attendees,
+                                        bool remindersUseDefault,
+                                        QVariantList reminders) {
+  const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
+  const std::optional<CalendarEventReminderSettings> parsedReminders =
+      eventRemindersFromVariantList(remindersUseDefault, reminders);
+  if (!parsedAttendees.has_value() || !parsedReminders.has_value()) {
+    setStatus(QStringLiteral("Calendar event metadata is invalid"));
+    return;
+  }
+  const std::optional<QString> eventTimeZone =
+      timeZone.trimmed().isEmpty() ? std::optional<QString>{} : std::optional<QString>(timeZone.trimmed());
+  watch(calendarMutationService_.update(
+            {.eventId = std::move(eventId),
+             .calendarId = std::move(calendarId),
+             .title = std::move(title),
+             .description = std::optional<std::optional<QString>>(
+                 description.isEmpty() ? std::optional<QString>{}
+                                       : std::optional<QString>(std::move(description))),
+             .location = std::optional<std::optional<QString>>(
+                 location.isEmpty() ? std::optional<QString>{}
+                                    : std::optional<QString>(std::move(location))),
+             .startAt = std::move(startAt),
+             .endAt = std::move(endAt),
+             .allDay = allDay,
+             .startTimeZone = std::optional<std::optional<QString>>(eventTimeZone),
+             .endTimeZone = std::optional<std::optional<QString>>(eventTimeZone),
+             .colorId = std::optional<std::optional<QString>>(
+                 colorId.trimmed().isEmpty() ? std::optional<QString>{}
+                                           : std::optional<QString>(colorId.trimmed())),
+             .transparency = available ? std::optional<QString>(QStringLiteral("transparent"))
+                                       : std::optional<QString>(QStringLiteral("opaque")),
+             .visibility = visibility.trimmed().isEmpty()
+                               ? std::optional<QString>{}
+                               : std::optional<QString>(visibility.trimmed()),
+             .attendeeEmails = *parsedAttendees,
+             .reminders = *parsedReminders}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
