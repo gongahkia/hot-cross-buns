@@ -2,6 +2,7 @@
 
 #include "core/CalendarMutationService.h"
 #include "core/CalendarReadService.h"
+#include "core/Cancellation.h"
 #include "core/Clock.h"
 #include "core/FilePath.h"
 #include "core/GoogleCalendarEventPullClient.h"
@@ -17,6 +18,7 @@
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/NoteService.h"
+#include "core/LocalSearchService.h"
 #include "core/AccountStatusService.h"
 #include "core/OAuthBrowserAuthorizationLauncher.h"
 #include "core/OAuthClientConfigurationStore.h"
@@ -29,6 +31,7 @@
 #include "core/SyncCheckpointStore.h"
 #include "core/SyncConflictStore.h"
 #include "core/SettingsService.h"
+#include "core/SavedSearchStore.h"
 #include "core/SyncScheduler.h"
 #include "core/TaskListReadService.h"
 #include "core/TaskListMutationService.h"
@@ -37,10 +40,12 @@
 
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 
 #include <chrono>
+#include <cstdint>
 #include <future>
 #include <functional>
 #include <memory>
@@ -54,6 +59,7 @@ class AgendaModel;
 class CalendarSourceModel;
 class MonthGridModel;
 class NotesModel;
+class SearchResultsModel;
 class TaskListModel;
 class TaskModel;
 class TimelineModel;
@@ -68,6 +74,11 @@ class AppController final : public QObject {
   Q_PROPERTY(int conflictPolicy READ conflictPolicy NOTIFY conflictPolicyChanged)
   Q_PROPERTY(QVariantList unresolvedConflicts READ unresolvedConflicts NOTIFY unresolvedConflictsChanged)
   Q_PROPERTY(QVariantList resolvedConflicts READ resolvedConflicts NOTIFY resolvedConflictsChanged)
+  Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchQueryChanged)
+  Q_PROPERTY(QString searchErrorMessage READ searchErrorMessage NOTIFY searchErrorMessageChanged)
+  Q_PROPERTY(QVariantList searchFilterChips READ searchFilterChips NOTIFY searchFilterChipsChanged)
+  Q_PROPERTY(QVariantList savedSearches READ savedSearches NOTIFY savedSearchesChanged)
+  Q_PROPERTY(bool searchLoading READ searchLoading NOTIFY searchLoadingChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -93,7 +104,13 @@ public:
   [[nodiscard]] int conflictPolicy() const;
   [[nodiscard]] QVariantList unresolvedConflicts() const;
   [[nodiscard]] QVariantList resolvedConflicts() const;
+  [[nodiscard]] QString searchQuery() const;
+  [[nodiscard]] QString searchErrorMessage() const;
+  [[nodiscard]] QVariantList searchFilterChips() const;
+  [[nodiscard]] QVariantList savedSearches() const;
+  [[nodiscard]] bool searchLoading() const;
   [[nodiscard]] bool busy() const;
+  [[nodiscard]] SearchResultsModel& searchResultsModel();
 
   Q_INVOKABLE void initialize();
   Q_INVOKABLE void refresh();
@@ -102,6 +119,11 @@ public:
   Q_INVOKABLE void syncGoogle();
   Q_INVOKABLE void saveConflictPolicy(int policy);
   Q_INVOKABLE void resolveSyncConflict(QString conflictId, bool keepLocal);
+  Q_INVOKABLE void setSearchQuery(QString query);
+  Q_INVOKABLE void applySavedSearch(QString savedSearchId);
+  Q_INVOKABLE void saveSearch(QString name, QString query);
+  Q_INVOKABLE void renameSavedSearch(QString savedSearchId, QString name);
+  Q_INVOKABLE void deleteSavedSearch(QString savedSearchId);
   Q_INVOKABLE void createTaskList(QString title);
   Q_INVOKABLE void renameTaskList(QString taskListId, QString title);
   Q_INVOKABLE void setTaskListSelected(QString taskListId, bool selected);
@@ -146,6 +168,11 @@ signals:
   void conflictPolicyChanged();
   void unresolvedConflictsChanged();
   void resolvedConflictsChanged();
+  void searchQueryChanged();
+  void searchErrorMessageChanged();
+  void searchFilterChipsChanged();
+  void savedSearchesChanged();
+  void searchLoadingChanged();
   void busyChanged();
 
 private:
@@ -153,12 +180,15 @@ private:
   public:
     virtual ~PendingOperation() = default;
     [[nodiscard]] virtual bool poll() = 0;
+    [[nodiscard]] virtual bool affectsBusy() const = 0;
   };
 
   template <typename Result> class PendingFuture final : public PendingOperation {
   public:
-    PendingFuture(std::future<Result> future, std::function<void(Result)> completed)
-        : future_(std::move(future)), completed_(std::move(completed)) {}
+    PendingFuture(std::future<Result> future,
+                  std::function<void(Result)> completed,
+                  bool affectsBusy)
+        : future_(std::move(future)), completed_(std::move(completed)), affectsBusy_(affectsBusy) {}
 
     [[nodiscard]] bool poll() override {
       if (future_.wait_for(std::chrono::seconds{0}) != std::future_status::ready) {
@@ -168,17 +198,22 @@ private:
       return true;
     }
 
+    [[nodiscard]] bool affectsBusy() const override { return affectsBusy_; }
+
   private:
     std::future<Result> future_;
     std::function<void(Result)> completed_;
+    bool affectsBusy_{true};
   };
 
   template <typename Result, typename Completion>
-  void watch(std::future<Result> future, Completion&& completed) {
+  void watch(std::future<Result> future, Completion&& completed, bool affectsBusy = true) {
     std::function<void(Result)> callback(std::forward<Completion>(completed));
     pending_.push_back(
-        std::make_unique<PendingFuture<Result>>(std::move(future), std::move(callback)));
-    setBusy(true);
+        std::make_unique<PendingFuture<Result>>(std::move(future), std::move(callback), affectsBusy));
+    if (affectsBusy) {
+      setBusy(true);
+    }
     schedulePoll();
   }
 
@@ -187,6 +222,8 @@ private:
   void refreshTasks();
   void refreshCalendar();
   void refreshCalendarEvents(QList<QString> calendarIds);
+  void runSearch();
+  void loadSavedSearches();
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
   void requestGoogleSync(SyncScheduleTrigger trigger);
@@ -198,6 +235,10 @@ private:
   void setSyncStatus(QString status);
   void setUnresolvedConflicts(QList<SyncConflict> conflicts);
   void setResolvedConflicts(QList<SyncConflict> conflicts);
+  void setSearchError(QString message);
+  void setSearchFilterChips(QStringList chips);
+  void setSavedSearches(QList<SavedSearch> searches);
+  void setSearchLoading(bool loading);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -223,6 +264,7 @@ private:
   GoogleCalendarEventPullClient googleCalendarEventPullClient_;
   GoogleMirrorStore googleMirrorStore_;
   SettingsService settingsService_;
+  SavedSearchStore savedSearchStore_;
   OptimisticMutationCoordinator optimisticMutationCoordinator_;
   SyncCheckpointStore syncCheckpointStore_;
   SyncConflictStore syncConflictStore_;
@@ -237,6 +279,8 @@ private:
   TaskReadService taskReadService_;
   NoteService noteService_;
   CalendarReadService calendarReadService_;
+  LocalSearchService localSearchService_;
+  SearchResultsModel* searchResultsModelPointer_{nullptr};
   GoogleTaskMirrorSyncService googleTaskMirrorSyncService_;
   GoogleCalendarMirrorSyncService googleCalendarMirrorSyncService_;
   SyncScheduler syncScheduler_;
@@ -250,6 +294,15 @@ private:
   int conflictPolicy_{static_cast<int>(SyncConflictPolicy::PreferGoogle)};
   QVariantList unresolvedConflicts_;
   QVariantList resolvedConflicts_;
+  QString searchQuery_;
+  QString searchErrorMessage_;
+  QVariantList searchFilterChips_;
+  QList<SavedSearch> savedSearches_;
+  QVariantList savedSearchRows_;
+  bool searchLoading_{false};
+  QTimer searchDebounce_;
+  std::unique_ptr<CancellationSource> searchCancellation_;
+  std::uint64_t searchGeneration_{0};
   bool busy_{false};
   bool pollScheduled_{false};
   std::vector<std::unique_ptr<PendingOperation>> pending_;

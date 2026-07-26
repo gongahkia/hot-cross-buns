@@ -6,8 +6,10 @@
 
 #include "core/AgendaModel.h"
 #include "core/CalendarSourceModel.h"
+#include "core/LocalSearchQuery.h"
 #include "core/MonthGridModel.h"
 #include "core/NotesModel.h"
+#include "core/SearchResultsModel.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
 #include "core/TimelineModel.h"
@@ -18,6 +20,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QUrlQuery>
+#include <QUuid>
 
 #include <algorithm>
 #include <chrono>
@@ -35,6 +38,7 @@ constexpr char kGoogleAccountId[] = "google";
 constexpr char kSyncSettingsScope[] = "sync";
 constexpr char kConflictPolicySettingsKey[] = "conflict_policy";
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
+constexpr int kSearchDebounceMilliseconds = 180;
 
 [[nodiscard]] std::unique_ptr<OAuthCredentialStore> makeCredentialStore() {
 #if defined(Q_OS_MACOS)
@@ -124,6 +128,17 @@ constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
   return rows;
 }
 
+[[nodiscard]] QVariantList savedSearchRows(const QList<SavedSearch>& searches) {
+  QVariantList rows;
+  rows.reserve(searches.size());
+  for (const SavedSearch& search : searches) {
+    rows.append(QVariantMap{{QStringLiteral("id"), search.id},
+                            {QStringLiteral("name"), search.name},
+                            {QStringLiteral("query"), search.query}});
+  }
+  return rows;
+}
+
 [[nodiscard]] QString rangeStart(const QDate& today) {
   return QDateTime(today.addMonths(-1), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
 }
@@ -154,7 +169,7 @@ AppController::AppController(FilePath databasePath,
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
-      settingsService_(databasePath, clock),
+      settingsService_(databasePath, clock), savedSearchStore_(settingsService_),
       optimisticMutationCoordinator_(databasePath, clock),
       syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
       googleSyncConflictResolver_(optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
@@ -177,6 +192,7 @@ AppController::AppController(FilePath databasePath,
           &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
+      localSearchService_(databasePath),
       googleTaskMirrorSyncService_(googleTaskListPullClient_,
                                    googleTaskPullClient_,
                                    googleMirrorStore_,
@@ -190,13 +206,22 @@ AppController::AppController(FilePath databasePath,
                                        googleSyncRecoveryService_),
       syncScheduler_([this](const SyncSchedulerRequest& request) { return runGoogleSync(request); },
                      clock) {
+  searchResultsModelPointer_ = new SearchResultsModel(this);
+  searchDebounce_.setSingleShot(true);
+  searchDebounce_.setInterval(kSearchDebounceMilliseconds);
+  connect(&searchDebounce_, &QTimer::timeout, this, &AppController::runSearch);
   connect(&oauthLoopbackListener_,
           &OAuthLoopbackCallbackListener::callbackReceived,
           this,
           &AppController::handleOAuthCallback);
 }
 
-AppController::~AppController() { syncScheduler_.stop(); }
+AppController::~AppController() {
+  if (searchCancellation_ != nullptr) {
+    static_cast<void>(searchCancellation_->requestStop());
+  }
+  syncScheduler_.stop();
+}
 
 QString AppController::clientId() const { return clientId_; }
 
@@ -214,9 +239,22 @@ QVariantList AppController::unresolvedConflicts() const { return unresolvedConfl
 
 QVariantList AppController::resolvedConflicts() const { return resolvedConflicts_; }
 
+QString AppController::searchQuery() const { return searchQuery_; }
+
+QString AppController::searchErrorMessage() const { return searchErrorMessage_; }
+
+QVariantList AppController::searchFilterChips() const { return searchFilterChips_; }
+
+QVariantList AppController::savedSearches() const { return savedSearchRows_; }
+
+bool AppController::searchLoading() const { return searchLoading_; }
+
 bool AppController::busy() const { return busy_; }
 
+SearchResultsModel& AppController::searchResultsModel() { return *searchResultsModelPointer_; }
+
 void AppController::initialize() {
+  loadSavedSearches();
   watch(settingsService_.readJson(QString::fromLatin1(kSyncSettingsScope),
                                   QString::fromLatin1(kConflictPolicySettingsKey)),
         [this](SettingsJsonReadResult result) {
@@ -296,6 +334,128 @@ void AppController::initialize() {
 void AppController::refresh() {
   refreshTasks();
   refreshCalendar();
+}
+
+void AppController::setSearchQuery(QString query) {
+  if (query == searchQuery_) {
+    return;
+  }
+  ++searchGeneration_;
+  searchDebounce_.stop();
+  if (searchCancellation_ != nullptr) {
+    static_cast<void>(searchCancellation_->requestStop());
+  }
+  searchQuery_ = std::move(query);
+  emit searchQueryChanged();
+  const LocalSearchQueryResult parsed = LocalSearchQuery::parse(searchQuery_);
+  if (std::holds_alternative<AppError>(parsed)) {
+    setSearchError(errorMessage(std::get<AppError>(parsed)));
+    setSearchFilterChips({});
+    searchResultsModel().setResults({});
+    setSearchLoading(false);
+    return;
+  }
+  const LocalSearchParsedQuery& value = std::get<LocalSearchParsedQuery>(parsed);
+  setSearchError({});
+  setSearchFilterChips(value.chips);
+  if (value.plainText.isEmpty() && value.chips.isEmpty()) {
+    searchResultsModel().setResults({});
+    setSearchLoading(false);
+    return;
+  }
+  searchDebounce_.start();
+}
+
+void AppController::applySavedSearch(QString savedSearchId) {
+  const auto found = std::find_if(savedSearches_.cbegin(), savedSearches_.cend(),
+                                  [&savedSearchId](const SavedSearch& search) {
+                                    return search.id == savedSearchId;
+                                  });
+  if (found == savedSearches_.cend()) {
+    setStatus(QStringLiteral("Saved search was not found"));
+    return;
+  }
+  setSearchQuery(found->query);
+}
+
+void AppController::saveSearch(QString name, QString query) {
+  name = name.trimmed();
+  query = query.trimmed();
+  if (name.isEmpty() || query.isEmpty()) {
+    setStatus(QStringLiteral("Saved search name and query are required"));
+    return;
+  }
+  const LocalSearchQueryResult parsed = LocalSearchQuery::parse(query);
+  if (std::holds_alternative<AppError>(parsed)) {
+    setStatus(errorMessage(std::get<AppError>(parsed)));
+    return;
+  }
+  if (std::any_of(savedSearches_.cbegin(), savedSearches_.cend(), [&name](const SavedSearch& search) {
+        return search.name.compare(name, Qt::CaseInsensitive) == 0;
+      })) {
+    setStatus(QStringLiteral("Saved search name already exists"));
+    return;
+  }
+  QList<SavedSearch> next = savedSearches_;
+  next.append({.id = QUuid::createUuid().toString(QUuid::WithoutBraces),
+               .name = std::move(name),
+               .query = std::move(query)});
+  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setSavedSearches(next);
+  });
+}
+
+void AppController::renameSavedSearch(QString savedSearchId, QString name) {
+  name = name.trimmed();
+  if (name.isEmpty()) {
+    setStatus(QStringLiteral("Saved search name is required"));
+    return;
+  }
+  QList<SavedSearch> next = savedSearches_;
+  const auto found = std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
+    return search.id == savedSearchId;
+  });
+  if (found == next.end()) {
+    setStatus(QStringLiteral("Saved search was not found"));
+    return;
+  }
+  if (std::any_of(next.cbegin(), next.cend(), [&savedSearchId, &name](const SavedSearch& search) {
+        return search.id != savedSearchId && search.name.compare(name, Qt::CaseInsensitive) == 0;
+      })) {
+    setStatus(QStringLiteral("Saved search name already exists"));
+    return;
+  }
+  found->name = std::move(name);
+  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setSavedSearches(next);
+  });
+}
+
+void AppController::deleteSavedSearch(QString savedSearchId) {
+  QList<SavedSearch> next = savedSearches_;
+  const auto found = std::find_if(next.begin(), next.end(), [&savedSearchId](const SavedSearch& search) {
+    return search.id == savedSearchId;
+  });
+  if (found == next.end()) {
+    setStatus(QStringLiteral("Saved search was not found"));
+    return;
+  }
+  next.erase(found);
+  watch(savedSearchStore_.save(next), [this, next = std::move(next)](SavedSearchMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setSavedSearches(next);
+  });
 }
 
 void AppController::saveClientId(QString clientId) {
@@ -916,6 +1076,50 @@ void AppController::resizeEvent(QString eventId, QString endAt) {
         });
 }
 
+void AppController::runSearch() {
+  const LocalSearchQueryResult parsed = LocalSearchQuery::parse(searchQuery_);
+  if (std::holds_alternative<AppError>(parsed)) {
+    setSearchError(errorMessage(std::get<AppError>(parsed)));
+    setSearchLoading(false);
+    return;
+  }
+  const LocalSearchParsedQuery& value = std::get<LocalSearchParsedQuery>(parsed);
+  if (value.plainText.isEmpty() && value.chips.isEmpty()) {
+    setSearchLoading(false);
+    return;
+  }
+  searchCancellation_ = std::make_unique<CancellationSource>();
+  const std::uint64_t generation = searchGeneration_;
+  setSearchLoading(true);
+  watch(localSearchService_.search({.query = searchQuery_}, searchCancellation_->token()),
+        [this, generation](LocalSearchPageResult result) {
+          if (generation != searchGeneration_) {
+            return;
+          }
+          setSearchLoading(false);
+          if (std::holds_alternative<AppError>(result)) {
+            const AppError& error = std::get<AppError>(result);
+            if (error.code() != AppErrorCode::Cancelled) {
+              setSearchError(errorMessage(error));
+            }
+            return;
+          }
+          setSearchError({});
+          searchResultsModel().setResults(std::get<LocalSearchPage>(std::move(result)).items);
+        },
+        false);
+}
+
+void AppController::loadSavedSearches() {
+  watch(savedSearchStore_.load(), [this](SavedSearchListResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    setSavedSearches(std::get<QList<SavedSearch>>(std::move(result)));
+  });
+}
+
 void AppController::schedulePoll() {
   if (pollScheduled_) {
     return;
@@ -932,7 +1136,10 @@ void AppController::pollPending() {
       pending_.push_back(std::move(operation));
     }
   }
-  setBusy(!pending_.empty());
+  setBusy(std::any_of(pending_.cbegin(), pending_.cend(),
+                      [](const std::unique_ptr<PendingOperation>& operation) {
+                        return operation->affectsBusy();
+                      }));
   if (!pending_.empty()) {
     schedulePoll();
   }
@@ -1092,6 +1299,45 @@ void AppController::setResolvedConflicts(QList<SyncConflict> conflicts) {
   }
   resolvedConflicts_ = std::move(rows);
   emit resolvedConflictsChanged();
+}
+
+void AppController::setSearchError(QString message) {
+  if (searchErrorMessage_ == message) {
+    return;
+  }
+  searchErrorMessage_ = std::move(message);
+  emit searchErrorMessageChanged();
+}
+
+void AppController::setSearchFilterChips(QStringList chips) {
+  QVariantList values;
+  values.reserve(chips.size());
+  for (QString& chip : chips) {
+    values.append(std::move(chip));
+  }
+  if (searchFilterChips_ == values) {
+    return;
+  }
+  searchFilterChips_ = std::move(values);
+  emit searchFilterChipsChanged();
+}
+
+void AppController::setSavedSearches(QList<SavedSearch> searches) {
+  QVariantList rows = savedSearchRows(searches);
+  if (savedSearchRows_ == rows) {
+    return;
+  }
+  savedSearches_ = std::move(searches);
+  savedSearchRows_ = std::move(rows);
+  emit savedSearchesChanged();
+}
+
+void AppController::setSearchLoading(bool loading) {
+  if (searchLoading_ == loading) {
+    return;
+  }
+  searchLoading_ = loading;
+  emit searchLoadingChanged();
 }
 
 void AppController::setBusy(bool busy) {

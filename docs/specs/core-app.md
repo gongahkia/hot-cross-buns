@@ -104,7 +104,7 @@ Implemented local query syntax:
 - `list:` filters task list title, and `calendar:`/`cal:` filters calendar title. Quote multi-word values, for example `list:"Product Planning"`.
 - `notes:` or `body:` filters body/details presence with `yes` or `no`.
 
-The renderer shows parsed filters as chips and reports invalid structured syntax inline without executing a search request. Saved custom filters are not implemented yet; they should wait until saved-view storage is added through settings or the local database.
+The renderer shows parsed filters as chips and reports invalid structured syntax inline without executing a search request. Saved searches persist as validated records in local SQLite settings and support apply, rename, and delete.
 
 ## Command Palette
 

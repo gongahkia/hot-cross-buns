@@ -18,6 +18,7 @@ ApplicationWindow {
     property var calendarSourceModel: null
     property var monthGridModel: null
     property var notesModel: null
+    property var searchResultsModel: null
     property var taskListModel: null
     property var taskModel: null
     property var timelineModel: null
@@ -36,6 +37,10 @@ ApplicationWindow {
     property alias weekTimeline: weekTimeline
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
+    property alias searchPopup: searchPopup
+    property alias searchQuery: searchPopup.queryField
+    property alias searchResults: searchPopup.resultRows
+    property alias searchShortcut: searchShortcut
     property alias noteEditor: noteEditor
     property alias notesList: notesList
     property alias taskCreateDialog: taskCreateDialog
@@ -60,6 +65,7 @@ ApplicationWindow {
     signal eventDeleteRequested(string eventId)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
+    signal searchResultActivated(string resource, string resultId, string title, string detail)
 
     function controllerCall(method, args) {
         if (appController !== null && typeof appController[method] === "function") {
@@ -125,6 +131,22 @@ ApplicationWindow {
         quickCapture.open()
     }
 
+    function openSearch() {
+        searchPopup.open()
+    }
+
+    function openSearchResult(resource, resultId, title, detail) {
+        if (resource === "task" || resource === "taskList") {
+            selectPage("Tasks")
+        } else if (resource === "note") {
+            selectPage("Notes")
+        } else if (resource === "calendar" || resource === "event") {
+            selectPage("Calendar")
+        }
+        searchResultActivated(resource, resultId, title, detail)
+        searchPopup.close()
+    }
+
     function openNoteEditor(noteId, title, body) {
         noteEditor.noteId = noteId
         noteEditor.noteTitle = title
@@ -159,6 +181,13 @@ ApplicationWindow {
         sequence: "Ctrl+Shift+N"
         autoRepeat: false
         onActivated: window.openQuickCapture()
+    }
+
+    Shortcut {
+        id: searchShortcut
+        sequence: "Ctrl+F"
+        autoRepeat: false
+        onActivated: window.openSearch()
     }
 
     Instantiator {
@@ -294,6 +323,15 @@ ApplicationWindow {
         }
     }
 
+    SearchPopup {
+        id: searchPopup
+        appController: window.appController
+        searchResultsModel: window.searchResultsModel
+        onResultActivated: function(resource, resultId, title, detail) {
+            window.openSearchResult(resource, resultId, title, detail)
+        }
+    }
+
     NoteEditorDialog {
         id: noteEditor
         parent: Overlay.overlay
@@ -412,6 +450,11 @@ ApplicationWindow {
                 text: "Hot Cross Buns"
                 font.bold: true
                 font.pixelSize: Theme.labelFontSize
+            }
+            Button {
+                text: "Search"
+                Accessible.name: text
+                onClicked: window.openSearch()
             }
             Item { Layout.fillWidth: true }
             Label {
@@ -538,6 +581,7 @@ ApplicationWindow {
                     currentIndex: calendarViews.currentIndex
 
                     AgendaView {
+                        id: agendaView
                         agendaModel: window.agendaModel
                         calendarVisibility: calendarVisibility
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
@@ -735,6 +779,17 @@ ApplicationWindow {
                 }
                 Item { Layout.fillHeight: true }
             }
+        }
+    }
+
+    onSearchResultActivated: function(resource, resultId, title, detail) {
+        if (resource === "task") {
+            taskList.selectTask(resultId)
+        } else if (resource === "note") {
+            notesList.selectNote(resultId, title, detail)
+        } else if (resource === "event") {
+            calendarViews.currentIndex = 0
+            agendaView.selectEvent(resultId)
         }
     }
 

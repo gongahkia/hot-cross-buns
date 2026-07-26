@@ -25,6 +25,7 @@
 #include "core/MonthGridModel.h"
 #include "core/NativeProcessMemory.h"
 #include "core/NotesModel.h"
+#include "core/SearchResultsModel.h"
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
@@ -141,6 +142,8 @@ int runApplication(int argc, char* argv[]) {
        {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
        {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
        {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
+       {QStringLiteral("searchResultsModel"),
+        QVariant::fromValue(&appController.searchResultsModel())},
        {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},

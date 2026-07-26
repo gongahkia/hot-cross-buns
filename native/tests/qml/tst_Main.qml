@@ -171,6 +171,76 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_searchUsesLocalResultsAndRoutesDeepLinks() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const results = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        results.append({ id: "task-1", resource: "task", title: "Release search", detail: "Verify cache", score: 100 })
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            clientId: "",
+            conflictPolicy: 0,
+            unresolvedConflicts: [],
+            resolvedConflicts: [],
+            statusMessage: "",
+            searchQuery: "",
+            searchErrorMessage: "",
+            searchFilterChips: [],
+            searchLoading: false,
+            savedSearches: [{ id: "saved-1", name: "Release", query: "release" }],
+            busy: false,
+            setSearchQuery: function(query) { calls.push({ method: "setSearchQuery", args: [query] }) },
+            applySavedSearch: function(id) { calls.push({ method: "applySavedSearch", args: [id] }) },
+            saveSearch: function(name, query) { calls.push({ method: "saveSearch", args: [name, query] }) },
+            renameSavedSearch: function(id, name) { calls.push({ method: "renameSavedSearch", args: [id, name] }) },
+            deleteSavedSearch: function(id) { calls.push({ method: "deleteSavedSearch", args: [id] }) }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller,
+            searchResultsModel: results
+        })
+        verify(mainWindow !== null)
+        let activated = null
+        mainWindow.searchResultActivated.connect(function(resource, resultId, title, detail) {
+            activated = { resource, resultId, title, detail }
+        })
+        mainWindow.searchShortcut.activated()
+        tryVerify(function() { return mainWindow.searchPopup.opened && mainWindow.searchQuery.activeFocus })
+        keyClick(Qt.Key_R)
+        keyClick(Qt.Key_E)
+        keyClick(Qt.Key_L)
+        keyClick(Qt.Key_E)
+        keyClick(Qt.Key_A)
+        keyClick(Qt.Key_S)
+        keyClick(Qt.Key_E)
+        const searchCalls = calls.filter(function(call) { return call.method === "setSearchQuery" })
+        verify(searchCalls.length > 0)
+        verify(searchCalls[searchCalls.length - 1].args[0].length > 0)
+        tryCompare(mainWindow.searchResults, "count", 1)
+        mainWindow.searchResults.currentItem.click()
+        compare(mainWindow.currentPage, "Tasks")
+        compare(activated.resource, "task")
+        compare(activated.resultId, "task-1")
+        tryVerify(function() { return !mainWindow.searchPopup.opened })
+
+        mainWindow.openSearch()
+        mainWindow.searchPopup.queryField.text = "release"
+        mainWindow.searchPopup.savedSearchNameField.text = "Current"
+        mainWindow.searchPopup.saveSearchButton.click()
+        compare(calls[calls.length - 1].method, "saveSearch")
+        compare(calls[calls.length - 1].args[0], "Current")
+        mainWindow.searchPopup.controllerCall("applySavedSearch", ["saved-1"])
+        mainWindow.searchPopup.controllerCall("renameSavedSearch", ["saved-1", "Renamed"])
+        mainWindow.searchPopup.controllerCall("deleteSavedSearch", ["saved-1"])
+        compare(calls[calls.length - 3].method, "applySavedSearch")
+        compare(calls[calls.length - 2].method, "renameSavedSearch")
+        compare(calls[calls.length - 1].method, "deleteSavedSearch")
+        mainWindow.destroy()
+        results.destroy()
+    }
+
     function test_quickCaptureEmitsTaskRequest() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())

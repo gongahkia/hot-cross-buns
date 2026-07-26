@@ -113,6 +113,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeQuickCaptureBenchmark.h
   src/core/LocalSearchService.cpp
   src/core/LocalSearchService.h
+  src/core/LocalSearchQuery.cpp
+  src/core/LocalSearchQuery.h
   src/core/MonthGridModel.cpp
   src/core/MonthGridModel.h
   src/core/ModelDiffPolicy.h
@@ -148,6 +150,8 @@ set(HCB_NATIVE_SOURCES
   src/core/RecurrenceResultCache.h
   src/core/SearchResultsModel.cpp
   src/core/SearchResultsModel.h
+  src/core/SavedSearchStore.cpp
+  src/core/SavedSearchStore.h
   src/core/SettingsRegistry.h
   src/core/SettingsService.cpp
   src/core/SettingsService.h
@@ -242,6 +246,7 @@ qt_add_qml_module(hcb_native
     qml/NoteEditorDialog.qml
     qml/NotesListView.qml
     qml/QuickCaptureDialog.qml
+    qml/SearchPopup.qml
     qml/TaskCreateDialog.qml
     qml/TaskDeleteDialog.qml
     qml/TaskEditDialog.qml
@@ -385,6 +390,8 @@ qt_add_executable(hcb_local_search_benchmark
   src/core/FilePath.h
   src/core/LocalSearchService.cpp
   src/core/LocalSearchService.h
+  src/core/LocalSearchQuery.cpp
+  src/core/LocalSearchQuery.h
   src/core/NativeLocalSearchBenchmark.cpp
   src/core/NativeLocalSearchBenchmark.h
   src/core/UnifiedLocalSearchRanker.cpp
@@ -1225,6 +1232,34 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_settings_service_tests)
   add_test(NAME hcb_settings_service_tests COMMAND hcb_settings_service_tests)
 
+  qt_add_executable(hcb_saved_search_store_tests
+    tests/SavedSearchStoreTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/SavedSearchStore.cpp
+    src/core/SavedSearchStore.h
+    src/core/SettingsService.cpp
+    src/core/SettingsService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_saved_search_store_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_saved_search_store_tests PRIVATE src)
+  hcb_enable_warnings(hcb_saved_search_store_tests)
+  hcb_enable_sanitizers(hcb_saved_search_store_tests)
+  add_test(NAME hcb_saved_search_store_tests COMMAND hcb_saved_search_store_tests)
+
   qt_add_executable(hcb_sync_checkpoint_store_tests
     tests/SyncCheckpointStoreTest.cpp
     tests/support/TemporarySqliteDatabase.h
@@ -1495,6 +1530,8 @@ if(BUILD_TESTING)
     src/core/FilePath.h
     src/core/LocalSearchService.cpp
     src/core/LocalSearchService.h
+    src/core/LocalSearchQuery.cpp
+    src/core/LocalSearchQuery.h
     src/core/NativeLocalSearchBenchmark.cpp
     src/core/NativeLocalSearchBenchmark.h
     src/core/UnifiedLocalSearchRanker.cpp
@@ -1608,6 +1645,8 @@ if(BUILD_TESTING)
     src/core/FilePath.h
     src/core/LocalSearchService.cpp
     src/core/LocalSearchService.h
+    src/core/LocalSearchQuery.cpp
+    src/core/LocalSearchQuery.h
     src/core/UnifiedLocalSearchRanker.cpp
     src/core/UnifiedLocalSearchRanker.h
     src/data/LocalSchema.cpp
@@ -2439,6 +2478,7 @@ if(BUILD_TESTING)
     hcb_task_read_service_tests
     hcb_google_mirror_store_tests
     hcb_settings_service_tests
+    hcb_saved_search_store_tests
     hcb_sync_checkpoint_store_tests
     hcb_google_mirror_sync_service_tests
     hcb_sync_conflict_store_tests
@@ -2543,6 +2583,7 @@ if(BUILD_TESTING)
     hcb_task_read_service_tests
     hcb_google_mirror_store_tests
     hcb_settings_service_tests
+    hcb_saved_search_store_tests
     hcb_sync_checkpoint_store_tests
     hcb_google_mirror_sync_service_tests
     hcb_sync_conflict_store_tests

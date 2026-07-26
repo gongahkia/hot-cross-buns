@@ -1,6 +1,7 @@
 #include <QtTest/QTest>
 
 #include "core/LocalSearchService.h"
+#include "core/LocalSearchQuery.h"
 #include "core/Cancellation.h"
 #include "data/LocalSchema.h"
 #include "sqlite3.h"
@@ -22,6 +23,8 @@ private slots:
   void returnsRankedAndPagedResultsAcrossResources();
   void returnsCancelledForStoppedSearch();
   void rejectsInvalidRequests();
+  void appliesStructuredFiltersLocally();
+  void rejectsInvalidStructuredSyntax();
 };
 
 namespace {
@@ -150,6 +153,42 @@ void LocalSearchServiceTest::returnsCancelledForStoppedSearch() {
   const hcb::LocalSearchPageResult result = future.get();
   QVERIFY(std::holds_alternative<hcb::AppError>(result));
   QCOMPARE(std::get<hcb::AppError>(result).code(), hcb::AppErrorCode::Cancelled);
+}
+
+void LocalSearchServiceTest::appliesStructuredFiltersLocally() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  initializeDatabase(*database);
+  hcb::LocalSearchService service(database->databasePath());
+  std::future<hcb::LocalSearchPageResult> taskFuture = service.search(
+      {.query = QStringLiteral("source:tasks status:open due:none priority:none")});
+  const hcb::LocalSearchPage tasks = awaitPage(taskFuture);
+  QCOMPARE(tasks.items.size(), 1);
+  QCOMPARE(tasks.items.front().resource, hcb::LocalSearchResource::Task);
+  QCOMPARE(tasks.items.front().id, QStringLiteral("task"));
+
+  std::future<hcb::LocalSearchPageResult> eventFuture = service.search(
+      {.query = QStringLiteral("source:calendar start:2026-07-26")});
+  const hcb::LocalSearchPage events = awaitPage(eventFuture);
+  QCOMPARE(events.items.size(), 1);
+  QCOMPARE(events.items.front().resource, hcb::LocalSearchResource::Event);
+  QCOMPARE(events.items.front().id, QStringLiteral("event"));
+
+  std::future<hcb::LocalSearchPageResult> noteFuture =
+      service.search({.query = QStringLiteral("source:notes body:yes")});
+  const hcb::LocalSearchPage notes = awaitPage(noteFuture);
+  QCOMPARE(notes.items.size(), 1);
+  QCOMPARE(notes.items.front().resource, hcb::LocalSearchResource::Note);
+}
+
+void LocalSearchServiceTest::rejectsInvalidStructuredSyntax() {
+  const hcb::LocalSearchQueryResult parsed =
+      hcb::LocalSearchQuery::parse(QStringLiteral("status:unrecognised"));
+  QVERIFY(std::holds_alternative<hcb::AppError>(parsed));
+  QCOMPARE(std::get<hcb::AppError>(parsed).code(), hcb::AppErrorCode::Validation);
 }
 
 QTEST_GUILESS_MAIN(LocalSearchServiceTest)
