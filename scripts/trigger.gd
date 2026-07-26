@@ -12,7 +12,7 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
 func _on_body_entered(body: Node3D) -> void:
-	if consumed or not body is SpeedPlayer:
+	if consumed or not (body is SpeedPlayer):
 		return
 	if trigger_type == TriggerType.COLLECTIBLE:
 		consumed = true
