@@ -219,6 +219,10 @@ TestCase {
         taskList.taskSelected.connect(function(taskId) { selectedId = taskId })
         taskList.selectTask("inbox-1")
         compare(selectedId, "inbox-1")
+        let createRequested = false
+        taskList.taskCreateRequested.connect(function() { createRequested = true })
+        taskList.taskCreateButton.click()
+        verify(createRequested)
         let completion = null
         taskList.taskCompletionRequested.connect(function(taskId, completed) {
             completion = { taskId, completed }
@@ -462,6 +466,30 @@ TestCase {
         dialog.primaryButton.click()
         compare(deletedId, "task-1")
         dialog.destroy()
+    }
+
+    function test_taskCreateDialogEmitsCreateRequest() {
+        const component = Qt.createComponent("../../qml/TaskCreateDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-active", title: "Inbox" })
+        taskLists.append({ id: "list-other", title: "Archive" })
+        const dialog = component.createObject(null, { taskListModel: taskLists })
+        verify(dialog !== null)
+        dialog.openForCreate("list-other")
+        compare(dialog.taskListId, "list-other")
+        dialog.taskTitle = "Plan release"
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.taskCreateRequested.connect(function(taskListId, title) {
+            request = { taskListId, title }
+        })
+        dialog.primaryButton.click()
+        compare(request.taskListId, "list-other")
+        compare(request.title, "Plan release")
+        dialog.destroy()
+        taskLists.destroy()
     }
 
     function test_taskMoveDialogShowsAllActiveListsAndEmitsMoveRequest() {
@@ -873,6 +901,22 @@ TestCase {
         mainWindow.taskDeleteRequested.connect(function(taskId) { deletedId = taskId })
         mainWindow.taskDeleteDialog.taskDeleteRequested("task-1")
         compare(deletedId, "task-1")
+        mainWindow.destroy()
+    }
+
+    function test_mainForwardsTaskCreateRequest() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        verify(mainWindow !== null)
+        let request = null
+        mainWindow.taskCreateRequested.connect(function(taskListId, title) {
+            request = { taskListId, title }
+        })
+        mainWindow.taskCreateDialog.taskCreateRequested("list-active", "Plan release")
+        compare(request.taskListId, "list-active")
+        compare(request.title, "Plan release")
         mainWindow.destroy()
     }
 

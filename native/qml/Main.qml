@@ -37,11 +37,13 @@ ApplicationWindow {
     property alias quickCaptureShortcut: quickCaptureShortcut
     property alias noteEditor: noteEditor
     property alias notesList: notesList
+    property alias taskCreateDialog: taskCreateDialog
     property alias taskDeleteDialog: taskDeleteDialog
     property alias taskList: taskList
     property alias taskMoveDialog: taskMoveDialog
     signal quickCaptureRequested(string title)
     signal noteSaveRequested(string noteId, string title, string body)
+    signal taskCreateRequested(string taskListId, string title)
     signal taskDeleteRequested(string taskId)
     signal taskMoveRequested(string taskId, string taskListId)
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
@@ -290,6 +292,16 @@ ApplicationWindow {
         onTaskDeleteRequested: taskId => window.taskDeleteRequested(taskId)
     }
 
+    TaskCreateDialog {
+        id: taskCreateDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        taskListModel: window.taskListModel
+        onTaskCreateRequested: function(taskListId, title) {
+            window.taskCreateRequested(taskListId, title)
+        }
+    }
+
     TaskMoveDialog {
         id: taskMoveDialog
         parent: Overlay.overlay
@@ -366,6 +378,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Tasks"
                 taskModel: window.taskModel
+                onTaskCreateRequested: taskCreateDialog.openForCreate("")
                 onTaskDeleteRequested: function(taskId, taskTitle) {
                     taskDeleteDialog.openForDelete(taskId, taskTitle)
                 }

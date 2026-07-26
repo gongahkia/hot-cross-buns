@@ -6,13 +6,19 @@ Pane {
     id: root
     property var taskModel: null
     property alias taskRows: taskRows
+    property alias taskCreateButton: taskCreateButton
     signal taskSelected(string taskId)
+    signal taskCreateRequested()
     signal taskCompletionRequested(string taskId, bool completed)
     signal taskDeleteRequested(string taskId, string taskTitle)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
 
     function selectTask(taskId) {
         taskSelected(taskId)
+    }
+
+    function requestTaskCreate() {
+        taskCreateRequested()
     }
 
     function requestTaskCompletion(taskId, completed) {
@@ -31,11 +37,25 @@ Pane {
         anchors.fill: parent
         spacing: Theme.spacingMedium
 
-        Label {
-            text: "Inbox"
-            font.pixelSize: Theme.titleFontSize
-            Accessible.role: Accessible.Heading
-            Accessible.name: text
+        RowLayout {
+            Layout.fillWidth: true
+
+            Label {
+                text: "Inbox"
+                font.pixelSize: Theme.titleFontSize
+                Accessible.role: Accessible.Heading
+                Accessible.name: text
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Button {
+                id: taskCreateButton
+                text: "New task"
+                Accessible.name: text
+                Accessible.description: "Create a task in an active task list"
+                onClicked: root.requestTaskCreate()
+            }
         }
 
         ListView {
