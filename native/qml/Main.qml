@@ -14,6 +14,7 @@ ApplicationWindow {
     property string currentPage: "Tasks"
     required property var navigationCommands
     property var agendaModel: null
+    property var appController: null
     property var calendarSourceModel: null
     property var monthGridModel: null
     property var notesModel: null
@@ -57,6 +58,12 @@ ApplicationWindow {
     signal eventDeleteRequested(string eventId)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
+
+    function controllerCall(method, args) {
+        if (appController !== null && typeof appController[method] === "function") {
+            appController[method].apply(appController, args)
+        }
+    }
 
     function hasNavigationPage(pageName) {
         if (typeof navigationCommands.containsLabel === "function") {
@@ -277,7 +284,9 @@ ApplicationWindow {
         id: quickCapture
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onTaskRequested: title => window.quickCaptureRequested(title)
+        onTaskRequested: function(title) {
+            window.quickCaptureRequested(title)
+        }
     }
 
     NoteEditorDialog {
@@ -293,7 +302,10 @@ ApplicationWindow {
         id: taskDeleteDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onTaskDeleteRequested: taskId => window.taskDeleteRequested(taskId)
+        onTaskDeleteRequested: function(taskId) {
+            window.taskDeleteRequested(taskId)
+            window.controllerCall("deleteTask", [taskId])
+        }
     }
 
     TaskEditDialog {
@@ -302,6 +314,7 @@ ApplicationWindow {
         anchors.centerIn: parent
         onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
             window.taskUpdateRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
+            window.controllerCall("updateTask", [taskId, title, notes, dueAt, dueTimeZone, priority])
         }
     }
 
@@ -312,6 +325,7 @@ ApplicationWindow {
         taskListModel: window.taskListModel
         onTaskCreateRequested: function(taskListId, parentTaskId, title) {
             window.taskCreateRequested(taskListId, parentTaskId, title)
+            window.controllerCall("createTask", [taskListId, parentTaskId, title])
         }
     }
 
@@ -322,6 +336,7 @@ ApplicationWindow {
         taskListModel: window.taskListModel
         onTaskMoveRequested: function(taskId, taskListId) {
             window.taskMoveRequested(taskId, taskListId)
+            window.controllerCall("moveTask", [taskId, taskListId])
         }
     }
 
@@ -332,6 +347,7 @@ ApplicationWindow {
         calendarSourceModel: window.calendarSourceModel
         onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location) {
             window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
+            window.controllerCall("createEvent", [calendarId, title, startAt, endAt, allDay, description, location])
         }
     }
 
@@ -342,6 +358,7 @@ ApplicationWindow {
         calendarSourceModel: window.calendarSourceModel
         onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location) {
             window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+            window.controllerCall("updateEvent", [eventId, calendarId, title, startAt, endAt, allDay, description, location])
         }
         onEventDeleteRequested: function(eventId, title) {
             eventDeleteDialog.openForDelete(eventId, title)
@@ -352,7 +369,10 @@ ApplicationWindow {
         id: eventDeleteDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onEventDeleteRequested: eventId => window.eventDeleteRequested(eventId)
+        onEventDeleteRequested: function(eventId) {
+            window.eventDeleteRequested(eventId)
+            window.controllerCall("deleteEvent", [eventId])
+        }
     }
 
     header: ToolBar {
@@ -397,6 +417,10 @@ ApplicationWindow {
                 }
                 onTaskReparentRequested: function(taskId, parentTaskId) {
                     window.taskReparentRequested(taskId, parentTaskId)
+                    window.controllerCall("reparentTask", [taskId, parentTaskId])
+                }
+                onTaskCompletionRequested: function(taskId, completed) {
+                    window.controllerCall("setTaskCompleted", [taskId, completed])
                 }
                 onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
                     taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority)
@@ -482,9 +506,11 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                            window.controllerCall("moveEvent", [eventId, startAt, endAt, allDay])
                         }
                         onEventResizeRequested: function(eventId, endAt) {
                             window.eventResizeRequested(eventId, endAt)
+                            window.controllerCall("resizeEvent", [eventId, endAt])
                         }
                     }
 
@@ -494,6 +520,7 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         onEventMoveRequested: function(eventId, startAt, endAt, allDay) {
                             window.eventMoveRequested(eventId, startAt, endAt, allDay)
+                            window.controllerCall("moveEvent", [eventId, startAt, endAt, allDay])
                         }
                     }
 
@@ -506,8 +533,63 @@ ApplicationWindow {
 
             ColumnLayout {
                 anchors.fill: parent
+                visible: window.currentPage === "Settings"
+                spacing: Theme.spacingMedium
+
+                Label {
+                    text: "Google setup"
+                    font.pixelSize: Theme.titleFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Enter the desktop OAuth client ID from your own Google Cloud project. Enable Google Tasks and Calendar APIs. The app opens a local loopback callback while connecting."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                TextField {
+                    id: googleClientIdField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.clientId : ""
+                    placeholderText: "Desktop OAuth client ID"
+                    Accessible.name: placeholderText
+                }
+
+                Button {
+                    text: "Save client ID"
+                    enabled: googleClientIdField.text.trim().length > 0 &&
+                             (window.appController === null || !window.appController.busy)
+                    Accessible.name: text
+                    onClicked: window.controllerCall("saveClientId", [googleClientIdField.text])
+                }
+
+                Button {
+                    text: window.appController !== null && window.appController.googleConnected ? "Reconnect Google" : "Connect Google"
+                    enabled: window.appController !== null &&
+                             window.appController.clientId.length > 0 &&
+                             !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("connectGoogle", [])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: window.appController !== null && window.appController.statusMessage.length > 0
+                    text: window.appController !== null ? window.appController.statusMessage : ""
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Item { Layout.fillHeight: true }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
                 visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes" &&
-                         window.currentPage !== "Calendar"
+                         window.currentPage !== "Calendar" && window.currentPage !== "Settings"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage

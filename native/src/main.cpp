@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -13,6 +14,7 @@
 #include <utility>
 
 #include "app/AppPaths.h"
+#include "app/AppController.h"
 #include "app/AppServices.h"
 #include "app/DeepLinkAdapter.h"
 #include "app/SystemTrayAdapter.h"
@@ -102,6 +104,16 @@ int runApplication(int argc, char* argv[]) {
   startupTimings.mark(u"paths.discovered");
   hcb::SettingsRegistry settings;
   const hcb::AppServices services(std::move(*paths), clock, settings);
+  const std::optional<hcb::FilePath> databasePath =
+      services.paths().dataDirectory().child(QStringLiteral("hot-cross-buns.sqlite"));
+  if (!databasePath.has_value()) {
+    startupTimings.mark(u"database.path.unavailable");
+    return 1;
+  }
+  if (!QDir().mkpath(services.paths().dataDirectory().nativePath())) {
+    startupTimings.mark(u"database.directory.unavailable");
+    return 1;
+  }
   startupTimings.mark(u"core.services.initialized");
   hcb::AgendaModel agendaModel;
   hcb::CalendarSourceModel calendarSourceModel;
@@ -112,6 +124,16 @@ int runApplication(int argc, char* argv[]) {
   hcb::TaskModel taskModel;
   hcb::TimelineModel timelineModel;
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
+  hcb::AppController appController(*databasePath,
+                                   clock,
+                                   agendaModel,
+                                   calendarSourceModel,
+                                   monthGridModel,
+                                   notesModel,
+                                   taskListModel,
+                                   taskModel,
+                                   timelineModel,
+                                   &application);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
       {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
@@ -122,6 +144,7 @@ int runApplication(int argc, char* argv[]) {
        {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
        {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
        {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
+       {QStringLiteral("appController"), QVariant::fromValue(&appController)},
        {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
 
   QObject::connect(
@@ -137,6 +160,8 @@ int runApplication(int argc, char* argv[]) {
     return 1;
   }
   startupTimings.mark(u"qml.loaded");
+
+  appController.initialize();
 
   QObject* rootObject = engine.rootObjects().constFirst();
   auto showMainWindow = [rootObject] {

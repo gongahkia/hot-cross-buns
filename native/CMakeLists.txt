@@ -29,6 +29,8 @@ endif()
 
 set(HCB_NATIVE_SOURCES
   src/app/ApplicationLifecycle.h
+  src/app/AppController.cpp
+  src/app/AppController.h
   src/app/AppPaths.cpp
   src/app/AppPaths.h
   src/app/AppServices.cpp
@@ -79,6 +81,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleApiError.h
   src/core/GoogleHttpClient.cpp
   src/core/GoogleHttpClient.h
+  src/core/GoogleMirrorStore.cpp
+  src/core/GoogleMirrorStore.h
   src/core/GoogleSyncRecoveryService.cpp
   src/core/GoogleSyncRecoveryService.h
   src/core/GoogleCalendarListPullClient.cpp
@@ -161,6 +165,8 @@ set(HCB_NATIVE_SOURCES
   src/core/TaskModel.h
   src/core/TaskMutationService.cpp
   src/core/TaskMutationService.h
+  src/core/TaskReadService.cpp
+  src/core/TaskReadService.h
   src/core/TimelineModel.cpp
   src/core/TimelineModel.h
   src/core/UndoRecoveryPolicy.cpp
