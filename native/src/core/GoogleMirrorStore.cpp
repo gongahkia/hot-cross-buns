@@ -1,5 +1,6 @@
 #include "core/GoogleMirrorStore.h"
 
+#include "core/TaskRecurrenceMarker.h"
 #include "data/LocalSchema.h"
 #include "data/SqliteTransaction.h"
 #include "sqlite3.h"
@@ -91,6 +92,101 @@ taskId(const QString& accountId, const QString& taskListRemoteId, const QString&
 [[nodiscard]] QString
 eventId(const QString& accountId, const QString& calendarRemoteId, const QString& remoteId) {
   return localId(u"g-e-", {accountId, calendarRemoteId, remoteId});
+}
+
+struct StoredTaskRecurrence final {
+  std::optional<QString> notes;
+  std::optional<QString> diagnostic;
+};
+
+[[nodiscard]] std::optional<StoredTaskRecurrence>
+readStoredTaskRecurrence(sqlite3* handle, const QString& localTaskListId, const QString& remoteTaskId) {
+  constexpr char sql[] = R"(
+SELECT notes, recurrence_diagnostic
+FROM local_tasks
+WHERE task_list_id = ?1 AND remote_id = ?2
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr) !=
+      SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const QByteArray listId = localTaskListId.toUtf8();
+  const QByteArray taskId = remoteTaskId.toUtf8();
+  if (sqlite3_bind_text(statement,
+                        1,
+                        listId.constData(),
+                        static_cast<int>(listId.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK ||
+      sqlite3_bind_text(statement,
+                        2,
+                        taskId.constData(),
+                        static_cast<int>(taskId.size()),
+                        SQLITE_TRANSIENT) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  if (sqlite3_step(statement) != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return std::nullopt;
+  }
+  const auto optionalColumnText = [](sqlite3_stmt* source, int index) -> std::optional<QString> {
+    if (sqlite3_column_type(source, index) == SQLITE_NULL) {
+      return std::nullopt;
+    }
+    const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(source, index));
+    const int size = sqlite3_column_bytes(source, index);
+    return value == nullptr || size < 0 ? std::nullopt
+                                        : std::optional<QString>(QString::fromUtf8(value, size));
+  };
+  StoredTaskRecurrence recurrence{.notes = optionalColumnText(statement, 0),
+                                  .diagnostic = optionalColumnText(statement, 1)};
+  return sqlite3_finalize(statement) == SQLITE_OK ? std::optional<StoredTaskRecurrence>(recurrence)
+                                                   : std::nullopt;
+}
+
+[[nodiscard]] std::optional<QString>
+recurrenceMarkerFingerprint(const TaskRecurrenceMarker& marker) {
+  const TaskRecurrenceSerializationResult serialized = serializeTaskRecurrenceNotes({}, marker);
+  return serialized.error.has_value() ? std::nullopt : std::optional<QString>(serialized.notes);
+}
+
+[[nodiscard]] std::optional<QString>
+recurrenceDiagnostic(const std::optional<StoredTaskRecurrence>& previous,
+                     const GoogleTaskMirror& incoming) {
+  const TaskRecurrenceNotes incomingRecurrence =
+      parseTaskRecurrenceNotes(incoming.notes.value_or(QString()));
+  if (incomingRecurrence.state == TaskRecurrenceNotesState::Malformed ||
+      incomingRecurrence.state == TaskRecurrenceNotesState::UnsupportedVersion) {
+    return QStringLiteral("Managed recurrence marker is malformed in Google Tasks");
+  }
+  if (incomingRecurrence.state == TaskRecurrenceNotesState::Managed && incoming.isAssigned) {
+    return QStringLiteral("Managed recurrence is unavailable for an assigned Google Task");
+  }
+  if (!previous.has_value()) {
+    return std::nullopt;
+  }
+  const TaskRecurrenceNotes previousRecurrence =
+      parseTaskRecurrenceNotes(previous->notes.value_or(QString()));
+  if (previousRecurrence.state != TaskRecurrenceNotesState::Managed ||
+      !previousRecurrence.marker.has_value()) {
+    return std::nullopt;
+  }
+  if (incomingRecurrence.state != TaskRecurrenceNotesState::Managed ||
+      !incomingRecurrence.marker.has_value()) {
+    return QStringLiteral("Managed recurrence marker was removed in Google Tasks");
+  }
+  const std::optional<QString> previousFingerprint =
+      recurrenceMarkerFingerprint(*previousRecurrence.marker);
+  const std::optional<QString> incomingFingerprint =
+      recurrenceMarkerFingerprint(*incomingRecurrence.marker);
+  if (!previousFingerprint.has_value() || !incomingFingerprint.has_value() ||
+      *previousFingerprint != *incomingFingerprint) {
+    return QStringLiteral("Managed recurrence marker changed in Google Tasks");
+  }
+  return std::nullopt;
 }
 
 [[nodiscard]] std::optional<AppError>
@@ -211,17 +307,20 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
                                                                    : QStringLiteral("active");
   const std::optional<QString> deletedAt =
       task.deleted ? std::optional<QString>(now) : std::nullopt;
+  const std::optional<QString> diagnostic = recurrenceDiagnostic(
+      readStoredTaskRecurrence(handle, localListId, task.id), task);
   return execute(
       handle,
       "INSERT INTO local_tasks (id, task_list_id, remote_id, parent_task_id, title, notes, state, "
       "due_at, completed_at, remote_position, sort_order, is_hidden, etag, remote_updated_at, "
-      "created_at, updated_at, deleted_at) "
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16) "
+      "is_assigned, recurrence_diagnostic, created_at, updated_at, deleted_at) "
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17, ?18) "
       "ON CONFLICT(task_list_id, remote_id) DO UPDATE SET "
       "parent_task_id = excluded.parent_task_id, title = excluded.title, notes = excluded.notes, "
       "state = excluded.state, due_at = excluded.due_at, completed_at = excluded.completed_at, "
       "remote_position = excluded.remote_position, sort_order = excluded.sort_order, "
-      "is_hidden = excluded.is_hidden, etag = excluded.etag, "
+      "is_hidden = excluded.is_hidden, is_assigned = excluded.is_assigned, "
+      "recurrence_diagnostic = excluded.recurrence_diagnostic, etag = excluded.etag, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = excluded.deleted_at "
       "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
@@ -243,6 +342,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
        integerValue(task.hidden ? 1 : 0),
        optionalTextValue(task.etag),
        optionalTextValue(task.updatedAt),
+       integerValue(task.isAssigned ? 1 : 0),
+       optionalTextValue(diagnostic),
        textValue(now),
        optionalTextValue(deletedAt)});
 }

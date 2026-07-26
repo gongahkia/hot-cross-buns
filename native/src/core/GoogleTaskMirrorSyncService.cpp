@@ -60,7 +60,7 @@ template <typename Result, typename Pull>
 [[nodiscard]] QJsonObject taskRequestMetadata() {
   return {{QStringLiteral("fields"),
            QStringLiteral("nextPageToken,items(id,title,notes,status,due,completed,deleted,"
-                          "hidden,parent,position,etag,updated)")},
+                          "hidden,parent,position,etag,updated,assignmentInfo)")},
           {QStringLiteral("maxResults"), QStringLiteral("100")},
           {QStringLiteral("showAssigned"), true},
           {QStringLiteral("showCompleted"), true},

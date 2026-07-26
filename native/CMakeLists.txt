@@ -1135,6 +1135,8 @@ if(BUILD_TESTING)
     src/core/GoogleMirrorStore.h
     src/core/GoogleTaskListPullClient.h
     src/core/GoogleTaskPullClient.h
+    src/core/TaskRecurrenceMarker.cpp
+    src/core/TaskRecurrenceMarker.h
     src/data/LocalSchema.cpp
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp
@@ -1438,6 +1440,8 @@ if(BUILD_TESTING)
     src/core/SyncConflictStore.h
     src/core/SyncThreeWayMerge.cpp
     src/core/SyncThreeWayMerge.h
+    src/core/TaskRecurrenceMarker.cpp
+    src/core/TaskRecurrenceMarker.h
     src/data/LocalSchema.cpp
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp

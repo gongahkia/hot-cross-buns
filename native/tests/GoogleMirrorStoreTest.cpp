@@ -12,6 +12,7 @@
 #include <variant>
 
 #include "core/GoogleMirrorStore.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "data/SqliteConnection.h"
 #include "sqlite3.h"
 
@@ -24,6 +25,7 @@ private slots:
   void atomicallyReplacesTaskAndCalendarSnapshots();
   void preservesQueuedApplyingAndRetryableRowsDuringPull();
   void appliesDeltasWithoutDeletingUnreturnedRows();
+  void recordsManagedRecurrencePullDiagnostics();
 };
 
 namespace {
@@ -127,7 +129,8 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                          {{.id = QStringLiteral("parent"),
                            .taskListId = QStringLiteral("inbox"),
                            .title = QStringLiteral("Parent"),
-                           .status = hcb::GoogleTaskStatus::NeedsAction},
+                           .status = hcb::GoogleTaskStatus::NeedsAction,
+                           .isAssigned = true},
                           {.id = QStringLiteral("child"),
                            .taskListId = QStringLiteral("inbox"),
                            .parentId = QStringLiteral("parent"),
@@ -137,6 +140,7 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
   QVERIFY(std::holds_alternative<std::monostate>(taskResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_task_lists WHERE deleted_at IS NULL"), 1);
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE deleted_at IS NULL"), 2);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_tasks WHERE is_assigned = 1"), 1);
   QCOMPARE(count(handle,
                  "SELECT COUNT(*) FROM local_tasks WHERE parent_task_id IS NOT NULL "
                  "AND state = 'completed'"),
@@ -367,6 +371,90 @@ void GoogleMirrorStoreTest::appliesDeltasWithoutDeletingUnreturnedRows() {
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE remote_id = "
                         "'untouched-event' AND deleted_at IS NULL"),
            1);
+}
+
+void GoogleMirrorStoreTest::recordsManagedRecurrencePullDiagnostics() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::SystemClock clock;
+  hcb::GoogleMirrorStore store(*databasePath, clock);
+  verifyReady(store);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('google', 'google', 'connected', '[]', '[]', '2026-07-26T00:00:00Z')");
+  const hcb::TaskRecurrenceMarker marker{
+      .seriesId = QStringLiteral("8317b490-3a8f-4b09-a32a-a4ca7e2a7c22"),
+      .occurrenceId = QStringLiteral("8317b490-3a8f-4b09-a32a-a4ca7e2a7c22:0"),
+      .frequency = hcb::TaskRecurrenceFrequency::Weekly,
+      .anchorDate = QStringLiteral("2026-07-26"),
+      .timeZone = QStringLiteral("UTC"),
+      .templateTitle = QStringLiteral("Recurring"),
+      .templateDueDate = QStringLiteral("2026-07-26"),
+      .templatePriority = QStringLiteral("none")};
+  const hcb::TaskRecurrenceSerializationResult serialized =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("Body"), marker);
+  QVERIFY(!serialized.error.has_value());
+  if (serialized.error.has_value()) {
+    return;
+  }
+  std::future<hcb::GoogleMirrorWriteResult> initial = store.replaceTasks(
+      QStringLiteral("google"),
+      {{.id = QStringLiteral("inbox"), .title = QStringLiteral("Inbox")}},
+      {{.id = QStringLiteral("recurring"),
+        .taskListId = QStringLiteral("inbox"),
+        .title = QStringLiteral("Recurring"),
+        .notes = serialized.notes,
+        .status = hcb::GoogleTaskStatus::NeedsAction}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(initial)));
+
+  hcb::TaskRecurrenceMarker changedMarker = marker;
+  changedMarker.interval = 2;
+  const hcb::TaskRecurrenceSerializationResult changed =
+      hcb::serializeTaskRecurrenceNotes(QStringLiteral("Body"), changedMarker);
+  QVERIFY(!changed.error.has_value());
+  if (changed.error.has_value()) {
+    return;
+  }
+  std::future<hcb::GoogleMirrorWriteResult> changedPull = store.mergeTasks(
+      QStringLiteral("google"),
+      QStringLiteral("inbox"),
+      {{.id = QStringLiteral("recurring"),
+        .taskListId = QStringLiteral("inbox"),
+        .title = QStringLiteral("Recurring"),
+        .notes = changed.notes,
+        .status = hcb::GoogleTaskStatus::NeedsAction}},
+      false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(changedPull)));
+  QCOMPARE(text(handle, "SELECT recurrence_diagnostic FROM local_tasks WHERE remote_id = 'recurring'"),
+           QStringLiteral("Managed recurrence marker changed in Google Tasks"));
+
+  std::future<hcb::GoogleMirrorWriteResult> removedPull = store.mergeTasks(
+      QStringLiteral("google"),
+      QStringLiteral("inbox"),
+      {{.id = QStringLiteral("recurring"),
+        .taskListId = QStringLiteral("inbox"),
+        .title = QStringLiteral("Recurring"),
+        .notes = QStringLiteral("Body"),
+        .status = hcb::GoogleTaskStatus::NeedsAction}},
+      false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(removedPull)));
+  QCOMPARE(text(handle, "SELECT recurrence_diagnostic FROM local_tasks WHERE remote_id = 'recurring'"),
+           QStringLiteral("Managed recurrence marker was removed in Google Tasks"));
 }
 
 QTEST_GUILESS_MAIN(GoogleMirrorStoreTest)

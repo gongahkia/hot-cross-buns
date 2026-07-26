@@ -139,6 +139,14 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   return value.isBool() ? std::optional<bool>(value.toBool()) : std::nullopt;
 }
 
+[[nodiscard]] std::optional<bool> isAssignedTask(const QJsonObject& object) {
+  const QJsonValue value = object.value(QStringLiteral("assignmentInfo"));
+  if (!isPresent(value)) {
+    return false;
+  }
+  return value.isObject() ? std::optional<bool>(true) : std::nullopt;
+}
+
 [[nodiscard]] std::optional<GoogleTaskStatus> taskStatus(const QJsonObject& object) {
   const QJsonValue value = object.value(QStringLiteral("status"));
   if (!isPresent(value)) {
@@ -208,6 +216,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
     const std::optional<QString> completedAt = normalizedTimestamp(item, u"completed");
     const std::optional<bool> deleted = optionalBoolean(item, u"deleted");
     const std::optional<bool> hidden = optionalBoolean(item, u"hidden");
+    const std::optional<bool> isAssigned = isAssignedTask(item);
     const std::optional<QString> position =
         optionalString(item, u"position", kMaximumPositionLength);
     const std::optional<QString> etag = optionalString(item, u"etag", kMaximumEtagLength);
@@ -222,7 +231,8 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
     const bool hasInvalidUpdatedAt =
         !updatedAt.has_value() && isPresent(item.value(QStringLiteral("updated")));
     if ((parentId.has_value() && !isValidIdentifier(*parentId)) || !title.has_value() ||
-        !status.has_value() || !deleted.has_value() || !hidden.has_value() || hasInvalidParent ||
+        !status.has_value() || !deleted.has_value() || !hidden.has_value() || !isAssigned.has_value() ||
+        hasInvalidParent ||
         hasInvalidNotes || hasInvalidPosition || hasInvalidEtag || hasInvalidCompletedAt ||
         hasInvalidDueAt || hasInvalidUpdatedAt) {
       return invalidPayloadError();
@@ -238,6 +248,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
                   .completedAt = completedAt,
                   .deleted = *deleted,
                   .hidden = *hidden,
+                  .isAssigned = *isAssigned,
                   .position = position,
                   .etag = etag,
                   .updatedAt = updatedAt});
@@ -270,7 +281,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
       {.name = QStringLiteral("maxResults"), .value = QStringLiteral("100")},
       {.name = QStringLiteral("fields"),
        .value = QStringLiteral("nextPageToken,items(id,title,notes,status,due,completed,deleted,"
-                               "hidden,parent,position,etag,updated)")}};
+                               "hidden,parent,position,etag,updated,assignmentInfo)")}};
   if (request.updatedMin.has_value()) {
     httpRequest.query.append({.name = QStringLiteral("updatedMin"), .value = *request.updatedMin});
   } else if (request.showCompleted && request.completedMin.has_value()) {

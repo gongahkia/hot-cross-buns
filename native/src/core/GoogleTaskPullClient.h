@@ -30,6 +30,7 @@ struct GoogleTaskMirror final {
   std::optional<QString> completedAt;
   bool deleted;
   bool hidden;
+  bool isAssigned;
   std::optional<QString> position;
   std::optional<QString> etag;
   std::optional<QString> updatedAt;

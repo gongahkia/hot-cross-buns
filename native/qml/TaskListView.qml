@@ -289,6 +289,7 @@ Pane {
                 required property string dueTimeZone
                 required property int priority
                 required property bool completed
+                property string recurrenceDiagnostic: ""
 
                 property alias completionButton: completionButton
                 property alias expandButton: expandButton
@@ -300,103 +301,116 @@ Pane {
                 property alias moveEarlierButton: moveEarlierButton
                 property alias moveLaterButton: moveLaterButton
 
-                RowLayout {
+                ColumnLayout {
                     id: taskRow
                     anchors.fill: parent
                     anchors.leftMargin: depth * Theme.spacingLarge
                     spacing: Theme.spacingSmall
 
-                    CheckBox {
-                        id: taskSelectionCheck
-                        checked: root.isTaskSelected(id)
-                        Accessible.name: "Select " + title
-                        onToggled: root.setTaskSelected(id, checked)
-                    }
-
-                    Button {
-                        id: expandButton
-                        visible: isTreeNode && hasChildren
-                        text: expanded ? "Collapse" : "Expand"
-                        Accessible.name: text + " subtasks for " + title
-                        onClicked: treeView.toggleExpanded(row)
-                    }
-
-                    Item {
-                        Layout.preferredWidth: !expandButton.visible ? expandButton.implicitWidth : 0
-                        Layout.preferredHeight: 1
-                    }
-
-                    Button {
-                        id: completionButton
-                        text: completed ? "Reopen" : "Complete"
-                        Accessible.name: text + " " + title
-                        Accessible.description: completed ? "Mark task active" : "Mark task completed"
-                        onClicked: root.requestTaskCompletion(id, !completed)
-                    }
-
-                    Button {
-                        id: deleteButton
-                        text: "Delete"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Delete this task"
-                        onClicked: root.requestTaskDelete(id, title)
-                    }
-
-                    Button {
-                        id: editButton
-                        text: "Edit"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Edit this task"
-                        onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority)
-                    }
-
-                    Button {
-                        id: moveButton
-                        text: "Move"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Move this task to another task list"
-                        onClicked: root.requestTaskMove(id, taskListId, title)
-                    }
-
-                    Button {
-                        id: subtaskButton
-                        visible: depth === 0
-                        text: "Add subtask"
-                        Accessible.name: text + " to " + title
-                        onClicked: root.requestSubtaskCreate(id, taskListId)
-                    }
-
-                    Button {
-                        id: promoteButton
-                        visible: depth > 0
-                        text: "Promote"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Move this subtask to the top level"
-                        onClicked: root.requestTaskReparent(id, "")
-                    }
-
-                    Button {
-                        id: moveEarlierButton
-                        text: "Move earlier"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Move this task earlier among its siblings"
-                        onClicked: root.requestTaskReorder(id, true)
-                    }
-
-                    Button {
-                        id: moveLaterButton
-                        text: "Move later"
-                        Accessible.name: text + " " + title
-                        Accessible.description: "Move this task later among its siblings"
-                        onClicked: root.requestTaskReorder(id, false)
-                    }
-
-                    AccessibleButton {
+                    RowLayout {
                         Layout.fillWidth: true
-                        text: (completed ? "✓ " : "") + title
-                        accessibleName: title
-                        accessibleDescription: completed ? "Completed task" : "Open task"
-                        onClicked: root.selectTask(id)
+
+                        CheckBox {
+                            id: taskSelectionCheck
+                            checked: root.isTaskSelected(id)
+                            Accessible.name: "Select " + title
+                            onToggled: root.setTaskSelected(id, checked)
+                        }
+
+                        Button {
+                            id: expandButton
+                            visible: isTreeNode && hasChildren
+                            text: expanded ? "Collapse" : "Expand"
+                            Accessible.name: text + " subtasks for " + title
+                            onClicked: treeView.toggleExpanded(row)
+                        }
+
+                        Item {
+                            Layout.preferredWidth: !expandButton.visible ? expandButton.implicitWidth : 0
+                            Layout.preferredHeight: 1
+                        }
+
+                        Button {
+                            id: completionButton
+                            text: completed ? "Reopen" : "Complete"
+                            Accessible.name: text + " " + title
+                            Accessible.description: completed ? "Mark task active" : "Mark task completed"
+                            onClicked: root.requestTaskCompletion(id, !completed)
+                        }
+
+                        Button {
+                            id: deleteButton
+                            text: "Delete"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Delete this task"
+                            onClicked: root.requestTaskDelete(id, title)
+                        }
+
+                        Button {
+                            id: editButton
+                            text: "Edit"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Edit this task"
+                            onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority)
+                        }
+
+                        Button {
+                            id: moveButton
+                            text: "Move"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Move this task to another task list"
+                            onClicked: root.requestTaskMove(id, taskListId, title)
+                        }
+
+                        Button {
+                            id: subtaskButton
+                            visible: depth === 0
+                            text: "Add subtask"
+                            Accessible.name: text + " to " + title
+                            onClicked: root.requestSubtaskCreate(id, taskListId)
+                        }
+
+                        Button {
+                            id: promoteButton
+                            visible: depth > 0
+                            text: "Promote"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Move this subtask to the top level"
+                            onClicked: root.requestTaskReparent(id, "")
+                        }
+
+                        Button {
+                            id: moveEarlierButton
+                            text: "Move earlier"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Move this task earlier among its siblings"
+                            onClicked: root.requestTaskReorder(id, true)
+                        }
+
+                        Button {
+                            id: moveLaterButton
+                            text: "Move later"
+                            Accessible.name: text + " " + title
+                            Accessible.description: "Move this task later among its siblings"
+                            onClicked: root.requestTaskReorder(id, false)
+                        }
+
+                        AccessibleButton {
+                            Layout.fillWidth: true
+                            text: (completed ? "✓ " : "") + title
+                            accessibleName: title
+                            accessibleDescription: completed ? "Completed task" : "Open task"
+                            onClicked: root.selectTask(id)
+                        }
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: recurrenceDiagnostic.length > 0
+                        text: recurrenceDiagnostic
+                        color: Theme.destructive
+                        wrapMode: Text.WordWrap
+                        Accessible.name: "Task recurrence warning: " + recurrenceDiagnostic
                     }
                 }
             }

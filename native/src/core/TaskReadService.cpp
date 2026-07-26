@@ -97,7 +97,8 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
       QStringLiteral(
           "SELECT tasks.id, tasks.task_list_id, lists.title, tasks.parent_task_id, tasks.title, "
           "tasks.notes, tasks.due_at, tasks.due_time_zone, tasks.priority, tasks.state, "
-          "tasks.sort_order FROM local_tasks AS tasks INNER JOIN local_task_lists AS lists "
+          "tasks.sort_order, tasks.is_assigned, tasks.recurrence_diagnostic "
+          "FROM local_tasks AS tasks INNER JOIN local_task_lists AS lists "
           "ON lists.id = tasks.task_list_id WHERE %1 ORDER BY lists.sort_order, "
           "lists.title COLLATE NOCASE, tasks.sort_order, tasks.id LIMIT ?")
           .arg(filter)
@@ -138,11 +139,14 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
     const std::optional<QString> priority = requiredText(statement, 8);
     const std::optional<QString> state = requiredText(statement, 9);
     const std::int64_t sortOrder = sqlite3_column_int64(statement, 10);
+    const int assigned = sqlite3_column_int(statement, 11);
+    const std::optional<QString> storedDiagnostic = optionalText(statement, 12);
     const std::optional<TaskPriority> decodedPriority =
         priority.has_value() ? taskPriority(*priority) : std::nullopt;
     if (!id.has_value() || !taskListId.has_value() || !taskListTitle.has_value() ||
         !title.has_value() || !state.has_value() || !decodedPriority.has_value() || sortOrder < 0 ||
-        (*state != QStringLiteral("active") && *state != QStringLiteral("completed"))) {
+        (*state != QStringLiteral("active") && *state != QStringLiteral("completed")) ||
+        (assigned != 0 && assigned != 1)) {
       sqlite3_finalize(statement);
       return AppError(AppErrorCode::Database, QStringLiteral("Stored task row is invalid"));
     }
@@ -151,6 +155,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
     const std::optional<QString> storedNotes = optionalText(statement, 5);
     const TaskRecurrenceNotes recurrence =
         parseTaskRecurrenceNotes(storedNotes.value_or(QString()));
+    const QString recurrenceDiagnostic = storedDiagnostic.value_or(recurrence.diagnostic);
     tasks.append({.id = *id,
                   .taskListId = *taskListId,
                   .taskListTitle = *taskListTitle,
@@ -163,7 +168,8 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
                              : std::nullopt,
                   .priority = *decodedPriority,
                   .completed = *state == QStringLiteral("completed"),
-                  .managedRecurrence = recurrence.state == TaskRecurrenceNotesState::Managed,
+                  .managedRecurrence = recurrence.state == TaskRecurrenceNotesState::Managed &&
+                                       recurrenceDiagnostic.isEmpty() && assigned == 0,
                   .recurrenceSummary = recurrence.marker.has_value()
                                            ? taskRecurrenceSummary(*recurrence.marker)
                                            : QString(),
@@ -171,7 +177,7 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
                       recurrence.marker.has_value() ? recurrence.marker->seriesId : QString(),
                   .recurrenceOccurrenceId =
                       recurrence.marker.has_value() ? recurrence.marker->occurrenceId : QString(),
-                  .recurrenceDiagnostic = recurrence.diagnostic,
+                  .recurrenceDiagnostic = recurrenceDiagnostic,
                   .sortOrder = sortOrder});
   }
   const int finalizeResult = sqlite3_finalize(statement);

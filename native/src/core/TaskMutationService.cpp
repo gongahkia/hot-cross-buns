@@ -35,6 +35,8 @@ constexpr qsizetype kMaximumNotesLength = 10'000;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr qsizetype kMaximumTimeZoneLength = 128;
 constexpr char kConflictMetadataKey[] = "_hcbSync";
+constexpr char kDivergentDuplicateDiagnostic[] =
+    "Managed recurrence has divergent duplicate occurrences in Google Tasks";
 
 struct StoredTaskContext final {
   QString taskId;
@@ -53,6 +55,8 @@ struct StoredTaskContext final {
   std::optional<QString> dueTimeZone;
   QString priority;
   bool isHidden{false};
+  bool isAssigned{false};
+  std::optional<QString> recurrenceDiagnostic;
 };
 
 struct ActiveTaskMutation final {
@@ -225,7 +229,8 @@ readTaskContext(SqliteConnection& connection, const QString& taskId) {
   constexpr char sql[] = R"(
 SELECT tasks.id, tasks.task_list_id, lists.account_id, lists.remote_id, tasks.remote_id, tasks.etag,
        tasks.parent_task_id, parent.remote_id, tasks.title, tasks.notes, tasks.state, tasks.due_at,
-       tasks.completed_at, tasks.due_time_zone, tasks.priority, tasks.is_hidden
+       tasks.completed_at, tasks.due_time_zone, tasks.priority, tasks.is_hidden, tasks.is_assigned,
+       tasks.recurrence_diagnostic
 FROM local_tasks AS tasks
 INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
 LEFT JOIN local_tasks AS parent ON parent.id = tasks.parent_task_id
@@ -265,9 +270,10 @@ LIMIT 1
   const std::optional<QString> title = optionalText(statement, 8);
   const std::optional<QString> state = optionalText(statement, 10);
   const std::optional<QString> priority = optionalText(statement, 14);
+  const int isAssigned = sqlite3_column_int(statement, 16);
   if (!storedTaskId.has_value() || !taskListId.has_value() || !accountId.has_value() ||
       !taskListRemoteId.has_value() || !remoteId.has_value() || !title.has_value() ||
-      !state.has_value() || !priority.has_value()) {
+      !state.has_value() || !priority.has_value() || (isAssigned != 0 && isAssigned != 1)) {
     sqlite3_finalize(statement);
     return AppError(AppErrorCode::Database, QStringLiteral("Stored task is invalid"));
   }
@@ -286,7 +292,9 @@ LIMIT 1
                             .dueAt = optionalText(statement, 11),
                             .dueTimeZone = optionalText(statement, 13),
                             .priority = *priority,
-                            .isHidden = sqlite3_column_int(statement, 15) != 0};
+                            .isHidden = sqlite3_column_int(statement, 15) != 0,
+                            .isAssigned = isAssigned != 0,
+                            .recurrenceDiagnostic = optionalText(statement, 17)};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
              ? std::variant<std::optional<StoredTaskContext>, AppError>(std::move(context))
@@ -329,6 +337,33 @@ LIMIT 1
              : std::variant<bool, AppError>(databaseError(
                    QStringLiteral("SQLite task child lookup finalization failed (%1)"),
                    finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+validateManagedRecurrenceMutation(SqliteConnection& connection,
+                                  const StoredTaskContext& task,
+                                  const TaskRecurrenceNotes& recurrence) {
+  if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value()) {
+    return std::nullopt;
+  }
+  if (task.isAssigned) {
+    return validationError(
+        QStringLiteral("Assigned Google Task cannot use managed recurrence"));
+  }
+  if (task.recurrenceDiagnostic.has_value()) {
+    return validationError(QStringLiteral("Managed recurrence requires recovery before editing"));
+  }
+  if (task.parentTaskId.has_value()) {
+    return validationError(QStringLiteral("Managed recurring task cannot be a subtask"));
+  }
+  const std::variant<bool, AppError> childResult = hasActiveTaskChild(connection, task.taskId);
+  if (std::holds_alternative<AppError>(childResult)) {
+    return std::get<AppError>(childResult);
+  }
+  return std::get<bool>(childResult)
+             ? std::optional<AppError>(
+                   validationError(QStringLiteral("Managed recurring task cannot have subtasks")))
+             : std::nullopt;
 }
 
 [[nodiscard]] std::variant<bool, AppError> isValidMoveDestination(SqliteConnection& connection,
@@ -1132,15 +1167,10 @@ createTaskRecurrenceSuccessor(SqliteConnection& connection,
   if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value()) {
     return std::optional<QString>{};
   }
-  if (source.parentTaskId.has_value()) {
-    return validationError(QStringLiteral("Managed recurring task cannot be a subtask"));
-  }
-  const std::variant<bool, AppError> childResult = hasActiveTaskChild(connection, source.taskId);
-  if (std::holds_alternative<AppError>(childResult)) {
-    return std::get<AppError>(childResult);
-  }
-  if (std::get<bool>(childResult)) {
-    return validationError(QStringLiteral("Managed recurring task cannot have subtasks"));
+  if (const std::optional<AppError> error =
+          validateManagedRecurrenceMutation(connection, source, recurrence);
+      error.has_value()) {
+    return *error;
   }
   const std::variant<std::optional<TaskRecurrenceClaim>, AppError> claimResult =
       findTaskRecurrenceClaim(
@@ -1309,6 +1339,11 @@ readManagedTaskRecurrenceCandidates(SqliteConnection& connection,
     if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value()) {
       continue;
     }
+    if (task->isAssigned ||
+        (task->recurrenceDiagnostic.has_value() &&
+         *task->recurrenceDiagnostic != QString::fromLatin1(kDivergentDuplicateDiagnostic))) {
+      continue;
+    }
     const std::variant<std::optional<ActiveTaskMutation>, AppError> mutationResult =
         findActiveTaskMutation(connection, task->taskId);
     if (std::holds_alternative<AppError>(mutationResult)) {
@@ -1330,7 +1365,54 @@ readManagedTaskRecurrenceCandidates(SqliteConnection& connection,
          left.title == right.title && left.notes == right.notes && left.state == right.state &&
          left.completedAt == right.completedAt && left.dueAt == right.dueAt &&
          left.dueTimeZone == right.dueTimeZone && left.priority == right.priority &&
-         left.isHidden == right.isHidden;
+         left.isHidden == right.isHidden && left.isAssigned == right.isAssigned;
+}
+
+[[nodiscard]] std::optional<AppError>
+setTaskRecurrenceDiagnostic(SqliteConnection& connection,
+                            const QString& taskId,
+                            const std::optional<QString>& diagnostic,
+                            const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_tasks
+SET recurrence_diagnostic = ?2, updated_at = ?3
+WHERE id = ?1 AND deleted_at IS NULL
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurrence diagnostic preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, taskId), bindOptionalText(statement, 2, diagnostic),
+                   bindText(statement, 3, updatedAt)});
+      error.has_value()) {
+    return error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite recurrence diagnostic update failed (%1)"),
+                         stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite recurrence diagnostic finalization failed (%1)"),
+                         finalizeResult);
+  }
+  return changedRows == 1
+             ? std::nullopt
+             : std::optional<AppError>(
+                   AppError(AppErrorCode::Database, QStringLiteral("Stored task was not found")));
 }
 
 [[nodiscard]] QString recurrenceGroupKey(const TaskRecurrenceMarker& marker) {
@@ -1850,6 +1932,21 @@ std::future<TaskMutationResult> TaskMutationService::create(TaskCreateInput inpu
       return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
     }
     SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    if (input.parentTaskId.has_value()) {
+      const std::variant<std::optional<StoredTaskContext>, AppError> parentResult =
+          readTaskContext(connection, *input.parentTaskId);
+      if (std::holds_alternative<AppError>(parentResult)) {
+        return TaskMutationResult(std::get<AppError>(parentResult));
+      }
+      const std::optional<StoredTaskContext>& parent =
+          std::get<std::optional<StoredTaskContext>>(parentResult);
+      if (!parent.has_value() || parent->isAssigned ||
+          parseTaskRecurrenceNotes(parent->notes.value_or(QString())).state ==
+              TaskRecurrenceNotesState::Managed) {
+        return TaskMutationResult(
+            validationError(QStringLiteral("Task cannot be a subtask of this parent")));
+      }
+    }
     TaskMutationResult created = createStoredTask(connection, input, taskId, remoteId, updatedAt);
     if (std::holds_alternative<AppError>(created)) {
       return created;
@@ -1899,6 +1996,38 @@ std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput inpu
         std::get<std::optional<StoredTaskContext>>(beforeResult);
     if (!before.has_value()) {
       return TaskMutationResult(validationError(QStringLiteral("Task is unavailable for update")));
+    }
+    const TaskRecurrenceNotes beforeRecurrence =
+        parseTaskRecurrenceNotes(before->notes.value_or(QString()));
+    if (const std::optional<AppError> error =
+            validateManagedRecurrenceMutation(connection, *before, beforeRecurrence);
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    if (beforeRecurrence.state == TaskRecurrenceNotesState::Managed &&
+        input.parentTaskId.has_value() && input.parentTaskId->has_value()) {
+      return TaskMutationResult(
+          validationError(QStringLiteral("Managed recurring task cannot be a subtask")));
+    }
+    if (input.parentTaskId.has_value() && input.parentTaskId->has_value()) {
+      const std::variant<std::optional<StoredTaskContext>, AppError> parentResult =
+          readTaskContext(connection, **input.parentTaskId);
+      if (std::holds_alternative<AppError>(parentResult)) {
+        return TaskMutationResult(std::get<AppError>(parentResult));
+      }
+      const std::optional<StoredTaskContext>& parent =
+          std::get<std::optional<StoredTaskContext>>(parentResult);
+      if (!parent.has_value() || before->isAssigned || parent->isAssigned ||
+          parseTaskRecurrenceNotes(parent->notes.value_or(QString())).state ==
+              TaskRecurrenceNotesState::Managed) {
+        return TaskMutationResult(
+            validationError(QStringLiteral("Task cannot be a subtask of this parent")));
+      }
+    }
+    if (before->isAssigned && input.notes.has_value() &&
+        parseTaskRecurrenceNotes(*input.notes).state == TaskRecurrenceNotesState::Managed) {
+      return TaskMutationResult(
+          validationError(QStringLiteral("Assigned Google Task cannot use managed recurrence")));
     }
     const std::variant<TaskUpdateInput, AppError> effectiveInputResult =
         preserveManagedRecurrence(*before, input);
@@ -1965,6 +2094,11 @@ std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString task
     if (before->taskListId == taskListId) {
       return TaskMutationResult(
           validationError(QStringLiteral("Task is already assigned to that task list")));
+    }
+    if (parseTaskRecurrenceNotes(before->notes.value_or(QString())).state ==
+        TaskRecurrenceNotesState::Managed) {
+      return TaskMutationResult(
+          validationError(QStringLiteral("Managed recurring task cannot move between task lists")));
     }
     const std::variant<bool, AppError> childResult = hasActiveTaskChild(connection, taskId);
     if (std::holds_alternative<AppError>(childResult)) {
@@ -2152,6 +2286,13 @@ std::future<TaskMutationResult> TaskMutationService::setCompleted(QString taskId
     }
     const TaskRecurrenceNotes recurrence =
         parseTaskRecurrenceNotes(before->notes.value_or(QString()));
+    if (completed) {
+      if (const std::optional<AppError> error =
+              validateManagedRecurrenceMutation(connection, *before, recurrence);
+          error.has_value()) {
+        return TaskMutationResult(*error);
+      }
+    }
     const bool shouldCreateSuccessor = completed && before->state != QStringLiteral("completed") &&
                                        recurrence.state == TaskRecurrenceNotesState::Managed;
     TaskMutationResult changed = setStoredTaskCompletion(connection, taskId, completed, updatedAt);
@@ -2233,6 +2374,11 @@ TaskMutationService::stopManagedRecurrence(QString taskId, TaskRecurrenceScope s
       return TaskMutationResult(
           validationError(QStringLiteral("Task does not have managed recurrence")));
     }
+    if (const std::optional<AppError> error =
+            validateManagedRecurrenceMutation(connection, *selected, selectedRecurrence);
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
     if (scope == TaskRecurrenceScope::ThisOccurrence) {
       const std::variant<std::optional<QString>, AppError> successorResult =
           createTaskRecurrenceSuccessor(connection, *selected, selectedRecurrence, updatedAt);
@@ -2309,6 +2455,11 @@ std::future<TaskMutationResult> TaskMutationService::splitManagedRecurrence(QStr
         !selectedRecurrence.marker.has_value() || !selected->dueAt.has_value()) {
       return TaskMutationResult(
           validationError(QStringLiteral("Managed recurrence split is unavailable")));
+    }
+    if (const std::optional<AppError> error =
+            validateManagedRecurrenceMutation(connection, *selected, selectedRecurrence);
+        error.has_value()) {
+      return TaskMutationResult(*error);
     }
     const std::optional<QString> anchorDate = recurrenceDate(*selected->dueAt);
     if (!anchorDate.has_value()) {
@@ -2411,6 +2562,10 @@ std::future<TaskMutationResult> TaskMutationService::remove(QString taskId) {
         if (!before.has_value()) {
           return TaskMutationResult(
               validationError(QStringLiteral("Task is unavailable for deletion")));
+        }
+        if (before->isAssigned) {
+          return TaskMutationResult(
+              validationError(QStringLiteral("Assigned Google Task cannot be deleted in HCB")));
         }
         TaskMutationResult removed = removeStoredTask(connection, taskId, updatedAt);
         if (std::holds_alternative<AppError>(removed)) {
@@ -2535,6 +2690,17 @@ TaskMutationService::reconcileManagedRecurrences(QString accountId, QString task
           std::sort(occurrences.begin(), occurrences.end(), recurrenceCandidateComesFirst);
           const ManagedTaskRecurrenceCandidate& canonical = occurrences.first();
           if (occurrences.size() == 1) {
+            if (canonical.task.recurrenceDiagnostic ==
+                QString::fromLatin1(kDivergentDuplicateDiagnostic)) {
+              if (const std::optional<AppError> error =
+                      setTaskRecurrenceDiagnostic(connection,
+                                                  canonical.task.taskId,
+                                                  std::nullopt,
+                                                  updatedAt);
+                  error.has_value()) {
+                return TaskRecurrenceReconciliationResult(*error);
+              }
+            }
             unambiguousTaskIds.insert(group.key(), canonical.task.taskId);
             continue;
           }
@@ -2547,10 +2713,34 @@ TaskMutationService::reconcileManagedRecurrences(QString accountId, QString task
             if (occurrences.size() > 1) {
               ++result.divergentDuplicateGroupCount;
               divergentGroupKeys.insert(group.key());
+              for (const ManagedTaskRecurrenceCandidate& occurrence : occurrences) {
+                if (occurrence.task.recurrenceDiagnostic ==
+                    QString::fromLatin1(kDivergentDuplicateDiagnostic)) {
+                  continue;
+                }
+                if (const std::optional<AppError> error =
+                        setTaskRecurrenceDiagnostic(
+                            connection,
+                            occurrence.task.taskId,
+                            QString::fromLatin1(kDivergentDuplicateDiagnostic),
+                            updatedAt);
+                    error.has_value()) {
+                  return TaskRecurrenceReconciliationResult(*error);
+                }
+              }
             }
             continue;
           }
           unambiguousTaskIds.insert(group.key(), canonical.task.taskId);
+          if (canonical.task.recurrenceDiagnostic ==
+              QString::fromLatin1(kDivergentDuplicateDiagnostic)) {
+            if (const std::optional<AppError> error =
+                    setTaskRecurrenceDiagnostic(
+                        connection, canonical.task.taskId, std::nullopt, updatedAt);
+                error.has_value()) {
+              return TaskRecurrenceReconciliationResult(*error);
+            }
+          }
           for (qsizetype index = 1; index < occurrences.size(); ++index) {
             const ManagedTaskRecurrenceCandidate& duplicate = occurrences.at(index);
             const TaskMutationResult removed =
@@ -2581,7 +2771,8 @@ TaskMutationService::reconcileManagedRecurrences(QString accountId, QString task
         });
         for (const ManagedTaskRecurrenceCandidate& source : candidates) {
           if (removedTaskIds.contains(source.task.taskId) ||
-              source.task.state != QStringLiteral("completed") || source.task.parentTaskId.has_value()) {
+              source.task.state != QStringLiteral("completed") || source.task.parentTaskId.has_value() ||
+              divergentGroupKeys.contains(recurrenceGroupKey(*source.recurrence.marker))) {
             continue;
           }
           const std::variant<bool, AppError> childResult =

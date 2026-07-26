@@ -789,6 +789,14 @@ ON local_task_recurrence_claims(successor_task_id)
 WHERE successor_task_id IS NOT NULL
 )";
 
+constexpr char taskRecurrenceSafetySchemaSql[] = R"(
+ALTER TABLE local_tasks
+ADD COLUMN is_assigned INTEGER NOT NULL DEFAULT 0 CHECK(is_assigned IN (0, 1));
+
+ALTER TABLE local_tasks
+ADD COLUMN recurrence_diagnostic TEXT CHECK(recurrence_diagnostic IS NULL OR length(recurrence_diagnostic) BETWEEN 1 AND 1024)
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -891,8 +899,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite task-recurrence claims schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 17>& migrations() {
-  static const std::array<SqliteMigration, 17> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyTaskRecurrenceSafetySchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     taskRecurrenceSafetySchemaSql,
+                     QStringLiteral("SQLite task-recurrence safety schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 18>& migrations() {
+  static const std::array<SqliteMigration, 18> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -949,6 +963,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("add task recurrence claims"),
        checksum(taskRecurrenceClaimsSchemaSql),
        applyTaskRecurrenceClaimsSchema},
+      {18,
+       QStringLiteral("add task recurrence safety metadata"),
+       checksum(taskRecurrenceSafetySchemaSql),
+       applyTaskRecurrenceSafetySchema},
   }};
   return catalogue;
 }

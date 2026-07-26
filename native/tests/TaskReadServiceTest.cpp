@@ -98,7 +98,9 @@ void setManagedNotes(hcb::SqliteConnection& connection) {
   QByteArray notes = serialized.notes.toUtf8();
   notes.replace("'", "''");
   const QByteArray sql =
-      "UPDATE local_tasks SET notes = '" + notes + "' WHERE id = 'task-visible-a'";
+      "UPDATE local_tasks SET notes = '" + notes +
+      "', recurrence_diagnostic = 'Managed recurrence marker changed in Google Tasks' "
+      "WHERE id = 'task-visible-a'";
   execute(connection.nativeHandle(), sql.constData());
 }
 
@@ -132,8 +134,10 @@ void TaskReadServiceTest::readsVisibleTasksWithoutAccountFilter() {
   QCOMPARE(tasks.at(0).id, QStringLiteral("task-visible-a"));
   QCOMPARE(tasks.at(0).taskListTitle, QStringLiteral("A"));
   QCOMPARE(tasks.at(0).notes, std::optional<QString>(QStringLiteral("Visible body")));
-  QVERIFY(tasks.at(0).managedRecurrence);
+  QVERIFY(!tasks.at(0).managedRecurrence);
   QCOMPARE(tasks.at(0).recurrenceSeriesId, QStringLiteral("b5c71e7f-2cf6-4f49-9bcd-d46c56574492"));
+  QCOMPARE(tasks.at(0).recurrenceDiagnostic,
+           QStringLiteral("Managed recurrence marker changed in Google Tasks"));
   QCOMPARE(tasks.at(0).priority, hcb::TaskPriority::High);
   QVERIFY(!tasks.at(0).completed);
   QCOMPARE(tasks.at(1).id, QStringLiteral("task-visible-b"));
