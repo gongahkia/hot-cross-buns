@@ -22,7 +22,8 @@ set(HCB_DEEP_LINK_SOURCES
   src/app/DeepLinkAdapter.cpp
   src/app/DeepLinkAdapter.h
 )
-qt_add_resources(HCB_SYSTEM_TRAY_RESOURCE_SOURCES resources/SystemTrayIcon.qrc)
+set(HCB_SYSTEM_TRAY_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../assets/brand/buns-app-icon.png")
+set_source_files_properties("${HCB_SYSTEM_TRAY_ICON}" PROPERTIES QT_RESOURCE_ALIAS "tray-icon.png")
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
 endif()
@@ -43,7 +44,6 @@ set(HCB_NATIVE_SOURCES
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
   ${HCB_NOTIFICATION_SOURCES}
-  ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
   ${HCB_SYSTEM_TRAY_SOURCES}
   ${HCB_WINDOWS_CREDENTIAL_SOURCES}
   src/app/WindowsPathsAdapter.cpp
@@ -200,6 +200,10 @@ qt_add_executable(hcb_native
   WIN32
   src/main.cpp
   ${HCB_NATIVE_SOURCES}
+)
+qt_add_resources(hcb_native "hcb_native_system_tray_resources"
+  PREFIX "/hcb"
+  FILES "${HCB_SYSTEM_TRAY_ICON}"
 )
 if(APPLE)
   set_target_properties(hcb_native PROPERTIES
@@ -478,6 +482,11 @@ if(BUILD_TESTING)
     COMMAND ${CMAKE_COMMAND}
       "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/NativeReleaseAcceptanceConfigTest.cmake"
+  )
+  add_test(NAME hcb_github_actions_workflow_context_tests
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/GitHubActionsWorkflowContextTest.cmake"
   )
   add_test(NAME hcb_electron_cutover_removal_tests
     COMMAND ${CMAKE_COMMAND}
@@ -1956,8 +1965,11 @@ if(BUILD_TESTING)
 
   qt_add_executable(hcb_system_tray_adapter_tests
     tests/SystemTrayAdapterTest.cpp
-    ${HCB_SYSTEM_TRAY_RESOURCE_SOURCES}
     ${HCB_SYSTEM_TRAY_SOURCES}
+  )
+  qt_add_resources(hcb_system_tray_adapter_tests "hcb_system_tray_adapter_test_resources"
+    PREFIX "/hcb"
+    FILES "${HCB_SYSTEM_TRAY_ICON}"
   )
   target_link_libraries(hcb_system_tray_adapter_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Test Qt6::Widgets)
   target_include_directories(hcb_system_tray_adapter_tests PRIVATE src)
