@@ -16,6 +16,7 @@
 #include <QDateTime>
 #include <QTimeZone>
 #include <QTimer>
+#include <QThread>
 #include <QUrlQuery>
 
 #include <algorithm>
@@ -31,6 +32,7 @@ namespace {
 constexpr int kCalendarTimelineDays = 7;
 constexpr int kVisibleAllDayLaneCount = 2;
 constexpr char kGoogleAccountId[] = "google";
+constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
 
 [[nodiscard]] std::unique_ptr<OAuthCredentialStore> makeCredentialStore() {
 #if defined(Q_OS_MACOS)
@@ -103,21 +105,37 @@ AppController::AppController(FilePath databasePath,
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
+      optimisticMutationCoordinator_(databasePath, clock), syncCheckpointStore_(databasePath, clock),
+      syncConflictStore_(databasePath, clock), googleSyncRecoveryService_(syncCheckpointStore_),
+      googleTaskMutationPushService_(optimisticMutationCoordinator_,
+                                     googleHttpClient_,
+                                     clock,
+                                     SyncBackoffPolicy()),
+      googleCalendarEventMutationPushService_(optimisticMutationCoordinator_,
+                                              googleHttpClient_,
+                                              clock,
+                                              SyncBackoffPolicy()),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       noteService_(databasePath, clock), calendarReadService_(databasePath),
       taskMutationService_(databasePath, clock),
-      calendarMutationService_(std::move(databasePath), clock) {
+      calendarMutationService_(databasePath, clock),
+      syncScheduler_([this](const SyncSchedulerRequest& request) { return runGoogleSync(request); },
+                     clock) {
   connect(&oauthLoopbackListener_,
           &OAuthLoopbackCallbackListener::callbackReceived,
           this,
           &AppController::handleOAuthCallback);
 }
 
+AppController::~AppController() { syncScheduler_.stop(); }
+
 QString AppController::clientId() const { return clientId_; }
 
 bool AppController::googleConnected() const { return googleConnected_; }
 
 QString AppController::statusMessage() const { return statusMessage_; }
+
+QString AppController::syncStatus() const { return syncStatus_; }
 
 bool AppController::busy() const { return busy_; }
 
@@ -323,50 +341,112 @@ void AppController::finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet
 }
 
 void AppController::syncGoogle() {
-  if (googleSyncInProgress_) {
-    return;
-  }
   if (!googleConnected_ || clientId_.isEmpty() || credentialStore_ == nullptr) {
     return;
   }
-  googleSyncInProgress_ = true;
-  watch(
-      credentialStore_->read(QString::fromLatin1(kGoogleAccountId)),
-      [this](OAuthCredentialReadResult credential) {
-        if (std::holds_alternative<AppError>(credential)) {
-          finishGoogleSync(std::get<AppError>(credential));
-          return;
-        }
-        const std::optional<OAuthStoredCredential>& stored =
-            std::get<std::optional<OAuthStoredCredential>>(credential);
-        if (!stored.has_value() || !stored->refreshToken.has_value()) {
-          finishGoogleSync(AppError(AppErrorCode::Configuration,
-                                    QStringLiteral("Google authorization must be renewed")));
-          return;
-        }
-        const QString refreshToken = *stored->refreshToken;
-        watch(
-            oauthTokenRefreshClient_.refresh({.clientId = clientId_, .refreshToken = refreshToken}),
-            [this, refreshToken](OAuthTokenRefreshResult refreshed) {
-              if (std::holds_alternative<AppError>(refreshed)) {
-                finishGoogleSync(std::get<AppError>(refreshed));
-                return;
-              }
-              const QString accessToken = std::get<OAuthRefreshedToken>(refreshed).accessToken;
-              watch(credentialStore_->save(
-                        QString::fromLatin1(kGoogleAccountId),
-                        {.accessToken = accessToken, .refreshToken = refreshToken}),
-                    [this, accessToken](OAuthCredentialSaveResult saved) {
-                      if (std::holds_alternative<AppError>(saved)) {
-                        finishGoogleSync(std::get<AppError>(saved));
-                        return;
-                      }
-                      watch(pullGoogleData(accessToken), [this](GoogleMirrorWriteResult result) {
-                        finishGoogleSync(std::move(result));
-                      });
-                    });
-            });
-      });
+  requestGoogleSync(SyncScheduleTrigger::Manual);
+  startPeriodicGoogleSync();
+}
+
+void AppController::requestGoogleSync(SyncScheduleTrigger trigger) {
+  if (!googleConnected_ || clientId_.isEmpty() || credentialStore_ == nullptr) {
+    return;
+  }
+  setSyncStatus(QStringLiteral("pulling"));
+  watch(syncScheduler_.request(trigger), [this](SyncSchedulerResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      const AppError& error = std::get<AppError>(result);
+      setSyncStatus(error.code() == AppErrorCode::Configuration ? QStringLiteral("auth-required")
+                                                                : QStringLiteral("retrying"));
+      setStatus(errorMessage(error));
+      return;
+    }
+    if (syncStatus_ == QStringLiteral("pulling") || syncStatus_ == QStringLiteral("pushing")) {
+      setSyncStatus(QStringLiteral("idle"));
+    }
+    refresh();
+  });
+}
+
+void AppController::startPeriodicGoogleSync() {
+  if (googleConnected_ && !clientId_.isEmpty()) {
+    static_cast<void>(syncScheduler_.startPeriodic(kGoogleSyncInterval));
+  }
+}
+
+std::optional<AppError> AppController::runGoogleSync(const SyncSchedulerRequest&) {
+  if (credentialStore_ == nullptr || clientId_.isEmpty()) {
+    return AppError(AppErrorCode::Configuration,
+                    QStringLiteral("Google authorization must be renewed"));
+  }
+  if (const std::optional<AppError> initialization = optimisticMutationCoordinator_.ready().get();
+      initialization.has_value()) {
+    return initialization;
+  }
+  if (const std::optional<AppError> initialization = syncCheckpointStore_.ready().get();
+      initialization.has_value()) {
+    return initialization;
+  }
+  if (const std::optional<AppError> initialization = syncConflictStore_.ready().get();
+      initialization.has_value()) {
+    return initialization;
+  }
+  OAuthCredentialReadResult credential =
+      credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+  if (std::holds_alternative<AppError>(credential)) {
+    return std::get<AppError>(std::move(credential));
+  }
+  const std::optional<OAuthStoredCredential>& stored =
+      std::get<std::optional<OAuthStoredCredential>>(credential);
+  if (!stored.has_value() || !stored->refreshToken.has_value()) {
+    return AppError(AppErrorCode::Configuration,
+                    QStringLiteral("Google authorization must be renewed"));
+  }
+  const QString refreshToken = *stored->refreshToken;
+  OAuthTokenRefreshResult refreshed =
+      oauthTokenRefreshClient_.refresh({.clientId = clientId_, .refreshToken = refreshToken}).get();
+  if (std::holds_alternative<AppError>(refreshed)) {
+    return std::get<AppError>(std::move(refreshed));
+  }
+  const QString accessToken = std::get<OAuthRefreshedToken>(std::move(refreshed)).accessToken;
+  OAuthCredentialSaveResult saved =
+      credentialStore_->save(QString::fromLatin1(kGoogleAccountId),
+                             {.accessToken = accessToken, .refreshToken = refreshToken})
+          .get();
+  if (std::holds_alternative<AppError>(saved)) {
+    return std::get<AppError>(std::move(saved));
+  }
+  setSyncStatus(QStringLiteral("pushing"));
+  GoogleTaskMutationPushResultOrError taskPush =
+      googleTaskMutationPushService_.pushDue(accessToken).get();
+  if (std::holds_alternative<AppError>(taskPush)) {
+    return std::get<AppError>(std::move(taskPush));
+  }
+  GoogleCalendarEventMutationPushResultOrError eventPush =
+      googleCalendarEventMutationPushService_.pushDue(accessToken).get();
+  if (std::holds_alternative<AppError>(eventPush)) {
+    return std::get<AppError>(std::move(eventPush));
+  }
+  const bool hasDeferredMutations =
+      std::get<GoogleTaskMutationPushResult>(taskPush).failed > 0 ||
+      std::get<GoogleCalendarEventMutationPushResult>(eventPush).failed > 0;
+  SyncConflictListResult conflicts = syncConflictStore_.listUnresolved().get();
+  if (std::holds_alternative<AppError>(conflicts)) {
+    return std::get<AppError>(std::move(conflicts));
+  }
+  setSyncStatus(QStringLiteral("pulling"));
+  GoogleMirrorWriteResult pulled = pullGoogleData(accessToken).get();
+  if (std::holds_alternative<AppError>(pulled)) {
+    return std::get<AppError>(std::move(pulled));
+  }
+  if (!std::get<QList<SyncConflict>>(conflicts).isEmpty()) {
+    setSyncStatus(QStringLiteral("conflict"));
+  } else if (hasDeferredMutations) {
+    setSyncStatus(QStringLiteral("retrying"));
+  } else {
+    setSyncStatus(QStringLiteral("idle"));
+  }
+  return std::nullopt;
 }
 
 std::future<GoogleMirrorWriteResult> AppController::pullGoogleData(QString accessToken) {
@@ -448,16 +528,6 @@ std::future<GoogleMirrorWriteResult> AppController::pullGoogleData(QString acces
         AppError(AppErrorCode::Network, QStringLiteral("Google sync could not start")));
   }
   return future;
-}
-
-void AppController::finishGoogleSync(GoogleMirrorWriteResult result) {
-  googleSyncInProgress_ = false;
-  if (std::holds_alternative<AppError>(result)) {
-    setStatus(errorMessage(std::get<AppError>(result)));
-    return;
-  }
-  setStatus(QStringLiteral("Google synchronization complete"));
-  refresh();
 }
 
 void AppController::createTask(QString taskListId, QString parentTaskId, QString title) {
@@ -745,6 +815,21 @@ void AppController::setStatus(QString message) {
   }
   statusMessage_ = std::move(message);
   emit statusMessageChanged();
+}
+
+void AppController::setSyncStatus(QString status) {
+  if (QThread::currentThread() != thread()) {
+    static_cast<void>(QMetaObject::invokeMethod(
+        this,
+        [this, status = std::move(status)]() mutable { setSyncStatus(std::move(status)); },
+        Qt::QueuedConnection));
+    return;
+  }
+  if (syncStatus_ == status) {
+    return;
+  }
+  syncStatus_ = std::move(status);
+  emit syncStatusChanged();
 }
 
 void AppController::setBusy(bool busy) {

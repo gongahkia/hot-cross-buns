@@ -5,10 +5,13 @@
 #include "core/Clock.h"
 #include "core/FilePath.h"
 #include "core/GoogleCalendarEventPullClient.h"
+#include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleCalendarListPullClient.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
+#include "core/GoogleSyncRecoveryService.h"
 #include "core/GoogleTaskListPullClient.h"
+#include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/NoteService.h"
 #include "core/AccountStatusService.h"
@@ -18,7 +21,11 @@
 #include "core/OAuthLoopbackCallbackListener.h"
 #include "core/OAuthTokenExchangeClient.h"
 #include "core/OAuthTokenRefreshClient.h"
+#include "core/OptimisticMutationCoordinator.h"
 #include "core/PkceAuthorization.h"
+#include "core/SyncCheckpointStore.h"
+#include "core/SyncConflictStore.h"
+#include "core/SyncScheduler.h"
 #include "core/TaskListReadService.h"
 #include "core/TaskMutationService.h"
 #include "core/TaskReadService.h"
@@ -49,6 +56,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QString clientId READ clientId NOTIFY clientIdChanged)
   Q_PROPERTY(bool googleConnected READ googleConnected NOTIFY googleConnectedChanged)
   Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+  Q_PROPERTY(QString syncStatus READ syncStatus NOTIFY syncStatusChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -62,12 +70,14 @@ public:
                 TaskModel& taskModel,
                 TimelineModel& timelineModel,
                 QObject* parent = nullptr);
+  ~AppController() override;
   AppController(const AppController&) = delete;
   AppController& operator=(const AppController&) = delete;
 
   [[nodiscard]] QString clientId() const;
   [[nodiscard]] bool googleConnected() const;
   [[nodiscard]] QString statusMessage() const;
+  [[nodiscard]] QString syncStatus() const;
   [[nodiscard]] bool busy() const;
 
   Q_INVOKABLE void initialize();
@@ -109,6 +119,7 @@ signals:
   void clientIdChanged();
   void googleConnectedChanged();
   void statusMessageChanged();
+  void syncStatusChanged();
   void busyChanged();
 
 private:
@@ -152,9 +163,13 @@ private:
   void refreshCalendarEvents(QList<QString> calendarIds);
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
+  void requestGoogleSync(SyncScheduleTrigger trigger);
+  void startPeriodicGoogleSync();
+  [[nodiscard]] std::optional<AppError>
+  runGoogleSync(const SyncSchedulerRequest& request);
   [[nodiscard]] std::future<GoogleMirrorWriteResult> pullGoogleData(QString accessToken);
-  void finishGoogleSync(GoogleMirrorWriteResult result);
   void setStatus(QString message);
+  void setSyncStatus(QString status);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -179,16 +194,23 @@ private:
   GoogleCalendarListPullClient googleCalendarListPullClient_;
   GoogleCalendarEventPullClient googleCalendarEventPullClient_;
   GoogleMirrorStore googleMirrorStore_;
+  OptimisticMutationCoordinator optimisticMutationCoordinator_;
+  SyncCheckpointStore syncCheckpointStore_;
+  SyncConflictStore syncConflictStore_;
+  GoogleSyncRecoveryService googleSyncRecoveryService_;
+  GoogleTaskMutationPushService googleTaskMutationPushService_;
+  GoogleCalendarEventMutationPushService googleCalendarEventMutationPushService_;
   TaskListReadService taskListReadService_;
   TaskReadService taskReadService_;
   NoteService noteService_;
   CalendarReadService calendarReadService_;
   TaskMutationService taskMutationService_;
   CalendarMutationService calendarMutationService_;
+  SyncScheduler syncScheduler_;
   QString clientId_;
   bool googleConnected_{false};
-  bool googleSyncInProgress_{false};
   QString statusMessage_;
+  QString syncStatus_{QStringLiteral("idle")};
   bool busy_{false};
   bool pollScheduled_{false};
   std::vector<std::unique_ptr<PendingOperation>> pending_;

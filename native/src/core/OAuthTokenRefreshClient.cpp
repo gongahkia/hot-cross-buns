@@ -2,17 +2,32 @@
 
 #include "core/OAuthTokenExchangeClient.h"
 
+#include <QMetaObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrlQuery>
 
+#include <atomic>
 #include <future>
+#include <memory>
 #include <utility>
 
 namespace hcb {
 namespace {
 
 constexpr qsizetype kMaximumTokenLength = 8'192;
+
+struct Completion final {
+  std::atomic_bool completed{false};
+  std::promise<OAuthTokenRefreshResult> promise;
+};
+
+void complete(const std::shared_ptr<Completion>& completion, OAuthTokenRefreshResult result) {
+  bool expected = false;
+  if (completion->completed.compare_exchange_strong(expected, true)) {
+    completion->promise.set_value(std::move(result));
+  }
+}
 
 [[nodiscard]] AppError validationError(QString message) {
   return AppError(AppErrorCode::Validation, std::move(message));
@@ -59,24 +74,45 @@ OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
   if (request.clientSecret.has_value()) {
     form.addQueryItem(QStringLiteral("client_secret"), *request.clientSecret);
   }
-  QNetworkRequest networkRequest(OAuthTokenExchangeClient::defaultTokenEndpoint());
-  networkRequest.setHeader(QNetworkRequest::ContentTypeHeader,
-                           QStringLiteral("application/x-www-form-urlencoded"));
-  networkRequest.setRawHeader("Accept", "application/json");
-  QNetworkReply* const reply =
-      manager_->post(networkRequest, form.toString(QUrl::FullyEncoded).toUtf8());
-  auto completion = std::make_shared<std::promise<OAuthTokenRefreshResult>>();
-  std::future<OAuthTokenRefreshResult> future = completion->get_future();
-  connect(reply, &QNetworkReply::finished, this, [reply, completion] {
-    const QByteArray responseBody = reply->readAll();
-    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    const OAuthTokenRefreshResult result =
-        reply->error() == QNetworkReply::NoError && status >= 200 && status <= 299
-            ? OAuthTokenRefreshClient::decodeTokenResponse(responseBody)
-            : OAuthTokenRefreshResult(networkError(QStringLiteral("OAuth token refresh failed")));
-    completion->set_value(result);
-    reply->deleteLater();
-  });
+  const QByteArray body = form.toString(QUrl::FullyEncoded).toUtf8();
+  auto completion = std::make_shared<Completion>();
+  std::future<OAuthTokenRefreshResult> future = completion->promise.get_future();
+  if (!QMetaObject::invokeMethod(
+          this,
+          [this, body, completion] {
+            QNetworkRequest networkRequest(OAuthTokenExchangeClient::defaultTokenEndpoint());
+            networkRequest.setHeader(QNetworkRequest::ContentTypeHeader,
+                                     QStringLiteral("application/x-www-form-urlencoded"));
+            networkRequest.setRawHeader("Accept", "application/json");
+            QNetworkReply* const reply = manager_->post(networkRequest, body);
+            if (reply == nullptr) {
+              complete(completion,
+                       OAuthTokenRefreshResult(
+                           networkError(QStringLiteral("OAuth token refresh could not start"))));
+              return;
+            }
+            connect(reply, &QNetworkReply::finished, this, [reply, completion] {
+              const QByteArray responseBody = reply->readAll();
+              const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+              const OAuthTokenRefreshResult result =
+                  reply->error() == QNetworkReply::NoError && status >= 200 && status <= 299
+                      ? OAuthTokenRefreshClient::decodeTokenResponse(responseBody)
+                      : OAuthTokenRefreshResult(
+                            networkError(QStringLiteral("OAuth token refresh failed")));
+              complete(completion, result);
+              reply->deleteLater();
+            });
+            connect(reply, &QObject::destroyed, [completion] {
+              complete(completion,
+                       OAuthTokenRefreshResult(
+                           networkError(QStringLiteral("OAuth token refresh was cancelled"))));
+            });
+          },
+          Qt::QueuedConnection)) {
+    complete(completion,
+             OAuthTokenRefreshResult(
+                 networkError(QStringLiteral("OAuth token refresh was cancelled"))));
+  }
   return future;
 }
 

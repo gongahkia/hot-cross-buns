@@ -139,7 +139,11 @@ execute(sqlite3* handle, const char* sql, const QList<SqlValue>& values) {
 markTaskListsDeleted(sqlite3* handle, const QString& accountId, const QString& now) {
   return execute(handle,
                  "UPDATE local_task_lists SET deleted_at = ?1, updated_at = ?1 "
-                 "WHERE account_id = ?2 AND deleted_at IS NULL",
+                 "WHERE account_id = ?2 AND deleted_at IS NULL "
+                 "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+                 "WHERE mutations.resource_type = 'task_list' "
+                 "AND mutations.resource_id = local_task_lists.id "
+                 "AND mutations.status IN ('pending', 'applying'))",
                  {textValue(now), textValue(accountId)});
 }
 
@@ -147,7 +151,11 @@ markTaskListsDeleted(sqlite3* handle, const QString& accountId, const QString& n
 markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
   return execute(handle,
                  "UPDATE local_tasks SET deleted_at = ?1, updated_at = ?1 "
-                 "WHERE task_list_id = ?2 AND deleted_at IS NULL",
+                 "WHERE task_list_id = ?2 AND deleted_at IS NULL "
+                 "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+                 "WHERE mutations.resource_type = 'task' "
+                 "AND mutations.resource_id = local_tasks.id "
+                 "AND mutations.status IN ('pending', 'applying'))",
                  {textValue(now), textValue(listId)});
 }
 
@@ -164,7 +172,11 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "ON CONFLICT(account_id, remote_id) DO UPDATE SET "
       "title = excluded.title, etag = excluded.etag, sort_order = excluded.sort_order, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
-      "deleted_at = NULL",
+      "deleted_at = NULL "
+      "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'task_list' "
+      "AND mutations.resource_id = local_task_lists.id "
+      "AND mutations.status IN ('pending', 'applying'))",
       {textValue(taskListId(accountId, taskList.id)),
        textValue(accountId),
        textValue(taskList.id),
@@ -201,7 +213,11 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
       "remote_position = excluded.remote_position, sort_order = excluded.sort_order, "
       "is_hidden = excluded.is_hidden, etag = excluded.etag, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
-      "deleted_at = excluded.deleted_at",
+      "deleted_at = excluded.deleted_at "
+      "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'task' "
+      "AND mutations.resource_id = local_tasks.id "
+      "AND mutations.status IN ('pending', 'applying'))",
       {textValue(taskId(accountId, task.taskListId, task.id)),
        textValue(localListId),
        textValue(task.id),
@@ -246,7 +262,11 @@ markCalendarsDeleted(sqlite3* handle, const QString& accountId, const QString& n
 markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString& now) {
   return execute(handle,
                  "UPDATE local_calendar_events SET deleted_at = ?1, updated_at = ?1 "
-                 "WHERE calendar_id = ?2 AND deleted_at IS NULL",
+                 "WHERE calendar_id = ?2 AND deleted_at IS NULL "
+                 "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+                 "WHERE mutations.resource_type = 'event' "
+                 "AND mutations.resource_id = local_calendar_events.id "
+                 "AND mutations.status IN ('pending', 'applying'))",
                  {textValue(now), textValue(localCalendarId)});
 }
 
@@ -335,7 +355,11 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "transparency = excluded.transparency, visibility = excluded.visibility, "
       "time_zone = excluded.time_zone, etag = excluded.etag, sequence = excluded.sequence, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
-      "deleted_at = excluded.deleted_at",
+      "deleted_at = excluded.deleted_at "
+      "WHERE NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'event' "
+      "AND mutations.resource_id = local_calendar_events.id "
+      "AND mutations.status IN ('pending', 'applying'))",
       {textValue(eventId(accountId, event.calendarId, event.id)),
        textValue(calendarId(accountId, event.calendarId)),
        textValue(event.id),
