@@ -1,0 +1,114 @@
+extends Node
+
+const SAVE_PATH := "user://a_slow_walk_settings.json"
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "dash", "slide", "reset_run", "pause"]
+
+var mouse_sensitivity := 0.0022
+var invert_y := false
+var slide_toggle := false
+var master_volume := 0.8
+var ambient_volume := 0.55
+var sfx_volume := 0.75
+var bindings: Dictionary = {}
+
+func _ready() -> void:
+	load_settings()
+	apply_bindings()
+
+func default_binding_data() -> Dictionary:
+	return {
+		"move_forward": [{"type": "key", "code": KEY_W}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_Y, "value": -1.0}],
+		"move_back": [{"type": "key", "code": KEY_S}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_Y, "value": 1.0}],
+		"move_left": [{"type": "key", "code": KEY_A}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": -1.0}],
+		"move_right": [{"type": "key", "code": KEY_D}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": 1.0}],
+		"jump": [{"type": "key", "code": KEY_SPACE}, {"type": "joy_button", "button": JOY_BUTTON_A}],
+		"dash": [{"type": "key", "code": KEY_SHIFT}, {"type": "joy_button", "button": JOY_BUTTON_RIGHT_SHOULDER}],
+		"slide": [{"type": "key", "code": KEY_CTRL}, {"type": "joy_button", "button": JOY_BUTTON_B}],
+		"reset_run": [{"type": "key", "code": KEY_R}, {"type": "joy_button", "button": JOY_BUTTON_Y}],
+		"pause": [{"type": "key", "code": KEY_ESCAPE}, {"type": "joy_button", "button": JOY_BUTTON_START}]
+	}
+
+func load_settings() -> void:
+	bindings = default_binding_data()
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var parsed = JSON.parse_string(file.get_as_text())
+	if not parsed is Dictionary:
+		return
+	mouse_sensitivity = float(parsed.get("mouse_sensitivity", mouse_sensitivity))
+	invert_y = bool(parsed.get("invert_y", invert_y))
+	slide_toggle = bool(parsed.get("slide_toggle", slide_toggle))
+	master_volume = float(parsed.get("master_volume", master_volume))
+	ambient_volume = float(parsed.get("ambient_volume", ambient_volume))
+	sfx_volume = float(parsed.get("sfx_volume", sfx_volume))
+	var saved_bindings = parsed.get("bindings", {})
+	if saved_bindings is Dictionary:
+		for action in ACTIONS:
+			if saved_bindings.has(action):
+				bindings[action] = saved_bindings[action]
+
+func save_settings() -> void:
+	var data := {
+		"mouse_sensitivity": mouse_sensitivity,
+		"invert_y": invert_y,
+		"slide_toggle": slide_toggle,
+		"master_volume": master_volume,
+		"ambient_volume": ambient_volume,
+		"sfx_volume": sfx_volume,
+		"bindings": bindings
+	}
+	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	file.store_string(JSON.stringify(data))
+
+func apply_bindings() -> void:
+	for action in ACTIONS:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		InputMap.action_erase_events(action)
+		var action_bindings = bindings.get(action, [])
+		for binding in action_bindings:
+			var event := event_from_data(binding)
+			if event:
+				InputMap.action_add_event(action, event)
+
+func set_binding(action: String, event: InputEvent) -> void:
+	if not ACTIONS.has(action):
+		return
+	var data := data_from_event(event)
+	if data.is_empty():
+		return
+	bindings[action] = [data]
+	apply_bindings()
+	save_settings()
+
+func event_from_data(data: Dictionary) -> InputEvent:
+	match String(data.get("type", "")):
+		"key":
+			var event := InputEventKey.new()
+			event.physical_keycode = int(data.get("code", 0))
+			return event
+		"joy_button":
+			var event := InputEventJoypadButton.new()
+			event.button_index = int(data.get("button", 0))
+			return event
+		"joy_axis":
+			var event := InputEventJoypadMotion.new()
+			event.axis = int(data.get("axis", 0))
+			event.axis_value = float(data.get("value", 0.0))
+			return event
+	return null
+
+func data_from_event(event: InputEvent) -> Dictionary:
+	if event is InputEventKey and event.physical_keycode != KEY_NONE:
+		return {"type": "key", "code": event.physical_keycode}
+	if event is InputEventJoypadButton and event.pressed:
+		return {"type": "joy_button", "button": event.button_index}
+	return {}
+
+func binding_label(action: String) -> String:
+	var action_bindings = bindings.get(action, [])
+	if action_bindings.is_empty():
+		return "Unbound"
+	var event := event_from_data(action_bindings[0])
+	return event.as_text().replace(" (Physical)", "") if event else "Unbound"
