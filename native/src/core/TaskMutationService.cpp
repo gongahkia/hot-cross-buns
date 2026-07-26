@@ -1,10 +1,13 @@
 #include "core/TaskMutationService.h"
 
 #include "data/LocalSchema.h"
+#include "data/SqliteTransaction.h"
 #include "sqlite3.h"
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 #include <QTimeZone>
 #include <QUuid>
@@ -24,6 +27,27 @@ constexpr qsizetype kMaximumTitleLength = 500;
 constexpr qsizetype kMaximumNotesLength = 10'000;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr qsizetype kMaximumTimeZoneLength = 128;
+constexpr char kConflictMetadataKey[] = "_hcbSync";
+
+struct StoredTaskContext final {
+  QString taskId;
+  QString accountId;
+  QString taskListRemoteId;
+  QString remoteId;
+  std::optional<QString> remoteEtag;
+  std::optional<QString> parentTaskId;
+  std::optional<QString> parentRemoteId;
+  QString title;
+  std::optional<QString> notes;
+  QString state;
+  std::optional<QString> dueAt;
+};
+
+struct ActiveTaskMutation final {
+  QString id;
+  QString operation;
+  QJsonObject payload;
+};
 
 [[nodiscard]] AppError databaseError(const QString& message, int result) {
   return AppError(AppErrorCode::Database, message.arg(result));
@@ -137,6 +161,394 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
     }
   }
   return std::nullopt;
+}
+
+[[nodiscard]] std::optional<QString> optionalText(sqlite3_stmt* statement, int index) {
+  if (sqlite3_column_type(statement, index) == SQLITE_NULL) {
+    return std::nullopt;
+  }
+  const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(statement, index));
+  const int size = sqlite3_column_bytes(statement, index);
+  return value == nullptr || size < 0 ? std::nullopt
+                                      : std::optional<QString>(QString::fromUtf8(value, size));
+}
+
+[[nodiscard]] std::variant<std::optional<StoredTaskContext>, AppError>
+readTaskContext(SqliteConnection& connection, const QString& taskId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT tasks.id, lists.account_id, lists.remote_id, tasks.remote_id, tasks.etag,
+       tasks.parent_task_id, parent.remote_id, tasks.title, tasks.notes, tasks.state, tasks.due_at
+FROM local_tasks AS tasks
+INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+LEFT JOIN local_tasks AS parent ON parent.id = tasks.parent_task_id
+WHERE tasks.id = ?1 AND tasks.deleted_at IS NULL AND lists.deleted_at IS NULL
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task context preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, taskId); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  if (stepResult == SQLITE_DONE) {
+    const int finalizeResult = sqlite3_finalize(statement);
+    return finalizeResult == SQLITE_OK
+               ? std::optional<StoredTaskContext>{}
+               : std::variant<std::optional<StoredTaskContext>, AppError>(
+                     databaseError(QStringLiteral("SQLite task context finalization failed (%1)"),
+                                   finalizeResult));
+  }
+  if (stepResult != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task context lookup failed (%1)"), stepResult);
+  }
+  const std::optional<QString> storedTaskId = optionalText(statement, 0);
+  const std::optional<QString> accountId = optionalText(statement, 1);
+  const std::optional<QString> taskListRemoteId = optionalText(statement, 2);
+  const std::optional<QString> remoteId = optionalText(statement, 3);
+  const std::optional<QString> title = optionalText(statement, 7);
+  const std::optional<QString> state = optionalText(statement, 9);
+  if (!storedTaskId.has_value() || !accountId.has_value() || !taskListRemoteId.has_value() ||
+      !remoteId.has_value() || !title.has_value() || !state.has_value()) {
+    sqlite3_finalize(statement);
+    return AppError(AppErrorCode::Database, QStringLiteral("Stored task is invalid"));
+  }
+  StoredTaskContext context{.taskId = *storedTaskId,
+                            .accountId = *accountId,
+                            .taskListRemoteId = *taskListRemoteId,
+                            .remoteId = *remoteId,
+                            .remoteEtag = optionalText(statement, 4),
+                            .parentTaskId = optionalText(statement, 5),
+                            .parentRemoteId = optionalText(statement, 6),
+                            .title = *title,
+                            .notes = optionalText(statement, 8),
+                            .state = *state,
+                            .dueAt = optionalText(statement, 10)};
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? std::variant<std::optional<StoredTaskContext>, AppError>(std::move(context))
+             : std::variant<std::optional<StoredTaskContext>, AppError>(databaseError(
+                   QStringLiteral("SQLite task context finalization failed (%1)"), finalizeResult));
+}
+
+[[nodiscard]] bool isPendingRemoteId(const QString& remoteId) {
+  return remoteId.startsWith(QStringLiteral("pending:"));
+}
+
+[[nodiscard]] QJsonValue googleDue(const std::optional<QString>& dueAt) {
+  if (!dueAt.has_value()) {
+    return QJsonValue::Null;
+  }
+  const QDateTime parsed = QDateTime::fromString(*dueAt, Qt::ISODate);
+  return parsed.isValid() ? QJsonValue(parsed.date().toString(Qt::ISODate)) : QJsonValue::Null;
+}
+
+[[nodiscard]] QJsonObject taskSnapshot(const StoredTaskContext& task) {
+  return {{QStringLiteral("title"), task.title},
+          {QStringLiteral("notes"),
+           task.notes.has_value() ? QJsonValue(*task.notes) : QJsonValue::Null},
+          {QStringLiteral("status"),
+           task.state == QStringLiteral("completed") ? QJsonValue(QStringLiteral("completed"))
+                                                     : QJsonValue(QStringLiteral("needsAction"))},
+          {QStringLiteral("due"), googleDue(task.dueAt)}};
+}
+
+[[nodiscard]] QJsonObject taskPayload(const StoredTaskContext& task, bool includeRemoteIdentity) {
+  QJsonObject payload{{QStringLiteral("taskListId"), task.taskListRemoteId},
+                      {QStringLiteral("localTaskId"), task.taskId},
+                      {QStringLiteral("task"), taskSnapshot(task)}};
+  if (includeRemoteIdentity) {
+    payload.insert(QStringLiteral("remoteTaskId"), task.remoteId);
+  }
+  if (task.parentTaskId.has_value()) {
+    if (task.parentRemoteId.has_value() && !isPendingRemoteId(*task.parentRemoteId)) {
+      payload.insert(QStringLiteral("parentTaskId"), *task.parentRemoteId);
+    } else {
+      payload.insert(QStringLiteral("parentTaskLocalId"), *task.parentTaskId);
+    }
+  }
+  return payload;
+}
+
+[[nodiscard]] QJsonObject deletePayload(const StoredTaskContext& task) {
+  return {{QStringLiteral("taskListId"), task.taskListRemoteId},
+          {QStringLiteral("remoteTaskId"), task.remoteId},
+          {QStringLiteral("localTaskId"), task.taskId}};
+}
+
+[[nodiscard]] QJsonObject withConflictMetadata(QJsonObject payload,
+                                               QJsonObject baseSnapshot,
+                                               const std::optional<QString>& remoteEtag) {
+  QJsonObject metadata{{QStringLiteral("base"), std::move(baseSnapshot)}};
+  if (remoteEtag.has_value()) {
+    metadata.insert(QStringLiteral("etag"), *remoteEtag);
+  }
+  payload.insert(QString::fromLatin1(kConflictMetadataKey), std::move(metadata));
+  return payload;
+}
+
+[[nodiscard]] std::variant<std::optional<ActiveTaskMutation>, AppError>
+findActiveTaskMutation(SqliteConnection& connection, const QString& taskId) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT id, operation, payload_json
+FROM local_pending_mutations
+WHERE resource_type = 'task' AND resource_id = ?1 AND status IN ('pending', 'failed')
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task mutation lookup preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, taskId); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  if (stepResult == SQLITE_DONE) {
+    const int finalizeResult = sqlite3_finalize(statement);
+    return finalizeResult == SQLITE_OK
+               ? std::optional<ActiveTaskMutation>{}
+               : std::variant<std::optional<ActiveTaskMutation>, AppError>(databaseError(
+                     QStringLiteral("SQLite task mutation lookup finalization failed (%1)"),
+                     finalizeResult));
+  }
+  if (stepResult != SQLITE_ROW) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task mutation lookup failed (%1)"), stepResult);
+  }
+  const std::optional<QString> mutationId = optionalText(statement, 0);
+  const std::optional<QString> operation = optionalText(statement, 1);
+  const std::optional<QString> payloadJson = optionalText(statement, 2);
+  QJsonParseError parseError;
+  const QJsonDocument payloadDocument =
+      payloadJson.has_value() ? QJsonDocument::fromJson(payloadJson->toUtf8(), &parseError)
+                              : QJsonDocument();
+  if (!mutationId.has_value() || !operation.has_value() || !payloadJson.has_value() ||
+      parseError.error != QJsonParseError::NoError || !payloadDocument.isObject()) {
+    sqlite3_finalize(statement);
+    return AppError(AppErrorCode::Database, QStringLiteral("Stored task mutation is invalid"));
+  }
+  ActiveTaskMutation mutation{
+      .id = *mutationId, .operation = *operation, .payload = payloadDocument.object()};
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? std::variant<std::optional<ActiveTaskMutation>, AppError>(std::move(mutation))
+             : std::variant<std::optional<ActiveTaskMutation>, AppError>(databaseError(
+                   QStringLiteral("SQLite task mutation lookup finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError> replaceActiveTaskMutation(SqliteConnection& connection,
+                                                                const ActiveTaskMutation& mutation,
+                                                                QString operation,
+                                                                QJsonObject payload,
+                                                                const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_pending_mutations
+SET operation = ?2, payload_json = ?3, status = 'pending', next_retry_at = NULL,
+    last_error_code = NULL, last_error_message = NULL, updated_at = ?4
+WHERE id = ?1 AND status IN ('pending', 'failed')
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task mutation replacement preparation failed (%1)"),
+                         prepareResult);
+  }
+  const QString payloadJson =
+      QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
+  if (const std::optional<AppError> error = bindAll(statement,
+                                                    {bindText(statement, 1, mutation.id),
+                                                     bindText(statement, 2, operation),
+                                                     bindText(statement, 3, payloadJson),
+                                                     bindText(statement, 4, updatedAt)});
+      error.has_value()) {
+    return error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task mutation replacement failed (%1)"),
+                         stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(
+        QStringLiteral("SQLite task mutation replacement finalization failed (%1)"),
+        finalizeResult);
+  }
+  return changedRows == 1 ? std::nullopt
+                          : std::optional<AppError>(
+                                AppError(AppErrorCode::Database,
+                                         QStringLiteral("Active task mutation was not replaced")));
+}
+
+[[nodiscard]] std::optional<AppError> removeActiveTaskMutation(SqliteConnection& connection,
+                                                               const ActiveTaskMutation& mutation) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult = sqlite3_prepare_v3(handle,
+                                               "DELETE FROM local_pending_mutations "
+                                               "WHERE id = ?1 AND status IN ('pending', 'failed')",
+                                               -1,
+                                               SQLITE_PREPARE_PERSISTENT,
+                                               &statement,
+                                               nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task mutation removal preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindText(statement, 1, mutation.id);
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task mutation removal failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite task mutation removal finalization failed (%1)"),
+                         finalizeResult);
+  }
+  return changedRows == 1
+             ? std::nullopt
+             : std::optional<AppError>(AppError(
+                   AppErrorCode::Database, QStringLiteral("Active task mutation was not removed")));
+}
+
+[[nodiscard]] std::optional<AppError> insertTaskMutation(SqliteConnection& connection,
+                                                         const StoredTaskContext& task,
+                                                         QString operation,
+                                                         QJsonObject payload,
+                                                         const QString& createdAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite task connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+INSERT INTO local_pending_mutations (
+  id, account_id, resource_type, resource_id, operation, payload_json, status, attempt_count,
+  created_at, updated_at
+) VALUES (?1, ?2, 'task', ?3, ?4, ?5, 'pending', 0, ?6, ?6)
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite task mutation enqueue preparation failed (%1)"),
+                         prepareResult);
+  }
+  const QString mutationId =
+      QStringLiteral("mutation:task:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+  const QString payloadJson =
+      QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
+  if (const std::optional<AppError> error = bindAll(statement,
+                                                    {bindText(statement, 1, mutationId),
+                                                     bindText(statement, 2, task.accountId),
+                                                     bindText(statement, 3, task.taskId),
+                                                     bindText(statement, 4, operation),
+                                                     bindText(statement, 5, payloadJson),
+                                                     bindText(statement, 6, createdAt)});
+      error.has_value()) {
+    return error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite task mutation enqueue failed (%1)"), stepResult);
+  }
+  return finalizeResult == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite task mutation enqueue finalization failed (%1)"),
+                   finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+queueTaskMutation(SqliteConnection& connection,
+                  const StoredTaskContext& before,
+                  const std::optional<StoredTaskContext>& after,
+                  QString operation,
+                  const QString& updatedAt) {
+  const std::variant<std::optional<ActiveTaskMutation>, AppError> activeResult =
+      findActiveTaskMutation(connection, before.taskId);
+  if (std::holds_alternative<AppError>(activeResult)) {
+    return std::get<AppError>(activeResult);
+  }
+  const std::optional<ActiveTaskMutation>& active =
+      std::get<std::optional<ActiveTaskMutation>>(activeResult);
+  const bool deleting = operation == QStringLiteral("task.delete");
+  if (active.has_value()) {
+    const QJsonValue metadata = active->payload.value(QString::fromLatin1(kConflictMetadataKey));
+    if (!metadata.isObject()) {
+      return AppError(AppErrorCode::Database, QStringLiteral("Stored task mutation is invalid"));
+    }
+    if (active->operation == QStringLiteral("task.create")) {
+      if (deleting) {
+        return removeActiveTaskMutation(connection, *active);
+      }
+      if (!after.has_value()) {
+        return AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable"));
+      }
+      QJsonObject payload = taskPayload(*after, false);
+      payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+      return replaceActiveTaskMutation(
+          connection, *active, QStringLiteral("task.create"), std::move(payload), updatedAt);
+    }
+    if (active->operation == QStringLiteral("task.update")) {
+      QJsonObject payload = deleting ? deletePayload(before) : taskPayload(*after, true);
+      payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+      return replaceActiveTaskMutation(
+          connection, *active, std::move(operation), std::move(payload), updatedAt);
+    }
+  }
+  QJsonObject payload = deleting ? deletePayload(before)
+                                 : taskPayload(*after, operation != QStringLiteral("task.create"));
+  payload = withConflictMetadata(
+      std::move(payload),
+      operation == QStringLiteral("task.create") ? QJsonObject() : taskSnapshot(before),
+      operation == QStringLiteral("task.create") ? std::optional<QString>{} : before.remoteEtag);
+  return insertTaskMutation(
+      connection, before, std::move(operation), std::move(payload), updatedAt);
 }
 
 [[nodiscard]] std::variant<TaskCreateInput, AppError> canonicalize(TaskCreateInput input) {
@@ -518,11 +930,40 @@ std::future<TaskMutationResult> TaskMutationService::create(TaskCreateInput inpu
   const QString taskId = QStringLiteral("task:") + localId;
   const QString remoteId = QStringLiteral("pending:") + localId;
   const QString updatedAt = timestamp(clock_);
-  return writerQueue_.enqueueResult(
-      [input = std::get<TaskCreateInput>(canonical), taskId, remoteId, updatedAt](
-          SqliteConnection& connection) {
-        return createStoredTask(connection, input, taskId, remoteId, updatedAt);
-      });
+  return writerQueue_.enqueueResult([input = std::get<TaskCreateInput>(canonical),
+                                     taskId,
+                                     remoteId,
+                                     updatedAt](SqliteConnection& connection) {
+    SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+    if (std::holds_alternative<AppError>(transactionResult)) {
+      return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+    }
+    SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    TaskMutationResult created = createStoredTask(connection, input, taskId, remoteId, updatedAt);
+    if (std::holds_alternative<AppError>(created)) {
+      return created;
+    }
+    const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+        readTaskContext(connection, taskId);
+    if (std::holds_alternative<AppError>(contextResult)) {
+      return TaskMutationResult(std::get<AppError>(contextResult));
+    }
+    const std::optional<StoredTaskContext>& context =
+        std::get<std::optional<StoredTaskContext>>(contextResult);
+    if (!context.has_value()) {
+      return TaskMutationResult(
+          AppError(AppErrorCode::Database, QStringLiteral("Created task is unavailable")));
+    }
+    if (const std::optional<AppError> error = queueTaskMutation(
+            connection, *context, context, QStringLiteral("task.create"), updatedAt);
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    return created;
+  });
 }
 
 std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput input) {
@@ -531,10 +972,48 @@ std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput inpu
     return readyFuture(TaskMutationResult(std::get<AppError>(canonical)));
   }
   const QString updatedAt = timestamp(clock_);
-  return writerQueue_.enqueueResult(
-      [input = std::get<TaskUpdateInput>(canonical), updatedAt](SqliteConnection& connection) {
-        return updateStoredTask(connection, input, updatedAt);
-      });
+  return writerQueue_.enqueueResult([input = std::get<TaskUpdateInput>(canonical),
+                                     updatedAt](SqliteConnection& connection) {
+    SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+    if (std::holds_alternative<AppError>(transactionResult)) {
+      return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+    }
+    SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    const std::variant<std::optional<StoredTaskContext>, AppError> beforeResult =
+        readTaskContext(connection, input.taskId);
+    if (std::holds_alternative<AppError>(beforeResult)) {
+      return TaskMutationResult(std::get<AppError>(beforeResult));
+    }
+    const std::optional<StoredTaskContext>& before =
+        std::get<std::optional<StoredTaskContext>>(beforeResult);
+    if (!before.has_value()) {
+      return TaskMutationResult(validationError(QStringLiteral("Task is unavailable for update")));
+    }
+    TaskMutationResult updated = updateStoredTask(connection, input, updatedAt);
+    if (std::holds_alternative<AppError>(updated)) {
+      return updated;
+    }
+    const std::variant<std::optional<StoredTaskContext>, AppError> afterResult =
+        readTaskContext(connection, input.taskId);
+    if (std::holds_alternative<AppError>(afterResult)) {
+      return TaskMutationResult(std::get<AppError>(afterResult));
+    }
+    const std::optional<StoredTaskContext>& after =
+        std::get<std::optional<StoredTaskContext>>(afterResult);
+    if (!after.has_value()) {
+      return TaskMutationResult(
+          AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable")));
+    }
+    if (const std::optional<AppError> error =
+            queueTaskMutation(connection, *before, after, QStringLiteral("task.update"), updatedAt);
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    return updated;
+  });
 }
 
 std::future<TaskMutationResult> TaskMutationService::moveToTaskList(QString taskId,
@@ -558,10 +1037,49 @@ std::future<TaskMutationResult> TaskMutationService::setCompleted(QString taskId
         TaskMutationResult(validationError(QStringLiteral("Task completion input is invalid"))));
   }
   const QString updatedAt = timestamp(clock_);
-  return writerQueue_.enqueueResult(
-      [taskId = std::move(taskId), completed, updatedAt](SqliteConnection& connection) {
-        return setStoredTaskCompletion(connection, taskId, completed, updatedAt);
-      });
+  return writerQueue_.enqueueResult([taskId = std::move(taskId), completed, updatedAt](
+                                        SqliteConnection& connection) {
+    SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+    if (std::holds_alternative<AppError>(transactionResult)) {
+      return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+    }
+    SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+    const std::variant<std::optional<StoredTaskContext>, AppError> beforeResult =
+        readTaskContext(connection, taskId);
+    if (std::holds_alternative<AppError>(beforeResult)) {
+      return TaskMutationResult(std::get<AppError>(beforeResult));
+    }
+    const std::optional<StoredTaskContext>& before =
+        std::get<std::optional<StoredTaskContext>>(beforeResult);
+    if (!before.has_value()) {
+      return TaskMutationResult(
+          validationError(QStringLiteral("Task is unavailable for completion")));
+    }
+    TaskMutationResult changed = setStoredTaskCompletion(connection, taskId, completed, updatedAt);
+    if (std::holds_alternative<AppError>(changed)) {
+      return changed;
+    }
+    const std::variant<std::optional<StoredTaskContext>, AppError> afterResult =
+        readTaskContext(connection, taskId);
+    if (std::holds_alternative<AppError>(afterResult)) {
+      return TaskMutationResult(std::get<AppError>(afterResult));
+    }
+    const std::optional<StoredTaskContext>& after =
+        std::get<std::optional<StoredTaskContext>>(afterResult);
+    if (!after.has_value()) {
+      return TaskMutationResult(
+          AppError(AppErrorCode::Database, QStringLiteral("Updated task is unavailable")));
+    }
+    if (const std::optional<AppError> error =
+            queueTaskMutation(connection, *before, after, QStringLiteral("task.update"), updatedAt);
+        error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+      return TaskMutationResult(*error);
+    }
+    return changed;
+  });
 }
 
 std::future<TaskMutationResult> TaskMutationService::remove(QString taskId) {
@@ -572,7 +1090,35 @@ std::future<TaskMutationResult> TaskMutationService::remove(QString taskId) {
   const QString updatedAt = timestamp(clock_);
   return writerQueue_.enqueueResult(
       [taskId = std::move(taskId), updatedAt](SqliteConnection& connection) {
-        return removeStoredTask(connection, taskId, updatedAt);
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<StoredTaskContext>, AppError> beforeResult =
+            readTaskContext(connection, taskId);
+        if (std::holds_alternative<AppError>(beforeResult)) {
+          return TaskMutationResult(std::get<AppError>(beforeResult));
+        }
+        const std::optional<StoredTaskContext>& before =
+            std::get<std::optional<StoredTaskContext>>(beforeResult);
+        if (!before.has_value()) {
+          return TaskMutationResult(
+              validationError(QStringLiteral("Task is unavailable for deletion")));
+        }
+        TaskMutationResult removed = removeStoredTask(connection, taskId, updatedAt);
+        if (std::holds_alternative<AppError>(removed)) {
+          return removed;
+        }
+        if (const std::optional<AppError> error = queueTaskMutation(
+                connection, *before, std::nullopt, QStringLiteral("task.delete"), updatedAt);
+            error.has_value()) {
+          return TaskMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return TaskMutationResult(*error);
+        }
+        return removed;
       });
 }
 
