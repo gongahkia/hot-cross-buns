@@ -114,6 +114,9 @@ func _initialize() -> void:
 	var slide_jump_result := transition_combo.add_action("slide_jump", 0.1)
 	assert(str(slide_jump_result.award.get("transition", "")) == "SLIDE HOP", "slide jump transition style missing")
 	assert(int(slide_jump_result.award.get("transition_points", 0)) > 0, "transition bonus missing")
+	transition_combo.add_action("grind", 0.2)
+	var rail_launch_result := transition_combo.add_action("rail_launch", 0.3)
+	assert(str(rail_launch_result.award.get("transition", "")) == "RAIL LAUNCH", "rail launch transition style missing")
 
 	var sandbox_player: Variant = main.player
 	var original_tether_toggle := bool(app_settings.get("tether_toggle"))
@@ -146,6 +149,11 @@ func _initialize() -> void:
 	sandbox_player.velocity = Vector3(0.0, 0.0, -20.0)
 	sandbox_player.apply_boost(Vector3(0.0, 0.0, -1.0))
 	assert(sandbox_player.velocity.z < -20.0, "boost overwrote instead of adding momentum")
+	sandbox_player.velocity = Vector3.ZERO
+	sandbox_player.ramp_launch_cooldown = 0.0
+	sandbox_player.velocity.z = -18.0
+	sandbox_player._try_ramp_launch(Vector3(0.0, 0.82, 0.57).normalized())
+	assert(sandbox_player.velocity.y > 0.0, "ramp launch did not convert speed into height")
 	sandbox_player.velocity = Vector3(8.0, 0.0, -14.0)
 	Input.action_press("move_forward")
 	sandbox_player._dash()
@@ -170,13 +178,27 @@ func _initialize() -> void:
 	assert(rail != null and rail.length() > 0.0, "grind rail missing")
 	var rail_sample := rail.sample(0.5)
 	sandbox_player.global_position = rail_sample.get("position", Vector3.ZERO) + Vector3.UP * 0.5
-	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 14.0
+	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 6.0
+	sandbox_player.grind_cooldown = 0.0
 	sandbox_player._try_start_grind()
 	assert(sandbox_player.is_grinding, "auto-grind did not acquire nearby rail")
+	assert(sandbox_player.grind_speed >= rail.minimum_speed, "rail did not boost a low-speed entry to its minimum")
 	var rail_distance: float = float(sandbox_player.grind_distance)
 	sandbox_player._update_grind(0.1, Vector2(0.0, -1.0))
 	assert(not is_equal_approx(sandbox_player.grind_distance, rail_distance), "grind did not advance along rail")
 	sandbox_player._exit_grind()
+	sandbox_player.global_position = rail_sample.get("position", Vector3.ZERO) + Vector3.UP * 0.5
+	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 27.0
+	sandbox_player.grind_cooldown = 0.0
+	sandbox_player._try_start_grind()
+	assert(is_equal_approx(sandbox_player.grind_speed, 27.0), "rail did not preserve a high-speed entry")
+	var active_rail: GrindRail = sandbox_player.grind_rail
+	assert(active_rail != null, "high-speed rail entry missing")
+	sandbox_player.grind_distance = active_rail.length() * active_rail.launch_fractions[0]
+	assert(not active_rail.launch_at(sandbox_player.grind_distance).is_empty(), "rail launch marker lookup missing")
+	assert(sandbox_player._try_rail_launch(), "marked rail launch did not activate")
+	assert(not sandbox_player.is_grinding and sandbox_player.velocity.y >= active_rail.launch_vertical_velocity, "rail launch did not add vertical speed")
+	assert(Vector2(sandbox_player.velocity.x, sandbox_player.velocity.z).length() >= 27.0, "rail launch did not add horizontal speed")
 	sandbox_player.can_dash = false
 	main._on_trigger(CourseTrigger.TriggerType.RECHARGE, {"tool": "dash"})
 	assert(sandbox_player.can_dash, "recharge gate did not restore dash")
@@ -229,9 +251,15 @@ func _initialize() -> void:
 	await process_frame
 	sandbox_player.velocity = Vector3.ZERO
 	assert(sandbox_player._try_grapple(), "grapple did not acquire visible anchor")
+	sandbox_player.grapple_anchor = grapple_anchor
+	sandbox_player.grapple_target = grapple_anchor.global_position
+	sandbox_player.grapple_rope_length = 7.0
+	var rope_length: float = float(sandbox_player.grapple_rope_length)
 	sandbox_player._update_grapple(0.1)
 	assert(sandbox_player.is_grappling, "grapple state missing")
 	assert(sandbox_player.velocity.z < 0.0, "grapple did not pull toward anchor")
+	sandbox_player._update_grapple(0.1, Vector2(1.0, 0.0))
+	assert(sandbox_player.grapple_rope_length < rope_length and absf(sandbox_player.velocity.x) > 0.05, "tether did not reel and pump tangential momentum")
 	sandbox_player._stop_grapple()
 	sandbox_player.velocity = Vector3(0.0, 0.0, -5.0)
 	main._refresh_grapple_reticle()

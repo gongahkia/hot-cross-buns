@@ -449,10 +449,11 @@ func _add_arena_gaps(parent: Node3D, positions: Array[Vector3], id_prefix: Strin
 	for index in range(positions.size()):
 		parent.add_child(_make_combo_gap(positions[index] + Vector3(0.0, 1.75, 0.0), id_prefix + "-" + str(index + 1), points))
 
-func _add_grind_rail(parent: Node3D, name: String, points: Array[Vector3]) -> void:
+func _add_grind_rail(parent: Node3D, name: String, points: Array[Vector3], launch_fractions := PackedFloat32Array([0.5, 0.9])) -> void:
 	var rail := GRIND_RAIL.new() as GrindRail
 	rail.name = name
 	rail.rail_points = PackedVector3Array(points)
+	rail.launch_fractions = launch_fractions
 	rail.set_meta("grind_rail", true)
 	parent.add_child(rail)
 	grind_rail_count += 1
@@ -516,8 +517,8 @@ func _build_sandbox(palette: Dictionary) -> void:
 	atrium.add_child(_make_launch(Vector3(-27.0, 4.7, -82.0)))
 	for anchor in [Vector3(-27.0, 8.8, -82.0), Vector3(-34.0, 12.4, -91.0), Vector3(-28.0, 15.4, -99.0)]:
 		_add_grapple_anchor(atrium, anchor, palette.sign)
-	_add_grind_rail(atrium, "AtriumFlowRail", [Vector3(-20.0, 4.0, -74.0), Vector3(-27.0, 7.3, -82.0), Vector3(-34.0, 10.8, -91.0), Vector3(-28.0, 13.8, -99.0)])
-	_add_grind_rail(atrium, "AtriumReturnRail", [Vector3(-20.0, 9.8, -91.0), Vector3(-25.0, 7.0, -82.0), Vector3(-20.0, 4.2, -74.0)])
+	_add_grind_rail(atrium, "AtriumFlowRail", [Vector3(-20.0, 4.0, -74.0), Vector3(-27.0, 7.3, -82.0), Vector3(-34.0, 10.8, -91.0), Vector3(-28.0, 13.8, -99.0)], PackedFloat32Array([0.42, 0.92]))
+	_add_grind_rail(atrium, "AtriumReturnRail", [Vector3(-20.0, 9.8, -91.0), Vector3(-25.0, 7.0, -82.0), Vector3(-20.0, 4.2, -74.0)], PackedFloat32Array([0.78]))
 	_add_arena_gaps(atrium, [aerial_points[1], aerial_points[2], aerial_points[3]], "sandbox-air", 420)
 	atrium.add_child(_make_recharge_gate(Vector3(-34.0, 13.8, -91.0), "dash", "atrium-dash"))
 	_add_route_collectibles(atrium, [Vector3(-27.0, 5.9, -82.0), Vector3(-34.0, 9.5, -91.0), Vector3(-28.0, 12.5, -99.0)])
@@ -541,7 +542,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	var bowl_points: Array[Vector3] = [Vector3(-18.0, 0.8, -108.0), Vector3(-10.0, 2.6, -120.0), Vector3(0.0, 4.2, -127.0), Vector3(11.0, 2.7, -120.0), Vector3(18.0, 0.8, -108.0), Vector3(0.0, 0.8, -103.0)]
 	_add_route_path(bowl, bowl_points, Vector3(7.2, 0.72, 6.2), 5.0, palette.finale, palette.ramp)
 	bowl.add_child(_make_ramp_between(bowl_points[bowl_points.size() - 1], bowl_points[0], 5.0, palette.ramp))
-	_add_grind_rail(bowl, "BowlFlowRail", [Vector3(-18.0, 3.0, -108.0), Vector3(-10.0, 5.0, -120.0), Vector3(0.0, 6.7, -127.0), Vector3(11.0, 5.1, -120.0), Vector3(18.0, 3.0, -108.0)])
+	_add_grind_rail(bowl, "BowlFlowRail", [Vector3(-18.0, 3.0, -108.0), Vector3(-10.0, 5.0, -120.0), Vector3(0.0, 6.7, -127.0), Vector3(11.0, 5.1, -120.0), Vector3(18.0, 3.0, -108.0)], PackedFloat32Array([0.48, 0.88]))
 	_add_arena_gaps(bowl, [bowl_points[1], bowl_points[2], bowl_points[3]], "sandbox-bowl", 520)
 	_add_route_collectibles(bowl, [Vector3(-10.0, 4.0, -120.0), Vector3(0.0, 5.7, -127.0), Vector3(11.0, 4.1, -120.0)])
 	bowl.add_child(_make_reset_pad(Vector3(0.0, 1.2, -103.0), Vector3(0.0, 1.4, -103.0), "Style Bowl"))
@@ -552,7 +553,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_route_path(line, line_points, Vector3(4.8, 0.7, 5.2), 3.4, palette.finale, palette.ramp)
 	line.add_child(_make_boost(Vector3(10.0, 1.1, -15.0), Vector3(0.5, 0.0, -0.9).normalized()))
 	line.add_child(_make_launch(Vector3(15.0, 5.8, -66.0)))
-	_add_grind_rail(line, "IntegratedFlowRail", [Vector3(15.0, 7.0, -66.0), Vector3(2.0, 9.2, -81.0), Vector3(-12.0, 11.1, -98.0), Vector3(-5.0, 9.5, -112.0)])
+	_add_grind_rail(line, "IntegratedFlowRail", [Vector3(15.0, 7.0, -66.0), Vector3(2.0, 9.2, -81.0), Vector3(-12.0, 11.1, -98.0), Vector3(-5.0, 9.5, -112.0)], PackedFloat32Array([0.34, 0.86]))
 	_add_grapple_anchor(line, Vector3(-3.0, 12.0, -89.0), palette.sign)
 	line.add_child(_make_recharge_gate(Vector3(2.0, 10.5, -81.0), "dash", "line-dash"))
 	_add_arena_gaps(line, [line_points[2], line_points[4], line_points[6]], "sandbox-line", 600)

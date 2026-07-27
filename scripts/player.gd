@@ -101,6 +101,7 @@ var wall_run_normal := Vector3.ZERO
 var grind_rail: GrindRail
 var grind_distance := 0.0
 var grind_direction := 1.0
+var grind_speed := 0.0
 var grind_cooldown := 0.0
 var roll_window := 0.0
 var ramp_launch_cooldown := 0.0
@@ -549,6 +550,7 @@ func reset_for_bail(spawn_position: Vector3) -> void:
 	flow_timer = 0.0
 	grind_rail = null
 	grind_distance = 0.0
+	grind_speed = 0.0
 	grind_cooldown = 0.0
 	roll_window = 0.0
 	wall_run_timer = 0.0
@@ -744,7 +746,8 @@ func _try_start_grind() -> void:
 	if is_grinding or grind_cooldown > 0.0 or is_slamming or is_grappling:
 		return
 	var planar_speed := _planar_velocity().length()
-	if planar_speed < GRIND_MIN_SPEED:
+	var entry_speed := maxf(planar_speed, velocity.length())
+	if entry_speed < 1.5:
 		return
 	var best_rail: GrindRail
 	var best_sample := {}
@@ -767,12 +770,13 @@ func _try_start_grind() -> void:
 	grind_rail = best_rail
 	grind_distance = float(best_sample.get("rail_distance", 0.0))
 	grind_direction = 1.0 if tangent.dot(_planar_velocity()) >= 0.0 else -1.0
+	grind_speed = maxf(entry_speed, best_rail.minimum_speed)
 	is_grinding = true
 	is_gliding = false
 	is_wall_running = false
 	is_wall_sliding = false
 	global_position = best_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-	velocity = tangent * planar_speed * grind_direction
+	velocity = tangent * grind_speed * grind_direction
 	traversal_action.emit("grind", -1)
 	_add_camera_shake(0.026)
 	_play_sfx("boost")
@@ -782,6 +786,8 @@ func _update_grind(delta: float, input_vector: Vector2) -> void:
 		_exit_grind()
 		return
 	if Input.is_action_just_pressed("jump"):
+		if _try_rail_launch():
+			return
 		_exit_grind()
 		velocity.y = JUMP_VELOCITY
 		traversal_action.emit("grind_exit", -1)
@@ -795,33 +801,51 @@ func _update_grind(delta: float, input_vector: Vector2) -> void:
 		_exit_grind()
 		return
 	var tangent: Vector3 = sample.get("tangent", Vector3.FORWARD)
-	var speed := maxf(GRIND_MIN_SPEED, _planar_velocity().length())
-	speed += grind_rail.speed_boost * delta
-	speed += -tangent.y * GRAVITY * delta
-	speed = clampf(speed, GRIND_MIN_SPEED, DASH_MAX_SPEED)
-	grind_distance += speed * grind_direction * delta
+	grind_speed = maxf(grind_rail.minimum_speed, grind_speed)
+	grind_speed += -tangent.y * GRAVITY * delta
+	grind_distance += grind_speed * grind_direction * delta
 	if grind_distance <= 0.0 or grind_distance >= grind_rail.length():
 		grind_distance = clampf(grind_distance, 0.0, grind_rail.length())
 		var end_sample := grind_rail.sample(grind_distance)
 		global_position = end_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-		velocity = end_sample.get("tangent", tangent) * speed * grind_direction
+		velocity = end_sample.get("tangent", tangent) * grind_speed * grind_direction
 		velocity.y = maxf(velocity.y, 1.8)
 		_exit_grind()
 		return
 	sample = grind_rail.sample(grind_distance)
 	global_position = sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-	velocity = sample.get("tangent", tangent) * speed * grind_direction
+	velocity = sample.get("tangent", tangent) * grind_speed * grind_direction
 	if input_vector.y > 0.5:
 		grind_direction = -1.0
 	elif input_vector.y < -0.5:
 		grind_direction = 1.0
 	_sample_flow(delta)
 
+func _try_rail_launch() -> bool:
+	if grind_rail == null:
+		return false
+	var launch_sample := grind_rail.launch_at(grind_distance)
+	if launch_sample.is_empty():
+		return false
+	var tangent: Vector3 = launch_sample.get("tangent", Vector3.FORWARD)
+	var launch_speed := grind_speed + grind_rail.launch_speed_bonus
+	velocity = tangent * launch_speed * grind_direction
+	velocity.y = maxf(velocity.y, grind_rail.launch_vertical_velocity)
+	can_dash = true
+	can_double_jump = true
+	_exit_grind()
+	traversal_action.emit("rail_launch", -1)
+	_add_camera_shake(0.048)
+	_emit_burst(0.65)
+	_play_sfx("launch")
+	return true
+
 func _exit_grind() -> void:
 	if not is_grinding:
 		return
 	is_grinding = false
 	grind_rail = null
+	grind_speed = 0.0
 	grind_cooldown = GRIND_EXIT_COOLDOWN
 
 func _double_jump() -> void:

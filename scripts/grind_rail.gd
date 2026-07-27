@@ -3,7 +3,11 @@ extends Node3D
 
 @export var rail_points := PackedVector3Array()
 @export var activation_radius := 1.45
-@export var speed_boost := 3.5
+@export var minimum_speed := 18.0
+@export var launch_fractions := PackedFloat32Array([0.5, 0.9])
+@export var launch_window := 1.25
+@export var launch_speed_bonus := 9.0
+@export var launch_vertical_velocity := 10.5
 
 var _segment_lengths := PackedFloat32Array()
 var _length := 0.0
@@ -54,6 +58,15 @@ func sample(distance_along_rail: float) -> Dictionary:
 		traversed += segment_length
 	return {}
 
+func launch_at(distance_along_rail: float) -> Dictionary:
+	for fraction in launch_fractions:
+		var launch_distance := clampf(fraction, 0.0, 1.0) * _length
+		if absf(distance_along_rail - launch_distance) <= launch_window:
+			var launch_sample := sample(launch_distance)
+			launch_sample["rail_distance"] = launch_distance
+			return launch_sample
+	return {}
+
 func _rebuild_cache() -> void:
 	_segment_lengths.clear()
 	_length = 0.0
@@ -90,3 +103,30 @@ func _build_visuals() -> void:
 		visual.position = (start + end) * 0.5
 		visual.basis = Basis(Quaternion(Vector3.UP, segment / segment_length))
 		visuals.add_child(visual)
+	var launch_material := StandardMaterial3D.new()
+	launch_material.albedo_color = Color("#f7e7a2")
+	launch_material.emission_enabled = true
+	launch_material.emission = Color("#f1d477")
+	launch_material.emission_energy_multiplier = 2.4
+	for fraction in launch_fractions:
+		var launch_sample := sample(clampf(fraction, 0.0, 1.0) * _length)
+		if launch_sample.is_empty():
+			continue
+		var marker := MeshInstance3D.new()
+		marker.name = "RailLaunch"
+		var marker_mesh := SphereMesh.new()
+		marker_mesh.radius = 0.24
+		marker_mesh.height = 0.48
+		marker.mesh = marker_mesh
+		marker.material_override = launch_material
+		marker.position = to_local(launch_sample.get("position", global_position)) + Vector3.UP * 0.32
+		visuals.add_child(marker)
+		var label := Label3D.new()
+		label.text = "JUMP LAUNCH"
+		label.font_size = 18
+		label.outline_size = 3
+		label.modulate = Color("#f7e7a2")
+		label.position = marker.position + Vector3.UP * 0.45
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.pixel_size = 0.008
+		visuals.add_child(label)
