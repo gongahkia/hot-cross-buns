@@ -8,6 +8,8 @@ var ghost: RunGhost
 var current_level: Dictionary = {}
 var collected_in_level := 0
 var total_collectibles_in_level := 0
+var traversal_ramp_count := 0
+var climbable_trunk_count := 0
 
 var ui: CanvasLayer
 var hud: Control
@@ -228,6 +230,8 @@ func _build_course(level: Dictionary) -> void:
 	add_child(course)
 	_add_forest_motes()
 	total_collectibles_in_level = 0
+	traversal_ramp_count = 0
+	climbable_trunk_count = 0
 	var world_length := maxf(float(level.length), 72.0)
 	var world_shift := float(level.get("offset", 0.0)) * 0.7
 	var summit_height := 7.2 + (0.8 if level.launches else 0.0)
@@ -320,6 +324,7 @@ func _build_open_terrain(world_shift: float, world_length: float) -> void:
 			course.add_child(_make_platform(Vector3(right_x - 2.2, 0.55, z + 3.0), Vector3(2.6, 1.9, 2.6), Color("#3b563d")))
 
 func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: float, color: Color) -> StaticBody3D:
+	traversal_ramp_count += 1
 	var body := StaticBody3D.new()
 	body.name = "TraversalRamp"
 	var path := end_surface - start_surface
@@ -340,6 +345,7 @@ func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: flo
 	return body
 
 func _add_climbable_trunk(position: Vector3, height: float, radius: float) -> void:
+	climbable_trunk_count += 1
 	var body := StaticBody3D.new()
 	body.name = "ClimbableTrunk"
 	body.position = position

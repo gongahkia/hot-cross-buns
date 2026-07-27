@@ -30,8 +30,8 @@ func _initialize() -> void:
 		assert(main.course != null, "missing course for " + level.id)
 		assert(main.course.get_node_or_null("OpenBasin") != null, "missing open basin for " + level.id)
 		assert(main.course.get_node_or_null("Summit") != null, "missing summit for " + level.id)
-		assert(main.course.find_children("TraversalRamp*", "StaticBody3D", true, false).size() >= 12, "missing traversal routes for " + level.id)
-		assert(main.course.find_children("ClimbableTrunk*", "StaticBody3D", true, false).size() >= 7, "missing climbable traversal for " + level.id)
+		assert(main.traversal_ramp_count >= 12, "missing traversal routes for " + level.id)
+		assert(main.climbable_trunk_count >= 7, "missing climbable traversal for " + level.id)
 		assert(main._collectible_count(level) >= 8, "missing collectibles for " + level.id)
 		runs.advance(1.0)
 		var before_pause: float = runs.elapsed
