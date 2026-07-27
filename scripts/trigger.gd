@@ -1,7 +1,7 @@
 class_name CourseTrigger
 extends Area3D
 
-enum TriggerType { GOAL, COLLECTIBLE, BOOST, LAUNCH, COMBO_GAP }
+enum TriggerType { COLLECTIBLE, BOOST, LAUNCH, COMBO_GAP, RESET }
 
 var trigger_type: TriggerType
 var payload: Variant
@@ -12,7 +12,7 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
 func _on_body_entered(body: Node3D) -> void:
-	if consumed or not (body is SpeedPlayer):
+	if consumed or not (body is CharacterBody3D):
 		return
 	if trigger_type == TriggerType.COLLECTIBLE:
 		consumed = true

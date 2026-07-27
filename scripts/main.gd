@@ -7,7 +7,6 @@ const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
 
 var course: Node3D
 var player: SpeedPlayer
-var ghost: RunGhost
 var player_spawn := Vector3.ZERO
 var current_level: Dictionary = {}
 var collected_in_level := 0
@@ -16,6 +15,11 @@ var traversal_ramp_count := 0
 var climbable_trunk_count := 0
 var grapple_anchor_count := 0
 var combo_gap_count := 0
+var trigger_count := 0
+var sandbox_stations: Array[Dictionary] = []
+var current_station := "Central Plaza"
+var last_sandbox_event := "Session started"
+var frame_time := 0.0
 
 var ui: CanvasLayer
 var hud: Control
@@ -38,6 +42,9 @@ var style_award_feed: StyleAwardFeed
 var style_meter_tween: Tween
 var briefing_label: Label
 var grapple_reticle: GrappleReticle
+var debug_panel: PanelContainer
+var debug_label: Label
+var debug_visible := false
 var rebinding_action := ""
 var rebinding_button: Button
 var menu_mode := "title"
@@ -98,8 +105,8 @@ func _build_ui() -> void:
 	top.add_theme_constant_override("separation", 16)
 	hud.add_child(top)
 	timer_label = _label("00:00.000", 32, Color("#edf3d5"))
-	par_label = _label("PAR --:--.---", 16, Color("#b5c6a5"))
-	collect_label = _label("* 0/0", 16, Color("#f2d98c"))
+	par_label = _label("SANDBOX  /  FREE PLAY", 16, Color("#b5c6a5"))
+	collect_label = _label("PICKUPS 0/0", 16, Color("#f2d98c"))
 	tool_label = _label("E TETHER / F GLIDE", 16, Color("#9edbb8"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -152,6 +159,24 @@ func _build_ui() -> void:
 	style_award_feed.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	style_award_feed.position = Vector2(-352.0, 94.0)
 	hud.add_child(style_award_feed)
+	debug_panel = PanelContainer.new()
+	debug_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	debug_panel.position = Vector2(-418.0, 20.0)
+	debug_panel.custom_minimum_size = Vector2(396.0, 0.0)
+	var debug_style := StyleBoxFlat.new()
+	debug_style.bg_color = Color("#07100be8")
+	debug_style.border_color = Color("#8ed6ae")
+	debug_style.set_border_width_all(1)
+	debug_style.content_margin_left = 12.0
+	debug_style.content_margin_right = 12.0
+	debug_style.content_margin_top = 10.0
+	debug_style.content_margin_bottom = 10.0
+	debug_panel.add_theme_stylebox_override("panel", debug_style)
+	debug_label = _label("", 13, Color("#c7f5d4"))
+	debug_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	debug_panel.add_child(debug_label)
+	debug_panel.visible = false
+	hud.add_child(debug_panel)
 	hud.visible = false
 	menu = Control.new()
 	menu.theme = ui_theme
@@ -180,6 +205,7 @@ func _build_ui() -> void:
 	_apply_pixel_filter(Settings.pixel_filter_mode)
 
 func _process(delta: float) -> void:
+	frame_time = delta
 	if not rebinding_action.is_empty():
 		return
 	if get_tree().paused:
@@ -191,10 +217,19 @@ func _process(delta: float) -> void:
 		_present_style_result(RunData.advance(delta))
 		_refresh_hud()
 		_refresh_grapple_reticle()
+		_refresh_sandbox_context()
+		_refresh_debug_hud()
 		if Input.is_action_just_pressed("pause"):
 			show_pause()
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F3 and rebinding_action.is_empty():
+		debug_visible = not debug_visible
+		debug_panel.visible = debug_visible and hud.visible
+		if debug_visible:
+			_refresh_debug_hud()
+		get_viewport().set_input_as_handled()
+		return
 	if rebinding_action.is_empty():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -224,11 +259,11 @@ func show_title() -> void:
 	box.add_theme_constant_override("separation", 14)
 	panel.add_child(box)
 	box.add_child(_label("a-slow-walk", 46, Color("#edf3d5")))
-	box.add_child(_label("a quiet forest speedrunner", 18, Color("#9db197")))
+	box.add_child(_label("a forest style arena", 18, Color("#9db197")))
 	var divider := HSeparator.new()
 	box.add_child(divider)
-	box.add_child(_label("Race your best ghost.\nEvery level is open. Every line can be faster.", 18, Color("#d3dec5")))
-	var start := _button("Choose a level", 22)
+	box.add_child(_label("Build lines, test movement, and bank style.", 18, Color("#d3dec5")))
+	var start := _button("Choose a space", 22)
 	start.pressed.connect(show_level_select)
 	box.add_child(start)
 	var settings := _button("Settings", 18)
@@ -249,19 +284,15 @@ func show_level_select() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	panel.add_child(box)
-	box.add_child(_label("Choose a trail", 34, Color("#edf3d5")))
-	box.add_child(_label("Beat the par. Leave a better ghost.", 16, Color("#aabda1")))
+	box.add_child(_label("Choose a space", 34, Color("#edf3d5")))
+	box.add_child(_label("Free play. Build style through the full movement kit.", 16, Color("#aabda1")))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 8)
 	box.add_child(grid)
 	for level in LEVELS.all_levels():
-		var best := RunData.best_time_for(level.id)
-		var record_text := "PB -" if best < 0.0 else "PB " + _time_text(best)
-		var best_style := RunData.best_style_for(level.id)
-		var style_text := "STYLE -" if best_style <= 0 else "STYLE %d" % best_style
-		var button := _button(level.title + "\nPAR " + _time_text(level.par) + "  -  " + record_text + "\n" + style_text, 16)
+		var button := _button(level.title + "\nFREE PLAY  -  FULL STYLE KIT\nF3 DIAGNOSTICS", 16)
 		button.custom_minimum_size = Vector2(350.0, 56.0)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.tooltip_text = level.briefing
@@ -292,6 +323,8 @@ func start_level(level_id: String) -> void:
 	_build_course(current_level)
 	RunData.begin_run(level_id)
 	hud.visible = true
+	debug_panel.visible = debug_visible
+	briefing_label.modulate.a = 1.0
 	briefing_label.text = current_level.title + " - " + current_level.briefing
 	var tween := create_tween()
 	tween.tween_property(briefing_label, "modulate:a", 0.0, 0.3).set_delay(4.0)
@@ -312,6 +345,10 @@ func _build_course(level: Dictionary) -> void:
 	climbable_trunk_count = 0
 	grapple_anchor_count = 0
 	combo_gap_count = 0
+	trigger_count = 0
+	sandbox_stations.clear()
+	current_station = "Central Plaza"
+	last_sandbox_event = "Session started"
 	var world_length := float(level.world_length)
 	var world_width := float(level.world_width)
 	var palette := _palette_for(str(level.terrain_style))
@@ -331,32 +368,7 @@ func _build_course(level: Dictionary) -> void:
 	player.combo_landed.connect(_on_combo_landed)
 	course.add_child(player)
 	_build_open_terrain(world_length, world_width, str(level.terrain_style))
-	match str(level.id):
-		"01-trailhead":
-			_build_trailhead(summit_surface, palette)
-		"02-moss-run":
-			_build_moss_run(summit_surface, palette)
-		"03-canopy-gap":
-			_build_canopy_gap(summit_surface, palette)
-		"04-root-tunnel":
-			_build_root_tunnel(summit_surface, palette)
-		"05-sky-sap":
-			_build_sky_sap(summit_surface, palette)
-		"06-wild-line":
-			_build_wild_line(summit_surface, palette)
-		"07-green-light":
-			_build_green_light(summit_surface, palette)
-		_:
-			push_error("Unknown level layout: " + str(level.id))
-	_build_combo_arena(str(level.id), summit_surface, palette)
-	_build_tool_route(level, palette)
-	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), palette.summit)
-	summit.name = "Summit"
-	course.add_child(summit)
-	course.add_child(_make_goal(summit_surface + Vector3(0.0, 1.15, -1.0)))
-	ghost = RunGhost.new()
-	ghost.set_frames(RunData.ghost_for(level.id))
-	course.add_child(ghost)
+	_build_sandbox(palette)
 
 func _route(name: String, focus: String) -> Node3D:
 	var route := Node3D.new()
@@ -392,6 +404,104 @@ func _add_course_sign(parent: Node3D, position: Vector3, text: String, color: Co
 	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sign.pixel_size = 0.008
 	parent.add_child(sign)
+
+func _build_sandbox(palette: Dictionary) -> void:
+	var central := _sandbox_station("CentralPlaza", "CENTRAL PLAZA", Vector3(0.0, 0.5, 1.0))
+	central.add_child(_make_platform(Vector3(0.0, 0.0, -5.0), Vector3(28.0, 0.8, 24.0), palette.start))
+	central.add_child(_make_reset_pad(Vector3(0.0, 0.55, 4.0), player_spawn, "Central Plaza", true))
+	_add_course_sign(central, Vector3(0.0, 4.4, -3.0), "SANDBOX  /  BUILD STYLE  /  F3 DEBUG", palette.sign)
+
+	var movement := _sandbox_station("MovementPlaza", "MOVEMENT PLAZA", Vector3(0.0, 1.5, -24.0))
+	var movement_points: Array[Vector3] = [Vector3(0.0, 0.5, -13.0), Vector3(-7.0, 1.4, -23.0), Vector3(0.0, 2.7, -33.0), Vector3(8.0, 1.6, -24.0), Vector3(0.0, 0.8, -15.0)]
+	_add_route_path(movement, movement_points, Vector3(8.6, 0.72, 7.0), 5.8, palette.safe, palette.ramp)
+	movement.add_child(_make_boost(Vector3(-3.5, 0.85, -17.0), Vector3(0.0, 0.0, -1.0)))
+	movement.add_child(_make_boost(Vector3(4.0, 2.05, -29.0), Vector3(0.7, 0.0, 0.4).normalized()))
+	_add_root_arch(movement, Vector3(0.0, 0.0, -23.5), 7.2, palette.root)
+	_add_route_collectibles(movement, [Vector3(-7.0, 2.8, -23.0), Vector3(0.0, 4.0, -33.0), Vector3(8.0, 3.0, -24.0)])
+	movement.add_child(_make_reset_pad(Vector3(0.0, 1.0, -15.0), Vector3(0.0, 1.2, -15.0), "Movement Plaza"))
+	_add_course_sign(movement, Vector3(0.0, 5.0, -24.0), "SPRINT  /  SLIDE  /  BOOST", palette.sign)
+
+	var gaps := _sandbox_station("GapYard", "GAP YARD", Vector3(-31.0, 2.5, -47.0))
+	var gap_points: Array[Vector3] = [Vector3(-18.0, 0.8, -33.0), Vector3(-27.0, 2.2, -43.0), Vector3(-35.0, 4.2, -52.0), Vector3(-27.0, 5.8, -62.0), Vector3(-18.0, 4.0, -56.0)]
+	_add_route_islands(gaps, gap_points, Vector3(5.0, 0.7, 5.0), palette.expert)
+	gaps.add_child(_make_ramp_between(Vector3(-8.0, 0.6, -25.0), gap_points[0], 4.2, palette.ramp))
+	_add_arena_gaps(gaps, [gap_points[1], gap_points[2], gap_points[3]], "sandbox-gap", 320)
+	_add_route_collectibles(gaps, [Vector3(-27.0, 3.7, -43.0), Vector3(-35.0, 5.7, -52.0), Vector3(-27.0, 7.3, -62.0)])
+	gaps.add_child(_make_reset_pad(Vector3(-18.0, 1.3, -33.0), Vector3(-18.0, 1.4, -33.0), "Gap Yard"))
+	_add_course_sign(gaps, Vector3(-31.0, 8.0, -49.0), "DOUBLE JUMP  /  AIR DASH  /  GAPS", palette.sign)
+
+	var tower := _sandbox_station("WallTower", "WALL TOWER", Vector3(30.0, 3.0, -47.0))
+	_add_interior_building(tower, Vector3(30.0, 0.0, -48.0), Vector2(22.0, 26.0), 13.0, palette.root)
+	var tower_points: Array[Vector3] = [Vector3(21.0, 0.6, -38.0), Vector3(24.0, 3.1, -47.0), Vector3(30.0, 5.7, -53.0), Vector3(36.0, 8.3, -47.0), Vector3(39.0, 10.4, -57.0)]
+	_add_route_islands(tower, tower_points, Vector3(4.6, 0.7, 4.6), palette.expert)
+	for index in range(4):
+		_add_climbable_trunk(Vector3(25.0 if index % 2 == 0 else 35.0, 0.0, -43.0 - float(index) * 3.8), 7.0 + float(index), 0.5, tower)
+	_add_route_collectibles(tower, [Vector3(24.0, 4.4, -47.0), Vector3(30.0, 7.0, -53.0), Vector3(36.0, 9.6, -47.0)])
+	tower.add_child(_make_reset_pad(Vector3(21.0, 1.0, -38.0), Vector3(21.0, 1.2, -38.0), "Wall Tower"))
+	_add_course_sign(tower, Vector3(30.0, 14.0, -48.0), "WALL JUMP TOWER", palette.sign)
+
+	var atrium := _sandbox_station("AerialAtrium", "AERIAL ATRIUM", Vector3(-30.0, 5.0, -86.0))
+	_add_interior_building(atrium, Vector3(-30.0, 0.0, -86.0), Vector2(24.0, 30.0), 18.0, palette.rock)
+	var aerial_points: Array[Vector3] = [Vector3(-20.0, 0.8, -72.0), Vector3(-27.0, 4.4, -82.0), Vector3(-34.0, 8.0, -91.0), Vector3(-28.0, 11.0, -99.0), Vector3(-20.0, 8.0, -91.0)]
+	_add_route_islands(atrium, aerial_points, Vector3(5.0, 0.7, 5.0), palette.finale)
+	atrium.add_child(_make_launch(Vector3(-20.0, 1.1, -72.0)))
+	atrium.add_child(_make_launch(Vector3(-27.0, 4.7, -82.0)))
+	for anchor in [Vector3(-27.0, 8.8, -82.0), Vector3(-34.0, 12.4, -91.0), Vector3(-28.0, 15.4, -99.0)]:
+		_add_grapple_anchor(atrium, anchor, palette.sign)
+	_add_arena_gaps(atrium, [aerial_points[1], aerial_points[2], aerial_points[3]], "sandbox-air", 420)
+	_add_route_collectibles(atrium, [Vector3(-27.0, 5.9, -82.0), Vector3(-34.0, 9.5, -91.0), Vector3(-28.0, 12.5, -99.0)])
+	atrium.add_child(_make_reset_pad(Vector3(-20.0, 1.2, -72.0), Vector3(-20.0, 1.4, -72.0), "Aerial Atrium"))
+	_add_course_sign(atrium, Vector3(-30.0, 20.0, -86.0), "TETHER  /  GLIDE  /  LAUNCH", palette.sign)
+
+	var power := _sandbox_station("PowerHall", "POWER HALL", Vector3(29.0, 3.0, -87.0))
+	_add_interior_building(power, Vector3(29.0, 0.0, -87.0), Vector2(24.0, 32.0), 11.0, palette.expert)
+	var power_points: Array[Vector3] = [Vector3(20.0, 0.8, -72.0), Vector3(28.0, 2.3, -82.0), Vector3(34.0, 4.1, -94.0), Vector3(27.0, 6.3, -103.0), Vector3(20.0, 4.2, -96.0)]
+	_add_route_path(power, power_points, Vector3(5.4, 0.7, 6.0), 3.8, palette.expert, palette.ramp)
+	for index in range(power_points.size() - 1):
+		var direction := Vector3(power_points[index + 1].x - power_points[index].x, 0.0, power_points[index + 1].z - power_points[index].z).normalized()
+		power.add_child(_make_boost(power_points[index] + Vector3(0.0, 0.45, -1.0), direction))
+	power.add_child(_make_launch(power_points[2] + Vector3(0.0, 0.45, 0.0)))
+	_add_route_collectibles(power, [Vector3(28.0, 3.5, -82.0), Vector3(34.0, 5.3, -94.0), Vector3(27.0, 7.5, -103.0)])
+	power.add_child(_make_reset_pad(Vector3(20.0, 1.2, -72.0), Vector3(20.0, 1.4, -72.0), "Power Hall"))
+	_add_course_sign(power, Vector3(29.0, 13.0, -87.0), "BOOST  /  LAUNCH  /  TRANSFER", palette.sign)
+
+	var bowl := _sandbox_station("StyleBowl", "STYLE BOWL", Vector3(0.0, 2.0, -119.0))
+	var bowl_points: Array[Vector3] = [Vector3(-18.0, 0.8, -108.0), Vector3(-10.0, 2.6, -120.0), Vector3(0.0, 4.2, -127.0), Vector3(11.0, 2.7, -120.0), Vector3(18.0, 0.8, -108.0), Vector3(0.0, 0.8, -103.0)]
+	_add_route_path(bowl, bowl_points, Vector3(7.2, 0.72, 6.2), 5.0, palette.finale, palette.ramp)
+	bowl.add_child(_make_ramp_between(bowl_points[bowl_points.size() - 1], bowl_points[0], 5.0, palette.ramp))
+	_add_arena_gaps(bowl, [bowl_points[1], bowl_points[2], bowl_points[3]], "sandbox-bowl", 520)
+	_add_route_collectibles(bowl, [Vector3(-10.0, 4.0, -120.0), Vector3(0.0, 5.7, -127.0), Vector3(11.0, 4.1, -120.0)])
+	bowl.add_child(_make_reset_pad(Vector3(0.0, 1.2, -103.0), Vector3(0.0, 1.4, -103.0), "Style Bowl"))
+	_add_course_sign(bowl, Vector3(0.0, 9.5, -119.0), "STYLE BOWL  /  LINK EVERYTHING", palette.sign)
+
+	var line := _route("IntegratedLine", "full-kit style route")
+	line.set_meta("station", "Integrated Line")
+	var line_points: Array[Vector3] = [Vector3(8.0, 0.8, -12.0), Vector3(18.0, 1.4, -27.0), Vector3(24.0, 4.0, -47.0), Vector3(15.0, 5.4, -66.0), Vector3(2.0, 7.0, -81.0), Vector3(-12.0, 9.0, -98.0), Vector3(-5.0, 7.3, -112.0), Vector3(0.0, 4.2, -127.0)]
+	_add_route_path(line, line_points, Vector3(4.8, 0.7, 5.2), 3.4, palette.finale, palette.ramp)
+	line.add_child(_make_boost(Vector3(10.0, 1.1, -15.0), Vector3(0.5, 0.0, -0.9).normalized()))
+	line.add_child(_make_launch(Vector3(15.0, 5.8, -66.0)))
+	_add_grapple_anchor(line, Vector3(-3.0, 12.0, -89.0), palette.sign)
+	_add_arena_gaps(line, [line_points[2], line_points[4], line_points[6]], "sandbox-line", 600)
+	_add_course_sign(line, Vector3(4.0, 13.0, -78.0), "INTEGRATED LINE  /  FULL KIT", palette.sign)
+
+func _sandbox_station(name: String, label: String, center: Vector3) -> Node3D:
+	var station := _route(name, label.to_lower())
+	station.set_meta("station", label)
+	sandbox_stations.append({"name": label, "center": center})
+	return station
+
+func _add_interior_building(parent: Node3D, position: Vector3, size: Vector2, height: float, color: Color) -> void:
+	var building := Node3D.new()
+	building.name = "InteriorBuilding"
+	building.position = position
+	building.set_meta("interior", true)
+	building.add_child(_make_platform(Vector3(0.0, -0.45, 0.0), Vector3(size.x, 0.9, size.y), color))
+	building.add_child(_make_platform(Vector3(-size.x * 0.5, height * 0.5, 0.0), Vector3(0.9, height, size.y), color))
+	building.add_child(_make_platform(Vector3(size.x * 0.5, height * 0.5, 0.0), Vector3(0.9, height, size.y), color))
+	building.add_child(_make_platform(Vector3(0.0, height * 0.5, -size.y * 0.5), Vector3(size.x, height, 0.9), color))
+	building.add_child(_make_platform(Vector3(-size.x * 0.24, height - 0.45, 0.0), Vector3(0.8, 0.8, size.y), color))
+	building.add_child(_make_platform(Vector3(size.x * 0.24, height - 0.45, 0.0), Vector3(0.8, 0.8, size.y), color))
+	parent.add_child(building)
 
 func _build_trailhead(summit: Vector3, palette: Dictionary) -> void:
 	var safe := _route("SafeRoute", "jump + double-jump")
@@ -773,19 +883,6 @@ func _make_platform(position: Vector3, size: Vector3, color: Color) -> StaticBod
 	body.add_child(collision)
 	return body
 
-func _make_goal(position: Vector3) -> CourseTrigger:
-	var goal := _trigger(CourseTrigger.TriggerType.GOAL, Vector3(4.0, 3.0, 3.0), null)
-	goal.position = position
-	var visual := MeshInstance3D.new()
-	var ring := TorusMesh.new()
-	ring.inner_radius = 0.75
-	ring.outer_radius = 1.0
-	visual.mesh = ring
-	visual.rotation.x = deg_to_rad(90.0)
-	visual.material_override = _material(Color("#d9cb72"), true)
-	goal.add_child(visual)
-	return goal
-
 func _make_collectible(position: Vector3) -> CourseTrigger:
 	var item := _trigger(CourseTrigger.TriggerType.COLLECTIBLE, Vector3(1.0, 1.4, 1.0), null)
 	item.position = position
@@ -849,7 +946,33 @@ func _make_combo_gap(position: Vector3, gap_id: String, points: int) -> CourseTr
 	gap.add_child(label)
 	return gap
 
+func _make_reset_pad(position: Vector3, spawn: Vector3, station: String, restart_session := false) -> CourseTrigger:
+	var pad := _trigger(CourseTrigger.TriggerType.RESET, Vector3(3.2, 1.2, 3.2), {"spawn": spawn, "station": station, "restart": restart_session})
+	pad.name = "CentralResetPad" if restart_session else "StationResetPad"
+	pad.position = position
+	pad.set_meta("station", station)
+	var visual := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 1.15
+	cylinder.bottom_radius = 1.35
+	cylinder.height = 0.18
+	visual.mesh = cylinder
+	visual.material_override = _material(Color("#7da7d8"), true)
+	pad.add_child(visual)
+	var label := Label3D.new()
+	label.text = "RESET RUN" if restart_session else "RESET HERE"
+	label.font = ui_theme.default_font
+	label.font_size = 22
+	label.outline_size = 4
+	label.modulate = Color("#d8edff")
+	label.position = Vector3(0.0, 1.1, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.008
+	pad.add_child(label)
+	return pad
+
 func _trigger(type: CourseTrigger.TriggerType, size: Vector3, payload: Variant) -> CourseTrigger:
+	trigger_count += 1
 	var trigger := CourseTrigger.new()
 	trigger.trigger_type = type
 	trigger.payload = payload
@@ -863,30 +986,88 @@ func _trigger(type: CourseTrigger.TriggerType, size: Vector3, payload: Variant) 
 
 func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 	match type:
-		CourseTrigger.TriggerType.GOAL:
-			_complete_level()
 		CourseTrigger.TriggerType.COLLECTIBLE:
 			collected_in_level += 1
 			RunData.add_collectible()
 			_present_style_result(RunData.add_style_action("collectible"))
 			Audio.play_sfx("pickup")
+			last_sandbox_event = "COLLECTIBLE"
 			_refresh_hud()
 		CourseTrigger.TriggerType.BOOST:
 			player.apply_boost(payload)
 			Audio.play_sfx("boost")
+			last_sandbox_event = "BOOST PAD"
 		CourseTrigger.TriggerType.LAUNCH:
 			player.launch(float(payload))
 			Audio.play_sfx("launch")
+			last_sandbox_event = "LAUNCH PAD"
 		CourseTrigger.TriggerType.COMBO_GAP:
 			var gap: Dictionary = payload if payload is Dictionary else {}
 			_present_style_result(RunData.add_style_action("gap", int(gap.get("points", 300)), str(gap.get("id", ""))))
 			Audio.play_sfx("pickup")
+			last_sandbox_event = "STYLE GAP " + str(gap.get("id", ""))
+		CourseTrigger.TriggerType.RESET:
+			var reset: Dictionary = payload if payload is Dictionary else {}
+			if bool(reset.get("restart", false)):
+				last_sandbox_event = "CENTRAL RESET"
+				call_deferred("_restart_level")
+			else:
+				_reset_to_station(reset)
 
 func _on_traversal_action(action: String, override_points: int) -> void:
+	last_sandbox_event = action.replace("_", " ").to_upper()
 	_present_style_result(RunData.add_style_action(action, override_points))
 
 func _on_combo_landed() -> void:
 	RunData.style_land()
+
+func _reset_to_station(reset: Dictionary) -> void:
+	if player == null:
+		return
+	var spawn: Variant = reset.get("spawn", player_spawn)
+	if not spawn is Vector3:
+		return
+	player.reset_for_bail(spawn)
+	current_station = str(reset.get("station", current_station))
+	last_sandbox_event = "RESET " + current_station.to_upper()
+
+func _refresh_sandbox_context() -> void:
+	if player == null or sandbox_stations.is_empty():
+		return
+	var nearest_name := current_station
+	var nearest_distance := INF
+	for station in sandbox_stations:
+		var center: Variant = station.get("center", Vector3.ZERO)
+		if not center is Vector3:
+			continue
+		var distance := player.global_position.distance_to(center)
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest_name = str(station.get("name", nearest_name))
+	current_station = nearest_name
+
+func _refresh_debug_hud() -> void:
+	if debug_panel == null or not debug_visible or not hud.visible or player == null:
+		return
+	var planar_speed := Vector2(player.velocity.x, player.velocity.z).length()
+	var anchor_text := "NONE"
+	if player.grapple_anchor and is_instance_valid(player.grapple_anchor):
+		anchor_text = player.grapple_anchor.name + " @ " + _vector_text(player.grapple_anchor.global_position)
+	var flags: Array[String] = []
+	if player.is_on_floor(): flags.append("GROUND")
+	if player.is_sprinting: flags.append("SPRINT")
+	if player.is_sliding: flags.append("SLIDE")
+	if player.is_slamming: flags.append("SLAM")
+	if player.is_gliding: flags.append("GLIDE")
+	if player.is_grappling: flags.append("TETHER")
+	if flags.is_empty(): flags.append("AIR")
+	var active_objects := int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS))
+	var collision_pairs := int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))
+	var islands := int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, last_sandbox_event]
+
+func _vector_text(value: Vector3) -> String:
+	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]
 
 func _present_style_result(result: Dictionary) -> void:
 	if style_award_feed == null:
@@ -1136,9 +1317,9 @@ func _refresh_hud() -> void:
 	if current_level.is_empty():
 		return
 	timer_label.text = _time_text(RunData.elapsed)
-	par_label.text = "PAR " + _time_text(float(current_level.par))
+	par_label.text = "SANDBOX  /  FREE PLAY"
 	var total := _collectible_count(current_level)
-	collect_label.text = "* %d/%d" % [RunData.collected, total]
+	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
 		tool_label.text = player.tool_status()
 	var style := RunData.style_snapshot()
@@ -1199,6 +1380,7 @@ func show_pause() -> void:
 	grapple_reticle.clear_target()
 	_clear_style_flash()
 	style_award_feed.clear_feed()
+	debug_panel.visible = false
 	menu_mode = "pause"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().paused = true
@@ -1212,7 +1394,7 @@ func show_pause() -> void:
 	var resume := _button("Resume", 19)
 	resume.pressed.connect(resume_run)
 	box.add_child(resume)
-	var restart := _button("Restart run", 19)
+	var restart := _button("Reset session", 19)
 	restart.pressed.connect(func():
 		get_tree().paused = false
 		_restart_level()
@@ -1221,7 +1403,7 @@ func show_pause() -> void:
 	var settings := _button("Settings", 19)
 	settings.pressed.connect(show_settings.bind("pause"))
 	box.add_child(settings)
-	var levels := _button("Level select", 19)
+	var levels := _button("Sandbox select", 19)
 	levels.pressed.connect(show_level_select)
 	box.add_child(levels)
 
@@ -1230,6 +1412,7 @@ func resume_run() -> void:
 	_clear_menu()
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	debug_panel.visible = debug_visible
 
 func show_results(result: Dictionary) -> void:
 	menu_mode = "results"
