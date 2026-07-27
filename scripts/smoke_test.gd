@@ -41,6 +41,8 @@ func _initialize() -> void:
 	assert(main.climbable_trunk_count >= 4, "sandbox wall-jump fixtures missing")
 	assert(main.grapple_anchor_count >= 4, "sandbox grapple fixtures missing")
 	assert(main.combo_gap_count >= 12, "sandbox style gaps missing")
+	assert(main.grind_rail_count >= 4, "sandbox grind rails missing")
+	assert(main.recharge_gate_count >= 6, "sandbox recharge gates missing")
 	assert(main._collectible_count(levels[0]) >= 18, "sandbox collectibles missing")
 	assert(main.course.find_children("InteriorBuilding", "", true, false).size() >= 2, "interior buildings missing")
 	assert(main.course.find_children("CentralResetPad", "", true, false).size() == 1, "central reset pad missing")
@@ -49,7 +51,7 @@ func _initialize() -> void:
 	for node in main.course.find_children("*", "", true, false):
 		if node is CourseTrigger:
 			fixture_types[node.trigger_type] = true
-	for trigger_type in [CourseTrigger.TriggerType.COLLECTIBLE, CourseTrigger.TriggerType.BOOST, CourseTrigger.TriggerType.LAUNCH, CourseTrigger.TriggerType.COMBO_GAP, CourseTrigger.TriggerType.RESET]:
+	for trigger_type in [CourseTrigger.TriggerType.COLLECTIBLE, CourseTrigger.TriggerType.BOOST, CourseTrigger.TriggerType.LAUNCH, CourseTrigger.TriggerType.COMBO_GAP, CourseTrigger.TriggerType.RESET, CourseTrigger.TriggerType.RECHARGE]:
 		assert(fixture_types.has(trigger_type), "sandbox fixture missing trigger type " + str(trigger_type))
 
 	runs.advance(1.0)
@@ -106,6 +108,12 @@ func _initialize() -> void:
 	assert(decay_combo.last_decay > early_decay, "style decay did not accelerate with idle time")
 	decay_combo.add_action("dash", 5.0)
 	assert(decay_combo.last_decay == 0, "new combo did not stop style decay")
+	var transition_combo := StyleRun.new()
+	transition_combo.begin()
+	transition_combo.add_action("slide", 0.0)
+	var slide_jump_result := transition_combo.add_action("slide_jump", 0.1)
+	assert(str(slide_jump_result.award.get("transition", "")) == "SLIDE HOP", "slide jump transition style missing")
+	assert(int(slide_jump_result.award.get("transition_points", 0)) > 0, "transition bonus missing")
 
 	var sandbox_player: Variant = main.player
 	var original_tether_toggle := bool(app_settings.get("tether_toggle"))
@@ -114,6 +122,64 @@ func _initialize() -> void:
 	app_settings.set("tether_toggle", true)
 	assert(sandbox_player._tether_toggle_enabled(), "toggle tether setting missing")
 	app_settings.set("tether_toggle", original_tether_toggle)
+	sandbox_player.velocity = Vector3(0.0, 0.0, -24.0)
+	sandbox_player._apply_horizontal_movement(Vector2.ZERO, false, 0.1)
+	assert(sandbox_player.velocity.z < -23.0, "air movement bled momentum without input")
+	sandbox_player._apply_horizontal_movement(Vector2(1.0, 0.0), false, 0.1)
+	assert(sandbox_player.velocity.x > 0.0 and sandbox_player.velocity.z < -20.0, "air strafe did not preserve forward momentum")
+	sandbox_player.velocity = Vector3(0.0, 0.0, -18.0)
+	sandbox_player.is_sliding = true
+	sandbox_player._slide_latched = true
+	sandbox_player._slide_jump()
+	assert(is_equal_approx(sandbox_player.velocity.y, SpeedPlayer.JUMP_VELOCITY), "slide jump vertical force missing")
+	assert(sandbox_player.velocity.z < -18.0, "slide jump did not preserve momentum")
+	sandbox_player.last_wall_run_collider_id = 0
+	sandbox_player.wall_jump_collider_id = 84
+	sandbox_player.wall_jump_normal = Vector3(1.0, 0.0, 0.0)
+	sandbox_player.wall_run_timer = 0.0
+	sandbox_player.velocity = Vector3(0.0, 0.0, -14.0)
+	Input.action_press("move_forward")
+	sandbox_player._update_wall_run(false)
+	assert(sandbox_player.is_wall_running, "speed-gated wall run did not activate")
+	Input.action_release("move_forward")
+	sandbox_player.is_wall_running = false
+	sandbox_player.velocity = Vector3(0.0, 0.0, -20.0)
+	sandbox_player.apply_boost(Vector3(0.0, 0.0, -1.0))
+	assert(sandbox_player.velocity.z < -20.0, "boost overwrote instead of adding momentum")
+	sandbox_player.velocity = Vector3(8.0, 0.0, -14.0)
+	Input.action_press("move_forward")
+	sandbox_player._dash()
+	assert(sandbox_player.velocity.x > 7.0 and sandbox_player.velocity.z < -14.0, "directional dash did not preserve lateral momentum")
+	Input.action_release("move_forward")
+	sandbox_player.is_gliding = true
+	sandbox_player.camera.rotation.x = -0.7
+	sandbox_player.velocity = Vector3(0.0, -2.0, -15.0)
+	sandbox_player._apply_glide_swoop(0.2)
+	assert(sandbox_player.velocity.z < -15.0, "glide dive did not convert descent into speed")
+	sandbox_player.is_gliding = false
+	sandbox_player.is_slamming = true
+	sandbox_player.velocity = Vector3(0.0, -20.0, -12.0)
+	sandbox_player._slam_bounce()
+	assert(is_equal_approx(sandbox_player.velocity.y, SpeedPlayer.SLAM_BOUNCE_VELOCITY), "slam rebound missing")
+	assert(sandbox_player.can_dash and sandbox_player.can_double_jump, "slam rebound did not restore air tools")
+	sandbox_player.roll_window = 0.1
+	sandbox_player.velocity = Vector3(0.0, -12.0, -10.0)
+	assert(sandbox_player._try_perfect_land(-12.0), "perfect landing window missing")
+	assert(sandbox_player.is_sliding and sandbox_player.velocity.z < -10.0, "perfect landing did not carry into slide")
+	var rail := main.course.find_child("AtriumFlowRail", true, false) as GrindRail
+	assert(rail != null and rail.length() > 0.0, "grind rail missing")
+	var rail_sample := rail.sample(0.5)
+	sandbox_player.global_position = rail_sample.get("position", Vector3.ZERO) + Vector3.UP * 0.5
+	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 14.0
+	sandbox_player._try_start_grind()
+	assert(sandbox_player.is_grinding, "auto-grind did not acquire nearby rail")
+	var rail_distance: float = float(sandbox_player.grind_distance)
+	sandbox_player._update_grind(0.1, Vector2(0.0, -1.0))
+	assert(not is_equal_approx(sandbox_player.grind_distance, rail_distance), "grind did not advance along rail")
+	sandbox_player._exit_grind()
+	sandbox_player.can_dash = false
+	main._on_trigger(CourseTrigger.TriggerType.RECHARGE, {"tool": "dash"})
+	assert(sandbox_player.can_dash, "recharge gate did not restore dash")
 	sandbox_player.is_sliding = false
 	sandbox_player.velocity = Vector3(0.0, 0.0, -10.0)
 	Input.action_press("sprint")

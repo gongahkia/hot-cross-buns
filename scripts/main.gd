@@ -481,6 +481,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_route_path(movement, movement_points, Vector3(8.6, 0.72, 7.0), 5.8, palette.safe, palette.ramp)
 	movement.add_child(_make_boost(Vector3(-3.5, 0.85, -17.0), Vector3(0.0, 0.0, -1.0)))
 	movement.add_child(_make_boost(Vector3(4.0, 2.05, -29.0), Vector3(0.7, 0.0, 0.4).normalized()))
+	movement.add_child(_make_recharge_gate(Vector3(0.0, 3.9, -33.0), "dash", "movement-dash"))
 	_add_root_arch(movement, Vector3(0.0, 0.0, -23.5), 7.2, palette.root)
 	_add_route_collectibles(movement, [Vector3(-7.0, 2.8, -23.0), Vector3(0.0, 4.0, -33.0), Vector3(8.0, 3.0, -24.0)])
 	movement.add_child(_make_reset_pad(Vector3(0.0, 1.0, -15.0), Vector3(0.0, 1.2, -15.0), "Movement Plaza"))
@@ -491,6 +492,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_route_islands(gaps, gap_points, Vector3(5.0, 0.7, 5.0), palette.expert)
 	gaps.add_child(_make_ramp_between(Vector3(-8.0, 0.6, -25.0), gap_points[0], 4.2, palette.ramp))
 	_add_arena_gaps(gaps, [gap_points[1], gap_points[2], gap_points[3]], "sandbox-gap", 320)
+	gaps.add_child(_make_recharge_gate(Vector3(-35.0, 7.8, -52.0), "double_jump", "gaps-jump"))
 	_add_route_collectibles(gaps, [Vector3(-27.0, 3.7, -43.0), Vector3(-35.0, 5.7, -52.0), Vector3(-27.0, 7.3, -62.0)])
 	gaps.add_child(_make_reset_pad(Vector3(-18.0, 1.3, -33.0), Vector3(-18.0, 1.4, -33.0), "Gap Yard"))
 	_add_course_sign(gaps, Vector3(-31.0, 8.0, -49.0), "DOUBLE JUMP  /  AIR DASH  /  GAPS", palette.sign)
@@ -501,6 +503,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_route_islands(tower, tower_points, Vector3(4.6, 0.7, 4.6), palette.expert)
 	for index in range(4):
 		_add_climbable_trunk(Vector3(25.0 if index % 2 == 0 else 35.0, 0.0, -43.0 - float(index) * 3.8), 7.0 + float(index), 0.5, tower)
+	tower.add_child(_make_recharge_gate(Vector3(36.0, 10.9, -47.0), "dash", "tower-dash"))
 	_add_route_collectibles(tower, [Vector3(24.0, 4.4, -47.0), Vector3(30.0, 7.0, -53.0), Vector3(36.0, 9.6, -47.0)])
 	tower.add_child(_make_reset_pad(Vector3(21.0, 1.0, -38.0), Vector3(21.0, 1.2, -38.0), "Wall Tower"))
 	_add_course_sign(tower, Vector3(30.0, 14.0, -48.0), "WALL JUMP TOWER", palette.sign)
@@ -513,7 +516,10 @@ func _build_sandbox(palette: Dictionary) -> void:
 	atrium.add_child(_make_launch(Vector3(-27.0, 4.7, -82.0)))
 	for anchor in [Vector3(-27.0, 8.8, -82.0), Vector3(-34.0, 12.4, -91.0), Vector3(-28.0, 15.4, -99.0)]:
 		_add_grapple_anchor(atrium, anchor, palette.sign)
+	_add_grind_rail(atrium, "AtriumFlowRail", [Vector3(-20.0, 4.0, -74.0), Vector3(-27.0, 7.3, -82.0), Vector3(-34.0, 10.8, -91.0), Vector3(-28.0, 13.8, -99.0)])
+	_add_grind_rail(atrium, "AtriumReturnRail", [Vector3(-20.0, 9.8, -91.0), Vector3(-25.0, 7.0, -82.0), Vector3(-20.0, 4.2, -74.0)])
 	_add_arena_gaps(atrium, [aerial_points[1], aerial_points[2], aerial_points[3]], "sandbox-air", 420)
+	atrium.add_child(_make_recharge_gate(Vector3(-34.0, 13.8, -91.0), "dash", "atrium-dash"))
 	_add_route_collectibles(atrium, [Vector3(-27.0, 5.9, -82.0), Vector3(-34.0, 9.5, -91.0), Vector3(-28.0, 12.5, -99.0)])
 	atrium.add_child(_make_reset_pad(Vector3(-20.0, 1.2, -72.0), Vector3(-20.0, 1.4, -72.0), "Aerial Atrium"))
 	_add_course_sign(atrium, Vector3(-30.0, 20.0, -86.0), "TETHER  /  GLIDE  /  LAUNCH", palette.sign)
@@ -526,6 +532,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 		var direction := Vector3(power_points[index + 1].x - power_points[index].x, 0.0, power_points[index + 1].z - power_points[index].z).normalized()
 		power.add_child(_make_boost(power_points[index] + Vector3(0.0, 0.45, -1.0), direction))
 	power.add_child(_make_launch(power_points[2] + Vector3(0.0, 0.45, 0.0)))
+	power.add_child(_make_recharge_gate(Vector3(34.0, 7.0, -94.0), "double_jump", "power-jump"))
 	_add_route_collectibles(power, [Vector3(28.0, 3.5, -82.0), Vector3(34.0, 5.3, -94.0), Vector3(27.0, 7.5, -103.0)])
 	power.add_child(_make_reset_pad(Vector3(20.0, 1.2, -72.0), Vector3(20.0, 1.4, -72.0), "Power Hall"))
 	_add_course_sign(power, Vector3(29.0, 13.0, -87.0), "BOOST  /  LAUNCH  /  TRANSFER", palette.sign)
@@ -534,6 +541,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	var bowl_points: Array[Vector3] = [Vector3(-18.0, 0.8, -108.0), Vector3(-10.0, 2.6, -120.0), Vector3(0.0, 4.2, -127.0), Vector3(11.0, 2.7, -120.0), Vector3(18.0, 0.8, -108.0), Vector3(0.0, 0.8, -103.0)]
 	_add_route_path(bowl, bowl_points, Vector3(7.2, 0.72, 6.2), 5.0, palette.finale, palette.ramp)
 	bowl.add_child(_make_ramp_between(bowl_points[bowl_points.size() - 1], bowl_points[0], 5.0, palette.ramp))
+	_add_grind_rail(bowl, "BowlFlowRail", [Vector3(-18.0, 3.0, -108.0), Vector3(-10.0, 5.0, -120.0), Vector3(0.0, 6.7, -127.0), Vector3(11.0, 5.1, -120.0), Vector3(18.0, 3.0, -108.0)])
 	_add_arena_gaps(bowl, [bowl_points[1], bowl_points[2], bowl_points[3]], "sandbox-bowl", 520)
 	_add_route_collectibles(bowl, [Vector3(-10.0, 4.0, -120.0), Vector3(0.0, 5.7, -127.0), Vector3(11.0, 4.1, -120.0)])
 	bowl.add_child(_make_reset_pad(Vector3(0.0, 1.2, -103.0), Vector3(0.0, 1.4, -103.0), "Style Bowl"))
@@ -544,7 +552,9 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_route_path(line, line_points, Vector3(4.8, 0.7, 5.2), 3.4, palette.finale, palette.ramp)
 	line.add_child(_make_boost(Vector3(10.0, 1.1, -15.0), Vector3(0.5, 0.0, -0.9).normalized()))
 	line.add_child(_make_launch(Vector3(15.0, 5.8, -66.0)))
+	_add_grind_rail(line, "IntegratedFlowRail", [Vector3(15.0, 7.0, -66.0), Vector3(2.0, 9.2, -81.0), Vector3(-12.0, 11.1, -98.0), Vector3(-5.0, 9.5, -112.0)])
 	_add_grapple_anchor(line, Vector3(-3.0, 12.0, -89.0), palette.sign)
+	line.add_child(_make_recharge_gate(Vector3(2.0, 10.5, -81.0), "dash", "line-dash"))
 	_add_arena_gaps(line, [line_points[2], line_points[4], line_points[6]], "sandbox-line", 600)
 	_add_course_sign(line, Vector3(4.0, 13.0, -78.0), "INTEGRATED LINE  /  FULL KIT", palette.sign)
 
@@ -925,17 +935,19 @@ func _refresh_debug_hud() -> void:
 	if player.is_on_floor(): flags.append("GROUND")
 	if player.is_sprinting: flags.append("SPRINT")
 	if player.is_sliding: flags.append("SLIDE")
+	if player.is_wall_running: flags.append("WALL RUN")
 	if player.is_wall_sliding: flags.append("WALL SLIDE")
 	if player.is_slamming: flags.append("SLAM")
 	if player.is_gliding: flags.append("GLIDE")
 	if player.is_grappling: flags.append("TETHER")
+	if player.is_grinding: flags.append("GRIND")
 	if flags.is_empty(): flags.append("AIR")
 	var active_objects := int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS))
 	var collision_pairs := int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))
 	var islands := int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))
 	var lightmap := course.get_node_or_null("BakedLightmap") as LightmapGI
 	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, last_sandbox_event]
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nRAILS %d  REFILLS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, grind_rail_count, recharge_gate_count, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]

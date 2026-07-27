@@ -83,6 +83,7 @@ var wall_jump_timer := 0.0
 var wall_jump_normal := Vector3.ZERO
 var wall_jump_collider_id := 0
 var last_wall_jump_collider_id := 0
+var last_wall_run_collider_id := 0
 var dash_timer := 0.0
 var is_sliding := false
 var is_sprinting := false
@@ -173,6 +174,7 @@ func _physics_process(delta: float) -> void:
 		can_double_jump = true
 		can_dash = true
 		last_wall_jump_collider_id = 0
+		last_wall_run_collider_id = 0
 	else:
 		coyote_timer = max(coyote_timer - delta, 0.0)
 	var tether_toggle := _tether_toggle_enabled()
@@ -403,6 +405,7 @@ func _try_grapple() -> bool:
 	_exit_grind()
 	wall_jump_collider_id = 0
 	last_wall_jump_collider_id = 0
+	last_wall_run_collider_id = 0
 	is_sprinting = false
 	is_slamming = false
 	grapple_anchor = best_anchor
@@ -494,10 +497,10 @@ func tool_status() -> String:
 		return "GLIDE"
 	if is_wall_sliding:
 		return "WALL SLIDE"
-	return "E TETHER / F GLIDE"
+	return "E TETHER / F GLIDE / RAIL AUTO"
 
 func style_multiplier_active() -> bool:
-	return not is_on_floor() or is_sliding or is_gliding or is_grappling
+	return not is_on_floor() or is_sliding or is_gliding or is_grappling or is_wall_running or is_grinding
 
 func apply_style_feedback(severity: String) -> void:
 	var amount := 0.0
@@ -662,9 +665,12 @@ func _update_wall_run(on_floor_before_move: bool) -> void:
 		is_wall_running = false
 		return
 	if not is_wall_running:
+		if wall_jump_collider_id == last_wall_run_collider_id:
+			return
 		is_wall_running = true
 		wall_run_timer = WALL_RUN_MAX_TIME
 		wall_run_normal = wall_jump_normal
+		last_wall_run_collider_id = wall_jump_collider_id
 		velocity.y = maxf(velocity.y, -0.6)
 		traversal_action.emit("wall_run", -1)
 		_add_camera_shake(0.018)
