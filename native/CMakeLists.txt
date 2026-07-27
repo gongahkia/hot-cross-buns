@@ -527,6 +527,8 @@ qt_add_executable(hcb_sync_apply_benchmark
   src/data/SqliteMigrationRunner.h
   src/data/SqliteQueryTimingTracker.cpp
   src/data/SqliteQueryTimingTracker.h
+  src/data/SqliteStatementCache.cpp
+  src/data/SqliteStatementCache.h
   src/data/SqliteTransaction.cpp
   src/data/SqliteTransaction.h
   src/data/SqliteWriterQueue.cpp

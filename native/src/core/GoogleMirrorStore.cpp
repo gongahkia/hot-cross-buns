@@ -2,6 +2,7 @@
 
 #include "core/TaskRecurrenceMarker.h"
 #include "data/LocalSchema.h"
+#include "data/SqliteStatementCache.h"
 #include "data/SqliteTransaction.h"
 #include "sqlite3.h"
 
@@ -200,13 +201,9 @@ recurrenceDiagnostic(const std::optional<StoredTaskRecurrence>& previous,
 }
 
 [[nodiscard]] std::optional<AppError>
-execute(sqlite3* handle, const char* sql, const QList<SqlValue>& values) {
-  sqlite3_stmt* statement = nullptr;
-  const int prepareResult =
-      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
-  if (prepareResult != SQLITE_OK) {
-    sqlite3_finalize(statement);
-    return databaseError(QStringLiteral("SQLite mirror preparation failed (%1)"), prepareResult);
+executePrepared(sqlite3_stmt* statement, const QList<SqlValue>& values) {
+  if (statement == nullptr) {
+    return AppError(AppErrorCode::Database, QStringLiteral("SQLite mirror statement is unavailable"));
   }
   for (qsizetype index = 0; index < values.size(); ++index) {
     const SqlValue& value = values.at(index);
@@ -227,19 +224,46 @@ execute(sqlite3* handle, const char* sql, const QList<SqlValue>& values) {
       break;
     }
     if (bindResult != SQLITE_OK) {
-      sqlite3_finalize(statement);
       return databaseError(QStringLiteral("SQLite mirror binding failed (%1)"), bindResult);
     }
   }
   const int stepResult = sqlite3_step(statement);
+  return stepResult == SQLITE_DONE
+             ? std::nullopt
+             : std::optional<AppError>(
+                   databaseError(QStringLiteral("SQLite mirror write failed (%1)"), stepResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+execute(sqlite3* handle, const char* sql, const QList<SqlValue>& values) {
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite mirror preparation failed (%1)"), prepareResult);
+  }
+  const std::optional<AppError> execution = executePrepared(statement, values);
   const int finalizeResult = sqlite3_finalize(statement);
-  if (stepResult != SQLITE_DONE) {
-    return databaseError(QStringLiteral("SQLite mirror write failed (%1)"), stepResult);
+  if (execution.has_value()) {
+    return execution;
   }
   return finalizeResult == SQLITE_OK
              ? std::nullopt
              : std::optional<AppError>(databaseError(
                    QStringLiteral("SQLite mirror finalization failed (%1)"), finalizeResult));
+}
+
+[[nodiscard]] std::optional<AppError>
+execute(SqliteStatementCache& cache, const char* sql, const QList<SqlValue>& values) {
+  SqlitePreparedStatementResult acquired = cache.acquire(QString::fromLatin1(sql));
+  if (std::holds_alternative<AppError>(acquired)) {
+    return std::get<AppError>(std::move(acquired));
+  }
+  SqlitePreparedStatement statement = std::move(std::get<SqlitePreparedStatement>(acquired));
+  const std::optional<AppError> execution = executePrepared(statement.nativeHandle(), values);
+  const std::optional<AppError> released = statement.release();
+  return execution.has_value() ? execution : released;
 }
 
 [[nodiscard]] std::optional<AppError>
@@ -308,7 +332,8 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
        textValue(now)});
 }
 
-[[nodiscard]] std::optional<AppError> upsertTask(sqlite3* handle,
+[[nodiscard]] std::optional<AppError> upsertTask(SqliteStatementCache& statements,
+                                                 sqlite3* handle,
                                                  const QString& accountId,
                                                  const GoogleTaskMirror& task,
                                                  sqlite3_int64 sortOrder,
@@ -325,7 +350,7 @@ markTasksDeleted(sqlite3* handle, const QString& listId, const QString& now) {
   const std::optional<QString> diagnostic = recurrenceDiagnostic(
       readStoredTaskRecurrence(handle, localListId, task.id), task);
   return execute(
-      handle,
+      statements,
       "INSERT INTO local_tasks (id, task_list_id, remote_id, parent_task_id, title, notes, state, "
       "due_at, completed_at, remote_position, sort_order, is_hidden, etag, remote_updated_at, "
       "is_assigned, recurrence_diagnostic, created_at, updated_at, deleted_at) "
@@ -608,12 +633,12 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
 }
 
 [[nodiscard]] std::optional<AppError>
-storeEventRecurrence(sqlite3* handle,
+storeEventRecurrence(SqliteStatementCache& statements,
                      const QString& localEventId,
                      const std::optional<QString>& recurrenceRule) {
   if (!recurrenceRule.has_value()) {
     return execute(
-        handle,
+        statements,
         "DELETE FROM local_calendar_event_recurrences WHERE event_id = ?1 AND NOT EXISTS "
         "(SELECT 1 FROM local_pending_mutations AS mutations "
         "WHERE mutations.resource_type = 'event' "
@@ -623,7 +648,7 @@ storeEventRecurrence(sqlite3* handle,
         {textValue(localEventId)});
   }
   return execute(
-      handle,
+      statements,
       "INSERT INTO local_calendar_event_recurrences(event_id, recurrence_rule) VALUES (?1, ?2) "
       "ON CONFLICT(event_id) DO UPDATE SET recurrence_rule = excluded.recurrence_rule WHERE "
       "NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
@@ -634,7 +659,7 @@ storeEventRecurrence(sqlite3* handle,
       {textValue(localEventId), textValue(*recurrenceRule)});
 }
 
-[[nodiscard]] std::optional<AppError> upsertEvent(sqlite3* handle,
+[[nodiscard]] std::optional<AppError> upsertEvent(SqliteStatementCache& statements,
                                                   const QString& accountId,
                                                   const GoogleCalendarEventMirror& event,
                                                   const QString& now,
@@ -692,7 +717,7 @@ storeEventRecurrence(sqlite3* handle,
   const std::optional<QString> legacyRecurrence = recurrence.isEmpty() ? std::nullopt
       : recurrence.size() <= 4'096 ? std::optional<QString>(recurrence) : std::nullopt;
   if (const std::optional<AppError> error = execute(
-      handle,
+      statements,
       "INSERT INTO local_calendar_events (id, calendar_id, remote_id, recurring_remote_id, "
       "original_start_at, status, title, description, location, start_at, start_time_zone, end_at, "
       "end_time_zone, is_all_day, recurrence_rule, is_instance_cache, color_id, transparency, "
@@ -799,7 +824,7 @@ storeEventRecurrence(sqlite3* handle,
       error.has_value()) {
     return error;
   }
-  return storeEventRecurrence(handle, localEventId, storedRecurrence);
+  return storeEventRecurrence(statements, localEventId, storedRecurrence);
 }
 
 [[nodiscard]] GoogleMirrorWriteResult
@@ -840,6 +865,7 @@ replaceStoredTasks(SqliteConnection& connection,
     return std::get<AppError>(std::move(transactionResult));
   }
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  SqliteStatementCache statements(connection, 8);
   const QString now = timestamp(clock);
   if (const std::optional<AppError> error = markTaskListsDeleted(handle, accountId, now);
       error.has_value()) {
@@ -861,7 +887,8 @@ replaceStoredTasks(SqliteConnection& connection,
   QHash<QString, sqlite3_int64> taskOrders;
   for (const GoogleTaskMirror& task : tasks) {
     sqlite3_int64& order = taskOrders[task.taskListId];
-    if (const std::optional<AppError> error = upsertTask(handle, accountId, task, order++, now);
+    if (const std::optional<AppError> error =
+            upsertTask(statements, handle, accountId, task, order++, now);
         error.has_value()) {
       return *error;
     }
@@ -960,7 +987,8 @@ mergeStoredTasks(SqliteConnection& connection,
   }
   sqlite3_int64 sortOrder = 0;
   for (const GoogleTaskMirror& task : tasks) {
-    if (const std::optional<AppError> error = upsertTask(handle, accountId, task, sortOrder++, now);
+    if (const std::optional<AppError> error =
+            upsertTask(statements, handle, accountId, task, sortOrder++, now);
         error.has_value()) {
       return *error;
     }
@@ -1003,6 +1031,7 @@ replaceStoredCalendars(SqliteConnection& connection,
     return std::get<AppError>(std::move(transactionResult));
   }
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  SqliteStatementCache statements(connection, 8);
   const QString now = timestamp(clock);
   if (const std::optional<AppError> error = markCalendarsDeleted(handle, accountId, now);
       error.has_value()) {
@@ -1020,7 +1049,8 @@ replaceStoredCalendars(SqliteConnection& connection,
     }
   }
   for (const GoogleCalendarEventMirror& event : events) {
-    if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
+    if (const std::optional<AppError> error =
+            upsertEvent(statements, accountId, event, now);
         error.has_value()) {
       return *error;
     }
@@ -1115,7 +1145,8 @@ mergeStoredCalendarEvents(SqliteConnection& connection,
     return *error;
   }
   for (const GoogleCalendarEventMirror& event : events) {
-    if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
+    if (const std::optional<AppError> error =
+            upsertEvent(statements, accountId, event, now);
         error.has_value()) {
       return *error;
     }
@@ -1159,6 +1190,7 @@ cacheStoredCalendarInstances(SqliteConnection& connection,
     return std::get<AppError>(std::move(transactionResult));
   }
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  SqliteStatementCache statements(connection, 8);
   const QString localCalendarId = calendarId(accountId, calendarRemoteId);
   if (const std::optional<AppError> error =
           invalidateCachedInstances(handle, localCalendarId, recurringRemoteId);
@@ -1167,7 +1199,8 @@ cacheStoredCalendarInstances(SqliteConnection& connection,
   }
   const QString now = timestamp(clock);
   for (const GoogleCalendarEventMirror& event : events) {
-    if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now, true);
+    if (const std::optional<AppError> error =
+            upsertEvent(statements, accountId, event, now, true);
         error.has_value()) {
       return *error;
     }
