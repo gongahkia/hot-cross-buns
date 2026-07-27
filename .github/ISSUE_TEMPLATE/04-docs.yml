@@ -7,7 +7,7 @@ body:
     id: location
     attributes:
       label: Page or file
-      placeholder: "README.md, docs/index.html, docs/support/linux-preview-support.md"
+      placeholder: "README.txt, docs/index.html, docs/support/linux-preview-support.md"
     validations:
       required: true
   - type: textarea
