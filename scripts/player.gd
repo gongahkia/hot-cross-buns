@@ -13,7 +13,9 @@ const JUMP_BUFFER_TIME := 0.12
 const DOUBLE_JUMP_VELOCITY := 7.0
 const WALL_JUMP_GRACE := 0.14
 const WALL_JUMP_VELOCITY := 8.4
-const WALL_JUMP_PUSH := 13.0
+const WALL_JUMP_SEPARATION_SPEED := 4.5
+const WALL_JUMP_MIN_SEPARATION := 1.8
+const WALL_JUMP_MAX_SEPARATION := 6.0
 const SLAM_SPEED := 38.0
 const DASH_TIME := 0.16
 const BASE_CAMERA_FOV := 96.0
@@ -191,8 +193,13 @@ func _cache_wall_contact() -> void:
 
 func _wall_jump() -> void:
 	velocity.y = WALL_JUMP_VELOCITY
-	velocity.x = wall_jump_normal.x * WALL_JUMP_PUSH
-	velocity.z = wall_jump_normal.z * WALL_JUMP_PUSH
+	var outward := Vector3(wall_jump_normal.x, 0.0, wall_jump_normal.z).normalized()
+	var planar_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	var outward_speed := planar_velocity.dot(outward)
+	var target_outward_speed := clampf(outward_speed + WALL_JUMP_SEPARATION_SPEED, WALL_JUMP_MIN_SEPARATION, WALL_JUMP_MAX_SEPARATION)
+	planar_velocity += outward * (target_outward_speed - outward_speed)
+	velocity.x = planar_velocity.x
+	velocity.z = planar_velocity.z
 	jump_buffer = 0.0
 	coyote_timer = 0.0
 	wall_jump_timer = 0.0

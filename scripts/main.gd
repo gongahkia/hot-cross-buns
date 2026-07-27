@@ -1,6 +1,7 @@
 extends Node3D
 
 const LEVELS := preload("res://scripts/level_library.gd")
+const PERFORMANCE_HISTOGRAM := preload("res://scripts/performance_histogram.gd")
 
 var course: Node3D
 var player: SpeedPlayer
@@ -227,29 +228,47 @@ func _build_course(level: Dictionary) -> void:
 		course.queue_free()
 	course = Node3D.new()
 	course.name = "Course"
+	course.set_meta("layout_id", level.id)
+	course.set_meta("focus", level.focus)
 	add_child(course)
 	_add_forest_motes()
 	total_collectibles_in_level = 0
 	traversal_ramp_count = 0
 	climbable_trunk_count = 0
-	var world_length := maxf(float(level.length), 72.0)
-	var world_shift := float(level.get("offset", 0.0)) * 0.7
-	var summit_height := 7.2 + (0.8 if level.launches else 0.0)
-	var summit_surface := Vector3(world_shift, summit_height, -world_length + 8.0)
-	var basin := _make_platform(Vector3(world_shift, -0.45, -world_length * 0.5 + 4.0), Vector3(38.0, 0.9, world_length + 20.0), Color("#2d4433"))
+	var world_length := float(level.world_length)
+	var world_width := float(level.world_width)
+	var palette := _palette_for(str(level.terrain_style))
+	var summit_surface := Vector3(0.0, 7.2, -world_length + 8.0)
+	var basin := _make_platform(Vector3(0.0, -0.45, -world_length * 0.5 + 4.0), Vector3(world_width, 0.9, world_length + 20.0), palette.basin)
 	basin.name = "OpenBasin"
+	basin.set_meta("recovery_floor", true)
 	course.add_child(basin)
-	var start_floor := _make_platform(Vector3(world_shift, 0.0, 2.0), Vector3(13.0, 0.7, 11.0), Color("#39553e"))
+	var start_floor := _make_platform(Vector3(0.0, 0.0, 2.0), Vector3(13.0, 0.7, 11.0), palette.start)
+	start_floor.name = "Start"
 	course.add_child(start_floor)
 	player = SpeedPlayer.new()
-	player.position = Vector3(world_shift, 0.9, 3.0)
+	player.position = Vector3(0.0, 0.9, 3.0)
 	player.reset_requested.connect(_restart_level)
 	course.add_child(player)
-	_build_safe_switchbacks(world_shift, world_length, summit_surface)
-	_build_direct_ridge(level, world_shift, world_length, summit_surface)
-	_build_canopy_route(level, world_shift, world_length, summit_surface)
-	_build_open_terrain(world_shift, world_length)
-	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), Color("#5b7749"))
+	_build_open_terrain(world_length, world_width, str(level.terrain_style))
+	match str(level.id):
+		"01-trailhead":
+			_build_trailhead(summit_surface, palette)
+		"02-moss-run":
+			_build_moss_run(summit_surface, palette)
+		"03-canopy-gap":
+			_build_canopy_gap(summit_surface, palette)
+		"04-root-tunnel":
+			_build_root_tunnel(summit_surface, palette)
+		"05-sky-sap":
+			_build_sky_sap(summit_surface, palette)
+		"06-wild-line":
+			_build_wild_line(summit_surface, palette)
+		"07-green-light":
+			_build_green_light(summit_surface, palette)
+		_:
+			push_error("Unknown level layout: " + str(level.id))
+	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), palette.summit)
 	summit.name = "Summit"
 	course.add_child(summit)
 	course.add_child(_make_goal(summit_surface + Vector3(0.0, 1.15, -1.0)))
@@ -257,71 +276,232 @@ func _build_course(level: Dictionary) -> void:
 	ghost.set_frames(RunData.ghost_for(level.id))
 	course.add_child(ghost)
 
-func _build_safe_switchbacks(world_shift: float, world_length: float, summit_surface: Vector3) -> void:
-	var step_count := int(clampf(round(world_length / 15.0), 5.0, 8.0))
-	var previous_surface := Vector3(world_shift - 4.0, 0.35, -3.0)
-	course.add_child(_make_platform(previous_surface - Vector3(0.0, 0.4, 0.0), Vector3(8.0, 0.8, 7.0), Color("#456445")))
-	for index in range(step_count):
-		var progress := float(index + 1) / float(step_count + 1)
-		var x := world_shift - 10.5 if index % 2 == 0 else world_shift - 4.0
-		var surface := Vector3(x, lerpf(0.9, summit_surface.y - 1.0, progress), lerpf(-11.0, summit_surface.z + 7.0, progress))
-		course.add_child(_make_ramp_between(previous_surface, surface, 5.8, Color("#557551")))
-		course.add_child(_make_platform(surface - Vector3(0.0, 0.4, 0.0), Vector3(8.6, 0.8, 7.2), Color("#496a48")))
-		if index % 2 == 0:
-			_add_collectible_to_course(surface + Vector3(2.1, 1.2, 0.0))
-		previous_surface = surface
-	course.add_child(_make_ramp_between(previous_surface, summit_surface, 6.4, Color("#5c7b51")))
+func _route(name: String, focus: String) -> Node3D:
+	var route := Node3D.new()
+	route.name = name
+	route.set_meta("focus", focus)
+	course.add_child(route)
+	return route
 
-func _build_direct_ridge(level: Dictionary, world_shift: float, world_length: float, summit_surface: Vector3) -> void:
-	var ridge_points: Array[Vector3] = [
-		Vector3(world_shift + 0.5, 0.5, -5.0),
-		Vector3(world_shift + 2.5, 2.4, -world_length * 0.33),
-		Vector3(world_shift - 1.2, 4.6, -world_length * 0.62),
-		summit_surface
-	]
-	for index in range(ridge_points.size() - 1):
-		var current := ridge_points[index]
-		var next := ridge_points[index + 1]
-		course.add_child(_make_platform(current - Vector3(0.0, 0.35, 0.0), Vector3(5.8, 0.7, 6.2), Color("#628253")))
-		course.add_child(_make_ramp_between(current, next, 3.6, Color("#6b8958")))
-		_add_climbable_trunk(current + Vector3(2.8 if index % 2 == 0 else -2.8, -0.4, -1.6), 5.0 + float(index) * 1.3, 0.42)
-		if level.boosts:
-			var direction := Vector3(next.x - current.x, 0.0, next.z - current.z).normalized()
-			course.add_child(_make_boost(current + Vector3(0.0, 0.42, -1.1), direction))
-		if index > 0:
-			_add_collectible_to_course(current + Vector3(-1.1, 1.15, 0.9))
-	course.add_child(_make_platform(summit_surface - Vector3(0.0, 0.35, 0.0), Vector3(5.8, 0.7, 6.2), Color("#628253")))
+func _add_route_path(route: Node3D, points: Array[Vector3], platform_size: Vector3, ramp_width: float, platform_color: Color, ramp_color: Color) -> void:
+	for point in points:
+		route.add_child(_make_platform(point - Vector3(0.0, platform_size.y * 0.5, 0.0), platform_size, platform_color))
+	for index in range(points.size() - 1):
+		route.add_child(_make_ramp_between(points[index], points[index + 1], ramp_width, ramp_color))
 
-func _build_canopy_route(level: Dictionary, world_shift: float, world_length: float, summit_surface: Vector3) -> void:
-	var canopy_points: Array[Vector3] = [
-		Vector3(world_shift + 9.0, 0.55, -8.0),
-		Vector3(world_shift + 10.5, 3.0, -world_length * 0.30),
-		Vector3(world_shift + 7.4, 5.3, -world_length * 0.58),
-		Vector3(world_shift + 3.5, summit_surface.y - 0.7, summit_surface.z + 6.0)
-	]
-	for index in range(canopy_points.size()):
-		var current := canopy_points[index]
-		course.add_child(_make_platform(current - Vector3(0.0, 0.35, 0.0), Vector3(6.8, 0.7, 6.0), Color("#4f7654")))
-		_add_climbable_trunk(current + Vector3(1.9, -0.35, 1.5), 7.2 + float(index) * 1.4, 0.5)
-		if index < canopy_points.size() - 1:
-			course.add_child(_make_ramp_between(current, canopy_points[index + 1], 3.8, Color("#567b5b")))
-		if index == 0 and level.launches:
-			course.add_child(_make_launch(current + Vector3(0.0, 0.42, -1.0)))
-		if index > 0:
-			_add_collectible_to_course(current + Vector3(-1.2, 1.2, -0.6))
-	course.add_child(_make_ramp_between(canopy_points.back(), summit_surface, 4.4, Color("#5f8058")))
+func _add_route_islands(route: Node3D, points: Array[Vector3], platform_size: Vector3, color: Color) -> void:
+	for point in points:
+		route.add_child(_make_platform(point - Vector3(0.0, platform_size.y * 0.5, 0.0), platform_size, color))
 
-func _build_open_terrain(world_shift: float, world_length: float) -> void:
+func _add_route_collectibles(route: Node3D, positions: Array[Vector3]) -> void:
+	for position in positions:
+		total_collectibles_in_level += 1
+		route.add_child(_make_collectible(position))
+
+func _add_course_sign(parent: Node3D, position: Vector3, text: String, color: Color) -> void:
+	var sign := Label3D.new()
+	sign.name = "FocusSign"
+	sign.position = position
+	sign.text = text
+	sign.font = ui_theme.default_font
+	sign.font_size = 44
+	sign.outline_size = 6
+	sign.modulate = color
+	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sign.pixel_size = 0.008
+	parent.add_child(sign)
+
+func _build_trailhead(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "jump + double-jump")
+	var safe_points: Array[Vector3] = [Vector3(-4.0, 0.4, -4.0), Vector3(-11.0, 1.3, -13.0), Vector3(-11.0, 2.7, -24.0), Vector3(-7.0, 4.0, -35.0), Vector3(-3.0, 5.5, -45.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.0, 0.8, 7.5), 6.5, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-12.0, 2.5, -13.0), Vector3(-9.2, 4.0, -24.0), Vector3(-4.8, 6.8, -45.0)])
+	_add_course_sign(safe, Vector3(-8.0, 3.4, -20.0), "SAFE RIDGE", palette.sign)
+	var expert_a := _route("ExpertRouteA", "double-jump shortcuts")
+	var islands: Array[Vector3] = [Vector3(5.0, 0.6, -8.0), Vector3(8.5, 2.0, -17.0), Vector3(5.8, 3.8, -27.0), Vector3(2.8, 5.2, -37.0)]
+	_add_route_islands(expert_a, islands, Vector3(5.2, 0.7, 5.2), palette.expert)
+	expert_a.add_child(_make_ramp_between(Vector3(3.0, 0.4, -3.0), islands[0], 4.4, palette.ramp))
+	_add_route_collectibles(expert_a, [Vector3(8.5, 3.2, -17.0), Vector3(5.8, 5.0, -27.0), Vector3(2.8, 6.4, -37.0)])
+	_add_course_sign(expert_a, Vector3(7.0, 4.3, -20.0), "DOUBLE JUMP LINE", palette.sign)
+	var expert_b := _route("ExpertRouteB", "corner cuts")
+	_add_route_path(expert_b, [Vector3(10.0, 0.5, -7.0), Vector3(11.0, 2.2, -20.0), Vector3(8.0, 4.2, -31.0), Vector3(2.8, 5.2, -37.0)], Vector3(4.2, 0.7, 5.2), 3.1, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(11.0, 3.4, -20.0), Vector3(8.0, 5.4, -31.0)])
+	_build_finale(Vector3(2.8, 5.2, -37.0), summit, palette, "LANDING FINALE")
+
+func _build_moss_run(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "readable recovery ridge")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -5.0), Vector3(-14.0, 1.1, -17.0), Vector3(-14.0, 2.5, -31.0), Vector3(-9.0, 4.0, -45.0), Vector3(-4.0, 5.7, -55.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.4, 0.8, 7.8), 6.8, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-15.0, 2.3, -17.0), Vector3(-10.5, 5.1, -45.0)])
+	var expert_a := _route("ExpertRouteA", "boost carry")
+	var boost_points: Array[Vector3] = [Vector3(3.0, 0.5, -7.0), Vector3(10.0, 1.8, -20.0), Vector3(12.0, 3.5, -34.0), Vector3(7.0, 5.2, -48.0), Vector3(3.0, 6.1, -55.0)]
+	_add_route_path(expert_a, boost_points, Vector3(5.2, 0.7, 6.0), 3.5, palette.expert, palette.ramp)
+	for index in range(boost_points.size() - 1):
+		var direction := Vector3(boost_points[index + 1].x - boost_points[index].x, 0.0, boost_points[index + 1].z - boost_points[index].z).normalized()
+		expert_a.add_child(_make_boost(boost_points[index] + Vector3(0.0, 0.42, -1.2), direction))
+	_add_route_collectibles(expert_a, [Vector3(10.0, 3.0, -20.0), Vector3(12.0, 4.7, -34.0), Vector3(7.0, 6.4, -48.0)])
+	_add_course_sign(expert_a, Vector3(10.0, 4.0, -28.0), "CHAIN BOOSTS", palette.sign)
+	var expert_b := _route("ExpertRouteB", "banked turns")
+	_add_route_path(expert_b, [Vector3(15.0, 0.5, -10.0), Vector3(16.0, 2.0, -27.0), Vector3(14.0, 4.0, -42.0), Vector3(6.0, 5.9, -55.0)], Vector3(4.4, 0.7, 6.4), 3.0, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(16.0, 3.2, -27.0), Vector3(14.0, 5.2, -42.0), Vector3(6.0, 7.1, -55.0)])
+	_build_finale(Vector3(3.0, 6.1, -55.0), summit, palette, "MOSS SPRINT")
+
+func _build_canopy_gap(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "visible low recovery")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -4.0), Vector3(-15.0, 1.0, -17.0), Vector3(-15.0, 2.4, -33.0), Vector3(-10.0, 4.0, -47.0), Vector3(-4.0, 5.8, -59.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.5, 0.8, 8.0), 6.6, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-16.0, 2.2, -17.0), Vector3(-11.5, 5.2, -47.0)])
+	var expert_a := _route("ExpertRouteA", "air dash islands")
+	var dash_islands: Array[Vector3] = [Vector3(5.0, 1.1, -10.0), Vector3(11.0, 2.6, -21.0), Vector3(8.0, 4.2, -34.0), Vector3(12.0, 5.5, -47.0), Vector3(5.0, 6.1, -58.0)]
+	_add_route_islands(expert_a, dash_islands, Vector3(4.8, 0.7, 4.8), palette.expert)
+	expert_a.add_child(_make_ramp_between(Vector3(3.0, 0.4, -3.0), dash_islands[0], 4.2, palette.ramp))
+	_add_route_collectibles(expert_a, [Vector3(11.0, 3.8, -21.0), Vector3(8.0, 5.4, -34.0), Vector3(12.0, 6.7, -47.0)])
+	_add_course_sign(expert_a, Vector3(9.0, 4.9, -26.0), "DASH EACH GAP", palette.sign)
+	var expert_b := _route("ExpertRouteB", "canopy corners")
+	_add_route_path(expert_b, [Vector3(16.0, 0.5, -9.0), Vector3(17.0, 2.3, -26.0), Vector3(14.0, 4.7, -43.0), Vector3(7.0, 6.1, -58.0)], Vector3(4.3, 0.7, 5.8), 3.0, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(17.0, 3.5, -26.0), Vector3(14.0, 5.9, -43.0), Vector3(7.0, 7.3, -58.0)])
+	_build_finale(Vector3(5.0, 6.1, -58.0), summit, palette, "CANOPY EXIT")
+
+func _build_root_tunnel(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "root ridge")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -5.0), Vector3(-13.0, 1.2, -19.0), Vector3(-13.0, 2.6, -35.0), Vector3(-8.0, 4.3, -50.0), Vector3(-3.0, 5.9, -63.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.2, 0.8, 7.8), 6.5, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-14.0, 2.4, -19.0), Vector3(-14.0, 3.8, -35.0), Vector3(-4.5, 7.1, -63.0)])
+	var expert_a := _route("ExpertRouteA", "slide carry")
+	var chute_points: Array[Vector3] = [Vector3(4.0, 0.5, -7.0), Vector3(9.0, 1.7, -23.0), Vector3(10.0, 3.5, -41.0), Vector3(5.0, 5.6, -58.0), Vector3(2.0, 6.2, -64.0)]
+	_add_route_path(expert_a, chute_points, Vector3(5.8, 0.7, 7.2), 4.2, palette.expert, palette.ramp)
+	for index in range(chute_points.size() - 1):
+		var direction := Vector3(chute_points[index + 1].x - chute_points[index].x, 0.0, chute_points[index + 1].z - chute_points[index].z).normalized()
+		expert_a.add_child(_make_boost(chute_points[index] + Vector3(0.0, 0.42, -1.6), direction))
+		_add_root_arch(expert_a, chute_points[index] + Vector3(0.0, 0.0, -3.0), 6.6, palette.root)
+	_add_route_collectibles(expert_a, [Vector3(9.0, 3.0, -23.0), Vector3(10.0, 4.8, -41.0), Vector3(5.0, 6.9, -58.0)])
+	_add_course_sign(expert_a, Vector3(9.0, 4.2, -31.0), "HOLD SLIDE", palette.sign)
+	var expert_b := _route("ExpertRouteB", "outer root line")
+	_add_route_path(expert_b, [Vector3(15.0, 0.5, -11.0), Vector3(16.0, 2.2, -29.0), Vector3(13.0, 4.4, -48.0), Vector3(6.0, 6.0, -63.0)], Vector3(4.4, 0.7, 6.0), 3.2, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(16.0, 3.4, -29.0), Vector3(13.0, 5.6, -48.0)])
+	_build_finale(Vector3(2.0, 6.2, -64.0), summit, palette, "ROOT EXIT")
+
+func _build_sky_sap(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "low branch climb")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -5.0), Vector3(-16.0, 1.1, -20.0), Vector3(-16.0, 2.6, -38.0), Vector3(-10.0, 4.2, -55.0), Vector3(-4.0, 5.9, -68.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.6, 0.8, 8.0), 6.7, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-17.0, 2.3, -20.0), Vector3(-11.5, 5.4, -55.0)])
+	var expert_a := _route("ExpertRouteA", "launch pad ascent")
+	var launch_points: Array[Vector3] = [Vector3(5.0, 0.5, -10.0), Vector3(10.0, 3.1, -24.0), Vector3(13.0, 5.0, -42.0), Vector3(7.0, 6.2, -60.0), Vector3(3.0, 6.4, -69.0)]
+	_add_route_path(expert_a, launch_points, Vector3(5.8, 0.7, 6.2), 3.8, palette.expert, palette.ramp)
+	expert_a.add_child(_make_launch(launch_points[0] + Vector3(0.0, 0.42, -1.1)))
+	expert_a.add_child(_make_launch(launch_points[1] + Vector3(0.0, 0.42, -1.1)))
+	expert_a.add_child(_make_launch(launch_points[2] + Vector3(0.0, 0.42, -1.1)))
+	_add_route_collectibles(expert_a, [Vector3(10.0, 4.4, -24.0), Vector3(13.0, 6.3, -42.0), Vector3(7.0, 7.5, -60.0)])
+	_add_course_sign(expert_a, Vector3(10.5, 5.5, -31.0), "LAUNCH HIGH", palette.sign)
+	var expert_b := _route("ExpertRouteB", "sap canopy")
+	_add_route_path(expert_b, [Vector3(17.0, 0.5, -12.0), Vector3(18.0, 2.3, -31.0), Vector3(15.0, 4.4, -50.0), Vector3(7.0, 6.0, -68.0)], Vector3(4.4, 0.7, 6.0), 3.1, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(18.0, 3.5, -31.0), Vector3(15.0, 5.6, -50.0), Vector3(7.0, 7.2, -68.0)])
+	_build_finale(Vector3(3.0, 6.4, -69.0), summit, palette, "SKY SAP FINALE")
+
+func _build_wild_line(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "ridge recovery")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -5.0), Vector3(-17.0, 1.0, -21.0), Vector3(-17.0, 2.4, -40.0), Vector3(-11.0, 4.1, -58.0), Vector3(-5.0, 5.8, -72.0), summit]
+	_add_route_path(safe, safe_points, Vector3(9.8, 0.8, 8.2), 6.8, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-18.0, 2.2, -21.0), Vector3(-12.5, 5.3, -58.0)])
+	var expert_a := _route("ExpertRouteA", "wall-jump trunks")
+	var wall_points: Array[Vector3] = [Vector3(5.0, 0.5, -10.0), Vector3(10.0, 2.2, -27.0), Vector3(10.0, 4.1, -46.0), Vector3(5.0, 5.9, -65.0), Vector3(2.0, 6.4, -73.0)]
+	_add_route_path(expert_a, wall_points, Vector3(5.0, 0.7, 5.6), 3.2, palette.expert, palette.ramp)
+	for index in range(4):
+		_add_climbable_trunk(wall_points[index] + Vector3(2.1 if index % 2 == 0 else -2.1, -0.4, -1.5), 6.0 + float(index) * 1.4, 0.5, expert_a)
+	_add_route_collectibles(expert_a, [Vector3(10.0, 3.6, -27.0), Vector3(10.0, 5.5, -46.0), Vector3(5.0, 7.3, -65.0)])
+	_add_course_sign(expert_a, Vector3(9.0, 5.0, -36.0), "WALL JUMP", palette.sign)
+	var expert_b := _route("ExpertRouteB", "wild bank")
+	_add_route_path(expert_b, [Vector3(18.0, 0.5, -13.0), Vector3(19.0, 2.1, -33.0), Vector3(15.0, 4.5, -54.0), Vector3(7.0, 6.1, -72.0)], Vector3(4.5, 0.7, 6.2), 3.2, palette.expert, palette.ramp)
+	_add_route_collectibles(expert_b, [Vector3(19.0, 3.3, -33.0), Vector3(15.0, 5.7, -54.0), Vector3(7.0, 7.3, -72.0)])
+	_build_finale(Vector3(2.0, 6.4, -73.0), summit, palette, "WILD FINISH")
+
+func _build_green_light(summit: Vector3, palette: Dictionary) -> void:
+	var safe := _route("SafeRoute", "full-route recovery")
+	var safe_points: Array[Vector3] = [Vector3(-5.0, 0.4, -5.0), Vector3(-18.0, 1.0, -22.0), Vector3(-18.0, 2.4, -43.0), Vector3(-12.0, 4.0, -62.0), Vector3(-5.0, 5.7, -78.0), summit]
+	_add_route_path(safe, safe_points, Vector3(10.0, 0.8, 8.2), 6.9, palette.safe, palette.ramp)
+	_add_route_collectibles(safe, [Vector3(-19.0, 2.2, -22.0), Vector3(-13.5, 5.2, -62.0)])
+	var expert_a := _route("ExpertRouteA", "boost, dash, launch")
+	var fast_points: Array[Vector3] = [Vector3(4.0, 0.5, -9.0), Vector3(12.0, 2.0, -27.0), Vector3(14.0, 4.0, -48.0), Vector3(8.0, 5.8, -68.0), Vector3(3.0, 6.5, -79.0)]
+	_add_route_path(expert_a, fast_points, Vector3(5.4, 0.7, 6.0), 3.5, palette.expert, palette.ramp)
+	for index in range(fast_points.size() - 1):
+		var direction := Vector3(fast_points[index + 1].x - fast_points[index].x, 0.0, fast_points[index + 1].z - fast_points[index].z).normalized()
+		expert_a.add_child(_make_boost(fast_points[index] + Vector3(0.0, 0.42, -1.1), direction))
+	expert_a.add_child(_make_launch(fast_points[2] + Vector3(0.0, 0.42, -1.2)))
+	_add_route_collectibles(expert_a, [Vector3(12.0, 3.4, -27.0), Vector3(14.0, 5.4, -48.0), Vector3(8.0, 7.0, -68.0)])
+	_add_course_sign(expert_a, Vector3(12.0, 5.0, -38.0), "CHAIN THE KIT", palette.sign)
+	var expert_b := _route("ExpertRouteB", "wall and canopy line")
+	var wall_points: Array[Vector3] = [Vector3(20.0, 0.5, -13.0), Vector3(21.0, 2.2, -34.0), Vector3(17.0, 4.6, -56.0), Vector3(8.0, 6.0, -78.0)]
+	_add_route_path(expert_b, wall_points, Vector3(4.6, 0.7, 6.2), 3.1, palette.expert, palette.ramp)
+	for index in range(3):
+		_add_climbable_trunk(wall_points[index] + Vector3(-2.0, -0.4, -1.5), 6.2 + float(index) * 1.5, 0.5, expert_b)
+	_add_route_collectibles(expert_b, [Vector3(21.0, 3.4, -34.0), Vector3(17.0, 5.8, -56.0), Vector3(8.0, 7.2, -78.0)])
+	_build_finale(Vector3(3.0, 6.5, -79.0), summit, palette, "GREEN LIGHT")
+
+func _build_finale(start: Vector3, summit: Vector3, palette: Dictionary, label: String) -> void:
+	var finale := _route("Finale", "high-power finish")
+	var midpoint := Vector3(lerpf(start.x, summit.x, 0.42), minf(start.y + 0.55, summit.y - 0.35), lerpf(start.z, summit.z, 0.45))
+	_add_route_path(finale, [start, midpoint, summit], Vector3(6.0, 0.7, 6.0), 4.5, palette.finale, palette.ramp)
+	var direction := Vector3(summit.x - start.x, 0.0, summit.z - start.z).normalized()
+	finale.add_child(_make_boost(start + Vector3(0.0, 0.42, -1.3), direction))
+	_add_course_sign(finale, midpoint + Vector3(0.0, 2.3, 0.0), label, palette.sign)
+
+func _add_root_arch(parent: Node3D, position: Vector3, width: float, color: Color) -> void:
+	var arch := Node3D.new()
+	arch.name = "RootArch"
+	arch.position = position
+	for x in [-width * 0.5, width * 0.5]:
+		var side := MeshInstance3D.new()
+		var side_mesh := CylinderMesh.new()
+		side_mesh.top_radius = 0.25
+		side_mesh.bottom_radius = 0.42
+		side_mesh.height = 3.2
+		side.mesh = side_mesh
+		side.position = Vector3(x, 1.6, 0.0)
+		side.material_override = _material(color)
+		arch.add_child(side)
+	var crown := MeshInstance3D.new()
+	var crown_mesh := CylinderMesh.new()
+	crown_mesh.top_radius = 0.28
+	crown_mesh.bottom_radius = 0.42
+	crown_mesh.height = width
+	crown.mesh = crown_mesh
+	crown.rotation.z = deg_to_rad(90.0)
+	crown.position.y = 3.1
+	crown.material_override = _material(color)
+	arch.add_child(crown)
+	parent.add_child(arch)
+
+func _build_open_terrain(world_length: float, world_width: float, terrain_style: String) -> void:
+	var palette := _palette_for(terrain_style)
 	var tree_count := int(clampf(round(world_length / 7.0), 10.0, 18.0))
+	var edge := world_width * 0.5 - 3.0
 	for index in range(tree_count):
 		var z := -6.0 - float(index) * (world_length - 6.0) / float(tree_count - 1)
-		var left_x := world_shift - 15.0 + sin(float(index) * 1.7) * 1.4
-		var right_x := world_shift + 15.0 + cos(float(index) * 1.3) * 1.4
-		_add_tree(Vector3(left_x, 0.0, z), 0.85 + float(index % 3) * 0.18)
-		_add_tree(Vector3(right_x, 0.0, z + 1.5), 0.80 + float((index + 1) % 3) * 0.20)
+		var left_x := -edge + sin(float(index) * 1.7) * 1.4
+		var right_x := edge + cos(float(index) * 1.3) * 1.4
+		_add_tree(Vector3(left_x, 0.0, z), 0.85 + float(index % 3) * 0.18, palette.foliage)
+		_add_tree(Vector3(right_x, 0.0, z + 1.5), 0.80 + float((index + 1) % 3) * 0.20, palette.foliage)
 		if index % 3 == 1:
-			course.add_child(_make_platform(Vector3(left_x + 2.0, 0.35, z - 2.0), Vector3(2.2, 1.5, 2.4), Color("#3b563d")))
-			course.add_child(_make_platform(Vector3(right_x - 2.2, 0.55, z + 3.0), Vector3(2.6, 1.9, 2.6), Color("#3b563d")))
+			course.add_child(_make_platform(Vector3(left_x + 2.0, 0.35, z - 2.0), Vector3(2.2, 1.5, 2.4), palette.rock))
+			course.add_child(_make_platform(Vector3(right_x - 2.2, 0.55, z + 3.0), Vector3(2.6, 1.9, 2.6), palette.rock))
+
+func _palette_for(style: String) -> Dictionary:
+	match style:
+		"moss":
+			return {"basin": Color("#324b32"), "start": Color("#426740"), "safe": Color("#527a48"), "expert": Color("#6b9b58"), "ramp": Color("#638951"), "finale": Color("#8ab85f"), "foliage": Color("#55844d"), "rock": Color("#425e3c"), "root": Color("#3b442d"), "summit": Color("#7fa65b"), "sign": Color("#c9ec8c")}
+		"canopy":
+			return {"basin": Color("#243e3b"), "start": Color("#365b52"), "safe": Color("#4d7463"), "expert": Color("#5d9d83"), "ramp": Color("#5f8870"), "finale": Color("#8bca9b"), "foliage": Color("#4f7961"), "rock": Color("#39574d"), "root": Color("#354536"), "summit": Color("#6d9e77"), "sign": Color("#b5f0c5")}
+		"root":
+			return {"basin": Color("#3d382d"), "start": Color("#5d513b"), "safe": Color("#756548"), "expert": Color("#937a50"), "ramp": Color("#806b49"), "finale": Color("#c6a663"), "foliage": Color("#576342"), "rock": Color("#574c38"), "root": Color("#443722"), "summit": Color("#9f8553"), "sign": Color("#f0d28a")}
+		"sap":
+			return {"basin": Color("#303a4c"), "start": Color("#45597a"), "safe": Color("#5b718f"), "expert": Color("#7999bd"), "ramp": Color("#6683a3"), "finale": Color("#a2c8dd"), "foliage": Color("#516f7d"), "rock": Color("#405066"), "root": Color("#384035"), "summit": Color("#7fa7ba"), "sign": Color("#cae9ff")}
+		"wild":
+			return {"basin": Color("#3d303a"), "start": Color("#65435e"), "safe": Color("#7d5a73"), "expert": Color("#b17896"), "ramp": Color("#946b83"), "finale": Color("#df9db8"), "foliage": Color("#6e5668"), "rock": Color("#574152"), "root": Color("#3d3035"), "summit": Color("#ad7190"), "sign": Color("#ffd0e2")}
+		"summit":
+			return {"basin": Color("#343a31"), "start": Color("#4d6040"), "safe": Color("#657c4f"), "expert": Color("#94b963"), "ramp": Color("#77955a"), "finale": Color("#d0e679"), "foliage": Color("#648450"), "rock": Color("#4a5a3d"), "root": Color("#35402d"), "summit": Color("#a8c866"), "sign": Color("#f1ffb5")}
+		_:
+			return {"basin": Color("#2d4433"), "start": Color("#39553e"), "safe": Color("#496a48"), "expert": Color("#628253"), "ramp": Color("#5c7b51"), "finale": Color("#8aaa63"), "foliage": Color("#496848"), "rock": Color("#3b563d"), "root": Color("#33442e"), "summit": Color("#5b7749"), "sign": Color("#d8f2ad")}
 
 func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: float, color: Color) -> StaticBody3D:
 	traversal_ramp_count += 1
@@ -344,7 +524,7 @@ func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: flo
 	body.add_child(collision)
 	return body
 
-func _add_climbable_trunk(position: Vector3, height: float, radius: float) -> void:
+func _add_climbable_trunk(position: Vector3, height: float, radius: float, parent: Node3D = course) -> void:
 	climbable_trunk_count += 1
 	var body := StaticBody3D.new()
 	body.name = "ClimbableTrunk"
@@ -365,11 +545,7 @@ func _add_climbable_trunk(position: Vector3, height: float, radius: float) -> vo
 	collision.shape = shape
 	collision.position.y = height * 0.5
 	body.add_child(collision)
-	course.add_child(body)
-
-func _add_collectible_to_course(position: Vector3) -> void:
-	total_collectibles_in_level += 1
-	course.add_child(_make_collectible(position))
+	parent.add_child(body)
 
 func _make_platform(position: Vector3, size: Vector3, color: Color) -> StaticBody3D:
 	var body := StaticBody3D.new()
@@ -464,7 +640,7 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 			player.launch(float(payload))
 			Audio.play_sfx("launch")
 
-func _add_tree(position: Vector3, scale_factor: float) -> void:
+func _add_tree(position: Vector3, scale_factor: float, foliage_color: Color = Color("#496848")) -> void:
 	var tree := Node3D.new()
 	tree.position = position
 	var trunk := MeshInstance3D.new()
@@ -484,7 +660,7 @@ func _add_tree(position: Vector3, scale_factor: float) -> void:
 		crown_mesh.height = 1.9 * scale_factor
 		crown.mesh = crown_mesh
 		crown.position.y = (3.2 + branch * 0.75) * scale_factor
-		crown.material_override = _foliage_material(Color("#496848"), 0.055 + float(branch) * 0.018)
+		crown.material_override = _foliage_material(foliage_color, 0.055 + float(branch) * 0.018)
 		tree.add_child(crown)
 	course.add_child(tree)
 
@@ -683,15 +859,24 @@ func show_results(result: Dictionary) -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud.visible = false
 	_clear_menu()
-	var panel := _center_panel(Vector2(500.0, 430.0))
+	var panel := _center_panel(Vector2(760.0, 610.0))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
-	box.add_child(_label("Trail complete", 34, Color("#edf3d5")))
+	box.add_child(_label("Run analysis", 34, Color("#edf3d5")))
 	box.add_child(_label(current_level.title, 18, Color("#aabda1")))
 	box.add_child(_label(_time_text(float(result.time)), 44, Color("#f2d98c")))
 	var par := float(current_level.par)
 	box.add_child(_label("PAR " + _time_text(par) + ("  -  BEAT" if float(result.time) <= par else "  -  KEEP PUSHING"), 18, Color("#d4e0c9")))
+	var best_time := float(result.get("best_time", result.time))
+	var attempts := int(result.get("attempts", 1))
+	var delta := float(result.time) - best_time
+	var performance_text := "ATTEMPTS %d  -  NEW PB" % attempts if bool(result.is_pb) else "ATTEMPTS %d  -  PB +%s" % [attempts, _time_text(delta)]
+	box.add_child(_label(performance_text, 16, Color("#8ed6ae") if bool(result.is_pb) else Color("#d6bd7b")))
+	var histogram := PERFORMANCE_HISTOGRAM.new()
+	histogram.name = "PerformanceHistogram"
+	histogram.set_data(RunData.attempt_history_for(current_level.id), float(result.time), best_time)
+	box.add_child(histogram)
 	box.add_child(_label("Collectibles %d/%d" % [int(result.collectibles), _collectible_count(current_level)], 18, Color("#d4e0c9")))
 	if bool(result.is_pb):
 		box.add_child(_label("NEW PERSONAL BEST - ghost saved", 16, Color("#8ed6ae")))
