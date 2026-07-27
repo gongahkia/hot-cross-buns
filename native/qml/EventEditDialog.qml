@@ -165,6 +165,7 @@ HcbDialog {
         root.eventId = eventId
         eventCalendarId = calendarId
         titleField.text = title
+        allDayCheck.checked = false
         timeZonePicker.timeZone = startTimeZone || ""
         startField.value = startAt
         endField.value = endAt
