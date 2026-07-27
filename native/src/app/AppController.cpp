@@ -73,7 +73,8 @@ constexpr int kSearchDebounceMilliseconds = 180;
 
 [[nodiscard]] QStringList requiredGoogleScopes() {
   return {QStringLiteral("https://www.googleapis.com/auth/tasks"),
-          QStringLiteral("https://www.googleapis.com/auth/calendar")};
+          QStringLiteral("https://www.googleapis.com/auth/calendar"),
+          QStringLiteral("https://www.googleapis.com/auth/drive.metadata.readonly")};
 }
 
 [[nodiscard]] QString authenticationTimestamp(const Clock& clock) {
@@ -488,6 +489,8 @@ AppController::AppController(FilePath databasePath,
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
       googleCalendarManagementClient_(googleHttpClient_),
+      googleCalendarFreeBusyClient_(googleHttpClient_),
+      googleDriveFilePickerClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
       settingsService_(databasePath, clock), savedSearchStore_(settingsService_),
       optimisticMutationCoordinator_(databasePath, clock),
@@ -600,6 +603,10 @@ bool AppController::calendarVisibilityConfigured() const { return calendarVisibi
 bool AppController::notesEnabled() const { return notesEnabled_; }
 
 int AppController::notesProjectionMode() const { return notesProjectionMode_; }
+
+QVariantList AppController::freeBusyIntervals() const { return freeBusyIntervals_; }
+
+QVariantList AppController::driveAttachmentCandidates() const { return driveAttachmentCandidates_; }
 
 bool AppController::busy() const { return busy_; }
 
@@ -1139,6 +1146,135 @@ void AppController::subscribeGoogleCalendar(QString calendarId) {
           }
           setStatus(QStringLiteral("Google calendar subscribed"));
           requestGoogleSync(SyncScheduleTrigger::Manual);
+        });
+}
+
+void AppController::queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before checking availability"));
+    return;
+  }
+  QList<QString> ids;
+  ids.reserve(calendarIds.size());
+  for (const QVariant& value : calendarIds) {
+    if (!value.canConvert<QString>()) {
+      setStatus(QStringLiteral("Free-busy calendars are invalid"));
+      return;
+    }
+    ids.append(value.toString());
+  }
+  watch(std::async(std::launch::async,
+                   [this, ids = std::move(ids), startAt = std::move(startAt), endAt = std::move(endAt)]
+                       () -> std::variant<QVariantList, AppError> {
+                     QList<QString> remoteIds;
+                     remoteIds.reserve(ids.size());
+                     for (const QString& id : ids) {
+                       CalendarLookupResult lookup = calendarReadService_.findCalendar(id).get();
+                       if (std::holds_alternative<AppError>(lookup)) {
+                         return std::get<AppError>(std::move(lookup));
+                       }
+                       const std::optional<CalendarSummary>& calendar =
+                           std::get<std::optional<CalendarSummary>>(lookup);
+                       if (!calendar.has_value() || calendar->remoteId.isEmpty()) {
+                         return AppError(AppErrorCode::Validation,
+                                         QStringLiteral("Free-busy calendar is unavailable"));
+                       }
+                       remoteIds.append(calendar->remoteId);
+                     }
+                     OAuthCredentialReadResult read =
+                         credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                     if (std::holds_alternative<AppError>(read)) {
+                       return std::get<AppError>(std::move(read));
+                     }
+                     const std::optional<OAuthStoredCredential>& credential =
+                         std::get<std::optional<OAuthStoredCredential>>(read);
+                     if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                       return AppError(AppErrorCode::Configuration,
+                                       QStringLiteral("Google authorization must be renewed"));
+                     }
+                     GoogleCalendarFreeBusyResultOrError response = googleCalendarFreeBusyClient_
+                         .query({.startAt = startAt, .endAt = endAt, .calendarIds = std::move(remoteIds)},
+                                credential->accessToken)
+                         .get();
+                     if (std::holds_alternative<GoogleApiError>(response)) {
+                       return AppError(AppErrorCode::Network,
+                                       std::get<GoogleApiError>(std::move(response)).message());
+                     }
+                     QVariantList intervals;
+                     const GoogleCalendarFreeBusyResult result =
+                         std::get<GoogleCalendarFreeBusyResult>(std::move(response));
+                     for (auto calendar = result.intervalsByCalendar.constBegin();
+                          calendar != result.intervalsByCalendar.constEnd(); ++calendar) {
+                       for (const GoogleCalendarBusyInterval& interval : calendar.value()) {
+                         intervals.append(QVariantMap{{QStringLiteral("calendarId"), calendar.key()},
+                                                      {QStringLiteral("startAt"), interval.startAt},
+                                                      {QStringLiteral("endAt"), interval.endAt}});
+                       }
+                     }
+                     return intervals;
+                   }),
+        [this](std::variant<QVariantList, AppError> result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const QVariantList intervals = std::get<QVariantList>(std::move(result));
+          if (freeBusyIntervals_ != intervals) {
+            freeBusyIntervals_ = intervals;
+            emit freeBusyIntervalsChanged();
+          }
+        });
+}
+
+void AppController::searchGoogleDriveAttachments(QString query) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before searching Drive attachments"));
+    return;
+  }
+  watch(std::async(std::launch::async,
+                   [this, query = std::move(query)]() -> std::variant<QVariantList, AppError> {
+                     OAuthCredentialReadResult read =
+                         credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                     if (std::holds_alternative<AppError>(read)) {
+                       return std::get<AppError>(std::move(read));
+                     }
+                     const std::optional<OAuthStoredCredential>& credential =
+                         std::get<std::optional<OAuthStoredCredential>>(read);
+                     if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                       return AppError(AppErrorCode::Configuration,
+                                       QStringLiteral("Google authorization must be renewed for Drive access"));
+                     }
+                     GoogleDriveAttachmentCandidatesOrError response =
+                         googleDriveFilePickerClient_.search(query, credential->accessToken).get();
+                     if (std::holds_alternative<GoogleApiError>(response)) {
+                       const GoogleApiError error = std::get<GoogleApiError>(std::move(response));
+                       return AppError(AppErrorCode::Network,
+                                       QStringLiteral("Drive API access failed: ") + error.message());
+                     }
+                     QVariantList rows;
+                     const QList<GoogleDriveAttachmentCandidate> candidates =
+                         std::get<QList<GoogleDriveAttachmentCandidate>>(std::move(response));
+                     rows.reserve(candidates.size());
+                     for (const GoogleDriveAttachmentCandidate& candidate : candidates) {
+                       rows.append(QVariantMap{{QStringLiteral("id"), candidate.id},
+                                               {QStringLiteral("name"), candidate.name},
+                                               {QStringLiteral("mimeType"), candidate.mimeType},
+                                               {QStringLiteral("fileUrl"), candidate.webViewLink},
+                                               {QStringLiteral("iconLink"),
+                                                candidate.iconLink.value_or(QString())}});
+                     }
+                     return rows;
+                   }),
+        [this](std::variant<QVariantList, AppError> result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const QVariantList candidates = std::get<QVariantList>(std::move(result));
+          if (driveAttachmentCandidates_ != candidates) {
+            driveAttachmentCandidates_ = candidates;
+            emit driveAttachmentCandidatesChanged();
+          }
         });
 }
 
@@ -2232,7 +2368,13 @@ void AppController::createEventDetailed(QString calendarId,
                                         QVariantList attendees,
                                         bool remindersUseDefault,
                                         QVariantList reminders,
-                                        QString recurrenceRule) {
+                                        QString recurrenceRule,
+                                        bool createGoogleMeet,
+                                        QString attachmentsJson,
+                                        QString guestPermissionsJson,
+                                        QString eventType,
+                                        QString statusPropertiesJson,
+                                        QString sendUpdates) {
   const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
   const std::optional<CalendarEventReminderSettings> parsedReminders =
       eventRemindersFromVariantList(remindersUseDefault, reminders);
@@ -2266,7 +2408,13 @@ void AppController::createEventDetailed(QString calendarId,
              .reminders = *parsedReminders,
              .recurrenceRule = recurrenceRule.trimmed().isEmpty()
                                    ? std::optional<QString>{}
-                                   : std::optional<QString>(recurrenceRule.trimmed())}),
+                                   : std::optional<QString>(recurrenceRule.trimmed()),
+             .richMetadata = {.createGoogleMeet = createGoogleMeet,
+                              .attachmentsJson = std::move(attachmentsJson),
+                              .guestPermissionsJson = std::move(guestPermissionsJson),
+                              .eventType = std::move(eventType),
+                              .statusPropertiesJson = std::move(statusPropertiesJson),
+                              .sendUpdates = std::move(sendUpdates)}}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
@@ -2292,7 +2440,12 @@ void AppController::updateEventDetailed(QString eventId,
                                         bool remindersUseDefault,
                                         QVariantList reminders,
                                         QString recurrenceRule,
-                                        int recurrenceScope) {
+                                        int recurrenceScope,
+                                        bool createGoogleMeet,
+                                        QString attachmentsJson,
+                                        QString guestPermissionsJson,
+                                        QString statusPropertiesJson,
+                                        QString sendUpdates) {
   const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
   const std::optional<CalendarEventReminderSettings> parsedReminders =
       eventRemindersFromVariantList(remindersUseDefault, reminders);
@@ -2337,7 +2490,12 @@ void AppController::updateEventDetailed(QString eventId,
              .reminders = *parsedReminders,
              .recurrenceRule = std::optional<std::optional<QString>>(
                  recurrenceRule.trimmed().isEmpty() ? std::optional<QString>{}
-                                                   : std::optional<QString>(recurrenceRule.trimmed()))},
+                                                   : std::optional<QString>(recurrenceRule.trimmed())),
+             .createGoogleMeet = createGoogleMeet,
+             .attachmentsJson = std::move(attachmentsJson),
+             .guestPermissionsJson = std::move(guestPermissionsJson),
+             .statusPropertiesJson = std::move(statusPropertiesJson),
+             .sendUpdates = std::move(sendUpdates)},
              .scope = scope}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
@@ -2357,6 +2515,17 @@ void AppController::deleteEvent(QString eventId, int recurrenceScope) {
                      : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
                                             : CalendarEventRecurrenceScope::FullSeries;
   watch(calendarMutationService_.removeScoped({.eventId = std::move(eventId), .scope = scope}),
+        [this](CalendarEventMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::respondToEvent(QString eventId, QString responseStatus) {
+  watch(calendarMutationService_.respond(std::move(eventId), std::move(responseStatus)),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));

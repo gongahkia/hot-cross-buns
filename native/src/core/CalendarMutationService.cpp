@@ -37,6 +37,10 @@ constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr qsizetype kMaximumColorIdLength = 32;
 constexpr qsizetype kMaximumAttendeeCount = 200;
 constexpr qsizetype kMaximumReminderCount = 5;
+constexpr qsizetype kMaximumAttachmentCount = 25;
+constexpr qsizetype kMaximumConferenceJsonBytes = 32'768;
+constexpr qsizetype kMaximumAttachmentsJsonBytes = 65'536;
+constexpr qsizetype kMaximumEventPropertiesJsonBytes = 16'384;
 constexpr char kConflictMetadataKey[] = "_hcbSync";
 
 struct StoredEventContext final {
@@ -67,6 +71,11 @@ struct StoredEventContext final {
   QString attendeeDetailsJson;
   QString remindersJson;
   bool remindersUseDefault{true};
+  std::optional<QString> conferenceJson;
+  QString attachmentsJson;
+  QString guestPermissionsJson;
+  QString statusPropertiesJson;
+  bool calendarPrimary{false};
 };
 
 struct ActiveEventMutation final {
@@ -249,6 +258,136 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   return QString::fromUtf8(QJsonDocument(value).toJson(QJsonDocument::Compact));
 }
 
+[[nodiscard]] QString compactJson(const QJsonObject& value) {
+  return QString::fromUtf8(QJsonDocument(value).toJson(QJsonDocument::Compact));
+}
+
+[[nodiscard]] std::optional<QJsonObject> boundedJsonObject(const QString& value,
+                                                            qsizetype maximumBytes) {
+  if (value.toUtf8().size() > maximumBytes) {
+    return std::nullopt;
+  }
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
+  return error.error == QJsonParseError::NoError && document.isObject()
+             ? std::optional<QJsonObject>(document.object())
+             : std::nullopt;
+}
+
+[[nodiscard]] std::optional<QJsonArray> boundedJsonArray(const QString& value,
+                                                          qsizetype maximumBytes,
+                                                          qsizetype maximumItems) {
+  if (value.toUtf8().size() > maximumBytes) {
+    return std::nullopt;
+  }
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
+  return error.error == QJsonParseError::NoError && document.isArray() &&
+                 document.array().size() <= maximumItems
+             ? std::optional<QJsonArray>(document.array())
+             : std::nullopt;
+}
+
+[[nodiscard]] bool isValidSendUpdates(const QString& value) {
+  return value == QStringLiteral("all") || value == QStringLiteral("externalOnly") ||
+         value == QStringLiteral("none");
+}
+
+[[nodiscard]] bool isValidResponseStatus(const QString& value) {
+  return value == QStringLiteral("needsAction") || value == QStringLiteral("declined") ||
+         value == QStringLiteral("tentative") || value == QStringLiteral("accepted");
+}
+
+[[nodiscard]] bool isSupportedEventType(const QString& value) {
+  return value == QStringLiteral("default") || value == QStringLiteral("focusTime") ||
+         value == QStringLiteral("outOfOffice") || value == QStringLiteral("workingLocation");
+}
+
+[[nodiscard]] std::optional<QString> canonicalAttachmentsJson(const QString& value) {
+  const std::optional<QJsonArray> attachments =
+      boundedJsonArray(value, kMaximumAttachmentsJsonBytes, kMaximumAttachmentCount);
+  if (!attachments.has_value()) {
+    return std::nullopt;
+  }
+  QJsonArray canonical;
+  for (const QJsonValue& attachmentValue : *attachments) {
+    if (!attachmentValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject attachment = attachmentValue.toObject();
+    const QJsonValue fileUrl = attachment.value(QStringLiteral("fileUrl"));
+    const QJsonValue title = attachment.value(QStringLiteral("title"));
+    const QJsonValue mimeType = attachment.value(QStringLiteral("mimeType"));
+    if (!fileUrl.isString() || fileUrl.toString().size() > 2'048 ||
+        !fileUrl.toString().startsWith(QStringLiteral("https://")) ||
+        (!title.isUndefined() && (!title.isString() || title.toString().size() > 1'024)) ||
+        (!mimeType.isUndefined() && (!mimeType.isString() || mimeType.toString().size() > 256))) {
+      return std::nullopt;
+    }
+    QJsonObject item{{QStringLiteral("fileUrl"), fileUrl.toString()}};
+    if (title.isString()) {
+      item.insert(QStringLiteral("title"), title.toString());
+    }
+    if (mimeType.isString()) {
+      item.insert(QStringLiteral("mimeType"), mimeType.toString());
+    }
+    canonical.append(item);
+  }
+  return compactJson(canonical);
+}
+
+[[nodiscard]] std::optional<QString> canonicalGuestPermissionsJson(const QString& value) {
+  const std::optional<QJsonObject> permissions =
+      boundedJsonObject(value, kMaximumEventPropertiesJsonBytes);
+  if (!permissions.has_value()) {
+    return std::nullopt;
+  }
+  QJsonObject canonical;
+  for (const QStringView key : {u"guestsCanInviteOthers", u"guestsCanModify",
+                                u"guestsCanSeeOtherGuests"}) {
+    const QJsonValue permission = permissions->value(key);
+    if (permission.isUndefined()) {
+      continue;
+    }
+    if (!permission.isBool()) {
+      return std::nullopt;
+    }
+    canonical.insert(key.toString(), permission.toBool());
+  }
+  return compactJson(canonical);
+}
+
+[[nodiscard]] std::optional<QString> canonicalStatusPropertiesJson(const QString& value,
+                                                                     const QString& eventType) {
+  const std::optional<QJsonObject> properties =
+      boundedJsonObject(value, kMaximumEventPropertiesJsonBytes);
+  if (!properties.has_value()) {
+    return std::nullopt;
+  }
+  if (eventType == QStringLiteral("default") && !properties->isEmpty()) {
+    return std::nullopt;
+  }
+  const QString expected = eventType == QStringLiteral("focusTime")
+                               ? QStringLiteral("focusTimeProperties")
+                           : eventType == QStringLiteral("outOfOffice")
+                               ? QStringLiteral("outOfOfficeProperties")
+                           : eventType == QStringLiteral("workingLocation")
+                               ? QStringLiteral("workingLocationProperties")
+                               : QString();
+  if (!expected.isEmpty() && (properties->size() != 1 || !properties->value(expected).isObject())) {
+    return std::nullopt;
+  }
+  return compactJson(*properties);
+}
+
+[[nodiscard]] QString googleMeetCreateRequestJson() {
+  QJsonObject createRequest{
+      {QStringLiteral("requestId"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+      {QStringLiteral("conferenceSolutionKey"),
+       QJsonObject{{QStringLiteral("type"), QStringLiteral("hangoutsMeet")}}}};
+  return compactJson(QJsonObject{{QStringLiteral("createRequest"), createRequest}});
+}
+
 [[nodiscard]] QJsonArray attendeeDetails(const QList<QString>& emails,
                                           const QString& previousDetails = QStringLiteral("[]")) {
   QJsonParseError error;
@@ -303,8 +442,14 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   return !accessRole.has_value() || *accessRole == QStringLiteral("owner");
 }
 
+[[nodiscard]] bool isSupportedEventType(const QString& value);
+
 [[nodiscard]] bool isMutableEventType(const std::optional<QString>& eventType) {
   return !eventType.has_value() || *eventType == QStringLiteral("default");
+}
+
+[[nodiscard]] bool isEditableEventType(const std::optional<QString>& eventType) {
+  return !eventType.has_value() || isSupportedEventType(*eventType);
 }
 
 [[nodiscard]] QString timestamp(const Clock& clock) {
@@ -410,6 +555,8 @@ DELETE FROM local_calendar_event_recurrences WHERE event_id = ?1
   return remoteId.startsWith(QStringLiteral("pending:"));
 }
 
+[[nodiscard]] QList<QString> storedAttendeeEmails(const QString& json);
+
 [[nodiscard]] std::variant<std::optional<StoredEventContext>, AppError>
 readEventContext(SqliteConnection& connection, const QString& eventId) {
   sqlite3* const handle = connection.nativeHandle();
@@ -424,9 +571,10 @@ SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id,
        events.end_time_zone, events.is_all_day,
        COALESCE(recurrences.recurrence_rule, events.recurrence_rule), events.recurring_remote_id,
        events.original_start_at, events.status, events.color_id, events.transparency, events.visibility,
-       events.event_type
-       , events.attendee_emails_json, events.attendee_details_json, events.reminders_json,
-       events.reminders_use_default
+       events.event_type, events.attendee_emails_json, events.attendee_details_json,
+       events.reminders_json, events.reminders_use_default, events.conference_json,
+       events.attachments_json, events.guest_permissions_json, events.status_properties_json,
+       calendars.is_primary
 FROM local_calendar_events AS events
 INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
 LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id
@@ -499,7 +647,12 @@ LIMIT 1
                              .attendeeEmailsJson = optionalText(statement, 23).value_or(QString()),
                              .attendeeDetailsJson = optionalText(statement, 24).value_or(QString()),
                              .remindersJson = optionalText(statement, 25).value_or(QString()),
-                             .remindersUseDefault = sqlite3_column_int(statement, 26) == 1};
+                             .remindersUseDefault = sqlite3_column_int(statement, 26) == 1,
+                             .conferenceJson = optionalText(statement, 27),
+                             .attachmentsJson = optionalText(statement, 28).value_or(QStringLiteral("[]")),
+                             .guestPermissionsJson = optionalText(statement, 29).value_or(QStringLiteral("{}")),
+                             .statusPropertiesJson = optionalText(statement, 30).value_or(QStringLiteral("{}")),
+                             .calendarPrimary = sqlite3_column_int(statement, 31) == 1};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
              ? std::variant<std::optional<StoredEventContext>, AppError>(std::move(context))
@@ -628,6 +781,24 @@ readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
                                                                          : QJsonArray();
 }
 
+[[nodiscard]] QJsonObject storedObject(const QString& value) {
+  const std::optional<QJsonObject> object =
+      boundedJsonObject(value, kMaximumEventPropertiesJsonBytes);
+  return object.value_or(QJsonObject());
+}
+
+[[nodiscard]] QJsonObject conferenceCreateRequest(const std::optional<QString>& conferenceJson) {
+  if (!conferenceJson.has_value()) {
+    return {};
+  }
+  const std::optional<QJsonObject> conference =
+      boundedJsonObject(*conferenceJson, kMaximumConferenceJsonBytes);
+  if (!conference.has_value() || !conference->value(QStringLiteral("createRequest")).isObject()) {
+    return {};
+  }
+  return *conference;
+}
+
 [[nodiscard]] QJsonObject storedReminders(const StoredEventContext& event) {
   QJsonParseError error;
   const QJsonDocument document = QJsonDocument::fromJson(event.remindersJson.toUtf8(), &error);
@@ -654,7 +825,11 @@ readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
            event.visibility.has_value() ? QJsonValue(*event.visibility) : QJsonValue::Null},
           {QStringLiteral("recurrence"), recurrenceLines(event.recurrenceRule)},
           {QStringLiteral("attendees"), storedArray(event.attendeeDetailsJson)},
-          {QStringLiteral("reminders"), storedReminders(event)}};
+          {QStringLiteral("reminders"), storedReminders(event)},
+          {QStringLiteral("conferenceData"), conferenceCreateRequest(event.conferenceJson)},
+          {QStringLiteral("attachments"), storedArray(event.attachmentsJson)},
+          {QStringLiteral("guestPermissions"), storedObject(event.guestPermissionsJson)},
+          {QStringLiteral("statusProperties"), storedObject(event.statusPropertiesJson)}};
 }
 
 [[nodiscard]] QJsonObject eventBody(const StoredEventContext& event, bool creating) {
@@ -686,6 +861,25 @@ readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
   }
   body.insert(QStringLiteral("attendees"), storedArray(event.attendeeDetailsJson));
   body.insert(QStringLiteral("reminders"), storedReminders(event));
+  const QJsonObject conference = conferenceCreateRequest(event.conferenceJson);
+  if (!conference.isEmpty()) {
+    body.insert(QStringLiteral("conferenceData"), conference);
+  }
+  const QJsonArray attachments = storedArray(event.attachmentsJson);
+  if (!attachments.isEmpty()) {
+    body.insert(QStringLiteral("attachments"), attachments);
+  }
+  const QJsonObject permissions = storedObject(event.guestPermissionsJson);
+  for (auto it = permissions.constBegin(); it != permissions.constEnd(); ++it) {
+    body.insert(it.key(), it.value());
+  }
+  if (creating && event.eventType.value_or(QStringLiteral("default")) != QStringLiteral("default")) {
+    body.insert(QStringLiteral("eventType"), *event.eventType);
+    const QJsonObject properties = storedObject(event.statusPropertiesJson);
+    for (auto it = properties.constBegin(); it != properties.constEnd(); ++it) {
+      body.insert(it.key(), it.value());
+    }
+  }
   return body;
 }
 
@@ -708,9 +902,23 @@ readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
   QJsonObject patch;
   for (const QStringView key : {u"summary", u"description", u"location", u"start", u"end",
                                 u"colorId", u"transparency", u"visibility", u"attendees",
-                                u"reminders", u"recurrence"}) {
+                                u"reminders", u"recurrence", u"conferenceData", u"attachments"}) {
     if (beforeSnapshot.value(key) != afterSnapshot.value(key)) {
       patch.insert(key.toString(), afterSnapshot.value(key));
+    }
+  }
+  if (beforeSnapshot.value(QStringLiteral("guestPermissions")) !=
+      afterSnapshot.value(QStringLiteral("guestPermissions"))) {
+    const QJsonObject permissions = afterSnapshot.value(QStringLiteral("guestPermissions")).toObject();
+    for (auto it = permissions.constBegin(); it != permissions.constEnd(); ++it) {
+      patch.insert(it.key(), it.value());
+    }
+  }
+  if (beforeSnapshot.value(QStringLiteral("statusProperties")) !=
+      afterSnapshot.value(QStringLiteral("statusProperties"))) {
+    const QJsonObject properties = afterSnapshot.value(QStringLiteral("statusProperties")).toObject();
+    for (auto it = properties.constBegin(); it != properties.constEnd(); ++it) {
+      patch.insert(it.key(), it.value());
     }
   }
   return patch;
@@ -739,10 +947,17 @@ readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
   for (auto it = patchBody.constBegin(); it != patchBody.constEnd(); ++it) {
     merged.insert(it.key(), it.value());
   }
+  if (patchBody.contains(QStringLiteral("attendees")) &&
+      !patchBody.contains(QStringLiteral("attendeesOmitted"))) {
+    merged.remove(QStringLiteral("attendeesOmitted"));
+  }
   existing.insert(QStringLiteral("event"), std::move(merged));
   existing.insert(QStringLiteral("calendarId"), patch.value(QStringLiteral("calendarId")));
   existing.insert(QStringLiteral("localCalendarId"), patch.value(QStringLiteral("localCalendarId")));
   existing.insert(QStringLiteral("remoteEventId"), patch.value(QStringLiteral("remoteEventId")));
+  if (patch.contains(QStringLiteral("sendUpdates"))) {
+    existing.insert(QStringLiteral("sendUpdates"), patch.value(QStringLiteral("sendUpdates")));
+  }
   return existing;
 }
 
@@ -1005,7 +1220,30 @@ queueEventMutation(SqliteConnection& connection,
                    const StoredEventContext& before,
                    const std::optional<StoredEventContext>& after,
                    const QString& operation,
-                   const QString& updatedAt) {
+                   const QString& updatedAt,
+                   const QString& sendUpdates = QStringLiteral("all"),
+                   bool selfResponseOnly = false) {
+  const auto withDeliveryOptions = [&](QJsonObject payload, const StoredEventContext& event,
+                                       bool canLimitToSelf) {
+    payload.insert(QStringLiteral("sendUpdates"), sendUpdates);
+    if (!selfResponseOnly || !canLimitToSelf) {
+      return payload;
+    }
+    QJsonObject body = payload.value(QStringLiteral("event")).toObject();
+    QJsonArray selfAttendee;
+    for (const QJsonValue& value : storedArray(event.attendeeDetailsJson)) {
+      if (value.isObject() && value.toObject().value(QStringLiteral("self")).toBool()) {
+        selfAttendee.append(value);
+        break;
+      }
+    }
+    if (!selfAttendee.isEmpty()) {
+      body.insert(QStringLiteral("attendees"), std::move(selfAttendee));
+      body.insert(QStringLiteral("attendeesOmitted"), true);
+      payload.insert(QStringLiteral("event"), std::move(body));
+    }
+    return payload;
+  };
   const std::variant<std::optional<ActiveEventMutation>, AppError> activeResult =
       findActiveEventMutation(connection, before.eventId);
   if (std::holds_alternative<AppError>(activeResult)) {
@@ -1032,7 +1270,7 @@ queueEventMutation(SqliteConnection& connection,
         return AppError(AppErrorCode::Database,
                         QStringLiteral("Updated calendar event is unavailable"));
       }
-      QJsonObject payload = eventPayload(*after, false);
+      QJsonObject payload = withDeliveryOptions(eventPayload(*after, false), *after, false);
       payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
       return replaceActiveEventMutation(
           connection, *active, QStringLiteral("event.create"), std::move(payload), updatedAt);
@@ -1043,7 +1281,7 @@ queueEventMutation(SqliteConnection& connection,
         return AppError(AppErrorCode::Database,
                         QStringLiteral("Moved calendar event is unavailable"));
       }
-      QJsonObject payload = movePayload(before, *after);
+      QJsonObject payload = withDeliveryOptions(movePayload(before, *after), *after, false);
       if (dependency.has_value()) {
         payload.insert(QStringLiteral("dependsOnMutationId"), *dependency);
       }
@@ -1053,7 +1291,7 @@ queueEventMutation(SqliteConnection& connection,
           error.has_value()) {
         return error;
       }
-      QJsonObject followUp = eventPayload(*after, true);
+      QJsonObject followUp = withDeliveryOptions(eventPayload(*after, true), *after, true);
       followUp.insert(QStringLiteral("dependsOnMutationId"), active->id);
       followUp = withConflictMetadata(std::move(followUp), eventSnapshot(before), before.remoteEtag);
       const EventMutationInsertResult inserted = insertEventMutation(
@@ -1062,7 +1300,12 @@ queueEventMutation(SqliteConnection& connection,
                  ? std::optional<AppError>(std::get<AppError>(inserted))
                  : std::nullopt;
     }
-    QJsonObject payload = deleting ? deletePayload(before) : eventUpdatePayload(before, *after);
+    QJsonObject payload = deleting ? deletePayload(before)
+                                   : withDeliveryOptions(eventUpdatePayload(before, *after),
+                                                         *after,
+                                                         !active->payload.value(QStringLiteral("event"))
+                                                              .toObject()
+                                                              .contains(QStringLiteral("attendees")));
     if (!deleting) {
       payload = mergeEventPatch(active->payload, std::move(payload));
     }
@@ -1085,8 +1328,9 @@ queueEventMutation(SqliteConnection& connection,
       return AppError(AppErrorCode::Database,
                       QStringLiteral("Updated calendar event is unavailable"));
     }
-    payload = operation == QStringLiteral("event.create") ? eventPayload(*after, false)
-                                                            : eventUpdatePayload(before, *after);
+    payload = operation == QStringLiteral("event.create")
+                  ? withDeliveryOptions(eventPayload(*after, false), *after, false)
+                  : withDeliveryOptions(eventUpdatePayload(before, *after), *after, true);
   }
   payload = withConflictMetadata(
       std::move(payload),
@@ -1103,7 +1347,7 @@ queueEventMutation(SqliteConnection& connection,
   if (!after.has_value()) {
     return AppError(AppErrorCode::Database, QStringLiteral("Moved calendar event is unavailable"));
   }
-  QJsonObject followUp = eventPayload(*after, true);
+  QJsonObject followUp = withDeliveryOptions(eventPayload(*after, true), *after, true);
   followUp.insert(QStringLiteral("dependsOnMutationId"), std::get<QString>(inserted));
   followUp = withConflictMetadata(std::move(followUp), eventSnapshot(before), before.remoteEtag);
   const EventMutationInsertResult followUpInserted = insertEventMutation(
@@ -1137,6 +1381,22 @@ canonicalize(CalendarEventCreateInput input) {
   input.startAt = *startAt;
   input.endAt = *endAt;
   input.recurrenceRule = recurrenceRule;
+  if (!isSupportedEventType(input.richMetadata.eventType) ||
+      !isValidSendUpdates(input.richMetadata.sendUpdates)) {
+    return validationError(QStringLiteral("Calendar event rich metadata is invalid"));
+  }
+  const std::optional<QString> attachments =
+      canonicalAttachmentsJson(input.richMetadata.attachmentsJson);
+  const std::optional<QString> guestPermissions =
+      canonicalGuestPermissionsJson(input.richMetadata.guestPermissionsJson);
+  const std::optional<QString> statusProperties = canonicalStatusPropertiesJson(
+      input.richMetadata.statusPropertiesJson, input.richMetadata.eventType);
+  if (!attachments.has_value() || !guestPermissions.has_value() || !statusProperties.has_value()) {
+    return validationError(QStringLiteral("Calendar event rich metadata is invalid"));
+  }
+  input.richMetadata.attachmentsJson = *attachments;
+  input.richMetadata.guestPermissionsJson = *guestPermissions;
+  input.richMetadata.statusPropertiesJson = *statusProperties;
   const std::optional<QList<QString>> attendees = canonicalAttendees(std::move(input.attendeeEmails));
   if (!attendees.has_value()) {
     return validationError(QStringLiteral("Calendar event create input is invalid"));
@@ -1176,7 +1436,10 @@ canonicalize(CalendarEventUpdateInput input) {
       input.location.has_value() || input.startAt.has_value() || input.endAt.has_value() ||
       input.allDay.has_value() || input.startTimeZone.has_value() || input.endTimeZone.has_value() ||
       input.colorId.has_value() || input.transparency.has_value() || input.visibility.has_value() ||
-      input.attendeeEmails.has_value() || input.reminders.has_value() || input.recurrenceRule.has_value();
+      input.attendeeEmails.has_value() || input.reminders.has_value() || input.recurrenceRule.has_value() ||
+      input.createGoogleMeet.has_value() || input.attachmentsJson.has_value() ||
+      input.guestPermissionsJson.has_value() || input.statusPropertiesJson.has_value() ||
+      input.sendUpdates.has_value() || input.selfResponseStatus.has_value();
   if (!isValidRequiredText(input.eventId, kMaximumIdentifierLength) ||
       (input.calendarId.has_value() &&
        !isValidRequiredText(*input.calendarId, kMaximumIdentifierLength)) ||
@@ -1205,6 +1468,25 @@ canonicalize(CalendarEventUpdateInput input) {
   if (input.reminders.has_value() && !isValidReminders(*input.reminders)) {
     return validationError(QStringLiteral("Calendar event update input is invalid"));
   }
+  if ((input.attachmentsJson.has_value() && !canonicalAttachmentsJson(*input.attachmentsJson).has_value()) ||
+      (input.guestPermissionsJson.has_value() &&
+       !canonicalGuestPermissionsJson(*input.guestPermissionsJson).has_value()) ||
+      (input.statusPropertiesJson.has_value() &&
+       !boundedJsonObject(*input.statusPropertiesJson, kMaximumEventPropertiesJsonBytes).has_value()) ||
+      (input.sendUpdates.has_value() && !isValidSendUpdates(*input.sendUpdates)) ||
+      (input.selfResponseStatus.has_value() && !isValidResponseStatus(*input.selfResponseStatus))) {
+    return validationError(QStringLiteral("Calendar event rich metadata is invalid"));
+  }
+  if (input.attachmentsJson.has_value()) {
+    input.attachmentsJson = *canonicalAttachmentsJson(*input.attachmentsJson);
+  }
+  if (input.guestPermissionsJson.has_value()) {
+    input.guestPermissionsJson = *canonicalGuestPermissionsJson(*input.guestPermissionsJson);
+  }
+  if (input.statusPropertiesJson.has_value()) {
+    input.statusPropertiesJson = compactJson(
+        *boundedJsonObject(*input.statusPropertiesJson, kMaximumEventPropertiesJsonBytes));
+  }
   if (input.startAt.has_value() && input.endAt.has_value() &&
       QDateTime::fromString(*input.endAt, Qt::ISODateWithMs) <=
           QDateTime::fromString(*input.startAt, Qt::ISODateWithMs)) {
@@ -1227,14 +1509,15 @@ canonicalize(CalendarEventUpdateInput input) {
 INSERT INTO local_calendar_events (
   id, calendar_id, remote_id, status, title, description, location, start_at, start_time_zone,
   end_at, end_time_zone, is_all_day, recurrence_rule, color_id, transparency, visibility, attendee_emails_json,
-  attendee_details_json, reminder_minutes_json, reminders_json, reminders_use_default, created_at,
-  updated_at
+  attendee_details_json, reminder_minutes_json, reminders_json, reminders_use_default, event_type,
+  conference_json, attachments_json, guest_permissions_json, status_properties_json, created_at, updated_at
 )
 SELECT ?1, calendars.id, ?3, 'confirmed', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-       ?16, ?17, ?18, ?19, ?20, ?21, ?21
+       ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?26
 FROM local_calendars AS calendars
 WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
   AND (calendars.access_role IS NULL OR calendars.access_role IN ('writer', 'owner'))
+  AND (?21 = 'default' OR calendars.is_primary = 1)
 )";
   sqlite3_stmt* statement = nullptr;
   const int prepareResult =
@@ -1269,7 +1552,15 @@ WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
                    bindText(statement, 18, compactJson(reminderMinutes(input.reminders))),
                    bindText(statement, 19, reminderOverrides),
                    bindInteger(statement, 20, input.reminders.useDefault ? 1 : 0),
-                   bindText(statement, 21, updatedAt)});
+                   bindText(statement, 21, input.richMetadata.eventType),
+                   bindOptionalText(statement, 22,
+                                    input.richMetadata.createGoogleMeet
+                                        ? std::optional<QString>(googleMeetCreateRequestJson())
+                                        : std::optional<QString>{}),
+                   bindText(statement, 23, input.richMetadata.attachmentsJson),
+                   bindText(statement, 24, input.richMetadata.guestPermissionsJson),
+                   bindText(statement, 25, input.richMetadata.statusPropertiesJson),
+                   bindText(statement, 26, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -1305,6 +1596,14 @@ WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
     return AppError(AppErrorCode::Database,
                     QStringLiteral("SQLite calendar-event connection is unavailable"));
   }
+  if (input.statusPropertiesJson.has_value() &&
+      !canonicalStatusPropertiesJson(*input.statusPropertiesJson,
+                                     before.eventType.value_or(QStringLiteral("default"))).has_value()) {
+    return validationError(QStringLiteral("Calendar event status properties are invalid"));
+  }
+  if (input.createGoogleMeet.value_or(false) && before.conferenceJson.has_value()) {
+    return validationError(QStringLiteral("Calendar event already has conference data"));
+  }
   constexpr char sql[] = R"(
 UPDATE local_calendar_events
 SET calendar_id = CASE WHEN ?2 = 1 THEN ?3 ELSE calendar_id END,
@@ -1325,7 +1624,11 @@ SET calendar_id = CASE WHEN ?2 = 1 THEN ?3 ELSE calendar_id END,
     reminder_minutes_json = CASE WHEN ?31 = 1 THEN ?32 ELSE reminder_minutes_json END,
     reminders_json = CASE WHEN ?31 = 1 THEN ?33 ELSE reminders_json END,
     reminders_use_default = CASE WHEN ?31 = 1 THEN ?34 ELSE reminders_use_default END,
-    updated_at = ?35
+    conference_json = CASE WHEN ?35 = 1 THEN ?36 ELSE conference_json END,
+    attachments_json = CASE WHEN ?37 = 1 THEN ?38 ELSE attachments_json END,
+    guest_permissions_json = CASE WHEN ?39 = 1 THEN ?40 ELSE guest_permissions_json END,
+    status_properties_json = CASE WHEN ?41 = 1 THEN ?42 ELSE status_properties_json END,
+    updated_at = ?43
 WHERE id = ?1
   AND deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM local_calendars AS source
@@ -1361,10 +1664,28 @@ WHERE id = ?1
       input.endTimeZone.has_value() ? *input.endTimeZone : std::nullopt;
   const std::optional<QString> colorId =
       input.colorId.has_value() ? *input.colorId : std::nullopt;
-  const QList<QString> attendees = input.attendeeEmails.value_or(QList<QString>());
-  const QJsonArray details = input.attendeeEmails.has_value()
-                                 ? attendeeDetails(attendees, before.attendeeDetailsJson)
-                                 : QJsonArray();
+  const QList<QString> attendees = input.attendeeEmails.has_value()
+                                       ? *input.attendeeEmails
+                                       : storedAttendeeEmails(before.attendeeEmailsJson);
+  QJsonArray details = (input.attendeeEmails.has_value() || input.selfResponseStatus.has_value())
+                           ? attendeeDetails(attendees, before.attendeeDetailsJson)
+                           : QJsonArray();
+  if (input.selfResponseStatus.has_value()) {
+    bool foundSelf = false;
+    for (QJsonValueRef attendeeValue : details) {
+      QJsonObject attendee = attendeeValue.toObject();
+      if (attendee.value(QStringLiteral("self")).toBool()) {
+        attendee.insert(QStringLiteral("responseStatus"), *input.selfResponseStatus);
+        attendeeValue = attendee;
+        foundSelf = true;
+        break;
+      }
+    }
+    if (!foundSelf) {
+      return validationError(QStringLiteral("Google attendee identity is unavailable for RSVP"));
+    }
+  }
+  const bool attendeeUpdate = input.attendeeEmails.has_value() || input.selfResponseStatus.has_value();
   const CalendarEventReminderSettings reminders =
       input.reminders.value_or(CalendarEventReminderSettings{});
   const QJsonObject reminderSettings = remindersJson(reminders);
@@ -1399,7 +1720,7 @@ WHERE id = ?1
                    bindOptionalText(statement, 25, input.transparency),
                    bindInteger(statement, 26, input.visibility.has_value()),
                    bindOptionalText(statement, 27, input.visibility),
-                   bindInteger(statement, 28, input.attendeeEmails.has_value()),
+                   bindInteger(statement, 28, attendeeUpdate),
                    bindText(statement, 29,
                             compactJson(QJsonArray::fromStringList(attendees))),
                    bindText(statement, 30, compactJson(details)),
@@ -1407,7 +1728,18 @@ WHERE id = ?1
                    bindText(statement, 32, compactJson(reminderMinutes(reminders))),
                    bindText(statement, 33, reminderOverrideJson),
                    bindInteger(statement, 34, reminders.useDefault ? 1 : 0),
-                   bindText(statement, 35, updatedAt)});
+                   bindInteger(statement, 35, input.createGoogleMeet.value_or(false)),
+                   bindOptionalText(statement, 36,
+                                    input.createGoogleMeet.value_or(false)
+                                        ? std::optional<QString>(googleMeetCreateRequestJson())
+                                        : std::optional<QString>{}),
+                   bindInteger(statement, 37, input.attachmentsJson.has_value()),
+                   bindOptionalText(statement, 38, input.attachmentsJson),
+                   bindInteger(statement, 39, input.guestPermissionsJson.has_value()),
+                   bindOptionalText(statement, 40, input.guestPermissionsJson),
+                   bindInteger(statement, 41, input.statusPropertiesJson.has_value()),
+                   bindOptionalText(statement, 42, input.statusPropertiesJson),
+                   bindText(statement, 43, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -1628,7 +1960,14 @@ successorRecurrenceRule(const StoredEventContext& master, const QString& targetO
                                                      : master.visibility,
           .attendeeEmails = patch.attendeeEmails.value_or(storedAttendeeEmails(master.attendeeEmailsJson)),
           .reminders = patch.reminders.value_or(storedReminderSettings(master)),
-          .recurrenceRule = recurrenceRule};
+          .recurrenceRule = recurrenceRule,
+          .richMetadata = {.attachmentsJson = patch.attachmentsJson.value_or(master.attachmentsJson),
+                           .guestPermissionsJson = patch.guestPermissionsJson.value_or(
+                               master.guestPermissionsJson),
+                           .eventType = master.eventType.value_or(QStringLiteral("default")),
+                           .statusPropertiesJson = patch.statusPropertiesJson.value_or(
+                               master.statusPropertiesJson),
+                           .sendUpdates = patch.sendUpdates.value_or(QStringLiteral("all"))}};
 }
 
 [[nodiscard]] CalendarEventCreateInput instanceInput(const StoredEventContext& occurrence,
@@ -1655,7 +1994,14 @@ successorRecurrenceRule(const StoredEventContext& master, const QString& targetO
                                                      : occurrence.visibility,
           .attendeeEmails = patch.attendeeEmails.value_or(
               storedAttendeeEmails(occurrence.attendeeEmailsJson)),
-          .reminders = patch.reminders.value_or(storedReminderSettings(occurrence))};
+          .reminders = patch.reminders.value_or(storedReminderSettings(occurrence)),
+          .richMetadata = {.attachmentsJson = patch.attachmentsJson.value_or(occurrence.attachmentsJson),
+                           .guestPermissionsJson = patch.guestPermissionsJson.value_or(
+                               occurrence.guestPermissionsJson),
+                           .eventType = occurrence.eventType.value_or(QStringLiteral("default")),
+                           .statusPropertiesJson = patch.statusPropertiesJson.value_or(
+                               occurrence.statusPropertiesJson),
+                           .sendUpdates = patch.sendUpdates.value_or(QStringLiteral("all"))}};
 }
 
 [[nodiscard]] std::optional<AppError>
@@ -1752,7 +2098,9 @@ queueInstanceMutation(SqliteConnection& connection,
                       const StoredEventContext& original,
                       const StoredEventContext& materialized,
                       QString operation,
-                      const QString& updatedAt) {
+                      const QString& updatedAt,
+                      const QString& sendUpdates = QStringLiteral("all"),
+                      bool selfResponseOnly = false) {
   if (!original.recurringRemoteId.has_value() || !original.originalStartAt.has_value()) {
     return AppError(AppErrorCode::Database,
                     QStringLiteral("Calendar instance identity is unavailable"));
@@ -1763,11 +2111,25 @@ queueInstanceMutation(SqliteConnection& connection,
                       {QStringLiteral("recurringRemoteId"), *original.recurringRemoteId},
                       {QStringLiteral("originalStartAt"), *original.originalStartAt}};
   if (operation == QStringLiteral("event.instance.update")) {
-    const QJsonObject patch = eventPatchBody(original, materialized);
+    QJsonObject patch = eventPatchBody(original, materialized);
     if (patch.isEmpty()) {
       return std::nullopt;
     }
+    if (selfResponseOnly) {
+      QJsonArray selfAttendee;
+      for (const QJsonValue& value : storedArray(materialized.attendeeDetailsJson)) {
+        if (value.isObject() && value.toObject().value(QStringLiteral("self")).toBool()) {
+          selfAttendee.append(value);
+          break;
+        }
+      }
+      if (!selfAttendee.isEmpty()) {
+        patch.insert(QStringLiteral("attendees"), std::move(selfAttendee));
+        patch.insert(QStringLiteral("attendeesOmitted"), true);
+      }
+    }
     payload.insert(QStringLiteral("event"), patch);
+    payload.insert(QStringLiteral("sendUpdates"), sendUpdates);
   }
   const std::variant<std::optional<ActiveEventMutation>, AppError> active =
       findActiveEventMutation(connection, materialized.eventId);
@@ -2092,7 +2454,12 @@ CalendarMutationService::create(CalendarEventCreateInput input) {
               AppError(AppErrorCode::Database, QStringLiteral("Created calendar event is unavailable")));
         }
         if (const std::optional<AppError> error = queueEventMutation(
-                connection, *context, context, QStringLiteral("event.create"), updatedAt);
+                connection,
+                *context,
+                context,
+                QStringLiteral("event.create"),
+                updatedAt,
+                input.richMetadata.sendUpdates);
             error.has_value()) {
           return CalendarEventMutationResult(*error);
         }
@@ -2132,7 +2499,8 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
       return CalendarEventMutationResult(
           validationError(QStringLiteral("Calendar is read-only for event updates")));
     }
-    if (!isMutableEventType(before->eventType)) {
+    if (!isMutableEventType(before->eventType) &&
+        (!isEditableEventType(before->eventType) || !input.statusPropertiesJson.has_value())) {
       return CalendarEventMutationResult(
           validationError(QStringLiteral("Calendar event type is immutable")));
     }
@@ -2164,7 +2532,13 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
                                   ? QStringLiteral("event.update")
                                   : QStringLiteral("event.move");
     if (const std::optional<AppError> error =
-            queueEventMutation(connection, *before, after, operation, updatedAt);
+            queueEventMutation(connection,
+                               *before,
+                               after,
+                               operation,
+                               updatedAt,
+                               input.sendUpdates.value_or(QStringLiteral("all")),
+                               input.selfResponseStatus.has_value());
         error.has_value()) {
       return CalendarEventMutationResult(*error);
     }
@@ -2173,6 +2547,12 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
     }
     return updated;
   });
+}
+
+std::future<CalendarEventMutationResult>
+CalendarMutationService::respond(QString eventId, QString responseStatus) {
+  return update({.eventId = std::move(eventId),
+                 .selfResponseStatus = std::move(responseStatus)});
 }
 
 std::future<CalendarEventMutationResult>
@@ -2214,7 +2594,8 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar is read-only for event updates")));
         }
-        if (!isMutableEventType(target->eventType)) {
+        if (!isMutableEventType(target->eventType) &&
+            (!isEditableEventType(target->eventType) || !input.statusPropertiesJson.has_value())) {
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar event type is immutable")));
         }
@@ -2242,12 +2623,14 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
             if (std::holds_alternative<AppError>(materialized)) {
               return CalendarEventMutationResult(std::get<AppError>(materialized));
             }
-            if (const std::optional<AppError> error = queueInstanceMutation(
+          if (const std::optional<AppError> error = queueInstanceMutation(
                     connection,
                     *target,
                     std::get<StoredEventContext>(materialized),
                     QStringLiteral("event.instance.update"),
-                    updatedAt);
+                    updatedAt,
+                    input.sendUpdates.value_or(QStringLiteral("all")),
+                    input.selfResponseStatus.has_value());
                 error.has_value()) {
               return CalendarEventMutationResult(*error);
             }
@@ -2285,7 +2668,13 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
           if (target->recurringRemoteId.has_value() && target->originalStartAt.has_value() &&
               isPendingRemoteId(target->remoteId)) {
             if (const std::optional<AppError> error = queueInstanceMutation(
-                    connection, *target, after, QStringLiteral("event.instance.update"), updatedAt);
+                    connection,
+                    *target,
+                    after,
+                    QStringLiteral("event.instance.update"),
+                    updatedAt,
+                    input.sendUpdates.value_or(QStringLiteral("all")),
+                    input.selfResponseStatus.has_value());
                 error.has_value()) {
               return CalendarEventMutationResult(*error);
             }
@@ -2298,7 +2687,13 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                                         ? QStringLiteral("event.update")
                                         : QStringLiteral("event.move");
           if (const std::optional<AppError> error =
-                  queueEventMutation(connection, *target, after, operation, updatedAt);
+                  queueEventMutation(connection,
+                                     *target,
+                                     after,
+                                     operation,
+                                     updatedAt,
+                                     input.sendUpdates.value_or(QStringLiteral("all")),
+                                     input.selfResponseStatus.has_value());
               error.has_value()) {
             return CalendarEventMutationResult(*error);
           }
@@ -2343,7 +2738,9 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                   *master,
                   *std::get<std::optional<StoredEventContext>>(afterResult),
                   QStringLiteral("event.update"),
-                  updatedAt);
+                  updatedAt,
+                  input.sendUpdates.value_or(QStringLiteral("all")),
+                  input.selfResponseStatus.has_value());
               error.has_value()) {
             return CalendarEventMutationResult(*error);
           }
@@ -2380,7 +2777,13 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
         const StoredEventContext& trimmedMaster =
             *std::get<std::optional<StoredEventContext>>(trimmedResult);
         if (const std::optional<AppError> error = queueEventMutation(
-                connection, *master, trimmedMaster, QStringLiteral("event.update"), updatedAt);
+                connection,
+                *master,
+                trimmedMaster,
+                QStringLiteral("event.update"),
+                updatedAt,
+                input.sendUpdates.value_or(QStringLiteral("all")),
+                input.selfResponseStatus.has_value());
             error.has_value()) {
           return CalendarEventMutationResult(*error);
         }
@@ -2422,7 +2825,8 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                 *std::get<std::optional<StoredEventContext>>(successorResult),
                 *std::get<std::optional<StoredEventContext>>(successorResult),
                 QStringLiteral("event.create"),
-                updatedAt);
+                updatedAt,
+                std::get<CalendarEventCreateInput>(successorCanonical).richMetadata.sendUpdates);
             error.has_value()) {
           return CalendarEventMutationResult(*error);
         }
@@ -2469,7 +2873,7 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar is read-only for event deletion")));
         }
-        if (!isMutableEventType(before->eventType)) {
+        if (!isEditableEventType(before->eventType)) {
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar event type is immutable")));
         }
@@ -2518,7 +2922,7 @@ CalendarMutationService::removeScoped(CalendarEventScopedDeleteInput input) {
         const std::optional<ScopedEventTarget>& scopedTarget =
             std::get<std::optional<ScopedEventTarget>>(targetResult);
         if (!scopedTarget.has_value() || !isWritableCalendar(scopedTarget->event.calendarAccessRole) ||
-            !isMutableEventType(scopedTarget->event.eventType)) {
+            !isEditableEventType(scopedTarget->event.eventType)) {
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar event is unavailable for deletion")));
         }
@@ -2735,7 +3139,15 @@ CalendarMutationService::inspect(QList<QString> eventIds) {
                         .allDay = context->allDay,
                         .colorId = context->colorId,
                         .transparency = context->transparency,
-                        .visibility = context->visibility});
+                        .visibility = context->visibility,
+                        .attendeeEmailsJson = context->attendeeEmailsJson,
+                        .attendeeDetailsJson = context->attendeeDetailsJson,
+                        .remindersJson = context->remindersJson,
+                        .remindersUseDefault = context->remindersUseDefault,
+                        .conferenceJson = context->conferenceJson,
+                        .attachmentsJson = context->attachmentsJson,
+                        .guestPermissionsJson = context->guestPermissionsJson,
+                        .statusPropertiesJson = context->statusPropertiesJson});
     }
     return CalendarEventMutationSnapshotResult(std::move(snapshots));
   });

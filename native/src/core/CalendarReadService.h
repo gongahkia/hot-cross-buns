@@ -62,8 +62,13 @@ struct CalendarEventSummary final {
   std::optional<QString> hcbKind;
   std::optional<QString> eventType;
   QString attendeeEmailsJson;
+  QString attendeeDetailsJson;
   QString remindersJson;
   bool remindersUseDefault{true};
+  std::optional<QString> conferenceJson;
+  QString attachmentsJson;
+  QString guestPermissionsJson;
+  QString statusPropertiesJson;
   std::optional<QString> etag;
   std::optional<std::int64_t> sequence;
   std::optional<QString> remoteUpdatedAt;

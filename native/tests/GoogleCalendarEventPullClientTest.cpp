@@ -36,9 +36,13 @@ void GoogleCalendarEventPullClientTest::readsEveryPageAndNormalizesEvents() {
            "00:00+02:00\"},"
            "\"recurrence\":[\"RRULE:FREQ=WEEKLY\"],\"colorId\":\"5\",\"transparency\":"
            "\"transparent\",\"attendees\":[{\"email\":\"guest@example.com\",\"displayName\":"
-           "\"Guest\",\"responseStatus\":\"accepted\"}],\"reminders\":{\"useDefault\":false,"
+           "\"Guest\",\"responseStatus\":\"accepted\",\"self\":true}],\"reminders\":{\"useDefault\":false,"
            "\"overrides\":[{\"method\":\"popup\",\"minutes\":10}]},"
-           "\"visibility\":\"private\",\"timeZone\":\"Europe/Berlin\",\"eventType\":\"default\","
+           "\"conferenceData\":{\"entryPoints\":[{\"entryPointType\":\"video\",\"uri\":\"https://meet.google.com/abc\"}]},"
+           "\"attachments\":[{\"fileUrl\":\"https://drive.google.com/open?id=file-1\",\"title\":\"Spec\",\"mimeType\":\"text/plain\"}],"
+           "\"guestsCanInviteOthers\":false,\"guestsCanModify\":true,\"guestsCanSeeOtherGuests\":false,"
+           "\"visibility\":\"private\",\"timeZone\":\"Europe/Berlin\",\"eventType\":\"focusTime\","
+           "\"focusTimeProperties\":{\"autoDeclineMode\":\"declineNone\",\"chatStatus\":\"available\"},"
            "\"etag\":\"etag-1\",\"sequence\":3,\"updated\":\"2024-07-24T10:00:00Z\"}]}"),
        .headers = {{QByteArray("Date"), QByteArray("Wed, 24 Jul 2024 10:00:00 GMT")}}});
   manager.enqueue(
@@ -70,12 +74,25 @@ void GoogleCalendarEventPullClientTest::readsEveryPageAndNormalizesEvents() {
   QCOMPARE(first.attendees.size(), 1);
   QCOMPARE(first.attendees.at(0).toObject().value(QStringLiteral("email")).toString(),
            QStringLiteral("guest@example.com"));
+  QVERIFY(first.attendees.at(0).toObject().value(QStringLiteral("self")).toBool());
   QCOMPARE(first.reminders.value(QStringLiteral("useDefault")).toBool(), false);
   QCOMPARE(first.reminders.value(QStringLiteral("overrides")).toArray().at(0)
                .toObject()
                .value(QStringLiteral("minutes"))
                .toInteger(),
            10);
+  QCOMPARE(first.eventType, std::optional<QString>(QStringLiteral("focusTime")));
+  QCOMPARE(first.conferenceData.value(QStringLiteral("entryPoints")).toArray().at(0)
+               .toObject()
+               .value(QStringLiteral("uri"))
+               .toString(),
+           QStringLiteral("https://meet.google.com/abc"));
+  QCOMPARE(first.attachments.size(), 1);
+  QCOMPARE(first.guestPermissions.value(QStringLiteral("guestsCanModify")).toBool(), true);
+  QCOMPARE(first.statusProperties.value(QStringLiteral("focusTimeProperties")).toObject()
+               .value(QStringLiteral("chatStatus"))
+               .toString(),
+           QStringLiteral("available"));
   const hcb::GoogleCalendarEventMirror& second = pulled.events.at(1);
   QCOMPARE(second.title, QStringLiteral("Untitled event"));
   QCOMPARE(second.startAt, std::optional<QString>(QStringLiteral("2024-07-25T00:00:00.000Z")));
@@ -95,9 +112,11 @@ void GoogleCalendarEventPullClientTest::readsEveryPageAndNormalizesEvents() {
   QCOMPARE(query.queryItemValue(QStringLiteral("showDeleted")), QStringLiteral("true"));
   QCOMPARE(query.queryItemValue(QStringLiteral("showHiddenInvitations")), QStringLiteral("true"));
   QCOMPARE(query.queryItemValue(QStringLiteral("singleEvents")), QStringLiteral("false"));
+  QCOMPARE(query.queryItemValue(QStringLiteral("conferenceDataVersion")), QStringLiteral("1"));
   const QString fields = query.queryItemValue(QStringLiteral("fields"));
   QVERIFY(fields.contains(QStringLiteral("attendees")));
   QVERIFY(fields.contains(QStringLiteral("reminders")));
+  QVERIFY(fields.contains(QStringLiteral("attachments")));
   QVERIFY(!fields.contains(QStringLiteral("timeZone,")));
   QCOMPARE(
       QUrlQuery(manager.requests().at(1).request.url()).queryItemValue(QStringLiteral("pageToken")),

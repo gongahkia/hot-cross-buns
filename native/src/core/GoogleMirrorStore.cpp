@@ -671,6 +671,17 @@ storeEventRecurrence(sqlite3* handle,
       QString::fromUtf8(QJsonDocument(reminderMinutes).toJson(QJsonDocument::Compact));
   const QJsonValue useDefault = event.reminders.value(QStringLiteral("useDefault"));
   const bool remindersUseDefault = !useDefault.isBool() || useDefault.toBool();
+  const std::optional<QString> conferenceJson = event.conferenceData.isEmpty()
+                                                    ? std::optional<QString>{}
+                                                    : std::optional<QString>(QString::fromUtf8(
+                                                          QJsonDocument(event.conferenceData)
+                                                              .toJson(QJsonDocument::Compact)));
+  const QString attachmentsJson =
+      QString::fromUtf8(QJsonDocument(event.attachments).toJson(QJsonDocument::Compact));
+  const QString guestPermissionsJson =
+      QString::fromUtf8(QJsonDocument(event.guestPermissions).toJson(QJsonDocument::Compact));
+  const QString statusPropertiesJson =
+      QString::fromUtf8(QJsonDocument(event.statusProperties).toJson(QJsonDocument::Compact));
   const QString localEventId = eventId(accountId, event.calendarId, event.id);
   const std::optional<QString> storedRecurrence =
       recurrence.isEmpty() ? std::nullopt : std::optional<QString>(recurrence);
@@ -683,9 +694,10 @@ storeEventRecurrence(sqlite3* handle,
       "end_time_zone, is_all_day, recurrence_rule, is_instance_cache, color_id, transparency, "
       "visibility, time_zone, event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, "
       "reminders_json, "
-      "reminders_use_default, etag, sequence, remote_updated_at, updated_at, deleted_at) "
+      "reminders_use_default, conference_json, attachments_json, guest_permissions_json, "
+      "status_properties_json, etag, sequence, remote_updated_at, updated_at, deleted_at) "
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, "
-      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31) "
+      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35) "
       "ON CONFLICT(calendar_id, remote_id) WHERE remote_id IS NOT NULL DO UPDATE SET "
       "recurring_remote_id = excluded.recurring_remote_id, original_start_at = "
       "excluded.original_start_at, "
@@ -702,7 +714,10 @@ storeEventRecurrence(sqlite3* handle,
       "attendee_details_json = excluded.attendee_details_json, "
       "reminder_minutes_json = excluded.reminder_minutes_json, reminders_json = "
       "excluded.reminders_json, "
-      "reminders_use_default = excluded.reminders_use_default, etag = excluded.etag, "
+      "reminders_use_default = excluded.reminders_use_default, "
+      "conference_json = excluded.conference_json, attachments_json = excluded.attachments_json, "
+      "guest_permissions_json = excluded.guest_permissions_json, "
+      "status_properties_json = excluded.status_properties_json, etag = excluded.etag, "
       "sequence = excluded.sequence, "
       "remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at, "
       "deleted_at = excluded.deleted_at "
@@ -734,6 +749,10 @@ storeEventRecurrence(sqlite3* handle,
       "OR local_calendar_events.reminder_minutes_json IS NOT excluded.reminder_minutes_json "
       "OR local_calendar_events.reminders_json IS NOT excluded.reminders_json "
       "OR local_calendar_events.reminders_use_default IS NOT excluded.reminders_use_default "
+      "OR local_calendar_events.conference_json IS NOT excluded.conference_json "
+      "OR local_calendar_events.attachments_json IS NOT excluded.attachments_json "
+      "OR local_calendar_events.guest_permissions_json IS NOT excluded.guest_permissions_json "
+      "OR local_calendar_events.status_properties_json IS NOT excluded.status_properties_json "
       "OR local_calendar_events.etag IS NOT excluded.etag "
       "OR local_calendar_events.sequence IS NOT excluded.sequence "
       "OR local_calendar_events.remote_updated_at IS NOT excluded.remote_updated_at "
@@ -764,6 +783,10 @@ storeEventRecurrence(sqlite3* handle,
        textValue(reminderMinuteJson),
        textValue(reminderJson),
        integerValue(remindersUseDefault ? 1 : 0),
+       optionalTextValue(conferenceJson),
+       textValue(attachmentsJson),
+       textValue(guestPermissionsJson),
+       textValue(statusPropertiesJson),
        optionalTextValue(event.etag),
        event.sequence.has_value() ? integerValue(*event.sequence) : nullValue(),
        optionalTextValue(event.updatedAt),

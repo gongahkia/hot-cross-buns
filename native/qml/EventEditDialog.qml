@@ -9,11 +9,15 @@ HcbDialog {
     primaryEnabled: eventId.length > 0 && eventCalendarId.length > 0 &&
                     titleField.text.trim().length > 0 && validRange() && validMetadata()
     property var calendarSourceModel: null
+    property var driveAttachmentCandidates: []
+    property var freeBusyIntervals: []
     property string eventId: ""
     property string eventCalendarId: ""
     property string recurrenceRule: ""
     property string recurringRemoteId: ""
     property string originalStartAt: ""
+    property string conferenceJson: ""
+    property bool guestPermissionsCustomized: false
     property alias eventTitle: titleField.text
     property alias eventStartAt: startField.text
     property alias eventEndAt: endField.text
@@ -30,8 +34,19 @@ HcbDialog {
                                 string timeZone, string colorId, bool available, string visibility,
                                 var attendees, bool remindersUseDefault, var reminders,
                                 string recurrenceRule, int recurrenceScope)
+    signal richEventUpdateRequested(string eventId, string calendarId, string title, string startAt,
+                                string endAt, bool allDay, string description, string location,
+                                string timeZone, string colorId, bool available, string visibility,
+                                var attendees, bool remindersUseDefault, var reminders,
+                                string recurrenceRule, int recurrenceScope, bool createGoogleMeet,
+                                string attachmentsJson, string guestPermissionsJson,
+                                string statusPropertiesJson, string sendUpdates)
     signal eventDeleteRequested(string eventId, string title, string recurrenceRule,
                                 string recurringRemoteId, string originalStartAt)
+    signal driveSearchRequested(string query)
+    signal availabilityRequested(var calendarIds, string startAt, string endAt)
+    signal rsvpRequested(string eventId, string responseStatus)
+    ListModel { id: attachmentModel }
 
     function recurrenceScopeOptions() {
         if (recurringRemoteId.length > 0) {
@@ -86,7 +101,51 @@ HcbDialog {
     function validMetadata() {
         return attendeeValues() !== null && reminderValues() !== null &&
                (timeZoneField.text.trim().length === 0 ||
-                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim()))
+                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim())) &&
+               validStatusProperties()
+    }
+
+    function attachmentsJson() {
+        const items = []
+        for (let index = 0; index < attachmentModel.count; ++index) {
+            const item = attachmentModel.get(index)
+            items.push({ fileUrl: item.fileUrl, title: item.title, mimeType: item.mimeType })
+        }
+        return JSON.stringify(items)
+    }
+
+    function guestPermissionsJson() {
+        if (!guestPermissionsCustomized) return "{}"
+        return JSON.stringify({ guestsCanInviteOthers: guestsCanInviteCheck.checked,
+                                guestsCanModify: guestsCanModifyCheck.checked,
+                                guestsCanSeeOtherGuests: guestsCanSeeCheck.checked })
+    }
+
+    function validStatusProperties() {
+        return statusEditor.validProperties()
+    }
+
+    function objectFromJson(json) {
+        try { return JSON.parse(json) } catch (error) { return {} }
+    }
+
+    function busyIntervalCount() {
+        return freeBusyIntervals === null ? 0 : freeBusyIntervals.length
+    }
+
+    function conferenceLink() {
+        const conference = objectFromJson(root.conferenceJson)
+        if (conference.entryPoints === undefined || !Array.isArray(conference.entryPoints)) return ""
+        for (let index = 0; index < conference.entryPoints.length; ++index) {
+            const entry = conference.entryPoints[index]
+            if (entry.entryPointType === "video" && typeof entry.uri === "string") return entry.uri
+        }
+        return ""
+    }
+
+    function conferenceIsPending() {
+        const conference = objectFromJson(root.conferenceJson)
+        return conference.createRequest !== undefined && root.conferenceLink().length === 0
     }
 
     function recurrenceSummary() {
@@ -121,7 +180,8 @@ HcbDialog {
     function openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
                          remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
-                         originalStartAt) {
+                         originalStartAt, eventType, conferenceJson, attachmentsJson,
+                         guestPermissionsJson, statusPropertiesJson) {
         root.eventId = eventId
         eventCalendarId = calendarId
         titleField.text = title
@@ -142,6 +202,26 @@ HcbDialog {
         root.originalStartAt = originalStartAt || ""
         recurrenceRuleField.text = root.recurrenceRule
         recurrencePresetPicker.currentIndex = 0
+        root.conferenceJson = conferenceJson || ""
+        googleMeetCheck.checked = false
+        attachmentModel.clear()
+        const existingAttachments = objectFromJson(attachmentsJson || "[]")
+        if (Array.isArray(existingAttachments)) {
+            for (let index = 0; index < existingAttachments.length; ++index) {
+                const attachment = existingAttachments[index]
+                if (attachment.fileUrl) attachmentModel.append({ fileUrl: attachment.fileUrl,
+                                                                  title: attachment.title || attachment.fileUrl,
+                                                                  mimeType: attachment.mimeType || "" })
+            }
+        }
+        const guestPermissions = objectFromJson(guestPermissionsJson || "{}")
+        guestPermissionsCustomized = Object.keys(guestPermissions).length > 0
+        guestsCanInviteCheck.checked = guestPermissions.guestsCanInviteOthers !== false
+        guestsCanModifyCheck.checked = guestPermissions.guestsCanModify === true
+        guestsCanSeeCheck.checked = guestPermissions.guestsCanSeeOtherGuests !== false
+        eventTypeLabel.text = eventType || "default"
+        statusEditor.load(statusPropertiesJson || "{}")
+        sendUpdatesPicker.currentIndex = sendUpdatesPicker.indexOfValue("all")
         recurrenceScopePicker.model = recurrenceScopeOptions()
         recurrenceScopePicker.currentIndex = 0
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
@@ -149,14 +229,24 @@ HcbDialog {
     }
 
     onOpened: titleField.forceActiveFocus()
-    onPrimaryAction: eventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(),
+    onPrimaryAction: {
+        eventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(), startField.text,
+                             endField.text, allDayCheck.checked, descriptionField.text,
+                             locationField.text, timeZoneField.text.trim(), colorIdField.text.trim(),
+                             availableCheck.checked, visibilityPicker.currentValue, attendeeValues(),
+                             defaultRemindersCheck.checked, reminderValues(), recurrenceRuleField.text,
+                             recurrenceScopePicker.currentValue)
+        richEventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(),
                                           startField.text, endField.text, allDayCheck.checked,
                                           descriptionField.text, locationField.text,
                                           timeZoneField.text.trim(), colorIdField.text.trim(),
                                           availableCheck.checked, visibilityPicker.currentValue,
                                           attendeeValues(), defaultRemindersCheck.checked,
                                           reminderValues(), recurrenceRuleField.text,
-                                          recurrenceScopePicker.currentValue)
+                                          recurrenceScopePicker.currentValue, googleMeetCheck.checked,
+                                          attachmentsJson(), guestPermissionsJson(),
+                                          statusEditor.propertiesJson, sendUpdatesPicker.currentValue)
+    }
 
     TextField {
         id: titleField
@@ -168,6 +258,132 @@ HcbDialog {
             if (root.primaryEnabled) {
                 root.primaryButton.click()
             }
+        }
+    }
+
+    Label {
+        id: eventTypeLabel
+        Layout.fillWidth: true
+        text: ""
+        visible: text.length > 0 && text !== "default"
+        color: Theme.textSecondary
+        Accessible.name: "Event type: " + text
+    }
+
+    CheckBox {
+        id: googleMeetCheck
+        enabled: root.conferenceJson.length === 0
+        text: root.conferenceJson.length === 0 ? "Add Google Meet"
+                                                : root.conferenceIsPending()
+                                                  ? "Google Meet is being created"
+                                                  : "Google Meet attached"
+        Accessible.name: text
+    }
+
+    Button {
+        Layout.fillWidth: true
+        visible: root.conferenceLink().length > 0
+        text: "Open Google Meet"
+        onClicked: Qt.openUrlExternally(root.conferenceLink())
+    }
+
+    ComboBox {
+        id: rsvpPicker
+        Layout.fillWidth: true
+        model: [{ text: "Accept", value: "accepted" }, { text: "Tentative", value: "tentative" },
+                { text: "Decline", value: "declined" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "RSVP response"
+    }
+
+    Button {
+        Layout.fillWidth: true
+        text: "Send RSVP"
+        enabled: root.eventId.length > 0
+        onClicked: root.rsvpRequested(root.eventId, rsvpPicker.currentValue)
+    }
+
+    Button {
+        Layout.fillWidth: true
+        text: "Check availability"
+        enabled: root.eventCalendarId.length > 0 && root.validRange()
+        onClicked: root.availabilityRequested([root.eventCalendarId], startField.text, endField.text)
+    }
+
+    Label {
+        Layout.fillWidth: true
+        visible: root.freeBusyIntervals && root.freeBusyIntervals.length > 0
+        text: root.busyIntervalCount() + " busy interval(s) in this range"
+        color: Theme.textSecondary
+    }
+
+    StatusEventPropertiesEditor {
+        id: statusEditor
+        Layout.fillWidth: true
+        eventType: eventTypeLabel.text
+    }
+
+    CheckBox {
+        id: guestsCanInviteCheck
+        text: "Guests can invite others"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    CheckBox {
+        id: guestsCanModifyCheck
+        text: "Guests can modify event"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    CheckBox {
+        id: guestsCanSeeCheck
+        text: "Guests can see guest list"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    ComboBox {
+        id: sendUpdatesPicker
+        Layout.fillWidth: true
+        model: [{ text: "Notify all guests", value: "all" },
+                { text: "Notify external guests", value: "externalOnly" },
+                { text: "Do not notify guests", value: "none" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Guest notifications"
+    }
+
+    TextField {
+        id: driveSearchField
+        Layout.fillWidth: true
+        placeholderText: "Search Google Drive attachments"
+        Accessible.name: "Search Google Drive attachments"
+        selectByMouse: true
+        onAccepted: root.driveSearchRequested(text)
+    }
+
+    Repeater {
+        model: root.driveAttachmentCandidates
+        delegate: Button {
+            required property var modelData
+            Layout.fillWidth: true
+            text: "Attach " + modelData.name
+            onClicked: attachmentModel.append({ fileUrl: modelData.fileUrl, title: modelData.name,
+                                                 mimeType: modelData.mimeType })
+        }
+    }
+
+    Repeater {
+        model: attachmentModel
+        delegate: Button {
+            required property string title
+            required property int index
+            Layout.fillWidth: true
+            text: "Remove attachment: " + title
+            onClicked: attachmentModel.remove(index)
         }
     }
 

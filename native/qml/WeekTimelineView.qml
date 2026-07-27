@@ -24,7 +24,9 @@ Pane {
                               string startTimeZone, string colorId, string transparency,
                               string visibility, string attendeeEmailsJson, string remindersJson,
                               bool remindersUseDefault, string recurrenceRule,
-                              string recurringRemoteId, string originalStartAt)
+                              string recurringRemoteId, string originalStartAt, string eventType,
+                              string conferenceJson, string attachmentsJson,
+                              string guestPermissionsJson, string statusPropertiesJson)
 
     function dayColumnWidth(availableWidth) {
         return (availableWidth - timeColumnWidth) / dayCount
@@ -111,11 +113,13 @@ Pane {
     function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
                          remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
-                         originalStartAt) {
+                         originalStartAt, eventType, conferenceJson, attachmentsJson,
+                         guestPermissionsJson, statusPropertiesJson) {
         eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                            startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
                            remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
-                           originalStartAt)
+                           originalStartAt, eventType, conferenceJson, attachmentsJson,
+                           guestPermissionsJson, statusPropertiesJson)
     }
 
     function isCalendarVisible(calendarId) {
@@ -185,6 +189,11 @@ Pane {
                     required property string recurrenceRule
                     required property string recurringRemoteId
                     required property string originalStartAt
+                    property string eventType: "default"
+                    property string conferenceJson: ""
+                    property string attachmentsJson: "[]"
+                    property string guestPermissionsJson: "{}"
+                    property string statusPropertiesJson: "{}"
                     visible: allDay && root.isCalendarVisible(calendarId)
                     x: root.dayPosition(dayIndex, dayHeader.width)
                     y: root.allDayLaneHeight + laneIndex * root.allDayLaneHeight
@@ -198,7 +207,9 @@ Pane {
                         root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
                                          location, startTimeZone, colorId, transparency, visibility,
                                          attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                         recurrenceRule, recurringRemoteId, originalStartAt)
+                                         recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                         conferenceJson, attachmentsJson, guestPermissionsJson,
+                                         statusPropertiesJson)
                     }
 
                     DragHandler {
@@ -362,6 +373,11 @@ Pane {
                         required property string recurrenceRule
                         required property string recurringRemoteId
                         required property string originalStartAt
+                        property string eventType: "default"
+                        property string conferenceJson: ""
+                        property string attachmentsJson: "[]"
+                        property string guestPermissionsJson: "{}"
+                        property string statusPropertiesJson: "{}"
                         visible: !allDay && root.isCalendarVisible(calendarId)
                         x: root.dayPosition(dayIndex, timelineCanvas.width) + laneIndex *
                            root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
@@ -376,7 +392,9 @@ Pane {
                             root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
                                              location, startTimeZone, colorId, transparency, visibility,
                                              attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                             recurrenceRule, recurringRemoteId, originalStartAt)
+                                             recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                             conferenceJson, attachmentsJson, guestPermissionsJson,
+                                             statusPropertiesJson)
                         }
 
                         DragHandler {

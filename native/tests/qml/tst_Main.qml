@@ -679,6 +679,32 @@ TestCase {
         sourceModel.destroy()
     }
 
+    function test_statusEventPropertiesEditorProvidesFormsAndRoundTripsAdvancedValues() {
+        const component = Qt.createComponent("../../qml/StatusEventPropertiesEditor.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const editor = component.createObject(null, { eventType: "focusTime" })
+        verify(editor !== null)
+        let properties = JSON.parse(editor.propertiesJson)
+        compare(properties.focusTimeProperties.autoDeclineMode, "declineNone")
+        compare(properties.focusTimeProperties.chatStatus, "available")
+        verify(editor.validProperties())
+
+        editor.eventType = "outOfOffice"
+        properties = JSON.parse(editor.propertiesJson)
+        compare(properties.outOfOfficeProperties.autoDeclineMode, "declineNone")
+        verify(editor.validProperties())
+
+        editor.eventType = "workingLocation"
+        properties = JSON.parse(editor.propertiesJson)
+        compare(properties.workingLocationProperties.type, "homeOffice")
+        verify(properties.workingLocationProperties.homeOffice !== undefined)
+        editor.load('{"workingLocationProperties":{"type":"officeLocation","officeLocation":{"buildingId":"HQ","floorId":"8","deskId":"8-12","label":"HQ"}}}')
+        compare(JSON.parse(editor.propertiesJson).workingLocationProperties.officeLocation.deskId, "8-12")
+        verify(editor.validProperties())
+        editor.destroy()
+    }
+
     function test_eventDeleteDialogEmitsDeleteRequest() {
         const component = Qt.createComponent("../../qml/EventDeleteDialog.qml")
         compare(component.status, Component.Ready, component.errorString())

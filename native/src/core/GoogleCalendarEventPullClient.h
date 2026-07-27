@@ -44,6 +44,10 @@ struct GoogleCalendarEventMirror final {
   std::optional<QString> eventType;
   QJsonArray attendees;
   QJsonObject reminders;
+  QJsonObject conferenceData;
+  QJsonArray attachments;
+  QJsonObject guestPermissions;
+  QJsonObject statusProperties;
   std::optional<QString> etag;
   std::optional<qint64> sequence;
   std::optional<QString> updatedAt;

@@ -122,10 +122,22 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const {
     return item.event.visibility.value_or(QString());
   case AttendeeEmailsJsonRole:
     return item.event.attendeeEmailsJson;
+  case AttendeeDetailsJsonRole:
+    return item.event.attendeeDetailsJson;
   case RemindersJsonRole:
     return item.event.remindersJson;
   case RemindersUseDefaultRole:
     return item.event.remindersUseDefault;
+  case ConferenceJsonRole:
+    return item.event.conferenceJson.value_or(QString());
+  case AttachmentsJsonRole:
+    return item.event.attachmentsJson;
+  case GuestPermissionsJsonRole:
+    return item.event.guestPermissionsJson;
+  case StatusPropertiesJsonRole:
+    return item.event.statusPropertiesJson;
+  case EventTypeRole:
+    return item.event.eventType.value_or(QStringLiteral("default"));
   case AllDayRole:
     return item.allDay;
   case DayIndexRole:
@@ -181,8 +193,14 @@ QHash<int, QByteArray> TimelineModel::roleNames() const {
           {TransparencyRole, "transparency"},
           {VisibilityRole, "visibility"},
           {AttendeeEmailsJsonRole, "attendeeEmailsJson"},
+          {AttendeeDetailsJsonRole, "attendeeDetailsJson"},
           {RemindersJsonRole, "remindersJson"},
           {RemindersUseDefaultRole, "remindersUseDefault"},
+          {ConferenceJsonRole, "conferenceJson"},
+          {AttachmentsJsonRole, "attachmentsJson"},
+          {GuestPermissionsJsonRole, "guestPermissionsJson"},
+          {StatusPropertiesJsonRole, "statusPropertiesJson"},
+          {EventTypeRole, "eventType"},
           {AllDayRole, "allDay"},
           {DayIndexRole, "dayIndex"},
           {StartMinuteRole, "startMinute"},

@@ -193,11 +193,23 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                               {QStringLiteral("responseStatus"), QStringLiteral("needsAction")}}}},
       {QStringLiteral("reminders"), reminderSettings},
       {QStringLiteral("recurrence"),
-       QJsonArray{QStringLiteral("RDATE;TZID=Asia/Singapore:20261225T093000")}}};
+       QJsonArray{QStringLiteral("RDATE;TZID=Asia/Singapore:20261225T093000")}},
+      {QStringLiteral("conferenceData"),
+       QJsonObject{{QStringLiteral("createRequest"),
+                    QJsonObject{{QStringLiteral("requestId"), QStringLiteral("request-1")},
+                                {QStringLiteral("conferenceSolutionKey"),
+                                 QJsonObject{{QStringLiteral("type"),
+                                              QStringLiteral("hangoutsMeet")}}}}}}},
+      {QStringLiteral("attachments"),
+       QJsonArray{QJsonObject{{QStringLiteral("fileUrl"),
+                              QStringLiteral("https://drive.google.com/open?id=file-1")},
+                             {QStringLiteral("title"), QStringLiteral("Spec")}}}},
+      {QStringLiteral("guestsCanModify"), true}};
   const hcb::PendingMutation created = enqueue(
       coordinator,
       QStringLiteral("event.create"),
       {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
+       {QStringLiteral("sendUpdates"), QStringLiteral("externalOnly")},
        {QStringLiteral("event"), createdEvent}});
   const hcb::PendingMutation updated =
       enqueue(coordinator,
@@ -205,10 +217,17 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
               {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
                {QStringLiteral("remoteEventId"), QStringLiteral("remote-1")},
                {QStringLiteral("etag"), QStringLiteral("etag-1")},
+               {QStringLiteral("sendUpdates"), QStringLiteral("none")},
                {QStringLiteral("event"),
                 QJsonObject{{QStringLiteral("description"), QJsonValue::Null},
                             {QStringLiteral("location"), QStringLiteral("Remote")},
-                            {QStringLiteral("colorId"), QJsonValue::Null}}}});
+                            {QStringLiteral("colorId"), QJsonValue::Null},
+                            {QStringLiteral("attendees"),
+                             QJsonArray{QJsonObject{{QStringLiteral("email"),
+                                                    QStringLiteral("me@example.com")},
+                                                   {QStringLiteral("responseStatus"),
+                                                    QStringLiteral("accepted")}}}},
+                            {QStringLiteral("attendeesOmitted"), true}}}});
   const hcb::PendingMutation removed =
       enqueue(coordinator,
               QStringLiteral("event.delete"),
@@ -255,7 +274,11 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                .toString(),
            QStringLiteral("2026-08-01T01:00:00.000Z"));
   QCOMPARE(QUrlQuery(createRequest->request.url()).queryItemValue(QStringLiteral("sendUpdates")),
-           QStringLiteral("all"));
+           QStringLiteral("externalOnly"));
+  QCOMPARE(QUrlQuery(createRequest->request.url()).queryItemValue(QStringLiteral("conferenceDataVersion")),
+           QStringLiteral("1"));
+  QCOMPARE(QUrlQuery(createRequest->request.url()).queryItemValue(QStringLiteral("supportsAttachments")),
+           QStringLiteral("true"));
   QCOMPARE(createBody.value(QStringLiteral("attendees")).toArray().at(0)
                .toObject()
                .value(QStringLiteral("email"))
@@ -271,6 +294,14 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
            10);
   QCOMPARE(createBody.value(QStringLiteral("recurrence")).toArray(),
            createdEvent.value(QStringLiteral("recurrence")).toArray());
+  QCOMPARE(createBody.value(QStringLiteral("conferenceData")).toObject()
+               .value(QStringLiteral("createRequest"))
+               .toObject()
+               .value(QStringLiteral("requestId"))
+               .toString(),
+           QStringLiteral("request-1"));
+  QCOMPARE(createBody.value(QStringLiteral("attachments")).toArray().size(), 1);
+  QVERIFY(createBody.value(QStringLiteral("guestsCanModify")).toBool());
   QCOMPARE(updateRequest->request.url().path(),
            QStringLiteral("/calendar/v3/calendars/calendar-1/events/remote-1"));
   QCOMPARE(updateRequest->request.rawHeader("If-Match"), QByteArray("etag-1"));
@@ -278,6 +309,10 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
   QVERIFY(updateBody.value(QStringLiteral("description")).isNull());
   QVERIFY(updateBody.value(QStringLiteral("colorId")).isNull());
   QCOMPARE(updateBody.value(QStringLiteral("location")).toString(), QStringLiteral("Remote"));
+  QVERIFY(updateBody.value(QStringLiteral("attendeesOmitted")).toBool());
+  QCOMPARE(updateBody.value(QStringLiteral("attendees")).toArray().size(), 1);
+  QCOMPARE(QUrlQuery(updateRequest->request.url()).queryItemValue(QStringLiteral("sendUpdates")),
+           QStringLiteral("none"));
   QCOMPARE(deleteRequest->request.url().path(),
            QStringLiteral("/calendar/v3/calendars/calendar-1/events/remote-1"));
   QCOMPARE(deleteRequest->request.rawHeader("If-Match"), QByteArray("etag-1"));
@@ -415,9 +450,12 @@ void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWi
   QCOMPARE(request.request.url().path(), QStringLiteral("/batch/calendar/v3"));
   QVERIFY(request.request.rawHeader("Content-Type").startsWith("multipart/mixed; boundary=hcb_"));
   QCOMPARE(request.request.rawHeader("Accept"), QByteArray("multipart/mixed"));
-  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-1 HTTP/1.1"));
-  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-2 HTTP/1.1"));
-  QVERIFY(request.body.contains("PATCH /calendar/v3/calendars/calendar-1/events/remote-3 HTTP/1.1"));
+  QVERIFY(request.body.contains(
+      "PATCH /calendar/v3/calendars/calendar-1/events/remote-1?sendUpdates=all HTTP/1.1"));
+  QVERIFY(request.body.contains(
+      "PATCH /calendar/v3/calendars/calendar-1/events/remote-2?sendUpdates=all HTTP/1.1"));
+  QVERIFY(request.body.contains(
+      "PATCH /calendar/v3/calendars/calendar-1/events/remote-3?sendUpdates=all HTTP/1.1"));
   QVERIFY(request.body.contains("If-Match: etag-1"));
   QVERIFY(request.body.contains("If-Match: etag-2"));
   const hcb::PendingMutation applied = find(coordinator, due.at(0).id);
@@ -485,7 +523,8 @@ void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventCreatesA
   QCOMPARE(result.failed, 0);
   QCOMPARE(manager.requests().size(), 1);
   const QByteArray body = manager.requests().constFirst().body;
-  QVERIFY(body.contains("POST /calendar/v3/calendars/calendar-1/events HTTP/1.1"));
+  QVERIFY(body.contains(
+      "POST /calendar/v3/calendars/calendar-1/events?sendUpdates=all HTTP/1.1"));
   QVERIFY(body.contains(
       "POST /calendar/v3/calendars/calendar-1/events/remote-event/move?destination=calendar-2 "
       "HTTP/1.1"));

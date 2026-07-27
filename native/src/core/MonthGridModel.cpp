@@ -69,8 +69,14 @@ namespace {
           {QStringLiteral("transparency"), event.transparency.value_or(QString())},
           {QStringLiteral("visibility"), event.visibility.value_or(QString())},
           {QStringLiteral("attendeeEmailsJson"), event.attendeeEmailsJson},
+          {QStringLiteral("attendeeDetailsJson"), event.attendeeDetailsJson},
           {QStringLiteral("remindersJson"), event.remindersJson},
-          {QStringLiteral("remindersUseDefault"), event.remindersUseDefault}};
+          {QStringLiteral("remindersUseDefault"), event.remindersUseDefault},
+          {QStringLiteral("conferenceJson"), event.conferenceJson.value_or(QString())},
+          {QStringLiteral("attachmentsJson"), event.attachmentsJson},
+          {QStringLiteral("guestPermissionsJson"), event.guestPermissionsJson},
+          {QStringLiteral("statusPropertiesJson"), event.statusPropertiesJson},
+          {QStringLiteral("eventType"), event.eventType.value_or(QStringLiteral("default"))}};
 }
 
 } // namespace

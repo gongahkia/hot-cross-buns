@@ -97,6 +97,10 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleCalendarListPullClient.h
   src/core/GoogleCalendarManagementClient.cpp
   src/core/GoogleCalendarManagementClient.h
+  src/core/GoogleCalendarFreeBusyClient.cpp
+  src/core/GoogleCalendarFreeBusyClient.h
+  src/core/GoogleDriveFilePickerClient.cpp
+  src/core/GoogleDriveFilePickerClient.h
   src/core/GoogleCalendarEventPullClient.cpp
   src/core/GoogleCalendarEventPullClient.h
   src/core/GoogleCalendarInstanceCacheService.cpp
@@ -259,6 +263,7 @@ qt_add_qml_module(hcb_native
     qml/NotesListView.qml
     qml/QuickCaptureDialog.qml
     qml/SearchPopup.qml
+    qml/StatusEventPropertiesEditor.qml
     qml/TaskCreateDialog.qml
     qml/TaskDeleteDialog.qml
     qml/TaskBulkDeleteDialog.qml
@@ -1977,6 +1982,26 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_google_calendar_management_client_tests)
   add_test(NAME hcb_google_calendar_management_client_tests COMMAND hcb_google_calendar_management_client_tests)
 
+  qt_add_executable(hcb_google_calendar_availability_client_tests
+    tests/GoogleCalendarAvailabilityClientTest.cpp
+    tests/support/MockNetworkAccessManager.h
+    src/core/GoogleApiError.cpp
+    src/core/GoogleApiError.h
+    src/core/GoogleCalendarFreeBusyClient.cpp
+    src/core/GoogleCalendarFreeBusyClient.h
+    src/core/GoogleDriveFilePickerClient.cpp
+    src/core/GoogleDriveFilePickerClient.h
+    src/core/GoogleHttpClient.cpp
+    src/core/GoogleHttpClient.h
+    src/core/SecretRedactor.cpp
+    src/core/SecretRedactor.h
+  )
+  target_link_libraries(hcb_google_calendar_availability_client_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+  target_include_directories(hcb_google_calendar_availability_client_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_google_calendar_availability_client_tests)
+  hcb_enable_sanitizers(hcb_google_calendar_availability_client_tests)
+  add_test(NAME hcb_google_calendar_availability_client_tests COMMAND hcb_google_calendar_availability_client_tests)
+
   qt_add_executable(hcb_google_task_list_pull_client_tests
     tests/GoogleTaskListPullClientTest.cpp
     tests/support/MockNetworkAccessManager.h
@@ -2638,6 +2663,7 @@ if(BUILD_TESTING)
     hcb_google_calendar_list_pull_client_tests
     hcb_google_calendar_event_pull_client_tests
     hcb_google_calendar_event_mutation_push_service_tests
+    hcb_google_calendar_availability_client_tests
     hcb_google_task_list_pull_client_tests
     hcb_google_task_pull_client_tests
     hcb_google_task_mutation_push_service_tests
@@ -2744,6 +2770,7 @@ if(BUILD_TESTING)
     hcb_google_calendar_list_pull_client_tests
     hcb_google_calendar_event_pull_client_tests
     hcb_google_calendar_event_mutation_push_service_tests
+    hcb_google_calendar_availability_client_tests
     hcb_google_task_list_pull_client_tests
     hcb_google_task_pull_client_tests
     hcb_google_task_mutation_push_service_tests

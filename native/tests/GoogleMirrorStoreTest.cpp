@@ -175,7 +175,23 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                                    {QStringLiteral("overrides"),
                                     QJsonArray{QJsonObject{{QStringLiteral("method"),
                                                              QStringLiteral("popup")},
-                                                           {QStringLiteral("minutes"), 10}}}}}}});
+                                                          {QStringLiteral("minutes"), 10}}}}},
+                               .conferenceData = QJsonObject{
+                                   {QStringLiteral("entryPoints"),
+                                    QJsonArray{QJsonObject{{QStringLiteral("entryPointType"),
+                                                           QStringLiteral("video")},
+                                                          {QStringLiteral("uri"),
+                                                           QStringLiteral("https://meet.google.com/abc")}}}}},
+                               .attachments = QJsonArray{QJsonObject{
+                                   {QStringLiteral("fileUrl"),
+                                    QStringLiteral("https://drive.google.com/open?id=file-1")},
+                                   {QStringLiteral("title"), QStringLiteral("Spec")}}},
+                               .guestPermissions = QJsonObject{
+                                   {QStringLiteral("guestsCanModify"), true}},
+                               .statusProperties = QJsonObject{
+                                   {QStringLiteral("focusTimeProperties"),
+                                    QJsonObject{{QStringLiteral("chatStatus"),
+                                                 QStringLiteral("available")}}}}}});
   const hcb::GoogleMirrorWriteResult calendarResult = awaitResult(calendarWrite);
   QVERIFY(std::holds_alternative<std::monostate>(calendarResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
@@ -188,6 +204,14 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
            QStringLiteral("[{\"displayName\":\"Guest\",\"email\":\"guest@example.com\"}]"));
   QCOMPARE(text(handle, "SELECT reminders_json FROM local_calendar_events"),
            QStringLiteral("[{\"method\":\"popup\",\"minutes\":10}]"));
+  QCOMPARE(text(handle, "SELECT conference_json FROM local_calendar_events"),
+           QStringLiteral("{\"entryPoints\":[{\"entryPointType\":\"video\",\"uri\":\"https://meet.google.com/abc\"}]}"));
+  QCOMPARE(text(handle, "SELECT attachments_json FROM local_calendar_events"),
+           QStringLiteral("[{\"fileUrl\":\"https://drive.google.com/open?id=file-1\",\"title\":\"Spec\"}]"));
+  QCOMPARE(text(handle, "SELECT guest_permissions_json FROM local_calendar_events"),
+           QStringLiteral("{\"guestsCanModify\":true}"));
+  QCOMPARE(text(handle, "SELECT status_properties_json FROM local_calendar_events"),
+           QStringLiteral("{\"focusTimeProperties\":{\"chatStatus\":\"available\"}}"));
   QCOMPARE(count(handle, "SELECT reminders_use_default FROM local_calendar_events"), 0);
 
   std::future<hcb::GoogleMirrorWriteResult> emptyTasks =

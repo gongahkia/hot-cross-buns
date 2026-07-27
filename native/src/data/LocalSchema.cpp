@@ -831,6 +831,18 @@ FROM local_calendar_events
 WHERE recurrence_rule IS NOT NULL;
 )";
 
+constexpr char calendarRichEventMetadataSchemaSql[] = R"(
+ALTER TABLE local_calendar_events
+ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]' CHECK(length(attachments_json) <= 65536 AND json_valid(attachments_json) AND json_type(attachments_json) = 'array' AND json_array_length(attachments_json) <= 25);
+ALTER TABLE local_calendar_events
+ADD COLUMN guest_permissions_json TEXT NOT NULL DEFAULT '{}' CHECK(length(guest_permissions_json) <= 1024 AND json_valid(guest_permissions_json) AND json_type(guest_permissions_json) = 'object');
+ALTER TABLE local_calendar_events
+ADD COLUMN status_properties_json TEXT NOT NULL DEFAULT '{}' CHECK(length(status_properties_json) <= 16384 AND json_valid(status_properties_json) AND json_type(status_properties_json) = 'object');
+
+DELETE FROM local_sync_checkpoints
+WHERE resource_type = 'calendar_event';
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -951,8 +963,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite calendar-recurrence storage schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 20>& migrations() {
-  static const std::array<SqliteMigration, 20> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarRichEventMetadataSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     calendarRichEventMetadataSchemaSql,
+                     QStringLiteral("SQLite rich calendar-event metadata schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 21>& migrations() {
+  static const std::array<SqliteMigration, 21> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -1021,6 +1039,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("store full calendar recurrence lines"),
        checksum(calendarRecurrenceStorageSchemaSql),
        applyCalendarRecurrenceStorageSchema},
+      {21,
+       QStringLiteral("store rich calendar event metadata"),
+       checksum(calendarRichEventMetadataSchemaSql),
+       applyCalendarRichEventMetadataSchema},
   }};
   return catalogue;
 }

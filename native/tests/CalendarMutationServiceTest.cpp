@@ -211,6 +211,7 @@ class CalendarMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesMovesAndDeletesEvents();
+  void createsRichGoogleEventsAndCarriesDeliveryPolicy();
   void preservesAdvancedGoogleRecurrenceLines();
   void journalsRemoteUpdatesMovesAndCreateReconciliation();
   void rejectsInvalidAndUnavailableMutations();
@@ -324,6 +325,89 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
     return;
   }
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
+}
+
+void CalendarMutationServiceTest::createsRichGoogleEventsAndCarriesDeliveryPolicy() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle, "UPDATE local_calendars SET is_primary = 1 WHERE id = 'calendar-work'");
+
+  std::future<hcb::CalendarEventMutationResult> create = service.create(
+      {.calendarId = QStringLiteral("calendar-work"),
+       .title = QStringLiteral("Focus"),
+       .startAt = QStringLiteral("2026-07-26T09:30:00+08:00"),
+       .endAt = QStringLiteral("2026-07-26T10:30:00+08:00"),
+       .richMetadata = {.createGoogleMeet = true,
+                        .attachmentsJson = QStringLiteral(
+                            "[{\"fileUrl\":\"https://drive.google.com/open?id=file-1\",\"title\":\"Spec\"}]"),
+                        .guestPermissionsJson = QStringLiteral("{\"guestsCanModify\":true}"),
+                        .eventType = QStringLiteral("focusTime"),
+                        .statusPropertiesJson = QStringLiteral(
+                            "{\"focusTimeProperties\":{\"autoDeclineMode\":\"declineNone\",\"chatStatus\":\"available\"}}"),
+                        .sendUpdates = QStringLiteral("externalOnly")}});
+  const hcb::CalendarEventMutationResult result = awaitResult(create);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(result));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(result)) {
+    return;
+  }
+  const QString eventId = std::get<hcb::CalendarEventMutationReceipt>(result).eventId;
+  std::future<hcb::CalendarEventMutationSnapshotResult> inspection = service.inspect({eventId});
+  const hcb::CalendarEventMutationSnapshotResult inspectionResult = awaitResult(inspection);
+  QVERIFY(std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(inspectionResult));
+  if (!std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(inspectionResult)) {
+    return;
+  }
+  const QList<hcb::CalendarEventMutationSnapshot>& snapshots =
+      std::get<QList<hcb::CalendarEventMutationSnapshot>>(inspectionResult);
+  QCOMPARE(snapshots.size(), 1);
+  if (snapshots.size() != 1) {
+    return;
+  }
+  QCOMPARE(snapshots.constFirst().eventType, std::optional<QString>(QStringLiteral("focusTime")));
+  QVERIFY(snapshots.constFirst().conferenceJson.has_value());
+  QCOMPARE(QJsonDocument::fromJson(snapshots.constFirst().attachmentsJson.toUtf8()).array().size(), 1);
+  QCOMPARE(QJsonDocument::fromJson(snapshots.constFirst().guestPermissionsJson.toUtf8())
+               .object()
+               .value(QStringLiteral("guestsCanModify"))
+               .toBool(),
+           true);
+
+  const QList<PendingMutationSnapshot> mutations = readPendingEventMutations(handle, eventId);
+  QCOMPARE(mutations.size(), 1);
+  if (mutations.size() != 1) {
+    return;
+  }
+  const QJsonObject payload = mutations.constFirst().payload;
+  QCOMPARE(payload.value(QStringLiteral("sendUpdates")).toString(), QStringLiteral("externalOnly"));
+  const QJsonObject event = payload.value(QStringLiteral("event")).toObject();
+  QCOMPARE(event.value(QStringLiteral("eventType")).toString(), QStringLiteral("focusTime"));
+  QVERIFY(event.value(QStringLiteral("conferenceData")).toObject()
+              .value(QStringLiteral("createRequest"))
+              .isObject());
+  QCOMPARE(event.value(QStringLiteral("attachments")).toArray().size(), 1);
+  QVERIFY(event.value(QStringLiteral("guestsCanModify")).toBool());
+  QCOMPARE(event.value(QStringLiteral("focusTimeProperties")).toObject()
+               .value(QStringLiteral("chatStatus"))
+               .toString(),
+           QStringLiteral("available"));
 }
 
 void CalendarMutationServiceTest::preservesAdvancedGoogleRecurrenceLines() {

@@ -32,8 +32,14 @@ public:
     VisibilityRole,
     HcbKindRole,
     AttendeeEmailsJsonRole,
+    AttendeeDetailsJsonRole,
     RemindersJsonRole,
-    RemindersUseDefaultRole
+    RemindersUseDefaultRole,
+    ConferenceJsonRole,
+    AttachmentsJsonRole,
+    GuestPermissionsJsonRole,
+    StatusPropertiesJsonRole,
+    EventTypeRole
   };
   Q_ENUM(Role)
 

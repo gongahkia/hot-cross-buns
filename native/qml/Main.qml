@@ -278,11 +278,15 @@ ApplicationWindow {
     function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                            startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
                            remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
-                           originalStartAt) {
+                           originalStartAt, eventType, conferenceJson, attachmentsJson,
+                           guestPermissionsJson, statusPropertiesJson) {
         eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description,
                                     location, startTimeZone, colorId, transparency, visibility,
                                     attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                    recurrenceRule, recurringRemoteId, originalStartAt)
+                                    recurrenceRule, recurringRemoteId, originalStartAt,
+                                    eventType || "default", conferenceJson || "",
+                                    attachmentsJson || "", guestPermissionsJson || "",
+                                    statusPropertiesJson || "")
     }
 
     color: Theme.background
@@ -581,14 +585,29 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []
+        freeBusyIntervals: window.appController ? window.appController.freeBusyIntervals : []
         onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location,
                                          timeZone, colorId, available, visibility, attendees,
                                          remindersUseDefault, reminders, recurrenceRule) {
             window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
+        }
+        onRichEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location,
+                                         timeZone, colorId, available, visibility, attendees,
+                                         remindersUseDefault, reminders, recurrenceRule, createGoogleMeet,
+                                         attachmentsJson, guestPermissionsJson, eventType,
+                                         statusPropertiesJson, sendUpdates) {
             window.controllerCall("createEventDetailed", [calendarId, title, startAt, endAt, allDay,
                                                             description, location, timeZone, colorId,
                                                             available, visibility, attendees,
-                                                            remindersUseDefault, reminders, recurrenceRule])
+                                                            remindersUseDefault, reminders, recurrenceRule,
+                                                            createGoogleMeet, attachmentsJson,
+                                                            guestPermissionsJson, eventType,
+                                                            statusPropertiesJson, sendUpdates])
+        }
+        onDriveSearchRequested: function(query) { window.controllerCall("searchGoogleDriveAttachments", [query]) }
+        onAvailabilityRequested: function(calendarIds, startAt, endAt) {
+            window.controllerCall("queryGoogleFreeBusy", [calendarIds, startAt, endAt])
         }
     }
 
@@ -597,15 +616,32 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []
+        freeBusyIntervals: window.appController ? window.appController.freeBusyIntervals : []
         onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                                          timeZone, colorId, available, visibility, attendees,
                                          remindersUseDefault, reminders, recurrenceRule, recurrenceScope) {
             window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
+        }
+        onRichEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                                         timeZone, colorId, available, visibility, attendees,
+                                         remindersUseDefault, reminders, recurrenceRule, recurrenceScope,
+                                         createGoogleMeet, attachmentsJson, guestPermissionsJson,
+                                         statusPropertiesJson, sendUpdates) {
             window.controllerCall("updateEventDetailed", [eventId, calendarId, title, startAt, endAt,
                                                             allDay, description, location, timeZone,
                                                             colorId, available, visibility, attendees,
                                                             remindersUseDefault, reminders, recurrenceRule,
-                                                            recurrenceScope])
+                                                            recurrenceScope, createGoogleMeet,
+                                                            attachmentsJson, guestPermissionsJson,
+                                                            statusPropertiesJson, sendUpdates])
+        }
+        onDriveSearchRequested: function(query) { window.controllerCall("searchGoogleDriveAttachments", [query]) }
+        onAvailabilityRequested: function(calendarIds, startAt, endAt) {
+            window.controllerCall("queryGoogleFreeBusy", [calendarIds, startAt, endAt])
+        }
+        onRsvpRequested: function(eventId, responseStatus) {
+            window.controllerCall("respondToEvent", [eventId, responseStatus])
         }
         onEventDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
             eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
@@ -640,7 +676,7 @@ ApplicationWindow {
             }
             Item { Layout.fillWidth: true }
             Label {
-                text: "Native rewrite foundation"
+                text: "Google Calendar & Tasks"
                 opacity: 0.7
             }
         }
@@ -888,12 +924,15 @@ ApplicationWindow {
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                                                        startTimeZone, colorId, transparency, visibility,
                                                        attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                                       recurrenceRule, recurringRemoteId, originalStartAt) {
+                                                       recurrenceRule, recurringRemoteId, originalStartAt,
+                                                       eventType, conferenceJson, attachmentsJson,
+                                                       guestPermissionsJson, statusPropertiesJson) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
                                                  remindersJson, remindersUseDefault, recurrenceRule,
-                                                 recurringRemoteId, originalStartAt)
+                                                 recurringRemoteId, originalStartAt, eventType, conferenceJson,
+                                                 attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
                     }
 
@@ -922,12 +961,15 @@ ApplicationWindow {
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
                                                         remindersJson, remindersUseDefault, recurrenceRule,
-                                                        recurringRemoteId, originalStartAt) {
+                                                        recurringRemoteId, originalStartAt, eventType,
+                                                        conferenceJson, attachmentsJson,
+                                                        guestPermissionsJson, statusPropertiesJson) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
                                                  remindersJson, remindersUseDefault, recurrenceRule,
-                                                 recurringRemoteId, originalStartAt)
+                                                 recurringRemoteId, originalStartAt, eventType, conferenceJson,
+                                                 attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
                     }
 
@@ -955,12 +997,15 @@ ApplicationWindow {
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
                                                         remindersJson, remindersUseDefault, recurrenceRule,
-                                                        recurringRemoteId, originalStartAt) {
+                                                        recurringRemoteId, originalStartAt, eventType,
+                                                        conferenceJson, attachmentsJson,
+                                                        guestPermissionsJson, statusPropertiesJson) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
                                                  remindersJson, remindersUseDefault, recurrenceRule,
-                                                 recurringRemoteId, originalStartAt)
+                                                 recurringRemoteId, originalStartAt, eventType, conferenceJson,
+                                                 attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
                     }
 
@@ -986,7 +1031,9 @@ ApplicationWindow {
                                                  event.startTimeZone, event.colorId, event.transparency,
                                                  event.visibility, event.attendeeEmailsJson, event.remindersJson,
                                                  event.remindersUseDefault, event.recurrenceRule,
-                                                 event.recurringRemoteId, event.originalStartAt)
+                                                 event.recurringRemoteId, event.originalStartAt, event.eventType,
+                                                 event.conferenceJson, event.attachmentsJson,
+                                                 event.guestPermissionsJson, event.statusPropertiesJson)
                         }
                     }
                 }
@@ -1006,7 +1053,7 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    text: "Enter the desktop OAuth client ID from your own Google Cloud project. Enable Google Tasks and Calendar APIs. The app opens a local loopback callback while connecting."
+                    text: "Enter the desktop OAuth client ID from your own Google Cloud project. Enable Google Tasks, Google Calendar, and Google Drive APIs. The app opens a local loopback callback while connecting."
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }

@@ -20,8 +20,12 @@ namespace {
          left.transparency == right.transparency && left.visibility == right.visibility &&
          left.timeZone == right.timeZone && left.hcbKind == right.hcbKind &&
          left.attendeeEmailsJson == right.attendeeEmailsJson &&
+         left.attendeeDetailsJson == right.attendeeDetailsJson &&
          left.remindersJson == right.remindersJson &&
          left.remindersUseDefault == right.remindersUseDefault &&
+         left.conferenceJson == right.conferenceJson && left.attachmentsJson == right.attachmentsJson &&
+         left.guestPermissionsJson == right.guestPermissionsJson &&
+         left.statusPropertiesJson == right.statusPropertiesJson && left.eventType == right.eventType &&
          left.etag == right.etag && left.sequence == right.sequence &&
          left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt;
 }
@@ -79,10 +83,22 @@ QVariant AgendaModel::data(const QModelIndex& index, int role) const {
     return event.hcbKind.value_or(QString());
   case AttendeeEmailsJsonRole:
     return event.attendeeEmailsJson;
+  case AttendeeDetailsJsonRole:
+    return event.attendeeDetailsJson;
   case RemindersJsonRole:
     return event.remindersJson;
   case RemindersUseDefaultRole:
     return event.remindersUseDefault;
+  case ConferenceJsonRole:
+    return event.conferenceJson.value_or(QString());
+  case AttachmentsJsonRole:
+    return event.attachmentsJson;
+  case GuestPermissionsJsonRole:
+    return event.guestPermissionsJson;
+  case StatusPropertiesJsonRole:
+    return event.statusPropertiesJson;
+  case EventTypeRole:
+    return event.eventType.value_or(QStringLiteral("default"));
   default:
     return {};
   }
@@ -108,8 +124,14 @@ QHash<int, QByteArray> AgendaModel::roleNames() const {
           {VisibilityRole, "visibility"},
           {HcbKindRole, "hcbKind"},
           {AttendeeEmailsJsonRole, "attendeeEmailsJson"},
+          {AttendeeDetailsJsonRole, "attendeeDetailsJson"},
           {RemindersJsonRole, "remindersJson"},
-          {RemindersUseDefaultRole, "remindersUseDefault"}};
+          {RemindersUseDefaultRole, "remindersUseDefault"},
+          {ConferenceJsonRole, "conferenceJson"},
+          {AttachmentsJsonRole, "attachmentsJson"},
+          {GuestPermissionsJsonRole, "guestPermissionsJson"},
+          {StatusPropertiesJsonRole, "statusPropertiesJson"},
+          {EventTypeRole, "eventType"}};
 }
 
 void AgendaModel::setEvents(QList<CalendarEventSummary> events) {

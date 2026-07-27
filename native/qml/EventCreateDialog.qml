@@ -8,7 +8,10 @@ HcbDialog {
     primaryText: "Create event"
     primaryEnabled: eventCalendarId.length > 0 && titleField.text.trim().length > 0 && validRange() && validMetadata()
     property var calendarSourceModel: null
+    property var driveAttachmentCandidates: []
+    property var freeBusyIntervals: []
     property string eventCalendarId: ""
+    property bool guestPermissionsCustomized: false
     property alias eventTitle: titleField.text
     property alias eventStartAt: startField.text
     property alias eventEndAt: endField.text
@@ -21,6 +24,16 @@ HcbDialog {
                                 bool allDay, string description, string location, string timeZone,
                                 string colorId, bool available, string visibility, var attendees,
                                 bool remindersUseDefault, var reminders, string recurrenceRule)
+    signal richEventCreateRequested(string calendarId, string title, string startAt, string endAt,
+                                bool allDay, string description, string location, string timeZone,
+                                string colorId, bool available, string visibility, var attendees,
+                                bool remindersUseDefault, var reminders, string recurrenceRule,
+                                bool createGoogleMeet, string attachmentsJson,
+                                string guestPermissionsJson, string eventType,
+                                string statusPropertiesJson, string sendUpdates)
+    signal driveSearchRequested(string query)
+    signal availabilityRequested(var calendarIds, string startAt, string endAt)
+    ListModel { id: attachmentModel }
 
     function validRange() {
         const start = Date.parse(startField.text)
@@ -59,7 +72,32 @@ HcbDialog {
     function validMetadata() {
         return attendeeValues() !== null && reminderValues() !== null &&
                (timeZoneField.text.trim().length === 0 ||
-                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim()))
+                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim())) &&
+               validStatusProperties()
+    }
+
+    function attachmentsJson() {
+        const items = []
+        for (let index = 0; index < attachmentModel.count; ++index) {
+            const item = attachmentModel.get(index)
+            items.push({ fileUrl: item.fileUrl, title: item.title, mimeType: item.mimeType })
+        }
+        return JSON.stringify(items)
+    }
+
+    function guestPermissionsJson() {
+        if (!guestPermissionsCustomized) return "{}"
+        return JSON.stringify({ guestsCanInviteOthers: guestsCanInviteCheck.checked,
+                                guestsCanModify: guestsCanModifyCheck.checked,
+                                guestsCanSeeOtherGuests: guestsCanSeeCheck.checked })
+    }
+
+    function validStatusProperties() {
+        return statusEditor.validProperties()
+    }
+
+    function busyIntervalCount() {
+        return freeBusyIntervals === null ? 0 : freeBusyIntervals.length
     }
 
     function recurrenceSummary() {
@@ -104,18 +142,37 @@ HcbDialog {
         reminderField.clear()
         recurrenceRuleField.clear()
         recurrencePresetPicker.currentIndex = 0
+        googleMeetCheck.checked = false
+        attachmentModel.clear()
+        guestPermissionsCustomized = false
+        guestsCanInviteCheck.checked = true
+        guestsCanModifyCheck.checked = false
+        guestsCanSeeCheck.checked = true
+        sendUpdatesPicker.currentIndex = sendUpdatesPicker.indexOfValue("all")
+        eventTypePicker.currentIndex = eventTypePicker.indexOfValue("default")
+        statusEditor.resetForEventType()
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
         open()
     }
 
     onOpened: titleField.forceActiveFocus()
-    onPrimaryAction: eventCreateRequested(eventCalendarId, titleField.text.trim(), startField.text,
+    onPrimaryAction: {
+        eventCreateRequested(eventCalendarId, titleField.text.trim(), startField.text,
+                             endField.text, allDayCheck.checked, descriptionField.text,
+                             locationField.text, timeZoneField.text.trim(), colorIdField.text.trim(),
+                             availableCheck.checked, visibilityPicker.currentValue, attendeeValues(),
+                             defaultRemindersCheck.checked, reminderValues(), recurrenceRuleField.text)
+        richEventCreateRequested(eventCalendarId, titleField.text.trim(), startField.text,
                                           endField.text, allDayCheck.checked, descriptionField.text,
                                           locationField.text, timeZoneField.text.trim(),
                                           colorIdField.text.trim(), availableCheck.checked,
                                           visibilityPicker.currentValue, attendeeValues(),
                                           defaultRemindersCheck.checked, reminderValues(),
-                                          recurrenceRuleField.text)
+                                          recurrenceRuleField.text, googleMeetCheck.checked,
+                                          attachmentsJson(), guestPermissionsJson(),
+                                          eventTypePicker.currentValue, statusEditor.propertiesJson,
+                                          sendUpdatesPicker.currentValue)
+    }
 
     TextField {
         id: titleField
@@ -127,6 +184,107 @@ HcbDialog {
             if (root.primaryEnabled) {
                 root.primaryButton.click()
             }
+        }
+    }
+
+    CheckBox {
+        id: googleMeetCheck
+        text: "Add Google Meet"
+        Accessible.name: text
+    }
+
+    Button {
+        Layout.fillWidth: true
+        text: "Check availability"
+        enabled: root.eventCalendarId.length > 0 && root.validRange()
+        onClicked: root.availabilityRequested([root.eventCalendarId], startField.text, endField.text)
+    }
+
+    Label {
+        Layout.fillWidth: true
+        visible: root.freeBusyIntervals && root.freeBusyIntervals.length > 0
+        text: root.busyIntervalCount() + " busy interval(s) in this range"
+        color: Theme.textSecondary
+    }
+
+    ComboBox {
+        id: eventTypePicker
+        Layout.fillWidth: true
+        model: [{ text: "Standard event", value: "default" },
+                { text: "Focus time", value: "focusTime" },
+                { text: "Out of office", value: "outOfOffice" },
+                { text: "Working location", value: "workingLocation" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Event type"
+    }
+
+    StatusEventPropertiesEditor {
+        id: statusEditor
+        Layout.fillWidth: true
+        eventType: eventTypePicker.currentValue
+    }
+
+    CheckBox {
+        id: guestsCanInviteCheck
+        text: "Guests can invite others"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    CheckBox {
+        id: guestsCanModifyCheck
+        text: "Guests can modify event"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    CheckBox {
+        id: guestsCanSeeCheck
+        text: "Guests can see guest list"
+        Accessible.name: text
+        onClicked: root.guestPermissionsCustomized = true
+    }
+
+    ComboBox {
+        id: sendUpdatesPicker
+        Layout.fillWidth: true
+        model: [{ text: "Notify all guests", value: "all" },
+                { text: "Notify external guests", value: "externalOnly" },
+                { text: "Do not notify guests", value: "none" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Guest notifications"
+    }
+
+    TextField {
+        id: driveSearchField
+        Layout.fillWidth: true
+        placeholderText: "Search Google Drive attachments"
+        Accessible.name: "Search Google Drive attachments"
+        selectByMouse: true
+        onAccepted: root.driveSearchRequested(text)
+    }
+
+    Repeater {
+        model: root.driveAttachmentCandidates
+        delegate: Button {
+            required property var modelData
+            Layout.fillWidth: true
+            text: "Attach " + modelData.name
+            onClicked: attachmentModel.append({ fileUrl: modelData.fileUrl, title: modelData.name,
+                                                 mimeType: modelData.mimeType })
+        }
+    }
+
+    Repeater {
+        model: attachmentModel
+        delegate: Button {
+            required property string title
+            required property int index
+            Layout.fillWidth: true
+            text: "Remove attachment: " + title
+            onClicked: attachmentModel.remove(index)
         }
     }
 

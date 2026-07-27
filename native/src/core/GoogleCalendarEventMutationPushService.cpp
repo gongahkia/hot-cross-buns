@@ -14,6 +14,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSet>
 #include <QTime>
 #include <QTimeZone>
@@ -45,6 +46,8 @@ constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr qsizetype kMaximumAttendeeCount = 200;
 constexpr qsizetype kMaximumReminderCount = 5;
+constexpr qsizetype kMaximumAttachmentCount = 25;
+constexpr qsizetype kMaximumAttachmentUrlLength = 2'048;
 constexpr auto kMutationLeaseDuration = std::chrono::minutes(5);
 
 struct CanonicalEventTime final {
@@ -292,6 +295,84 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
                      {QStringLiteral("overrides"), canonicalOverrides}};
 }
 
+[[nodiscard]] std::optional<QJsonObject> canonicalConferenceData(const QJsonValue& value) {
+  if (!value.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject source = value.toObject();
+  const QJsonValue requestValue = source.value(QStringLiteral("createRequest"));
+  if (!requestValue.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject request = requestValue.toObject();
+  const QJsonValue requestId = request.value(QStringLiteral("requestId"));
+  const QJsonValue solutionKey = request.value(QStringLiteral("conferenceSolutionKey"));
+  if (!requestId.isString() || !isValidRequiredText(requestId.toString(), 128) ||
+      !solutionKey.isObject() ||
+      solutionKey.toObject().value(QStringLiteral("type")).toString() !=
+          QStringLiteral("hangoutsMeet")) {
+    return std::nullopt;
+  }
+  QJsonObject canonicalRequest{
+      {QStringLiteral("requestId"), requestId.toString()},
+      {QStringLiteral("conferenceSolutionKey"),
+       QJsonObject{{QStringLiteral("type"), QStringLiteral("hangoutsMeet")}}}};
+  return QJsonObject{{QStringLiteral("createRequest"), canonicalRequest}};
+}
+
+[[nodiscard]] std::optional<QJsonArray> canonicalAttachments(const QJsonValue& value) {
+  if (!value.isArray() || value.toArray().size() > kMaximumAttachmentCount) {
+    return std::nullopt;
+  }
+  QJsonArray canonical;
+  for (const QJsonValue& attachmentValue : value.toArray()) {
+    if (!attachmentValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject attachment = attachmentValue.toObject();
+    const QJsonValue fileUrl = attachment.value(QStringLiteral("fileUrl"));
+    const QJsonValue title = attachment.value(QStringLiteral("title"));
+    const QJsonValue mimeType = attachment.value(QStringLiteral("mimeType"));
+    if (!fileUrl.isString() || fileUrl.toString().size() > kMaximumAttachmentUrlLength ||
+        !fileUrl.toString().startsWith(QStringLiteral("https://")) ||
+        (!title.isUndefined() && (!title.isString() || title.toString().size() > 1'024)) ||
+        (!mimeType.isUndefined() && (!mimeType.isString() || mimeType.toString().size() > 256))) {
+      return std::nullopt;
+    }
+    QJsonObject item{{QStringLiteral("fileUrl"), fileUrl.toString()}};
+    if (title.isString()) {
+      item.insert(QStringLiteral("title"), title.toString());
+    }
+    if (mimeType.isString()) {
+      item.insert(QStringLiteral("mimeType"), mimeType.toString());
+    }
+    canonical.append(item);
+  }
+  return canonical;
+}
+
+[[nodiscard]] bool isStatusEventType(const QString& eventType) {
+  return eventType == QStringLiteral("focusTime") || eventType == QStringLiteral("outOfOffice") ||
+         eventType == QStringLiteral("workingLocation");
+}
+
+[[nodiscard]] bool isSupportedEventType(const QString& eventType) {
+  return eventType == QStringLiteral("default") || isStatusEventType(eventType);
+}
+
+[[nodiscard]] std::optional<QString> canonicalSendUpdates(const QJsonObject& payload) {
+  const QJsonValue sendUpdates = payload.value(QStringLiteral("sendUpdates"));
+  if (sendUpdates.isUndefined()) {
+    return QStringLiteral("all");
+  }
+  if (!sendUpdates.isString() || (sendUpdates.toString() != QStringLiteral("all") &&
+                                  sendUpdates.toString() != QStringLiteral("externalOnly") &&
+                                  sendUpdates.toString() != QStringLiteral("none"))) {
+    return std::nullopt;
+  }
+  return sendUpdates.toString();
+}
+
 [[nodiscard]] std::optional<QJsonArray> canonicalRecurrence(const QJsonValue& value, bool creating) {
   constexpr qsizetype kMaximumRecurrenceLineCount = 128;
   constexpr qsizetype kMaximumRecurrenceLineLength = 4'096;
@@ -433,6 +514,13 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     }
     result.insert(QStringLiteral("attendees"), *canonical);
   }
+  const QJsonValue attendeesOmitted = event.value(QStringLiteral("attendeesOmitted"));
+  if (!attendeesOmitted.isUndefined()) {
+    if (creating || !attendeesOmitted.isBool() || !attendees.isArray()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("attendeesOmitted"), attendeesOmitted.toBool());
+  }
   const QJsonValue reminders = event.value(QStringLiteral("reminders"));
   if (!reminders.isUndefined()) {
     const std::optional<QJsonObject> canonical = canonicalReminders(reminders);
@@ -440,6 +528,66 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
       return std::nullopt;
     }
     result.insert(QStringLiteral("reminders"), *canonical);
+  }
+  const QJsonValue conferenceData = event.value(QStringLiteral("conferenceData"));
+  if (!conferenceData.isUndefined()) {
+    const std::optional<QJsonObject> canonical = canonicalConferenceData(conferenceData);
+    if (!canonical.has_value()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("conferenceData"), *canonical);
+  }
+  const QJsonValue attachments = event.value(QStringLiteral("attachments"));
+  if (!attachments.isUndefined()) {
+    const std::optional<QJsonArray> canonical = canonicalAttachments(attachments);
+    if (!canonical.has_value()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("attachments"), *canonical);
+  }
+  for (const QStringView key : {u"guestsCanInviteOthers", u"guestsCanModify",
+                                u"guestsCanSeeOtherGuests"}) {
+    const QJsonValue value = event.value(key);
+    if (value.isUndefined()) {
+      continue;
+    }
+    if (!value.isBool()) {
+      return std::nullopt;
+    }
+    result.insert(key.toString(), value.toBool());
+  }
+  const QJsonValue eventType = event.value(QStringLiteral("eventType"));
+  if (!eventType.isUndefined()) {
+    if (!creating || !eventType.isString() || !isSupportedEventType(eventType.toString())) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("eventType"), eventType.toString());
+  }
+  const QString effectiveEventType = eventType.isString() ? eventType.toString()
+                                                            : QStringLiteral("default");
+  const QString statusKey = effectiveEventType == QStringLiteral("focusTime")
+                                ? QStringLiteral("focusTimeProperties")
+                            : effectiveEventType == QStringLiteral("outOfOffice")
+                                ? QStringLiteral("outOfOfficeProperties")
+                            : effectiveEventType == QStringLiteral("workingLocation")
+                                ? QStringLiteral("workingLocationProperties")
+                                : QString();
+  int statusPropertyCount = 0;
+  for (const QStringView key : {u"focusTimeProperties", u"outOfOfficeProperties",
+                                u"workingLocationProperties"}) {
+    const QJsonValue value = event.value(key);
+    if (value.isUndefined()) {
+      continue;
+    }
+    if ((!statusKey.isEmpty() && key.toString() != statusKey) || !value.isObject() ||
+        QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact).size() > 16'384) {
+      return std::nullopt;
+    }
+    ++statusPropertyCount;
+    result.insert(key.toString(), value.toObject());
+  }
+  if (statusPropertyCount > 1) {
+    return std::nullopt;
   }
   return !result.isEmpty() ? std::optional<QJsonObject>(result) : std::nullopt;
 }
@@ -458,14 +606,19 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   }
   if (mutation.operation == QStringLiteral("event.create")) {
     const std::optional<QJsonObject> event = canonicalEvent(mutation.payload, true);
-    if (!event.has_value()) {
+    const std::optional<QString> sendUpdates = canonicalSendUpdates(mutation.payload);
+    if (!event.has_value() || !sendUpdates.has_value()) {
       return QStringLiteral("Pending event mutation payload is invalid");
     }
     GoogleHttpRequest request{.method = GoogleHttpMethod::Post,
                               .path = eventCollectionPath(*calendarId),
                               .body = QJsonDocument(*event).toJson(QJsonDocument::Compact)};
-    if (event->contains(QStringLiteral("attendees"))) {
-      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    request.query.append({.name = QStringLiteral("sendUpdates"), .value = *sendUpdates});
+    if (event->contains(QStringLiteral("conferenceData"))) {
+      request.query.append({.name = QStringLiteral("conferenceDataVersion"), .value = QStringLiteral("1")});
+    }
+    if (event->contains(QStringLiteral("attachments"))) {
+      request.query.append({.name = QStringLiteral("supportsAttachments"), .value = QStringLiteral("true")});
     }
     return EventPushRequest{.request = std::move(request)};
   }
@@ -483,13 +636,18 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   request.ifMatch = etag;
   if (mutation.operation == QStringLiteral("event.update")) {
     const std::optional<QJsonObject> event = canonicalEvent(mutation.payload, false);
-    if (!event.has_value()) {
+    const std::optional<QString> sendUpdates = canonicalSendUpdates(mutation.payload);
+    if (!event.has_value() || !sendUpdates.has_value()) {
       return QStringLiteral("Pending event mutation payload is invalid");
     }
     request.method = GoogleHttpMethod::Patch;
     request.body = QJsonDocument(*event).toJson(QJsonDocument::Compact);
-    if (event->contains(QStringLiteral("attendees"))) {
-      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    request.query.append({.name = QStringLiteral("sendUpdates"), .value = *sendUpdates});
+    if (event->contains(QStringLiteral("conferenceData"))) {
+      request.query.append({.name = QStringLiteral("conferenceDataVersion"), .value = QStringLiteral("1")});
+    }
+    if (event->contains(QStringLiteral("attachments"))) {
+      request.query.append({.name = QStringLiteral("supportsAttachments"), .value = QStringLiteral("true")});
     }
     return EventPushRequest{.request = std::move(request)};
   }
@@ -583,13 +741,18 @@ resolveInstanceRequest(const PendingMutation& mutation,
   request.ifMatch = *instanceEtag;
   if (mutation.operation == QStringLiteral("event.instance.update")) {
     const std::optional<QJsonObject> event = canonicalEvent(mutation.payload, false);
-    if (!event.has_value()) {
+    const std::optional<QString> sendUpdates = canonicalSendUpdates(mutation.payload);
+    if (!event.has_value() || !sendUpdates.has_value()) {
       return QStringLiteral("Pending calendar-instance update payload is invalid");
     }
     request.method = GoogleHttpMethod::Patch;
     request.body = QJsonDocument(*event).toJson(QJsonDocument::Compact);
-    if (event->contains(QStringLiteral("attendees"))) {
-      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    request.query.append({.name = QStringLiteral("sendUpdates"), .value = *sendUpdates});
+    if (event->contains(QStringLiteral("conferenceData"))) {
+      request.query.append({.name = QStringLiteral("conferenceDataVersion"), .value = QStringLiteral("1")});
+    }
+    if (event->contains(QStringLiteral("attachments"))) {
+      request.query.append({.name = QStringLiteral("supportsAttachments"), .value = QStringLiteral("true")});
     }
   } else if (mutation.operation == QStringLiteral("event.instance.delete")) {
     request.method = GoogleHttpMethod::Delete;

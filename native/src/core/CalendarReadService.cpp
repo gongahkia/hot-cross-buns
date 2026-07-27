@@ -145,13 +145,19 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
   const std::optional<QString> startAt = requiredText(statement, 9);
   const std::optional<QString> endAt = requiredText(statement, 11);
   const std::optional<QString> attendeeEmailsJson = requiredText(statement, 21);
-  const std::optional<QString> remindersJson = requiredText(statement, 22);
-  const std::optional<QString> updatedAt = requiredText(statement, 27);
+  const std::optional<QString> attendeeDetailsJson = requiredText(statement, 22);
+  const std::optional<QString> remindersJson = requiredText(statement, 23);
+  const std::optional<QString> attachmentsJson = requiredText(statement, 31);
+  const std::optional<QString> guestPermissionsJson = requiredText(statement, 32);
+  const std::optional<QString> statusPropertiesJson = requiredText(statement, 33);
+  const std::optional<QString> updatedAt = requiredText(statement, 28);
   if (!id.has_value() || !calendarId.has_value() || !status.has_value() || !title.has_value() ||
       !startAt.has_value() || !endAt.has_value() || !updatedAt.has_value() ||
       !isStoredBoolean(statement, 13) || !attendeeEmailsJson.has_value() ||
-      !remindersJson.has_value() || !isStoredBoolean(statement, 23) ||
-      !isStoredBoolean(statement, 28)) {
+      !attendeeDetailsJson.has_value() || !remindersJson.has_value() ||
+      !isStoredBoolean(statement, 24) || !attachmentsJson.has_value() ||
+      !guestPermissionsJson.has_value() || !statusPropertiesJson.has_value() ||
+      !isStoredBoolean(statement, 29)) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored calendar event row is invalid"));
   }
   return CalendarEventSummary{.id = *id,
@@ -176,13 +182,18 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                               .hcbKind = optionalText(statement, 19),
                               .eventType = optionalText(statement, 20),
                               .attendeeEmailsJson = *attendeeEmailsJson,
+                              .attendeeDetailsJson = *attendeeDetailsJson,
                               .remindersJson = *remindersJson,
-                              .remindersUseDefault = sqlite3_column_int(statement, 23) == 1,
-                              .etag = optionalText(statement, 24),
-                              .sequence = optionalInteger(statement, 25),
-                              .remoteUpdatedAt = optionalText(statement, 26),
+                              .remindersUseDefault = sqlite3_column_int(statement, 24) == 1,
+                              .conferenceJson = optionalText(statement, 30),
+                              .attachmentsJson = *attachmentsJson,
+                              .guestPermissionsJson = *guestPermissionsJson,
+                              .statusPropertiesJson = *statusPropertiesJson,
+                              .etag = optionalText(statement, 25),
+                              .sequence = optionalInteger(statement, 26),
+                              .remoteUpdatedAt = optionalText(statement, 27),
                               .updatedAt = *updatedAt,
-                              .instanceRangeCached = sqlite3_column_int(statement, 28) == 1};
+                              .instanceRangeCached = sqlite3_column_int(statement, 29) == 1};
 }
 
 constexpr char calendarProjectionSql[] = R"(
@@ -443,9 +454,10 @@ readStoredCalendarEvents(SqliteConnection& connection,
                      "events.start_time_zone, events.end_at, events.end_time_zone, "
                      "events.is_all_day, COALESCE(recurrences.recurrence_rule, events.recurrence_rule), events.color_id, "
                      "events.transparency, events.visibility, events.time_zone, events.hcb_kind, "
-                     "events.event_type, events.attendee_emails_json, events.reminders_json, "
-                     "events.reminders_use_default, events.etag, events.sequence, "
-                     "events.remote_updated_at, events.updated_at, %1 "
+                     "events.event_type, events.attendee_emails_json, events.attendee_details_json, "
+                     "events.reminders_json, events.reminders_use_default, events.etag, events.sequence, "
+                     "events.remote_updated_at, events.updated_at, %1, events.conference_json, "
+                     "events.attachments_json, events.guest_permissions_json, events.status_properties_json "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
                      "LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id "

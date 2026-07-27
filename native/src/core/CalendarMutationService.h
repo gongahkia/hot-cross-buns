@@ -25,6 +25,15 @@ struct CalendarEventReminderSettings final {
   QList<CalendarEventReminder> overrides;
 };
 
+struct CalendarEventRichMetadata final {
+  bool createGoogleMeet{false};
+  QString attachmentsJson{QStringLiteral("[]")};
+  QString guestPermissionsJson{QStringLiteral("{}")};
+  QString eventType{QStringLiteral("default")};
+  QString statusPropertiesJson{QStringLiteral("{}")};
+  QString sendUpdates{QStringLiteral("all")};
+};
+
 enum class CalendarEventRecurrenceScope : std::uint8_t {
   ThisInstance,
   ThisAndFollowing,
@@ -47,6 +56,7 @@ struct CalendarEventCreateInput final {
   QList<QString> attendeeEmails;
   CalendarEventReminderSettings reminders;
   std::optional<QString> recurrenceRule;
+  CalendarEventRichMetadata richMetadata;
 };
 
 struct CalendarEventUpdateInput final {
@@ -66,6 +76,12 @@ struct CalendarEventUpdateInput final {
   std::optional<QList<QString>> attendeeEmails;
   std::optional<CalendarEventReminderSettings> reminders;
   std::optional<std::optional<QString>> recurrenceRule;
+  std::optional<bool> createGoogleMeet;
+  std::optional<QString> attachmentsJson;
+  std::optional<QString> guestPermissionsJson;
+  std::optional<QString> statusPropertiesJson;
+  std::optional<QString> sendUpdates;
+  std::optional<QString> selfResponseStatus;
 };
 
 struct CalendarEventScopedUpdateInput final {
@@ -106,8 +122,13 @@ struct CalendarEventMutationSnapshot final {
   std::optional<QString> transparency;
   std::optional<QString> visibility;
   QString attendeeEmailsJson;
+  QString attendeeDetailsJson;
   QString remindersJson;
   bool remindersUseDefault{true};
+  std::optional<QString> conferenceJson;
+  QString attachmentsJson;
+  QString guestPermissionsJson;
+  QString statusPropertiesJson;
 };
 
 using CalendarEventMutationResult = std::variant<CalendarEventMutationReceipt, AppError>;
@@ -123,6 +144,8 @@ public:
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
+  [[nodiscard]] std::future<CalendarEventMutationResult>
+  respond(QString eventId, QString responseStatus);
   [[nodiscard]] std::future<CalendarEventMutationResult>
   updateScoped(CalendarEventScopedUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);

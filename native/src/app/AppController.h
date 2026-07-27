@@ -7,11 +7,13 @@
 #include "core/Clock.h"
 #include "core/FilePath.h"
 #include "core/GoogleCalendarEventPullClient.h"
+#include "core/GoogleCalendarFreeBusyClient.h"
 #include "core/GoogleCalendarInstanceCacheService.h"
 #include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleCalendarListPullClient.h"
 #include "core/GoogleCalendarManagementClient.h"
 #include "core/GoogleCalendarMirrorSyncService.h"
+#include "core/GoogleDriveFilePickerClient.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
 #include "core/GoogleSyncRecoveryService.h"
@@ -102,6 +104,9 @@ class AppController final : public QObject {
                  calendarVisibilityConfiguredChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
+  Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
+  Q_PROPERTY(QVariantList driveAttachmentCandidates READ driveAttachmentCandidates NOTIFY
+                 driveAttachmentCandidatesChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -146,6 +151,8 @@ public:
   [[nodiscard]] bool calendarVisibilityConfigured() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
+  [[nodiscard]] QVariantList freeBusyIntervals() const;
+  [[nodiscard]] QVariantList driveAttachmentCandidates() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
 
@@ -161,6 +168,8 @@ public:
   Q_INVOKABLE void saveCalendarVisibility(QVariantList calendarIds);
   Q_INVOKABLE void createGoogleCalendar(QString title, QString description, QString timeZone);
   Q_INVOKABLE void subscribeGoogleCalendar(QString calendarId);
+  Q_INVOKABLE void queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt);
+  Q_INVOKABLE void searchGoogleDriveAttachments(QString query);
   Q_INVOKABLE void saveClientId(QString clientId);
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
@@ -256,7 +265,13 @@ public:
                                        QVariantList attendees,
                                        bool remindersUseDefault,
                                        QVariantList reminders,
-                                       QString recurrenceRule);
+                                       QString recurrenceRule,
+                                       bool createGoogleMeet,
+                                       QString attachmentsJson,
+                                       QString guestPermissionsJson,
+                                       QString eventType,
+                                       QString statusPropertiesJson,
+                                       QString sendUpdates);
   Q_INVOKABLE void updateEventDetailed(QString eventId,
                                        QString calendarId,
                                        QString title,
@@ -273,8 +288,14 @@ public:
                                        bool remindersUseDefault,
                                        QVariantList reminders,
                                        QString recurrenceRule,
-                                       int recurrenceScope);
+                                       int recurrenceScope,
+                                       bool createGoogleMeet,
+                                       QString attachmentsJson,
+                                       QString guestPermissionsJson,
+                                       QString statusPropertiesJson,
+                                       QString sendUpdates);
   Q_INVOKABLE void deleteEvent(QString eventId, int recurrenceScope = 0);
+  Q_INVOKABLE void respondToEvent(QString eventId, QString responseStatus);
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);
   Q_INVOKABLE void bulkDeleteEvents(QVariantList eventIds);
@@ -312,6 +333,8 @@ signals:
   void calendarVisibilityConfiguredChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
+  void freeBusyIntervalsChanged();
+  void driveAttachmentCandidatesChanged();
   void busyChanged();
 
 private:
@@ -410,6 +433,8 @@ private:
   GoogleTaskPullClient googleTaskPullClient_;
   GoogleCalendarListPullClient googleCalendarListPullClient_;
   GoogleCalendarManagementClient googleCalendarManagementClient_;
+  GoogleCalendarFreeBusyClient googleCalendarFreeBusyClient_;
+  GoogleDriveFilePickerClient googleDriveFilePickerClient_;
   GoogleCalendarEventPullClient googleCalendarEventPullClient_;
   GoogleMirrorStore googleMirrorStore_;
   SettingsService settingsService_;
@@ -465,6 +490,8 @@ private:
   bool calendarVisibilityConfigured_{false};
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
+  QVariantList freeBusyIntervals_;
+  QVariantList driveAttachmentCandidates_;
   QList<TaskModelTask> taskProjectionTasks_;
   std::uint64_t calendarRefreshGeneration_{0};
   QTimer searchDebounce_;

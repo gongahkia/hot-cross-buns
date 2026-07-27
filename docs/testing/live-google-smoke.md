@@ -7,10 +7,10 @@ The redacted attestation is [macos-live-google-acceptance-v1.json](macos-live-go
 ## Google Cloud setup
 
 1. Create a separate Google Cloud project. Configure OAuth consent, select the appropriate audience, and, for an External app in Testing, add the disposable account as a test user.
-2. Enable Google Tasks API and Google Calendar API.
+2. Enable Google Tasks API, Google Calendar API, and Google Drive API.
 3. Create an OAuth **Desktop app** client. HCB accepts only its client ID. Do not paste, commit, or otherwise share the downloaded client secret.
 4. In HCB, open **Settings**, paste the client ID into **Desktop OAuth client ID**, select **Save client ID**, then select **Connect Google**. The app opens a temporary loopback callback; do not use a Web, iOS, Android, Chrome, or UWP client.
-5. Use only HCB's requested scopes: `https://www.googleapis.com/auth/tasks` and `https://www.googleapis.com/auth/calendar`.
+5. Use only HCB's requested scopes: `https://www.googleapis.com/auth/tasks`, `https://www.googleapis.com/auth/calendar`, and `https://www.googleapis.com/auth/drive.metadata.readonly`.
 6. Open Google Tasks and Google Calendar in a browser. Create a dedicated empty task list and calendar. All test records must be clearly disposable.
 
 Google's current setup and protocol rules: [OAuth consent and test users](https://developers.google.com/workspace/guides/configure-oauth-consent), [Desktop OAuth loopback flow](https://developers.google.com/identity/protocols/oauth2/native-app), [Calendar incremental sync](https://developers.google.com/workspace/calendar/api/guides/sync), [Calendar error handling](https://developers.google.com/workspace/calendar/api/guides/errors), and [Google Tasks methods](https://developers.google.com/workspace/tasks/reference/rest).
@@ -25,10 +25,11 @@ Record only the outcome in the attestation. `manual` requires the real account/b
 4. Enable Notes. Create an undated note in HCB; verify it is a Google Task with no due date. Verify both Notes-only and mirrored Tasks+Notes presentation modes, then edit and delete it from each side.
 5. Run task and event bulk operations against at least three disposable records each. Verify every selected remote record, then search for a changed task and event locally.
 6. Exercise a recurring Google Calendar event plus an exception from the browser and confirm the series and exception render after sync. Exercise managed Google Task recurrence only through the released recurrence UI. If that UI is unavailable, leave `task_recurrence` incomplete; do not hand-edit HCB's internal marker.
-7. For each policy (**Prefer Google**, **Prefer HCB**, **Ask each time**), create a stale-ETag conflict: queue an offline local edit, edit the same record in Google, restore connectivity, sync, and verify the selected result remotely. For Ask each time, resolve both choices through Settings.
-8. Queue one task and one event write while offline, quit HCB, relaunch while still offline, restore connectivity, and sync. Verify both remote records and that the queue does not replay them again on a second sync.
-9. Revoke the app in the test account's Google Account permissions, sync, and verify the app requires reauthorization without clearing cached data. Reconnect and verify a later sync succeeds.
-10. Force a transient network failure while syncing, then restore connectivity. Verify cache retention, retry/recovery, and no duplicate mutation. Run the native quota/retry and invalid-sync-token tests listed in the attestation; Calendar `410 Gone` must clear the stored token and full-resync.
+7. Create a disposable Calendar event with a Google Meet link, a Drive attachment, guests, guest permissions, and a notification policy; verify each in Calendar after sync. Change RSVP from HCB, check free/busy against the event calendar, then verify the attendee response in Calendar. Create and edit Focus time, Out of office, and Working location events on the primary calendar, and verify their status properties in Calendar.
+8. For each policy (**Prefer Google**, **Prefer HCB**, **Ask each time**), create a stale-ETag conflict: queue an offline local edit, edit the same record in Google, restore connectivity, sync, and verify the selected result remotely. For Ask each time, resolve both choices through Settings.
+9. Queue one task and one event write while offline, quit HCB, relaunch while still offline, restore connectivity, and sync. Verify both remote records and that the queue does not replay them again on a second sync.
+10. Revoke the app in the test account's Google Account permissions, sync, and verify the app requires reauthorization without clearing cached data. Reconnect and verify a later sync succeeds.
+11. Force a transient network failure while syncing, then restore connectivity. Verify cache retention, retry/recovery, and no duplicate mutation. Run the native quota/retry and invalid-sync-token tests listed in the attestation; Calendar `410 Gone` must clear the stored token and full-resync.
 
 ## Attestation rules
 
