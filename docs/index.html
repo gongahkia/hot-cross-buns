@@ -1,696 +1,76 @@
 <!doctype html>
-<html lang="en" data-theme="latte">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
-<title>Hot Cross Buns - Planner App for macOS, Linux, and Windows</title>
-<meta name="description" content="Hot Cross Buns: Keyboard-first desktop planner for Google Tasks, Google Calendar, local vault mode, and terminal workflows on macOS, Linux, and Windows.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
+<title>Hot Cross Buns for Mac</title>
+<meta name="description" content="A small local-first desktop client for Google Calendar and Google Tasks.">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" type="image/png" sizes="64x64" href="logo-64.png">
 </head>
 <body>
-
-<nav class="nav">
-  <a class="wordmark" href="#">
-    <img src="logo-64.png" alt="" width="28" height="28">
+<header class="site-header">
+  <a class="brand" href="./">
+    <img src="logo-64.png" width="28" height="28" alt="">
     <span>Hot Cross Buns</span>
   </a>
-  <div class="nav-links">
-    <a href="#views">Views</a>
-    <a href="#keys">Keyboard</a>
-    <a href="#menubar">Menu Bar</a>
-    <a href="#webviews">Web</a>
-    <a href="#reviews">Reviews</a>
-    <a href="#updates">Updates</a>
-    <button id="theme-toggle" aria-label="Toggle theme">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-    </button>
-    <a class="nav-cta" href="#download">Download</a>
-  </div>
-</nav>
-
-<header class="hero">
-  <div class="hero-copy">
-    <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns is a keyboard-first desktop planner for Google Tasks, Google Calendar, encrypted local vault mode, and terminal workflows on macOS, Linux, and Windows.</p>
-    <div class="hero-ctas">
-      <a class="cta-primary" href="#download">Download</a>
-      <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
-    </div>
-  </div>
-
-  <figure class="hero-shot">
-    <div class="media-window">
-      <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns landing footage">
-        <source data-src="assets/landing.mp4" type="video/mp4">
-      </video>
-    </div>
-  </figure>
+  <nav aria-label="Primary navigation">
+    <a href="#features">Features</a>
+    <a href="#setup">Setup</a>
+    <a href="https://github.com/gongahkia/hot-cross-buns" rel="noopener">GitHub</a>
+  </nav>
 </header>
 
-<section id="views" class="views">
-  <div class="views-layout">
-    <figure class="views-single">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns three views footage">
-          <source data-src="assets/three-views.mp4" type="video/mp4">
-        </video>
-      </div>
-    </figure>
+<main>
+  <section class="intro" aria-labelledby="page-title">
+    <h1 id="page-title">Hot Cross Buns for Mac</h1>
+    <p class="tagline">Hot Cross Buns is a small desktop client for Google Calendar and Google Tasks.</p>
+    <p><a class="download" href="https://github.com/gongahkia/hot-cross-buns/releases">→ View preview releases</a></p>
+    <p><a href="https://github.com/gongahkia/hot-cross-buns#build-and-test">→ Build from source</a></p>
+    <p><a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/testing/live-google-smoke.md">→ Google connection guide</a></p>
+  </section>
 
-    <div class="views-copy">
-      <div class="section-head">
-        <p class="eyebrow">Tasks, calendars, notes</p>
-        <h2>Everything you need<br>in <em>three</em> views.</h2>
-        <p class="lede">Three surfaces, three jobs: tasks to finish, time to place, and notes to keep close. Large datasets are prepared before interaction so the views feel steady once they appear.</p>
-      </div>
+  <section id="features" class="features" aria-label="Features">
+    <h2>Hot Cross Buns keeps the useful parts close…</h2>
+    <ul>
+      <li>Google Calendar events, calendars, and recurring-event instances</li>
+      <li>Google Tasks lists, subtasks, due dates, completion, moves, and ordering</li>
+      <li>Local search, batch edits, batch deletes, and offline mutation recovery</li>
+      <li>An optional Notes view for ordinary Google Tasks without a due date</li>
+    </ul>
 
-      <div class="views-list">
-        <article class="view-item">
-          <h3>Tasks</h3>
-          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks or stays in local HCB storage.</p>
-        </article>
+    <h2>…with deliberate local behavior…</h2>
+    <ul>
+      <li>A local SQLite cache for fast startup and offline viewing</li>
+      <li>Google as the authority for synced tasks and events</li>
+      <li>Calendar recurrence preserved as Google provides it, including exceptions</li>
+      <li>HCB-managed repeating Tasks represented by a visible, portable marker in Google Task notes</li>
+    </ul>
 
-        <article class="view-item">
-          <h3>Calendar</h3>
-          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar or stays in local HCB storage.</p>
-        </article>
+    <h2>…and a setup you control.</h2>
+    <ul>
+      <li>Your own Google Cloud Desktop OAuth client</li>
+      <li>Only Google Tasks and Google Calendar scopes</li>
+      <li>A temporary localhost callback for sign-in</li>
+      <li>No client secret entered into Hot Cross Buns</li>
+    </ul>
+  </section>
 
-        <article class="view-item">
-          <h3>Notes</h3>
-          <p>Prepared note boards backed by Google Tasks for context, drafts, and reference material.</p>
-        </article>
-      </div>
-    </div>
-  </div>
-</section>
+  <section id="setup" class="setup" aria-labelledby="setup-title">
+    <h2 id="setup-title">Before connecting Google</h2>
+    <ol>
+      <li>Create a Google Cloud OAuth <strong>Desktop app</strong> client.</li>
+      <li>Enable Google Tasks API and Google Calendar API.</li>
+      <li>Paste only the client ID into Hot Cross Buns Settings.</li>
+    </ol>
+    <p>The macOS preview is not release-accepted yet. Linux and Windows support are deferred until macOS real-account acceptance and distribution are complete.</p>
+  </section>
+</main>
 
-<section id="keys" class="keys">
-  <div class="keys-intro">
-    <div class="section-head keys-copy">
-      <p class="eyebrow">Made with keyboard users in mind</p>
-      <h2>Do things at the<br><em>speed of thought</em>.</h2>
-      <p class="lede">Core shortcuts stay single-key. Calendar views get their own lane. Global quick capture and the command palette open as lightweight panels instead of slow modal surfaces.</p>
-    </div>
-    <figure class="keys-shot">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Hot Cross Buns command palette footage">
-          <source data-src="assets/command-palette.mp4" type="video/mp4">
-        </video>
-      </div>
-    </figure>
-  </div>
-
-  <div class="keys-grid">
-    <div class="key-col">
-      <h4>Navigate</h4>
-      <dl>
-        <div><dt><kbd>⌘</kbd><kbd>P</kbd></dt><dd>command palette</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>,</kbd></dt><dd>settings</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>T</kbd></dt><dd>jump to today</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></dt><dd>go to date</dd></div>
-      </dl>
-    </div>
-
-    <div class="key-col">
-      <h4>Switch view</h4>
-      <dl>
-        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>1</kbd></dt><dd>agenda</dd></div>
-        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>2</kbd></dt><dd>day</dd></div>
-        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>3</kbd></dt><dd>week</dd></div>
-        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>4</kbd></dt><dd>month</dd></div>
-      </dl>
-    </div>
-
-    <div class="key-col">
-      <h4>Capture</h4>
-      <dl>
-        <div><dt><kbd>⇧</kbd><kbd>⌘</kbd><kbd>Space</kbd></dt><dd>global quick add</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>N</kbd></dt><dd>new task</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></dt><dd>new note</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd></dt><dd>new event</dd></div>
-      </dl>
-    </div>
-
-    <div class="key-col">
-      <h4>Leader</h4>
-      <dl>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>P</kbd></dt><dd>command palette</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>R</kbd></dt><dd>refresh sync</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>D</kbd></dt><dd>diagnostics</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>H</kbd></dt><dd>help</dd></div>
-      </dl>
-    </div>
-  </div>
-</section>
-
-<section id="menubar" class="menubar">
-  <div class="menubar-layout">
-    <figure class="menubar-shot">
-      <div class="menubar-image-pair" aria-label="Hot Cross Buns menu bar surfaces">
-        <img src="assets/menu-bar-1.png" alt="Hot Cross Buns menu bar agenda panel" width="696" height="818" loading="lazy" decoding="async">
-        <img src="assets/menu-bar-2.png" alt="Hot Cross Buns menu bar calendar panel" width="640" height="962" loading="lazy" decoding="async">
-      </div>
-    </figure>
-
-    <div class="menubar-copy">
-      <p class="eyebrow">macOS menu bar</p>
-      <h2>The planner that stays<br><em>within reach</em>.</h2>
-      <p class="lede">Three lighter macOS menu bar surfaces for glanceable calendar, quick capture, and fast return to the main app.</p>
-
-      <div class="menubar-list">
-        <article class="menubar-item">
-          <h3>Calendar</h3>
-          <p>Small calendar and agenda for checking the day at a glance.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Compact</h3>
-          <p>Reduced panel for the next time blocks and quick task entry.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Planner</h3>
-          <p>Fuller panel for capture, refresh, and jumping back into the app.</p>
-        </article>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="webviews" class="menubar webviews">
-  <div class="menubar-layout webviews-layout">
-    <div class="menubar-copy">
-      <p class="eyebrow">Native web views</p>
-      <h2>Open the web<br><em>inside your planner</em>.</h2>
-      <p class="lede">Keep docs, dashboards, forms, and reference pages beside tasks, notes, and calendar context without switching apps.</p>
-
-      <div class="menubar-list">
-        <article class="menubar-item">
-          <h3>Pages</h3>
-          <p>Open webpage panes directly inside Hot Cross Buns.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Context</h3>
-          <p>Keep research next to the plan it supports.</p>
-        </article>
-
-        <article class="menubar-item">
-          <h3>Focus</h3>
-          <p>Move between planner views and web references from one workspace.</p>
-        </article>
-      </div>
-    </div>
-
-    <figure class="menubar-shot webviews-shot">
-      <div class="media-window">
-        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Native webpage footage inside Hot Cross Buns">
-          <source data-src="assets/web-view.mp4" type="video/mp4">
-        </video>
-      </div>
-    </figure>
-  </div>
-</section>
-
-<section id="reviews" class="reviews">
-  <p class="eyebrow">What people* are saying</p>
-  <h2>The reviews are <em>in</em>.</h2>
-  <p class="stars" aria-label="five stars">★★★★★</p>
-  <ul class="review-list">
-    <li>&ldquo;Awesome.&rdquo;</li>
-    <li>&ldquo;You mean you made two of these?&rdquo;</li>
-    <li>&ldquo;Not as good as Notion. But I'm not paying for Notion.&rdquo;</li>
-    <li>&ldquo;It's lovely, dear. Is it different from Apple Calendar?&rdquo;</li>
-  </ul>
-  <p class="review-footnote">* people = me and one time, my mother</p>
-  <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">See the repository →</a>
-</section>
-
-	<section id="download" class="download">
-	  <div class="download-inner">
-	    <p class="eyebrow">Ready when you are</p>
-	    <h2>Get Hot Cross Buns.</h2>
-	    <p class="lede">Free desktop builds are available for macOS 14+, Linux x64 AppImage, and Windows x64 NSIS. Each release includes SHA-256 checksums.</p>
-
-	    <div class="download-platforms" aria-label="Platform downloads">
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-macos.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>macOS</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-macOS.dmg">Download DMG</a>
-	      </article>
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-linux.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>Linux</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage">Download AppImage</a>
-	      </article>
-	      <article class="download-platform">
-	        <span class="download-platform-icon" aria-hidden="true">
-	          <img src="assets/platform-windows.png" alt="" width="96" height="96" decoding="async">
-	        </span>
-	        <h3>Windows</h3>
-	        <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe">Download EXE</a>
-	      </article>
-	    </div>
-
-	    <div class="download-cta">
-	      <a
-	        class="cta-primary big"
-	        href="https://github.com/gongahkia/hot-cross-buns/releases"
-	        data-download-trigger
-	        data-download-url="https://github.com/gongahkia/hot-cross-buns/releases"
-	      >
-	        Open Releases
-	      </a>
-	      <p class="download-meta">
-	        <span>GitHub Releases hosts platform assets and published SHA-256 checksums.</span>
-	      </p>
-	    </div>
-
-	    <details class="brew brew-terminal">
-	      <summary>Prefer Terminal?</summary>
-	      <div class="brew-panel">
-	        <h3>macOS</h3>
-	        <pre><code>curl -fsSL https://raw.githubusercontent.com/gongahkia/hot-cross-buns/main/docs/install-macos-preview.sh | bash</code></pre>
-	        <h3>Linux</h3>
-	        <pre><code>curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage
-curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/SHASUMS256.txt
-sha256sum -c SHASUMS256.txt --ignore-missing
-chmod +x Hot-Cross-Buns-linux-x64.AppImage
-./Hot-Cross-Buns-linux-x64.AppImage</code></pre>
-	        <h3>Windows PowerShell</h3>
-	        <pre><code>Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe -OutFile Hot-Cross-Buns-windows-x64.exe
-Invoke-WebRequest https://github.com/gongahkia/hot-cross-buns/releases/latest/download/SHASUMS256.txt -OutFile SHASUMS256.txt
-Get-FileHash .\Hot-Cross-Buns-windows-x64.exe -Algorithm SHA256</code></pre>
-	      </div>
-	    </details>
-	  </div>
-	</section>
-
-	<div id="download-modal" class="download-modal" hidden aria-hidden="true">
-	  <div class="download-modal-backdrop" data-modal-close></div>
-	  <div
-	    class="download-modal-card"
-	    role="dialog"
-	    aria-modal="true"
-	    aria-labelledby="download-modal-title"
-	    aria-describedby="download-modal-copy"
-	  >
-	    <button class="download-modal-close" type="button" aria-label="Close" data-modal-close>×</button>
-	    <p class="eyebrow">Download notes</p>
-	    <h3 id="download-modal-title">One quick thing before you open releases.</h3>
-	    <p id="download-modal-copy" class="download-modal-copy">
-	      Builds are distributed through GitHub Releases and are unsigned for now. macOS may require Open Anyway, Windows may show SmartScreen warnings, and Linux keeps explicit native-shell limitations. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
-	    </p>
-	    <figure class="download-modal-warning">
-	      <img
-	        class="download-modal-warning-dialog"
-	        data-src="assets/macos-not-opened-warning.jpeg"
-	        alt="macOS warning dialog saying Hot Cross Buns was not opened because Apple could not verify it is free of malware."
-	        width="546"
-	        height="516"
-	        loading="lazy"
-	        decoding="async"
-	      >
-	      <img
-	        class="download-modal-warning-settings"
-	        data-src="assets/macos-open-anyway-warning.jpeg"
-	        alt="macOS Privacy and Security row saying Hot Cross Buns was blocked to protect your Mac, with an Open Anyway button."
-	        width="928"
-	        height="186"
-	        loading="lazy"
-	        decoding="async"
-	      >
-	    </figure>
-	    <ul class="download-modal-list">
-	      <li>Move Hot Cross Buns into your Applications folder after opening the DMG.</li>
-	      <li>Try opening the app once.</li>
-	      <li>If macOS blocks it, go to System Settings &gt; Privacy &amp; Security and click Open Anyway.</li>
-	      <li>For Linux, verify the AppImage checksum, mark it executable, and run it directly.</li>
-	      <li>Linux tray/status-area surfaces, notifications, global shortcuts, deep links, autostart, and in-place auto-update are not supported.</li>
-	      <li>For Windows, verify the installer hash before running the unsigned NSIS installer.</li>
-	    </ul>
-	    <p class="download-modal-footnote">You&apos;ll open GitHub Releases.</p>
-        <p class="download-modal-footnote">Checksums are published for each release. See <a href="privacy.html">Privacy and Trust</a> and the GitHub README for OAuth setup.</p>
-	    <div class="download-modal-actions">
-	      <button class="cta-secondary download-modal-cancel" type="button" data-modal-close>Not now</button>
-	      <a
-	        id="download-modal-continue"
-	        class="cta-primary"
-	        href="https://github.com/gongahkia/hot-cross-buns/releases"
-	      >
-	        Open Releases
-	      </a>
-	    </div>
-	  </div>
-	</div>
-
-	<section id="updates" class="updates">
-  <div class="updates-head">
-    <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v5.0.2</em>.</h2>
-  </div>
-
-  <div class="updates-list">
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v5.0.2</h3>
-        <p>5 Jul 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added a read-only browser extension surface for Chrome and Firefox with a shared sidebar UI.</li>
-          <li>Added direct Google OAuth authorization-code plus PKCE setup for extension-only access to Google Tasks and Calendar.</li>
-          <li>Added session-cached Google Tasks and Calendar fetching, covering task lists, tasks, selected calendars, and nearby calendar events.</li>
-          <li>Added local sidebar search across cached tasks and events with all, today, upcoming, task-only, and event-only filters.</li>
-          <li>Deepened the extension sidebar with grouped result sections and keyboard navigation for search, refresh, result movement, and opening the active item.</li>
-          <li>Added separate Chrome side panel and Firefox sidebar builds with generated target-specific Manifest V3 files.</li>
-          <li>Added extension build/typecheck scripts, background-message tests, internal Chrome QA notes, OAuth setup docs, and privacy copy for extension session storage.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v5.0.1</h3>
-        <p>19 Jun 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added first-run and Settings controls for selecting Google, HCB local vault, or HCB local hoster backend mode.</li>
-          <li>Added encrypted <code>.hcbvault</code> export/import contracts and tools using scrypt-derived AES-256-GCM payload encryption.</li>
-          <li>Added in-app Settings controls to check a vault host, push an encrypted vault, and pull a hosted vault back into local HCB state.</li>
-          <li>Added optional OS credential storage for vault host tokens/passphrases so Refresh, scheduled sync, and CLI/TUI sync can push the encrypted vault in hoster mode.</li>
-          <li>Added standalone vault hosting for trusted local machines with <code>hcb vault serve</code>, <code>remote-status</code>, <code>push</code>, and <code>pull</code>.</li>
-          <li>Added hosted vault package SHA-256 reporting and stale-upload rejection so app-managed pushes do not silently overwrite a newer vault.</li>
-          <li>Remote vault clients require HTTPS outside loopback unless the user explicitly allows insecure HTTP for trusted LAN testing.</li>
-          <li>Stopped Google pending-mutation queueing when HCB local or hoster backend mode is active, including tasks, calendar edits, scheduled blocks, undo/redo, attachments, and pointer repair.</li>
-          <li>Added MCP and CLI commands for backend status, backend switching, vault export, vault import, remote vault status/push/pull, plus TUI backend and vault host views.</li>
-          <li>Kept the local hoster signal path on bearer auth, loopback origin checks, replay receipts, rate limiting, and encrypted signal support.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v5.0.0</h3>
-        <p>10 Jun 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Declared Hot Cross Buns as the new maintained version, carrying forward the full archived Hot Cross Buns changelog below.</li>
-          <li>Moved the app to an Electron-first desktop build with typed IPC, a hardened preload bridge, native shell adapters, macOS DMG packaging, Linux AppImage packaging, and Windows NSIS packaging.</li>
-          <li>Expanded Google account handling with account-scoped cache rows, per-account resource filtering, explicit calendar/list destinations, and cleaner signed-out account hiding.</li>
-          <li>Added local customization with CSS snippets, external <code>keymap.json</code>, sandboxed extension panels, safe mode, and Settings controls for enabling each item.</li>
-          <li>Added portable <code>.hcbexport</code> archives, attachment bundling, local pointer repair, attachment add/open/download/remove flows, ICS imports, ICS subscriptions, and local report exports.</li>
-          <li>Upgraded templates, reminders, command palette behavior, event editing, recurrence handling, smart rescheduling, and Google Calendar/Tasks conversion flows.</li>
-          <li>Added agent-facing MCP and CLI surfaces with dry-run/write policies, redacted diagnostics, webhook retry/rate limiting, <code>event.starting</code> emits, and <code>mutation.failed</code> emits.</li>
-          <li>Expanded release hardening with GitHub release checks, native capability reporting, diagnostics redaction, low-power/constrained-network backoff, and 15k-event performance coverage.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v4.0.0</h3>
-        <p>14 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Hardened large-account calendar performance with 15k-event benchmarks covering Google decode, full event sync, cache sidecar save/load, startup apply, derived snapshots, day bucketing, tag extraction, and prepared calendar views.</li>
-          <li>Improved Command Palette responsiveness by reusing its entity cache across opens and skipping large search indexing until a query needs it.</li>
-          <li>Added Action Center and adaptive menu bar status surfaces for pending sync, reminder, task, and availability items.</li>
-          <li>Added Share Availability holds with hold confirmation and cancellation flows, monthly-view toast guidance, and clearer availability actions.</li>
-          <li>Strengthened local security and operations around MCP access, custom OAuth credentials, cache boundaries, diagnostics, and documented follow-up hardening work.</li>
-          <li>Polished calendar editing and navigation with recurrence editing, faster end-time choices, compact time zone controls, guest rows, sidebar toggle anchoring, and refined macOS navigation controls.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.3.1</h3>
-        <p>11 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added multi-account support for custom Desktop OAuth: one app-level OAuth client can connect multiple Google accounts, with account-scoped Keychain tokens and account-scoped cached workspaces.</li>
-          <li>Added safe account switching and disconnect flows so tasks, calendars, events, settings, sync checkpoints, and queued writes stay attached to the correct account.</li>
-          <li>Upgraded cache persistence to preserve active and inactive account workspaces across migration, encrypted cache saves, import/export, and events sidecar round-trips.</li>
-          <li>Added prepared display snapshots across Calendar, Tasks, and Notes so expensive filtering, grouping, layout, labels, and duplicate checks are built before the user starts interacting.</li>
-          <li>Improved Calendar performance across agenda, day, week, multi-day, month, and year views, including prepared timed layouts, all-day spans, month cells, and year heatmap counts.</li>
-          <li>Added Calendar sidebar filters for calendars, colors, and event tags, with stricter tag extraction so values like #11-07 remain ordinary text.</li>
-          <li>Expanded Google diagnostics, sync replay safety, OAuth token isolation, cache migration, export/import, and prepared snapshot test coverage.</li>
-          <li>Polished UI details including the branded preparing spinner, settings search width, standard sidebar typography, and aligned completion controls in calendar overflow popovers.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.3.0</h3>
-        <p>8 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added retention settings for past calendar events and completed tasks, including configurable lookback windows and forever retention.</li>
-          <li>Calendar sync now follows calendars selected in Google Calendar until the user customizes selection in Hot Cross Buns, including subscribed and read-only calendars.</li>
-          <li>Improved custom image readability across year, week, multi-day, day, Tasks, and Notes surfaces.</li>
-          <li>Added image-derived custom themes so users can generate, tweak, name, save, and select a palette from their chosen background.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.9</h3>
-        <p>8 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added event time zone support for Google Calendar sync, including separate start and end time zones for timed events.</li>
-          <li>Imported calendar files now preserve TZID values and normalize legacy aliases before events are saved.</li>
-          <li>Includes the Calendar 404 sync isolation fix for users upgrading from v0.2.2, where one missing Google calendar could abort the full refresh.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.8</h3>
-        <p>8 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added global settings search with jump targets, tab counts, and brief section highlighting.</li>
-          <li>Improved diagnostics with searchable logs and history plus pinned copy/reveal actions.</li>
-          <li>Expanded advanced filters and templates with usage metadata, validation, previews, and prompt markers.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.7</h3>
-        <p>7 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added readable card backings to Calendar month cells when image or translucent backgrounds are enabled.</li>
-          <li>Strengthened month-view event and task pills over custom images so text does not float over photography.</li>
-          <li>Kept imported backgrounds visible while matching the Tasks and Notes surface treatment more closely.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.6</h3>
-        <p>7 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Fixed custom background images not showing through the Calendar grid on macOS.</li>
-          <li>Hid the month-grid scroll background so imported images remain visible behind calendar cells.</li>
-          <li>Renamed the background slider to App surface opacity and made new image imports visibly translucent by default.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.5</h3>
-        <p>7 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added Settings &gt; About with the installed app version, build number, and bundle ID.</li>
-          <li>Added a copy action for version info so support calls can confirm the exact installed build quickly.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.4</h3>
-        <p>6 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added stage-level Google sync logs for task-list, calendar-list, and calendar-events requests.</li>
-          <li>Calendar event failures now include the calendar name, redacted calendar ID, access role, HTTP status, and Google response body in Diagnostics logs.</li>
-          <li>Successful calendar event pulls now log event counts, making it easier to separate healthy calendars from broken Google Calendar resources.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.3</h3>
-        <p>6 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Fixed Google Calendar sync so one selected calendar returning 404 no longer aborts the entire refresh.</li>
-          <li>Tasks, task lists, and other reachable calendars now keep syncing when Google reports a missing or inaccessible calendar.</li>
-          <li>Added a diagnostics log warning when a selected calendar is skipped because Google returned 404.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.2</h3>
-        <p>6 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added translucent app backgrounds, so the main window and app surfaces can sit more lightly on the desktop.</li>
-          <li>Added custom app backgrounds, including image import, persistence, removal controls, and automatic downsampling so large images stay responsive.</li>
-          <li>Improved month calendar smoothness with cached render snapshots, stable day-interval cache keys, off-main cache building, and coalesced scroll updates.</li>
-          <li>Reduced calendar redraw work by precomputing visible calendar IDs, visible task-list IDs, event colors, search text, accessibility labels, and month band reserves.</li>
-          <li>Made week and day calendar views snappier by caching date and hour labels used during repeated layout passes.</li>
-          <li>Shortened month-view animations and suppressed broad app animations during bulk refresh or sync, so transitions feel tighter under load.</li>
-          <li>Lazy-loaded heavier settings sheet content to avoid paying for offscreen controls before users need them.</li>
-          <li>Added opt-in month performance telemetry for local profiling without adding noisy user-facing logs.</li>
-          <li>Made Google 404 sync failures explicit: login succeeded, but a cached task list or calendar was missing, deleted, or tied to another Google account.</li>
-          <li>Improved update install guidance with current-app reveal, downloaded-DMG reveal, and a quit action before Finder replaces the old app bundle.</li>
-          <li>Fixed a SwiftUI focus-state update warning by deferring main-window focus refreshes outside the representable update pass.</li>
-          <li>Cleaned up deprecated task-list handling while keeping existing task and calendar workflows intact.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.1</h3>
-        <p>2 May 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added local image and file attachments for tasks, events, and notes using portable pointer metadata in descriptions.</li>
-          <li>Added drag-and-drop, picker, and clipboard paste support for attaching images and files, with inline previews and missing/corrupt pointer warnings.</li>
-          <li>Added download-to-Downloads actions for pointer attachments when users want a convenient extra copy.</li>
-          <li>Added loss-free portable exports that bundle reachable, healthy local attachments and preserve pointer metadata for migration to a new Mac.</li>
-          <li>Added one-click portable import relinking, item-level import previews, section filters, and pre-import local backups before replacement.</li>
-          <li>Improved sync and energy diagnostics with Spotlight indexing metrics, poll cadence details, body-probe aggregation, and an Energy gauge profiling workflow.</li>
-          <li>Added a stronger Google disconnect confirmation that explains Keychain sign-out, retained local cache, pending queued writes, and Google data safety before destructive account actions.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.2.0</h3>
-        <p>29 Apr 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added runtime Google Cloud Desktop OAuth setup, so downloaded DMGs can connect through the user&apos;s own Google Cloud project without rebuilding the app.</li>
-          <li>Updated onboarding and settings copy for the two supported OAuth paths: downloaded DMG with runtime OAuth, or source build with an embedded native client.</li>
-          <li>Added a global quick-capture panel for tasks, events, and notes, now centered on the active screen.</li>
-          <li>Moved the command palette to a lightweight floating panel and deferred heavier search indexing so <kbd>⌘</kbd><kbd>P</kbd> opens faster.</li>
-          <li>Improved calendar month performance by caching visible task and event layout work.</li>
-          <li>Made task completion controls inside calendar overflow popovers actually mark tasks done.</li>
-          <li>Added an Open at Login setting and polished the browser success page after Google sign-in.</li>
-          <li>Added daily local backups with Settings controls to manage backup location and reveal backup folders in Finder.</li>
-          <li>Expanded theme customization with user-defined color schemes, in-app editing, config persistence, and export support.</li>
-          <li>Localized the app and help content for Singapore language needs, including Simplified Chinese, Malay, and Tamil coverage.</li>
-          <li>Improved notification permission denial flows so users get clear recovery guidance when macOS notifications are blocked.</li>
-          <li>Added a branded loading screen using the Hot Cross Buns welcome artwork while longer startup work completes.</li>
-          <li>Improved quick-add discoverability with clearer event grammar and sidebar guidance.</li>
-          <li>Improved accessibility with Dynamic Type scaling, reduced-motion support, and stronger VoiceOver labels.</li>
-          <li>Clarified sync failure states for quota, rate-limit, offline, and missing-scope cases.</li>
-          <li>Added window/session restoration for core macOS windows, including Help, History, Sync Issues, and Diagnostics.</li>
-          <li>Added granular data controls so Tasks and Calendar can be kept local or synced to Google independently.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.1.3</h3>
-        <p>25 Apr 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Improved the fresh-install signed-out state so Tasks, Calendar, and Notes align consistently before Google sign-in.</li>
-          <li>Added clearer first-launch guidance for unsigned DMGs, including the macOS Open Anyway warning users may see.</li>
-        </ul>
-      </div>
-    </article>
-
-    <article class="update-entry">
-      <div class="update-meta">
-        <h3>v0.1.2</h3>
-        <p>23 Apr 2026</p>
-      </div>
-      <div class="update-copy">
-        <ul>
-          <li>Added the three primary surfaces: Calendar, Tasks, and Notes.</li>
-          <li>Shipped command palette capture for tasks, notes, and events with keyboard-first defaults.</li>
-          <li>Added agenda, day, week, month, year, and multi-day calendar views.</li>
-          <li>Improved event layout so overlapping timed entries tile side by side instead of obscuring one another.</li>
-          <li>Added menu bar workflows, including the full calendar panel and compact focus strip.</li>
-          <li>Added templates, saved filters, Google Tasks sync, Google Calendar sync, and onboarding for first launch.</li>
-          <li>Added theme support, font tuning, hotkey customization, and macOS-native settings screens.</li>
-          <li>Hardened local storage, logging, and trust boundaries for URL and extension-driven capture.</li>
-        </ul>
-      </div>
-    </article>
-  </div>
-</section>
-
-<footer class="foot">
-  <div class="foot-top">
-    <div class="foot-cols">
-      <div>
-        <p class="foot-title">Hot Cross Buns</p>
-        <p>A small, personal desktop planner.</p>
-      </div>
-      <div class="foot-links">
-        <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
-        <a href="#download">Download</a>
-        <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/CONTRIBUTING.md">Contribute</a>
-        <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
-      </div>
-    </div>
-  </div>
-  <div class="foot-bottom">
-    <p class="made-by">Made with <span class="heart" aria-label="love">♥</span> by <a href="https://gabrielongzm.com" target="_blank" rel="noopener">Gabriel Ong</a></p>
-    <p class="copyright">© 2026 Gabriel Ong. All rights reserved.</p>
-  </div>
+<footer>
+  <a href="./">Hot Cross Buns</a>
+  <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
+  <a href="privacy.html">Privacy</a>
 </footer>
-
-<script src="main.js"></script>
 </body>
 </html>
