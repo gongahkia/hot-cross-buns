@@ -1949,7 +1949,7 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
               setStatus(googleConnected_
                             ? QStringLiteral("Loading Google recurrence for %1 series")
                                   .arg(uncachedSeries)
-                            : QStringLiteral("Google recurrence is unavailable offline for %1 series")
+                            : QStringLiteral("Google recurrence cache may be stale for %1 series")
                                   .arg(uncachedSeries));
             }
             refreshCalendarInstanceCache(cacheCalendarIds, date, generation);

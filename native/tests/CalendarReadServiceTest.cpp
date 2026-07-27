@@ -22,7 +22,7 @@ class CalendarReadServiceTest final : public QObject {
 private slots:
   void readsCalendarPagesAndOverlappingEventRanges();
   void includesRecurringMastersAndCancelledInstancesForProjection();
-  void readsOnlyFreshGoogleResolvedInstanceCaches();
+  void readsGoogleResolvedInstanceCachesAcrossFreshnessStates();
   void rejectsInvalidReadRequests();
 };
 
@@ -241,7 +241,7 @@ void CalendarReadServiceTest::includesRecurringMastersAndCancelledInstancesForPr
            std::optional<QString>(QStringLiteral("2026-07-26T09:00:00.000Z")));
 }
 
-void CalendarReadServiceTest::readsOnlyFreshGoogleResolvedInstanceCaches() {
+void CalendarReadServiceTest::readsGoogleResolvedInstanceCachesAcrossFreshnessStates() {
   QTemporaryDir temporaryDirectory;
   QVERIFY(temporaryDirectory.isValid());
   const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
@@ -321,7 +321,7 @@ void CalendarReadServiceTest::readsOnlyFreshGoogleResolvedInstanceCaches() {
     return;
   }
   QVERIFY(!staleMaster->instanceRangeCached);
-  QVERIFY(!std::any_of(
+  QVERIFY(std::any_of(
       stalePage.items.cbegin(), stalePage.items.cend(), [](const hcb::CalendarEventSummary& event) {
         return event.id == QStringLiteral("series-instance");
       }));

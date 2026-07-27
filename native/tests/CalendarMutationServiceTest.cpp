@@ -250,7 +250,12 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                                     .location = QStringLiteral("Room 5"),
                                     .startTimeZone = QStringLiteral("Asia/Singapore"),
                                     .endTimeZone = QStringLiteral("Asia/Singapore"),
-                                    .colorId = QStringLiteral("4")});
+                                    .colorId = QStringLiteral("4"),
+                                    .recurrenceRule = QStringLiteral(
+                                        "RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30\n"
+                                        "EXRULE:FREQ=DAILY;BYHOUR=3\n"
+                                        "RDATE;VALUE=DATE:20261225\n"
+                                        "EXDATE;TZID=Asia/Singapore:20260726T093000")});
   const hcb::CalendarEventMutationResult createResult = awaitResult(create);
   QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult));
   if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult)) {
@@ -282,6 +287,11 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                .value(QStringLiteral("useDefault"))
                .toBool(),
            true);
+  QCOMPARE(createPayload.value(QStringLiteral("recurrence")).toArray(),
+           QJsonArray{QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
+                      QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),
+                      QStringLiteral("RDATE;VALUE=DATE:20261225"),
+                      QStringLiteral("EXDATE;TZID=Asia/Singapore:20260726T093000")});
 
   const std::optional<std::optional<QString>> clearText{std::optional<QString>{}};
   std::future<hcb::CalendarEventMutationResult> update = service.update(

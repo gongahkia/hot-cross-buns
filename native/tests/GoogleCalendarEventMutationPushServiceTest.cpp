@@ -189,7 +189,12 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
        QJsonObject{{QStringLiteral("useDefault"), false},
                    {QStringLiteral("overrides"),
                     QJsonArray{QJsonObject{{QStringLiteral("method"), QStringLiteral("popup")},
-                                          {QStringLiteral("minutes"), 10}}}}}}};
+                                          {QStringLiteral("minutes"), 10}}}}},
+      {QStringLiteral("recurrence"),
+       QJsonArray{QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
+                  QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),
+                  QStringLiteral("RDATE;VALUE=DATE:20261225"),
+                  QStringLiteral("EXDATE;TZID=Asia/Singapore:20260726T093000")}}};
   const hcb::PendingMutation created = enqueue(
       coordinator,
       QStringLiteral("event.create"),
@@ -265,6 +270,8 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                .value(QStringLiteral("minutes"))
                .toInteger(),
            10);
+  QCOMPARE(createBody.value(QStringLiteral("recurrence")).toArray(),
+           createdEvent.value(QStringLiteral("recurrence")).toArray());
   QCOMPARE(updateRequest->request.url().path(),
            QStringLiteral("/calendar/v3/calendars/calendar-1/events/remote-1"));
   QCOMPARE(updateRequest->request.rawHeader("If-Match"), QByteArray("etag-1"));

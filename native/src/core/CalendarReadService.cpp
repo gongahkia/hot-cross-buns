@@ -372,7 +372,6 @@ EXISTS (
     AND coverage.recurring_remote_id = events.recurring_remote_id
     AND coverage.range_start_at <= ?2
     AND coverage.range_end_at >= ?1
-    AND coverage.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
 )";
   QString filter = QStringLiteral(
