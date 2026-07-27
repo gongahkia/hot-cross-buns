@@ -135,7 +135,7 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = 0.0
 		coyote_timer = 0.0
 		traversal_action.emit("jump", -1)
-		Audio.play_sfx("jump")
+		_play_sfx("jump")
 	elif jump_buffer > 0.0 and wall_jump_timer > 0.0:
 		_wall_jump()
 	elif jump_buffer > 0.0 and can_double_jump:
@@ -191,7 +191,7 @@ func _physics_process(delta: float) -> void:
 		_add_camera_shake(0.060)
 		landing_offset = minf(landing_offset, -0.110)
 		_emit_burst(0.10)
-		Audio.play_sfx("boost")
+		_play_sfx("boost")
 		traversal_action.emit("slam_land", -1)
 		is_slamming = false
 	elif not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
@@ -255,7 +255,7 @@ func _try_grapple() -> bool:
 	traversal_action.emit("grapple", -1)
 	_add_camera_shake(0.028)
 	_emit_burst(0.72)
-	Audio.play_sfx("dash")
+	_play_sfx("dash")
 	_refresh_grapple_line()
 	return true
 
@@ -339,6 +339,11 @@ func apply_style_feedback(severity: String) -> void:
 func _settings() -> Node:
 	return get_node_or_null("/root/Settings")
 
+func _play_sfx(kind: String) -> void:
+	var audio := get_node_or_null("/root/Audio")
+	if audio:
+		audio.call("play_sfx", kind)
+
 func reset_for_bail(spawn_position: Vector3) -> void:
 	global_position = spawn_position
 	velocity = Vector3.ZERO
@@ -367,7 +372,7 @@ func _dash(style_action := "dash") -> void:
 	_add_camera_shake(0.038)
 	landing_offset = minf(landing_offset, -0.028)
 	_emit_burst(0.62)
-	Audio.play_sfx("dash")
+	_play_sfx("dash")
 	var direction := -transform.basis.z
 	direction.y = 0.0
 	direction = direction.normalized()
@@ -435,7 +440,7 @@ func _wall_jump() -> void:
 	traversal_action.emit("wall_jump", -1)
 	_add_camera_shake(0.032)
 	landing_offset = minf(landing_offset, -0.032)
-	Audio.play_sfx("jump")
+	_play_sfx("jump")
 
 func _update_wall_slide() -> void:
 	_set_wall_slide(is_on_wall(), is_on_floor())
@@ -452,7 +457,7 @@ func _double_jump() -> void:
 	traversal_action.emit("double_jump", -1)
 	_add_camera_shake(0.024)
 	landing_offset = minf(landing_offset, -0.018)
-	Audio.play_sfx("jump")
+	_play_sfx("jump")
 
 func _ground_slam() -> void:
 	velocity.y = -SLAM_SPEED
@@ -462,7 +467,7 @@ func _ground_slam() -> void:
 	is_sprinting = false
 	_add_camera_shake(0.030)
 	_emit_burst(0.34)
-	Audio.play_sfx("dash")
+	_play_sfx("dash")
 
 func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()
