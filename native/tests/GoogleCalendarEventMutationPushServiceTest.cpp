@@ -172,6 +172,11 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
   FixedClock clock;
   hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
   verifyReady(coordinator);
+  const QJsonObject reminderSettings{
+      {QStringLiteral("useDefault"), false},
+      {QStringLiteral("overrides"),
+       QJsonArray{QJsonObject{{QStringLiteral("method"), QStringLiteral("popup")},
+                              {QStringLiteral("minutes"), 10}}}}};
   const QJsonObject createdEvent{
       {QStringLiteral("summary"), QStringLiteral(" Planning/Q3 ")},
       {QStringLiteral("description"), QStringLiteral("draft")},
@@ -185,11 +190,7 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
       {QStringLiteral("attendees"),
        QJsonArray{QJsonObject{{QStringLiteral("email"), QStringLiteral("guest@example.com")},
                               {QStringLiteral("responseStatus"), QStringLiteral("needsAction")}}}},
-      {QStringLiteral("reminders"),
-       QJsonObject{{QStringLiteral("useDefault"), false},
-                   {QStringLiteral("overrides"),
-                    QJsonArray{QJsonObject{{QStringLiteral("method"), QStringLiteral("popup")},
-                                          {QStringLiteral("minutes"), 10}}}}},
+      {QStringLiteral("reminders"), reminderSettings},
       {QStringLiteral("recurrence"),
        QJsonArray{QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
                   QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),

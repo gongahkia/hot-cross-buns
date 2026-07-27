@@ -211,6 +211,7 @@ class CalendarMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesMovesAndDeletesEvents();
+  void preservesAdvancedGoogleRecurrenceLines();
   void journalsRemoteUpdatesMovesAndCreateReconciliation();
   void rejectsInvalidAndUnavailableMutations();
   void scopesRecurringSeriesWithoutUnsafeLegacyMutations();
@@ -250,12 +251,7 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                                     .location = QStringLiteral("Room 5"),
                                     .startTimeZone = QStringLiteral("Asia/Singapore"),
                                     .endTimeZone = QStringLiteral("Asia/Singapore"),
-                                    .colorId = QStringLiteral("4"),
-                                    .recurrenceRule = QStringLiteral(
-                                        "RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30\n"
-                                        "EXRULE:FREQ=DAILY;BYHOUR=3\n"
-                                        "RDATE;VALUE=DATE:20261225\n"
-                                        "EXDATE;TZID=Asia/Singapore:20260726T093000")});
+                                    .colorId = QStringLiteral("4")});
   const hcb::CalendarEventMutationResult createResult = awaitResult(create);
   QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult));
   if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult)) {
@@ -287,11 +283,7 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
                .value(QStringLiteral("useDefault"))
                .toBool(),
            true);
-  QCOMPARE(createPayload.value(QStringLiteral("recurrence")).toArray(),
-           QJsonArray{QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
-                      QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),
-                      QStringLiteral("RDATE;VALUE=DATE:20261225"),
-                      QStringLiteral("EXDATE;TZID=Asia/Singapore:20260726T093000")});
+  QCOMPARE(createPayload.value(QStringLiteral("recurrence")).toArray(), QJsonArray());
 
   const std::optional<std::optional<QString>> clearText{std::optional<QString>{}};
   std::future<hcb::CalendarEventMutationResult> update = service.update(
@@ -332,6 +324,60 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
     return;
   }
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
+}
+
+void CalendarMutationServiceTest::preservesAdvancedGoogleRecurrenceLines() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  const QString recurrence = QStringLiteral(
+      "RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30\n"
+      "EXRULE:FREQ=DAILY;BYHOUR=3\n"
+      "RDATE;VALUE=DATE:20261225\n"
+      "EXDATE;TZID=Asia/Singapore:20260726T093000");
+  std::future<hcb::CalendarEventMutationResult> create = service.create(
+      {.calendarId = QStringLiteral("calendar-work"),
+       .title = QStringLiteral("Advanced recurrence"),
+       .startAt = QStringLiteral("2026-07-26T09:30:00+08:00"),
+       .endAt = QStringLiteral("2026-07-26T10:30:00+08:00"),
+       .recurrenceRule = recurrence});
+  const hcb::CalendarEventMutationResult createResult = awaitResult(create);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(createResult)) {
+    return;
+  }
+  const hcb::CalendarEventMutationReceipt receipt =
+      std::get<hcb::CalendarEventMutationReceipt>(createResult);
+  const QList<PendingMutationSnapshot> mutations =
+      readPendingEventMutations(connection.nativeHandle(), receipt.eventId);
+  QCOMPARE(mutations.size(), 1);
+  if (mutations.size() != 1) {
+    return;
+  }
+  const QJsonArray expected{
+      QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
+      QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),
+      QStringLiteral("RDATE;VALUE=DATE:20261225"),
+      QStringLiteral("EXDATE;TZID=Asia/Singapore:20260726T093000")};
+  QCOMPARE(mutations.constFirst().payload.value(QStringLiteral("event")).toObject()
+               .value(QStringLiteral("recurrence"))
+               .toArray(),
+           expected);
 }
 
 void CalendarMutationServiceTest::journalsRemoteUpdatesMovesAndCreateReconciliation() {
