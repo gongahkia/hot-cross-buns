@@ -114,6 +114,7 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 		_start_combo(now)
 	var active_before := active_score()
 	var transition := _transition_for(last_action, action)
+	var transition_key := last_action + ">" + action
 	var repetition_key := action if gap_id.is_empty() else action + ":" + gap_id
 	var repeat_count := int(repetitions.get(repetition_key, 0))
 	var repeat_scale := float(REPEAT_VALUES[min(repeat_count, REPEAT_VALUES.size() - 1)])
@@ -121,8 +122,12 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 	var movement_points := int(round(float(base) * movement_multiplier))
 	var awarded_base := int(round(float(movement_points) * repeat_scale))
 	active_base += awarded_base
-	var transition_points := int(transition.get("points", 0))
+	var transition_repeat_count := int(repetitions.get("transition:" + transition_key, 0))
+	var transition_scale := float(REPEAT_VALUES[min(transition_repeat_count, REPEAT_VALUES.size() - 1)])
+	var transition_points := int(round(float(transition.get("points", 0)) * transition_scale))
 	active_base += transition_points
+	if transition_points > 0:
+		repetitions["transition:" + transition_key] = transition_repeat_count + 1
 	repetitions[repetition_key] = repeat_count + 1
 	if action == "gap":
 		used_gaps[gap_id] = true

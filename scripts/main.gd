@@ -506,7 +506,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	tower.add_child(_make_recharge_gate(Vector3(36.0, 10.9, -47.0), "dash", "tower-dash"))
 	_add_route_collectibles(tower, [Vector3(24.0, 4.4, -47.0), Vector3(30.0, 7.0, -53.0), Vector3(36.0, 9.6, -47.0)])
 	tower.add_child(_make_reset_pad(Vector3(21.0, 1.0, -38.0), Vector3(21.0, 1.2, -38.0), "Wall Tower"))
-	_add_course_sign(tower, Vector3(30.0, 14.0, -48.0), "WALL JUMP TOWER", palette.sign)
+	_add_course_sign(tower, Vector3(30.0, 14.0, -48.0), "WALL RUN  /  WALL KICK", palette.sign)
 
 	var atrium := _sandbox_station("AerialAtrium", "AERIAL ATRIUM", Vector3(-30.0, 5.0, -86.0))
 	_add_interior_building(atrium, Vector3(-30.0, 0.0, -86.0), Vector2(24.0, 30.0), 18.0, palette.rock)
@@ -522,7 +522,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	atrium.add_child(_make_recharge_gate(Vector3(-34.0, 13.8, -91.0), "dash", "atrium-dash"))
 	_add_route_collectibles(atrium, [Vector3(-27.0, 5.9, -82.0), Vector3(-34.0, 9.5, -91.0), Vector3(-28.0, 12.5, -99.0)])
 	atrium.add_child(_make_reset_pad(Vector3(-20.0, 1.2, -72.0), Vector3(-20.0, 1.4, -72.0), "Aerial Atrium"))
-	_add_course_sign(atrium, Vector3(-30.0, 20.0, -86.0), "TETHER  /  GLIDE  /  LAUNCH", palette.sign)
+	_add_course_sign(atrium, Vector3(-30.0, 20.0, -86.0), "TETHER SWING  /  GLIDE  /  FLOW RAIL", palette.sign)
 
 	var power := _sandbox_station("PowerHall", "POWER HALL", Vector3(29.0, 3.0, -87.0))
 	_add_interior_building(power, Vector3(29.0, 0.0, -87.0), Vector2(24.0, 32.0), 11.0, palette.expert)
@@ -535,7 +535,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	power.add_child(_make_recharge_gate(Vector3(34.0, 7.0, -94.0), "double_jump", "power-jump"))
 	_add_route_collectibles(power, [Vector3(28.0, 3.5, -82.0), Vector3(34.0, 5.3, -94.0), Vector3(27.0, 7.5, -103.0)])
 	power.add_child(_make_reset_pad(Vector3(20.0, 1.2, -72.0), Vector3(20.0, 1.4, -72.0), "Power Hall"))
-	_add_course_sign(power, Vector3(29.0, 13.0, -87.0), "BOOST  /  LAUNCH  /  TRANSFER", palette.sign)
+	_add_course_sign(power, Vector3(29.0, 13.0, -87.0), "BOOST  /  RAMP LAUNCH  /  REFILL", palette.sign)
 
 	var bowl := _sandbox_station("StyleBowl", "STYLE BOWL", Vector3(0.0, 2.0, -119.0))
 	var bowl_points: Array[Vector3] = [Vector3(-18.0, 0.8, -108.0), Vector3(-10.0, 2.6, -120.0), Vector3(0.0, 4.2, -127.0), Vector3(11.0, 2.7, -120.0), Vector3(18.0, 0.8, -108.0), Vector3(0.0, 0.8, -103.0)]
@@ -545,7 +545,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_arena_gaps(bowl, [bowl_points[1], bowl_points[2], bowl_points[3]], "sandbox-bowl", 520)
 	_add_route_collectibles(bowl, [Vector3(-10.0, 4.0, -120.0), Vector3(0.0, 5.7, -127.0), Vector3(11.0, 4.1, -120.0)])
 	bowl.add_child(_make_reset_pad(Vector3(0.0, 1.2, -103.0), Vector3(0.0, 1.4, -103.0), "Style Bowl"))
-	_add_course_sign(bowl, Vector3(0.0, 9.5, -119.0), "STYLE BOWL  /  LINK EVERYTHING", palette.sign)
+	_add_course_sign(bowl, Vector3(0.0, 9.5, -119.0), "STYLE BOWL  /  SLIDE HOP  /  RAIL", palette.sign)
 
 	var line := _sandbox_station("IntegratedLine", "INTEGRATED LINE", Vector3(2.0, 7.0, -81.0))
 	var line_points: Array[Vector3] = [Vector3(8.0, 0.8, -12.0), Vector3(18.0, 1.4, -27.0), Vector3(24.0, 4.0, -47.0), Vector3(15.0, 5.4, -66.0), Vector3(2.0, 7.0, -81.0), Vector3(-12.0, 9.0, -98.0), Vector3(-5.0, 7.3, -112.0), Vector3(0.0, 4.2, -127.0)]
@@ -556,7 +556,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	_add_grapple_anchor(line, Vector3(-3.0, 12.0, -89.0), palette.sign)
 	line.add_child(_make_recharge_gate(Vector3(2.0, 10.5, -81.0), "dash", "line-dash"))
 	_add_arena_gaps(line, [line_points[2], line_points[4], line_points[6]], "sandbox-line", 600)
-	_add_course_sign(line, Vector3(4.0, 13.0, -78.0), "INTEGRATED LINE  /  FULL KIT", palette.sign)
+	_add_course_sign(line, Vector3(4.0, 13.0, -78.0), "INTEGRATED LINE  /  NO STOPS", palette.sign)
 
 func _sandbox_station(name: String, label: String, center: Vector3) -> Node3D:
 	var station := _route(name, label.to_lower())
@@ -947,7 +947,8 @@ func _refresh_debug_hud() -> void:
 	var islands := int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))
 	var lightmap := course.get_node_or_null("BakedLightmap") as LightmapGI
 	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nRAILS %d  REFILLS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, grind_rail_count, recharge_gate_count, last_sandbox_event]
+	var rail_text: String = str(player.grind_rail.name) if player.grind_rail and is_instance_valid(player.grind_rail) else "NONE"
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs  RAIL %s\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nRAILS %d  REFILLS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, rail_text, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, grind_rail_count, recharge_gate_count, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]

@@ -72,7 +72,7 @@ func _initialize() -> void:
 	main._input(f3)
 	main._refresh_debug_hud()
 	assert(main.debug_visible and main.debug_panel.visible, "F3 did not show diagnostics")
-	assert("FPS" in main.debug_label.text and "PHYS ACTIVE" in main.debug_label.text and "TRIGGERS" in main.debug_label.text, "diagnostics incomplete")
+	assert("FPS" in main.debug_label.text and "PHYS ACTIVE" in main.debug_label.text and "TRIGGERS" in main.debug_label.text and "RAILS" in main.debug_label.text and "REFILLS" in main.debug_label.text, "diagnostics incomplete")
 	main._input(f3)
 	assert(not main.debug_visible and not main.debug_panel.visible, "F3 did not hide diagnostics")
 	main.show_pause()
