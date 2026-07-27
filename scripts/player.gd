@@ -10,6 +10,9 @@ const JUMP_VELOCITY := 7.6
 const GRAVITY := 24.0
 const COYOTE_TIME := 0.12
 const JUMP_BUFFER_TIME := 0.12
+const WALL_JUMP_GRACE := 0.14
+const WALL_JUMP_VELOCITY := 8.4
+const WALL_JUMP_PUSH := 13.0
 const DASH_TIME := 0.16
 const BASE_CAMERA_FOV := 96.0
 const MAX_STRAFE_ROLL := 0.13962634
@@ -25,6 +28,8 @@ var can_dash := true
 var was_on_floor := false
 var coyote_timer := 0.0
 var jump_buffer := 0.0
+var wall_jump_timer := 0.0
+var wall_jump_normal := Vector3.ZERO
 var dash_timer := 0.0
 var is_sliding := false
 var _slide_latched := false
@@ -80,11 +85,14 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = JUMP_BUFFER_TIME
 	else:
 		jump_buffer = max(jump_buffer - delta, 0.0)
+	wall_jump_timer = max(wall_jump_timer - delta, 0.0)
 	if jump_buffer > 0.0 and coyote_timer > 0.0:
 		velocity.y = JUMP_VELOCITY
 		jump_buffer = 0.0
 		coyote_timer = 0.0
 		Audio.play_sfx("jump")
+	elif jump_buffer > 0.0 and wall_jump_timer > 0.0:
+		_wall_jump()
 	if not on_floor_before_move:
 		velocity.y -= GRAVITY * delta
 	_handle_slide(on_floor_before_move)
@@ -108,6 +116,7 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0.0, 5.0 * delta)
 	var impact_velocity := velocity.y
 	move_and_slide()
+	_cache_wall_contact()
 	if not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
@@ -149,6 +158,27 @@ func launch(force: float) -> void:
 	velocity.y = max(velocity.y, force)
 	can_dash = true
 	_add_camera_shake(0.026)
+
+func _cache_wall_contact() -> void:
+	if not is_on_wall():
+		return
+	var normal := get_wall_normal()
+	if absf(normal.y) > 0.35:
+		return
+	wall_jump_normal = normal.normalized()
+	wall_jump_timer = WALL_JUMP_GRACE
+
+func _wall_jump() -> void:
+	velocity.y = WALL_JUMP_VELOCITY
+	velocity.x = wall_jump_normal.x * WALL_JUMP_PUSH
+	velocity.z = wall_jump_normal.z * WALL_JUMP_PUSH
+	jump_buffer = 0.0
+	coyote_timer = 0.0
+	wall_jump_timer = 0.0
+	can_dash = true
+	_add_camera_shake(0.032)
+	landing_offset = minf(landing_offset, -0.032)
+	Audio.play_sfx("jump")
 
 func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()

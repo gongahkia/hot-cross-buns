@@ -16,7 +16,7 @@ The macOS build is ad-hoc signed for local testing, not notarized. Gatekeeper wi
 
 - WASD / left stick: move
 - Mouse / right stick: look
-- Space / A: jump
+- Space / A: jump and wall jump
 - Shift / right bumper: dash
 - Ctrl / B: slide
 - R / Y: instant reset

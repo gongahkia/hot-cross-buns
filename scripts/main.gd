@@ -88,6 +88,7 @@ func _build_ui() -> void:
 	hud.visible = false
 	menu = Control.new()
 	menu.process_mode = Node.PROCESS_MODE_ALWAYS
+	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(menu)
 
@@ -140,7 +141,7 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse · Space jump · Shift dash · Ctrl slide · R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse · Space jump/wall jump · Shift dash · Ctrl slide · R reset", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
