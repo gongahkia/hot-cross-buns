@@ -2,6 +2,11 @@ extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
 const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "slide", "reset_run", "pause"]
+const PIXEL_FILTER_OFF := 0
+const PIXEL_FILTER_2X := 2
+const PIXEL_FILTER_4X := 4
+
+signal pixel_filter_mode_changed(mode: int)
 
 var mouse_sensitivity := 0.0022
 var invert_y := false
@@ -9,6 +14,7 @@ var slide_toggle := false
 var master_volume := 0.8
 var ambient_volume := 0.55
 var sfx_volume := 0.75
+var pixel_filter_mode := PIXEL_FILTER_4X
 var bindings: Dictionary = {}
 
 func _ready() -> void:
@@ -43,6 +49,7 @@ func load_settings() -> void:
 	master_volume = float(parsed.get("master_volume", master_volume))
 	ambient_volume = float(parsed.get("ambient_volume", ambient_volume))
 	sfx_volume = float(parsed.get("sfx_volume", sfx_volume))
+	pixel_filter_mode = _normalized_pixel_filter_mode(int(parsed.get("pixel_filter_mode", pixel_filter_mode)))
 	var saved_bindings = parsed.get("bindings", {})
 	if saved_bindings is Dictionary:
 		for action in ACTIONS:
@@ -57,6 +64,7 @@ func save_settings() -> void:
 		"master_volume": master_volume,
 		"ambient_volume": ambient_volume,
 		"sfx_volume": sfx_volume,
+		"pixel_filter_mode": pixel_filter_mode,
 		"bindings": bindings
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -82,6 +90,21 @@ func set_binding(action: String, event: InputEvent) -> void:
 	bindings[action] = [data]
 	apply_bindings()
 	save_settings()
+
+func set_pixel_filter_mode(mode: int) -> void:
+	var normalized := _normalized_pixel_filter_mode(mode)
+	if pixel_filter_mode == normalized:
+		return
+	pixel_filter_mode = normalized
+	save_settings()
+	pixel_filter_mode_changed.emit(pixel_filter_mode)
+
+func _normalized_pixel_filter_mode(mode: int) -> int:
+	match mode:
+		PIXEL_FILTER_2X, PIXEL_FILTER_4X:
+			return mode
+		_:
+			return PIXEL_FILTER_OFF
 
 func event_from_data(data: Dictionary) -> InputEvent:
 	match String(data.get("type", "")):

@@ -11,6 +11,7 @@ var collected_in_level := 0
 var ui: CanvasLayer
 var hud: Control
 var menu: Control
+var display_filter: ColorRect
 var timer_label: Label
 var par_label: Label
 var collect_label: Label
@@ -18,11 +19,18 @@ var briefing_label: Label
 var rebinding_action := ""
 var rebinding_button: Button
 var menu_mode := "title"
+var foliage_shader: Shader
+var pulse_shader: Shader
+var ui_theme: Theme
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	ui_theme = _make_ui_theme()
+	foliage_shader = _make_foliage_shader()
+	pulse_shader = _make_pulse_shader()
 	_build_world()
 	_build_ui()
+	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
 
 func _build_world() -> void:
@@ -59,6 +67,7 @@ func _build_ui() -> void:
 	ui.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui)
 	hud = Control.new()
+	hud.theme = ui_theme
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(hud)
@@ -68,7 +77,7 @@ func _build_ui() -> void:
 	hud.add_child(top)
 	timer_label = _label("00:00.000", 32, Color("#edf3d5"))
 	par_label = _label("PAR --:--.---", 16, Color("#b5c6a5"))
-	collect_label = _label("◇ 0/0", 16, Color("#f2d98c"))
+	collect_label = _label("* 0/0", 16, Color("#f2d98c"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -87,10 +96,21 @@ func _build_ui() -> void:
 	hud.add_child(briefing_label)
 	hud.visible = false
 	menu = Control.new()
+	menu.theme = ui_theme
 	menu.process_mode = Node.PROCESS_MODE_ALWAYS
-	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(menu)
+	var filter_layer := CanvasLayer.new()
+	filter_layer.layer = 20
+	filter_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(filter_layer)
+	display_filter = ColorRect.new()
+	display_filter.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	display_filter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	display_filter.material = _make_pixel_filter_material()
+	filter_layer.add_child(display_filter)
+	_apply_pixel_filter(Settings.pixel_filter_mode)
 
 func _process(delta: float) -> void:
 	if not rebinding_action.is_empty():
@@ -119,6 +139,7 @@ func _input(event: InputEvent) -> void:
 
 func show_title() -> void:
 	menu_mode = "title"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().paused = false
 	RunData.running = false
 	if player:
@@ -141,10 +162,11 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse · Space jump/wall jump · Q slam · Shift dash · Ctrl slide · R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse - Space jump/wall jump - Q slam - Shift dash - Ctrl slide - R reset", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
 	_clear_menu()
@@ -161,8 +183,8 @@ func show_level_select() -> void:
 	box.add_child(grid)
 	for level in LEVELS.all_levels():
 		var best := RunData.best_time_for(level.id)
-		var record_text := "PB —" if best < 0.0 else "PB " + _time_text(best)
-		var button := _button(level.title + "\nPAR " + _time_text(level.par) + "  ·  " + record_text, 16)
+		var record_text := "PB -" if best < 0.0 else "PB " + _time_text(best)
+		var button := _button(level.title + "\nPAR " + _time_text(level.par) + "  -  " + record_text, 16)
 		button.custom_minimum_size = Vector2(350.0, 56.0)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.tooltip_text = level.briefing
@@ -184,12 +206,13 @@ func show_level_select() -> void:
 func start_level(level_id: String) -> void:
 	get_tree().paused = false
 	_clear_menu()
+	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	current_level = LEVELS.by_id(level_id)
 	collected_in_level = 0
 	_build_course(current_level)
 	RunData.begin_run(level_id)
 	hud.visible = true
-	briefing_label.text = current_level.title + " — " + current_level.briefing
+	briefing_label.text = current_level.title + " - " + current_level.briefing
 	var tween := create_tween()
 	tween.tween_property(briefing_label, "modulate:a", 0.0, 0.3).set_delay(4.0)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -201,6 +224,7 @@ func _build_course(level: Dictionary) -> void:
 	course = Node3D.new()
 	course.name = "Course"
 	add_child(course)
+	_add_forest_motes()
 	var start_floor := _make_platform(Vector3(0.0, 0.0, 2.0), Vector3(8.0, 0.7, 9.0), Color("#39553e"))
 	course.add_child(start_floor)
 	player = SpeedPlayer.new()
@@ -347,19 +371,139 @@ func _add_tree(position: Vector3, scale_factor: float) -> void:
 		crown_mesh.height = 1.9 * scale_factor
 		crown.mesh = crown_mesh
 		crown.position.y = (3.2 + branch * 0.75) * scale_factor
-		crown.material_override = _material(Color("#496848"))
+		crown.material_override = _foliage_material(Color("#496848"), 0.055 + float(branch) * 0.018)
 		tree.add_child(crown)
 	course.add_child(tree)
 
-func _material(color: Color, emissive := false) -> StandardMaterial3D:
+func _material(color: Color, emissive := false) -> Material:
+	if emissive:
+		var pulse := ShaderMaterial.new()
+		pulse.shader = pulse_shader
+		pulse.set_shader_parameter("base_color", color)
+		pulse.set_shader_parameter("pulse_speed", 2.4)
+		return pulse
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = 0.88
-	if emissive:
-		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 1.5
 	return material
+
+func _foliage_material(color: Color, sway_strength: float) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = foliage_shader
+	material.set_shader_parameter("base_color", color)
+	material.set_shader_parameter("sway_strength", sway_strength)
+	return material
+
+func _make_foliage_shader() -> Shader:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode cull_back, diffuse_burley;
+uniform vec4 base_color : source_color = vec4(0.30, 0.45, 0.29, 1.0);
+uniform float sway_strength = 0.08;
+varying float wind_light;
+void vertex() {
+	vec3 world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float wave = sin(TIME * 1.7 + world_position.x * 0.73 + world_position.z * 0.61);
+	float height_factor = clamp(VERTEX.y + 0.25, 0.0, 1.0);
+	VERTEX.x += wave * sway_strength * height_factor;
+	VERTEX.z += cos(TIME * 1.3 + world_position.z * 0.92) * sway_strength * 0.45 * height_factor;
+	wind_light = wave;
+}
+void fragment() {
+	ALBEDO = base_color.rgb * (0.93 + wind_light * 0.07);
+	ROUGHNESS = 0.84;
+}
+"""
+	return shader
+
+func _make_pulse_shader() -> Shader:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode unshaded, cull_back;
+uniform vec4 base_color : source_color = vec4(0.50, 0.80, 0.55, 1.0);
+uniform float pulse_speed = 2.4;
+void fragment() {
+	float pulse = 0.72 + 0.28 * sin(TIME * pulse_speed);
+	ALBEDO = base_color.rgb * (0.72 + pulse * 0.28);
+	EMISSION = base_color.rgb * pulse * 1.8;
+	ALPHA = base_color.a;
+}
+"""
+	return shader
+
+func _make_ui_theme() -> Theme:
+	var font := load("res://assets/fonts/BigBlueTerm437NerdFont-Regular.ttf") as FontFile
+	assert(font != null, "BigBlueTerm font missing")
+	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	font.allow_system_fallback = false
+	var theme := Theme.new()
+	theme.default_font = font
+	theme.default_font_size = 16
+	return theme
+
+func _make_pixel_filter_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
+uniform float pixel_size = 4.0;
+void fragment() {
+	vec2 cell = SCREEN_PIXEL_SIZE * pixel_size;
+	vec2 sample_uv = (floor(SCREEN_UV / cell) + vec2(0.5)) * cell;
+	COLOR = texture(screen_texture, sample_uv);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	return material
+
+func _apply_pixel_filter(mode: int) -> void:
+	if not display_filter:
+		return
+	display_filter.visible = mode != Settings.PIXEL_FILTER_OFF
+	if display_filter.visible:
+		(display_filter.material as ShaderMaterial).set_shader_parameter("pixel_size", float(mode))
+
+func _add_forest_motes() -> void:
+	var particles := GPUParticles3D.new()
+	particles.name = "ForestMotes"
+	particles.position = Vector3(0.0, 3.0, -52.0)
+	particles.amount = 110
+	particles.lifetime = 12.0
+	particles.preprocess = 12.0
+	particles.randomness = 0.35
+	particles.local_coords = false
+	particles.visibility_aabb = AABB(Vector3(-24.0, -4.0, -96.0), Vector3(48.0, 16.0, 192.0))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = Vector3(16.0, 4.0, 68.0)
+	process.direction = Vector3(0.0, 1.0, 0.0)
+	process.spread = 180.0
+	process.gravity = Vector3(0.0, 0.05, 0.0)
+	process.initial_velocity_min = 0.08
+	process.initial_velocity_max = 0.30
+	process.scale_min = 0.035
+	process.scale_max = 0.080
+	process.color = Color("d7edb0b8")
+	particles.process_material = process
+	particles.draw_pass_1 = _particle_quad(0.09, Color("d7edb0b8"))
+	course.add_child(particles)
+
+func _particle_quad(size: float, color: Color) -> QuadMesh:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(size, size)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 1.4
+	quad.material = material
+	return quad
 
 func _restart_level() -> void:
 	if current_level.is_empty() or not RunData.running:
@@ -381,7 +525,7 @@ func _refresh_hud() -> void:
 	timer_label.text = _time_text(RunData.elapsed)
 	par_label.text = "PAR " + _time_text(float(current_level.par))
 	var total := _collectible_count(current_level)
-	collect_label.text = "◇ %d/%d" % [RunData.collected, total]
+	collect_label.text = "* %d/%d" % [RunData.collected, total]
 
 func _collectible_count(level: Dictionary) -> int:
 	var segments := int(ceil(float(level.length) / 4.8))
@@ -395,6 +539,7 @@ func show_pause() -> void:
 	if not RunData.running:
 		return
 	menu_mode = "pause"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_clear_menu()
@@ -422,10 +567,12 @@ func show_pause() -> void:
 func resume_run() -> void:
 	get_tree().paused = false
 	_clear_menu()
+	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func show_results(result: Dictionary) -> void:
 	menu_mode = "results"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud.visible = false
 	_clear_menu()
 	var panel := _center_panel(Vector2(500.0, 430.0))
@@ -436,10 +583,10 @@ func show_results(result: Dictionary) -> void:
 	box.add_child(_label(current_level.title, 18, Color("#aabda1")))
 	box.add_child(_label(_time_text(float(result.time)), 44, Color("#f2d98c")))
 	var par := float(current_level.par)
-	box.add_child(_label("PAR " + _time_text(par) + ("  ·  BEAT" if float(result.time) <= par else "  ·  KEEP PUSHING"), 18, Color("#d4e0c9")))
+	box.add_child(_label("PAR " + _time_text(par) + ("  -  BEAT" if float(result.time) <= par else "  -  KEEP PUSHING"), 18, Color("#d4e0c9")))
 	box.add_child(_label("Collectibles %d/%d" % [int(result.collectibles), _collectible_count(current_level)], 18, Color("#d4e0c9")))
 	if bool(result.is_pb):
-		box.add_child(_label("NEW PERSONAL BEST — ghost saved", 16, Color("#8ed6ae")))
+		box.add_child(_label("NEW PERSONAL BEST - ghost saved", 16, Color("#8ed6ae")))
 	var again := _button("Run it again", 19)
 	again.pressed.connect(_restart_after_result)
 	box.add_child(again)
@@ -452,6 +599,7 @@ func _restart_after_result() -> void:
 
 func show_settings(back_mode: String) -> void:
 	menu_mode = "settings"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_clear_menu()
 	var panel := _center_panel(Vector2(800.0, 660.0))
@@ -496,6 +644,22 @@ func show_settings(back_mode: String) -> void:
 		Settings.save_settings()
 	)
 	content.add_child(slide_mode)
+	content.add_child(_label("Pixel filter", 16, Color("#d4e0c9")))
+	var pixel_filter := OptionButton.new()
+	pixel_filter.add_item("Off", Settings.PIXEL_FILTER_OFF)
+	pixel_filter.add_item("2x", Settings.PIXEL_FILTER_2X)
+	pixel_filter.add_item("4x", Settings.PIXEL_FILTER_4X)
+	match Settings.pixel_filter_mode:
+		Settings.PIXEL_FILTER_2X:
+			pixel_filter.select(1)
+		Settings.PIXEL_FILTER_4X:
+			pixel_filter.select(2)
+		_:
+			pixel_filter.select(0)
+	pixel_filter.item_selected.connect(func(index: int):
+		Settings.set_pixel_filter_mode(pixel_filter.get_item_id(index))
+	)
+	content.add_child(pixel_filter)
 	content.add_child(_label("Key / controller remapping", 18, Color("#d4e0c9")))
 	var bindings_grid := GridContainer.new()
 	bindings_grid.columns = 3
@@ -523,7 +687,7 @@ func show_settings(back_mode: String) -> void:
 func _begin_rebind(action: String, button: Button) -> void:
 	rebinding_action = action
 	rebinding_button = button
-	button.text = "Press a key or controller button…"
+	button.text = "Press a key or controller button..."
 
 func _finish_rebind() -> void:
 	if rebinding_button:

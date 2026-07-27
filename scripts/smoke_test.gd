@@ -4,9 +4,24 @@ func _initialize() -> void:
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	var main := scene.instantiate()
 	var runs: Variant = root.get_node_or_null("RunData")
+	var app_settings: Variant = root.get_node_or_null("Settings")
 	assert(runs != null, "RunData autoload missing")
+	assert(app_settings != null, "Settings autoload missing")
 	root.add_child(main)
 	await process_frame
+	assert(main.hud.theme != null, "ui theme missing")
+	assert(main.hud.theme.default_font is FontFile, "BigBlueTerm font missing")
+	assert(main.hud.theme.default_font.antialiasing == TextServer.FONT_ANTIALIASING_NONE, "pixel font antialiasing enabled")
+	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
+	app_settings.call("set_pixel_filter_mode", 0)
+	assert(not main.display_filter.visible, "pixel filter remained visible when disabled")
+	app_settings.call("set_pixel_filter_mode", 2)
+	assert(main.display_filter.visible, "2x pixel filter did not enable")
+	var pixel_material := main.display_filter.material as ShaderMaterial
+	assert(is_equal_approx(float(pixel_material.get_shader_parameter("pixel_size")), 2.0), "2x pixel filter size missing")
+	app_settings.call("set_pixel_filter_mode", 4)
+	assert(is_equal_approx(float(pixel_material.get_shader_parameter("pixel_size")), 4.0), "4x pixel filter size missing")
+	app_settings.call("set_pixel_filter_mode", original_filter_mode)
 	for level in LevelLibrary.all_levels():
 		main.start_level(level.id)
 		await process_frame

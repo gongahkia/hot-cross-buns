@@ -23,6 +23,8 @@ const FOV_RESPONSE := 96.0
 const SHAKE_DECAY := 0.28
 
 var camera: Camera3D
+var dust_particles: GPUParticles3D
+var burst_particles: GPUParticles3D
 var yaw := 0.0
 var pitch := 0.0
 var can_dash := true
@@ -60,6 +62,7 @@ func _ready() -> void:
 	camera.current = true
 	camera.fov = BASE_CAMERA_FOV
 	add_child(camera)
+	_create_particles()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not movement_enabled:
@@ -129,6 +132,7 @@ func _physics_process(delta: float) -> void:
 	if is_slamming and is_on_floor():
 		_add_camera_shake(0.060)
 		landing_offset = minf(landing_offset, -0.110)
+		_emit_burst(0.10)
 		Audio.play_sfx("boost")
 		is_slamming = false
 	elif not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
@@ -155,6 +159,7 @@ func _dash() -> void:
 	dash_timer = DASH_TIME
 	_add_camera_shake(0.038)
 	landing_offset = minf(landing_offset, -0.028)
+	_emit_burst(0.62)
 	Audio.play_sfx("dash")
 	var direction := -transform.basis.z
 	direction.y = 0.0
@@ -210,6 +215,7 @@ func _ground_slam() -> void:
 	can_double_jump = false
 	is_slamming = true
 	_add_camera_shake(0.030)
+	_emit_burst(0.34)
 	Audio.play_sfx("dash")
 
 func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
@@ -241,6 +247,82 @@ func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	var speed_fov := clampf(speed / DASH_SPEED, 0.0, 1.0) * 4.0
 	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (2.5 if is_slamming else 0.0)
 	camera.fov = move_toward(camera.fov, target_fov, FOV_RESPONSE * delta)
+	_update_particles(speed)
 
 func _add_camera_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
+
+func _create_particles() -> void:
+	dust_particles = GPUParticles3D.new()
+	dust_particles.name = "FootDust"
+	dust_particles.position = Vector3(0.0, 0.10, 0.28)
+	dust_particles.amount = 48
+	dust_particles.lifetime = 0.42
+	dust_particles.randomness = 0.32
+	dust_particles.local_coords = false
+	dust_particles.visibility_aabb = AABB(Vector3(-8.0, -3.0, -8.0), Vector3(16.0, 7.0, 16.0))
+	var dust_process := ParticleProcessMaterial.new()
+	dust_process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	dust_process.emission_box_extents = Vector3(0.30, 0.04, 0.36)
+	dust_process.direction = Vector3(0.0, 1.0, 0.0)
+	dust_process.spread = 88.0
+	dust_process.gravity = Vector3(0.0, -9.0, 0.0)
+	dust_process.initial_velocity_min = 0.45
+	dust_process.initial_velocity_max = 1.45
+	dust_process.scale_min = 0.11
+	dust_process.scale_max = 0.28
+	dust_process.color = Color("b9c7989c")
+	dust_particles.process_material = dust_process
+	dust_particles.draw_pass_1 = _particle_quad(0.24, Color("b9c7989c"))
+	dust_particles.emitting = false
+	add_child(dust_particles)
+	burst_particles = GPUParticles3D.new()
+	burst_particles.name = "ActionBurst"
+	burst_particles.amount = 36
+	burst_particles.lifetime = 0.34
+	burst_particles.one_shot = true
+	burst_particles.explosiveness = 0.92
+	burst_particles.local_coords = false
+	burst_particles.visibility_aabb = AABB(Vector3(-9.0, -3.0, -9.0), Vector3(18.0, 9.0, 18.0))
+	var burst_process := ParticleProcessMaterial.new()
+	burst_process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	burst_process.emission_sphere_radius = 0.24
+	burst_process.direction = Vector3(0.0, 1.0, 0.0)
+	burst_process.spread = 76.0
+	burst_process.gravity = Vector3(0.0, -12.0, 0.0)
+	burst_process.initial_velocity_min = 2.8
+	burst_process.initial_velocity_max = 6.8
+	burst_process.scale_min = 0.08
+	burst_process.scale_max = 0.20
+	burst_process.color = Color("d8f3b8d9")
+	burst_particles.process_material = burst_process
+	burst_particles.draw_pass_1 = _particle_quad(0.20, Color("d8f3b8d9"))
+	burst_particles.emitting = false
+	add_child(burst_particles)
+
+func _particle_quad(size: float, color: Color) -> QuadMesh:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(size, size)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 2.0
+	quad.material = material
+	return quad
+
+func _update_particles(speed: float) -> void:
+	if dust_particles == null:
+		return
+	dust_particles.emitting = is_on_floor() and speed > 3.0
+	dust_particles.amount_ratio = clampf((speed - 3.0) / 14.0, 0.18, 1.0)
+
+func _emit_burst(height: float) -> void:
+	if burst_particles == null:
+		return
+	burst_particles.position = Vector3(0.0, height, 0.26)
+	burst_particles.restart()
+	burst_particles.emitting = true
