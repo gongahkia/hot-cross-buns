@@ -559,6 +559,28 @@ void TaskMutationServiceTest::preservesManagedRecurrenceAcrossOrdinaryEdits() {
   QCOMPARE(parsed.marker->templateTitle, QStringLiteral("Updated title"));
   QCOMPARE(parsed.marker->templateDueDate, QStringLiteral("2026-08-02"));
   QCOMPARE(parsed.marker->templatePriority, QStringLiteral("medium"));
+
+  std::future<hcb::TaskMutationResult> reconfigured = service.reconfigureManagedRecurrence(
+      taskId,
+      hcb::TaskRecurrenceFrequency::Monthly,
+      2,
+      {.kind = hcb::TaskRecurrenceEndKind::Until, .untilDate = QStringLiteral("2027-08-02")});
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(awaitResult(reconfigured)));
+  const std::optional<TaskSnapshot> reconfiguredTask = readTask(handle, taskId);
+  QVERIFY(reconfiguredTask.has_value());
+  if (!reconfiguredTask.has_value() || !reconfiguredTask->notes.has_value()) {
+    return;
+  }
+  const hcb::TaskRecurrenceNotes reconfiguredNotes =
+      hcb::parseTaskRecurrenceNotes(*reconfiguredTask->notes);
+  QVERIFY(reconfiguredNotes.marker.has_value());
+  if (!reconfiguredNotes.marker.has_value()) {
+    return;
+  }
+  QCOMPARE(reconfiguredNotes.marker->frequency, hcb::TaskRecurrenceFrequency::Monthly);
+  QCOMPARE(reconfiguredNotes.marker->interval, 2);
+  QCOMPARE(reconfiguredNotes.marker->end.kind, hcb::TaskRecurrenceEndKind::Until);
+  QCOMPARE(reconfiguredNotes.marker->end.untilDate, std::optional<QString>(QStringLiteral("2027-08-02")));
 }
 
 void TaskMutationServiceTest::completesManagedRecurrenceAtomicallyAndIdempotently() {

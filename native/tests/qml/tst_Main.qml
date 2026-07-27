@@ -311,8 +311,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", notes: "Prepare checklist", dueAt: "2026-07-26", dueTimeZone: "Asia/Singapore", priority: 2, completed: false })
-        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", notes: "", dueAt: "", dueTimeZone: "", priority: 0, completed: true })
+        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", notes: "Prepare checklist", dueAt: "2026-07-26", dueTimeZone: "Asia/Singapore", priority: 2, completed: false, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
+        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", notes: "", dueAt: "", dueTimeZone: "", priority: 0, completed: true, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
         const taskList = component.createObject(null, {
             taskModel: taskModel,
             width: 480,
@@ -904,13 +904,57 @@ TestCase {
         dialog.taskTitle = "Plan release"
         verify(dialog.primaryEnabled)
         let request = null
-        dialog.taskCreateRequested.connect(function(taskListId, parentTaskId, title) {
-            request = { taskListId, parentTaskId, title }
+        dialog.taskCreateRequested.connect(function(taskListId, parentTaskId, title, notes, dueAt,
+                                                    dueTimeZone, priority, managedRecurrence,
+                                                    recurrenceFrequency, recurrenceInterval,
+                                                    recurrenceEndKind, recurrenceEndUntil,
+                                                    recurrenceEndCount) {
+            request = { taskListId, parentTaskId, title, notes, dueAt, dueTimeZone, priority,
+                        managedRecurrence, recurrenceFrequency, recurrenceInterval,
+                        recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount }
         })
         dialog.primaryButton.click()
         compare(request.taskListId, "list-other")
         compare(request.parentTaskId, "")
         compare(request.title, "Plan release")
+        compare(request.managedRecurrence, false)
+        dialog.destroy()
+        taskLists.destroy()
+    }
+
+    function test_taskCreateDialogEmitsManagedRecurrence() {
+        const component = Qt.createComponent("../../qml/TaskCreateDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        taskLists.append({ id: "list-active", title: "Inbox" })
+        const dialog = component.createObject(null, { taskListModel: taskLists })
+        verify(dialog !== null)
+        dialog.openForCreate("list-active", "")
+        dialog.taskTitle = "Review invoices"
+        dialog.taskDueAt = "2026-07-26"
+        dialog.managedRecurrenceCheck.checked = true
+        dialog.recurrenceFrequencyPicker.currentIndex = 2
+        dialog.recurrenceIntervalField.text = "3"
+        dialog.recurrenceEndPicker.currentIndex = 2
+        dialog.recurrenceEndCountField.text = "4"
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.taskCreateRequested.connect(function(taskListId, parentTaskId, title, notes, dueAt,
+                                                    dueTimeZone, priority, managedRecurrence,
+                                                    recurrenceFrequency, recurrenceInterval,
+                                                    recurrenceEndKind, recurrenceEndUntil,
+                                                    recurrenceEndCount) {
+            request = { taskListId, parentTaskId, title, notes, dueAt, dueTimeZone, priority,
+                        managedRecurrence, recurrenceFrequency, recurrenceInterval,
+                        recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount }
+        })
+        dialog.primaryButton.click()
+        compare(request.managedRecurrence, true)
+        compare(request.recurrenceFrequency, 2)
+        compare(request.recurrenceInterval, 3)
+        compare(request.recurrenceEndKind, 2)
+        compare(request.recurrenceEndCount, 4)
         dialog.destroy()
         taskLists.destroy()
     }
@@ -930,8 +974,13 @@ TestCase {
         dialog.taskPriorityPicker.currentIndex = 3
         verify(dialog.primaryEnabled)
         let request = null
-        dialog.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority) {
-            request = { taskId, title, notes, dueAt, dueTimeZone, priority }
+        dialog.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority,
+                                                    managedRecurrence, recurrenceFrequency,
+                                                    recurrenceInterval, recurrenceEndKind,
+                                                    recurrenceEndUntil, recurrenceEndCount) {
+            request = { taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
+                        recurrenceFrequency, recurrenceInterval, recurrenceEndKind,
+                        recurrenceEndUntil, recurrenceEndCount }
         })
         dialog.primaryButton.click()
         compare(request.taskId, "task-1")
@@ -949,6 +998,51 @@ TestCase {
         dialog.primaryButton.click()
         compare(clearedDueRequest.dueAt, "")
         compare(clearedDueRequest.dueTimeZone, "")
+        dialog.destroy()
+    }
+
+    function test_taskEditDialogExposesManagedRecurrenceActions() {
+        const component = Qt.createComponent("../../qml/TaskEditDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null)
+        verify(dialog !== null)
+        dialog.openForEdit("task-1", "Review invoices", "", "2026-07-26", "UTC", 0,
+                           true, "Every 2 weeks", 1, 2, 1, "2026-08-30", 0)
+        verify(dialog.primaryEnabled)
+        let request = null
+        dialog.taskUpdateRequested.connect(function(taskId, title, notes, dueAt, dueTimeZone, priority,
+                                                    managedRecurrence, recurrenceFrequency,
+                                                    recurrenceInterval, recurrenceEndKind,
+                                                    recurrenceEndUntil, recurrenceEndCount) {
+            request = { taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
+                        recurrenceFrequency, recurrenceInterval, recurrenceEndKind,
+                        recurrenceEndUntil, recurrenceEndCount }
+        })
+        dialog.primaryButton.click()
+        compare(request.managedRecurrence, true)
+        compare(request.recurrenceFrequency, 1)
+        compare(request.recurrenceInterval, 2)
+        compare(request.recurrenceEndKind, 1)
+        compare(request.recurrenceEndUntil, "2026-08-30")
+        dialog.destroy()
+    }
+
+    function test_taskRecurrenceActionDialogEmitsScopedAction() {
+        const component = Qt.createComponent("../../qml/TaskRecurrenceActionDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const dialog = component.createObject(null)
+        verify(dialog !== null)
+        dialog.openForAction("task-1", "Review invoices", 0)
+        let action = null
+        dialog.recurrenceActionRequested.connect(function(taskId, requestedAction, scope) {
+            action = { taskId, requestedAction, scope }
+        })
+        dialog.primaryButton.click()
+        compare(action.taskId, "task-1")
+        compare(action.requestedAction, 0)
+        compare(action.scope, 0)
         dialog.destroy()
     }
 
@@ -1278,7 +1372,14 @@ TestCase {
                 dueAt: "",
                 dueTimeZone: "",
                 priority: 0,
-                completed: false
+                completed: false,
+                managedRecurrence: false,
+                recurrenceSummary: "",
+                recurrenceFrequency: -1,
+                recurrenceInterval: 1,
+                recurrenceEndKind: 0,
+                recurrenceEndUntil: "",
+                recurrenceEndCount: 0
             })
         }
         const taskList = component.createObject(testCase, {
@@ -1438,7 +1539,7 @@ TestCase {
                                                           "Verify the native package", "Studio",
                                                           "Asia/Singapore", "4", true, "private",
                                                           ["guest@example.com"], false,
-                                                          [{ method: "popup", minutes: 10 }])
+                                                          [{ method: "popup", minutes: 10 }], "")
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")
         compare(request.startAt, "2026-07-26T10:00:00.000Z")
@@ -1465,7 +1566,7 @@ TestCase {
                                                         "Verify the native package", "Studio",
                                                         "Asia/Singapore", "4", true, "private",
                                                         ["guest@example.com"], false,
-                                                        [{ method: "popup", minutes: 10 }])
+                                                        [{ method: "popup", minutes: 10 }], "", 0)
         compare(request.eventId, "event-1")
         compare(request.calendarId, "calendar-primary")
         compare(request.title, "Release review")
@@ -1485,7 +1586,7 @@ TestCase {
         verify(mainWindow !== null)
         let deletedId = ""
         mainWindow.eventDeleteRequested.connect(function(eventId) { deletedId = eventId })
-        mainWindow.eventDeleteDialog.eventDeleteRequested("event-1")
+        mainWindow.eventDeleteDialog.eventDeleteRequested("event-1", 0)
         compare(deletedId, "event-1")
         mainWindow.destroy()
     }
@@ -1513,7 +1614,8 @@ TestCase {
         mainWindow.taskCreateRequested.connect(function(taskListId, parentTaskId, title) {
             request = { taskListId, parentTaskId, title }
         })
-        mainWindow.taskCreateDialog.taskCreateRequested("list-active", "", "Plan release")
+        mainWindow.taskCreateDialog.taskCreateRequested("list-active", "", "Plan release", "",
+                                                        "", "", 0, false, 0, 1, 0, "", 0)
         compare(request.taskListId, "list-active")
         compare(request.parentTaskId, "")
         compare(request.title, "Plan release")
@@ -1547,7 +1649,8 @@ TestCase {
             request = { taskId, title, notes, dueAt, dueTimeZone, priority }
         })
         mainWindow.taskEditDialog.taskUpdateRequested("task-1", "Plan release", "Prepare checklist",
-                                                      "2026-07-26", "Asia/Singapore", 2)
+                                                      "2026-07-26", "Asia/Singapore", 2, false,
+                                                      0, 1, 0, "", 0)
         compare(request.taskId, "task-1")
         compare(request.title, "Plan release")
         compare(request.notes, "Prepare checklist")

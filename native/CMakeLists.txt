@@ -263,6 +263,7 @@ qt_add_qml_module(hcb_native
     qml/TaskBulkEditDialog.qml
     qml/TaskBulkMoveDialog.qml
     qml/TaskEditDialog.qml
+    qml/TaskRecurrenceActionDialog.qml
     qml/TaskListView.qml
     qml/TaskListControls.qml
     qml/TaskListDeleteDialog.qml

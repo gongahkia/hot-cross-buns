@@ -24,9 +24,11 @@ Pane {
     signal taskCreateRequested()
     signal taskSubtaskCreateRequested(string parentTaskId, string taskListId)
     signal taskEditRequested(string taskId, string title, string notes, string dueAt,
-                             string dueTimeZone, int priority)
+                             string dueTimeZone, int priority, bool managedRecurrence,
+                             string recurrenceSummary, int recurrenceFrequency, int recurrenceInterval,
+                             int recurrenceEndKind, string recurrenceEndUntil, int recurrenceEndCount)
     signal taskCompletionRequested(string taskId, bool completed)
-    signal taskDeleteRequested(string taskId, string taskTitle)
+    signal taskDeleteRequested(string taskId, string taskTitle, bool managedRecurrence)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
     signal taskReparentRequested(string taskId, string parentTaskId)
     signal taskReorderRequested(string taskId, bool earlier)
@@ -54,16 +56,20 @@ Pane {
         taskSubtaskCreateRequested(parentTaskId, taskListId)
     }
 
-    function requestTaskEdit(taskId, title, notes, dueAt, dueTimeZone, priority) {
-        taskEditRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
+    function requestTaskEdit(taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
+                             recurrenceSummary, recurrenceFrequency, recurrenceInterval,
+                             recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount) {
+        taskEditRequested(taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
+                          recurrenceSummary, recurrenceFrequency, recurrenceInterval,
+                          recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount)
     }
 
     function requestTaskCompletion(taskId, completed) {
         taskCompletionRequested(taskId, completed)
     }
 
-    function requestTaskDelete(taskId, taskTitle) {
-        taskDeleteRequested(taskId, taskTitle)
+    function requestTaskDelete(taskId, taskTitle, managedRecurrence) {
+        taskDeleteRequested(taskId, taskTitle, managedRecurrence)
     }
 
     function requestTaskMove(taskId, taskListId, taskTitle) {
@@ -289,6 +295,13 @@ Pane {
                 required property string dueTimeZone
                 required property int priority
                 required property bool completed
+                required property bool managedRecurrence
+                required property string recurrenceSummary
+                required property int recurrenceFrequency
+                required property int recurrenceInterval
+                required property int recurrenceEndKind
+                required property string recurrenceEndUntil
+                required property int recurrenceEndCount
                 property string recurrenceDiagnostic: ""
 
                 property alias completionButton: completionButton
@@ -343,7 +356,7 @@ Pane {
                             text: "Delete"
                             Accessible.name: text + " " + title
                             Accessible.description: "Delete this task"
-                            onClicked: root.requestTaskDelete(id, title)
+                            onClicked: root.requestTaskDelete(id, title, managedRecurrence)
                         }
 
                         Button {
@@ -351,7 +364,11 @@ Pane {
                             text: "Edit"
                             Accessible.name: text + " " + title
                             Accessible.description: "Edit this task"
-                            onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority)
+                            onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority,
+                                                            managedRecurrence, recurrenceSummary,
+                                                            recurrenceFrequency, recurrenceInterval,
+                                                            recurrenceEndKind, recurrenceEndUntil,
+                                                            recurrenceEndCount)
                         }
 
                         Button {
@@ -402,6 +419,15 @@ Pane {
                             accessibleDescription: completed ? "Completed task" : "Open task"
                             onClicked: root.selectTask(id)
                         }
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: managedRecurrence
+                        text: recurrenceSummary
+                        color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        Accessible.name: "Task recurrence: " + recurrenceSummary
                     }
 
                     Label {

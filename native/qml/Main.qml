@@ -58,6 +58,7 @@ ApplicationWindow {
     property alias taskCreateDialog: taskCreateDialog
     property alias taskDeleteDialog: taskDeleteDialog
     property alias taskEditDialog: taskEditDialog
+    property alias taskRecurrenceActionDialog: taskRecurrenceActionDialog
     property alias taskList: taskList
     property alias taskListEditorDialog: taskListEditorDialog
     property alias taskListDeleteDialog: taskListDeleteDialog
@@ -472,9 +473,18 @@ ApplicationWindow {
         id: taskEditDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
+        onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority,
+                                        managedRecurrence, recurrenceFrequency, recurrenceInterval,
+                                        recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount) {
             window.taskUpdateRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
-            window.controllerCall("updateTask", [taskId, title, notes, dueAt, dueTimeZone, priority])
+            window.controllerCall("updateTaskDetailed", [taskId, title, notes, dueAt, dueTimeZone,
+                                                            priority, managedRecurrence,
+                                                            recurrenceFrequency, recurrenceInterval,
+                                                            recurrenceEndKind, recurrenceEndUntil,
+                                                            recurrenceEndCount])
+        }
+        onTaskRecurrenceActionRequested: function(taskId, title, action) {
+            taskRecurrenceActionDialog.openForAction(taskId, title, action)
         }
     }
 
@@ -483,9 +493,29 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         taskListModel: window.taskListModel
-        onTaskCreateRequested: function(taskListId, parentTaskId, title) {
+        onTaskCreateRequested: function(taskListId, parentTaskId, title, notes, dueAt, dueTimeZone,
+                                        priority, managedRecurrence, recurrenceFrequency,
+                                        recurrenceInterval, recurrenceEndKind, recurrenceEndUntil,
+                                        recurrenceEndCount) {
             window.taskCreateRequested(taskListId, parentTaskId, title)
-            window.controllerCall("createTask", [taskListId, parentTaskId, title])
+            window.controllerCall("createTaskDetailed", [taskListId, parentTaskId, title, notes, dueAt,
+                                                            dueTimeZone, priority, managedRecurrence,
+                                                            recurrenceFrequency, recurrenceInterval,
+                                                            recurrenceEndKind, recurrenceEndUntil,
+                                                            recurrenceEndCount])
+        }
+    }
+
+    TaskRecurrenceActionDialog {
+        id: taskRecurrenceActionDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onRecurrenceActionRequested: function(taskId, action, scope) {
+            if (action === 0) {
+                window.controllerCall("stopTaskRecurrence", [taskId, scope])
+            } else {
+                window.controllerCall("splitTaskRecurrence", [taskId])
+            }
         }
     }
 
@@ -642,11 +672,19 @@ ApplicationWindow {
                 onTaskCompletionRequested: function(taskId, completed) {
                     window.controllerCall("setTaskCompleted", [taskId, completed])
                 }
-                onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority) {
-                    taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority)
+                onTaskEditRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority,
+                                               managedRecurrence, recurrenceSummary,
+                                               recurrenceFrequency, recurrenceInterval,
+                                               recurrenceEndKind, recurrenceEndUntil,
+                                               recurrenceEndCount) {
+                    taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority,
+                                               managedRecurrence, recurrenceSummary,
+                                               recurrenceFrequency, recurrenceInterval,
+                                               recurrenceEndKind, recurrenceEndUntil,
+                                               recurrenceEndCount)
                 }
-                onTaskDeleteRequested: function(taskId, taskTitle) {
-                    taskDeleteDialog.openForDelete(taskId, taskTitle)
+                onTaskDeleteRequested: function(taskId, taskTitle, managedRecurrence) {
+                    taskDeleteDialog.openForDelete(taskId, taskTitle, managedRecurrence)
                 }
                 onTaskMoveRequested: function(taskId, taskListId, taskTitle) {
                     taskMoveDialog.openForMove(taskId, taskTitle, taskListId)

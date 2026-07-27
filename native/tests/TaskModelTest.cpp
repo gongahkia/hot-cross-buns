@@ -29,6 +29,10 @@ void TaskModelTest::exposesHierarchicalTaskRoles() {
                    .recurrenceSummary = QStringLiteral("Every week"),
                    .recurrenceSeriesId = QStringLiteral("series"),
                    .recurrenceOccurrenceId = QStringLiteral("series:0"),
+                   .recurrenceFrequency = 1,
+                   .recurrenceInterval = 2,
+                   .recurrenceEndKind = 1,
+                   .recurrenceEndUntil = QStringLiteral("2026-08-01"),
                    .sortOrder = 1}});
 
   QCOMPARE(model.rowCount(), 1);
@@ -38,6 +42,11 @@ void TaskModelTest::exposesHierarchicalTaskRoles() {
   QVERIFY(model.data(root, hcb::TaskModel::ManagedRecurrenceRole).toBool());
   QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceSummaryRole).toString(),
            QStringLiteral("Every week"));
+  QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceFrequencyRole).toInt(), 1);
+  QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceIntervalRole).toInt(), 2);
+  QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceEndKindRole).toInt(), 1);
+  QCOMPARE(model.data(root, hcb::TaskModel::RecurrenceEndUntilRole).toString(),
+           QStringLiteral("2026-08-01"));
   QCOMPARE(model.rowCount(root), 1);
   const QModelIndex child = model.index(0, 0, root);
   QCOMPARE(model.parent(child), root);
@@ -50,6 +59,8 @@ void TaskModelTest::exposesHierarchicalTaskRoles() {
   QCOMPARE(model.data(child, hcb::TaskModel::PriorityRole).toInt(),
            static_cast<int>(hcb::TaskPriority::High));
   QCOMPARE(model.roleNames().value(hcb::TaskModel::SortOrderRole), QByteArrayLiteral("sortOrder"));
+  QCOMPARE(model.roleNames().value(hcb::TaskModel::RecurrenceEndCountRole),
+           QByteArrayLiteral("recurrenceEndCount"));
 }
 
 void TaskModelTest::filtersInvalidTasksAndBreaksCycles() {

@@ -12,6 +12,7 @@
 #include "core/SearchResultsModel.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "core/TimelineModel.h"
 
 #include <QDate>
@@ -87,6 +88,81 @@ constexpr int kSearchDebounceMilliseconds = 180;
   default:
     return std::nullopt;
   }
+}
+
+[[nodiscard]] QString priorityText(TaskPriority priority) {
+  switch (priority) {
+  case TaskPriority::None:
+    return QStringLiteral("none");
+  case TaskPriority::Low:
+    return QStringLiteral("low");
+  case TaskPriority::Medium:
+    return QStringLiteral("medium");
+  case TaskPriority::High:
+    return QStringLiteral("high");
+  }
+  return {};
+}
+
+struct ManagedTaskRecurrenceConfiguration final {
+  TaskRecurrenceFrequency frequency;
+  std::int32_t interval;
+  TaskRecurrenceEndCondition end;
+};
+
+[[nodiscard]] std::optional<ManagedTaskRecurrenceConfiguration>
+managedTaskRecurrenceConfiguration(int frequency,
+                                   int interval,
+                                   int endKind,
+                                   const QString& endUntil,
+                                   int endCount) {
+  std::optional<TaskRecurrenceFrequency> parsedFrequency;
+  switch (frequency) {
+  case 0:
+    parsedFrequency = TaskRecurrenceFrequency::Daily;
+    break;
+  case 1:
+    parsedFrequency = TaskRecurrenceFrequency::Weekly;
+    break;
+  case 2:
+    parsedFrequency = TaskRecurrenceFrequency::Monthly;
+    break;
+  case 3:
+    parsedFrequency = TaskRecurrenceFrequency::Yearly;
+    break;
+  default:
+    return std::nullopt;
+  }
+  if (interval < 1 || interval > 1'000) {
+    return std::nullopt;
+  }
+  TaskRecurrenceEndCondition end;
+  switch (endKind) {
+  case 0:
+    end.kind = TaskRecurrenceEndKind::Never;
+    break;
+  case 1: {
+    const QDate until = QDate::fromString(endUntil.trimmed(), Qt::ISODate);
+    if (!until.isValid()) {
+      return std::nullopt;
+    }
+    end.kind = TaskRecurrenceEndKind::Until;
+    end.untilDate = until.toString(Qt::ISODate);
+    break;
+  }
+  case 2:
+    if (endCount < 1 || endCount > 10'000) {
+      return std::nullopt;
+    }
+    end.kind = TaskRecurrenceEndKind::Count;
+    end.count = static_cast<std::int32_t>(endCount);
+    break;
+  default:
+    return std::nullopt;
+  }
+  return ManagedTaskRecurrenceConfiguration{.frequency = *parsedFrequency,
+                                            .interval = static_cast<std::int32_t>(interval),
+                                            .end = std::move(end)};
 }
 
 [[nodiscard]] std::optional<QList<QString>> taskIdsFromVariantList(const QVariantList& values) {
@@ -1169,6 +1245,89 @@ void AppController::createTask(QString taskListId, QString parentTaskId, QString
       });
 }
 
+void AppController::createTaskDetailed(QString taskListId,
+                                       QString parentTaskId,
+                                       QString title,
+                                       QString notes,
+                                       QString dueAt,
+                                       QString dueTimeZone,
+                                       int priority,
+                                       bool managedRecurrence,
+                                       int recurrenceFrequency,
+                                       int recurrenceInterval,
+                                       int recurrenceEndKind,
+                                       QString recurrenceEndUntil,
+                                       int recurrenceEndCount) {
+  const std::optional<TaskPriority> parsedPriority = priorityForValue(priority);
+  const bool clearingDue = dueAt.trimmed().isEmpty();
+  const std::optional<QString> normalizedDue =
+      clearingDue ? std::optional<QString>{} : normalizedDueAt(std::move(dueAt));
+  if (!parsedPriority.has_value() || (!normalizedDue.has_value() && !clearingDue)) {
+    setStatus(QStringLiteral("Task creation input is invalid"));
+    return;
+  }
+  TaskCreateInput input{.taskListId = std::move(taskListId),
+                        .parentTaskId = parentTaskId.isEmpty()
+                                            ? std::optional<QString>{}
+                                            : std::optional<QString>(std::move(parentTaskId)),
+                        .title = title.trimmed(),
+                        .notes = std::move(notes),
+                        .due = normalizedDue.has_value()
+                                   ? std::optional<TaskDue>(TaskDue{
+                                         .at = normalizedDue,
+                                         .timeZone = dueTimeZone.trimmed().isEmpty()
+                                                         ? std::optional<QString>{}
+                                                         : std::optional<QString>(dueTimeZone.trimmed())})
+                                   : std::optional<TaskDue>{},
+                        .priority = *parsedPriority};
+  if (managedRecurrence) {
+    const std::optional<ManagedTaskRecurrenceConfiguration> recurrence =
+        managedTaskRecurrenceConfiguration(recurrenceFrequency,
+                                           recurrenceInterval,
+                                           recurrenceEndKind,
+                                           recurrenceEndUntil,
+                                           recurrenceEndCount);
+    if (!recurrence.has_value() || !normalizedDue.has_value() || input.parentTaskId.has_value()) {
+      setStatus(QStringLiteral("Managed recurrence requires a top-level task with a valid due date"));
+      return;
+    }
+    const QDate anchor = QDateTime::fromString(*normalizedDue, Qt::ISODate).date();
+    const QString timeZone = dueTimeZone.trimmed().isEmpty()
+                                 ? QString::fromUtf8(QTimeZone::systemTimeZoneId())
+                                 : dueTimeZone.trimmed();
+    if (!anchor.isValid() || !QTimeZone(timeZone.toUtf8()).isValid()) {
+      setStatus(QStringLiteral("Managed recurrence time zone is invalid"));
+      return;
+    }
+    const QString seriesId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    TaskRecurrenceMarker marker{.seriesId = seriesId,
+                                .occurrenceId = seriesId + QStringLiteral(":0"),
+                                .frequency = recurrence->frequency,
+                                .interval = recurrence->interval,
+                                .anchorDate = anchor.toString(Qt::ISODate),
+                                .timeZone = timeZone,
+                                .end = recurrence->end,
+                                .templateTitle = input.title,
+                                .templateDueDate = anchor.toString(Qt::ISODate),
+                                .templatePriority = priorityText(*parsedPriority)};
+    const TaskRecurrenceSerializationResult serialized =
+        serializeTaskRecurrenceNotes(input.notes.value_or(QString()), marker);
+    if (serialized.error.has_value()) {
+      setStatus(*serialized.error);
+      return;
+    }
+    input.notes = serialized.notes;
+    input.due = TaskDue{.at = normalizedDue, .timeZone = timeZone};
+  }
+  watch(taskMutationService_.create(std::move(input)), [this](TaskMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+    } else {
+      refreshTasks();
+    }
+  });
+}
+
 void AppController::saveNoteTask(QString taskId, QString taskListId, QString title, QString notes) {
   if (taskId.isEmpty()) {
     watch(taskMutationService_.create({.taskListId = std::move(taskListId),
@@ -1309,8 +1468,98 @@ void AppController::updateTask(QString taskId,
         });
 }
 
+void AppController::updateTaskDetailed(QString taskId,
+                                       QString title,
+                                       QString notes,
+                                       QString dueAt,
+                                       QString dueTimeZone,
+                                       int priority,
+                                       bool managedRecurrence,
+                                       int recurrenceFrequency,
+                                       int recurrenceInterval,
+                                       int recurrenceEndKind,
+                                       QString recurrenceEndUntil,
+                                       int recurrenceEndCount) {
+  const std::optional<TaskPriority> parsedPriority = priorityForValue(priority);
+  const bool clearingDue = dueAt.trimmed().isEmpty();
+  const std::optional<QString> normalizedDue =
+      clearingDue ? std::optional<QString>{} : normalizedDueAt(std::move(dueAt));
+  const std::optional<ManagedTaskRecurrenceConfiguration> recurrence =
+      managedRecurrence ? managedTaskRecurrenceConfiguration(recurrenceFrequency,
+                                                             recurrenceInterval,
+                                                             recurrenceEndKind,
+                                                             recurrenceEndUntil,
+                                                             recurrenceEndCount)
+                        : std::optional<ManagedTaskRecurrenceConfiguration>{};
+  if (!parsedPriority.has_value() || (!normalizedDue.has_value() && !clearingDue) ||
+      (managedRecurrence && (!recurrence.has_value() || !normalizedDue.has_value()))) {
+    setStatus(QStringLiteral("Task recurrence input is invalid"));
+    return;
+  }
+  const QString selectedTaskId = taskId;
+  watch(taskMutationService_.update(
+            {.taskId = std::move(taskId),
+             .title = std::move(title),
+             .notes = std::move(notes),
+             .due = TaskDue{.at = normalizedDue,
+                            .timeZone = normalizedDue.has_value() && !dueTimeZone.isEmpty()
+                                            ? std::optional<QString>(std::move(dueTimeZone))
+                                            : std::nullopt},
+             .priority = *parsedPriority}),
+        [this, selectedTaskId, recurrence](TaskMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (!recurrence.has_value()) {
+            refreshTasks();
+            return;
+          }
+          watch(taskMutationService_.reconfigureManagedRecurrence(selectedTaskId,
+                                                                    recurrence->frequency,
+                                                                    recurrence->interval,
+                                                                    recurrence->end),
+                [this](TaskMutationResult reconfigured) {
+                  if (std::holds_alternative<AppError>(reconfigured)) {
+                    setStatus(errorMessage(std::get<AppError>(reconfigured)));
+                  } else {
+                    refreshTasks();
+                  }
+                });
+        });
+}
+
 void AppController::setTaskCompleted(QString taskId, bool completed) {
   watch(taskMutationService_.setCompleted(std::move(taskId), completed),
+        [this](TaskMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshTasks();
+          }
+        });
+}
+
+void AppController::stopTaskRecurrence(QString taskId, int recurrenceScope) {
+  if (recurrenceScope < 0 || recurrenceScope > 2) {
+    setStatus(QStringLiteral("Task recurrence scope is invalid"));
+    return;
+  }
+  const auto scope = recurrenceScope == 0 ? TaskRecurrenceScope::ThisOccurrence
+                     : recurrenceScope == 1 ? TaskRecurrenceScope::ThisAndFollowing
+                                            : TaskRecurrenceScope::EntireSeries;
+  watch(taskMutationService_.stopManagedRecurrence(std::move(taskId), scope),
+        [this](TaskMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshTasks();
+          }
+        });
+}
+
+void AppController::splitTaskRecurrence(QString taskId) {
+  watch(taskMutationService_.splitManagedRecurrence(std::move(taskId)),
         [this](TaskMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));

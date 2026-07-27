@@ -2425,6 +2425,67 @@ TaskMutationService::stopManagedRecurrence(QString taskId, TaskRecurrenceScope s
   });
 }
 
+std::future<TaskMutationResult>
+TaskMutationService::reconfigureManagedRecurrence(QString taskId,
+                                                   TaskRecurrenceFrequency frequency,
+                                                   std::int32_t interval,
+                                                   TaskRecurrenceEndCondition end) {
+  if (!isValidRequiredText(taskId, kMaximumIdentifierLength)) {
+    return readyFuture(TaskMutationResult(
+        validationError(QStringLiteral("Managed recurrence configuration input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [taskId = std::move(taskId), frequency, interval, end = std::move(end), updatedAt](
+          SqliteConnection& connection) {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return TaskMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<StoredTaskContext>, AppError> selectedResult =
+            readTaskContext(connection, taskId);
+        if (std::holds_alternative<AppError>(selectedResult)) {
+          return TaskMutationResult(std::get<AppError>(selectedResult));
+        }
+        const std::optional<StoredTaskContext>& selected =
+            std::get<std::optional<StoredTaskContext>>(selectedResult);
+        if (!selected.has_value()) {
+          return TaskMutationResult(
+              validationError(QStringLiteral("Managed recurrence task is unavailable")));
+        }
+        const TaskRecurrenceNotes recurrence =
+            parseTaskRecurrenceNotes(selected->notes.value_or(QString()));
+        if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value()) {
+          return TaskMutationResult(
+              validationError(QStringLiteral("Task does not have managed recurrence")));
+        }
+        if (const std::optional<AppError> error =
+                validateManagedRecurrenceMutation(connection, *selected, recurrence);
+            error.has_value()) {
+          return TaskMutationResult(*error);
+        }
+        TaskRecurrenceMarker marker = *recurrence.marker;
+        marker.frequency = frequency;
+        marker.interval = interval;
+        marker.end = std::move(end);
+        const TaskRecurrenceSerializationResult serialized =
+            serializeTaskRecurrenceNotes(recurrence.userNotes, marker);
+        if (serialized.error.has_value()) {
+          return TaskMutationResult(validationError(*serialized.error));
+        }
+        if (const std::optional<AppError> error =
+                rewriteTaskRecurrenceNotes(connection, *selected, serialized.notes, updatedAt);
+            error.has_value()) {
+          return TaskMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return TaskMutationResult(*error);
+        }
+        return TaskMutationResult(TaskMutationReceipt{.taskId = taskId, .updatedAt = updatedAt});
+      });
+}
+
 std::future<TaskMutationResult> TaskMutationService::splitManagedRecurrence(QString taskId) {
   if (!isValidRequiredText(taskId, kMaximumIdentifierLength)) {
     return readyFuture(TaskMutationResult(

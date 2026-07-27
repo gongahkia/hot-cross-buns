@@ -3,6 +3,7 @@
 #include "core/AppError.h"
 #include "core/Clock.h"
 #include "core/FilePath.h"
+#include "core/TaskRecurrenceMarker.h"
 #include "data/SqliteWriterQueue.h"
 
 #include <QList>
@@ -104,6 +105,11 @@ public:
   [[nodiscard]] std::future<TaskMutationResult> setCompleted(QString taskId, bool completed);
   [[nodiscard]] std::future<TaskMutationResult>
   stopManagedRecurrence(QString taskId, TaskRecurrenceScope scope);
+  [[nodiscard]] std::future<TaskMutationResult>
+  reconfigureManagedRecurrence(QString taskId,
+                               TaskRecurrenceFrequency frequency,
+                               std::int32_t interval,
+                               TaskRecurrenceEndCondition end);
   [[nodiscard]] std::future<TaskMutationResult> splitManagedRecurrence(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);

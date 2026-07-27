@@ -156,6 +156,25 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
     const TaskRecurrenceNotes recurrence =
         parseTaskRecurrenceNotes(storedNotes.value_or(QString()));
     const QString recurrenceDiagnostic = storedDiagnostic.value_or(recurrence.diagnostic);
+    const auto recurrenceFrequency = [&recurrence]() {
+      if (!recurrence.marker.has_value()) {
+        return -1;
+      }
+      return static_cast<int>(recurrence.marker->frequency);
+    };
+    const auto recurrenceInterval = [&recurrence]() {
+      return recurrence.marker.has_value() ? recurrence.marker->interval : 1;
+    };
+    const auto recurrenceEndKind = [&recurrence]() {
+      return recurrence.marker.has_value() ? static_cast<int>(recurrence.marker->end.kind) : 0;
+    };
+    const auto recurrenceEndUntil = [&recurrence]() {
+      return recurrence.marker.has_value() ? recurrence.marker->end.untilDate.value_or(QString())
+                                           : QString();
+    };
+    const auto recurrenceEndCount = [&recurrence]() {
+      return recurrence.marker.has_value() ? recurrence.marker->end.count.value_or(0) : 0;
+    };
     tasks.append({.id = *id,
                   .taskListId = *taskListId,
                   .taskListTitle = *taskListTitle,
@@ -177,6 +196,11 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
                       recurrence.marker.has_value() ? recurrence.marker->seriesId : QString(),
                   .recurrenceOccurrenceId =
                       recurrence.marker.has_value() ? recurrence.marker->occurrenceId : QString(),
+                  .recurrenceFrequency = recurrenceFrequency(),
+                  .recurrenceInterval = recurrenceInterval(),
+                  .recurrenceEndKind = recurrenceEndKind(),
+                  .recurrenceEndUntil = recurrenceEndUntil(),
+                  .recurrenceEndCount = recurrenceEndCount(),
                   .recurrenceDiagnostic = recurrenceDiagnostic,
                   .sortOrder = sortOrder});
   }

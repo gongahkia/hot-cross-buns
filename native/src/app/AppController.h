@@ -149,6 +149,19 @@ public:
   Q_INVOKABLE void setTaskListSelected(QString taskListId, bool selected);
   Q_INVOKABLE void deleteTaskList(QString taskListId);
   Q_INVOKABLE void createTask(QString taskListId, QString parentTaskId, QString title);
+  Q_INVOKABLE void createTaskDetailed(QString taskListId,
+                                      QString parentTaskId,
+                                      QString title,
+                                      QString notes,
+                                      QString dueAt,
+                                      QString dueTimeZone,
+                                      int priority,
+                                      bool managedRecurrence,
+                                      int recurrenceFrequency,
+                                      int recurrenceInterval,
+                                      int recurrenceEndKind,
+                                      QString recurrenceEndUntil,
+                                      int recurrenceEndCount);
   Q_INVOKABLE void saveNoteTask(QString taskId, QString taskListId, QString title, QString notes);
   Q_INVOKABLE void updateTask(QString taskId,
                               QString title,
@@ -156,7 +169,21 @@ public:
                               QString dueAt,
                               QString dueTimeZone,
                               int priority);
+  Q_INVOKABLE void updateTaskDetailed(QString taskId,
+                                      QString title,
+                                      QString notes,
+                                      QString dueAt,
+                                      QString dueTimeZone,
+                                      int priority,
+                                      bool managedRecurrence,
+                                      int recurrenceFrequency,
+                                      int recurrenceInterval,
+                                      int recurrenceEndKind,
+                                      QString recurrenceEndUntil,
+                                      int recurrenceEndCount);
   Q_INVOKABLE void setTaskCompleted(QString taskId, bool completed);
+  Q_INVOKABLE void stopTaskRecurrence(QString taskId, int recurrenceScope);
+  Q_INVOKABLE void splitTaskRecurrence(QString taskId);
   Q_INVOKABLE void deleteTask(QString taskId);
   Q_INVOKABLE void moveTask(QString taskId, QString taskListId);
   Q_INVOKABLE void reparentTask(QString taskId, QString parentTaskId);
