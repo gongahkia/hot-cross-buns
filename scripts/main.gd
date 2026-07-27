@@ -268,7 +268,7 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R bail", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
@@ -391,6 +391,10 @@ func _add_route_collectibles(route: Node3D, positions: Array[Vector3]) -> void:
 		total_collectibles_in_level += 1
 		route.add_child(_make_collectible(position))
 
+func _add_arena_gaps(parent: Node3D, positions: Array[Vector3], id_prefix: String, points: int) -> void:
+	for index in range(positions.size()):
+		parent.add_child(_make_combo_gap(positions[index] + Vector3(0.0, 1.75, 0.0), id_prefix + "-" + str(index + 1), points))
+
 func _add_course_sign(parent: Node3D, position: Vector3, text: String, color: Color) -> void:
 	var sign := Label3D.new()
 	sign.name = "FocusSign"
@@ -473,8 +477,7 @@ func _build_sandbox(palette: Dictionary) -> void:
 	bowl.add_child(_make_reset_pad(Vector3(0.0, 1.2, -103.0), Vector3(0.0, 1.4, -103.0), "Style Bowl"))
 	_add_course_sign(bowl, Vector3(0.0, 9.5, -119.0), "STYLE BOWL  /  LINK EVERYTHING", palette.sign)
 
-	var line := _route("IntegratedLine", "full-kit style route")
-	line.set_meta("station", "Integrated Line")
+	var line := _sandbox_station("IntegratedLine", "INTEGRATED LINE", Vector3(2.0, 7.0, -81.0))
 	var line_points: Array[Vector3] = [Vector3(8.0, 0.8, -12.0), Vector3(18.0, 1.4, -27.0), Vector3(24.0, 4.0, -47.0), Vector3(15.0, 5.4, -66.0), Vector3(2.0, 7.0, -81.0), Vector3(-12.0, 9.0, -98.0), Vector3(-5.0, 7.3, -112.0), Vector3(0.0, 4.2, -127.0)]
 	_add_route_path(line, line_points, Vector3(4.8, 0.7, 5.2), 3.4, palette.finale, palette.ramp)
 	line.add_child(_make_boost(Vector3(10.0, 1.1, -15.0), Vector3(0.5, 0.0, -0.9).normalized()))

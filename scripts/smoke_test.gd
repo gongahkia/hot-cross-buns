@@ -36,7 +36,7 @@ func _initialize() -> void:
 	assert(bool(main.course.get_node("OpenBasin").get_meta("recovery_floor", false)), "recovery floor metadata missing")
 	for route_name in ["CentralPlaza", "MovementPlaza", "GapYard", "WallTower", "AerialAtrium", "PowerHall", "StyleBowl", "IntegratedLine"]:
 		assert(main.course.get_node_or_null(route_name) != null, "sandbox route missing: " + route_name)
-	assert(main.sandbox_stations.size() == 7, "sandbox station registry missing")
+	assert(main.sandbox_stations.size() == 8, "sandbox station registry missing")
 	assert(main.traversal_ramp_count >= 20, "sandbox traversal routes missing")
 	assert(main.climbable_trunk_count >= 4, "sandbox wall-jump fixtures missing")
 	assert(main.grapple_anchor_count >= 4, "sandbox grapple fixtures missing")
