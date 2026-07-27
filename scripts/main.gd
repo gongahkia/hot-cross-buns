@@ -233,6 +233,7 @@ func _build_course(level: Dictionary) -> void:
 	var summit_height := 7.2 + (0.8 if level.launches else 0.0)
 	var summit_surface := Vector3(world_shift, summit_height, -world_length + 8.0)
 	var basin := _make_platform(Vector3(world_shift, -0.45, -world_length * 0.5 + 4.0), Vector3(38.0, 0.9, world_length + 20.0), Color("#2d4433"))
+	basin.name = "OpenBasin"
 	course.add_child(basin)
 	var start_floor := _make_platform(Vector3(world_shift, 0.0, 2.0), Vector3(13.0, 0.7, 11.0), Color("#39553e"))
 	course.add_child(start_floor)
@@ -244,7 +245,9 @@ func _build_course(level: Dictionary) -> void:
 	_build_direct_ridge(level, world_shift, world_length, summit_surface)
 	_build_canopy_route(level, world_shift, world_length, summit_surface)
 	_build_open_terrain(world_shift, world_length)
-	course.add_child(_make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), Color("#5b7749")))
+	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), Color("#5b7749"))
+	summit.name = "Summit"
+	course.add_child(summit)
 	course.add_child(_make_goal(summit_surface + Vector3(0.0, 1.15, -1.0)))
 	ghost = RunGhost.new()
 	ghost.set_frames(RunData.ghost_for(level.id))
@@ -318,6 +321,7 @@ func _build_open_terrain(world_shift: float, world_length: float) -> void:
 
 func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: float, color: Color) -> StaticBody3D:
 	var body := StaticBody3D.new()
+	body.name = "TraversalRamp"
 	var path := end_surface - start_surface
 	var length := path.length()
 	var ramp_center := (start_surface + end_surface) * 0.5 - Vector3(0.0, 0.28, 0.0)
@@ -337,6 +341,7 @@ func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: flo
 
 func _add_climbable_trunk(position: Vector3, height: float, radius: float) -> void:
 	var body := StaticBody3D.new()
+	body.name = "ClimbableTrunk"
 	body.position = position
 	var visual := MeshInstance3D.new()
 	var trunk := CylinderMesh.new()
