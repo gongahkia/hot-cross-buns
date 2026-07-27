@@ -108,6 +108,12 @@ func _initialize() -> void:
 	assert(decay_combo.last_decay == 0, "new combo did not stop style decay")
 
 	var sandbox_player: Variant = main.player
+	var original_tether_toggle := bool(app_settings.get("tether_toggle"))
+	app_settings.set("tether_toggle", false)
+	assert(not sandbox_player._tether_toggle_enabled(), "hold tether setting missing")
+	app_settings.set("tether_toggle", true)
+	assert(sandbox_player._tether_toggle_enabled(), "toggle tether setting missing")
+	app_settings.set("tether_toggle", original_tether_toggle)
 	sandbox_player.is_sliding = false
 	sandbox_player.velocity = Vector3(0.0, 0.0, -10.0)
 	Input.action_press("sprint")

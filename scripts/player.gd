@@ -121,8 +121,13 @@ func _physics_process(delta: float) -> void:
 		last_wall_jump_collider_id = 0
 	else:
 		coyote_timer = max(coyote_timer - delta, 0.0)
-	if Input.is_action_just_pressed("grapple"):
+	var tether_toggle := _tether_toggle_enabled()
+	if not is_grappling and (Input.is_action_just_pressed("grapple") if tether_toggle else Input.is_action_pressed("grapple")):
 		_try_grapple()
+	elif is_grappling and tether_toggle and Input.is_action_just_pressed("grapple"):
+		_stop_grapple()
+	elif is_grappling and not tether_toggle and Input.is_action_just_released("grapple"):
+		_stop_grapple(true)
 	if is_grappling and Input.is_action_just_pressed("jump"):
 		_stop_grapple(true)
 	if Input.is_action_just_pressed("jump"):
@@ -338,6 +343,10 @@ func apply_style_feedback(severity: String) -> void:
 
 func _settings() -> Node:
 	return get_node_or_null("/root/Settings")
+
+func _tether_toggle_enabled() -> bool:
+	var app_settings := _settings()
+	return bool(app_settings.get("tether_toggle")) if app_settings else false
 
 func _play_sfx(kind: String) -> void:
 	var audio := get_node_or_null("/root/Audio")

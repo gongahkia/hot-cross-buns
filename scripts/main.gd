@@ -1233,6 +1233,14 @@ func show_settings(back_mode: String) -> void:
 		Settings.save_settings()
 	)
 	content.add_child(slide_mode)
+	var tether_mode := CheckBox.new()
+	tether_mode.text = "Toggle tether (off = hold)"
+	tether_mode.button_pressed = Settings.tether_toggle
+	tether_mode.toggled.connect(func(value: bool):
+		Settings.tether_toggle = value
+		Settings.save_settings()
+	)
+	content.add_child(tether_mode)
 	var reduced_effects := CheckBox.new()
 	reduced_effects.text = "Reduce screen effects (keeps score UI)"
 	reduced_effects.button_pressed = Settings.reduce_screen_effects

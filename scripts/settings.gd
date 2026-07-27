@@ -11,6 +11,7 @@ signal pixel_filter_mode_changed(mode: int)
 var mouse_sensitivity := 0.0022
 var invert_y := false
 var slide_toggle := false
+var tether_toggle := false
 var master_volume := 0.8
 var ambient_volume := 0.55
 var sfx_volume := 0.75
@@ -50,6 +51,7 @@ func load_settings() -> void:
 	mouse_sensitivity = float(parsed.get("mouse_sensitivity", mouse_sensitivity))
 	invert_y = bool(parsed.get("invert_y", invert_y))
 	slide_toggle = bool(parsed.get("slide_toggle", slide_toggle))
+	tether_toggle = bool(parsed.get("tether_toggle", tether_toggle))
 	master_volume = float(parsed.get("master_volume", master_volume))
 	ambient_volume = float(parsed.get("ambient_volume", ambient_volume))
 	sfx_volume = float(parsed.get("sfx_volume", sfx_volume))
@@ -67,6 +69,7 @@ func save_settings() -> void:
 		"mouse_sensitivity": mouse_sensitivity,
 		"invert_y": invert_y,
 		"slide_toggle": slide_toggle,
+		"tether_toggle": tether_toggle,
 		"master_volume": master_volume,
 		"ambient_volume": ambient_volume,
 		"sfx_volume": sfx_volume,
