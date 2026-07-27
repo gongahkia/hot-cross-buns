@@ -3,6 +3,8 @@ extends Node3D
 const LEVELS := preload("res://scripts/level_library.gd")
 const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
 const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
+const SANDBOX_GEOMETRY_EXPORTER := preload("res://scripts/generate_sandbox_geometry.gd")
+const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 
 var course: Node3D
 var player: SpeedPlayer
@@ -60,6 +62,16 @@ func _ready() -> void:
 	_build_ui()
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
+	if OS.get_cmdline_user_args().has("--generate-sandbox-geometry"):
+		call_deferred("_generate_sandbox_geometry")
+
+func _generate_sandbox_geometry() -> void:
+	start_level("sandbox")
+	await get_tree().process_frame
+	var save_error := SANDBOX_GEOMETRY_EXPORTER.export_course(course, player, SANDBOX_GEOMETRY_PATH)
+	if save_error != OK:
+		push_error("Could not export sandbox geometry: " + error_string(save_error))
+	get_tree().quit(0 if save_error == OK else 1)
 
 func _build_world() -> void:
 	var environment := WorldEnvironment.new()
