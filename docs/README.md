@@ -16,7 +16,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 ## Current Direction
 
 - Product name: Hot Cross Buns
-- Platforms: macOS DMG, Linux x64 AppImage, Windows x64 NSIS
+- Release platform: macOS; Linux and Windows parity are deferred until macOS acceptance.
 - Default stack: C++20, Qt 6, CMake, SQLite
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: Google Tasks/Calendar cache, settings, checkpoints, offline mutations, diagnostics
@@ -27,7 +27,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 - Qt Quick views bind to C++ task, notes, calendar, and navigation models.
 - SQLite domain services own local reads and mutations; the app controller applies completed results only on the Qt GUI thread.
 - The private preview supports bring-your-own Google Desktop OAuth client IDs, PKCE loopback authorization, platform credential storage, and full read synchronization for Google Tasks and Calendar.
-- Native shell support is adapter-driven across macOS, Linux, and Windows, with package-install and QML shell smoke coverage.
+- Native shell and package validation are macOS release work; Linux and Windows documents are deferred-port references.
 
 ## Documentation Map
 

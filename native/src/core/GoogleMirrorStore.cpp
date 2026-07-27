@@ -1086,7 +1086,6 @@ mergeStoredCalendars(SqliteConnection& connection,
     return std::get<AppError>(std::move(transactionResult));
   }
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
-  SqliteStatementCache statements(connection, 8);
   const QString now = timestamp(clock);
   if (fullReconciliation) {
     if (const std::optional<AppError> error = markCalendarsDeleted(handle, accountId, now);
@@ -1132,6 +1131,7 @@ mergeStoredCalendarEvents(SqliteConnection& connection,
     return std::get<AppError>(std::move(transactionResult));
   }
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  SqliteStatementCache statements(connection, 8);
   const QString now = timestamp(clock);
   if (fullReconciliation) {
     if (const std::optional<AppError> error =
