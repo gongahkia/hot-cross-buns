@@ -41,7 +41,7 @@ func _initialize() -> void:
 	assert(main.climbable_trunk_count >= 4, "sandbox wall-jump fixtures missing")
 	assert(main.grapple_anchor_count >= 4, "sandbox grapple fixtures missing")
 	assert(main.combo_gap_count >= 12, "sandbox style gaps missing")
-	assert(main.grind_rail_count >= 4, "sandbox grind rails missing")
+	assert(main.get_tree().get_nodes_in_group("grind_rail").is_empty(), "removed rail group remains")
 	assert(main.recharge_gate_count >= 6, "sandbox recharge gates missing")
 	assert(main._collectible_count(levels[0]) >= 18, "sandbox collectibles missing")
 	assert(main.course.find_children("InteriorBuilding", "", true, false).size() >= 2, "interior buildings missing")
@@ -72,7 +72,7 @@ func _initialize() -> void:
 	main._input(f3)
 	main._refresh_debug_hud()
 	assert(main.debug_visible and main.debug_panel.visible, "F3 did not show diagnostics")
-	assert("FPS" in main.debug_label.text and "PHYS ACTIVE" in main.debug_label.text and "TRIGGERS" in main.debug_label.text and "RAILS" in main.debug_label.text and "REFILLS" in main.debug_label.text, "diagnostics incomplete")
+	assert("FPS" in main.debug_label.text and "PHYS ACTIVE" in main.debug_label.text and "TRIGGERS" in main.debug_label.text and "REFILLS" in main.debug_label.text, "diagnostics incomplete")
 	main._input(f3)
 	assert(not main.debug_visible and not main.debug_panel.visible, "F3 did not hide diagnostics")
 	main.show_pause()
@@ -114,9 +114,6 @@ func _initialize() -> void:
 	var slide_jump_result := transition_combo.add_action("slide_jump", 0.1)
 	assert(str(slide_jump_result.award.get("transition", "")) == "SLIDE HOP", "slide jump transition style missing")
 	assert(int(slide_jump_result.award.get("transition_points", 0)) > 0, "transition bonus missing")
-	transition_combo.add_action("grind", 0.2)
-	var rail_launch_result := transition_combo.add_action("rail_launch", 0.3)
-	assert(str(rail_launch_result.award.get("transition", "")) == "RAIL LAUNCH", "rail launch transition style missing")
 
 	var sandbox_player: Variant = main.player
 	var original_tether_toggle := bool(app_settings.get("tether_toggle"))
@@ -174,31 +171,6 @@ func _initialize() -> void:
 	sandbox_player.velocity = Vector3(0.0, -12.0, -10.0)
 	assert(sandbox_player._try_perfect_land(-12.0), "perfect landing window missing")
 	assert(sandbox_player.is_sliding and sandbox_player.velocity.z < -10.0, "perfect landing did not carry into slide")
-	var rail := main.course.find_child("AtriumFlowRail", true, false) as GrindRail
-	assert(rail != null and rail.length() > 0.0, "grind rail missing")
-	var rail_sample := rail.sample(0.5)
-	sandbox_player.global_position = rail_sample.get("position", Vector3.ZERO) + Vector3.UP * 0.5
-	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 6.0
-	sandbox_player.grind_cooldown = 0.0
-	sandbox_player._try_start_grind()
-	assert(sandbox_player.is_grinding, "auto-grind did not acquire nearby rail")
-	assert(sandbox_player.grind_speed >= rail.minimum_speed, "rail did not boost a low-speed entry to its minimum")
-	var rail_distance: float = float(sandbox_player.grind_distance)
-	sandbox_player._update_grind(0.1, Vector2(0.0, -1.0))
-	assert(not is_equal_approx(sandbox_player.grind_distance, rail_distance), "grind did not advance along rail")
-	sandbox_player._exit_grind()
-	sandbox_player.global_position = rail_sample.get("position", Vector3.ZERO) + Vector3.UP * 0.5
-	sandbox_player.velocity = rail_sample.get("tangent", Vector3.FORWARD) * 27.0
-	sandbox_player.grind_cooldown = 0.0
-	sandbox_player._try_start_grind()
-	assert(is_equal_approx(sandbox_player.grind_speed, 27.0), "rail did not preserve a high-speed entry")
-	var active_rail: GrindRail = sandbox_player.grind_rail
-	assert(active_rail != null, "high-speed rail entry missing")
-	sandbox_player.grind_distance = active_rail.length() * active_rail.launch_fractions[0]
-	assert(not active_rail.launch_at(sandbox_player.grind_distance).is_empty(), "rail launch marker lookup missing")
-	assert(sandbox_player._try_rail_launch(), "marked rail launch did not activate")
-	assert(not sandbox_player.is_grinding and sandbox_player.velocity.y >= active_rail.launch_vertical_velocity, "rail launch did not add vertical speed")
-	assert(Vector2(sandbox_player.velocity.x, sandbox_player.velocity.z).length() >= 27.0, "rail launch did not add horizontal speed")
 	sandbox_player.can_dash = false
 	main._on_trigger(CourseTrigger.TriggerType.RECHARGE, {"tool": "dash"})
 	assert(sandbox_player.can_dash, "recharge gate did not restore dash")

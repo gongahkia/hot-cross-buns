@@ -61,9 +61,6 @@ const PERFECT_ROLL_WINDOW := 0.18
 const RAMP_LAUNCH_MIN_SPEED := 14.0
 const RAMP_LAUNCH_SLOPE := 0.16
 const RAMP_LAUNCH_COOLDOWN := 0.2
-const GRIND_MIN_SPEED := 7.0
-const GRIND_FLOOR_OFFSET := 0.58
-const GRIND_EXIT_COOLDOWN := 0.22
 const BASE_CAMERA_FOV := 96.0
 const MAX_STRAFE_ROLL := 0.13962634
 const SLIDE_STRAFE_ROLL := 0.05235988
@@ -92,17 +89,11 @@ var is_gliding := false
 var is_grappling := false
 var is_wall_sliding := false
 var is_wall_running := false
-var is_grinding := false
 var grapple_anchor: Node3D
 var grapple_target := Vector3.ZERO
 var grapple_rope_length := 0.0
 var wall_run_timer := 0.0
 var wall_run_normal := Vector3.ZERO
-var grind_rail: GrindRail
-var grind_distance := 0.0
-var grind_direction := 1.0
-var grind_speed := 0.0
-var grind_cooldown := 0.0
 var roll_window := 0.0
 var ramp_launch_cooldown := 0.0
 var glide_dive_timer := 0.0
@@ -160,12 +151,6 @@ func _physics_process(delta: float) -> void:
 		return
 	_roll_timers(delta)
 	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	if is_grinding:
-		_update_grind(delta, input_vector)
-		_update_camera_fx(delta, input_vector)
-		if global_position.y < -18.0:
-			reset_requested.emit()
-		return
 	var on_floor_before_move := is_on_floor()
 	var floor_normal_before_move := get_floor_normal() if on_floor_before_move else Vector3.UP
 	if not on_floor_before_move:
@@ -207,7 +192,6 @@ func _physics_process(delta: float) -> void:
 		_double_jump()
 	if Input.is_action_just_pressed("slam") and not on_floor_before_move:
 		_stop_grapple()
-		_exit_grind()
 		_ground_slam()
 	_update_glide_state(on_floor_before_move)
 	_handle_slide(on_floor_before_move)
@@ -262,7 +246,6 @@ func _physics_process(delta: float) -> void:
 		landing_offset = minf(landing_offset, -impact * 0.006)
 	if on_floor_before_move and not is_on_floor():
 		_try_ramp_launch(floor_normal_before_move)
-	_try_start_grind()
 	was_sliding = is_sliding
 	_sample_flow(delta)
 	_update_camera_fx(delta, input_vector)
@@ -306,7 +289,6 @@ func _update_glide_state(on_floor: bool) -> void:
 
 func _roll_timers(delta: float) -> void:
 	roll_window = maxf(roll_window - delta, 0.0)
-	grind_cooldown = maxf(grind_cooldown - delta, 0.0)
 	ramp_launch_cooldown = maxf(ramp_launch_cooldown - delta, 0.0)
 	glide_dive_timer = maxf(glide_dive_timer - delta, 0.0)
 	if is_wall_running:
@@ -403,7 +385,6 @@ func _try_grapple() -> bool:
 	is_gliding = false
 	is_wall_sliding = false
 	is_wall_running = false
-	_exit_grind()
 	wall_jump_collider_id = 0
 	last_wall_jump_collider_id = 0
 	last_wall_run_collider_id = 0
@@ -488,8 +469,6 @@ func _stop_grapple(award_release := false) -> void:
 		traversal_action.emit("tether_release", -1)
 
 func tool_status() -> String:
-	if is_grinding:
-		return "FLOW RAIL"
 	if is_grappling:
 		return "TETHER"
 	if is_wall_running:
@@ -498,10 +477,10 @@ func tool_status() -> String:
 		return "GLIDE"
 	if is_wall_sliding:
 		return "WALL SLIDE"
-	return "E TETHER / F GLIDE / RAIL AUTO"
+	return "E TETHER / F GLIDE"
 
 func style_multiplier_active() -> bool:
-	return not is_on_floor() or is_sliding or is_gliding or is_grappling or is_wall_running or is_grinding
+	return not is_on_floor() or is_sliding or is_gliding or is_grappling or is_wall_running
 
 func apply_style_feedback(severity: String) -> void:
 	var amount := 0.0
@@ -541,17 +520,12 @@ func reset_for_bail(spawn_position: Vector3) -> void:
 	is_gliding = false
 	is_wall_sliding = false
 	is_wall_running = false
-	is_grinding = false
 	wall_jump_collider_id = 0
 	last_wall_jump_collider_id = 0
 	can_dash = true
 	can_double_jump = true
 	airborne_time = 0.0
 	flow_timer = 0.0
-	grind_rail = null
-	grind_distance = 0.0
-	grind_speed = 0.0
-	grind_cooldown = 0.0
 	roll_window = 0.0
 	wall_run_timer = 0.0
 	_stop_grapple()
@@ -658,7 +632,7 @@ func _set_wall_slide(has_wall_contact: bool, on_floor: bool) -> void:
 		velocity.y = maxf(velocity.y, -WALL_SLIDE_FALL_SPEED)
 
 func _update_wall_run(on_floor_before_move: bool) -> void:
-	if on_floor_before_move or is_on_floor() or is_slamming or is_gliding or is_grappling or is_grinding or wall_jump_collider_id == 0:
+	if on_floor_before_move or is_on_floor() or is_slamming or is_gliding or is_grappling or wall_jump_collider_id == 0:
 		is_wall_running = false
 		return
 	var planar_speed := _planar_velocity().length()
@@ -741,112 +715,6 @@ func _slam_bounce() -> void:
 	can_double_jump = true
 	is_slamming = false
 	traversal_action.emit("slam_bounce", -1)
-
-func _try_start_grind() -> void:
-	if is_grinding or grind_cooldown > 0.0 or is_slamming or is_grappling:
-		return
-	var planar_speed := _planar_velocity().length()
-	var entry_speed := maxf(planar_speed, velocity.length())
-	if entry_speed < 1.5:
-		return
-	var best_rail: GrindRail
-	var best_sample := {}
-	var best_distance := INF
-	for candidate in get_tree().get_nodes_in_group("grind_rail"):
-		var rail := candidate as GrindRail
-		if rail == null:
-			continue
-		var sample := rail.closest_sample(global_position)
-		var distance := float(sample.get("distance", INF))
-		if distance <= rail.activation_radius and distance < best_distance:
-			best_rail = rail
-			best_sample = sample
-			best_distance = distance
-	if best_rail == null or best_sample.is_empty():
-		return
-	var tangent: Vector3 = best_sample.get("tangent", Vector3.ZERO)
-	if tangent.length() < 0.1:
-		return
-	grind_rail = best_rail
-	grind_distance = float(best_sample.get("rail_distance", 0.0))
-	grind_direction = 1.0 if tangent.dot(_planar_velocity()) >= 0.0 else -1.0
-	grind_speed = maxf(entry_speed, best_rail.minimum_speed)
-	is_grinding = true
-	is_gliding = false
-	is_wall_running = false
-	is_wall_sliding = false
-	global_position = best_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-	velocity = tangent * grind_speed * grind_direction
-	traversal_action.emit("grind", -1)
-	_add_camera_shake(0.026)
-	_play_sfx("boost")
-
-func _update_grind(delta: float, input_vector: Vector2) -> void:
-	if grind_rail == null or not is_instance_valid(grind_rail):
-		_exit_grind()
-		return
-	if Input.is_action_just_pressed("jump"):
-		if _try_rail_launch():
-			return
-		_exit_grind()
-		velocity.y = JUMP_VELOCITY
-		traversal_action.emit("grind_exit", -1)
-		return
-	if Input.is_action_just_pressed("dash") and can_dash:
-		_exit_grind()
-		_dash()
-		return
-	var sample := grind_rail.sample(grind_distance)
-	if sample.is_empty():
-		_exit_grind()
-		return
-	var tangent: Vector3 = sample.get("tangent", Vector3.FORWARD)
-	grind_speed = maxf(grind_rail.minimum_speed, grind_speed)
-	grind_speed += -tangent.y * GRAVITY * delta
-	grind_distance += grind_speed * grind_direction * delta
-	if grind_distance <= 0.0 or grind_distance >= grind_rail.length():
-		grind_distance = clampf(grind_distance, 0.0, grind_rail.length())
-		var end_sample := grind_rail.sample(grind_distance)
-		global_position = end_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-		velocity = end_sample.get("tangent", tangent) * grind_speed * grind_direction
-		velocity.y = maxf(velocity.y, 1.8)
-		_exit_grind()
-		return
-	sample = grind_rail.sample(grind_distance)
-	global_position = sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
-	velocity = sample.get("tangent", tangent) * grind_speed * grind_direction
-	if input_vector.y > 0.5:
-		grind_direction = -1.0
-	elif input_vector.y < -0.5:
-		grind_direction = 1.0
-	_sample_flow(delta)
-
-func _try_rail_launch() -> bool:
-	if grind_rail == null:
-		return false
-	var launch_sample := grind_rail.launch_at(grind_distance)
-	if launch_sample.is_empty():
-		return false
-	var tangent: Vector3 = launch_sample.get("tangent", Vector3.FORWARD)
-	var launch_speed := grind_speed + grind_rail.launch_speed_bonus
-	velocity = tangent * launch_speed * grind_direction
-	velocity.y = maxf(velocity.y, grind_rail.launch_vertical_velocity)
-	can_dash = true
-	can_double_jump = true
-	_exit_grind()
-	traversal_action.emit("rail_launch", -1)
-	_add_camera_shake(0.048)
-	_emit_burst(0.65)
-	_play_sfx("launch")
-	return true
-
-func _exit_grind() -> void:
-	if not is_grinding:
-		return
-	is_grinding = false
-	grind_rail = null
-	grind_speed = 0.0
-	grind_cooldown = GRIND_EXIT_COOLDOWN
 
 func _double_jump() -> void:
 	velocity.y = DOUBLE_JUMP_VELOCITY

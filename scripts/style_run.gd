@@ -28,8 +28,6 @@ const BASE_POINTS := {
 	"ramp_launch": 145,
 	"perfect_land": 180,
 	"slam_bounce": 210,
-	"grind": 160,
-	"rail_launch": 240,
 	"recharge": 125,
 	"glide_dive": 70,
 	"slam_land": 220,
@@ -48,13 +46,9 @@ const TRANSITION_BONUSES := {
 	"wall_jump>grapple": {"label": "KICK TO TETHER", "points": 220},
 	"grapple>tether_release": {"label": "SLINGSHOT", "points": 220},
 	"tether_release>glide": {"label": "SWOOP EXIT", "points": 150},
-	"glide>grind": {"label": "RAIL CATCH", "points": 180},
-	"grind>air_dash": {"label": "RAIL EXIT", "points": 190},
-	"grind>rail_launch": {"label": "RAIL LAUNCH", "points": 260},
 	"slam_land>slam_bounce": {"label": "IMPACT REBOUND", "points": 180},
 	"perfect_land>slide_jump": {"label": "PERFECT FLOW", "points": 220},
 	"ramp_launch>grapple": {"label": "RAMP TO TETHER", "points": 190},
-	"boost>grind": {"label": "BOOST RAIL", "points": 170},
 }
 
 var banked_score := 0
