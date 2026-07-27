@@ -23,7 +23,21 @@
     "conflict_ask_each_time": {"status": "not_run", "evidence_type": "manual"},
     "revoked_or_expired_authorization": {"status": "not_run", "evidence_type": "manual"},
     "network_loss_and_recovery": {"status": "not_run", "evidence_type": "manual"},
-    "quota_retry": {"status": "not_run", "evidence_type": "automated"},
-    "invalid_calendar_sync_token": {"status": "not_run", "evidence_type": "automated"}
+    "quota_retry": {
+      "status": "passed",
+      "evidence_type": "automated",
+      "evidence": {
+        "commit": "2863e57189e828d8daa610be175f001c96e5cc38",
+        "command": "ctest --test-dir build/macos-debug-xcode -C Debug -R '^(hcb_google_http_client_tests|hcb_google_sync_recovery_service_tests)$' --output-on-failure"
+      }
+    },
+    "invalid_calendar_sync_token": {
+      "status": "passed",
+      "evidence_type": "automated",
+      "evidence": {
+        "commit": "2863e57189e828d8daa610be175f001c96e5cc38",
+        "command": "ctest --test-dir build/macos-debug-xcode -C Debug -R '^(hcb_google_http_client_tests|hcb_google_sync_recovery_service_tests)$' --output-on-failure"
+      }
+    }
   }
 }
