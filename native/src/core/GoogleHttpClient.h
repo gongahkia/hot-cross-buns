@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/Cancellation.h"
 #include "core/GoogleApiError.h"
 
 #include <QByteArray>
@@ -37,6 +38,7 @@ struct GoogleHttpRequest final {
   std::optional<QString> ifMatch;
   std::optional<QByteArray> contentType;
   std::optional<QByteArray> accept;
+  int timeoutMilliseconds{30'000};
 };
 
 struct GoogleHttpResponse final {
@@ -53,7 +55,8 @@ class GoogleHttpClient final : public QObject {
 public:
   explicit GoogleHttpClient(QObject* parent = nullptr, QNetworkAccessManager* manager = nullptr);
 
-  [[nodiscard]] std::future<GoogleHttpResult> send(GoogleHttpRequest request, QString accessToken);
+  [[nodiscard]] std::future<GoogleHttpResult>
+  send(GoogleHttpRequest request, QString accessToken, CancellationToken cancellation = {});
   [[nodiscard]] static QUrl defaultApiEndpoint();
   [[nodiscard]] static std::optional<QUrl> buildUrl(const GoogleHttpRequest& request);
   [[nodiscard]] static GoogleHttpResult

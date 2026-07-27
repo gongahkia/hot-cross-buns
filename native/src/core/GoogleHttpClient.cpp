@@ -3,6 +3,7 @@
 #include <QLocale>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QTimer>
 #include <QTimeZone>
 #include <QUrlQuery>
 
@@ -23,6 +24,8 @@ constexpr qsizetype kMaximumIfMatchLength = 8'192;
 constexpr qsizetype kMaximumRequestBodyBytes = 10 * 1024 * 1024;
 constexpr qsizetype kMaximumServerDateLength = 256;
 constexpr qsizetype kMaximumHeaderValueLength = 1'024;
+constexpr int kMinimumTimeoutMilliseconds = 1;
+constexpr int kMaximumTimeoutMilliseconds = 120'000;
 
 struct Completion final {
   std::atomic_bool completed{false};
@@ -94,7 +97,9 @@ void complete(const std::shared_ptr<Completion>& completion, GoogleHttpResult re
       !isValidIfMatch(request.ifMatch) ||
       !isValidHeaderValue(request.contentType) || !isValidHeaderValue(request.accept) ||
       (request.contentType.has_value() && !request.body.has_value()) ||
-      (request.body.has_value() && request.body->size() > kMaximumRequestBodyBytes)) {
+      (request.body.has_value() && request.body->size() > kMaximumRequestBodyBytes) ||
+      request.timeoutMilliseconds < kMinimumTimeoutMilliseconds ||
+      request.timeoutMilliseconds > kMaximumTimeoutMilliseconds) {
     return false;
   }
   if ((request.method == GoogleHttpMethod::Get || request.method == GoogleHttpMethod::Delete) &&
@@ -163,7 +168,12 @@ GoogleHttpClient::GoogleHttpClient(QObject* parent, QNetworkAccessManager* manag
     : QObject(parent), manager_(manager != nullptr ? manager : new QNetworkAccessManager(this)) {}
 
 std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
-                                                     QString accessToken) {
+                                                     QString accessToken,
+                                                     CancellationToken cancellation) {
+  if (cancellation.stop_requested()) {
+    return readyFuture(
+        GoogleHttpResult(transportError(QStringLiteral("Google HTTP request was cancelled"))));
+  }
   if (!isValidRequest(request) || !isValidAccessToken(accessToken)) {
     return readyFuture(
         GoogleHttpResult(clientError(QStringLiteral("Google HTTP request input is invalid"))));
@@ -185,7 +195,8 @@ std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
            request = std::move(request),
            accessToken = std::move(accessToken),
            url = *url,
-           completion] {
+           completion,
+           cancellation] {
             QNetworkRequest networkRequest(url);
             networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                                         QNetworkRequest::ManualRedirectPolicy);
@@ -222,6 +233,29 @@ std::future<GoogleHttpResult> GoogleHttpClient::send(GoogleHttpRequest request,
                        GoogleHttpResult(
                            transportError(QStringLiteral("Google HTTP request could not start"))));
               return;
+            }
+            auto* deadline = new QTimer(reply);
+            deadline->setSingleShot(true);
+            deadline->start(request.timeoutMilliseconds);
+            connect(deadline, &QTimer::timeout, reply, [reply, completion] {
+              complete(completion,
+                       GoogleHttpResult(
+                           transportError(QStringLiteral("Google HTTP request timed out"))));
+              reply->abort();
+            });
+            if (cancellation.stop_possible()) {
+              auto* cancellationPoll = new QTimer(reply);
+              cancellationPoll->setInterval(25);
+              connect(cancellationPoll, &QTimer::timeout, reply, [reply, completion, cancellation] {
+                if (!cancellation.stop_requested()) {
+                  return;
+                }
+                complete(completion,
+                         GoogleHttpResult(
+                             transportError(QStringLiteral("Google HTTP request was cancelled"))));
+                reply->abort();
+              });
+              cancellationPoll->start();
             }
             connect(reply, &QNetworkReply::finished, reply, [reply, completion] {
               const QByteArray responseBody = reply->readAll();

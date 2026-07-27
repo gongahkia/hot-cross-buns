@@ -18,6 +18,7 @@ private slots:
   void mapsFailedResponsesAndRetryAfter();
   void parsesHttpDateRetryAfter();
   void rejectsInvalidInputWithoutNetwork();
+  void rejectsInvalidTimeoutWithoutNetwork();
 };
 
 void GoogleHttpClientTest::buildsGoogleApiUrls() {
@@ -102,6 +103,16 @@ void GoogleHttpClientTest::rejectsInvalidInputWithoutNetwork() {
   QVERIFY(std::holds_alternative<hcb::GoogleApiError>(bodyResult));
   QCOMPARE(std::get<hcb::GoogleApiError>(bodyResult).kind(),
            hcb::GoogleApiErrorKind::InvalidPayload);
+}
+
+void GoogleHttpClientTest::rejectsInvalidTimeoutWithoutNetwork() {
+  hcb::GoogleHttpClient client;
+  std::future<hcb::GoogleHttpResult> future = client.send(
+      {.path = QStringLiteral("/tasks/v1/users/@me/lists"), .timeoutMilliseconds = 0},
+      QStringLiteral("access-token"));
+  const hcb::GoogleHttpResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleApiError>(result));
+  QCOMPARE(std::get<hcb::GoogleApiError>(result).kind(), hcb::GoogleApiErrorKind::InvalidPayload);
 }
 
 QTEST_GUILESS_MAIN(GoogleHttpClientTest)

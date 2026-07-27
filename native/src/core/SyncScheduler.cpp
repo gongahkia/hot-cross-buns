@@ -65,6 +65,7 @@ struct SyncScheduler::State final {
 
   std::mutex mutex;
   std::condition_variable timerWake;
+  std::condition_variable workWake;
   SyncSchedulerExecutor executor;
   const Clock& clock;
   const std::size_t maximumMetrics;
@@ -72,6 +73,7 @@ struct SyncScheduler::State final {
   std::deque<SyncSchedulerMetric> metrics;
   std::uint64_t nextMetricSequence{1};
   std::thread periodicThread;
+  std::thread workerThread;
   std::chrono::milliseconds interval{0};
   bool online{true};
   bool running{false};
@@ -85,7 +87,9 @@ SyncScheduler::SyncScheduler(SyncSchedulerExecutor executor)
 SyncScheduler::SyncScheduler(SyncSchedulerExecutor executor,
                              const Clock& clock,
                              std::size_t maximumMetrics)
-    : state_(std::make_shared<State>(std::move(executor), clock, maximumMetrics)) {}
+    : state_(std::make_shared<State>(std::move(executor), clock, maximumMetrics)) {
+  state_->workerThread = std::thread([state = state_] { workerLoop(state); });
+}
 
 SyncScheduler::~SyncScheduler() { stop(); }
 
@@ -103,7 +107,7 @@ std::future<SyncSchedulerResult> SyncScheduler::request(SyncScheduleTrigger trig
   if (cancelled) {
     completion->set_value(cancelledError());
   } else {
-    startNext(state_);
+    state_->workWake.notify_one();
   }
   return future;
 }
@@ -117,7 +121,7 @@ void SyncScheduler::setOnline(bool online) {
     state_->online = online;
   }
   if (online) {
-    startNext(state_);
+    state_->workWake.notify_one();
   }
 }
 
@@ -166,6 +170,7 @@ bool SyncScheduler::startPeriodic(std::chrono::milliseconds interval) {
 void SyncScheduler::stop() {
   std::vector<WaitingSyncRequest> pending;
   std::thread periodicThread;
+  std::thread workerThread;
   {
     std::lock_guard<std::mutex> lock(state_->mutex);
     if (state_->stopped) {
@@ -175,12 +180,17 @@ void SyncScheduler::stop() {
     state_->periodic = false;
     pending = std::move(state_->pending);
     periodicThread = std::move(state_->periodicThread);
+    workerThread = std::move(state_->workerThread);
   }
   state_->timerWake.notify_all();
+  state_->workWake.notify_all();
   if (periodicThread.joinable()) {
     periodicThread.join();
   }
   complete(pending, SyncSchedulerResult(cancelledError()));
+  if (workerThread.joinable()) {
+    workerThread.join();
+  }
 }
 
 SyncSchedulerSnapshot SyncScheduler::snapshot() const {
@@ -205,65 +215,58 @@ void SyncScheduler::enqueuePeriodic(const std::shared_ptr<State>& state) {
     }
     state->pending.push_back({.trigger = SyncScheduleTrigger::Periodic, .completion = nullptr});
   }
-  startNext(state);
+  state->workWake.notify_one();
 }
 
-void SyncScheduler::startNext(const std::shared_ptr<State>& state) {
-  std::vector<WaitingSyncRequest> requests;
-  SyncSchedulerRequest request;
-  {
-    std::lock_guard<std::mutex> lock(state->mutex);
-    if (state->stopped || !state->online || state->running || state->pending.empty()) {
-      return;
+void SyncScheduler::workerLoop(const std::shared_ptr<State>& state) {
+  while (true) {
+    std::vector<WaitingSyncRequest> requests;
+    SyncSchedulerRequest request;
+    {
+      std::unique_lock<std::mutex> lock(state->mutex);
+      state->workWake.wait(lock, [state] {
+        return state->stopped || (state->online && !state->pending.empty());
+      });
+      if (state->stopped) {
+        return;
+      }
+      state->running = true;
+      requests = std::move(state->pending);
+      state->pending.clear();
+      request.triggers = coalescedTriggers(requests);
     }
-    state->running = true;
-    requests = std::move(state->pending);
-    state->pending.clear();
-    request.triggers = coalescedTriggers(requests);
-  }
-  try {
-    std::thread([state, requests = std::move(requests), request = std::move(request)]() mutable {
-      std::optional<AppError> error;
-      const MonotonicTimePoint startedAt = state->clock.monotonicNow();
-      try {
-        error = state->executor(request);
-      } catch (...) {
-        error = executionError();
-      }
-      std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-          state->clock.monotonicNow() - startedAt);
-      if (elapsed < std::chrono::milliseconds::zero()) {
-        elapsed = std::chrono::milliseconds::zero();
-      }
-      const SyncSchedulerResult result =
-          error.has_value() ? SyncSchedulerResult(*error)
-                            : SyncSchedulerResult(SyncSchedulerRun{.triggers = request.triggers});
-      {
-        std::lock_guard<std::mutex> lock(state->mutex);
-        state->metrics.push_back(
-            {.sequence = state->nextMetricSequence++,
-             .completedAt = state->clock.wallNow(),
-             .triggers = request.triggers,
-             .elapsed = elapsed,
-             .outcome = error.has_value() ? SyncSchedulerMetricOutcome::Failed
-                                          : SyncSchedulerMetricOutcome::Succeeded,
-             .errorCode =
-                 error.has_value() ? std::optional<AppErrorCode>(error->code()) : std::nullopt});
-        while (state->metrics.size() > state->maximumMetrics) {
-          state->metrics.pop_front();
-        }
-        state->running = false;
-      }
-      complete(requests, result);
-      startNext(state);
-    }).detach();
-  } catch (...) {
+    std::optional<AppError> error;
+    const MonotonicTimePoint startedAt = state->clock.monotonicNow();
+    try {
+      error = state->executor(request);
+    } catch (...) {
+      error = executionError();
+    }
+    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        state->clock.monotonicNow() - startedAt);
+    if (elapsed < std::chrono::milliseconds::zero()) {
+      elapsed = std::chrono::milliseconds::zero();
+    }
+    const SyncSchedulerResult result =
+        error.has_value() ? SyncSchedulerResult(*error)
+                          : SyncSchedulerResult(SyncSchedulerRun{.triggers = request.triggers});
     {
       std::lock_guard<std::mutex> lock(state->mutex);
+      state->metrics.push_back(
+          {.sequence = state->nextMetricSequence++,
+           .completedAt = state->clock.wallNow(),
+           .triggers = request.triggers,
+           .elapsed = elapsed,
+           .outcome = error.has_value() ? SyncSchedulerMetricOutcome::Failed
+                                        : SyncSchedulerMetricOutcome::Succeeded,
+           .errorCode =
+               error.has_value() ? std::optional<AppErrorCode>(error->code()) : std::nullopt});
+      while (state->metrics.size() > state->maximumMetrics) {
+        state->metrics.pop_front();
+      }
       state->running = false;
     }
-    complete(requests, SyncSchedulerResult(executionError()));
-    startNext(state);
+    complete(requests, result);
   }
 }
 

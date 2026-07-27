@@ -77,7 +77,7 @@ private:
   struct State;
 
   static void enqueuePeriodic(const std::shared_ptr<State>& state);
-  static void startNext(const std::shared_ptr<State>& state);
+  static void workerLoop(const std::shared_ptr<State>& state);
 
   std::shared_ptr<State> state_;
 };
