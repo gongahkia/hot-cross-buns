@@ -73,6 +73,9 @@ func _initialize() -> void:
 	assert("FPS" in main.debug_label.text and "PHYS ACTIVE" in main.debug_label.text and "TRIGGERS" in main.debug_label.text, "diagnostics incomplete")
 	main._input(f3)
 	assert(not main.debug_visible and not main.debug_panel.visible, "F3 did not hide diagnostics")
+	main.show_pause()
+	assert(main.menu.find_child("QuitGame", true, false) is Button, "pause menu quit button missing")
+	main.resume_run()
 
 	var combo := StyleRun.new()
 	combo.begin()
@@ -104,11 +107,28 @@ func _initialize() -> void:
 	assert(sandbox_player._sprint_dash_requested(false), "sprint did not request air dash")
 	Input.action_release("sprint")
 	sandbox_player.wall_jump_normal = Vector3(1.0, 0.0, 0.0)
+	sandbox_player.wall_jump_collider_id = 42
+	sandbox_player.last_wall_jump_collider_id = 0
 	sandbox_player.wall_jump_timer = 0.14
 	sandbox_player.velocity = Vector3(0.0, 0.0, 16.0)
 	sandbox_player._wall_jump()
 	assert(is_equal_approx(sandbox_player.velocity.y, 8.4), "wall jump vertical force missing")
 	assert(is_equal_approx(sandbox_player.velocity.x, 4.5), "wall jump separation force missing")
+	sandbox_player.velocity = Vector3.ZERO
+	sandbox_player._wall_jump()
+	assert(sandbox_player.velocity == Vector3.ZERO, "same wall allowed a repeat wall jump")
+	sandbox_player.wall_jump_collider_id = 43
+	sandbox_player._wall_jump()
+	assert(is_equal_approx(sandbox_player.velocity.y, 8.4), "different wall did not restore wall jump")
+	sandbox_player.is_slamming = false
+	sandbox_player.is_gliding = false
+	sandbox_player.is_grappling = false
+	sandbox_player.velocity.y = -20.0
+	sandbox_player._set_wall_slide(true, false)
+	assert(sandbox_player.is_wall_sliding, "wall slide did not activate")
+	assert(is_equal_approx(sandbox_player.velocity.y, -SpeedPlayer.WALL_SLIDE_FALL_SPEED), "wall slide speed cap missing")
+	sandbox_player._set_wall_slide(false, false)
+	assert(not sandbox_player.is_wall_sliding, "wall slide did not clear after leaving wall")
 	sandbox_player.can_double_jump = true
 	sandbox_player._double_jump()
 	assert(is_equal_approx(sandbox_player.velocity.y, 7.0), "double jump vertical force missing")

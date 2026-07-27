@@ -20,6 +20,7 @@ const WALL_JUMP_VELOCITY := 8.4
 const WALL_JUMP_SEPARATION_SPEED := 4.5
 const WALL_JUMP_MIN_SEPARATION := 1.8
 const WALL_JUMP_MAX_SEPARATION := 6.0
+const WALL_SLIDE_FALL_SPEED := 3.6
 const SLAM_SPEED := 38.0
 const DASH_TIME := 0.16
 const GLIDE_SPEED := 15.0
@@ -47,12 +48,15 @@ var coyote_timer := 0.0
 var jump_buffer := 0.0
 var wall_jump_timer := 0.0
 var wall_jump_normal := Vector3.ZERO
+var wall_jump_collider_id := 0
+var last_wall_jump_collider_id := 0
 var dash_timer := 0.0
 var is_sliding := false
 var is_sprinting := false
 var is_slamming := false
 var is_gliding := false
 var is_grappling := false
+var is_wall_sliding := false
 var grapple_anchor: Node3D
 var grapple_target := Vector3.ZERO
 var _slide_latched := false
@@ -92,9 +96,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not movement_enabled:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		yaw -= event.relative.x * Settings.mouse_sensitivity
-		var direction := -1.0 if Settings.invert_y else 1.0
-		pitch = clamp(pitch - event.relative.y * Settings.mouse_sensitivity * direction, deg_to_rad(-84.0), deg_to_rad(84.0))
+		var app_settings := _settings()
+		if app_settings == null:
+			return
+		var sensitivity := float(app_settings.get("mouse_sensitivity"))
+		yaw -= event.relative.x * sensitivity
+		var direction := -1.0 if bool(app_settings.get("invert_y")) else 1.0
+		pitch = clamp(pitch - event.relative.y * sensitivity * direction, deg_to_rad(-84.0), deg_to_rad(84.0))
 		rotation.y = yaw
 
 func _physics_process(delta: float) -> void:
@@ -110,6 +118,7 @@ func _physics_process(delta: float) -> void:
 		coyote_timer = COYOTE_TIME
 		can_double_jump = true
 		can_dash = true
+		last_wall_jump_collider_id = 0
 	else:
 		coyote_timer = max(coyote_timer - delta, 0.0)
 	if Input.is_action_just_pressed("grapple"):
@@ -167,9 +176,12 @@ func _physics_process(delta: float) -> void:
 	var impact_velocity := velocity.y
 	move_and_slide()
 	_cache_wall_contact()
+	_update_wall_slide()
 	if is_on_floor():
 		can_double_jump = true
 		is_gliding = false
+		is_wall_sliding = false
+		last_wall_jump_collider_id = 0
 	if not on_floor_before_move and is_on_floor():
 		if airborne_time >= 0.45:
 			traversal_action.emit("airtime", clampi(int(round(airborne_time * 85.0)), 45, 180))
@@ -194,9 +206,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 func _handle_slide(on_floor: bool) -> void:
-	if Settings.slide_toggle and Input.is_action_just_pressed("slide"):
+	var app_settings := _settings()
+	var slide_toggle := bool(app_settings.get("slide_toggle")) if app_settings else false
+	if slide_toggle and Input.is_action_just_pressed("slide"):
 		_slide_latched = not _slide_latched
-	if not Settings.slide_toggle:
+	if not slide_toggle:
 		_slide_latched = Input.is_action_pressed("slide")
 	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > 2.0
 	if is_sliding and not was_sliding:
@@ -229,6 +243,9 @@ func _try_grapple() -> bool:
 		return false
 	is_grappling = true
 	is_gliding = false
+	is_wall_sliding = false
+	wall_jump_collider_id = 0
+	last_wall_jump_collider_id = 0
 	is_sprinting = false
 	is_slamming = false
 	grapple_anchor = best_anchor
@@ -301,6 +318,8 @@ func tool_status() -> String:
 		return "TETHER"
 	if is_gliding:
 		return "GLIDE"
+	if is_wall_sliding:
+		return "WALL SLIDE"
 	return "E TETHER / F GLIDE"
 
 func style_multiplier_active() -> bool:
@@ -312,9 +331,13 @@ func apply_style_feedback(severity: String) -> void:
 		"peak": amount = 0.022
 		"major": amount = 0.012
 		_: amount = 0.005
-	if Settings.reduce_screen_effects:
+	var app_settings := _settings()
+	if app_settings and bool(app_settings.get("reduce_screen_effects")):
 		amount *= 0.2
 	_add_camera_shake(amount)
+
+func _settings() -> Node:
+	return get_node_or_null("/root/Settings")
 
 func reset_for_bail(spawn_position: Vector3) -> void:
 	global_position = spawn_position
@@ -329,6 +352,9 @@ func reset_for_bail(spawn_position: Vector3) -> void:
 	is_sprinting = false
 	is_slamming = false
 	is_gliding = false
+	is_wall_sliding = false
+	wall_jump_collider_id = 0
+	last_wall_jump_collider_id = 0
 	can_dash = true
 	can_double_jump = true
 	airborne_time = 0.0
@@ -369,15 +395,28 @@ func launch(force: float) -> void:
 	_add_camera_shake(0.026)
 
 func _cache_wall_contact() -> void:
+	wall_jump_collider_id = 0
 	if not is_on_wall():
 		return
-	var normal := get_wall_normal()
-	if absf(normal.y) > 0.35:
+	for collision_index in range(get_slide_collision_count()):
+		var collision := get_slide_collision(collision_index)
+		var normal := collision.get_normal()
+		if absf(normal.y) > 0.35:
+			continue
+		var collider := collision.get_collider()
+		var collider_id := collider.get_instance_id() if collider else 0
+		if collider_id != 0 and collider_id == last_wall_jump_collider_id:
+			continue
+		wall_jump_normal = normal.normalized()
+		wall_jump_collider_id = collider_id
+		wall_jump_timer = WALL_JUMP_GRACE
 		return
-	wall_jump_normal = normal.normalized()
-	wall_jump_timer = WALL_JUMP_GRACE
+	wall_jump_timer = 0.0
 
 func _wall_jump() -> void:
+	if wall_jump_collider_id != 0 and wall_jump_collider_id == last_wall_jump_collider_id:
+		wall_jump_timer = 0.0
+		return
 	velocity.y = WALL_JUMP_VELOCITY
 	var outward := Vector3(wall_jump_normal.x, 0.0, wall_jump_normal.z).normalized()
 	var planar_velocity := Vector3(velocity.x, 0.0, velocity.z)
@@ -389,12 +428,22 @@ func _wall_jump() -> void:
 	jump_buffer = 0.0
 	coyote_timer = 0.0
 	wall_jump_timer = 0.0
+	last_wall_jump_collider_id = wall_jump_collider_id
+	is_wall_sliding = false
 	can_dash = true
 	can_double_jump = true
 	traversal_action.emit("wall_jump", -1)
 	_add_camera_shake(0.032)
 	landing_offset = minf(landing_offset, -0.032)
 	Audio.play_sfx("jump")
+
+func _update_wall_slide() -> void:
+	_set_wall_slide(is_on_wall(), is_on_floor())
+
+func _set_wall_slide(has_wall_contact: bool, on_floor: bool) -> void:
+	is_wall_sliding = has_wall_contact and not on_floor and velocity.y < 0.0 and not is_slamming and not is_gliding and not is_grappling
+	if is_wall_sliding:
+		velocity.y = maxf(velocity.y, -WALL_SLIDE_FALL_SPEED)
 
 func _double_jump() -> void:
 	velocity.y = DOUBLE_JUMP_VELOCITY

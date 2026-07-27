@@ -830,6 +830,7 @@ func _refresh_debug_hud() -> void:
 	if player.is_on_floor(): flags.append("GROUND")
 	if player.is_sprinting: flags.append("SPRINT")
 	if player.is_sliding: flags.append("SLIDE")
+	if player.is_wall_sliding: flags.append("WALL SLIDE")
 	if player.is_slamming: flags.append("SLAM")
 	if player.is_gliding: flags.append("GLIDE")
 	if player.is_grappling: flags.append("TETHER")
@@ -1150,7 +1151,7 @@ func show_pause() -> void:
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_clear_menu()
-	var panel := _center_panel(Vector2(430.0, 360.0))
+	var panel := _center_panel(Vector2(430.0, 420.0))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
@@ -1170,6 +1171,10 @@ func show_pause() -> void:
 	var levels := _button("Sandbox select", 19)
 	levels.pressed.connect(show_level_select)
 	box.add_child(levels)
+	var quit := _button("Quit game", 19)
+	quit.name = "QuitGame"
+	quit.pressed.connect(func(): get_tree().quit())
+	box.add_child(quit)
 
 func resume_run() -> void:
 	get_tree().paused = false
