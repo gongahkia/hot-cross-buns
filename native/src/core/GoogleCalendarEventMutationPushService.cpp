@@ -293,41 +293,38 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
 }
 
 [[nodiscard]] std::optional<QJsonArray> canonicalRecurrence(const QJsonValue& value, bool creating) {
-  if (!value.isArray() || value.toArray().size() > 16) {
+  constexpr qsizetype kMaximumRecurrenceLineCount = 128;
+  constexpr qsizetype kMaximumRecurrenceLineLength = 4'096;
+  constexpr qsizetype kMaximumRecurrenceLength = 524'416;
+  if (!value.isArray() || value.toArray().size() > kMaximumRecurrenceLineCount) {
     return std::nullopt;
   }
   QJsonArray result;
+  qsizetype totalLength = 0;
   int ruleCount = 0;
   for (const QJsonValue& item : value.toArray()) {
     if (!item.isString()) {
       return std::nullopt;
     }
-    const QString line = item.toString().trimmed();
+    const QString line = item.toString();
     const qsizetype separator = line.indexOf(u':');
-    if (line.isEmpty() || line.size() > 1'024 || separator <= 0 || separator == line.size() - 1 ||
-        line.contains(QChar::Null)) {
+    if (line.isEmpty() || line != line.trimmed() || line.size() > kMaximumRecurrenceLineLength ||
+        separator <= 0 || separator == line.size() - 1 || line.contains(QChar::Null) ||
+        totalLength > kMaximumRecurrenceLength - line.size()) {
       return std::nullopt;
     }
+    totalLength += line.size();
     const QString name = line.first(separator);
     const QString property = name.section(u';', 0, 0);
     if (property != QStringLiteral("RRULE") && property != QStringLiteral("EXDATE") &&
         property != QStringLiteral("RDATE") && property != QStringLiteral("EXRULE")) {
       return std::nullopt;
     }
-    if ((property == QStringLiteral("RRULE") || property == QStringLiteral("EXRULE")) &&
-        name != property) {
-      return std::nullopt;
-    }
-    if ((property == QStringLiteral("EXDATE") || property == QStringLiteral("RDATE")) &&
-        !QRegularExpression(QStringLiteral(
-             "^(?:EXDATE|RDATE)(?:;(?:VALUE=DATE|TZID=(?:UTC|[A-Za-z_]+(?:/[A-Za-z_+-]+)+)))*$"))
-             .match(name)
-             .hasMatch()) {
-      return std::nullopt;
-    }
     if (property == QStringLiteral("RRULE")) {
       ++ruleCount;
-      if (!line.contains(QStringLiteral("FREQ="))) {
+      if (!QRegularExpression(QStringLiteral("(?:^|;)FREQ=[A-Z]+(?:;|$)"))
+               .match(line.sliced(separator + 1))
+               .hasMatch()) {
         return std::nullopt;
       }
     }

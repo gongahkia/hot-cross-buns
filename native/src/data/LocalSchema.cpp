@@ -819,6 +819,18 @@ CREATE INDEX local_calendar_instance_coverage_lookup
 ON local_calendar_instance_coverage(calendar_id, recurring_remote_id, range_start_at, range_end_at, expires_at);
 )";
 
+constexpr char calendarRecurrenceStorageSchemaSql[] = R"(
+CREATE TABLE local_calendar_event_recurrences (
+  event_id TEXT PRIMARY KEY REFERENCES local_calendar_events(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  recurrence_rule TEXT NOT NULL CHECK(length(recurrence_rule) BETWEEN 1 AND 524416)
+) STRICT, WITHOUT ROWID;
+
+INSERT INTO local_calendar_event_recurrences(event_id, recurrence_rule)
+SELECT id, recurrence_rule
+FROM local_calendar_events
+WHERE recurrence_rule IS NOT NULL;
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -933,8 +945,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite calendar-instance cache schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 19>& migrations() {
-  static const std::array<SqliteMigration, 19> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarRecurrenceStorageSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     calendarRecurrenceStorageSchemaSql,
+                     QStringLiteral("SQLite calendar-recurrence storage schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 20>& migrations() {
+  static const std::array<SqliteMigration, 20> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -999,6 +1017,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("add calendar instance cache"),
        checksum(calendarInstanceCacheSchemaSql),
        applyCalendarInstanceCacheSchema},
+      {20,
+       QStringLiteral("store full calendar recurrence lines"),
+       checksum(calendarRecurrenceStorageSchemaSql),
+       applyCalendarRecurrenceStorageSchema},
   }};
   return catalogue;
 }

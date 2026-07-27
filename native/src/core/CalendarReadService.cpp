@@ -379,7 +379,8 @@ EXISTS (
       "events.deleted_at IS NULL AND calendars.deleted_at IS NULL AND ("
       "(events.is_instance_cache = 0 AND ("
       "(events.status != 'cancelled' AND events.start_at < ?1 AND events.end_at > ?2) "
-      "OR (events.recurrence_rule IS NOT NULL AND events.start_at < ?1) "
+      "OR (COALESCE(recurrences.recurrence_rule, events.recurrence_rule) IS NOT NULL "
+      "AND events.start_at < ?1) "
       "OR (events.status = 'cancelled' AND events.recurring_remote_id IS NOT NULL "
       "AND events.original_start_at >= ?2 AND events.original_start_at < ?1))) "
       "OR (events.is_instance_cache = 1 AND %1 AND ("
@@ -441,13 +442,14 @@ readStoredCalendarEvents(SqliteConnection& connection,
                      "events.recurring_remote_id, events.original_start_at, events.status, "
                      "events.title, events.description, events.location, events.start_at, "
                      "events.start_time_zone, events.end_at, events.end_time_zone, "
-                     "events.is_all_day, events.recurrence_rule, events.color_id, "
+                     "events.is_all_day, COALESCE(recurrences.recurrence_rule, events.recurrence_rule), events.color_id, "
                      "events.transparency, events.visibility, events.time_zone, events.hcb_kind, "
                      "events.event_type, events.attendee_emails_json, events.reminders_json, "
                      "events.reminders_use_default, events.etag, events.sequence, "
                      "events.remote_updated_at, events.updated_at, %1 "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
+                     "LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id "
                      "WHERE %2 "
                      "ORDER BY events.start_at ASC, events.end_at ASC, events.id ASC "
                      "LIMIT ?%3 OFFSET ?%4")
@@ -504,6 +506,7 @@ readStoredCalendarEvents(SqliteConnection& connection,
   const QByteArray countSql =
       QStringLiteral("SELECT COUNT(*) FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
+                     "LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id "
                      "WHERE %1")
           .arg(filter)
           .toUtf8();
@@ -548,7 +551,8 @@ readUncachedRecurringInstances(SqliteConnection& connection,
   }
   QString filter = QStringLiteral(
       "events.deleted_at IS NULL AND calendars.deleted_at IS NULL "
-      "AND events.is_instance_cache = 0 AND events.recurrence_rule IS NOT NULL "
+      "AND events.is_instance_cache = 0 "
+      "AND COALESCE(recurrences.recurrence_rule, events.recurrence_rule) IS NOT NULL "
       "AND events.remote_id IS NOT NULL AND events.recurring_remote_id IS NULL "
       "AND NOT EXISTS (SELECT 1 FROM local_calendar_instance_coverage AS coverage "
       "WHERE coverage.calendar_id = events.calendar_id "
@@ -567,6 +571,7 @@ readUncachedRecurringInstances(SqliteConnection& connection,
       QStringLiteral("SELECT events.calendar_id, calendars.remote_id, events.remote_id "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
+                     "LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id "
                      "WHERE %1 ORDER BY events.updated_at DESC, events.id ASC LIMIT ?%2")
           .arg(filter)
           .arg(limitIndex)

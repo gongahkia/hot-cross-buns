@@ -65,9 +65,9 @@ HcbDialog {
     function recurrenceSummary() {
         const match = /(?:^|\n)RRULE:([^\n]+)/.exec(recurrenceRuleField.text.trim())
         if (match === null) return ""
-        const frequency = /(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.exec(match[1])
+        const frequency = /(?:^|;)FREQ=([A-Z]+)(?:;|$)/.exec(match[1])
         const interval = /(?:^|;)INTERVAL=(\d+)(?:;|$)/.exec(match[1])
-        if (frequency === null) return "Rule will be validated before creation"
+        if (frequency === null) return "Google will validate this recurrence rule"
         const unit = frequency[1].toLowerCase().slice(0, -2)
         return interval !== null && interval[1] !== "1" ? "Repeats every " + interval[1] + " " + unit + "s"
                                                          : "Repeats " + unit + "ly"
@@ -103,6 +103,7 @@ HcbDialog {
         defaultRemindersCheck.checked = true
         reminderField.clear()
         recurrenceRuleField.clear()
+        recurrencePresetPicker.currentIndex = 0
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
         open()
     }
@@ -114,7 +115,7 @@ HcbDialog {
                                           colorIdField.text.trim(), availableCheck.checked,
                                           visibilityPicker.currentValue, attendeeValues(),
                                           defaultRemindersCheck.checked, reminderValues(),
-                                          recurrenceRuleField.text.trim())
+                                          recurrenceRuleField.text)
 
     TextField {
         id: titleField
@@ -184,13 +185,32 @@ HcbDialog {
         selectByMouse: true
     }
 
-    TextField {
+    ComboBox {
+        id: recurrencePresetPicker
+        Layout.fillWidth: true
+        model: [{ text: "Custom / none", value: "" },
+                { text: "Daily", value: "RRULE:FREQ=DAILY" },
+                { text: "Weekdays", value: "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" },
+                { text: "Weekly", value: "RRULE:FREQ=WEEKLY" },
+                { text: "Monthly", value: "RRULE:FREQ=MONTHLY" },
+                { text: "Yearly", value: "RRULE:FREQ=YEARLY" }]
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Recurrence preset"
+        onActivated: {
+            if (currentValue.length > 0) recurrenceRuleField.text = currentValue
+        }
+    }
+
+    TextArea {
         id: recurrenceRuleField
         Layout.fillWidth: true
+        Layout.preferredHeight: 84
         placeholderText: "Repeat rule, e.g. RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"
         Accessible.name: "Event recurrence rule"
-        Accessible.description: "Optional Google Calendar RFC 5545 recurrence rule"
+        Accessible.description: "Optional Google Calendar RFC 5545 lines; presets replace this text"
         selectByMouse: true
+        wrapMode: TextEdit.Wrap
     }
 
     Label {

@@ -22,6 +22,7 @@ class CalendarReadServiceTest final : public QObject {
 private slots:
   void readsCalendarPagesAndOverlappingEventRanges();
   void includesRecurringMastersAndCancelledInstancesForProjection();
+  void readsOnlyFreshGoogleResolvedInstanceCaches();
   void rejectsInvalidReadRequests();
 };
 
@@ -238,6 +239,107 @@ void CalendarReadServiceTest::includesRecurringMastersAndCancelledInstancesForPr
   QCOMPARE(cancelled->status, QStringLiteral("cancelled"));
   QCOMPARE(cancelled->originalStartAt,
            std::optional<QString>(QStringLiteral("2026-07-26T09:00:00.000Z")));
+}
+
+void CalendarReadServiceTest::readsOnlyFreshGoogleResolvedInstanceCaches() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::CalendarReadService service(*databasePath);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  execute(connection.nativeHandle(),
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, start_at, "
+          "end_at, is_all_day, recurrence_rule, updated_at, deleted_at) VALUES "
+          "('series', 'calendar-work', 'remote-series', 'confirmed', 'Series', "
+          "'2024-01-01T09:00:00.000Z', '2024-01-01T10:00:00.000Z', 0, "
+          "'RRULE:FREQ=YEARLY;BYMONTH=7;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1', "
+          "'2026-07-25T00:00:00Z', NULL), "
+          "('series-instance', 'calendar-work', 'remote-instance', 'confirmed', 'Resolved instance', "
+          "'2026-07-31T09:00:00.000Z', '2026-07-31T10:00:00.000Z', 0, NULL, "
+          "'2026-07-25T00:00:00Z', NULL)");
+  execute(connection.nativeHandle(),
+          "UPDATE local_calendar_events SET recurring_remote_id = 'remote-series', "
+          "original_start_at = '2026-07-31T09:00:00.000Z', is_instance_cache = 1 "
+          "WHERE id = 'series-instance'");
+  execute(connection.nativeHandle(),
+          "INSERT INTO local_calendar_instance_coverage "
+          "(calendar_id, recurring_remote_id, range_start_at, range_end_at, fetched_at, expires_at) "
+          "VALUES ('calendar-work', 'remote-series', '2026-07-25T00:00:00.000Z', "
+          "'2026-08-05T00:00:00.000Z', '2026-07-25T00:00:00.000Z', "
+          "'2099-01-01T00:00:00.000Z')");
+  const hcb::CalendarEventRangeReadRequest range{
+      .calendarIds = {QStringLiteral("calendar-work")},
+      .startAt = QStringLiteral("2026-07-25T00:00:00.000Z"),
+      .endAt = QStringLiteral("2026-08-01T00:00:00.000Z")};
+  std::future<hcb::CalendarEventPageResult> freshFuture = service.listEvents(range);
+  const hcb::CalendarEventPageResult freshResult = awaitResult(freshFuture);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventPage>(freshResult));
+  if (!std::holds_alternative<hcb::CalendarEventPage>(freshResult)) {
+    return;
+  }
+  const hcb::CalendarEventPage& freshPage = std::get<hcb::CalendarEventPage>(freshResult);
+  const auto master = std::find_if(
+      freshPage.items.cbegin(), freshPage.items.cend(), [](const hcb::CalendarEventSummary& event) {
+        return event.id == QStringLiteral("series");
+      });
+  QVERIFY(master != freshPage.items.cend());
+  if (master == freshPage.items.cend()) {
+    return;
+  }
+  QVERIFY(master->instanceRangeCached);
+  QVERIFY(std::any_of(
+      freshPage.items.cbegin(), freshPage.items.cend(), [](const hcb::CalendarEventSummary& event) {
+        return event.id == QStringLiteral("series-instance");
+      }));
+
+  execute(connection.nativeHandle(), "DELETE FROM local_calendar_instance_coverage");
+  std::future<hcb::CalendarEventPageResult> staleFuture = service.listEvents(range);
+  const hcb::CalendarEventPageResult staleResult = awaitResult(staleFuture);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventPage>(staleResult));
+  if (!std::holds_alternative<hcb::CalendarEventPage>(staleResult)) {
+    return;
+  }
+  const hcb::CalendarEventPage& stalePage = std::get<hcb::CalendarEventPage>(staleResult);
+  const auto staleMaster = std::find_if(
+      stalePage.items.cbegin(), stalePage.items.cend(), [](const hcb::CalendarEventSummary& event) {
+        return event.id == QStringLiteral("series");
+      });
+  QVERIFY(staleMaster != stalePage.items.cend());
+  if (staleMaster == stalePage.items.cend()) {
+    return;
+  }
+  QVERIFY(!staleMaster->instanceRangeCached);
+  QVERIFY(!std::any_of(
+      stalePage.items.cbegin(), stalePage.items.cend(), [](const hcb::CalendarEventSummary& event) {
+        return event.id == QStringLiteral("series-instance");
+      }));
+
+  std::future<hcb::CalendarRecurringInstanceCacheTargetsResult> targetsFuture =
+      service.listUncachedRecurringInstances({.calendarIds = {QStringLiteral("calendar-work")},
+                                              .startAt = range.startAt,
+                                              .endAt = range.endAt});
+  const hcb::CalendarRecurringInstanceCacheTargetsResult targetsResult = awaitResult(targetsFuture);
+  QVERIFY(std::holds_alternative<QList<hcb::CalendarRecurringInstanceCacheTarget>>(targetsResult));
+  if (!std::holds_alternative<QList<hcb::CalendarRecurringInstanceCacheTarget>>(targetsResult)) {
+    return;
+  }
+  const QList<hcb::CalendarRecurringInstanceCacheTarget>& targets =
+      std::get<QList<hcb::CalendarRecurringInstanceCacheTarget>>(targetsResult);
+  QCOMPARE(targets.size(), 1);
+  QCOMPARE(targets.constFirst().calendarRemoteId, QStringLiteral("work"));
+  QCOMPARE(targets.constFirst().recurringRemoteId, QStringLiteral("remote-series"));
 }
 
 void CalendarReadServiceTest::rejectsInvalidReadRequests() {

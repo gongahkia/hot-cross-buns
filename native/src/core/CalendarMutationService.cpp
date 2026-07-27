@@ -172,18 +172,22 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   if (!recurrenceRule.has_value()) {
     return std::optional<QString>{};
   }
-  constexpr qsizetype kMaximumRecurrenceLength = 4'096;
+  constexpr qsizetype kMaximumRecurrenceLength = 524'416;
+  constexpr qsizetype kMaximumRecurrenceLineLength = 4'096;
+  constexpr qsizetype kMaximumRecurrenceLineCount = 128;
   if (recurrenceRule->isEmpty() || recurrenceRule->size() > kMaximumRecurrenceLength ||
       recurrenceRule->contains(QChar::Null)) {
     return std::nullopt;
   }
-  QStringList lines;
+  const QStringList lines = recurrenceRule->split(u'\n', Qt::KeepEmptyParts);
+  if (lines.size() > kMaximumRecurrenceLineCount) {
+    return std::nullopt;
+  }
   int ruleCount = 0;
-  for (const QString& rawLine : recurrenceRule->split(u'\n', Qt::SkipEmptyParts)) {
-    const QString line = rawLine.trimmed();
+  for (const QString& line : lines) {
     const qsizetype separator = line.indexOf(u':');
     if (line.isEmpty() || separator <= 0 || separator == line.size() - 1 ||
-        line.size() > 1'024) {
+        line != line.trimmed() || line.size() > kMaximumRecurrenceLineLength) {
       return std::nullopt;
     }
     const QString name = line.first(separator);
@@ -192,66 +196,16 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
         property != QStringLiteral("RDATE") && property != QStringLiteral("EXRULE")) {
       return std::nullopt;
     }
-    if ((property == QStringLiteral("RRULE") || property == QStringLiteral("EXRULE")) &&
-        name != property) {
-      return std::nullopt;
-    }
-    if ((property == QStringLiteral("EXDATE") || property == QStringLiteral("RDATE")) &&
-        !QRegularExpression(QStringLiteral(
-             "^(?:EXDATE|RDATE)(?:;(?:VALUE=DATE|TZID=(?:UTC|[A-Za-z_]+(?:/[A-Za-z_+-]+)+)))*$"))
-             .match(name)
-             .hasMatch()) {
-      return std::nullopt;
-    }
     if (property == QStringLiteral("RRULE")) {
       ++ruleCount;
-      QSet<QString> fields;
-      bool hasFrequency = false;
-      bool hasCount = false;
-      bool hasUntil = false;
-      for (const QString& part : line.sliced(separator + 1).split(u';', Qt::SkipEmptyParts)) {
-        const qsizetype fieldSeparator = part.indexOf(u'=');
-        if (fieldSeparator <= 0 || fieldSeparator == part.size() - 1) {
-          return std::nullopt;
-        }
-        const QString key = part.first(fieldSeparator);
-        const QString value = part.sliced(fieldSeparator + 1);
-        if (!QRegularExpression(QStringLiteral("^[A-Z]+$")).match(key).hasMatch() ||
-            value.contains(QChar::Null) || fields.contains(key)) {
-          return std::nullopt;
-        }
-        fields.insert(key);
-        if (key == QStringLiteral("FREQ")) {
-          hasFrequency = value == QStringLiteral("DAILY") || value == QStringLiteral("WEEKLY") ||
-                         value == QStringLiteral("MONTHLY") || value == QStringLiteral("YEARLY");
-          if (!hasFrequency) {
-            return std::nullopt;
-          }
-        } else if (key == QStringLiteral("INTERVAL") || key == QStringLiteral("COUNT")) {
-          bool converted = false;
-          const int number = value.toInt(&converted);
-          if (!converted || number < 1 || number > 366) {
-            return std::nullopt;
-          }
-          hasCount = hasCount || key == QStringLiteral("COUNT");
-        } else if (key == QStringLiteral("UNTIL")) {
-          const bool date = QRegularExpression(QStringLiteral("^\\d{8}$")).match(value).hasMatch();
-          const bool dateTime = QRegularExpression(QStringLiteral("^\\d{8}T\\d{6}Z$"))
-                                    .match(value)
-                                    .hasMatch();
-          if (!date && !dateTime) {
-            return std::nullopt;
-          }
-          hasUntil = true;
-        }
-      }
-      if (!hasFrequency || (hasCount && hasUntil)) {
+      if (!QRegularExpression(QStringLiteral("(?:^|;)FREQ=[A-Z]+(?:;|$)"))
+               .match(line.sliced(separator + 1))
+               .hasMatch()) {
         return std::nullopt;
       }
     }
-    lines.append(line);
   }
-  return ruleCount == 1 ? std::optional<QString>(lines.join(u'\n')) : std::nullopt;
+  return ruleCount == 1 ? recurrenceRule : std::nullopt;
 }
 
 [[nodiscard]] QJsonArray recurrenceLines(const std::optional<QString>& recurrenceRule) {
@@ -404,6 +358,46 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
   return std::nullopt;
 }
 
+[[nodiscard]] std::optional<AppError>
+writeStoredRecurrence(sqlite3* handle,
+                      const QString& eventId,
+                      const std::optional<QString>& recurrenceRule) {
+  constexpr char insertSql[] = R"(
+INSERT INTO local_calendar_event_recurrences(event_id, recurrence_rule) VALUES (?1, ?2)
+ON CONFLICT(event_id) DO UPDATE SET recurrence_rule = excluded.recurrence_rule
+)";
+  constexpr char deleteSql[] = R"(
+DELETE FROM local_calendar_event_recurrences WHERE event_id = ?1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepared = sqlite3_prepare_v3(handle,
+                                          recurrenceRule.has_value() ? insertSql : deleteSql,
+                                          -1,
+                                          SQLITE_PREPARE_PERSISTENT,
+                                          &statement,
+                                          nullptr);
+  if (prepared != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar recurrence preparation failed (%1)"), prepared);
+  }
+  const std::optional<AppError> eventIdError = bindText(statement, 1, eventId);
+  const std::optional<AppError> recurrenceError =
+      recurrenceRule.has_value() ? bindText(statement, 2, *recurrenceRule) : std::nullopt;
+  if (eventIdError.has_value() || recurrenceError.has_value()) {
+    sqlite3_finalize(statement);
+    return eventIdError.has_value() ? eventIdError : recurrenceError;
+  }
+  const int stepped = sqlite3_step(statement);
+  const int finalized = sqlite3_finalize(statement);
+  if (stepped != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar recurrence write failed (%1)"), stepped);
+  }
+  return finalized == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite calendar recurrence finalization failed (%1)"), finalized));
+}
+
 [[nodiscard]] std::optional<QString> optionalText(sqlite3_stmt* statement, int index) {
   if (sqlite3_column_type(statement, index) == SQLITE_NULL) {
     return std::nullopt;
@@ -429,13 +423,15 @@ readEventContext(SqliteConnection& connection, const QString& eventId) {
 SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id,
        calendars.access_role, events.remote_id, events.etag, events.title, events.description,
        events.location, events.start_at, events.start_time_zone, events.end_at,
-       events.end_time_zone, events.is_all_day, events.recurrence_rule, events.recurring_remote_id,
+       events.end_time_zone, events.is_all_day,
+       COALESCE(recurrences.recurrence_rule, events.recurrence_rule), events.recurring_remote_id,
        events.original_start_at, events.status, events.color_id, events.transparency, events.visibility,
        events.event_type
        , events.attendee_emails_json, events.attendee_details_json, events.reminders_json,
        events.reminders_use_default
 FROM local_calendar_events AS events
 INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
+LEFT JOIN local_calendar_event_recurrences AS recurrences ON recurrences.event_id = events.id
 WHERE events.id = ?1 AND events.deleted_at IS NULL AND calendars.deleted_at IS NULL
 LIMIT 1
 )";
@@ -1266,7 +1262,7 @@ WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
                    bindText(statement, 9, input.endAt),
                    bindOptionalText(statement, 10, input.endTimeZone),
                    bindInteger(statement, 11, input.allDay ? 1 : 0),
-                   bindOptionalText(statement, 12, input.recurrenceRule),
+                   bindOptionalText(statement, 12, std::optional<QString>{}),
                    bindOptionalText(statement, 13, input.colorId),
                    bindOptionalText(statement, 14, input.transparency),
                    bindOptionalText(statement, 15, input.visibility),
@@ -1292,6 +1288,13 @@ WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
   if (changedRows != 1) {
     return validationError(QStringLiteral("Calendar is unavailable for event creation"));
   }
+  if (input.recurrenceRule.has_value()) {
+    if (const std::optional<AppError> error =
+            writeStoredRecurrence(handle, eventId, input.recurrenceRule);
+        error.has_value()) {
+      return *error;
+    }
+  }
   return CalendarEventMutationReceipt{.eventId = eventId, .updatedAt = updatedAt};
 }
 
@@ -1313,7 +1316,7 @@ SET calendar_id = CASE WHEN ?2 = 1 THEN ?3 ELSE calendar_id END,
     start_at = CASE WHEN ?10 = 1 THEN ?11 ELSE start_at END,
     end_at = CASE WHEN ?12 = 1 THEN ?13 ELSE end_at END,
     is_all_day = CASE WHEN ?14 = 1 THEN ?15 ELSE is_all_day END,
-    recurrence_rule = CASE WHEN ?16 = 1 THEN ?17 ELSE recurrence_rule END,
+    recurrence_rule = CASE WHEN ?16 = 1 THEN NULL ELSE recurrence_rule END,
     start_time_zone = CASE WHEN ?18 = 1 THEN ?19 ELSE start_time_zone END,
     end_time_zone = CASE WHEN ?20 = 1 THEN ?21 ELSE end_time_zone END,
     color_id = CASE WHEN ?22 = 1 THEN ?23 ELSE color_id END,
@@ -1360,8 +1363,6 @@ WHERE id = ?1
       input.endTimeZone.has_value() ? *input.endTimeZone : std::nullopt;
   const std::optional<QString> colorId =
       input.colorId.has_value() ? *input.colorId : std::nullopt;
-  const std::optional<QString> recurrenceRule =
-      input.recurrenceRule.has_value() ? *input.recurrenceRule : std::nullopt;
   const QList<QString> attendees = input.attendeeEmails.value_or(QList<QString>());
   const QJsonArray details = input.attendeeEmails.has_value()
                                  ? attendeeDetails(attendees, before.attendeeDetailsJson)
@@ -1389,7 +1390,7 @@ WHERE id = ?1
                    bindInteger(statement, 14, input.allDay.has_value()),
                    bindInteger(statement, 15, input.allDay.value_or(false) ? 1 : 0),
                    bindInteger(statement, 16, input.recurrenceRule.has_value()),
-                   bindOptionalText(statement, 17, recurrenceRule),
+                   bindOptionalText(statement, 17, std::optional<QString>{}),
                    bindInteger(statement, 18, input.startTimeZone.has_value()),
                    bindOptionalText(statement, 19, startTimeZone),
                    bindInteger(statement, 20, input.endTimeZone.has_value()),
@@ -1424,6 +1425,14 @@ WHERE id = ?1
   }
   if (changedRows != 1) {
     return validationError(QStringLiteral("Calendar event is unavailable for update"));
+  }
+  if (input.recurrenceRule.has_value()) {
+    const std::optional<QString>& recurrence = *input.recurrenceRule;
+    if (const std::optional<AppError> error =
+            writeStoredRecurrence(handle, input.eventId, recurrence);
+        error.has_value()) {
+      return *error;
+    }
   }
   return CalendarEventMutationReceipt{.eventId = input.eventId, .updatedAt = updatedAt};
 }

@@ -26,6 +26,7 @@ private slots:
   void preservesQueuedApplyingAndRetryableRowsDuringPull();
   void appliesDeltasWithoutDeletingUnreturnedRows();
   void recordsManagedRecurrencePullDiagnostics();
+  void cachesResolvedInstancesAndInvalidatesChangedSeries();
 };
 
 namespace {
@@ -192,6 +193,81 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
   const hcb::GoogleMirrorWriteResult emptyTaskResult = awaitResult(emptyTasks);
   QVERIFY(std::holds_alternative<std::monostate>(emptyTaskResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_task_lists WHERE deleted_at IS NULL"), 0);
+}
+
+void GoogleMirrorStoreTest::cachesResolvedInstancesAndInvalidatesChangedSeries() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::SystemClock clock;
+  hcb::GoogleMirrorStore store(*databasePath, clock);
+  verifyReady(store);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('google', 'google', 'connected', '[]', '[]', '2026-07-26T00:00:00Z')");
+  std::future<hcb::GoogleMirrorWriteResult> initial =
+      store.replaceCalendars(QStringLiteral("google"),
+                             {{.id = QStringLiteral("primary"),
+                               .title = QStringLiteral("Primary"),
+                               .accessRole = hcb::GoogleCalendarAccessRole::Owner}},
+                             {{.id = QStringLiteral("series"),
+                               .calendarId = QStringLiteral("primary"),
+                               .status = hcb::GoogleCalendarEventStatus::Confirmed,
+                               .title = QStringLiteral("Daily"),
+                               .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+                               .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
+                               .allDay = false,
+                               .recurrence = {QStringLiteral("RRULE:FREQ=DAILY")}}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(initial)));
+  std::future<hcb::GoogleMirrorWriteResult> cached = store.cacheCalendarInstances(
+      QStringLiteral("google"),
+      QStringLiteral("primary"),
+      QStringLiteral("series"),
+      QStringLiteral("2026-07-27T00:00:00.000Z"),
+      QStringLiteral("2026-08-03T00:00:00.000Z"),
+      {{.id = QStringLiteral("series_20260727T090000Z"),
+        .calendarId = QStringLiteral("primary"),
+        .status = hcb::GoogleCalendarEventStatus::Confirmed,
+        .title = QStringLiteral("Daily"),
+        .startAt = QStringLiteral("2026-07-27T09:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-27T10:00:00.000Z"),
+        .allDay = false,
+        .recurringEventId = QStringLiteral("series"),
+        .originalStartAt = QStringLiteral("2026-07-27T09:00:00.000Z")}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(cached)));
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_instance_coverage"), 1);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE is_instance_cache = 1"),
+           1);
+  std::future<hcb::GoogleMirrorWriteResult> changed = store.mergeCalendarEvents(
+      QStringLiteral("google"),
+      QStringLiteral("primary"),
+      {{.id = QStringLiteral("series"),
+        .calendarId = QStringLiteral("primary"),
+        .status = hcb::GoogleCalendarEventStatus::Confirmed,
+        .title = QStringLiteral("Changed daily"),
+        .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
+        .allDay = false,
+        .recurrence = {QStringLiteral("RRULE:FREQ=DAILY;INTERVAL=2")}}},
+      false);
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(changed)));
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_instance_coverage"), 0);
+  QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE is_instance_cache = 1"),
+           0);
 }
 
 void GoogleMirrorStoreTest::preservesQueuedApplyingAndRetryableRowsDuringPull() {

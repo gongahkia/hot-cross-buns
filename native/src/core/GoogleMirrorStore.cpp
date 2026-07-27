@@ -526,6 +526,33 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
       {textValue(localCalendarId)});
 }
 
+[[nodiscard]] std::optional<AppError>
+storeEventRecurrence(sqlite3* handle,
+                     const QString& localEventId,
+                     const std::optional<QString>& recurrenceRule) {
+  if (!recurrenceRule.has_value()) {
+    return execute(
+        handle,
+        "DELETE FROM local_calendar_event_recurrences WHERE event_id = ?1 AND NOT EXISTS "
+        "(SELECT 1 FROM local_pending_mutations AS mutations "
+        "WHERE mutations.resource_type = 'event' "
+        "AND mutations.resource_id = local_calendar_event_recurrences.event_id "
+        "AND (mutations.status IN ('pending', 'applying') "
+        "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+        {textValue(localEventId)});
+  }
+  return execute(
+      handle,
+      "INSERT INTO local_calendar_event_recurrences(event_id, recurrence_rule) VALUES (?1, ?2) "
+      "ON CONFLICT(event_id) DO UPDATE SET recurrence_rule = excluded.recurrence_rule WHERE "
+      "NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'event' "
+      "AND mutations.resource_id = local_calendar_event_recurrences.event_id "
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      {textValue(localEventId), textValue(*recurrenceRule)});
+}
+
 [[nodiscard]] std::optional<AppError> upsertEvent(sqlite3* handle,
                                                   const QString& accountId,
                                                   const GoogleCalendarEventMirror& event,
@@ -540,7 +567,7 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
   const QString startAt = event.startAt.value_or(now);
   const QString endAt = event.endAt.value_or(now);
   const QString recurrence = event.recurrence.join(u'\n');
-  if (recurrence.size() > 4'096) {
+  if (recurrence.size() > 524'416) {
     return validationError(QStringLiteral("Google calendar recurrence is too large"));
   }
   const std::optional<QString> deletedAt = cancelled ? std::optional<QString>(now) : std::nullopt;
@@ -567,7 +594,12 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
       QString::fromUtf8(QJsonDocument(reminderMinutes).toJson(QJsonDocument::Compact));
   const QJsonValue useDefault = event.reminders.value(QStringLiteral("useDefault"));
   const bool remindersUseDefault = !useDefault.isBool() || useDefault.toBool();
-  return execute(
+  const QString localEventId = eventId(accountId, event.calendarId, event.id);
+  const std::optional<QString> storedRecurrence =
+      recurrence.isEmpty() ? std::nullopt : std::optional<QString>(recurrence);
+  const std::optional<QString> legacyRecurrence = recurrence.isEmpty() ? std::nullopt
+      : recurrence.size() <= 4'096 ? std::optional<QString>(recurrence) : std::nullopt;
+  if (const std::optional<AppError> error = execute(
       handle,
       "INSERT INTO local_calendar_events (id, calendar_id, remote_id, recurring_remote_id, "
       "original_start_at, status, title, description, location, start_at, start_time_zone, end_at, "
@@ -629,7 +661,7 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
       "OR local_calendar_events.sequence IS NOT excluded.sequence "
       "OR local_calendar_events.remote_updated_at IS NOT excluded.remote_updated_at "
       "OR local_calendar_events.deleted_at IS NOT excluded.deleted_at)",
-      {textValue(eventId(accountId, event.calendarId, event.id)),
+      {textValue(localEventId),
        textValue(calendarId(accountId, event.calendarId)),
        textValue(event.id),
        optionalTextValue(event.recurringEventId),
@@ -643,7 +675,7 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
        textValue(endAt),
        optionalTextValue(event.endTimeZone),
        integerValue(event.allDay ? 1 : 0),
-       recurrence.isEmpty() ? nullValue() : textValue(recurrence),
+       optionalTextValue(legacyRecurrence),
        integerValue(isInstanceCache ? 1 : 0),
        optionalTextValue(event.colorId),
        optionalTextValue(event.transparency),
@@ -660,6 +692,10 @@ invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
        optionalTextValue(event.updatedAt),
        textValue(now),
        optionalTextValue(deletedAt)});
+      error.has_value()) {
+    return error;
+  }
+  return storeEventRecurrence(handle, localEventId, storedRecurrence);
 }
 
 [[nodiscard]] GoogleMirrorWriteResult
