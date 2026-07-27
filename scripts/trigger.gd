@@ -3,8 +3,8 @@ extends Area3D
 
 enum TriggerType { COLLECTIBLE, BOOST, LAUNCH, COMBO_GAP, RESET }
 
-var trigger_type: TriggerType
-var payload: Variant
+@export var trigger_type: TriggerType
+@export var payload: Variant
 var consumed := false
 var callback: Callable
 
