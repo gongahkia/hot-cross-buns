@@ -378,6 +378,30 @@ void CalendarMutationServiceTest::preservesAdvancedGoogleRecurrenceLines() {
                .value(QStringLiteral("recurrence"))
                .toArray(),
            expected);
+
+  std::future<hcb::CalendarEventMutationResult> rdateOnly = service.create(
+      {.calendarId = QStringLiteral("calendar-work"),
+       .title = QStringLiteral("RDATE-only recurrence"),
+       .startAt = QStringLiteral("2026-12-25T09:30:00+08:00"),
+       .endAt = QStringLiteral("2026-12-25T10:30:00+08:00"),
+       .recurrenceRule = QStringLiteral("RDATE;TZID=Asia/Singapore:20261225T093000")});
+  const hcb::CalendarEventMutationResult rdateOnlyResult = awaitResult(rdateOnly);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(rdateOnlyResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(rdateOnlyResult)) {
+    return;
+  }
+  const hcb::CalendarEventMutationReceipt rdateOnlyReceipt =
+      std::get<hcb::CalendarEventMutationReceipt>(rdateOnlyResult);
+  const QList<PendingMutationSnapshot> rdateOnlyMutations =
+      readPendingEventMutations(connection.nativeHandle(), rdateOnlyReceipt.eventId);
+  QCOMPARE(rdateOnlyMutations.size(), 1);
+  if (rdateOnlyMutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(rdateOnlyMutations.constFirst().payload.value(QStringLiteral("event")).toObject()
+               .value(QStringLiteral("recurrence"))
+               .toArray(),
+           QJsonArray{QStringLiteral("RDATE;TZID=Asia/Singapore:20261225T093000")});
 }
 
 void CalendarMutationServiceTest::journalsRemoteUpdatesMovesAndCreateReconciliation() {

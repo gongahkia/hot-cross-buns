@@ -2,6 +2,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
@@ -27,6 +28,7 @@ private slots:
   void appliesDeltasWithoutDeletingUnreturnedRows();
   void recordsManagedRecurrencePullDiagnostics();
   void cachesResolvedInstancesAndInvalidatesChangedSeries();
+  void storesFullGoogleRecurrenceOutsideLegacyColumn();
 };
 
 namespace {
@@ -268,6 +270,63 @@ void GoogleMirrorStoreTest::cachesResolvedInstancesAndInvalidatesChangedSeries()
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_instance_coverage"), 0);
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE is_instance_cache = 1"),
            0);
+}
+
+void GoogleMirrorStoreTest::storesFullGoogleRecurrenceOutsideLegacyColumn() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::SystemClock clock;
+  hcb::GoogleMirrorStore store(*databasePath, clock);
+  verifyReady(store);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "INSERT INTO local_accounts (id, provider, connection_state, granted_scopes_json, "
+          "missing_scopes_json, updated_at) VALUES "
+          "('google', 'google', 'connected', '[]', '[]', '2026-07-26T00:00:00Z')");
+  QStringList dates;
+  dates.reserve(100);
+  for (int index = 0; index < 100; ++index) {
+    dates.append(QStringLiteral("20260726T090000Z"));
+  }
+  const QString rdate = QStringLiteral("RDATE:") + dates.join(u',');
+  const QList<QString> recurrence{QStringLiteral("RRULE:FREQ=DAILY"), rdate, rdate, rdate};
+  QVERIFY(recurrence.join(u'\n').size() > 4'096);
+  std::future<hcb::GoogleMirrorWriteResult> write = store.replaceCalendars(
+      QStringLiteral("google"),
+      {{.id = QStringLiteral("primary"),
+        .title = QStringLiteral("Primary"),
+        .accessRole = hcb::GoogleCalendarAccessRole::Owner}},
+      {{.id = QStringLiteral("series"),
+        .calendarId = QStringLiteral("primary"),
+        .status = hcb::GoogleCalendarEventStatus::Confirmed,
+        .title = QStringLiteral("Long recurrence"),
+        .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T10:00:00.000Z"),
+        .allDay = false,
+        .recurrence = recurrence}});
+  QVERIFY(std::holds_alternative<std::monostate>(awaitResult(write)));
+  QCOMPARE(count(handle,
+                 "SELECT COUNT(*) FROM local_calendar_events WHERE remote_id = 'series' "
+                 "AND recurrence_rule IS NULL"),
+           1);
+  QCOMPARE(text(handle,
+                "SELECT recurrences.recurrence_rule FROM local_calendar_event_recurrences AS recurrences "
+                "INNER JOIN local_calendar_events AS events ON events.id = recurrences.event_id "
+                "WHERE events.remote_id = 'series'"),
+           recurrence.join(u'\n'));
 }
 
 void GoogleMirrorStoreTest::preservesQueuedApplyingAndRetryableRowsDuringPull() {

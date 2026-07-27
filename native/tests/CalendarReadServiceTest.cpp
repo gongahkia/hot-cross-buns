@@ -304,7 +304,8 @@ void CalendarReadServiceTest::readsGoogleResolvedInstanceCachesAcrossFreshnessSt
         return event.id == QStringLiteral("series-instance");
       }));
 
-  execute(connection.nativeHandle(), "DELETE FROM local_calendar_instance_coverage");
+  execute(connection.nativeHandle(),
+          "UPDATE local_calendar_instance_coverage SET expires_at = '2026-07-25T00:00:00.001Z'");
   std::future<hcb::CalendarEventPageResult> staleFuture = service.listEvents(range);
   const hcb::CalendarEventPageResult staleResult = awaitResult(staleFuture);
   QVERIFY(std::holds_alternative<hcb::CalendarEventPage>(staleResult));

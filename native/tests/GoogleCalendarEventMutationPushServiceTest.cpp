@@ -192,10 +192,7 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
                               {QStringLiteral("responseStatus"), QStringLiteral("needsAction")}}}},
       {QStringLiteral("reminders"), reminderSettings},
       {QStringLiteral("recurrence"),
-       QJsonArray{QStringLiteral("RRULE:FREQ=HOURLY;INTERVAL=2;BYSECOND=0,30"),
-                  QStringLiteral("EXRULE:FREQ=DAILY;BYHOUR=3"),
-                  QStringLiteral("RDATE;VALUE=DATE:20261225"),
-                  QStringLiteral("EXDATE;TZID=Asia/Singapore:20260726T093000")}}};
+       QJsonArray{QStringLiteral("RDATE;TZID=Asia/Singapore:20261225T093000")}}};
   const hcb::PendingMutation created = enqueue(
       coordinator,
       QStringLiteral("event.create"),

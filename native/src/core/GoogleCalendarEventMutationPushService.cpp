@@ -301,7 +301,6 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   }
   QJsonArray result;
   qsizetype totalLength = 0;
-  int ruleCount = 0;
   for (const QJsonValue& item : value.toArray()) {
     if (!item.isString()) {
       return std::nullopt;
@@ -321,7 +320,6 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
       return std::nullopt;
     }
     if (property == QStringLiteral("RRULE")) {
-      ++ruleCount;
       if (!QRegularExpression(QStringLiteral("(?:^|;)FREQ=[A-Z]+(?:;|$)"))
                .match(line.sliced(separator + 1))
                .hasMatch()) {
@@ -330,8 +328,7 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     }
     result.append(line);
   }
-  return ruleCount == 1 || (!creating && result.isEmpty()) ? std::optional<QJsonArray>(result)
-                                                            : std::nullopt;
+  return !creating || !result.isEmpty() ? std::optional<QJsonArray>(result) : std::nullopt;
 }
 
 [[nodiscard]] std::optional<QJsonObject> canonicalEvent(const QJsonObject& payload, bool creating) {

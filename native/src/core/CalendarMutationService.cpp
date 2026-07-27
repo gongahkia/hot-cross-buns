@@ -183,7 +183,6 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   if (lines.size() > kMaximumRecurrenceLineCount) {
     return std::nullopt;
   }
-  int ruleCount = 0;
   for (const QString& line : lines) {
     const qsizetype separator = line.indexOf(u':');
     if (line.isEmpty() || separator <= 0 || separator == line.size() - 1 ||
@@ -197,7 +196,6 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
       return std::nullopt;
     }
     if (property == QStringLiteral("RRULE")) {
-      ++ruleCount;
       if (!QRegularExpression(QStringLiteral("(?:^|;)FREQ=[A-Z]+(?:;|$)"))
                .match(line.sliced(separator + 1))
                .hasMatch()) {
@@ -205,7 +203,7 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
       }
     }
   }
-  return ruleCount == 1 ? recurrenceRule : std::nullopt;
+  return recurrenceRule;
 }
 
 [[nodiscard]] QJsonArray recurrenceLines(const std::optional<QString>& recurrenceRule) {
