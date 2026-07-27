@@ -192,7 +192,6 @@ func _physics_process(delta: float) -> void:
 	if global_position.y < -18.0:
 		reset_requested.emit()
 		return
-	RunData.record_frame(global_position, rotation.y, pitch, is_sliding)
 
 func _handle_slide(on_floor: bool) -> void:
 	if Settings.slide_toggle and Input.is_action_just_pressed("slide"):
