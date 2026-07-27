@@ -7,6 +7,9 @@ const MAX_MULTIPLIER := 10
 const MOVEMENT_MULTIPLIER_MAX := 1.5
 const MOVEMENT_CHARGE_TIME := 0.75
 const MOVEMENT_DECAY_TIME := 0.25
+const STYLE_DECAY_DELAY := 1.8
+const STYLE_DECAY_RATE := 80.0
+const STYLE_DECAY_ACCELERATION := 35.0
 const REPEAT_VALUES := [1.0, 0.65, 0.35, 0.15]
 const BASE_POINTS := {
 	"jump": 80,
@@ -42,6 +45,10 @@ var last_action := ""
 var last_award: Dictionary = {}
 var last_banked := 0
 var last_lost := 0
+var last_style_action_time := -INF
+var last_decay_sample_time := -INF
+var pending_decay := 0.0
+var last_decay := 0
 
 func begin() -> void:
 	banked_score = 0
@@ -58,6 +65,10 @@ func begin() -> void:
 	last_award.clear()
 	last_banked = 0
 	last_lost = 0
+	last_style_action_time = -INF
+	last_decay_sample_time = -INF
+	pending_decay = 0.0
+	last_decay = 0
 
 func update_movement_multiplier(delta: float, movement_active: bool) -> Dictionary:
 	var charge_rate := (MOVEMENT_MULTIPLIER_MAX - 1.0) / MOVEMENT_CHARGE_TIME
@@ -93,6 +104,10 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 		multiplier = mini(MAX_MULTIPLIER, action_count)
 		longest_combo = maxi(longest_combo, action_count)
 	last_action_time = now
+	last_style_action_time = now
+	last_decay_sample_time = now
+	pending_decay = 0.0
+	last_decay = 0
 	last_action = action
 	var active_after := active_score()
 	var total_points := active_after - active_before
@@ -119,6 +134,9 @@ func tick(now: float) -> Dictionary:
 	var banked_now := 0
 	if active and now - last_action_time > LINK_WINDOW:
 		banked_now = _bank_active()
+	if banked_now == 0:
+		last_banked = 0
+	_decay_banked_style(now)
 	return _event_result({}, banked_now, 0)
 
 func bail() -> Dictionary:
@@ -172,6 +190,7 @@ func snapshot() -> Dictionary:
 		"last_award": last_award.duplicate(true),
 		"last_banked": last_banked,
 		"last_lost": last_lost,
+		"last_decay": last_decay,
 		"tier": tier(),
 		"meter_ratio": meter_ratio()
 	}
@@ -205,6 +224,7 @@ func _start_combo(now: float) -> void:
 	last_action = ""
 	last_award.clear()
 	last_banked = 0
+	last_decay = 0
 
 func _clear_active() -> void:
 	active = false
@@ -216,6 +236,33 @@ func _clear_active() -> void:
 	used_gaps.clear()
 	last_action = ""
 	last_award.clear()
+
+func _decay_banked_style(now: float) -> void:
+	last_decay = 0
+	if active or banked_score <= 0 or last_style_action_time == -INF:
+		last_decay_sample_time = now
+		return
+	var decay_start_time := last_style_action_time + STYLE_DECAY_DELAY
+	if now <= decay_start_time:
+		last_decay_sample_time = now
+		return
+	var sample_start := maxf(last_decay_sample_time, decay_start_time)
+	if sample_start >= now:
+		return
+	var start_elapsed := sample_start - decay_start_time
+	var end_elapsed := now - decay_start_time
+	var elapsed := now - sample_start
+	pending_decay += STYLE_DECAY_RATE * elapsed + STYLE_DECAY_ACCELERATION * 0.5 * (end_elapsed * end_elapsed - start_elapsed * start_elapsed)
+	var loss := mini(banked_score, int(floor(pending_decay)))
+	if loss <= 0:
+		last_decay_sample_time = now
+		return
+	banked_score -= loss
+	pending_decay -= loss
+	last_decay = loss
+	last_decay_sample_time = now
+	if banked_score == 0:
+		pending_decay = 0.0
 
 func _tier_for_score(score: int) -> String:
 	if score >= 50000:

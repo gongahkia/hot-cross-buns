@@ -1101,10 +1101,13 @@ func _refresh_hud() -> void:
 		style_event_label.text = "MVT x%.2f  LINK %.2fs  %s" % [float(style.get("movement_multiplier", 1.0)), StyleRun.LINK_WINDOW, str(style.get("last_action", "")).replace("_", " ").to_upper()]
 	elif int(style.get("last_lost", 0)) > 0:
 		combo_label.text = "BAIL -%d" % int(style.get("last_lost", 0))
-		style_event_label.text = "BANKED STYLE IS SAFE"
+		style_event_label.text = "BANKED STYLE WILL FADE"
 	elif int(style.get("last_banked", 0)) > 0:
 		combo_label.text = "BANKED +%d" % int(style.get("last_banked", 0))
 		style_event_label.text = "START A NEW CHAIN"
+	elif int(style.get("last_decay", 0)) > 0:
+		combo_label.text = "STYLE DECAY -%d" % int(style.get("last_decay", 0))
+		style_event_label.text = "LINK ACTIONS TO HOLD YOUR METER"
 	else:
 		combo_label.text = "COMBO --"
 		style_event_label.text = "CHAIN MOVEMENT TO BANK STYLE"

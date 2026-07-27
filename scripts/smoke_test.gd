@@ -94,6 +94,18 @@ func _initialize() -> void:
 	var preserved_score := combo.banked_score
 	combo.bail()
 	assert(combo.banked_score == preserved_score and combo.active_score() == 0, "bail did not preserve banked style")
+	var decay_combo := StyleRun.new()
+	decay_combo.begin()
+	decay_combo.add_action("gap", 0.0, 5000, "decay-gap")
+	decay_combo.tick(1.2)
+	var banked_style := decay_combo.banked_score
+	decay_combo.tick(3.0)
+	var early_decay := decay_combo.last_decay
+	assert(decay_combo.banked_score < banked_style and early_decay > 0, "idle style did not decay")
+	decay_combo.tick(5.0)
+	assert(decay_combo.last_decay > early_decay, "style decay did not accelerate with idle time")
+	decay_combo.add_action("dash", 5.0)
+	assert(decay_combo.last_decay == 0, "new combo did not stop style decay")
 
 	var sandbox_player: Variant = main.player
 	sandbox_player.is_sliding = false
