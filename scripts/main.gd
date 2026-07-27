@@ -408,7 +408,7 @@ func _add_course_sign(parent: Node3D, position: Vector3, text: String, color: Co
 func _build_sandbox(palette: Dictionary) -> void:
 	var central := _sandbox_station("CentralPlaza", "CENTRAL PLAZA", Vector3(0.0, 0.5, 1.0))
 	central.add_child(_make_platform(Vector3(0.0, 0.0, -5.0), Vector3(28.0, 0.8, 24.0), palette.start))
-	central.add_child(_make_reset_pad(Vector3(0.0, 0.55, 4.0), player_spawn, "Central Plaza", true))
+	central.add_child(_make_reset_pad(Vector3(8.0, 0.55, 4.0), player_spawn, "Central Plaza", true))
 	_add_course_sign(central, Vector3(0.0, 4.4, -3.0), "SANDBOX  /  BUILD STYLE  /  F3 DEBUG", palette.sign)
 
 	var movement := _sandbox_station("MovementPlaza", "MOVEMENT PLAZA", Vector3(0.0, 1.5, -24.0))

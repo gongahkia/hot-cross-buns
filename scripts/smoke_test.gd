@@ -117,6 +117,7 @@ func _initialize() -> void:
 	sandbox_player._ground_slam()
 	assert(is_equal_approx(sandbox_player.velocity.y, -38.0), "ground slam did not cancel vertical momentum")
 	assert(sandbox_player.is_slamming, "ground slam state missing")
+	sandbox_player.reset_for_bail(Vector3(0.0, 0.9, 3.0))
 	var grapple_anchor := Node3D.new()
 	grapple_anchor.add_to_group("grapple_anchor")
 	main.course.add_child(grapple_anchor)
