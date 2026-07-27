@@ -23,12 +23,36 @@ const BASE_POINTS := {
 	"launch": 180,
 	"boost": 120,
 	"wall_jump": 180,
+	"wall_run": 150,
+	"slide_jump": 190,
+	"ramp_launch": 145,
+	"perfect_land": 180,
+	"slam_bounce": 210,
+	"grind": 160,
+	"recharge": 125,
+	"glide_dive": 70,
 	"slam_land": 220,
 	"collectible": 90,
 	"speed": 35,
 	"airtime": 45,
 	"glide": 55,
 	"gap": 300
+}
+const TRANSITION_BONUSES := {
+	"slide>slide_jump": {"label": "SLIDE HOP", "points": 140},
+	"slide_jump>wall_run": {"label": "WALL FLOW", "points": 170},
+	"air_dash>wall_run": {"label": "DASH CATCH", "points": 170},
+	"wall_run>wall_jump": {"label": "WALL KICK LINK", "points": 150},
+	"wall_run>grapple": {"label": "WALL TO TETHER", "points": 220},
+	"wall_jump>grapple": {"label": "KICK TO TETHER", "points": 220},
+	"grapple>tether_release": {"label": "SLINGSHOT", "points": 220},
+	"tether_release>glide": {"label": "SWOOP EXIT", "points": 150},
+	"glide>grind": {"label": "RAIL CATCH", "points": 180},
+	"grind>air_dash": {"label": "RAIL EXIT", "points": 190},
+	"slam_land>slam_bounce": {"label": "IMPACT REBOUND", "points": 180},
+	"perfect_land>slide_jump": {"label": "PERFECT FLOW", "points": 220},
+	"ramp_launch>grapple": {"label": "RAMP TO TETHER", "points": 190},
+	"boost>grind": {"label": "BOOST RAIL", "points": 170},
 }
 
 var banked_score := 0
@@ -89,6 +113,7 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 	if not active:
 		_start_combo(now)
 	var active_before := active_score()
+	var transition := _transition_for(last_action, action)
 	var repetition_key := action if gap_id.is_empty() else action + ":" + gap_id
 	var repeat_count := int(repetitions.get(repetition_key, 0))
 	var repeat_scale := float(REPEAT_VALUES[min(repeat_count, REPEAT_VALUES.size() - 1)])
@@ -96,6 +121,8 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 	var movement_points := int(round(float(base) * movement_multiplier))
 	var awarded_base := int(round(float(movement_points) * repeat_scale))
 	active_base += awarded_base
+	var transition_points := int(transition.get("points", 0))
+	active_base += transition_points
 	repetitions[repetition_key] = repeat_count + 1
 	if action == "gap":
 		used_gaps[gap_id] = true
@@ -118,6 +145,8 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 		"freshness": repeat_scale,
 		"movement_multiplier": movement_multiplier,
 		"combo_multiplier": multiplier,
+		"transition": str(transition.get("label", "")),
+		"transition_points": transition_points * multiplier,
 		"points": total_points,
 		"severity": _severity_for(action, total_points),
 		"rank_up": tier() != _tier_for_score(banked_score + active_before),
@@ -291,11 +320,17 @@ func _label_for(action: String, was_active: bool) -> String:
 		_: return action.replace("_", " ").to_upper()
 
 func _severity_for(action: String, points: int) -> String:
-	if action in ["gap", "slam_land", "tether_release"] or points >= 600:
+	if action in ["gap", "slam_land", "slam_bounce", "tether_release"] or points >= 600:
 		return "peak"
 	if points >= 180 or movement_multiplier >= 1.25:
 		return "major"
 	return "minor"
 
 func _is_flow_action(action: String) -> bool:
-	return action in ["speed", "airtime", "glide"]
+	return action in ["speed", "airtime", "glide", "glide_dive"]
+
+func _transition_for(previous: String, current: String) -> Dictionary:
+	if previous.is_empty():
+		return {}
+	var transition: Variant = TRANSITION_BONUSES.get(previous + ">" + current, {})
+	return transition.duplicate(true) if transition is Dictionary else {}

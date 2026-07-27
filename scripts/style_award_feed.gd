@@ -15,7 +15,8 @@ func push_award(award: Dictionary) -> void:
 	var severity := str(award.get("severity", "minor"))
 	var color := _color_for(severity)
 	var title := "+%d  %s" % [int(award.get("points", 0)), str(award.get("label", "STYLE"))]
-	var detail := "MVT x%.2f  COMBO x%d" % [float(award.get("movement_multiplier", 1.0)), int(award.get("combo_multiplier", 1))]
+	var transition := str(award.get("transition", ""))
+	var detail := transition if not transition.is_empty() else "MVT x%.2f  COMBO x%d" % [float(award.get("movement_multiplier", 1.0)), int(award.get("combo_multiplier", 1))]
 	_push_row(title, detail, color, 1.10 if severity == "peak" else 1.0)
 	if bool(award.get("rank_up", false)):
 		_push_row("RANK UP  " + str(award.get("tier", "FLOW")), "KEEP THE CHAIN ALIVE", Color("#f7e7a2"), 1.16)
