@@ -6,7 +6,7 @@ Run this against a packaged macOS build after automated tests pass. Record only 
 
 - Launch the bundle, quit, and relaunch with cached data present and with network disabled.
 - Verify the menu-bar item can show/hide the main window, refresh, open Settings, and quit.
-- Verify there is no global quick-capture shortcut or menu claim.
+- Verify there is no system-wide quick-capture shortcut. The tray's Quick Capture action, if used, opens only the in-app dialog.
 
 ## Notifications
 
