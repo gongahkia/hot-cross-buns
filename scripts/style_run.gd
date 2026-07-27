@@ -4,14 +4,19 @@ extends RefCounted
 const LINK_WINDOW := 1.15
 const FINISH_BONUS := 1000
 const MAX_MULTIPLIER := 10
+const MOVEMENT_MULTIPLIER_MAX := 1.5
+const MOVEMENT_CHARGE_TIME := 0.75
+const MOVEMENT_DECAY_TIME := 0.25
 const REPEAT_VALUES := [1.0, 0.65, 0.35, 0.15]
 const BASE_POINTS := {
 	"jump": 80,
 	"double_jump": 120,
 	"dash": 160,
+	"air_dash": 160,
 	"sprint_dash": 180,
 	"slide": 110,
 	"grapple": 200,
+	"tether_release": 160,
 	"launch": 180,
 	"boost": 120,
 	"wall_jump": 180,
@@ -27,12 +32,14 @@ var banked_score := 0
 var active_base := 0
 var action_count := 0
 var multiplier := 1
+var movement_multiplier := 1.0
 var longest_combo := 0
 var last_action_time := -INF
 var active := false
 var repetitions: Dictionary = {}
 var used_gaps: Dictionary = {}
 var last_action := ""
+var last_award: Dictionary = {}
 var last_banked := 0
 var last_lost := 0
 
@@ -41,27 +48,43 @@ func begin() -> void:
 	active_base = 0
 	action_count = 0
 	multiplier = 1
+	movement_multiplier = 1.0
 	longest_combo = 0
 	last_action_time = -INF
 	active = false
 	repetitions.clear()
 	used_gaps.clear()
 	last_action = ""
+	last_award.clear()
 	last_banked = 0
 	last_lost = 0
 
+func update_movement_multiplier(delta: float, movement_active: bool) -> Dictionary:
+	var charge_rate := (MOVEMENT_MULTIPLIER_MAX - 1.0) / MOVEMENT_CHARGE_TIME
+	var decay_rate := (MOVEMENT_MULTIPLIER_MAX - 1.0) / MOVEMENT_DECAY_TIME
+	if movement_active:
+		movement_multiplier = minf(MOVEMENT_MULTIPLIER_MAX, movement_multiplier + charge_rate * delta)
+	else:
+		movement_multiplier = maxf(1.0, movement_multiplier - decay_rate * delta)
+	return snapshot()
+
 func add_action(action: String, now: float, override_points := -1, gap_id := "") -> Dictionary:
 	if action == "gap" and (gap_id.is_empty() or used_gaps.has(gap_id)):
-		return snapshot()
+		return _event_result({}, 0, 0)
+	var banked_now := 0
 	if active and now - last_action_time > LINK_WINDOW:
-		bank()
+		banked_now = _bank_active()
+	var was_active := active
 	if not active:
 		_start_combo(now)
+	var active_before := active_score()
 	var repetition_key := action if gap_id.is_empty() else action + ":" + gap_id
 	var repeat_count := int(repetitions.get(repetition_key, 0))
 	var repeat_scale := float(REPEAT_VALUES[min(repeat_count, REPEAT_VALUES.size() - 1)])
 	var base := int(BASE_POINTS.get(action, 50)) if override_points < 0 else override_points
-	active_base += int(round(float(base) * repeat_scale))
+	var movement_points := int(round(float(base) * movement_multiplier))
+	var awarded_base := int(round(float(movement_points) * repeat_scale))
+	active_base += awarded_base
 	repetitions[repetition_key] = repeat_count + 1
 	if action == "gap":
 		used_gaps[gap_id] = true
@@ -71,36 +94,49 @@ func add_action(action: String, now: float, override_points := -1, gap_id := "")
 		longest_combo = maxi(longest_combo, action_count)
 	last_action_time = now
 	last_action = action
-	return snapshot()
+	var active_after := active_score()
+	var total_points := active_after - active_before
+	last_award = {
+		"action": action,
+		"label": _label_for(action, was_active),
+		"base_points": base,
+		"freshness": repeat_scale,
+		"movement_multiplier": movement_multiplier,
+		"combo_multiplier": multiplier,
+		"points": total_points,
+		"severity": _severity_for(action, total_points),
+		"rank_up": tier() != _tier_for_score(banked_score + active_before),
+		"tier": tier()
+	}
+	return _event_result(last_award, banked_now, 0)
 
 func land(now: float) -> Dictionary:
 	if active:
 		last_action_time = maxf(last_action_time, now)
-	return snapshot()
+	return _event_result({}, 0, 0)
 
 func tick(now: float) -> Dictionary:
+	var banked_now := 0
 	if active and now - last_action_time > LINK_WINDOW:
-		bank()
-	return snapshot()
+		banked_now = _bank_active()
+	return _event_result({}, banked_now, 0)
 
 func bail() -> Dictionary:
-	last_lost = active_score()
+	var lost_now := active_score()
+	last_lost = lost_now
+	last_banked = 0
 	_clear_active()
-	return snapshot()
+	return _event_result({}, 0, lost_now)
 
-func finish(now: float) -> Dictionary:
+func finish(_now: float) -> Dictionary:
 	if active:
-		bank()
+		_bank_active()
 	banked_score += FINISH_BONUS
 	last_banked = FINISH_BONUS
 	return snapshot()
 
 func bank() -> Dictionary:
-	if not active:
-		return snapshot()
-	last_banked = active_score()
-	banked_score += last_banked
-	_clear_active()
+	_bank_active()
 	return snapshot()
 
 func active_score() -> int:
@@ -110,16 +146,7 @@ func total_score() -> int:
 	return banked_score + active_score()
 
 func tier() -> String:
-	var score := total_score()
-	if score >= 50000:
-		return "LEGEND"
-	if score >= 20000:
-		return "WILD"
-	if score >= 8000:
-		return "CHARGED"
-	if score >= 2000:
-		return "FLOW"
-	return "QUIET"
+	return _tier_for_score(total_score())
 
 func meter_ratio() -> float:
 	var score := total_score()
@@ -139,13 +166,33 @@ func snapshot() -> Dictionary:
 		"active": active_score(),
 		"actions": action_count,
 		"multiplier": multiplier,
+		"movement_multiplier": movement_multiplier,
 		"longest_combo": longest_combo,
 		"last_action": last_action,
+		"last_award": last_award.duplicate(true),
 		"last_banked": last_banked,
 		"last_lost": last_lost,
 		"tier": tier(),
 		"meter_ratio": meter_ratio()
 	}
+
+func _event_result(award: Dictionary, banked_now: int, lost_now: int) -> Dictionary:
+	var result := snapshot()
+	result["awarded"] = not award.is_empty()
+	result["award"] = award.duplicate(true)
+	result["banked_now"] = banked_now
+	result["lost_now"] = lost_now
+	return result
+
+func _bank_active() -> int:
+	if not active:
+		return 0
+	var gained := active_score()
+	last_banked = gained
+	last_lost = 0
+	banked_score += gained
+	_clear_active()
+	return gained
 
 func _start_combo(now: float) -> void:
 	active = true
@@ -156,6 +203,7 @@ func _start_combo(now: float) -> void:
 	repetitions.clear()
 	used_gaps.clear()
 	last_action = ""
+	last_award.clear()
 	last_banked = 0
 
 func _clear_active() -> void:
@@ -167,6 +215,40 @@ func _clear_active() -> void:
 	repetitions.clear()
 	used_gaps.clear()
 	last_action = ""
+	last_award.clear()
+
+func _tier_for_score(score: int) -> String:
+	if score >= 50000:
+		return "LEGEND"
+	if score >= 20000:
+		return "WILD"
+	if score >= 8000:
+		return "CHARGED"
+	if score >= 2000:
+		return "FLOW"
+	return "QUIET"
+
+func _label_for(action: String, was_active: bool) -> String:
+	match action:
+		"air_dash": return "AIR DASH"
+		"sprint_dash": return "SPRINT BURST"
+		"slide": return "SLIDE LINK" if was_active else "SLIDE"
+		"grapple": return "TETHER"
+		"tether_release": return "TETHER SNAP"
+		"wall_jump": return "WALL KICK"
+		"slam_land": return "SLAM IMPACT"
+		"double_jump": return "DOUBLE JUMP"
+		"gap": return "GAP"
+		"airtime": return "AIRTIME"
+		"speed": return "SPEED"
+		_: return action.replace("_", " ").to_upper()
+
+func _severity_for(action: String, points: int) -> String:
+	if action in ["gap", "slam_land", "tether_release"] or points >= 600:
+		return "peak"
+	if points >= 180 or movement_multiplier >= 1.25:
+		return "major"
+	return "minor"
 
 func _is_flow_action(action: String) -> bool:
 	return action in ["speed", "airtime", "glide"]

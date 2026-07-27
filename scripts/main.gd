@@ -3,26 +3,39 @@ extends Node3D
 const LEVELS := preload("res://scripts/level_library.gd")
 const PERFORMANCE_HISTOGRAM := preload("res://scripts/performance_histogram.gd")
 const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
+const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
 
 var course: Node3D
 var player: SpeedPlayer
 var ghost: RunGhost
+var player_spawn := Vector3.ZERO
 var current_level: Dictionary = {}
 var collected_in_level := 0
 var total_collectibles_in_level := 0
 var traversal_ramp_count := 0
 var climbable_trunk_count := 0
 var grapple_anchor_count := 0
+var combo_gap_count := 0
 
 var ui: CanvasLayer
 var hud: Control
 var menu: Control
 var display_filter: ColorRect
 var display_filter_layer: CanvasLayer
+var style_fx_layer: CanvasLayer
+var style_flash: ColorRect
+var style_flash_tween: Tween
 var timer_label: Label
 var par_label: Label
 var collect_label: Label
 var tool_label: Label
+var style_score_label: Label
+var combo_label: Label
+var style_event_label: Label
+var style_meter: ProgressBar
+var style_meter_fill: StyleBoxFlat
+var style_award_feed: StyleAwardFeed
+var style_meter_tween: Tween
 var briefing_label: Label
 var grapple_reticle: GrappleReticle
 var rebinding_action := ""
@@ -99,6 +112,33 @@ func _build_ui() -> void:
 	top.add_child(par_label)
 	top.add_child(collect_label)
 	top.add_child(tool_label)
+	var style_box := VBoxContainer.new()
+	style_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	style_box.position = Vector2(22.0, -132.0)
+	style_box.custom_minimum_size = Vector2(312.0, 104.0)
+	style_box.add_theme_constant_override("separation", 2)
+	hud.add_child(style_box)
+	style_score_label = _label("STYLE 000000  QUIET", 21, Color("#f1d477"))
+	combo_label = _label("COMBO --", 16, Color("#b9f6df"))
+	style_event_label = _label("CHAIN MOVEMENT TO BANK STYLE", 13, Color("#9db197"))
+	style_meter = ProgressBar.new()
+	style_meter.show_percentage = false
+	style_meter.min_value = 0.0
+	style_meter.max_value = 100.0
+	style_meter.custom_minimum_size = Vector2(310.0, 14.0)
+	var meter_background := StyleBoxFlat.new()
+	meter_background.bg_color = Color("#102018d9")
+	meter_background.border_color = Color("#526f57")
+	meter_background.set_border_width_all(1)
+	style_meter_fill = StyleBoxFlat.new()
+	style_meter_fill.bg_color = Color("#8ed6ae")
+	style_meter_fill.set_corner_radius_all(2)
+	style_meter.add_theme_stylebox_override("background", meter_background)
+	style_meter.add_theme_stylebox_override("fill", style_meter_fill)
+	style_box.add_child(style_score_label)
+	style_box.add_child(combo_label)
+	style_box.add_child(style_meter)
+	style_box.add_child(style_event_label)
 	briefing_label = _label("", 22, Color("#e9f0d8"))
 	briefing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	briefing_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -108,6 +148,10 @@ func _build_ui() -> void:
 	hud.add_child(briefing_label)
 	grapple_reticle = GRAPPLE_RETICLE.new()
 	hud.add_child(grapple_reticle)
+	style_award_feed = STYLE_AWARD_FEED.new()
+	style_award_feed.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	style_award_feed.position = Vector2(-352.0, 94.0)
+	hud.add_child(style_award_feed)
 	hud.visible = false
 	menu = Control.new()
 	menu.theme = ui_theme
@@ -124,6 +168,15 @@ func _build_ui() -> void:
 	display_filter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	display_filter.material = _make_pixel_filter_material()
 	display_filter_layer.add_child(display_filter)
+	style_fx_layer = CanvasLayer.new()
+	style_fx_layer.layer = 6
+	style_fx_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(style_fx_layer)
+	style_flash = ColorRect.new()
+	style_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	style_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	style_flash.visible = false
+	style_fx_layer.add_child(style_flash)
 	_apply_pixel_filter(Settings.pixel_filter_mode)
 
 func _process(delta: float) -> void:
@@ -134,7 +187,8 @@ func _process(delta: float) -> void:
 			resume_run()
 		return
 	if RunData.running:
-		RunData.advance(delta)
+		RunData.set_style_movement_active(player != null and player.style_multiplier_active())
+		_present_style_result(RunData.advance(delta))
 		_refresh_hud()
 		_refresh_grapple_reticle()
 		if Input.is_action_just_pressed("pause"):
@@ -161,6 +215,8 @@ func show_title() -> void:
 		player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+	_clear_style_flash()
+	style_award_feed.clear_feed()
 	grapple_reticle.clear_target()
 	_clear_menu()
 	var panel := _center_panel(Vector2(680.0, 520.0))
@@ -178,13 +234,15 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R bail", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+	_clear_style_flash()
+	style_award_feed.clear_feed()
 	grapple_reticle.clear_target()
 	_clear_menu()
 	var panel := _center_panel(Vector2(780.0, 610.0))
@@ -201,7 +259,9 @@ func show_level_select() -> void:
 	for level in LEVELS.all_levels():
 		var best := RunData.best_time_for(level.id)
 		var record_text := "PB -" if best < 0.0 else "PB " + _time_text(best)
-		var button := _button(level.title + "\nPAR " + _time_text(level.par) + "  -  " + record_text, 16)
+		var best_style := RunData.best_style_for(level.id)
+		var style_text := "STYLE -" if best_style <= 0 else "STYLE %d" % best_style
+		var button := _button(level.title + "\nPAR " + _time_text(level.par) + "  -  " + record_text + "\n" + style_text, 16)
 		button.custom_minimum_size = Vector2(350.0, 56.0)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.tooltip_text = level.briefing
@@ -227,6 +287,8 @@ func start_level(level_id: String) -> void:
 	current_level = LEVELS.by_id(level_id)
 	collected_in_level = 0
 	grapple_reticle.clear_target()
+	_clear_style_flash()
+	style_award_feed.clear_feed()
 	_build_course(current_level)
 	RunData.begin_run(level_id)
 	hud.visible = true
@@ -249,6 +311,7 @@ func _build_course(level: Dictionary) -> void:
 	traversal_ramp_count = 0
 	climbable_trunk_count = 0
 	grapple_anchor_count = 0
+	combo_gap_count = 0
 	var world_length := float(level.world_length)
 	var world_width := float(level.world_width)
 	var palette := _palette_for(str(level.terrain_style))
@@ -261,8 +324,11 @@ func _build_course(level: Dictionary) -> void:
 	start_floor.name = "Start"
 	course.add_child(start_floor)
 	player = SpeedPlayer.new()
-	player.position = Vector3(0.0, 0.9, 3.0)
-	player.reset_requested.connect(_restart_level)
+	player_spawn = Vector3(0.0, 0.9, 3.0)
+	player.position = player_spawn
+	player.reset_requested.connect(_bail_to_start)
+	player.traversal_action.connect(_on_traversal_action)
+	player.combo_landed.connect(_on_combo_landed)
 	course.add_child(player)
 	_build_open_terrain(world_length, world_width, str(level.terrain_style))
 	match str(level.id):
@@ -282,6 +348,7 @@ func _build_course(level: Dictionary) -> void:
 			_build_green_light(summit_surface, palette)
 		_:
 			push_error("Unknown level layout: " + str(level.id))
+	_build_combo_arena(str(level.id), summit_surface, palette)
 	_build_tool_route(level, palette)
 	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), palette.summit)
 	summit.name = "Summit"
@@ -460,6 +527,77 @@ func _build_finale(start: Vector3, summit: Vector3, palette: Dictionary, label: 
 	var direction := Vector3(summit.x - start.x, 0.0, summit.z - start.z).normalized()
 	finale.add_child(_make_boost(start + Vector3(0.0, 0.42, -1.3), direction))
 	_add_course_sign(finale, midpoint + Vector3(0.0, 2.3, 0.0), label, palette.sign)
+
+func _build_combo_arena(level_id: String, summit: Vector3, palette: Dictionary) -> void:
+	var depth := absf(summit.z)
+	var span := clampf(depth * 0.34, 18.0, 28.0)
+	var low_points: Array[Vector3] = [
+		Vector3(-span * 0.38, 0.55, -6.0),
+		Vector3(-span * 0.58, 0.72, -depth * 0.28),
+		Vector3(-span * 0.22, 0.92, -depth * 0.53),
+		Vector3(span * 0.28, 0.96, -depth * 0.62),
+		Vector3(span * 0.58, 0.76, -depth * 0.34),
+		Vector3(span * 0.32, 0.58, -depth * 0.12)
+	]
+	var mid_points: Array[Vector3] = [
+		Vector3(-span * 0.14, 2.45, -depth * 0.18),
+		Vector3(-span * 0.46, 2.80, -depth * 0.42),
+		Vector3(-span * 0.10, 3.10, -depth * 0.66),
+		Vector3(span * 0.35, 3.22, -depth * 0.70),
+		Vector3(span * 0.50, 2.94, -depth * 0.47),
+		Vector3(span * 0.18, 2.56, -depth * 0.25)
+	]
+	var high_points: Array[Vector3] = [
+		Vector3(-span * 0.08, 4.60, -depth * 0.46),
+		Vector3(-span * 0.35, 5.18, -depth * 0.67),
+		Vector3(-span * 0.03, 5.72, -depth * 0.86),
+		Vector3(span * 0.30, 5.44, -depth * 0.72),
+		Vector3(span * 0.18, 4.95, -depth * 0.55),
+		Vector3(0.0, 5.10, -depth * 0.62)
+	]
+	var low := _add_arena_loop("ArenaLow", "safe loop + recovery", low_points, Vector3(8.8, 0.72, 6.8), 5.8, palette.safe, palette.ramp)
+	var mid := _add_arena_loop("ArenaMid", "transfer lines + gaps", mid_points, Vector3(6.2, 0.72, 5.6), 4.0, palette.expert, palette.ramp)
+	var high := _add_arena_loop("ArenaHigh", "high risk links + summit", high_points, Vector3(5.2, 0.72, 5.0), 3.5, palette.finale, palette.ramp)
+	var transfers := _route("ArenaTransfers", "multiple climb and recovery links")
+	_add_route_path(transfers, [low_points[0], mid_points[0]], Vector3(5.8, 0.7, 5.4), 4.5, palette.safe, palette.ramp)
+	_add_route_path(transfers, [low_points[3], mid_points[3]], Vector3(5.2, 0.7, 5.0), 3.8, palette.expert, palette.ramp)
+	_add_route_path(transfers, [mid_points[2], high_points[1]], Vector3(4.8, 0.7, 4.6), 3.4, palette.expert, palette.ramp)
+	_add_route_path(transfers, [mid_points[4], high_points[3]], Vector3(4.8, 0.7, 4.6), 3.4, palette.finale, palette.ramp)
+	_add_route_path(transfers, [high_points[2], summit], Vector3(5.0, 0.7, 5.0), 3.6, palette.finale, palette.ramp)
+	_add_arena_gaps(low, [low_points[1], low_points[3]], level_id + "-low", 260)
+	_add_arena_gaps(mid, [mid_points[1], mid_points[3]], level_id + "-mid", 360)
+	_add_arena_gaps(high, [high_points[1], high_points[3]], level_id + "-high", 460)
+	match level_id:
+		"02-moss-run":
+			for index in [0, 2, 4]:
+				var next_point: Vector3 = low_points[(index + 1) % low_points.size()]
+				var direction := Vector3(next_point.x - low_points[index].x, 0.0, next_point.z - low_points[index].z).normalized()
+				low.add_child(_make_boost(low_points[index] + Vector3(0.0, 0.42, 0.0), direction))
+		"04-root-tunnel":
+			_add_root_arch(mid, mid_points[1] + Vector3(0.0, 0.0, 1.8), 6.0, palette.root)
+			_add_root_arch(mid, mid_points[4] + Vector3(0.0, 0.0, -1.8), 6.0, palette.root)
+		"05-sky-sap":
+			high.add_child(_make_launch(mid_points[2] + Vector3(0.0, 0.45, 0.0)))
+			high.add_child(_make_launch(mid_points[4] + Vector3(0.0, 0.45, 0.0)))
+		"06-wild-line":
+			_add_climbable_trunk(mid_points[1] + Vector3(2.5, -0.35, 0.0), 6.8, 0.46, mid)
+			_add_climbable_trunk(mid_points[4] + Vector3(-2.5, -0.35, 0.0), 7.2, 0.46, mid)
+		"07-green-light":
+			var fast_direction := Vector3(high_points[3].x - high_points[2].x, 0.0, high_points[3].z - high_points[2].z).normalized()
+			high.add_child(_make_boost(high_points[2] + Vector3(0.0, 0.42, 0.0), fast_direction))
+			high.add_child(_make_launch(high_points[4] + Vector3(0.0, 0.45, 0.0)))
+			_add_climbable_trunk(high_points[3] + Vector3(-2.4, -0.35, 0.0), 7.4, 0.46, high)
+	_add_course_sign(transfers, Vector3(0.0, 4.7, -depth * 0.48), "CHAIN LOOPS  /  LINK GAPS  /  BANK AT THE SUMMIT", palette.sign)
+
+func _add_arena_loop(name: String, focus: String, points: Array[Vector3], platform_size: Vector3, ramp_width: float, platform_color: Color, ramp_color: Color) -> Node3D:
+	var loop := _route(name, focus)
+	_add_route_path(loop, points, platform_size, ramp_width, platform_color, ramp_color)
+	loop.add_child(_make_ramp_between(points[points.size() - 1], points[0], ramp_width, ramp_color))
+	return loop
+
+func _add_arena_gaps(parent: Node3D, positions: Array[Vector3], id_prefix: String, points: int) -> void:
+	for index in range(positions.size()):
+		parent.add_child(_make_combo_gap(positions[index] + Vector3(0.0, 1.75, 0.0), id_prefix + "-" + str(index + 1), points))
 
 func _build_tool_route(level: Dictionary, palette: Dictionary) -> void:
 	var route := _route("ToolRoute", "grapple + glide")
@@ -684,6 +822,33 @@ func _make_launch(position: Vector3) -> CourseTrigger:
 	pad.add_child(visual)
 	return pad
 
+func _make_combo_gap(position: Vector3, gap_id: String, points: int) -> CourseTrigger:
+	combo_gap_count += 1
+	var gap := _trigger(CourseTrigger.TriggerType.COMBO_GAP, Vector3(4.4, 3.6, 2.0), {"id": gap_id, "points": points})
+	gap.name = "ComboGap"
+	gap.position = position
+	gap.set_meta("gap_id", gap_id)
+	gap.set_meta("style_points", points)
+	var visual := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 1.08
+	ring.outer_radius = 1.24
+	visual.mesh = ring
+	visual.rotation.x = deg_to_rad(90.0)
+	visual.material_override = _material(Color("#f1d477"), true)
+	gap.add_child(visual)
+	var label := Label3D.new()
+	label.text = "GAP +%d" % points
+	label.font = ui_theme.default_font
+	label.font_size = 24
+	label.outline_size = 4
+	label.modulate = Color("#f7e7a2")
+	label.position = Vector3(0.0, 1.55, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.008
+	gap.add_child(label)
+	return gap
+
 func _trigger(type: CourseTrigger.TriggerType, size: Vector3, payload: Variant) -> CourseTrigger:
 	var trigger := CourseTrigger.new()
 	trigger.trigger_type = type
@@ -703,6 +868,7 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 		CourseTrigger.TriggerType.COLLECTIBLE:
 			collected_in_level += 1
 			RunData.add_collectible()
+			_present_style_result(RunData.add_style_action("collectible"))
 			Audio.play_sfx("pickup")
 			_refresh_hud()
 		CourseTrigger.TriggerType.BOOST:
@@ -711,6 +877,85 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 		CourseTrigger.TriggerType.LAUNCH:
 			player.launch(float(payload))
 			Audio.play_sfx("launch")
+		CourseTrigger.TriggerType.COMBO_GAP:
+			var gap: Dictionary = payload if payload is Dictionary else {}
+			_present_style_result(RunData.add_style_action("gap", int(gap.get("points", 300)), str(gap.get("id", ""))))
+			Audio.play_sfx("pickup")
+
+func _on_traversal_action(action: String, override_points: int) -> void:
+	_present_style_result(RunData.add_style_action(action, override_points))
+
+func _on_combo_landed() -> void:
+	RunData.style_land()
+
+func _present_style_result(result: Dictionary) -> void:
+	if style_award_feed == null:
+		return
+	var banked_now := int(result.get("banked_now", 0))
+	if banked_now > 0:
+		style_award_feed.push_bank(banked_now)
+		_pulse_style_meter("major", false)
+		Audio.play_style_sfx("major")
+	var lost_now := int(result.get("lost_now", 0))
+	if lost_now > 0:
+		style_award_feed.push_bail(lost_now)
+		_pulse_style_meter("minor", false)
+	if not bool(result.get("awarded", false)):
+		return
+	var award: Dictionary = result.get("award", {})
+	if award.is_empty():
+		return
+	var severity := str(award.get("severity", "minor"))
+	var rank_up := bool(award.get("rank_up", false))
+	style_award_feed.push_award(award)
+	_pulse_style_meter(severity, rank_up)
+	if player:
+		player.apply_style_feedback("peak" if rank_up else severity)
+	_flash_style("peak" if rank_up else severity)
+	if int(award.get("points", 0)) >= 120 or str(award.get("action", "")) == "gap" or rank_up:
+		Audio.play_style_sfx(severity, rank_up)
+
+func _pulse_style_meter(severity: String, rank_up: bool) -> void:
+	if style_meter == null:
+		return
+	if style_meter_tween:
+		style_meter_tween.kill()
+	var amount := 1.12 if rank_up or severity == "peak" else (1.07 if severity == "major" else 1.035)
+	style_meter.pivot_offset = Vector2(155.0, 7.0)
+	style_meter_tween = create_tween()
+	style_meter_tween.tween_property(style_meter, "scale", Vector2(amount, amount), 0.06).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	style_meter_tween.tween_property(style_meter, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+func _flash_style(severity: String) -> void:
+	if style_flash == null or Settings.reduce_screen_effects or not RunData.running:
+		return
+	if style_flash_tween:
+		style_flash_tween.kill()
+	var color := Color("#b9f6df")
+	var alpha := 0.035
+	var duration := 0.08
+	match severity:
+		"peak":
+			color = Color("#f7e7a2")
+			alpha = 0.10
+			duration = 0.14
+		"major":
+			color = Color("#f1d477")
+			alpha = 0.065
+			duration = 0.11
+	color.a = alpha
+	style_flash.color = color
+	style_flash.visible = true
+	style_flash_tween = create_tween()
+	style_flash_tween.tween_property(style_flash, "color:a", 0.0, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	style_flash_tween.tween_callback(func(): style_flash.visible = false)
+
+func _clear_style_flash() -> void:
+	if style_flash_tween:
+		style_flash_tween.kill()
+	if style_flash:
+		style_flash.color.a = 0.0
+		style_flash.visible = false
 
 func _add_tree(position: Vector3, scale_factor: float, foliage_color: Color = Color("#496848")) -> void:
 	var tree := Node3D.new()
@@ -871,6 +1116,13 @@ func _restart_level() -> void:
 		return
 	start_level(current_level.id)
 
+func _bail_to_start() -> void:
+	if current_level.is_empty() or not RunData.running or player == null:
+		return
+	_present_style_result(RunData.bail_style())
+	player.reset_for_bail(player_spawn)
+	Audio.play_sfx("dash")
+
 func _complete_level() -> void:
 	if not RunData.running:
 		return
@@ -889,6 +1141,35 @@ func _refresh_hud() -> void:
 	collect_label.text = "* %d/%d" % [RunData.collected, total]
 	if player:
 		tool_label.text = player.tool_status()
+	var style := RunData.style_snapshot()
+	var total_style := int(style.get("banked", 0)) + int(style.get("active", 0))
+	var tier := str(style.get("tier", "QUIET"))
+	var tier_color := _style_tier_color(tier)
+	style_score_label.text = "STYLE %06d  %s" % [total_style, tier]
+	style_score_label.add_theme_color_override("font_color", tier_color)
+	style_meter_fill.bg_color = tier_color
+	style_meter.value = clampf(float(style.get("meter_ratio", 0.0)) * 100.0, 0.0, 100.0)
+	var actions := int(style.get("actions", 0))
+	if actions > 0:
+		combo_label.text = "COMBO %d  x%d  +%d" % [actions, int(style.get("multiplier", 1)), int(style.get("active", 0))]
+		style_event_label.text = "MVT x%.2f  LINK %.2fs  %s" % [float(style.get("movement_multiplier", 1.0)), StyleRun.LINK_WINDOW, str(style.get("last_action", "")).replace("_", " ").to_upper()]
+	elif int(style.get("last_lost", 0)) > 0:
+		combo_label.text = "BAIL -%d" % int(style.get("last_lost", 0))
+		style_event_label.text = "BANKED STYLE IS SAFE"
+	elif int(style.get("last_banked", 0)) > 0:
+		combo_label.text = "BANKED +%d" % int(style.get("last_banked", 0))
+		style_event_label.text = "START A NEW CHAIN"
+	else:
+		combo_label.text = "COMBO --"
+		style_event_label.text = "CHAIN MOVEMENT TO BANK STYLE"
+
+func _style_tier_color(tier: String) -> Color:
+	match tier:
+		"LEGEND": return Color("#f7e7a2")
+		"WILD": return Color("#f1d477")
+		"CHARGED": return Color("#e7c67b")
+		"FLOW": return Color("#b9f6df")
+		_: return Color("#9db197")
 
 func _refresh_grapple_reticle() -> void:
 	if grapple_reticle == null or player == null or not player.movement_enabled or player.is_grappling:
@@ -916,6 +1197,8 @@ func show_pause() -> void:
 	if not RunData.running:
 		return
 	grapple_reticle.clear_target()
+	_clear_style_flash()
+	style_award_feed.clear_feed()
 	menu_mode = "pause"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().paused = true
@@ -952,35 +1235,58 @@ func show_results(result: Dictionary) -> void:
 	menu_mode = "results"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud.visible = false
+	_clear_style_flash()
+	style_award_feed.clear_feed()
 	grapple_reticle.clear_target()
 	_clear_menu()
-	var panel := _center_panel(Vector2(760.0, 610.0))
+	var panel := _center_panel(Vector2(820.0, 680.0))
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 8)
 	panel.add_child(box)
 	box.add_child(_label("Run analysis", 34, Color("#edf3d5")))
 	box.add_child(_label(current_level.title, 18, Color("#aabda1")))
-	box.add_child(_label(_time_text(float(result.time)), 44, Color("#f2d98c")))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0.0, 530.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(scroll)
+	var content := VBoxContainer.new()
+	content.custom_minimum_size = Vector2(744.0, 0.0)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 10)
+	scroll.add_child(content)
+	content.add_child(_label(_time_text(float(result.time)), 44, Color("#f2d98c")))
 	var par := float(current_level.par)
-	box.add_child(_label("PAR " + _time_text(par) + ("  -  BEAT" if float(result.time) <= par else "  -  KEEP PUSHING"), 18, Color("#d4e0c9")))
+	content.add_child(_label("PAR " + _time_text(par) + ("  -  BEAT" if float(result.time) <= par else "  -  KEEP PUSHING"), 18, Color("#d4e0c9")))
 	var best_time := float(result.get("best_time", result.time))
 	var attempts := int(result.get("attempts", 1))
 	var delta := float(result.time) - best_time
 	var performance_text := "ATTEMPTS %d  -  NEW PB" % attempts if bool(result.is_pb) else "ATTEMPTS %d  -  PB +%s" % [attempts, _time_text(delta)]
-	box.add_child(_label(performance_text, 16, Color("#8ed6ae") if bool(result.is_pb) else Color("#d6bd7b")))
+	content.add_child(_label(performance_text, 16, Color("#8ed6ae") if bool(result.is_pb) else Color("#d6bd7b")))
 	var histogram := PERFORMANCE_HISTOGRAM.new()
 	histogram.name = "PerformanceHistogram"
 	histogram.set_data(RunData.attempt_history_for(current_level.id), float(result.time), best_time)
-	box.add_child(histogram)
-	box.add_child(_label("Collectibles %d/%d" % [int(result.collectibles), _collectible_count(current_level)], 18, Color("#d4e0c9")))
+	histogram.custom_minimum_size = Vector2(720.0, 160.0)
+	content.add_child(histogram)
+	var style_score := int(result.get("style", 0))
+	var best_style := int(result.get("best_style", RunData.best_style_for(current_level.id)))
+	var longest_combo := int(result.get("longest_combo", 0))
+	var style_text := "STYLE %06d  -  NEW STYLE PB" % style_score if bool(result.get("is_style_pb", false)) else "STYLE %06d  -  BEST %06d" % [style_score, best_style]
+	content.add_child(_label(style_text, 23, Color("#8ed6ae") if bool(result.get("is_style_pb", false)) else Color("#f1d477")))
+	content.add_child(_label("LONGEST COMBO %d  -  FINISH BANK +%d" % [longest_combo, int(result.get("finish_bonus", StyleRun.FINISH_BONUS))], 16, Color("#b9f6df")))
+	var style_histogram := PERFORMANCE_HISTOGRAM.new()
+	style_histogram.name = "StyleHistogram"
+	style_histogram.set_score_data(RunData.style_history_for(current_level.id), style_score, best_style)
+	style_histogram.custom_minimum_size = Vector2(720.0, 160.0)
+	content.add_child(style_histogram)
+	content.add_child(_label("Collectibles %d/%d" % [int(result.collectibles), _collectible_count(current_level)], 18, Color("#d4e0c9")))
 	if bool(result.is_pb):
-		box.add_child(_label("NEW PERSONAL BEST - ghost saved", 16, Color("#8ed6ae")))
+		content.add_child(_label("NEW PERSONAL BEST - ghost saved", 16, Color("#8ed6ae")))
 	var again := _button("Run it again", 19)
 	again.pressed.connect(_restart_after_result)
-	box.add_child(again)
+	content.add_child(again)
 	var levels := _button("Level select", 19)
 	levels.pressed.connect(show_level_select)
-	box.add_child(levels)
+	content.add_child(levels)
 
 func _restart_after_result() -> void:
 	start_level(current_level.id)
@@ -1032,6 +1338,14 @@ func show_settings(back_mode: String) -> void:
 		Settings.save_settings()
 	)
 	content.add_child(slide_mode)
+	var reduced_effects := CheckBox.new()
+	reduced_effects.text = "Reduce screen effects (keeps score UI)"
+	reduced_effects.button_pressed = Settings.reduce_screen_effects
+	reduced_effects.toggled.connect(func(value: bool):
+		Settings.reduce_screen_effects = value
+		Settings.save_settings()
+	)
+	content.add_child(reduced_effects)
 	content.add_child(_label("Pixel filter", 16, Color("#d4e0c9")))
 	var pixel_filter := OptionButton.new()
 	pixel_filter.add_item("Off", Settings.PIXEL_FILTER_OFF)

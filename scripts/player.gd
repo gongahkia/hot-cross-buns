@@ -115,7 +115,7 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("grapple"):
 		_try_grapple()
 	if is_grappling and Input.is_action_just_pressed("jump"):
-		_stop_grapple()
+		_stop_grapple(true)
 	if Input.is_action_just_pressed("jump"):
 		jump_buffer = JUMP_BUFFER_TIME
 	else:
@@ -200,6 +200,8 @@ func _handle_slide(on_floor: bool) -> void:
 	if not Settings.slide_toggle:
 		_slide_latched = Input.is_action_pressed("slide")
 	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > 2.0
+	if is_sliding and not was_sliding:
+		traversal_action.emit("slide", -1)
 
 func _handle_sprint(on_floor: bool) -> void:
 	is_sprinting = on_floor and not is_sliding and Input.is_action_pressed("sprint")
@@ -234,6 +236,7 @@ func _try_grapple() -> bool:
 	grapple_target = best_anchor.global_position
 	can_dash = true
 	can_double_jump = true
+	traversal_action.emit("grapple", -1)
 	_add_camera_shake(0.028)
 	_emit_burst(0.72)
 	Audio.play_sfx("dash")
@@ -282,13 +285,17 @@ func _update_grapple(delta: float) -> void:
 		velocity -= direction * (along_speed - GRAPPLE_MAX_SPEED)
 	_refresh_grapple_line()
 
-func _stop_grapple() -> void:
+func _stop_grapple(award_release := false) -> void:
+	var had_grapple := is_grappling
+	var release_speed := Vector2(velocity.x, velocity.z).length()
 	is_grappling = false
 	grapple_anchor = null
 	if grapple_line:
 		grapple_line.visible = false
 	if grapple_line_mesh:
 		grapple_line_mesh.clear_surfaces()
+	if award_release and had_grapple and release_speed >= 12.0:
+		traversal_action.emit("tether_release", -1)
 
 func tool_status() -> String:
 	if is_grappling:
@@ -297,7 +304,39 @@ func tool_status() -> String:
 		return "GLIDE"
 	return "E TETHER / F GLIDE"
 
-func _dash() -> void:
+func style_multiplier_active() -> bool:
+	return not is_on_floor() or is_sliding or is_gliding or is_grappling
+
+func apply_style_feedback(severity: String) -> void:
+	var amount := 0.0
+	match severity:
+		"peak": amount = 0.022
+		"major": amount = 0.012
+		_: amount = 0.005
+	if Settings.reduce_screen_effects:
+		amount *= 0.2
+	_add_camera_shake(amount)
+
+func reset_for_bail(spawn_position: Vector3) -> void:
+	global_position = spawn_position
+	velocity = Vector3.ZERO
+	dash_timer = 0.0
+	coyote_timer = 0.0
+	jump_buffer = 0.0
+	wall_jump_timer = 0.0
+	is_sliding = false
+	was_sliding = false
+	_slide_latched = false
+	is_sprinting = false
+	is_slamming = false
+	is_gliding = false
+	can_dash = true
+	can_double_jump = true
+	airborne_time = 0.0
+	flow_timer = 0.0
+	_stop_grapple()
+
+func _dash(style_action := "dash") -> void:
 	can_dash = false
 	dash_timer = DASH_TIME
 	_add_camera_shake(0.038)
@@ -309,12 +348,16 @@ func _dash() -> void:
 	direction = direction.normalized()
 	velocity.x = direction.x * DASH_SPEED
 	velocity.z = direction.z * DASH_SPEED
-	if not is_on_floor():
+	var airborne := not is_on_floor()
+	if airborne:
 		velocity.y = max(velocity.y, 0.0)
+	var action := "air_dash" if style_action == "dash" and airborne else style_action
+	traversal_action.emit(action, -1)
 
 func apply_boost(direction: Vector3) -> void:
 	velocity.x = direction.x * 25.0
 	velocity.z = direction.z * 25.0
+	traversal_action.emit("boost", -1)
 
 func launch(force: float) -> void:
 	velocity.y = max(velocity.y, force)
@@ -323,6 +366,7 @@ func launch(force: float) -> void:
 	is_slamming = false
 	is_gliding = false
 	is_sprinting = false
+	traversal_action.emit("launch", -1)
 	_add_camera_shake(0.026)
 
 func _cache_wall_contact() -> void:
@@ -348,6 +392,7 @@ func _wall_jump() -> void:
 	wall_jump_timer = 0.0
 	can_dash = true
 	can_double_jump = true
+	traversal_action.emit("wall_jump", -1)
 	_add_camera_shake(0.032)
 	landing_offset = minf(landing_offset, -0.032)
 	Audio.play_sfx("jump")
@@ -356,6 +401,7 @@ func _double_jump() -> void:
 	velocity.y = DOUBLE_JUMP_VELOCITY
 	jump_buffer = 0.0
 	can_double_jump = false
+	traversal_action.emit("double_jump", -1)
 	_add_camera_shake(0.024)
 	landing_offset = minf(landing_offset, -0.018)
 	Audio.play_sfx("jump")
@@ -495,6 +541,20 @@ func _update_particles(speed: float) -> void:
 		return
 	dust_particles.emitting = is_on_floor() and speed > 3.0
 	dust_particles.amount_ratio = clampf((speed - 3.0) / 14.0, 0.18, 1.0)
+
+func _sample_flow(delta: float) -> void:
+	var planar_speed := Vector2(velocity.x, velocity.z).length()
+	if planar_speed < 15.0 and not is_gliding:
+		flow_timer = 0.0
+		return
+	flow_timer += delta
+	if flow_timer < 0.75:
+		return
+	flow_timer = 0.0
+	if is_gliding:
+		traversal_action.emit("glide", clampi(int(round(35.0 + planar_speed * 1.5)), 55, 90))
+	else:
+		traversal_action.emit("speed", clampi(int(round((planar_speed - 10.0) * 8.0)), 35, 90))
 
 func _emit_burst(height: float) -> void:
 	if burst_particles == null:

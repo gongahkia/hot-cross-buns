@@ -15,6 +15,7 @@ var master_volume := 0.8
 var ambient_volume := 0.55
 var sfx_volume := 0.75
 var pixel_filter_mode := PIXEL_FILTER_4X
+var reduce_screen_effects := false
 var bindings: Dictionary = {}
 
 func _ready() -> void:
@@ -53,6 +54,7 @@ func load_settings() -> void:
 	ambient_volume = float(parsed.get("ambient_volume", ambient_volume))
 	sfx_volume = float(parsed.get("sfx_volume", sfx_volume))
 	pixel_filter_mode = _normalized_pixel_filter_mode(int(parsed.get("pixel_filter_mode", pixel_filter_mode)))
+	reduce_screen_effects = bool(parsed.get("reduce_screen_effects", reduce_screen_effects))
 	var saved_bindings = parsed.get("bindings", {})
 	if saved_bindings is Dictionary:
 		for action in ACTIONS:
@@ -69,6 +71,7 @@ func save_settings() -> void:
 		"ambient_volume": ambient_volume,
 		"sfx_volume": sfx_volume,
 		"pixel_filter_mode": pixel_filter_mode,
+		"reduce_screen_effects": reduce_screen_effects,
 		"bindings": bindings
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)

@@ -11,6 +11,7 @@ var collected := 0
 var running := false
 var _run_frames: Array = []
 var style: StyleRun = STYLE_RUN.new()
+var style_movement_active := false
 
 func _ready() -> void:
 	load_records()
@@ -33,12 +34,18 @@ func begin_run(level_id: String) -> void:
 	collected = 0
 	_run_frames.clear()
 	style.begin()
+	style_movement_active = false
 	running = true
 
-func advance(delta: float) -> void:
-	if running:
-		elapsed += delta
-		style.tick(elapsed)
+func advance(delta: float) -> Dictionary:
+	if not running:
+		return style.snapshot()
+	elapsed += delta
+	style.update_movement_multiplier(delta, style_movement_active)
+	return style.tick(elapsed)
+
+func set_style_movement_active(active: bool) -> void:
+	style_movement_active = active
 
 func record_frame(position: Vector3, yaw: float, pitch: float, sliding: bool) -> void:
 	if not running:

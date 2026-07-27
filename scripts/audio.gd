@@ -63,6 +63,22 @@ func play_sfx(kind: String) -> void:
 			sfx_frequency = 680.0
 			sfx_remaining = 0.42
 
+func play_style_sfx(severity: String, rank_up := false) -> void:
+	if rank_up:
+		sfx_frequency = 1120.0
+		sfx_remaining = 0.18
+		return
+	match severity:
+		"peak":
+			sfx_frequency = 980.0
+			sfx_remaining = 0.16
+		"major":
+			sfx_frequency = 840.0
+			sfx_remaining = 0.12
+		_:
+			sfx_frequency = 700.0
+			sfx_remaining = 0.08
+
 func _generator_player(rate: float) -> AudioStreamPlayer:
 	var player := AudioStreamPlayer.new()
 	var stream := AudioStreamGenerator.new()

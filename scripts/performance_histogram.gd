@@ -4,6 +4,7 @@ extends Control
 var samples: Array[float] = []
 var current_time := -1.0
 var best_time := -1.0
+var score_mode := false
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(680.0, 190.0)
@@ -12,6 +13,16 @@ func set_data(attempts: Array[float], current: float, best: float) -> void:
 	samples = attempts.duplicate()
 	current_time = current
 	best_time = best
+	score_mode = false
+	queue_redraw()
+
+func set_score_data(attempts: Array[int], current: int, best: int) -> void:
+	samples.clear()
+	for attempt in attempts:
+		samples.append(float(attempt))
+	current_time = float(current)
+	best_time = float(best)
+	score_mode = true
 	queue_redraw()
 
 func _draw() -> void:
@@ -26,7 +37,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), panel, true)
 	draw_rect(Rect2(Vector2.ZERO, size), border, false, 2.0)
 	if font:
-		draw_string(font, Vector2(14.0, 18.0), "PERSONAL TIME DISTRIBUTION", HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#d9e6c9"))
+		var title := "PERSONAL STYLE DISTRIBUTION" if score_mode else "PERSONAL TIME DISTRIBUTION"
+		draw_string(font, Vector2(14.0, 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#d9e6c9"))
 	if samples.is_empty():
 		if font:
 			draw_string(font, Vector2(14.0, 62.0), "NO COMPLETED RUNS", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, Color("#a4b29a"))
@@ -64,10 +76,18 @@ func _draw() -> void:
 	draw_line(Vector2(best_x, graph.position.y), Vector2(best_x, graph.end.y), best, 1.0)
 	draw_line(Vector2(current_x, graph.position.y), Vector2(current_x, graph.end.y), current, 2.0)
 	if font:
-		draw_string(font, Vector2(graph.position.x, size.y - 14.0), _time_text(min_time), HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#a4b29a"))
-		draw_string(font, Vector2(graph.end.x - 70.0, size.y - 14.0), _time_text(max_time), HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#a4b29a"))
-		draw_string(font, Vector2(graph.position.x, 29.0), "FAST", HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, best)
-		draw_string(font, Vector2(graph.end.x - 28.0, 29.0), "SLOW", HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, current)
+		var left_text := _value_text(min_time)
+		var right_text := _value_text(max_time)
+		var left_width := 70.0 if not score_mode else 92.0
+		draw_string(font, Vector2(graph.position.x, size.y - 14.0), left_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#a4b29a"))
+		draw_string(font, Vector2(graph.end.x - left_width, size.y - 14.0), right_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color("#a4b29a"))
+		draw_string(font, Vector2(graph.position.x, 29.0), "LOW" if score_mode else "FAST", HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, best)
+		draw_string(font, Vector2(graph.end.x - 28.0, 29.0), "HIGH" if score_mode else "SLOW", HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, current)
+
+func _value_text(value: float) -> String:
+	if score_mode:
+		return "%d" % int(round(value))
+	return _time_text(value)
 
 func _time_text(seconds: float) -> String:
 	var minutes := int(seconds / 60.0)
