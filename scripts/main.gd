@@ -69,6 +69,12 @@ func _build_ui() -> void:
 	timer_label = _label("00:00.000", 32, Color("#edf3d5"))
 	par_label = _label("PAR --:--.---", 16, Color("#b5c6a5"))
 	collect_label = _label("◇ 0/0", 16, Color("#f2d98c"))
+	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	timer_label.custom_minimum_size = Vector2(170.0, 42.0)
+	par_label.custom_minimum_size = Vector2(170.0, 28.0)
+	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
 	top.add_child(timer_label)
 	top.add_child(par_label)
 	top.add_child(collect_label)
@@ -86,15 +92,17 @@ func _build_ui() -> void:
 	ui.add_child(menu)
 
 func _process(delta: float) -> void:
+	if not rebinding_action.is_empty():
+		return
+	if get_tree().paused:
+		if Input.is_action_just_pressed("pause"):
+			resume_run()
+		return
 	if RunData.running:
 		RunData.advance(delta)
 		_refresh_hud()
-		if Input.is_action_just_pressed("pause") and rebinding_action.is_empty():
+		if Input.is_action_just_pressed("pause"):
 			show_pause()
-	if not rebinding_action.is_empty():
-		return
-	if get_tree().paused and Input.is_action_just_pressed("pause"):
-		resume_run()
 
 func _input(event: InputEvent) -> void:
 	if rebinding_action.is_empty():
@@ -160,11 +168,15 @@ func show_level_select() -> void:
 		button.pressed.connect(start_level.bind(level.id))
 		grid.add_child(button)
 	var bottom := HBoxContainer.new()
+	bottom.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom.add_theme_constant_override("separation", 12)
 	box.add_child(bottom)
 	var back := _button("Back", 16)
+	back.custom_minimum_size.x = 160.0
 	back.pressed.connect(show_title)
 	bottom.add_child(back)
 	var settings := _button("Settings", 16)
+	settings.custom_minimum_size.x = 160.0
 	settings.pressed.connect(show_settings.bind("levels"))
 	bottom.add_child(settings)
 
@@ -191,7 +203,7 @@ func _build_course(level: Dictionary) -> void:
 	var start_floor := _make_platform(Vector3(0.0, 0.0, 2.0), Vector3(8.0, 0.7, 9.0), Color("#39553e"))
 	course.add_child(start_floor)
 	player = SpeedPlayer.new()
-	player.global_position = Vector3(0.0, 0.9, 3.0)
+	player.position = Vector3(0.0, 0.9, 3.0)
 	player.reset_requested.connect(_restart_level)
 	course.add_child(player)
 	var segments := int(ceil(float(level.length) / 4.8))
@@ -305,11 +317,14 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 		CourseTrigger.TriggerType.COLLECTIBLE:
 			collected_in_level += 1
 			RunData.add_collectible()
+			Audio.play_sfx("pickup")
 			_refresh_hud()
 		CourseTrigger.TriggerType.BOOST:
 			player.apply_boost(payload)
+			Audio.play_sfx("boost")
 		CourseTrigger.TriggerType.LAUNCH:
 			player.launch(float(payload))
+			Audio.play_sfx("launch")
 
 func _add_tree(position: Vector3, scale_factor: float) -> void:
 	var tree := Node3D.new()
@@ -356,6 +371,7 @@ func _complete_level() -> void:
 	var result := RunData.finish_run()
 	player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Audio.play_sfx("finish")
 	show_results(result)
 
 func _refresh_hud() -> void:
@@ -437,13 +453,23 @@ func show_settings(back_mode: String) -> void:
 	menu_mode = "settings"
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_clear_menu()
-	var panel := _center_panel(Vector2(720.0, 610.0))
+	var panel := _center_panel(Vector2(800.0, 660.0))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	panel.add_child(box)
 	box.add_child(_label("Settings", 34, Color("#edf3d5")))
-	box.add_child(_label("Mouse sensitivity", 16, Color("#d4e0c9")))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0.0, 550.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(scroll)
+	var content := VBoxContainer.new()
+	content.custom_minimum_size = Vector2(720.0, 0.0)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 8)
+	scroll.add_child(content)
+	content.add_child(_label("Mouse sensitivity", 16, Color("#d4e0c9")))
 	var sensitivity := HSlider.new()
+	sensitivity.custom_minimum_size.x = 690.0
 	sensitivity.min_value = 0.0007
 	sensitivity.max_value = 0.006
 	sensitivity.step = 0.0001
@@ -452,7 +478,7 @@ func show_settings(back_mode: String) -> void:
 		Settings.mouse_sensitivity = value
 		Settings.save_settings()
 	)
-	box.add_child(sensitivity)
+	content.add_child(sensitivity)
 	var invert := CheckBox.new()
 	invert.text = "Invert vertical look"
 	invert.button_pressed = Settings.invert_y
@@ -460,7 +486,7 @@ func show_settings(back_mode: String) -> void:
 		Settings.invert_y = value
 		Settings.save_settings()
 	)
-	box.add_child(invert)
+	content.add_child(invert)
 	var slide_mode := CheckBox.new()
 	slide_mode.text = "Toggle slide (off = hold)"
 	slide_mode.button_pressed = Settings.slide_toggle
@@ -468,21 +494,30 @@ func show_settings(back_mode: String) -> void:
 		Settings.slide_toggle = value
 		Settings.save_settings()
 	)
-	box.add_child(slide_mode)
-	box.add_child(_label("Key / controller remapping", 18, Color("#d4e0c9")))
+	content.add_child(slide_mode)
+	content.add_child(_label("Key / controller remapping", 18, Color("#d4e0c9")))
 	var bindings_grid := GridContainer.new()
 	bindings_grid.columns = 3
+	bindings_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bindings_grid.add_theme_constant_override("h_separation", 12)
+	bindings_grid.add_theme_constant_override("v_separation", 6)
 	for action in Settings.ACTIONS:
-		bindings_grid.add_child(_label(action.replace("_", " ").capitalize(), 14, Color("#aabda1")))
+		var action_label := _label(action.replace("_", " ").capitalize(), 14, Color("#aabda1"))
+		action_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		action_label.custom_minimum_size.x = 150.0
+		bindings_grid.add_child(action_label)
 		var binding := _button(Settings.binding_label(action), 14)
 		binding.custom_minimum_size = Vector2(170.0, 32.0)
 		binding.pressed.connect(_begin_rebind.bind(action, binding))
 		bindings_grid.add_child(binding)
-		bindings_grid.add_child(_label("click then press a key/button", 12, Color("#83927d")))
-	box.add_child(bindings_grid)
+		var hint := _label("click then press a key/button", 12, Color("#83927d"))
+		hint.autowrap_mode = TextServer.AUTOWRAP_OFF
+		hint.custom_minimum_size.x = 270.0
+		bindings_grid.add_child(hint)
+	content.add_child(bindings_grid)
 	var back := _button("Back", 17)
 	back.pressed.connect(_return_from_settings.bind(back_mode))
-	box.add_child(back)
+	content.add_child(back)
 
 func _begin_rebind(action: String, button: Button) -> void:
 	rebinding_action = action
