@@ -71,7 +71,6 @@ func _ready() -> void:
 	ui_theme = _make_ui_theme()
 	foliage_shader = _make_foliage_shader()
 	pulse_shader = _make_pulse_shader()
-	_build_world()
 	_build_ui()
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
@@ -87,34 +86,6 @@ func _generate_sandbox_geometry() -> void:
 	if save_error != OK:
 		push_error("Could not export sandbox geometry: " + error_string(save_error))
 	get_tree().quit(0 if save_error == OK else 1)
-
-func _build_world() -> void:
-	var environment := WorldEnvironment.new()
-	var settings := Environment.new()
-	settings.background_mode = Environment.BG_COLOR
-	settings.background_color = Color("#17231d")
-	settings.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	settings.ambient_light_color = Color("#92a87d")
-	settings.ambient_light_energy = 0.55
-	settings.fog_enabled = true
-	settings.fog_light_color = Color("#5f765f")
-	settings.fog_light_energy = 0.65
-	settings.fog_density = 0.008
-	settings.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.environment = settings
-	add_child(environment)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52.0, -36.0, 0.0)
-	sun.light_color = Color("#d4d7ac")
-	sun.light_energy = 1.25
-	sun.shadow_enabled = true
-	add_child(sun)
-	var fill := OmniLight3D.new()
-	fill.position = Vector3(0.0, 9.0, 3.0)
-	fill.light_color = Color("#78966c")
-	fill.omni_range = 30.0
-	fill.light_energy = 1.2
-	add_child(fill)
 
 func _build_ui() -> void:
 	ui = CanvasLayer.new()
@@ -406,10 +377,10 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 	course.set_meta("focus", level.focus)
 	add_child(course)
 	total_collectibles_in_level = 0
-	traversal_ramp_count = course.find_children("TraversalRamp", "", true, false).size()
-	climbable_trunk_count = course.find_children("ClimbableTrunk", "", true, false).size()
-	grapple_anchor_count = course.find_children("GrappleAnchor", "", true, false).size()
-	combo_gap_count = course.find_children("ComboGap", "", true, false).size()
+	traversal_ramp_count = 0
+	climbable_trunk_count = 0
+	grapple_anchor_count = 0
+	combo_gap_count = 0
 	trigger_count = 0
 	sandbox_stations.clear()
 	current_station = "Central Plaza"
@@ -419,6 +390,15 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 			var station_name := str(route.get_meta("station"))
 			var center: Variant = SANDBOX_STATION_CENTERS.get(station_name, route.global_position)
 			sandbox_stations.append({"name": station_name, "center": center})
+	for node in course.find_children("*", "", true, false):
+		if node.has_meta("traversal_ramp"):
+			traversal_ramp_count += 1
+		if node.has_meta("climbable_trunk"):
+			climbable_trunk_count += 1
+		if node.get_meta("tool", "") == "grapple":
+			grapple_anchor_count += 1
+		if node.has_meta("gap_id"):
+			combo_gap_count += 1
 	for trigger in course.find_children("*", "CourseTrigger", true, false):
 		trigger.callback = _on_trigger
 		trigger_count += 1
@@ -663,6 +643,7 @@ func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: flo
 	traversal_ramp_count += 1
 	var body := StaticBody3D.new()
 	body.name = "TraversalRamp"
+	body.set_meta("traversal_ramp", true)
 	var path := end_surface - start_surface
 	var length := path.length()
 	var ramp_center := (start_surface + end_surface) * 0.5 - Vector3(0.0, 0.28, 0.0)
@@ -684,6 +665,7 @@ func _add_climbable_trunk(position: Vector3, height: float, radius: float, paren
 	climbable_trunk_count += 1
 	var body := StaticBody3D.new()
 	body.name = "ClimbableTrunk"
+	body.set_meta("climbable_trunk", true)
 	body.position = position
 	var visual := MeshInstance3D.new()
 	var trunk := CylinderMesh.new()
@@ -901,7 +883,9 @@ func _refresh_debug_hud() -> void:
 	var active_objects := int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS))
 	var collision_pairs := int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))
 	var islands := int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, last_sandbox_event]
+	var lightmap := course.get_node_or_null("BakedLightmap") as LightmapGI
+	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]
