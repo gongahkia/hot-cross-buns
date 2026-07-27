@@ -17,6 +17,7 @@
 #include "app/AppController.h"
 #include "app/AppServices.h"
 #include "app/DeepLinkAdapter.h"
+#include "app/NativeReminderNotifier.h"
 #include "app/SystemTrayAdapter.h"
 #include "core/AgendaModel.h"
 #include "core/CalendarSourceModel.h"
@@ -25,6 +26,7 @@
 #include "core/MonthGridModel.h"
 #include "core/NativeProcessMemory.h"
 #include "core/NotesModel.h"
+#include "core/ReminderService.h"
 #include "core/SearchResultsModel.h"
 #include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
@@ -124,6 +126,8 @@ int runApplication(int argc, char* argv[]) {
   hcb::TaskListModel taskListModel;
   hcb::TaskModel taskModel;
   hcb::TimelineModel timelineModel;
+  hcb::NativeReminderNotifier reminderNotifier(&application);
+  hcb::ReminderService reminderService(*databasePath, clock, reminderNotifier, &application);
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   hcb::AppController appController(*databasePath,
                                    clock,
@@ -135,6 +139,7 @@ int runApplication(int argc, char* argv[]) {
                                    taskModel,
                                    timelineModel,
                                    &application);
+  appController.setReminderService(&reminderService);
   QQmlApplicationEngine engine;
   engine.setInitialProperties(
       {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
@@ -165,6 +170,7 @@ int runApplication(int argc, char* argv[]) {
   startupTimings.mark(u"qml.loaded");
 
   appController.initialize();
+  QTimer::singleShot(0, &reminderService, &hcb::ReminderService::start);
 
   QObject* rootObject = engine.rootObjects().constFirst();
   auto showMainWindow = [rootObject] {

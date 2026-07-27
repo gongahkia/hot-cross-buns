@@ -66,6 +66,7 @@ class CalendarSourceModel;
 class MonthGridModel;
 class NotesModel;
 class SearchResultsModel;
+class ReminderService;
 class TaskListModel;
 class TaskModel;
 class TimelineModel;
@@ -107,6 +108,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
   Q_PROPERTY(QVariantList driveAttachmentCandidates READ driveAttachmentCandidates NOTIFY
                  driveAttachmentCandidatesChanged)
+  Q_PROPERTY(QString reminderStatusMessage READ reminderStatusMessage NOTIFY reminderStatusMessageChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -153,10 +155,12 @@ public:
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
   [[nodiscard]] QVariantList driveAttachmentCandidates() const;
+  [[nodiscard]] QString reminderStatusMessage() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
 
   Q_INVOKABLE void initialize();
+  void setReminderService(ReminderService* service);
   Q_INVOKABLE void refresh();
   Q_INVOKABLE void setCalendarDate(QString date);
   Q_INVOKABLE void saveAppearanceMode(int mode);
@@ -335,6 +339,7 @@ signals:
   void notesProjectionModeChanged();
   void freeBusyIntervalsChanged();
   void driveAttachmentCandidatesChanged();
+  void reminderStatusMessageChanged();
   void busyChanged();
 
 private:
@@ -410,6 +415,7 @@ private:
   void setSearchLoading(bool loading);
   void setBulkTaskStatusMessage(QString message);
   void setBulkEventStatusMessage(QString message);
+  void setReminderStatusMessage(QString message);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -492,6 +498,8 @@ private:
   int notesProjectionMode_{0};
   QVariantList freeBusyIntervals_;
   QVariantList driveAttachmentCandidates_;
+  ReminderService* reminderService_{nullptr};
+  QString reminderStatusMessage_{QStringLiteral("Calendar reminders are initializing")};
   QList<TaskModelTask> taskProjectionTasks_;
   std::uint64_t calendarRefreshGeneration_{0};
   QTimer searchDebounce_;

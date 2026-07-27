@@ -6,6 +6,10 @@ endif()
 
 project(HotCrossBuns VERSION 6.0.0 LANGUAGES C CXX)
 
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
+
 include(CTest)
 include(cmake/HcbWarnings.cmake)
 include(cmake/HcbSanitizers.cmake)

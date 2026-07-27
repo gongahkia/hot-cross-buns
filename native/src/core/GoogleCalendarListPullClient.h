@@ -3,6 +3,7 @@
 #include "core/GoogleApiError.h"
 
 #include <QList>
+#include <QJsonArray>
 #include <QString>
 
 #include <cstdint>
@@ -34,6 +35,7 @@ struct GoogleCalendarMirror final {
   bool primary;
   bool deleted;
   std::optional<QString> etag;
+  QJsonArray defaultReminders;
 };
 
 struct GoogleCalendarListPullRequest final {

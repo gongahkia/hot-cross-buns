@@ -26,6 +26,17 @@ set(HCB_SYSTEM_TRAY_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../assets/brand/buns-app-i
 set_source_files_properties("${HCB_SYSTEM_TRAY_ICON}" PROPERTIES QT_RESOURCE_ALIAS "tray-icon.png")
 if(APPLE)
   find_library(HCB_SECURITY_FRAMEWORK Security REQUIRED)
+  find_library(HCB_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
+  set(HCB_REMINDER_SOURCES
+    src/app/NativeReminderNotifier.mm
+    src/app/NativeReminderNotifier.h
+  )
+  set_source_files_properties(src/app/NativeReminderNotifier.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+else()
+  set(HCB_REMINDER_SOURCES
+    src/app/NativeReminderNotifier.cpp
+    src/app/NativeReminderNotifier.h
+  )
 endif()
 
 set(HCB_NATIVE_SOURCES
@@ -44,6 +55,7 @@ set(HCB_NATIVE_SOURCES
   src/app/MacOSPathsAdapter.cpp
   src/app/MacOSPathsAdapter.h
   ${HCB_NOTIFICATION_SOURCES}
+  ${HCB_REMINDER_SOURCES}
   ${HCB_SYSTEM_TRAY_SOURCES}
   ${HCB_WINDOWS_CREDENTIAL_SOURCES}
   src/app/WindowsPathsAdapter.cpp
@@ -156,6 +168,8 @@ set(HCB_NATIVE_SOURCES
   src/core/RecurrenceExpansionWorker.h
   src/core/RecurrenceResultCache.cpp
   src/core/RecurrenceResultCache.h
+  src/core/ReminderService.cpp
+  src/core/ReminderService.h
   src/core/SearchResultsModel.cpp
   src/core/SearchResultsModel.h
   src/core/SavedSearchStore.cpp
@@ -291,7 +305,7 @@ target_link_libraries(hcb_native PRIVATE
   hcb::sqlite
 )
 if(APPLE)
-  target_link_libraries(hcb_native PRIVATE ${HCB_SECURITY_FRAMEWORK})
+  target_link_libraries(hcb_native PRIVATE ${HCB_SECURITY_FRAMEWORK} ${HCB_USER_NOTIFICATIONS_FRAMEWORK})
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(hcb_native PRIVATE Qt6::DBus)

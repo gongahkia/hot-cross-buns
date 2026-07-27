@@ -436,17 +436,20 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       calendar.accessRole.has_value() ? calendarAccessRole(*calendar.accessRole) : std::nullopt;
   const std::optional<QString> deletedAt =
       calendar.deleted ? std::optional<QString>(now) : std::nullopt;
+  const QString defaultReminders =
+      QString::fromUtf8(QJsonDocument(calendar.defaultReminders).toJson(QJsonDocument::Compact));
   return execute(
       handle,
       "INSERT INTO local_calendars (id, account_id, remote_id, title, description, time_zone, "
       "background_color, foreground_color, access_role, is_selected, is_hidden, is_primary, etag, "
-      "updated_at, deleted_at) "
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) "
+      "default_reminders_json, updated_at, deleted_at) "
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) "
       "ON CONFLICT(account_id, remote_id) DO UPDATE SET "
       "title = excluded.title, description = excluded.description, time_zone = excluded.time_zone, "
       "background_color = excluded.background_color, foreground_color = excluded.foreground_color, "
       "access_role = excluded.access_role, is_selected = excluded.is_selected, "
       "is_hidden = excluded.is_hidden, is_primary = excluded.is_primary, etag = excluded.etag, "
+      "default_reminders_json = excluded.default_reminders_json, "
       "updated_at = excluded.updated_at, "
       "deleted_at = CASE WHEN excluded.deleted_at IS NOT NULL AND EXISTS ("
       "SELECT 1 FROM local_calendar_events AS events "
@@ -469,6 +472,7 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
        integerValue(calendar.hidden ? 1 : 0),
        integerValue(calendar.primary ? 1 : 0),
        optionalTextValue(calendar.etag),
+       textValue(defaultReminders),
        textValue(now),
        optionalTextValue(deletedAt)});
 }

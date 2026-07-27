@@ -843,6 +843,27 @@ DELETE FROM local_sync_checkpoints
 WHERE resource_type = 'calendar_event';
 )";
 
+constexpr char calendarReminderDefaultsSchemaSql[] = R"(
+ALTER TABLE local_calendars
+ADD COLUMN default_reminders_json TEXT NOT NULL DEFAULT '[]' CHECK(length(default_reminders_json) <= 8192 AND json_valid(default_reminders_json) AND json_type(default_reminders_json) = 'array' AND json_array_length(default_reminders_json) <= 5);
+)";
+
+constexpr char reminderStateSchemaSql[] = R"(
+CREATE TABLE local_reminder_state (
+  identifier TEXT PRIMARY KEY CHECK(length(trim(identifier)) BETWEEN 1 AND 256),
+  event_id TEXT NOT NULL REFERENCES local_calendar_events(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  trigger_at TEXT NOT NULL CHECK(length(trim(trigger_at)) BETWEEN 1 AND 64),
+  snoozed_until TEXT CHECK(snoozed_until IS NULL OR length(trim(snoozed_until)) BETWEEN 1 AND 64),
+  dismissed_at TEXT CHECK(dismissed_at IS NULL OR length(trim(dismissed_at)) BETWEEN 1 AND 64),
+  delivered_at TEXT CHECK(delivered_at IS NULL OR length(trim(delivered_at)) BETWEEN 1 AND 64),
+  updated_at TEXT NOT NULL CHECK(length(trim(updated_at)) BETWEEN 1 AND 64)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_reminder_state_active
+ON local_reminder_state(event_id, trigger_at, snoozed_until)
+WHERE dismissed_at IS NULL;
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -969,8 +990,18 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite rich calendar-event metadata schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 21>& migrations() {
-  static const std::array<SqliteMigration, 21> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarReminderDefaultsSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     calendarReminderDefaultsSchemaSql,
+                     QStringLiteral("SQLite calendar reminder-default schema"));
+}
+
+[[nodiscard]] std::optional<AppError> applyReminderStateSchema(SqliteConnection& connection) {
+  return applySchema(connection, reminderStateSchemaSql, QStringLiteral("SQLite reminder-state schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 23>& migrations() {
+  static const std::array<SqliteMigration, 23> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -1043,6 +1074,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("store rich calendar event metadata"),
        checksum(calendarRichEventMetadataSchemaSql),
        applyCalendarRichEventMetadataSchema},
+      {22,
+       QStringLiteral("store calendar default reminders"),
+       checksum(calendarReminderDefaultsSchemaSql),
+       applyCalendarReminderDefaultsSchema},
+      {23,
+       QStringLiteral("store local reminder state"),
+       checksum(reminderStateSchemaSql),
+       applyReminderStateSchema},
   }};
   return catalogue;
 }

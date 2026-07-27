@@ -10,6 +10,7 @@
 #include "core/MonthGridModel.h"
 #include "core/NotesModel.h"
 #include "core/SearchResultsModel.h"
+#include "core/ReminderService.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
 #include "core/TaskRecurrenceMarker.h"
@@ -608,6 +609,8 @@ QVariantList AppController::freeBusyIntervals() const { return freeBusyIntervals
 
 QVariantList AppController::driveAttachmentCandidates() const { return driveAttachmentCandidates_; }
 
+QString AppController::reminderStatusMessage() const { return reminderStatusMessage_; }
+
 bool AppController::busy() const { return busy_; }
 
 SearchResultsModel& AppController::searchResultsModel() { return *searchResultsModelPointer_; }
@@ -887,6 +890,24 @@ void AppController::initialize() {
           }
         });
   refresh();
+}
+
+void AppController::setReminderService(ReminderService* service) {
+  if (reminderService_ == service) {
+    return;
+  }
+  if (reminderService_ != nullptr) {
+    disconnect(reminderService_, nullptr, this, nullptr);
+  }
+  reminderService_ = service;
+  if (reminderService_ == nullptr) {
+    setReminderStatusMessage(QStringLiteral("Calendar reminders are unavailable"));
+    return;
+  }
+  connect(reminderService_, &ReminderService::statusMessageChanged, this, [this] {
+    setReminderStatusMessage(reminderService_->statusMessage());
+  });
+  setReminderStatusMessage(reminderService_->statusMessage());
 }
 
 void AppController::refresh() {
@@ -2776,6 +2797,9 @@ void AppController::reorderTask(QString taskId, bool earlier) {
 }
 
 void AppController::refreshCalendar() {
+  if (reminderService_ != nullptr) {
+    reminderService_->refresh();
+  }
   const std::uint64_t generation = ++calendarRefreshGeneration_;
   watch(calendarReadService_.listCalendars(), [this, generation](CalendarListPageResult result) {
     if (generation != calendarRefreshGeneration_) {
@@ -3045,6 +3069,14 @@ void AppController::setBulkEventStatusMessage(QString message) {
   }
   bulkEventStatusMessage_ = std::move(message);
   emit bulkEventStatusMessageChanged();
+}
+
+void AppController::setReminderStatusMessage(QString message) {
+  if (reminderStatusMessage_ == message) {
+    return;
+  }
+  reminderStatusMessage_ = std::move(message);
+  emit reminderStatusMessageChanged();
 }
 
 void AppController::setBusy(bool busy) {

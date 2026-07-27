@@ -27,6 +27,7 @@ constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr qsizetype kMaximumPageTokenLength = 8'192;
 constexpr qsizetype kMaximumSyncTokenLength = 8'192;
 constexpr int kMaximumPages = 100;
+constexpr int kMaximumReminderMinutes = 40'320;
 
 struct DecodedCalendarListPage final {
   QList<GoogleCalendarMirror> calendars;
@@ -56,6 +57,32 @@ using DecodedCalendarListPageOrError = std::variant<DecodedCalendarListPage, Goo
 
 [[nodiscard]] bool isPresent(const QJsonValue& value) {
   return !value.isUndefined() && !value.isNull();
+}
+
+[[nodiscard]] std::optional<QJsonArray> defaultReminders(const QJsonObject& object) {
+  const QJsonValue value = object.value(QStringLiteral("defaultReminders"));
+  if (!isPresent(value)) {
+    return QJsonArray();
+  }
+  if (!value.isArray() || value.toArray().size() > 5) {
+    return std::nullopt;
+  }
+  const QJsonArray reminders = value.toArray();
+  for (const QJsonValue& reminderValue : reminders) {
+    if (!reminderValue.isObject()) {
+      return std::nullopt;
+    }
+    const QJsonObject reminder = reminderValue.toObject();
+    const QJsonValue method = reminder.value(QStringLiteral("method"));
+    const QJsonValue minutes = reminder.value(QStringLiteral("minutes"));
+    if (!method.isString() || (method.toString() != QStringLiteral("popup") &&
+                               method.toString() != QStringLiteral("email")) ||
+        !minutes.isDouble() || minutes.toInt(-1) < 0 ||
+        minutes.toInt(-1) > kMaximumReminderMinutes) {
+      return std::nullopt;
+    }
+  }
+  return reminders;
 }
 
 [[nodiscard]] bool isValidIdentifier(const QString& value) {
@@ -202,6 +229,7 @@ calendarAccessRole(const QJsonObject& object) {
     const std::optional<QString> foregroundColor =
         optionalString(item, u"foregroundColor", kMaximumColorLength);
     const std::optional<QString> etag = optionalString(item, u"etag", kMaximumEtagLength);
+    const std::optional<QJsonArray> reminders = defaultReminders(item);
     const std::optional<GoogleCalendarAccessRole> accessRole = calendarAccessRole(item);
     const std::optional<bool> selected = booleanOrDefault(item, u"selected", true);
     const std::optional<bool> hidden = booleanOrDefault(item, u"hidden", false);
@@ -217,7 +245,8 @@ calendarAccessRole(const QJsonObject& object) {
         (!etag.has_value() && isPresent(item.value(QStringLiteral("etag")))) ||
         (!accessRole.has_value() && isPresent(item.value(QStringLiteral("accessRole")))) ||
         !selected.has_value() || !hidden.has_value() || !primary.has_value() ||
-        !deleted.has_value() || !isValidColor(backgroundColor) || !isValidColor(foregroundColor)) {
+        !deleted.has_value() || !reminders.has_value() || !isValidColor(backgroundColor) ||
+        !isValidColor(foregroundColor)) {
       return invalidPayloadError();
     }
     seenIds.insert(idValue.toString());
@@ -232,7 +261,8 @@ calendarAccessRole(const QJsonObject& object) {
                       .hidden = *hidden,
                       .primary = *primary,
                       .deleted = *deleted,
-                      .etag = etag});
+                      .etag = etag,
+                      .defaultReminders = *reminders});
   }
   return DecodedCalendarListPage{.calendars = std::move(calendars),
                                  .nextPageToken = nextPageToken,
@@ -250,7 +280,8 @@ calendarAccessRole(const QJsonObject& object) {
       {.name = QStringLiteral("fields"),
        .value = QStringLiteral(
            "nextPageToken,nextSyncToken,items(id,summary,summaryOverride,description,timeZone,"
-           "backgroundColor,foregroundColor,accessRole,selected,hidden,primary,deleted,etag)")}};
+           "backgroundColor,foregroundColor,accessRole,selected,hidden,primary,deleted,etag,"
+           "defaultReminders)")}};
   if (request.syncToken.has_value()) {
     httpRequest.query.append({.name = QStringLiteral("syncToken"), .value = *request.syncToken});
   }
