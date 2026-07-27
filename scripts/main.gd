@@ -5,6 +5,17 @@ const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
 const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
 const SANDBOX_GEOMETRY_EXPORTER := preload("res://scripts/generate_sandbox_geometry.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
+const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
+const SANDBOX_STATION_CENTERS := {
+	"CENTRAL PLAZA": Vector3(0.0, 0.5, 1.0),
+	"MOVEMENT PLAZA": Vector3(0.0, 1.5, -24.0),
+	"GAP YARD": Vector3(-31.0, 2.5, -47.0),
+	"WALL TOWER": Vector3(30.0, 3.0, -47.0),
+	"AERIAL ATRIUM": Vector3(-30.0, 5.0, -86.0),
+	"POWER HALL": Vector3(29.0, 3.0, -87.0),
+	"STYLE BOWL": Vector3(0.0, 2.0, -119.0),
+	"INTEGRATED LINE": Vector3(2.0, 7.0, -81.0),
+}
 
 var course: Node3D
 var player: SpeedPlayer
@@ -52,8 +63,10 @@ var menu_mode := "title"
 var foliage_shader: Shader
 var pulse_shader: Shader
 var ui_theme: Theme
+var geometry_export_mode := false
 
 func _ready() -> void:
+	geometry_export_mode = OS.get_cmdline_user_args().has("--generate-sandbox-geometry")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	ui_theme = _make_ui_theme()
 	foliage_shader = _make_foliage_shader()
@@ -62,13 +75,15 @@ func _ready() -> void:
 	_build_ui()
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
-	if OS.get_cmdline_user_args().has("--generate-sandbox-geometry"):
+	if geometry_export_mode:
 		call_deferred("_generate_sandbox_geometry")
 
 func _generate_sandbox_geometry() -> void:
 	start_level("sandbox")
 	await get_tree().process_frame
-	var save_error := SANDBOX_GEOMETRY_EXPORTER.export_course(course, player, SANDBOX_GEOMETRY_PATH)
+	var generated_player := player
+	player = null
+	var save_error := SANDBOX_GEOMETRY_EXPORTER.export_course(course, generated_player, SANDBOX_GEOMETRY_PATH)
 	if save_error != OK:
 		push_error("Could not export sandbox geometry: " + error_string(save_error))
 	get_tree().quit(0 if save_error == OK else 1)
@@ -345,6 +360,9 @@ func start_level(level_id: String) -> void:
 func _build_course(level: Dictionary) -> void:
 	if course:
 		course.queue_free()
+	if not geometry_export_mode:
+		_load_baked_sandbox(level)
+		return
 	course = Node3D.new()
 	course.name = "Course"
 	course.set_meta("layout_id", level.id)
@@ -380,6 +398,39 @@ func _build_course(level: Dictionary) -> void:
 	course.add_child(player)
 	_build_open_terrain(world_length, world_width, str(level.terrain_style))
 	_build_sandbox(palette)
+
+func _load_baked_sandbox(level: Dictionary) -> void:
+	course = SANDBOX_GEOMETRY.instantiate()
+	course.name = "Course"
+	course.set_meta("layout_id", level.id)
+	course.set_meta("focus", level.focus)
+	add_child(course)
+	total_collectibles_in_level = 0
+	traversal_ramp_count = course.find_children("TraversalRamp", "", true, false).size()
+	climbable_trunk_count = course.find_children("ClimbableTrunk", "", true, false).size()
+	grapple_anchor_count = course.find_children("GrappleAnchor", "", true, false).size()
+	combo_gap_count = course.find_children("ComboGap", "", true, false).size()
+	trigger_count = 0
+	sandbox_stations.clear()
+	current_station = "Central Plaza"
+	last_sandbox_event = "Session started"
+	for route in course.get_children():
+		if route is Node3D and route.has_meta("station"):
+			var station_name := str(route.get_meta("station"))
+			var center: Variant = SANDBOX_STATION_CENTERS.get(station_name, route.global_position)
+			sandbox_stations.append({"name": station_name, "center": center})
+	for trigger in course.find_children("*", "CourseTrigger", true, false):
+		trigger.callback = _on_trigger
+		trigger_count += 1
+		if trigger.trigger_type == CourseTrigger.TriggerType.COLLECTIBLE:
+			total_collectibles_in_level += 1
+	player = SpeedPlayer.new()
+	player_spawn = Vector3(0.0, 0.9, 3.0)
+	player.position = player_spawn
+	player.reset_requested.connect(_bail_to_start)
+	player.traversal_action.connect(_on_traversal_action)
+	player.combo_landed.connect(_on_combo_landed)
+	course.add_child(player)
 
 func _route(name: String, focus: String) -> Node3D:
 	var route := Node3D.new()

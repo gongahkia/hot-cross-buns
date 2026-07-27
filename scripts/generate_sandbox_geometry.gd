@@ -21,7 +21,6 @@ static func export_course(course: Node3D, player: Node, output_path: String) -> 
 static func _add_lightmap(course: Node3D) -> void:
 	var lightmap := LightmapGI.new()
 	lightmap.name = "BakedLightmap"
-	lightmap.bounds = AABB(Vector3(-64.0, -4.0, -166.0), Vector3(128.0, 38.0, 184.0))
 	course.add_child(lightmap)
 
 static func _convert_static_meshes(node: Node) -> void:
