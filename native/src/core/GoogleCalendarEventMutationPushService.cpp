@@ -923,10 +923,11 @@ decodeBatchResponse(const QByteArray& responseBody, int expectedParts) {
     }
     const QByteArray inner = responseBody.sliced(position, nextDelimiter - position);
     const qsizetype statusLineEnd = inner.indexOf("\r\n");
-    if (statusLineEnd < 12) {
+    const QByteArray statusLine = statusLineEnd < 0 ? inner : inner.left(statusLineEnd);
+    if (statusLine.size() < 12) {
       return std::nullopt;
     }
-    const QList<QByteArray> statusTokens = inner.left(statusLineEnd).split(' ');
+    const QList<QByteArray> statusTokens = statusLine.split(' ');
     if (statusTokens.size() < 2 || !statusTokens.at(0).startsWith("HTTP/") ||
         statusTokens.at(1).size() != 3) {
       return std::nullopt;
@@ -936,24 +937,27 @@ decodeBatchResponse(const QByteArray& responseBody, int expectedParts) {
     if (!statusValid || status < 100 || status > 599) {
       return std::nullopt;
     }
-    const qsizetype innerHeaderStart = statusLineEnd + 2;
-    const bool hasNoInnerHeaders = inner.sliced(innerHeaderStart).startsWith("\r\n");
-    const qsizetype innerHeaderEnd =
-        hasNoInnerHeaders ? innerHeaderStart : inner.indexOf("\r\n\r\n", innerHeaderStart);
-    if (innerHeaderEnd < innerHeaderStart) {
-      return std::nullopt;
+    std::optional<QHash<QByteArray, QByteArray>> innerHeaders = QHash<QByteArray, QByteArray>{};
+    QByteArray responsePartBody;
+    if (statusLineEnd >= 0 && statusLineEnd + 2 < inner.size()) {
+      const qsizetype innerHeaderStart = statusLineEnd + 2;
+      const qsizetype innerHeaderEnd = inner.indexOf("\r\n\r\n", innerHeaderStart);
+      if (innerHeaderEnd >= innerHeaderStart) {
+        innerHeaders =
+            parseHeaders(inner.sliced(innerHeaderStart, innerHeaderEnd - innerHeaderStart));
+        responsePartBody = inner.sliced(innerHeaderEnd + 4);
+      } else if (inner.endsWith("\r\n")) {
+        innerHeaders = parseHeaders(inner.sliced(
+            innerHeaderStart, inner.size() - innerHeaderStart - static_cast<qsizetype>(2)));
+      } else {
+        return std::nullopt;
+      }
     }
-    const std::optional<QHash<QByteArray, QByteArray>> innerHeaders = hasNoInnerHeaders
-        ? std::optional<QHash<QByteArray, QByteArray>>(QHash<QByteArray, QByteArray>{})
-        : parseHeaders(inner.sliced(innerHeaderStart, innerHeaderEnd - innerHeaderStart));
     if (!innerHeaders.has_value()) {
       return std::nullopt;
     }
     results[*index] = GoogleHttpClient::decodeResponse(
-        status,
-        inner.sliced(innerHeaderEnd + (hasNoInnerHeaders ? 2 : 4)),
-        innerHeaders->value("retry-after"),
-        innerHeaders->value("date"));
+        status, responsePartBody, innerHeaders->value("retry-after"), innerHeaders->value("date"));
     seen.insert(*index);
     position = nextDelimiter + 2;
   }
@@ -964,7 +968,9 @@ decodeBatchResponse(const QByteArray& responseBody, int expectedParts) {
 [[nodiscard]] bool isBatchableEventMutation(const PendingMutation& mutation) {
   const QJsonValue dependency = mutation.payload.value(QStringLiteral("dependsOnMutationId"));
   return mutation.resource == PendingMutationResource::Event &&
-         (mutation.operation == QStringLiteral("event.update") ||
+         (mutation.operation == QStringLiteral("event.create") ||
+          mutation.operation == QStringLiteral("event.update") ||
+          mutation.operation == QStringLiteral("event.move") ||
           mutation.operation == QStringLiteral("event.delete")) &&
          (dependency.isUndefined() || dependency.isNull());
 }

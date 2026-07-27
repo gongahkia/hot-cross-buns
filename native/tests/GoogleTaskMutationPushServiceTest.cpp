@@ -36,6 +36,7 @@ class GoogleTaskMutationPushServiceTest final : public QObject {
 
 private slots:
   void pushesCreateUpdateAndDeleteMutations();
+  void batchesIndependentTaskCreatesUpdatesMovesAndDeletes();
   void pushesTaskReorderMove();
   void recreatesThenDeletesCrossListTaskMove();
   void reconcilesCreatedTaskRemoteIdentity();
@@ -99,11 +100,13 @@ void verifyReady(hcb::TaskListMutationService& service) {
   QVERIFY(!ready.get().has_value());
 }
 
-[[nodiscard]] hcb::PendingMutation
-enqueue(hcb::OptimisticMutationCoordinator& coordinator, QString operation, QJsonObject payload) {
+[[nodiscard]] hcb::PendingMutation enqueue(hcb::OptimisticMutationCoordinator& coordinator,
+                                           QString operation,
+                                           QJsonObject payload,
+                                           QString resourceId = QStringLiteral("task-local")) {
   std::future<hcb::PendingMutationResult> future =
       coordinator.enqueue({.resource = hcb::PendingMutationResource::Task,
-                           .resourceId = QStringLiteral("task-local"),
+                           .resourceId = std::move(resourceId),
                            .operation = std::move(operation),
                            .payload = std::move(payload)});
   const hcb::PendingMutationResult result = awaitResult(future);
@@ -294,6 +297,92 @@ void GoogleTaskMutationPushServiceTest::pushesCreateUpdateAndDeleteMutations() {
   QCOMPARE(deleteRequest->request.rawHeader("If-Match"), QByteArray("etag-1"));
   QCOMPARE(find(coordinator, created.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleTaskMutationPushServiceTest::batchesIndependentTaskCreatesUpdatesMovesAndDeletes() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation created = enqueue(
+      coordinator,
+      QStringLiteral("task.create"),
+      {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+       {QStringLiteral("task"), QJsonObject{{QStringLiteral("title"), QStringLiteral("Create")}}}},
+      QStringLiteral("task-created"));
+  const hcb::PendingMutation updated = enqueue(
+      coordinator,
+      QStringLiteral("task.update"),
+      {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+       {QStringLiteral("remoteTaskId"), QStringLiteral("task-update")},
+       {QStringLiteral("etag"), QStringLiteral("etag-update")},
+       {QStringLiteral("task"), QJsonObject{{QStringLiteral("title"), QStringLiteral("Update")}}}},
+      QStringLiteral("task-updated"));
+  const hcb::PendingMutation moved =
+      enqueue(coordinator,
+              QStringLiteral("task.move"),
+              {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+               {QStringLiteral("remoteTaskId"), QStringLiteral("task-move")},
+               {QStringLiteral("parentTaskId"), QStringLiteral("task-parent")}},
+              QStringLiteral("task-moved"));
+  const hcb::PendingMutation removed =
+      enqueue(coordinator,
+              QStringLiteral("task.delete"),
+              {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+               {QStringLiteral("remoteTaskId"), QStringLiteral("task-delete")},
+               {QStringLiteral("etag"), QStringLiteral("etag-delete")}},
+              QStringLiteral("task-deleted"));
+  const QByteArray batchResponse =
+      QByteArrayLiteral("--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-3>\r\n\r\n"
+                        "HTTP/1.1 204 No Content\r\nETag: \"etag-delete-new\"\r\n\r\n"
+                        "--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-2>\r\n\r\n"
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}\r\n"
+                        "--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-1>\r\n\r\n"
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}\r\n"
+                        "--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-0>\r\n\r\n"
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}\r\n"
+                        "--batch_response--\r\n");
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = batchResponse});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+
+  const hcb::GoogleTaskMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 4);
+  QCOMPARE(result.failed, 0);
+  QCOMPARE(manager.requests().size(), 1);
+  if (manager.requests().size() != 1) {
+    return;
+  }
+  const hcb::test::CapturedNetworkRequest& request = manager.requests().constFirst();
+  QCOMPARE(request.operation, QNetworkAccessManager::PostOperation);
+  QCOMPARE(request.request.url().path(), QStringLiteral("/batch/tasks/v1"));
+  QVERIFY(request.request.rawHeader("Content-Type").startsWith("multipart/mixed; boundary=hcb_"));
+  QCOMPARE(request.request.rawHeader("Accept"), QByteArray("multipart/mixed"));
+  QVERIFY(request.body.contains("POST /tasks/v1/lists/list-1/tasks HTTP/1.1"));
+  QVERIFY(request.body.contains("PATCH /tasks/v1/lists/list-1/tasks/task-update HTTP/1.1"));
+  QVERIFY(request.body.contains(
+      "POST /tasks/v1/lists/list-1/tasks/task-move/move?parent=task-parent HTTP/1.1"));
+  QVERIFY(request.body.contains("DELETE /tasks/v1/lists/list-1/tasks/task-delete HTTP/1.1"));
+  QVERIFY(request.body.contains("If-Match: etag-update"));
+  QVERIFY(request.body.contains("If-Match: etag-delete"));
+  QCOMPARE(find(coordinator, created.id).status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(find(coordinator, moved.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
 }
 
