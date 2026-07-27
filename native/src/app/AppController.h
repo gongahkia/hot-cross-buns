@@ -195,7 +195,8 @@ public:
                                        QString visibility,
                                        QVariantList attendees,
                                        bool remindersUseDefault,
-                                       QVariantList reminders);
+                                       QVariantList reminders,
+                                       QString recurrenceRule);
   Q_INVOKABLE void updateEventDetailed(QString eventId,
                                        QString calendarId,
                                        QString title,
@@ -210,8 +211,10 @@ public:
                                        QString visibility,
                                        QVariantList attendees,
                                        bool remindersUseDefault,
-                                       QVariantList reminders);
-  Q_INVOKABLE void deleteEvent(QString eventId);
+                                       QVariantList reminders,
+                                       QString recurrenceRule,
+                                       int recurrenceScope);
+  Q_INVOKABLE void deleteEvent(QString eventId, int recurrenceScope = 0);
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);
   Q_INVOKABLE void bulkDeleteEvents(QVariantList eventIds);

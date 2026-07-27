@@ -17,6 +17,7 @@ class GoogleCalendarEventPullClientTest final : public QObject {
 private slots:
   void readsEveryPageAndNormalizesEvents();
   void sendsIncrementalSyncTokenOnEveryPage();
+  void readsResolvedInstancesForBoundedRange();
   void acceptsCancelledEventTombstones();
   void rejectsMalformedEventPayloads();
   void rejectsInvalidRequest();
@@ -125,6 +126,47 @@ void GoogleCalendarEventPullClientTest::sendsIncrementalSyncTokenOnEveryPage() {
     QCOMPARE(QUrlQuery(request.request.url()).queryItemValue(QStringLiteral("syncToken")),
              QStringLiteral("sync-1"));
   }
+}
+
+void GoogleCalendarEventPullClientTest::readsResolvedInstancesForBoundedRange() {
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(
+      "{\"items\":[{\"id\":\"instance-1\",\"status\":\"confirmed\",\"summary\":\"Planning\","
+      "\"start\":{\"dateTime\":\"2026-08-01T09:00:00Z\"},\"end\":{\"dateTime\":\"2026-08-01T10:00:00Z\"},"
+      "\"recurringEventId\":\"series-1\",\"originalStartTime\":{\"dateTime\":\"2026-08-01T09:00:00Z\"}}]}")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventPullClient client(httpClient);
+
+  std::future<hcb::GoogleCalendarEventInstancesPullResultOrError> future = client.instances(
+      {.calendarId = QStringLiteral("calendar-1"),
+       .recurringEventId = QStringLiteral("series-1"),
+       .timeMin = QStringLiteral("2026-08-01T00:00:00.000Z"),
+       .timeMax = QStringLiteral("2026-08-02T00:00:00.000Z")},
+      QStringLiteral("access-token"));
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::GoogleCalendarEventInstancesPullResultOrError result = future.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarEventInstancesPullResult>(result));
+  const hcb::GoogleCalendarEventInstancesPullResult& pulled =
+      std::get<hcb::GoogleCalendarEventInstancesPullResult>(result);
+  QCOMPARE(pulled.events.size(), 1);
+  QCOMPARE(pulled.events.front().id, QStringLiteral("instance-1"));
+  QCOMPARE(pulled.events.front().originalStartAt,
+           std::optional<QString>(QStringLiteral("2026-08-01T09:00:00.000Z")));
+
+  QCOMPARE(manager.requests().size(), 1);
+  const QUrl requestUrl = manager.requests().front().request.url();
+  QCOMPARE(requestUrl.path(),
+           QStringLiteral("/calendar/v3/calendars/calendar-1/events/series-1/instances"));
+  const QUrlQuery query(requestUrl);
+  QCOMPARE(query.queryItemValue(QStringLiteral("maxResults")), QStringLiteral("2500"));
+  QCOMPARE(query.queryItemValue(QStringLiteral("timeMin")),
+           QStringLiteral("2026-08-01T00:00:00.000Z"));
+  QCOMPARE(query.queryItemValue(QStringLiteral("timeMax")),
+           QStringLiteral("2026-08-02T00:00:00.000Z"));
+  QVERIFY(query.queryItemValue(QStringLiteral("fields")).contains(
+      QStringLiteral("originalStartTime")));
 }
 
 void GoogleCalendarEventPullClientTest::acceptsCancelledEventTombstones() {

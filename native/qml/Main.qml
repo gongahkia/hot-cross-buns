@@ -253,10 +253,12 @@ ApplicationWindow {
 
     function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                            startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                           remindersJson, remindersUseDefault) {
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt) {
         eventEditDialog.openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description,
                                     location, startTimeZone, colorId, transparency, visibility,
-                                    attendeeEmailsJson, remindersJson, remindersUseDefault)
+                                    attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                    recurrenceRule, recurringRemoteId, originalStartAt)
     }
 
     color: Theme.background
@@ -527,12 +529,12 @@ ApplicationWindow {
         calendarSourceModel: window.calendarSourceModel
         onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location,
                                          timeZone, colorId, available, visibility, attendees,
-                                         remindersUseDefault, reminders) {
+                                         remindersUseDefault, reminders, recurrenceRule) {
             window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, description, location)
             window.controllerCall("createEventDetailed", [calendarId, title, startAt, endAt, allDay,
                                                             description, location, timeZone, colorId,
                                                             available, visibility, attendees,
-                                                            remindersUseDefault, reminders])
+                                                            remindersUseDefault, reminders, recurrenceRule])
         }
     }
 
@@ -543,15 +545,16 @@ ApplicationWindow {
         calendarSourceModel: window.calendarSourceModel
         onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                                          timeZone, colorId, available, visibility, attendees,
-                                         remindersUseDefault, reminders) {
+                                         remindersUseDefault, reminders, recurrenceRule, recurrenceScope) {
             window.eventUpdateRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location)
             window.controllerCall("updateEventDetailed", [eventId, calendarId, title, startAt, endAt,
                                                             allDay, description, location, timeZone,
                                                             colorId, available, visibility, attendees,
-                                                            remindersUseDefault, reminders])
+                                                            remindersUseDefault, reminders, recurrenceRule,
+                                                            recurrenceScope])
         }
-        onEventDeleteRequested: function(eventId, title) {
-            eventDeleteDialog.openForDelete(eventId, title)
+        onEventDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
+            eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
         }
     }
 
@@ -559,9 +562,9 @@ ApplicationWindow {
         id: eventDeleteDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onEventDeleteRequested: function(eventId) {
+        onEventDeleteRequested: function(eventId, recurrenceScope) {
             window.eventDeleteRequested(eventId)
-            window.controllerCall("deleteEvent", [eventId])
+            window.controllerCall("deleteEvent", [eventId, recurrenceScope])
         }
     }
 
@@ -812,11 +815,13 @@ ApplicationWindow {
                         }
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                                                        startTimeZone, colorId, transparency, visibility,
-                                                       attendeeEmailsJson, remindersJson, remindersUseDefault) {
+                                                       attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                                       recurrenceRule, recurringRemoteId, originalStartAt) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
-                                                 remindersJson, remindersUseDefault)
+                                                 remindersJson, remindersUseDefault, recurrenceRule,
+                                                 recurringRemoteId, originalStartAt)
                         }
                     }
 
@@ -841,11 +846,13 @@ ApplicationWindow {
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
-                                                        remindersJson, remindersUseDefault) {
+                                                        remindersJson, remindersUseDefault, recurrenceRule,
+                                                        recurringRemoteId, originalStartAt) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
-                                                 remindersJson, remindersUseDefault)
+                                                 remindersJson, remindersUseDefault, recurrenceRule,
+                                                 recurringRemoteId, originalStartAt)
                         }
                     }
 
@@ -869,11 +876,13 @@ ApplicationWindow {
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
-                                                        remindersJson, remindersUseDefault) {
+                                                        remindersJson, remindersUseDefault, recurrenceRule,
+                                                        recurringRemoteId, originalStartAt) {
                             window.openEventEdit(eventId, calendarId, title, startAt, endAt, allDay,
                                                  description, location, startTimeZone, colorId,
                                                  transparency, visibility, attendeeEmailsJson,
-                                                 remindersJson, remindersUseDefault)
+                                                 remindersJson, remindersUseDefault, recurrenceRule,
+                                                 recurringRemoteId, originalStartAt)
                         }
                     }
 
@@ -897,7 +906,8 @@ ApplicationWindow {
                                                  event.endAt, event.allDay, event.description, event.location,
                                                  event.startTimeZone, event.colorId, event.transparency,
                                                  event.visibility, event.attendeeEmailsJson, event.remindersJson,
-                                                 event.remindersUseDefault)
+                                                 event.remindersUseDefault, event.recurrenceRule,
+                                                 event.recurringRemoteId, event.originalStartAt)
                         }
                     }
                 }

@@ -40,6 +40,7 @@ constexpr qsizetype kMaximumPageTokenLength = 8'192;
 constexpr qsizetype kMaximumSyncTokenLength = 8'192;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr int kMaximumPages = 400;
+constexpr int kMaximumInstancesPerPage = 2'500;
 
 struct DecodedEventTime final {
   QString at;
@@ -86,6 +87,16 @@ using DecodedCalendarEventPageOrError = std::variant<DecodedCalendarEventPage, G
 [[nodiscard]] bool isValidSyncToken(const std::optional<QString>& token) {
   return !token.has_value() || (!token->isEmpty() && token->size() <= kMaximumSyncTokenLength &&
                                 !token->contains(QChar::Null));
+}
+
+[[nodiscard]] bool isValidRange(const QString& timeMin, const QString& timeMax) {
+  if (timeMin.size() > kMaximumTimestampLength || timeMax.size() > kMaximumTimestampLength ||
+      !timeMin.contains(u'T') || !timeMax.contains(u'T')) {
+    return false;
+  }
+  const QDateTime minimum = QDateTime::fromString(timeMin, Qt::ISODateWithMs);
+  const QDateTime maximum = QDateTime::fromString(timeMax, Qt::ISODateWithMs);
+  return minimum.isValid() && maximum.isValid() && maximum > minimum;
 }
 
 [[nodiscard]] std::optional<QString>
@@ -396,7 +407,8 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
 }
 
 [[nodiscard]] DecodedCalendarEventPageOrError decodePage(const QByteArray& responseBody,
-                                                         const QString& calendarId) {
+                                                         const QString& calendarId,
+                                                         qsizetype maximumItems) {
   if (responseBody.size() > kMaximumResponseBytes) {
     return invalidPayloadError();
   }
@@ -421,7 +433,7 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
     return invalidPayloadError();
   }
   const QJsonArray items = itemsValue.isArray() ? itemsValue.toArray() : QJsonArray();
-  if (items.size() > 250) {
+  if (items.size() > maximumItems) {
     return invalidPayloadError();
   }
   QSet<QString> seenIds;
@@ -547,6 +559,29 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   return httpRequest;
 }
 
+[[nodiscard]] GoogleHttpRequest
+requestForInstancesPage(const GoogleCalendarEventInstancesPullRequest& request,
+                        const std::optional<QString>& pageToken) {
+  GoogleHttpRequest httpRequest;
+  httpRequest.path = QStringLiteral("/calendar/v3/calendars/") + request.calendarId +
+                     QStringLiteral("/events/") + request.recurringEventId +
+                     QStringLiteral("/instances");
+  httpRequest.query = {
+      {.name = QStringLiteral("maxResults"), .value = QString::number(kMaximumInstancesPerPage)},
+      {.name = QStringLiteral("showDeleted"), .value = QStringLiteral("true")},
+      {.name = QStringLiteral("timeMin"), .value = request.timeMin},
+      {.name = QStringLiteral("timeMax"), .value = request.timeMax},
+      {.name = QStringLiteral("fields"),
+       .value = QStringLiteral(
+           "nextPageToken,items(id,status,summary,description,location,start,end,recurringEventId,"
+           "originalStartTime,recurrence,colorId,transparency,visibility,eventType,attendees,"
+           "reminders,etag,sequence,updated)"))}};
+  if (pageToken.has_value()) {
+    httpRequest.query.append({.name = QStringLiteral("pageToken"), .value = *pageToken});
+  }
+  return httpRequest;
+}
+
 } // namespace
 
 GoogleCalendarEventPullClient::GoogleCalendarEventPullClient(GoogleHttpClient& httpClient)
@@ -584,7 +619,7 @@ GoogleCalendarEventPullClient::list(GoogleCalendarEventPullRequest request,
             serverDate = std::move(httpResponse.serverDate);
           }
           DecodedCalendarEventPageOrError decoded =
-              decodePage(httpResponse.body, request.calendarId);
+              decodePage(httpResponse.body, request.calendarId, 250);
           if (std::holds_alternative<GoogleApiError>(decoded)) {
             completion->set_value(std::get<GoogleApiError>(std::move(decoded)));
             return;
@@ -608,6 +643,78 @@ GoogleCalendarEventPullClient::list(GoogleCalendarEventPullRequest request,
                 GoogleCalendarEventPullResult{.events = std::move(events),
                                               .nextSyncToken = pageData.nextSyncToken,
                                               .serverDate = serverDate});
+            return;
+          }
+          pageToken = std::move(pageData.nextPageToken);
+        }
+        completion->set_value(invalidPayloadError());
+      } catch (...) {
+        completion->set_value(transportError());
+      }
+    }).detach();
+  } catch (...) {
+    completion->set_value(transportError());
+  }
+  return future;
+}
+
+std::future<GoogleCalendarEventInstancesPullResultOrError>
+GoogleCalendarEventPullClient::instances(GoogleCalendarEventInstancesPullRequest request,
+                                         const QString& accessToken) {
+  if (!isValidIdentifier(request.calendarId) || !isValidIdentifier(request.recurringEventId) ||
+      !isValidRange(request.timeMin, request.timeMax)) {
+    std::promise<GoogleCalendarEventInstancesPullResultOrError> completion;
+    std::future<GoogleCalendarEventInstancesPullResultOrError> future = completion.get_future();
+    completion.set_value(invalidRequestError());
+    return future;
+  }
+  auto completion = std::make_shared<std::promise<GoogleCalendarEventInstancesPullResultOrError>>();
+  std::future<GoogleCalendarEventInstancesPullResultOrError> future = completion->get_future();
+  try {
+    std::thread([this, request = std::move(request), accessToken, completion] {
+      try {
+        QList<GoogleCalendarEventMirror> events;
+        events.reserve(kMaximumInstancesPerPage);
+        QSet<QString> seenIds;
+        std::optional<QString> pageToken;
+        std::optional<QString> serverDate;
+        for (int page = 0; page < kMaximumPages; ++page) {
+          GoogleHttpResult response =
+              httpClient_.send(requestForInstancesPage(request, pageToken), accessToken).get();
+          if (std::holds_alternative<GoogleApiError>(response)) {
+            completion->set_value(std::get<GoogleApiError>(std::move(response)));
+            return;
+          }
+          GoogleHttpResponse httpResponse = std::get<GoogleHttpResponse>(std::move(response));
+          if (!serverDate.has_value()) {
+            serverDate = std::move(httpResponse.serverDate);
+          }
+          DecodedCalendarEventPageOrError decoded =
+              decodePage(httpResponse.body, request.calendarId, kMaximumInstancesPerPage);
+          if (std::holds_alternative<GoogleApiError>(decoded)) {
+            completion->set_value(std::get<GoogleApiError>(std::move(decoded)));
+            return;
+          }
+          DecodedCalendarEventPage pageData =
+              std::get<DecodedCalendarEventPage>(std::move(decoded));
+          if (events.size() + pageData.events.size() > kMaximumEventCount) {
+            completion->set_value(invalidPayloadError());
+            return;
+          }
+          for (GoogleCalendarEventMirror& event : pageData.events) {
+            if (!event.recurringEventId.has_value() ||
+                *event.recurringEventId != request.recurringEventId ||
+                seenIds.contains(event.id)) {
+              completion->set_value(invalidPayloadError());
+              return;
+            }
+            seenIds.insert(event.id);
+            events.append(std::move(event));
+          }
+          if (!pageData.nextPageToken.has_value()) {
+            completion->set_value(
+                GoogleCalendarEventInstancesPullResult{.events = std::move(events),
+                                                        .serverDate = serverDate});
             return;
           }
           pageToken = std::move(pageData.nextPageToken);

@@ -11,6 +11,9 @@ HcbDialog {
     property var calendarSourceModel: null
     property string eventId: ""
     property string eventCalendarId: ""
+    property string recurrenceRule: ""
+    property string recurringRemoteId: ""
+    property string originalStartAt: ""
     property alias eventTitle: titleField.text
     property alias eventStartAt: startField.text
     property alias eventEndAt: endField.text
@@ -25,8 +28,25 @@ HcbDialog {
     signal eventUpdateRequested(string eventId, string calendarId, string title, string startAt,
                                 string endAt, bool allDay, string description, string location,
                                 string timeZone, string colorId, bool available, string visibility,
-                                var attendees, bool remindersUseDefault, var reminders)
-    signal eventDeleteRequested(string eventId, string title)
+                                var attendees, bool remindersUseDefault, var reminders,
+                                string recurrenceRule, int recurrenceScope)
+    signal eventDeleteRequested(string eventId, string title, string recurrenceRule,
+                                string recurringRemoteId, string originalStartAt)
+
+    function recurrenceScopeOptions() {
+        if (recurringRemoteId.length > 0) {
+            return [{ text: "This instance", value: 0 },
+                    { text: "This and following", value: 1 },
+                    { text: "Entire series", value: 2 }]
+        }
+        if (recurrenceRule.length > 0 && originalStartAt.length > 0) {
+            return [{ text: "This instance", value: 0 },
+                    { text: "This and following", value: 1 },
+                    { text: "Entire series", value: 2 }]
+        }
+        if (recurrenceRule.length > 0) return [{ text: "Entire series", value: 2 }]
+        return [{ text: "This event", value: 0 }]
+    }
 
     function validRange() {
         const start = Date.parse(startField.text)
@@ -69,6 +89,17 @@ HcbDialog {
                 /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim()))
     }
 
+    function recurrenceSummary() {
+        const match = /(?:^|\n)RRULE:([^\n]+)/.exec(recurrenceRuleField.text.trim())
+        if (match === null) return ""
+        const frequency = /(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.exec(match[1])
+        const interval = /(?:^|;)INTERVAL=(\d+)(?:;|$)/.exec(match[1])
+        if (frequency === null) return "Rule will be validated before saving"
+        const unit = frequency[1].toLowerCase().slice(0, -2)
+        return interval !== null && interval[1] !== "1" ? "Repeats every " + interval[1] + " " + unit + "s"
+                                                         : "Repeats " + unit + "ly"
+    }
+
     function csvFromJson(json) {
         try {
             return JSON.parse(json).join(", ")
@@ -89,7 +120,8 @@ HcbDialog {
 
     function openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                         remindersJson, remindersUseDefault) {
+                         remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                         originalStartAt) {
         root.eventId = eventId
         eventCalendarId = calendarId
         titleField.text = title
@@ -105,6 +137,12 @@ HcbDialog {
         attendeeField.text = csvFromJson(attendeeEmailsJson || "[]")
         reminderField.text = remindersFromJson(remindersJson || "[]")
         defaultRemindersCheck.checked = remindersUseDefault === undefined ? true : remindersUseDefault
+        root.recurrenceRule = recurrenceRule || ""
+        root.recurringRemoteId = recurringRemoteId || ""
+        root.originalStartAt = originalStartAt || ""
+        recurrenceRuleField.text = root.recurrenceRule
+        recurrenceScopePicker.model = recurrenceScopeOptions()
+        recurrenceScopePicker.currentIndex = 0
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
         open()
     }
@@ -116,7 +154,8 @@ HcbDialog {
                                           timeZoneField.text.trim(), colorIdField.text.trim(),
                                           availableCheck.checked, visibilityPicker.currentValue,
                                           attendeeValues(), defaultRemindersCheck.checked,
-                                          reminderValues())
+                                          reminderValues(), recurrenceRuleField.text.trim(),
+                                          recurrenceScopePicker.currentValue)
 
     TextField {
         id: titleField
@@ -186,6 +225,36 @@ HcbDialog {
         selectByMouse: true
     }
 
+    TextField {
+        id: recurrenceRuleField
+        Layout.fillWidth: true
+        enabled: root.recurringRemoteId.length === 0
+        placeholderText: "Repeat rule, e.g. RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"
+        Accessible.name: "Event recurrence rule"
+        Accessible.description: enabled ? "Google Calendar RFC 5545 recurrence rule"
+                                      : "Individual instances inherit their series rule"
+        selectByMouse: true
+    }
+
+    Label {
+        Layout.fillWidth: true
+        visible: root.recurrenceSummary().length > 0
+        text: root.recurrenceSummary()
+        color: Theme.textSecondary
+        wrapMode: Text.WordWrap
+        Accessible.name: "Recurrence summary: " + text
+    }
+
+    ComboBox {
+        id: recurrenceScopePicker
+        Layout.fillWidth: true
+        visible: root.recurrenceRule.length > 0 || root.recurringRemoteId.length > 0
+        model: root.recurrenceScopeOptions()
+        textRole: "text"
+        valueRole: "value"
+        Accessible.name: "Recurrence edit scope"
+    }
+
     ComboBox {
         id: calendarPicker
         Layout.fillWidth: true
@@ -245,7 +314,8 @@ HcbDialog {
         Accessible.description: "Delete this event"
         onClicked: {
             root.close()
-            root.eventDeleteRequested(root.eventId, titleField.text)
+            root.eventDeleteRequested(root.eventId, titleField.text, root.recurrenceRule,
+                                      root.recurringRemoteId, root.originalStartAt)
         }
     }
 }

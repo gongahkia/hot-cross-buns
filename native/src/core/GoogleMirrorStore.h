@@ -48,6 +48,13 @@ public:
                       QString calendarRemoteId,
                       QList<GoogleCalendarEventMirror> events,
                       bool fullReconciliation);
+  [[nodiscard]] std::future<GoogleMirrorWriteResult>
+  cacheCalendarInstances(QString accountId,
+                         QString calendarRemoteId,
+                         QString recurringRemoteId,
+                         QString rangeStartAt,
+                         QString rangeEndAt,
+                         QList<GoogleCalendarEventMirror> events);
 
 private:
   const Clock& clock_;

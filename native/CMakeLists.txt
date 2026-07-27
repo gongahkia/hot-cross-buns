@@ -987,6 +987,8 @@ if(BUILD_TESTING)
     src/core/CalendarEventBulkMutationService.h
     src/core/CalendarMutationService.cpp
     src/core/CalendarMutationService.h
+    src/core/RecurrenceExpansionWorker.cpp
+    src/core/RecurrenceExpansionWorker.h
     src/core/Clock.h
     src/core/FilePath.h
     src/data/LocalSchema.cpp
@@ -1090,6 +1092,8 @@ if(BUILD_TESTING)
     src/core/AppError.h
     src/core/CalendarMutationService.cpp
     src/core/CalendarMutationService.h
+    src/core/RecurrenceExpansionWorker.cpp
+    src/core/RecurrenceExpansionWorker.h
     src/core/Clock.h
     src/core/FilePath.h
     src/core/OptimisticMutationCoordinator.cpp
@@ -1904,6 +1908,8 @@ if(BUILD_TESTING)
     src/core/AppError.h
     src/core/CalendarMutationService.cpp
     src/core/CalendarMutationService.h
+    src/core/RecurrenceExpansionWorker.cpp
+    src/core/RecurrenceExpansionWorker.h
     src/core/Clock.h
     src/core/FilePath.h
     src/core/GoogleApiError.cpp

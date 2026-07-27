@@ -1,10 +1,13 @@
 #include "core/CalendarMutationService.h"
 
+#include "core/RecurrenceExpansionWorker.h"
+
 #include "data/LocalSchema.h"
 #include "data/SqliteTransaction.h"
 #include "sqlite3.h"
 
 #include <QByteArray>
+#include <QDate>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -54,6 +57,7 @@ struct StoredEventContext final {
   bool allDay{false};
   std::optional<QString> recurrenceRule;
   std::optional<QString> recurringRemoteId;
+  std::optional<QString> originalStartAt;
   QString status;
   std::optional<QString> colorId;
   std::optional<QString> transparency;
@@ -161,6 +165,132 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
     }
   }
   return true;
+}
+
+[[nodiscard]] std::optional<QString> canonicalRecurrenceRule(
+    const std::optional<QString>& recurrenceRule) {
+  if (!recurrenceRule.has_value()) {
+    return std::optional<QString>{};
+  }
+  constexpr qsizetype kMaximumRecurrenceLength = 4'096;
+  if (recurrenceRule->isEmpty() || recurrenceRule->size() > kMaximumRecurrenceLength ||
+      recurrenceRule->contains(QChar::Null)) {
+    return std::nullopt;
+  }
+  QStringList lines;
+  int ruleCount = 0;
+  for (const QString& rawLine : recurrenceRule->split(u'\n', Qt::SkipEmptyParts)) {
+    const QString line = rawLine.trimmed();
+    const qsizetype separator = line.indexOf(u':');
+    if (line.isEmpty() || separator <= 0 || separator == line.size() - 1 ||
+        line.size() > 1'024) {
+      return std::nullopt;
+    }
+    const QString name = line.first(separator);
+    const QString property = name.section(u';', 0, 0);
+    if (property != QStringLiteral("RRULE") && property != QStringLiteral("EXDATE") &&
+        property != QStringLiteral("RDATE") && property != QStringLiteral("EXRULE")) {
+      return std::nullopt;
+    }
+    if ((property == QStringLiteral("RRULE") || property == QStringLiteral("EXRULE")) &&
+        name != property) {
+      return std::nullopt;
+    }
+    if ((property == QStringLiteral("EXDATE") || property == QStringLiteral("RDATE")) &&
+        !QRegularExpression(QStringLiteral(
+             "^(?:EXDATE|RDATE)(?:;(?:VALUE=DATE|TZID=(?:UTC|[A-Za-z_]+(?:/[A-Za-z_+-]+)+)))*$"))
+             .match(name)
+             .hasMatch()) {
+      return std::nullopt;
+    }
+    if (property == QStringLiteral("RRULE")) {
+      ++ruleCount;
+      QSet<QString> fields;
+      bool hasFrequency = false;
+      bool hasCount = false;
+      bool hasUntil = false;
+      for (const QString& part : line.sliced(separator + 1).split(u';', Qt::SkipEmptyParts)) {
+        const qsizetype fieldSeparator = part.indexOf(u'=');
+        if (fieldSeparator <= 0 || fieldSeparator == part.size() - 1) {
+          return std::nullopt;
+        }
+        const QString key = part.first(fieldSeparator);
+        const QString value = part.sliced(fieldSeparator + 1);
+        if (!QRegularExpression(QStringLiteral("^[A-Z]+$")).match(key).hasMatch() ||
+            value.contains(QChar::Null) || fields.contains(key)) {
+          return std::nullopt;
+        }
+        fields.insert(key);
+        if (key == QStringLiteral("FREQ")) {
+          hasFrequency = value == QStringLiteral("DAILY") || value == QStringLiteral("WEEKLY") ||
+                         value == QStringLiteral("MONTHLY") || value == QStringLiteral("YEARLY");
+          if (!hasFrequency) {
+            return std::nullopt;
+          }
+        } else if (key == QStringLiteral("INTERVAL") || key == QStringLiteral("COUNT")) {
+          bool converted = false;
+          const int number = value.toInt(&converted);
+          if (!converted || number < 1 || number > 366) {
+            return std::nullopt;
+          }
+          hasCount = hasCount || key == QStringLiteral("COUNT");
+        } else if (key == QStringLiteral("UNTIL")) {
+          const bool date = QRegularExpression(QStringLiteral("^\\d{8}$")).match(value).hasMatch();
+          const bool dateTime = QRegularExpression(QStringLiteral("^\\d{8}T\\d{6}Z$"))
+                                    .match(value)
+                                    .hasMatch();
+          if (!date && !dateTime) {
+            return std::nullopt;
+          }
+          hasUntil = true;
+        }
+      }
+      if (!hasFrequency || (hasCount && hasUntil)) {
+        return std::nullopt;
+      }
+    }
+    lines.append(line);
+  }
+  return ruleCount == 1 ? std::optional<QString>(lines.join(u'\n')) : std::nullopt;
+}
+
+[[nodiscard]] QJsonArray recurrenceLines(const std::optional<QString>& recurrenceRule) {
+  QJsonArray result;
+  if (!recurrenceRule.has_value()) {
+    return result;
+  }
+  for (const QString& line : recurrenceRule->split(u'\n', Qt::SkipEmptyParts)) {
+    result.append(line);
+  }
+  return result;
+}
+
+[[nodiscard]] std::optional<QString> truncateRecurrenceRule(const QString& recurrenceRule,
+                                                             const QString& targetStart,
+                                                             bool allDay) {
+  const std::optional<QString> canonical = canonicalRecurrenceRule(recurrenceRule);
+  if (!canonical.has_value() || canonical->contains(u'\n')) {
+    return std::nullopt;
+  }
+  const QDateTime target = QDateTime::fromString(targetStart, Qt::ISODateWithMs);
+  if (!target.isValid()) {
+    return std::nullopt;
+  }
+  QStringList fields;
+  for (const QString& part : canonical->sliced(6).split(u';', Qt::SkipEmptyParts)) {
+    if (!part.startsWith(QStringLiteral("COUNT=")) && !part.startsWith(QStringLiteral("UNTIL="))) {
+      fields.append(part);
+    }
+  }
+  const QString until = allDay
+                            ? target.toUTC().date().addDays(-1).toString(QStringLiteral("yyyyMMdd"))
+                            : target.toUTC()
+                                  .addMSecs(-1'000)
+                                  .toString(QStringLiteral("yyyyMMdd'T'hhmmss'Z'"));
+  fields.append(QStringLiteral("UNTIL=") + until);
+  const std::optional<QString> result =
+      canonicalRecurrenceRule(QStringLiteral("RRULE:") + fields.join(u';'));
+  return result.has_value() ? result : std::nullopt;
 }
 
 [[nodiscard]] QString compactJson(const QJsonArray& value) {
@@ -300,7 +430,8 @@ SELECT events.id, calendars.account_id, events.calendar_id, calendars.remote_id,
        calendars.access_role, events.remote_id, events.etag, events.title, events.description,
        events.location, events.start_at, events.start_time_zone, events.end_at,
        events.end_time_zone, events.is_all_day, events.recurrence_rule, events.recurring_remote_id,
-       events.status, events.color_id, events.transparency, events.visibility, events.event_type
+       events.original_start_at, events.status, events.color_id, events.transparency, events.visibility,
+       events.event_type
        , events.attendee_emails_json, events.attendee_details_json, events.reminders_json,
        events.reminders_use_default
 FROM local_calendar_events AS events
@@ -365,21 +496,119 @@ LIMIT 1
                              .allDay = sqlite3_column_int(statement, 14) != 0,
                              .recurrenceRule = optionalText(statement, 15),
                              .recurringRemoteId = optionalText(statement, 16),
-                             .status = optionalText(statement, 17).value_or(QString()),
-                             .colorId = optionalText(statement, 18),
-                             .transparency = optionalText(statement, 19),
-                             .visibility = optionalText(statement, 20),
-                             .eventType = optionalText(statement, 21),
-                             .attendeeEmailsJson = optionalText(statement, 22).value_or(QString()),
-                             .attendeeDetailsJson = optionalText(statement, 23).value_or(QString()),
-                             .remindersJson = optionalText(statement, 24).value_or(QString()),
-                             .remindersUseDefault = sqlite3_column_int(statement, 25) == 1};
+                             .originalStartAt = optionalText(statement, 17),
+                             .status = optionalText(statement, 18).value_or(QString()),
+                             .colorId = optionalText(statement, 19),
+                             .transparency = optionalText(statement, 20),
+                             .visibility = optionalText(statement, 21),
+                             .eventType = optionalText(statement, 22),
+                             .attendeeEmailsJson = optionalText(statement, 23).value_or(QString()),
+                             .attendeeDetailsJson = optionalText(statement, 24).value_or(QString()),
+                             .remindersJson = optionalText(statement, 25).value_or(QString()),
+                             .remindersUseDefault = sqlite3_column_int(statement, 26) == 1};
   const int finalizeResult = sqlite3_finalize(statement);
   return finalizeResult == SQLITE_OK
              ? std::variant<std::optional<StoredEventContext>, AppError>(std::move(context))
              : std::variant<std::optional<StoredEventContext>, AppError>(databaseError(
                    QStringLiteral("SQLite calendar-event context finalization failed (%1)"),
                    finalizeResult));
+}
+
+struct ScopedEventTarget final {
+  StoredEventContext event;
+  bool isVirtualInstance{false};
+};
+
+[[nodiscard]] std::optional<QString> virtualOccurrenceStart(const QString& eventId, bool allDay) {
+  const qsizetype marker = eventId.lastIndexOf(QStringLiteral(":instance:"));
+  if (marker <= 0) {
+    return std::nullopt;
+  }
+  const QString suffix = eventId.sliced(marker + QStringLiteral(":instance:").size());
+  if (allDay) {
+    const QDate date = QDate::fromString(suffix, QStringLiteral("yyyyMMdd"));
+    return date.isValid()
+               ? std::optional<QString>(
+                     QDateTime(date, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs))
+               : std::optional<QString>{};
+  }
+  static const QRegularExpression pattern(QStringLiteral("^\\d{8}T\\d{6}Z$"));
+  if (!pattern.match(suffix).hasMatch()) {
+    return std::nullopt;
+  }
+  const QDate date = QDate::fromString(suffix.left(8), QStringLiteral("yyyyMMdd"));
+  const QTime time(suffix.sliced(9, 2).toInt(), suffix.sliced(11, 2).toInt(),
+                   suffix.sliced(13, 2).toInt());
+  return date.isValid() && time.isValid()
+             ? std::optional<QString>(
+                   QDateTime(date, time, QTimeZone::UTC).toString(Qt::ISODateWithMs))
+             : std::optional<QString>{};
+}
+
+[[nodiscard]] std::variant<std::optional<ScopedEventTarget>, AppError>
+readScopedEventTarget(SqliteConnection& connection, const QString& eventId) {
+  const std::variant<std::optional<StoredEventContext>, AppError> stored =
+      readEventContext(connection, eventId);
+  if (std::holds_alternative<AppError>(stored)) {
+    return std::get<AppError>(stored);
+  }
+  if (std::get<std::optional<StoredEventContext>>(stored).has_value()) {
+    return ScopedEventTarget{.event = *std::get<std::optional<StoredEventContext>>(stored)};
+  }
+  const qsizetype marker = eventId.lastIndexOf(QStringLiteral(":instance:"));
+  if (marker <= 0) {
+    return std::optional<ScopedEventTarget>{};
+  }
+  const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+      readEventContext(connection, eventId.first(marker));
+  if (std::holds_alternative<AppError>(masterResult)) {
+    return std::get<AppError>(masterResult);
+  }
+  const std::optional<StoredEventContext>& master =
+      std::get<std::optional<StoredEventContext>>(masterResult);
+  if (!master.has_value() || !master->recurrenceRule.has_value()) {
+    return std::optional<ScopedEventTarget>{};
+  }
+  const std::optional<QString> start = virtualOccurrenceStart(eventId, master->allDay);
+  const QDateTime masterStart = QDateTime::fromString(master->startAt, Qt::ISODateWithMs);
+  const QDateTime masterEnd = QDateTime::fromString(master->endAt, Qt::ISODateWithMs);
+  const QDateTime occurrenceStart =
+      start.has_value() ? QDateTime::fromString(*start, Qt::ISODateWithMs) : QDateTime{};
+  if (!occurrenceStart.isValid() || !masterStart.isValid() || !masterEnd.isValid() ||
+      masterEnd <= masterStart) {
+    return std::optional<ScopedEventTarget>{};
+  }
+  RecurrenceExpansionWorker worker;
+  const RecurrenceExpansionResult expanded =
+      worker.expand({.eventId = master->eventId,
+                     .startAt = master->startAt,
+                     .endAt = master->endAt,
+                     .allDay = master->allDay,
+                     .timeZone = master->startTimeZone,
+                     .recurrenceRule = master->recurrenceRule,
+                     .rangeStartAt = *start,
+                     .rangeEndAt = occurrenceStart.addMSecs(1).toUTC().toString(Qt::ISODateWithMs)})
+          .get();
+  if (!std::holds_alternative<QList<RecurrenceOccurrence>>(expanded)) {
+    return std::optional<ScopedEventTarget>{};
+  }
+  const QList<RecurrenceOccurrence>& occurrences = std::get<QList<RecurrenceOccurrence>>(expanded);
+  const bool represented = std::any_of(
+      occurrences.cbegin(), occurrences.cend(), [&start](const RecurrenceOccurrence& occurrence) {
+        return occurrence.originalStartAt == start;
+      });
+  if (!represented) {
+    return std::optional<ScopedEventTarget>{};
+  }
+  StoredEventContext occurrence = *master;
+  occurrence.eventId = eventId;
+  occurrence.startAt = *start;
+  occurrence.endAt = occurrenceStart.addMSecs(masterStart.msecsTo(masterEnd)).toUTC().toString(
+      Qt::ISODateWithMs);
+  occurrence.recurrenceRule.reset();
+  occurrence.recurringRemoteId = master->remoteId;
+  occurrence.originalStartAt = start;
+  return ScopedEventTarget{.event = std::move(occurrence), .isVirtualInstance = true};
 }
 
 [[nodiscard]] QJsonObject eventTime(const QString& at,
@@ -429,6 +658,7 @@ LIMIT 1
            event.transparency.has_value() ? QJsonValue(*event.transparency) : QJsonValue::Null},
           {QStringLiteral("visibility"),
            event.visibility.has_value() ? QJsonValue(*event.visibility) : QJsonValue::Null},
+          {QStringLiteral("recurrence"), recurrenceLines(event.recurrenceRule)},
           {QStringLiteral("attendees"), storedArray(event.attendeeDetailsJson)},
           {QStringLiteral("reminders"), storedReminders(event)}};
 }
@@ -457,6 +687,9 @@ LIMIT 1
   if (event.visibility.has_value()) {
     body.insert(QStringLiteral("visibility"), *event.visibility);
   }
+  if (event.recurrenceRule.has_value()) {
+    body.insert(QStringLiteral("recurrence"), recurrenceLines(event.recurrenceRule));
+  }
   body.insert(QStringLiteral("attendees"), storedArray(event.attendeeDetailsJson));
   body.insert(QStringLiteral("reminders"), storedReminders(event));
   return body;
@@ -481,7 +714,7 @@ LIMIT 1
   QJsonObject patch;
   for (const QStringView key : {u"summary", u"description", u"location", u"start", u"end",
                                 u"colorId", u"transparency", u"visibility", u"attendees",
-                                u"reminders"}) {
+                                u"reminders", u"recurrence"}) {
     if (beforeSnapshot.value(key) != afterSnapshot.value(key)) {
       patch.insert(key.toString(), afterSnapshot.value(key));
     }
@@ -891,6 +1124,7 @@ canonicalize(CalendarEventCreateInput input) {
   input.title = input.title.trimmed();
   const std::optional<QString> startAt = canonicalTimestamp(input.startAt);
   const std::optional<QString> endAt = canonicalTimestamp(input.endAt);
+  const std::optional<QString> recurrenceRule = canonicalRecurrenceRule(input.recurrenceRule);
   if (!isValidRequiredText(input.calendarId, kMaximumIdentifierLength) ||
       !isValidRequiredText(input.title, kMaximumTitleLength) ||
       !isValidOptionalText(input.description, kMaximumDescriptionLength) ||
@@ -900,6 +1134,7 @@ canonicalize(CalendarEventCreateInput input) {
       (input.transparency.has_value() && !isValidTransparency(*input.transparency)) ||
       (input.visibility.has_value() && !isValidVisibility(*input.visibility)) ||
       !isValidReminders(input.reminders) ||
+      (input.recurrenceRule.has_value() && !recurrenceRule.has_value()) ||
       !startAt.has_value() || !endAt.has_value() ||
       QDateTime::fromString(*endAt, Qt::ISODateWithMs) <=
           QDateTime::fromString(*startAt, Qt::ISODateWithMs)) {
@@ -907,6 +1142,7 @@ canonicalize(CalendarEventCreateInput input) {
   }
   input.startAt = *startAt;
   input.endAt = *endAt;
+  input.recurrenceRule = recurrenceRule;
   const std::optional<QList<QString>> attendees = canonicalAttendees(std::move(input.attendeeEmails));
   if (!attendees.has_value()) {
     return validationError(QStringLiteral("Calendar event create input is invalid"));
@@ -934,12 +1170,19 @@ canonicalize(CalendarEventUpdateInput input) {
     }
     input.endAt = *endAt;
   }
+  if (input.recurrenceRule.has_value()) {
+    const std::optional<QString> recurrenceRule = canonicalRecurrenceRule(*input.recurrenceRule);
+    if (input.recurrenceRule->has_value() && !recurrenceRule.has_value()) {
+      return validationError(QStringLiteral("Calendar event update input is invalid"));
+    }
+    input.recurrenceRule = recurrenceRule;
+  }
   const bool hasPatch =
       input.calendarId.has_value() || input.title.has_value() || input.description.has_value() ||
       input.location.has_value() || input.startAt.has_value() || input.endAt.has_value() ||
       input.allDay.has_value() || input.startTimeZone.has_value() || input.endTimeZone.has_value() ||
       input.colorId.has_value() || input.transparency.has_value() || input.visibility.has_value() ||
-      input.attendeeEmails.has_value() || input.reminders.has_value();
+      input.attendeeEmails.has_value() || input.reminders.has_value() || input.recurrenceRule.has_value();
   if (!isValidRequiredText(input.eventId, kMaximumIdentifierLength) ||
       (input.calendarId.has_value() &&
        !isValidRequiredText(*input.calendarId, kMaximumIdentifierLength)) ||
@@ -989,12 +1232,12 @@ canonicalize(CalendarEventUpdateInput input) {
   constexpr char sql[] = R"(
 INSERT INTO local_calendar_events (
   id, calendar_id, remote_id, status, title, description, location, start_at, start_time_zone,
-  end_at, end_time_zone, is_all_day, color_id, transparency, visibility, attendee_emails_json,
+  end_at, end_time_zone, is_all_day, recurrence_rule, color_id, transparency, visibility, attendee_emails_json,
   attendee_details_json, reminder_minutes_json, reminders_json, reminders_use_default, created_at,
   updated_at
 )
 SELECT ?1, calendars.id, ?3, 'confirmed', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-       ?16, ?17, ?18, ?19, ?20, ?20
+       ?16, ?17, ?18, ?19, ?20, ?21, ?21
 FROM local_calendars AS calendars
 WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
   AND (calendars.access_role IS NULL OR calendars.access_role IN ('writer', 'owner'))
@@ -1023,15 +1266,16 @@ WHERE calendars.id = ?2 AND calendars.deleted_at IS NULL
                    bindText(statement, 9, input.endAt),
                    bindOptionalText(statement, 10, input.endTimeZone),
                    bindInteger(statement, 11, input.allDay ? 1 : 0),
-                   bindOptionalText(statement, 12, input.colorId),
-                   bindOptionalText(statement, 13, input.transparency),
-                   bindOptionalText(statement, 14, input.visibility),
-                   bindText(statement, 15, compactJson(QJsonArray::fromStringList(input.attendeeEmails))),
-                   bindText(statement, 16, compactJson(details)),
-                   bindText(statement, 17, compactJson(reminderMinutes(input.reminders))),
-                   bindText(statement, 18, reminderOverrides),
-                   bindInteger(statement, 19, input.reminders.useDefault ? 1 : 0),
-                   bindText(statement, 20, updatedAt)});
+                   bindOptionalText(statement, 12, input.recurrenceRule),
+                   bindOptionalText(statement, 13, input.colorId),
+                   bindOptionalText(statement, 14, input.transparency),
+                   bindOptionalText(statement, 15, input.visibility),
+                   bindText(statement, 16, compactJson(QJsonArray::fromStringList(input.attendeeEmails))),
+                   bindText(statement, 17, compactJson(details)),
+                   bindText(statement, 18, compactJson(reminderMinutes(input.reminders))),
+                   bindText(statement, 19, reminderOverrides),
+                   bindInteger(statement, 20, input.reminders.useDefault ? 1 : 0),
+                   bindText(statement, 21, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -1069,17 +1313,18 @@ SET calendar_id = CASE WHEN ?2 = 1 THEN ?3 ELSE calendar_id END,
     start_at = CASE WHEN ?10 = 1 THEN ?11 ELSE start_at END,
     end_at = CASE WHEN ?12 = 1 THEN ?13 ELSE end_at END,
     is_all_day = CASE WHEN ?14 = 1 THEN ?15 ELSE is_all_day END,
-    start_time_zone = CASE WHEN ?16 = 1 THEN ?17 ELSE start_time_zone END,
-    end_time_zone = CASE WHEN ?18 = 1 THEN ?19 ELSE end_time_zone END,
-    color_id = CASE WHEN ?20 = 1 THEN ?21 ELSE color_id END,
-    transparency = CASE WHEN ?22 = 1 THEN ?23 ELSE transparency END,
-    visibility = CASE WHEN ?24 = 1 THEN ?25 ELSE visibility END,
-    attendee_emails_json = CASE WHEN ?26 = 1 THEN ?27 ELSE attendee_emails_json END,
-    attendee_details_json = CASE WHEN ?26 = 1 THEN ?28 ELSE attendee_details_json END,
-    reminder_minutes_json = CASE WHEN ?29 = 1 THEN ?30 ELSE reminder_minutes_json END,
-    reminders_json = CASE WHEN ?29 = 1 THEN ?31 ELSE reminders_json END,
-    reminders_use_default = CASE WHEN ?29 = 1 THEN ?32 ELSE reminders_use_default END,
-    updated_at = ?33
+    recurrence_rule = CASE WHEN ?16 = 1 THEN ?17 ELSE recurrence_rule END,
+    start_time_zone = CASE WHEN ?18 = 1 THEN ?19 ELSE start_time_zone END,
+    end_time_zone = CASE WHEN ?20 = 1 THEN ?21 ELSE end_time_zone END,
+    color_id = CASE WHEN ?22 = 1 THEN ?23 ELSE color_id END,
+    transparency = CASE WHEN ?24 = 1 THEN ?25 ELSE transparency END,
+    visibility = CASE WHEN ?26 = 1 THEN ?27 ELSE visibility END,
+    attendee_emails_json = CASE WHEN ?28 = 1 THEN ?29 ELSE attendee_emails_json END,
+    attendee_details_json = CASE WHEN ?28 = 1 THEN ?30 ELSE attendee_details_json END,
+    reminder_minutes_json = CASE WHEN ?31 = 1 THEN ?32 ELSE reminder_minutes_json END,
+    reminders_json = CASE WHEN ?31 = 1 THEN ?33 ELSE reminders_json END,
+    reminders_use_default = CASE WHEN ?31 = 1 THEN ?34 ELSE reminders_use_default END,
+    updated_at = ?35
 WHERE id = ?1
   AND deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM local_calendars AS source
@@ -1115,6 +1360,8 @@ WHERE id = ?1
       input.endTimeZone.has_value() ? *input.endTimeZone : std::nullopt;
   const std::optional<QString> colorId =
       input.colorId.has_value() ? *input.colorId : std::nullopt;
+  const std::optional<QString> recurrenceRule =
+      input.recurrenceRule.has_value() ? *input.recurrenceRule : std::nullopt;
   const QList<QString> attendees = input.attendeeEmails.value_or(QList<QString>());
   const QJsonArray details = input.attendeeEmails.has_value()
                                  ? attendeeDetails(attendees, before.attendeeDetailsJson)
@@ -1141,25 +1388,27 @@ WHERE id = ?1
                    bindOptionalText(statement, 13, input.endAt),
                    bindInteger(statement, 14, input.allDay.has_value()),
                    bindInteger(statement, 15, input.allDay.value_or(false) ? 1 : 0),
-                   bindInteger(statement, 16, input.startTimeZone.has_value()),
-                   bindOptionalText(statement, 17, startTimeZone),
-                   bindInteger(statement, 18, input.endTimeZone.has_value()),
-                   bindOptionalText(statement, 19, endTimeZone),
-                   bindInteger(statement, 20, input.colorId.has_value()),
-                   bindOptionalText(statement, 21, colorId),
-                   bindInteger(statement, 22, input.transparency.has_value()),
-                   bindOptionalText(statement, 23, input.transparency),
-                   bindInteger(statement, 24, input.visibility.has_value()),
-                   bindOptionalText(statement, 25, input.visibility),
-                   bindInteger(statement, 26, input.attendeeEmails.has_value()),
-                   bindText(statement, 27,
+                   bindInteger(statement, 16, input.recurrenceRule.has_value()),
+                   bindOptionalText(statement, 17, recurrenceRule),
+                   bindInteger(statement, 18, input.startTimeZone.has_value()),
+                   bindOptionalText(statement, 19, startTimeZone),
+                   bindInteger(statement, 20, input.endTimeZone.has_value()),
+                   bindOptionalText(statement, 21, endTimeZone),
+                   bindInteger(statement, 22, input.colorId.has_value()),
+                   bindOptionalText(statement, 23, colorId),
+                   bindInteger(statement, 24, input.transparency.has_value()),
+                   bindOptionalText(statement, 25, input.transparency),
+                   bindInteger(statement, 26, input.visibility.has_value()),
+                   bindOptionalText(statement, 27, input.visibility),
+                   bindInteger(statement, 28, input.attendeeEmails.has_value()),
+                   bindText(statement, 29,
                             compactJson(QJsonArray::fromStringList(attendees))),
-                   bindText(statement, 28, compactJson(details)),
-                   bindInteger(statement, 29, input.reminders.has_value()),
-                   bindText(statement, 30, compactJson(reminderMinutes(reminders))),
-                   bindText(statement, 31, reminderOverrideJson),
-                   bindInteger(statement, 32, reminders.useDefault ? 1 : 0),
-                   bindText(statement, 33, updatedAt)});
+                   bindText(statement, 30, compactJson(details)),
+                   bindInteger(statement, 31, input.reminders.has_value()),
+                   bindText(statement, 32, compactJson(reminderMinutes(reminders))),
+                   bindText(statement, 33, reminderOverrideJson),
+                   bindInteger(statement, 34, reminders.useDefault ? 1 : 0),
+                   bindText(statement, 35, updatedAt)});
       error.has_value()) {
     return *error;
   }
@@ -1219,6 +1468,396 @@ WHERE id = ?1 AND deleted_at IS NULL
     return validationError(QStringLiteral("Calendar event is unavailable for deletion"));
   }
   return CalendarEventMutationReceipt{.eventId = eventId, .updatedAt = updatedAt};
+}
+
+[[nodiscard]] std::variant<std::optional<StoredEventContext>, AppError>
+readSeriesMasterContext(SqliteConnection& connection, const StoredEventContext& event) {
+  if (!event.recurringRemoteId.has_value()) {
+    return event.recurrenceRule.has_value()
+               ? std::variant<std::optional<StoredEventContext>, AppError>(event)
+               : std::variant<std::optional<StoredEventContext>, AppError>(
+                     std::optional<StoredEventContext>{});
+  }
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+SELECT id
+FROM local_calendar_events
+WHERE calendar_id = ?1 AND remote_id = ?2 AND recurring_remote_id IS NULL AND deleted_at IS NULL
+LIMIT 1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepared = sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepared != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurring-event master preparation failed (%1)"), prepared);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement, {bindText(statement, 1, event.calendarId),
+                              bindText(statement, 2, *event.recurringRemoteId)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepped = sqlite3_step(statement);
+  const std::optional<QString> eventId = stepped == SQLITE_ROW ? optionalText(statement, 0)
+                                                                 : std::optional<QString>{};
+  const int finalized = sqlite3_finalize(statement);
+  if (stepped != SQLITE_ROW && stepped != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite recurring-event master lookup failed (%1)"), stepped);
+  }
+  if (finalized != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite recurring-event master finalization failed (%1)"), finalized);
+  }
+  return eventId.has_value() ? readEventContext(connection, *eventId)
+                             : std::variant<std::optional<StoredEventContext>, AppError>(
+                                   std::optional<StoredEventContext>{});
+}
+
+[[nodiscard]] QList<QString> storedAttendeeEmails(const QString& json) {
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(json.toUtf8(), &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray()) {
+    return {};
+  }
+  QList<QString> result;
+  for (const QJsonValue& value : document.array()) {
+    if (!value.isString()) {
+      return {};
+    }
+    result.append(value.toString());
+  }
+  return result;
+}
+
+[[nodiscard]] CalendarEventReminderSettings storedReminderSettings(const StoredEventContext& event) {
+  CalendarEventReminderSettings result{.useDefault = event.remindersUseDefault};
+  const QJsonArray overrides = storedReminders(event).value(QStringLiteral("overrides")).toArray();
+  for (const QJsonValue& value : overrides) {
+    const QJsonObject reminder = value.toObject();
+    const QJsonValue method = reminder.value(QStringLiteral("method"));
+    const QJsonValue minutes = reminder.value(QStringLiteral("minutes"));
+    if (!method.isString() || !minutes.isDouble()) {
+      return {};
+    }
+    result.overrides.append({.method = method.toString(), .minutes = static_cast<int>(minutes.toInteger())});
+  }
+  return result;
+}
+
+[[nodiscard]] std::optional<QString>
+successorRecurrenceRule(const StoredEventContext& master, const QString& targetOriginalStart) {
+  if (!master.recurrenceRule.has_value() || master.recurrenceRule->contains(u'\n')) {
+    return std::nullopt;
+  }
+  const QRegularExpression countPattern(QStringLiteral("(?:^|;)COUNT=(\\d+)(?:;|$)"));
+  const QRegularExpressionMatch countMatch = countPattern.match(*master.recurrenceRule);
+  if (!countMatch.hasMatch()) {
+    return master.recurrenceRule;
+  }
+  RecurrenceExpansionWorker worker;
+  const RecurrenceExpansionResult expanded =
+      worker.expand({.eventId = master.eventId,
+                     .startAt = master.startAt,
+                     .endAt = master.endAt,
+                     .allDay = master.allDay,
+                     .timeZone = master.startTimeZone,
+                     .recurrenceRule = master.recurrenceRule})
+          .get();
+  if (!std::holds_alternative<QList<RecurrenceOccurrence>>(expanded)) {
+    return std::nullopt;
+  }
+  const QList<RecurrenceOccurrence>& occurrences = std::get<QList<RecurrenceOccurrence>>(expanded);
+  qsizetype targetIndex = occurrences.size();
+  for (qsizetype index = 0; index < occurrences.size(); ++index) {
+    if (occurrences.at(index).originalStartAt == targetOriginalStart) {
+      targetIndex = index;
+      break;
+    }
+  }
+  if (targetIndex == occurrences.size()) {
+    return std::nullopt;
+  }
+  bool converted = false;
+  const int count = countMatch.captured(1).toInt(&converted);
+  const int remaining = count - static_cast<int>(targetIndex);
+  if (!converted || remaining < 1) {
+    return std::nullopt;
+  }
+  QStringList fields;
+  for (const QString& field : master.recurrenceRule->sliced(6).split(u';', Qt::SkipEmptyParts)) {
+    fields.append(field.startsWith(QStringLiteral("COUNT="))
+                      ? QStringLiteral("COUNT=") + QString::number(remaining)
+                      : field);
+  }
+  return canonicalRecurrenceRule(QStringLiteral("RRULE:") + fields.join(u';'));
+}
+
+[[nodiscard]] CalendarEventCreateInput successorInput(const StoredEventContext& master,
+                                                       const StoredEventContext& target,
+                                                       const CalendarEventUpdateInput& patch,
+                                                       const QString& recurrenceRule) {
+  const QDateTime masterStart = QDateTime::fromString(master.startAt, Qt::ISODateWithMs);
+  const QDateTime masterEnd = QDateTime::fromString(master.endAt, Qt::ISODateWithMs);
+  const QString startAt = patch.startAt.value_or(target.startAt);
+  const QDateTime parsedStart = QDateTime::fromString(startAt, Qt::ISODateWithMs);
+  return {.calendarId = master.calendarId,
+          .title = patch.title.value_or(master.title),
+          .startAt = startAt,
+          .endAt = patch.endAt.value_or(parsedStart.addMSecs(masterStart.msecsTo(masterEnd))
+                                            .toUTC()
+                                            .toString(Qt::ISODateWithMs)),
+          .allDay = patch.allDay.value_or(master.allDay),
+          .description = patch.description.has_value() ? *patch.description : master.description,
+          .location = patch.location.has_value() ? *patch.location : master.location,
+          .startTimeZone = patch.startTimeZone.has_value() ? *patch.startTimeZone : master.startTimeZone,
+          .endTimeZone = patch.endTimeZone.has_value() ? *patch.endTimeZone : master.endTimeZone,
+          .colorId = patch.colorId.has_value() ? *patch.colorId : master.colorId,
+          .transparency = patch.transparency.has_value() ? std::optional<QString>(*patch.transparency)
+                                                         : master.transparency,
+          .visibility = patch.visibility.has_value() ? std::optional<QString>(*patch.visibility)
+                                                     : master.visibility,
+          .attendeeEmails = patch.attendeeEmails.value_or(storedAttendeeEmails(master.attendeeEmailsJson)),
+          .reminders = patch.reminders.value_or(storedReminderSettings(master)),
+          .recurrenceRule = recurrenceRule};
+}
+
+[[nodiscard]] CalendarEventCreateInput instanceInput(const StoredEventContext& occurrence,
+                                                      const CalendarEventUpdateInput& patch) {
+  const QDateTime start = QDateTime::fromString(
+      patch.startAt.value_or(occurrence.startAt), Qt::ISODateWithMs);
+  const QDateTime originalStart = QDateTime::fromString(occurrence.startAt, Qt::ISODateWithMs);
+  const QDateTime originalEnd = QDateTime::fromString(occurrence.endAt, Qt::ISODateWithMs);
+  return {.calendarId = occurrence.calendarId,
+          .title = patch.title.value_or(occurrence.title),
+          .startAt = patch.startAt.value_or(occurrence.startAt),
+          .endAt = patch.endAt.value_or(
+              start.addMSecs(originalStart.msecsTo(originalEnd)).toUTC().toString(Qt::ISODateWithMs)),
+          .allDay = patch.allDay.value_or(occurrence.allDay),
+          .description = patch.description.has_value() ? *patch.description : occurrence.description,
+          .location = patch.location.has_value() ? *patch.location : occurrence.location,
+          .startTimeZone = patch.startTimeZone.has_value() ? *patch.startTimeZone
+                                                            : occurrence.startTimeZone,
+          .endTimeZone = patch.endTimeZone.has_value() ? *patch.endTimeZone : occurrence.endTimeZone,
+          .colorId = patch.colorId.has_value() ? *patch.colorId : occurrence.colorId,
+          .transparency = patch.transparency.has_value() ? std::optional<QString>(*patch.transparency)
+                                                         : occurrence.transparency,
+          .visibility = patch.visibility.has_value() ? std::optional<QString>(*patch.visibility)
+                                                     : occurrence.visibility,
+          .attendeeEmails = patch.attendeeEmails.value_or(
+              storedAttendeeEmails(occurrence.attendeeEmailsJson)),
+          .reminders = patch.reminders.value_or(storedReminderSettings(occurrence))};
+}
+
+[[nodiscard]] std::optional<AppError>
+setMaterializedInstanceIdentity(SqliteConnection& connection,
+                                const StoredEventContext& master,
+                                const StoredEventContext& occurrence,
+                                QString status,
+                                const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr || !occurrence.originalStartAt.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Calendar instance storage is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_calendar_events
+SET recurring_remote_id = ?2, original_start_at = ?3, status = ?4, updated_at = ?5
+WHERE id = ?1 AND deleted_at IS NULL
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepared = sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepared != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-instance preparation failed (%1)"), prepared);
+  }
+  const std::optional<AppError> error = bindAll(
+      statement, {bindText(statement, 1, occurrence.eventId), bindText(statement, 2, master.remoteId),
+                  bindText(statement, 3, *occurrence.originalStartAt), bindText(statement, 4, status),
+                  bindText(statement, 5, updatedAt)});
+  if (error.has_value()) {
+    sqlite3_finalize(statement);
+    return error;
+  }
+  const int stepped = sqlite3_step(statement);
+  const int changed = sqlite3_changes(handle);
+  const int finalized = sqlite3_finalize(statement);
+  if (stepped != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-instance update failed (%1)"), stepped);
+  }
+  if (finalized != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite calendar-instance finalization failed (%1)"), finalized);
+  }
+  return changed == 1 ? std::nullopt
+                      : std::optional<AppError>(AppError(
+                            AppErrorCode::Database,
+                            QStringLiteral("Calendar instance storage was not updated")));
+}
+
+[[nodiscard]] std::variant<StoredEventContext, AppError>
+materializeVirtualInstance(SqliteConnection& connection,
+                           const StoredEventContext& master,
+                           const StoredEventContext& occurrence,
+                           const CalendarEventUpdateInput& patch,
+                           QString status,
+                           const QString& updatedAt) {
+  const std::variant<CalendarEventCreateInput, AppError> canonical =
+      canonicalize(instanceInput(occurrence, patch));
+  if (std::holds_alternative<AppError>(canonical)) {
+    return std::get<AppError>(canonical);
+  }
+  const QString localId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  const QString eventId = QStringLiteral("event:") + localId;
+  const QString pendingRemoteId = QStringLiteral("pending:") + localId;
+  const CalendarEventMutationResult created = createStoredEvent(
+      connection, std::get<CalendarEventCreateInput>(canonical), eventId, pendingRemoteId, updatedAt);
+  if (std::holds_alternative<AppError>(created)) {
+    return std::get<AppError>(created);
+  }
+  const std::variant<std::optional<StoredEventContext>, AppError> context =
+      readEventContext(connection, eventId);
+  if (std::holds_alternative<AppError>(context) ||
+      !std::get<std::optional<StoredEventContext>>(context).has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Materialized calendar instance is unavailable"));
+  }
+  StoredEventContext stored = *std::get<std::optional<StoredEventContext>>(context);
+  stored.originalStartAt = occurrence.originalStartAt;
+  if (const std::optional<AppError> error =
+          setMaterializedInstanceIdentity(connection, master, stored, std::move(status), updatedAt);
+      error.has_value()) {
+    return *error;
+  }
+  const std::variant<std::optional<StoredEventContext>, AppError> after =
+      readEventContext(connection, eventId);
+  if (std::holds_alternative<AppError>(after) ||
+      !std::get<std::optional<StoredEventContext>>(after).has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Materialized calendar instance is unavailable"));
+  }
+  return *std::get<std::optional<StoredEventContext>>(after);
+}
+
+[[nodiscard]] std::optional<AppError>
+queueInstanceMutation(SqliteConnection& connection,
+                      const StoredEventContext& original,
+                      const StoredEventContext& materialized,
+                      QString operation,
+                      const QString& updatedAt) {
+  if (!original.recurringRemoteId.has_value() || !original.originalStartAt.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Calendar instance identity is unavailable"));
+  }
+  QJsonObject payload{{QStringLiteral("calendarId"), materialized.calendarRemoteId},
+                      {QStringLiteral("localCalendarId"), materialized.calendarId},
+                      {QStringLiteral("localEventId"), materialized.eventId},
+                      {QStringLiteral("recurringRemoteId"), *original.recurringRemoteId},
+                      {QStringLiteral("originalStartAt"), *original.originalStartAt}};
+  if (operation == QStringLiteral("event.instance.update")) {
+    const QJsonObject patch = eventPatchBody(original, materialized);
+    if (patch.isEmpty()) {
+      return std::nullopt;
+    }
+    payload.insert(QStringLiteral("event"), patch);
+  }
+  const std::variant<std::optional<ActiveEventMutation>, AppError> active =
+      findActiveEventMutation(connection, materialized.eventId);
+  if (std::holds_alternative<AppError>(active)) {
+    return std::get<AppError>(active);
+  }
+  const std::optional<ActiveEventMutation>& existing =
+      std::get<std::optional<ActiveEventMutation>>(active);
+  if (existing.has_value()) {
+    const QJsonValue metadata = existing->payload.value(QString::fromLatin1(kConflictMetadataKey));
+    if (!metadata.isObject()) {
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored calendar-instance mutation is invalid"));
+    }
+    if (operation == QStringLiteral("event.instance.update") &&
+        existing->operation == QStringLiteral("event.instance.update")) {
+      payload = mergeEventPatch(existing->payload, std::move(payload));
+    }
+    payload.insert(QString::fromLatin1(kConflictMetadataKey), metadata);
+    return replaceActiveEventMutation(connection, *existing, std::move(operation), std::move(payload), updatedAt);
+  }
+  payload = withConflictMetadata(std::move(payload), eventSnapshot(original), std::nullopt);
+  const EventMutationInsertResult inserted =
+      insertEventMutation(connection, materialized, std::move(operation), std::move(payload), updatedAt);
+  return std::holds_alternative<AppError>(inserted)
+             ? std::optional<AppError>(std::get<AppError>(inserted))
+             : std::nullopt;
+}
+
+[[nodiscard]] std::optional<AppError>
+setMutationDependency(SqliteConnection& connection,
+                      const QString& eventId,
+                      const QString& dependency,
+                      const QString& updatedAt) {
+  const std::variant<std::optional<ActiveEventMutation>, AppError> active =
+      findActiveEventMutation(connection, eventId);
+  if (std::holds_alternative<AppError>(active)) {
+    return std::get<AppError>(active);
+  }
+  const std::optional<ActiveEventMutation>& mutation =
+      std::get<std::optional<ActiveEventMutation>>(active);
+  if (!mutation.has_value()) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("Recurring successor mutation is unavailable"));
+  }
+  QJsonObject payload = mutation->payload;
+  payload.insert(QStringLiteral("dependsOnMutationId"), dependency);
+  return replaceActiveEventMutation(connection, *mutation, mutation->operation, std::move(payload), updatedAt);
+}
+
+[[nodiscard]] std::optional<AppError>
+hideSeriesRows(SqliteConnection& connection,
+               const StoredEventContext& master,
+               const std::optional<QString>& fromOriginalStart,
+               const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  const char* sql = fromOriginalStart.has_value()
+                        ? "UPDATE local_calendar_events SET deleted_at = ?4, updated_at = ?4 "
+                          "WHERE calendar_id = ?1 AND recurring_remote_id = ?2 AND "
+                          "original_start_at >= ?3 AND deleted_at IS NULL"
+                        : "UPDATE local_calendar_events SET deleted_at = ?3, updated_at = ?3 "
+                          "WHERE calendar_id = ?1 AND (id = ?2 OR recurring_remote_id = ?4) "
+                          "AND deleted_at IS NULL";
+  sqlite3_stmt* statement = nullptr;
+  const int prepared = sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepared != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurring-event hide preparation failed (%1)"), prepared);
+  }
+  std::optional<AppError> error;
+  if (fromOriginalStart.has_value()) {
+    error = bindAll(statement, {bindText(statement, 1, master.calendarId),
+                                bindText(statement, 2, master.remoteId),
+                                bindText(statement, 3, *fromOriginalStart),
+                                bindText(statement, 4, updatedAt)});
+  } else {
+    error = bindAll(statement, {bindText(statement, 1, master.calendarId),
+                                bindText(statement, 2, master.eventId),
+                                bindText(statement, 3, updatedAt),
+                                bindText(statement, 4, master.remoteId)});
+  }
+  if (error.has_value()) {
+    return error;
+  }
+  const int stepped = sqlite3_step(statement);
+  const int finalized = sqlite3_finalize(statement);
+  if (stepped != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite recurring-event hide failed (%1)"), stepped);
+  }
+  return finalized == SQLITE_OK
+             ? std::nullopt
+             : std::optional<AppError>(databaseError(
+                   QStringLiteral("SQLite recurring-event hide finalization failed (%1)"), finalized));
 }
 
 [[nodiscard]] CalendarEventMutationResult
@@ -1490,6 +2129,10 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
       return CalendarEventMutationResult(
           validationError(QStringLiteral("Calendar event type is immutable")));
     }
+    if (before->recurrenceRule.has_value() || before->recurringRemoteId.has_value()) {
+      return CalendarEventMutationResult(validationError(
+          QStringLiteral("Recurring events require an explicit recurrence scope")));
+    }
     if (input.calendarId.has_value() && *input.calendarId != before->calendarId &&
         !canMoveFromCalendar(before->calendarAccessRole)) {
       return CalendarEventMutationResult(
@@ -1525,6 +2168,272 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
   });
 }
 
+std::future<CalendarEventMutationResult>
+CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput) {
+  const std::variant<CalendarEventUpdateInput, AppError> canonical =
+      canonicalize(std::move(scopedInput.update));
+  if (std::holds_alternative<AppError>(canonical)) {
+    return readyFuture(CalendarEventMutationResult(std::get<AppError>(canonical)));
+  }
+  if (scopedInput.scope != CalendarEventRecurrenceScope::ThisInstance &&
+      scopedInput.scope != CalendarEventRecurrenceScope::ThisAndFollowing &&
+      scopedInput.scope != CalendarEventRecurrenceScope::FullSeries) {
+    return readyFuture(CalendarEventMutationResult(
+        validationError(QStringLiteral("Calendar recurrence scope is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [input = std::get<CalendarEventUpdateInput>(canonical),
+       scope = scopedInput.scope,
+       updatedAt](SqliteConnection& connection) -> CalendarEventMutationResult {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<ScopedEventTarget>, AppError> targetResult =
+            readScopedEventTarget(connection, input.eventId);
+        if (std::holds_alternative<AppError>(targetResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(targetResult));
+        }
+        const std::optional<ScopedEventTarget>& scopedTarget =
+            std::get<std::optional<ScopedEventTarget>>(targetResult);
+        if (!scopedTarget.has_value()) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar event is unavailable for update")));
+        }
+        const StoredEventContext* const target = &scopedTarget->event;
+        if (!isWritableCalendar(target->calendarAccessRole)) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar is read-only for event updates")));
+        }
+        if (!isMutableEventType(target->eventType)) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar event type is immutable")));
+        }
+        const bool recurring = target->recurrenceRule.has_value() || target->recurringRemoteId.has_value();
+        if (!recurring && scope != CalendarEventRecurrenceScope::ThisInstance) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("A recurrence scope requires a recurring event")));
+        }
+        if (scope == CalendarEventRecurrenceScope::ThisInstance) {
+          if (scopedTarget->isVirtualInstance) {
+            const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+                readSeriesMasterContext(connection, *target);
+            if (std::holds_alternative<AppError>(masterResult) ||
+                !std::get<std::optional<StoredEventContext>>(masterResult).has_value()) {
+              return CalendarEventMutationResult(validationError(
+                  QStringLiteral("Recurring event master is unavailable for this instance")));
+            }
+            const std::variant<StoredEventContext, AppError> materialized = materializeVirtualInstance(
+                connection,
+                *std::get<std::optional<StoredEventContext>>(masterResult),
+                *target,
+                input,
+                QStringLiteral("confirmed"),
+                updatedAt);
+            if (std::holds_alternative<AppError>(materialized)) {
+              return CalendarEventMutationResult(std::get<AppError>(materialized));
+            }
+            if (const std::optional<AppError> error = queueInstanceMutation(
+                    connection,
+                    *target,
+                    std::get<StoredEventContext>(materialized),
+                    QStringLiteral("event.instance.update"),
+                    updatedAt);
+                error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            return CalendarEventMutationReceipt{.eventId = std::get<StoredEventContext>(materialized).eventId,
+                                                .updatedAt = updatedAt};
+          }
+          if (target->recurrenceRule.has_value()) {
+            return CalendarEventMutationResult(validationError(
+                QStringLiteral("Use full-series scope to edit a recurring event master")));
+          }
+          if (target->recurringRemoteId.has_value() && input.recurrenceRule.has_value()) {
+            return CalendarEventMutationResult(validationError(
+                QStringLiteral("An individual recurrence instance cannot change its rule")));
+          }
+          if (input.calendarId.has_value() && *input.calendarId != target->calendarId &&
+              !canMoveFromCalendar(target->calendarAccessRole)) {
+            return CalendarEventMutationResult(
+                validationError(QStringLiteral("Only owner-calendar events can move")));
+          }
+          CalendarEventMutationResult updated = updateStoredEvent(connection, input, *target, updatedAt);
+          if (std::holds_alternative<AppError>(updated)) {
+            return updated;
+          }
+          const std::variant<std::optional<StoredEventContext>, AppError> afterResult =
+              readEventContext(connection, input.eventId);
+          if (std::holds_alternative<AppError>(afterResult) ||
+              !std::get<std::optional<StoredEventContext>>(afterResult).has_value()) {
+            return CalendarEventMutationResult(AppError(
+                AppErrorCode::Database, QStringLiteral("Updated calendar event is unavailable")));
+          }
+          const StoredEventContext& after = *std::get<std::optional<StoredEventContext>>(afterResult);
+          if (target->recurringRemoteId.has_value() && target->originalStartAt.has_value() &&
+              isPendingRemoteId(target->remoteId)) {
+            if (const std::optional<AppError> error = queueInstanceMutation(
+                    connection, *target, after, QStringLiteral("event.instance.update"), updatedAt);
+                error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            return updated;
+          }
+          const QString operation = target->calendarId == after.calendarId
+                                        ? QStringLiteral("event.update")
+                                        : QStringLiteral("event.move");
+          if (const std::optional<AppError> error =
+                  queueEventMutation(connection, *target, after, operation, updatedAt);
+              error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          return updated;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+            readSeriesMasterContext(connection, *target);
+        if (std::holds_alternative<AppError>(masterResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(masterResult));
+        }
+        const std::optional<StoredEventContext>& master =
+            std::get<std::optional<StoredEventContext>>(masterResult);
+        if (!master.has_value() || !master->recurrenceRule.has_value()) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("Recurring event master is unavailable for this scope")));
+        }
+        if (input.calendarId.has_value() && *input.calendarId != master->calendarId) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("Recurring event series cannot move between calendars")));
+        }
+        if (scope == CalendarEventRecurrenceScope::FullSeries) {
+          CalendarEventUpdateInput masterInput = input;
+          masterInput.eventId = master->eventId;
+          masterInput.calendarId = std::nullopt;
+          CalendarEventMutationResult updated =
+              updateStoredEvent(connection, masterInput, *master, updatedAt);
+          if (std::holds_alternative<AppError>(updated)) {
+            return updated;
+          }
+          const std::variant<std::optional<StoredEventContext>, AppError> afterResult =
+              readEventContext(connection, master->eventId);
+          if (std::holds_alternative<AppError>(afterResult) ||
+              !std::get<std::optional<StoredEventContext>>(afterResult).has_value()) {
+            return CalendarEventMutationResult(AppError(
+                AppErrorCode::Database, QStringLiteral("Updated recurring-event master is unavailable")));
+          }
+          if (const std::optional<AppError> error = queueEventMutation(
+                  connection,
+                  *master,
+                  *std::get<std::optional<StoredEventContext>>(afterResult),
+                  QStringLiteral("event.update"),
+                  updatedAt);
+              error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          return updated;
+        }
+        if (!target->recurringRemoteId.has_value() || !target->originalStartAt.has_value()) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("This-and-following scope requires a stored recurring instance")));
+        }
+        const std::optional<QString> trimmed =
+            truncateRecurrenceRule(*master->recurrenceRule, *target->originalStartAt, master->allDay);
+        const std::optional<QString> inherited = successorRecurrenceRule(*master, *target->originalStartAt);
+        if (!trimmed.has_value() || !inherited.has_value()) {
+          return CalendarEventMutationResult(validationError(QStringLiteral(
+              "This-and-following scope requires a supported RRULE occurrence")));
+        }
+        CalendarEventUpdateInput masterInput{.eventId = master->eventId,
+                                             .recurrenceRule = std::optional<std::optional<QString>>(*trimmed)};
+        CalendarEventMutationResult truncated =
+            updateStoredEvent(connection, masterInput, *master, updatedAt);
+        if (std::holds_alternative<AppError>(truncated)) {
+          return truncated;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> trimmedResult =
+            readEventContext(connection, master->eventId);
+        if (std::holds_alternative<AppError>(trimmedResult) ||
+            !std::get<std::optional<StoredEventContext>>(trimmedResult).has_value()) {
+          return CalendarEventMutationResult(AppError(
+              AppErrorCode::Database, QStringLiteral("Trimmed recurring-event master is unavailable")));
+        }
+        const StoredEventContext& trimmedMaster =
+            *std::get<std::optional<StoredEventContext>>(trimmedResult);
+        if (const std::optional<AppError> error = queueEventMutation(
+                connection, *master, trimmedMaster, QStringLiteral("event.update"), updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        const std::variant<std::optional<ActiveEventMutation>, AppError> masterMutation =
+            findActiveEventMutation(connection, master->eventId);
+        if (std::holds_alternative<AppError>(masterMutation) ||
+            !std::get<std::optional<ActiveEventMutation>>(masterMutation).has_value()) {
+          return CalendarEventMutationResult(AppError(
+              AppErrorCode::Database, QStringLiteral("Recurring-event trim mutation is unavailable")));
+        }
+        const std::optional<QString> successorRule = input.recurrenceRule.has_value()
+                                                          ? *input.recurrenceRule
+                                                          : inherited;
+        const std::variant<CalendarEventCreateInput, AppError> successorCanonical = canonicalize(
+            successorInput(*master, *target, input, successorRule.value_or(QString())));
+        if (std::holds_alternative<AppError>(successorCanonical)) {
+          return CalendarEventMutationResult(std::get<AppError>(successorCanonical));
+        }
+        const QString localId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        const QString successorId = QStringLiteral("event:") + localId;
+        const QString successorRemoteId = QStringLiteral("pending:") + localId;
+        CalendarEventMutationResult created = createStoredEvent(connection,
+                                                                 std::get<CalendarEventCreateInput>(successorCanonical),
+                                                                 successorId,
+                                                                 successorRemoteId,
+                                                                 updatedAt);
+        if (std::holds_alternative<AppError>(created)) {
+          return created;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> successorResult =
+            readEventContext(connection, successorId);
+        if (std::holds_alternative<AppError>(successorResult) ||
+            !std::get<std::optional<StoredEventContext>>(successorResult).has_value()) {
+          return CalendarEventMutationResult(AppError(
+              AppErrorCode::Database, QStringLiteral("Recurring successor is unavailable")));
+        }
+        if (const std::optional<AppError> error = queueEventMutation(
+                connection,
+                *std::get<std::optional<StoredEventContext>>(successorResult),
+                *std::get<std::optional<StoredEventContext>>(successorResult),
+                QStringLiteral("event.create"),
+                updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = setMutationDependency(
+                connection,
+                successorId,
+                std::get<std::optional<ActiveEventMutation>>(masterMutation)->id,
+                updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        return created;
+      });
+}
+
 std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString eventId) {
   if (!isValidRequiredText(eventId, kMaximumIdentifierLength)) {
     return readyFuture(CalendarEventMutationResult(
@@ -1557,6 +2466,10 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
           return CalendarEventMutationResult(
               validationError(QStringLiteral("Calendar event type is immutable")));
         }
+        if (before->recurrenceRule.has_value() || before->recurringRemoteId.has_value()) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("Recurring events require an explicit recurrence scope")));
+        }
         CalendarEventMutationResult removed = removeStoredEvent(connection, eventId, updatedAt);
         if (std::holds_alternative<AppError>(removed)) {
           return removed;
@@ -1570,6 +2483,205 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
           return CalendarEventMutationResult(*error);
         }
         return removed;
+      });
+}
+
+std::future<CalendarEventMutationResult>
+CalendarMutationService::removeScoped(CalendarEventScopedDeleteInput input) {
+  if (!isValidRequiredText(input.eventId, kMaximumIdentifierLength) ||
+      (input.scope != CalendarEventRecurrenceScope::ThisInstance &&
+       input.scope != CalendarEventRecurrenceScope::ThisAndFollowing &&
+       input.scope != CalendarEventRecurrenceScope::FullSeries)) {
+    return readyFuture(CalendarEventMutationResult(
+        validationError(QStringLiteral("Calendar recurrence deletion input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [input = std::move(input), updatedAt](SqliteConnection& connection) -> CalendarEventMutationResult {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<ScopedEventTarget>, AppError> targetResult =
+            readScopedEventTarget(connection, input.eventId);
+        if (std::holds_alternative<AppError>(targetResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(targetResult));
+        }
+        const std::optional<ScopedEventTarget>& scopedTarget =
+            std::get<std::optional<ScopedEventTarget>>(targetResult);
+        if (!scopedTarget.has_value() || !isWritableCalendar(scopedTarget->event.calendarAccessRole) ||
+            !isMutableEventType(scopedTarget->event.eventType)) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("Calendar event is unavailable for deletion")));
+        }
+        const StoredEventContext* const target = &scopedTarget->event;
+        const bool recurring = target->recurrenceRule.has_value() || target->recurringRemoteId.has_value();
+        if (!recurring && input.scope != CalendarEventRecurrenceScope::ThisInstance) {
+          return CalendarEventMutationResult(
+              validationError(QStringLiteral("A recurrence scope requires a recurring event")));
+        }
+        if (input.scope == CalendarEventRecurrenceScope::ThisInstance) {
+          if (scopedTarget->isVirtualInstance) {
+            const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+                readSeriesMasterContext(connection, *target);
+            if (std::holds_alternative<AppError>(masterResult) ||
+                !std::get<std::optional<StoredEventContext>>(masterResult).has_value()) {
+              return CalendarEventMutationResult(validationError(
+                  QStringLiteral("Recurring event master is unavailable for this instance")));
+            }
+            const CalendarEventUpdateInput noPatch{.eventId = target->eventId};
+            const std::variant<StoredEventContext, AppError> materialized = materializeVirtualInstance(
+                connection,
+                *std::get<std::optional<StoredEventContext>>(masterResult),
+                *target,
+                noPatch,
+                QStringLiteral("cancelled"),
+                updatedAt);
+            if (std::holds_alternative<AppError>(materialized)) {
+              return CalendarEventMutationResult(std::get<AppError>(materialized));
+            }
+            if (const std::optional<AppError> error = queueInstanceMutation(
+                    connection,
+                    *target,
+                    std::get<StoredEventContext>(materialized),
+                    QStringLiteral("event.instance.delete"),
+                    updatedAt);
+                error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            return CalendarEventMutationReceipt{.eventId = std::get<StoredEventContext>(materialized).eventId,
+                                                .updatedAt = updatedAt};
+          }
+          if (target->recurrenceRule.has_value()) {
+            return CalendarEventMutationResult(validationError(
+                QStringLiteral("Use full-series scope to delete a recurring event master")));
+          }
+          if (target->recurringRemoteId.has_value() && target->originalStartAt.has_value() &&
+              isPendingRemoteId(target->remoteId)) {
+            const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+                readSeriesMasterContext(connection, *target);
+            if (std::holds_alternative<AppError>(masterResult) ||
+                !std::get<std::optional<StoredEventContext>>(masterResult).has_value()) {
+              return CalendarEventMutationResult(validationError(
+                  QStringLiteral("Recurring event master is unavailable for this instance")));
+            }
+            if (const std::optional<AppError> error = setMaterializedInstanceIdentity(
+                    connection,
+                    *std::get<std::optional<StoredEventContext>>(masterResult),
+                    *target,
+                    QStringLiteral("cancelled"),
+                    updatedAt);
+                error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            const std::variant<std::optional<StoredEventContext>, AppError> cancelledResult =
+                readEventContext(connection, target->eventId);
+            if (std::holds_alternative<AppError>(cancelledResult) ||
+                !std::get<std::optional<StoredEventContext>>(cancelledResult).has_value()) {
+              return CalendarEventMutationResult(AppError(
+                  AppErrorCode::Database, QStringLiteral("Cancelled calendar instance is unavailable")));
+            }
+            if (const std::optional<AppError> error = queueInstanceMutation(
+                    connection,
+                    *target,
+                    *std::get<std::optional<StoredEventContext>>(cancelledResult),
+                    QStringLiteral("event.instance.delete"),
+                    updatedAt);
+                error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+              return CalendarEventMutationResult(*error);
+            }
+            return CalendarEventMutationReceipt{.eventId = target->eventId, .updatedAt = updatedAt};
+          }
+          CalendarEventMutationResult removed = removeStoredEvent(connection, input.eventId, updatedAt);
+          if (std::holds_alternative<AppError>(removed)) {
+            return removed;
+          }
+          if (const std::optional<AppError> error = queueEventMutation(
+                  connection, *target, std::nullopt, QStringLiteral("event.delete"), updatedAt);
+              error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          return removed;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> masterResult =
+            readSeriesMasterContext(connection, *target);
+        if (std::holds_alternative<AppError>(masterResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(masterResult));
+        }
+        const std::optional<StoredEventContext>& master =
+            std::get<std::optional<StoredEventContext>>(masterResult);
+        if (!master.has_value() || !master->recurrenceRule.has_value()) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("Recurring event master is unavailable for deletion")));
+        }
+        if (input.scope == CalendarEventRecurrenceScope::FullSeries) {
+          if (const std::optional<AppError> error =
+                  hideSeriesRows(connection, *master, std::nullopt, updatedAt);
+              error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          if (const std::optional<AppError> error = queueEventMutation(
+                  connection, *master, std::nullopt, QStringLiteral("event.delete"), updatedAt);
+              error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+            return CalendarEventMutationResult(*error);
+          }
+          return CalendarEventMutationReceipt{.eventId = master->eventId, .updatedAt = updatedAt};
+        }
+        if (!target->recurringRemoteId.has_value() || !target->originalStartAt.has_value()) {
+          return CalendarEventMutationResult(validationError(
+              QStringLiteral("This-and-following scope requires a stored recurring instance")));
+        }
+        const std::optional<QString> trimmed =
+            truncateRecurrenceRule(*master->recurrenceRule, *target->originalStartAt, master->allDay);
+        if (!trimmed.has_value()) {
+          return CalendarEventMutationResult(validationError(QStringLiteral(
+              "This-and-following scope requires a supported RRULE occurrence")));
+        }
+        CalendarEventUpdateInput masterInput{.eventId = master->eventId,
+                                             .recurrenceRule = std::optional<std::optional<QString>>(*trimmed)};
+        CalendarEventMutationResult truncated =
+            updateStoredEvent(connection, masterInput, *master, updatedAt);
+        if (std::holds_alternative<AppError>(truncated)) {
+          return truncated;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> afterResult =
+            readEventContext(connection, master->eventId);
+        if (std::holds_alternative<AppError>(afterResult) ||
+            !std::get<std::optional<StoredEventContext>>(afterResult).has_value()) {
+          return CalendarEventMutationResult(AppError(
+              AppErrorCode::Database, QStringLiteral("Trimmed recurring-event master is unavailable")));
+        }
+        if (const std::optional<AppError> error = queueEventMutation(
+                connection,
+                *master,
+                *std::get<std::optional<StoredEventContext>>(afterResult),
+                QStringLiteral("event.update"),
+                updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error =
+                hideSeriesRows(connection, *master, target->originalStartAt, updatedAt);
+            error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        return truncated;
       });
 }
 
@@ -1608,6 +2720,7 @@ CalendarMutationService::inspect(QList<QString> eventIds) {
                         .calendarAccessRole = context->calendarAccessRole,
                         .status = context->status,
                         .recurringRemoteId = context->recurringRemoteId,
+                        .originalStartAt = context->originalStartAt,
                         .recurrenceRule = context->recurrenceRule,
                         .eventType = context->eventType,
                         .startAt = context->startAt,

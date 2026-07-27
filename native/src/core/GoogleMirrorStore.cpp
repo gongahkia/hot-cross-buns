@@ -20,6 +20,7 @@ namespace hcb {
 namespace {
 
 constexpr qsizetype kMaximumIdentifierLength = 256;
+constexpr auto kCalendarInstanceCacheTtl = std::chrono::minutes(5);
 
 enum class SqlValueType {
   Null,
@@ -63,6 +64,14 @@ struct SqlValue final {
 [[nodiscard]] QString timestamp(const Clock& clock) {
   const auto milliseconds =
       std::chrono::duration_cast<std::chrono::milliseconds>(clock.wallNow().time_since_epoch());
+  return QDateTime::fromMSecsSinceEpoch(milliseconds.count(), QTimeZone::UTC)
+      .toString(Qt::ISODateWithMs);
+}
+
+[[nodiscard]] QString timestampAt(const Clock& clock, std::chrono::milliseconds offset) {
+  const auto milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(clock.wallNow().time_since_epoch()) +
+      offset;
   return QDateTime::fromMSecsSinceEpoch(milliseconds.count(), QTimeZone::UTC)
       .toString(Qt::ISODateWithMs);
 }
@@ -397,7 +406,16 @@ markCalendarsDeleted(sqlite3* handle, const QString& accountId, const QString& n
 }
 
 [[nodiscard]] std::optional<AppError>
+invalidateCachedInstances(sqlite3* handle, const QString& localCalendarId, const QString& masterRemoteId);
+[[nodiscard]] std::optional<AppError>
+invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId);
+
+[[nodiscard]] std::optional<AppError>
 markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString& now) {
+  if (const std::optional<AppError> error = invalidateCachedCalendar(handle, localCalendarId);
+      error.has_value()) {
+    return error;
+  }
   return execute(handle,
                  "UPDATE local_calendar_events SET deleted_at = ?1, updated_at = ?1 "
                  "WHERE calendar_id = ?2 AND deleted_at IS NULL "
@@ -466,10 +484,53 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
   return {};
 }
 
+[[nodiscard]] std::optional<AppError>
+invalidateCachedInstances(sqlite3* handle, const QString& localCalendarId, const QString& masterRemoteId) {
+  if (const std::optional<AppError> error =
+          execute(handle,
+                  "DELETE FROM local_calendar_instance_coverage WHERE calendar_id = ?1 "
+                  "AND recurring_remote_id = ?2",
+                  {textValue(localCalendarId), textValue(masterRemoteId)});
+      error.has_value()) {
+    return error;
+  }
+  return execute(
+      handle,
+      "DELETE FROM local_calendar_events WHERE calendar_id = ?1 AND recurring_remote_id = ?2 "
+      "AND is_instance_cache = 1 AND NOT EXISTS ("
+      "SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'event' "
+      "AND mutations.resource_id = local_calendar_events.id "
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      {textValue(localCalendarId), textValue(masterRemoteId)});
+}
+
+[[nodiscard]] std::optional<AppError>
+invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
+  if (const std::optional<AppError> error =
+          execute(handle,
+                  "DELETE FROM local_calendar_instance_coverage WHERE calendar_id = ?1",
+                  {textValue(localCalendarId)});
+      error.has_value()) {
+    return error;
+  }
+  return execute(
+      handle,
+      "DELETE FROM local_calendar_events WHERE calendar_id = ?1 AND is_instance_cache = 1 "
+      "AND NOT EXISTS (SELECT 1 FROM local_pending_mutations AS mutations "
+      "WHERE mutations.resource_type = 'event' "
+      "AND mutations.resource_id = local_calendar_events.id "
+      "AND (mutations.status IN ('pending', 'applying') "
+      "OR (mutations.status = 'failed' AND mutations.next_retry_at IS NOT NULL)))",
+      {textValue(localCalendarId)});
+}
+
 [[nodiscard]] std::optional<AppError> upsertEvent(sqlite3* handle,
                                                   const QString& accountId,
                                                   const GoogleCalendarEventMirror& event,
-                                                  const QString& now) {
+                                                  const QString& now,
+                                                  bool isInstanceCache = false) {
   const QString status = calendarEventStatus(event.status);
   const bool cancelled = event.status == GoogleCalendarEventStatus::Cancelled;
   if (status.isEmpty() ||
@@ -510,12 +571,12 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       handle,
       "INSERT INTO local_calendar_events (id, calendar_id, remote_id, recurring_remote_id, "
       "original_start_at, status, title, description, location, start_at, start_time_zone, end_at, "
-      "end_time_zone, is_all_day, recurrence_rule, color_id, transparency, visibility, time_zone, "
-      "event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, "
+      "end_time_zone, is_all_day, recurrence_rule, is_instance_cache, color_id, transparency, "
+      "visibility, time_zone, event_type, attendee_emails_json, attendee_details_json, reminder_minutes_json, "
       "reminders_json, "
       "reminders_use_default, etag, sequence, remote_updated_at, updated_at, deleted_at) "
       "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, "
-      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30) "
+      "?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31) "
       "ON CONFLICT(calendar_id, remote_id) WHERE remote_id IS NOT NULL DO UPDATE SET "
       "recurring_remote_id = excluded.recurring_remote_id, original_start_at = "
       "excluded.original_start_at, "
@@ -523,7 +584,9 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "location = excluded.location, start_at = excluded.start_at, "
       "start_time_zone = excluded.start_time_zone, end_at = excluded.end_at, "
       "end_time_zone = excluded.end_time_zone, is_all_day = excluded.is_all_day, "
-      "recurrence_rule = excluded.recurrence_rule, color_id = excluded.color_id, "
+      "recurrence_rule = excluded.recurrence_rule, is_instance_cache = CASE "
+      "WHEN local_calendar_events.is_instance_cache = 0 THEN 0 ELSE excluded.is_instance_cache END, "
+      "color_id = excluded.color_id, "
       "transparency = excluded.transparency, visibility = excluded.visibility, "
       "time_zone = excluded.time_zone, event_type = excluded.event_type, "
       "attendee_emails_json = excluded.attendee_emails_json, "
@@ -551,6 +614,7 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
       "OR local_calendar_events.end_time_zone IS NOT excluded.end_time_zone "
       "OR local_calendar_events.is_all_day IS NOT excluded.is_all_day "
       "OR local_calendar_events.recurrence_rule IS NOT excluded.recurrence_rule "
+      "OR (local_calendar_events.is_instance_cache = 1 AND excluded.is_instance_cache = 0) "
       "OR local_calendar_events.color_id IS NOT excluded.color_id "
       "OR local_calendar_events.transparency IS NOT excluded.transparency "
       "OR local_calendar_events.visibility IS NOT excluded.visibility "
@@ -580,6 +644,7 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
        optionalTextValue(event.endTimeZone),
        integerValue(event.allDay ? 1 : 0),
        recurrence.isEmpty() ? nullValue() : textValue(recurrence),
+       integerValue(isInstanceCache ? 1 : 0),
        optionalTextValue(event.colorId),
        optionalTextValue(event.transparency),
        optionalTextValue(event.visibility),
@@ -815,6 +880,11 @@ replaceStoredCalendars(SqliteConnection& connection,
     }
   }
   for (const GoogleCalendarEventMirror& event : events) {
+    if (const std::optional<AppError> error =
+            invalidateCachedInstances(handle, calendarId(accountId, event.calendarId), event.id);
+        error.has_value()) {
+      return *error;
+    }
     if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
         error.has_value()) {
       return *error;
@@ -904,10 +974,83 @@ mergeStoredCalendarEvents(SqliteConnection& connection,
     }
   }
   for (const GoogleCalendarEventMirror& event : events) {
+    if (const std::optional<AppError> error =
+            invalidateCachedInstances(handle, calendarId(accountId, event.calendarId), event.id);
+        error.has_value()) {
+      return *error;
+    }
     if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
         error.has_value()) {
       return *error;
     }
+  }
+  if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+    return *error;
+  }
+  return std::monostate{};
+}
+
+[[nodiscard]] GoogleMirrorWriteResult
+cacheStoredCalendarInstances(SqliteConnection& connection,
+                             const QString& accountId,
+                             const QString& calendarRemoteId,
+                             const QString& recurringRemoteId,
+                             const QString& rangeStartAt,
+                             const QString& rangeEndAt,
+                             const QList<GoogleCalendarEventMirror>& events,
+                             const Clock& clock) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-instance cache is unavailable"));
+  }
+  const QDateTime rangeStart = QDateTime::fromString(rangeStartAt, Qt::ISODateWithMs);
+  const QDateTime rangeEnd = QDateTime::fromString(rangeEndAt, Qt::ISODateWithMs);
+  if (!validIdentifier(accountId) || !validIdentifier(calendarRemoteId) ||
+      !validIdentifier(recurringRemoteId) || !rangeStart.isValid() || !rangeEnd.isValid() ||
+      rangeEnd <= rangeStart) {
+    return validationError(QStringLiteral("Google calendar-instance cache request is invalid"));
+  }
+  for (const GoogleCalendarEventMirror& event : events) {
+    if (!validIdentifier(event.id) || event.calendarId != calendarRemoteId ||
+        event.recurringEventId != std::optional<QString>(recurringRemoteId) ||
+        !event.originalStartAt.has_value() || event.title.trimmed().isEmpty()) {
+      return validationError(QStringLiteral("Google calendar instance is invalid"));
+    }
+  }
+  SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+  if (std::holds_alternative<AppError>(transactionResult)) {
+    return std::get<AppError>(std::move(transactionResult));
+  }
+  SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
+  const QString localCalendarId = calendarId(accountId, calendarRemoteId);
+  if (const std::optional<AppError> error =
+          invalidateCachedInstances(handle, localCalendarId, recurringRemoteId);
+      error.has_value()) {
+    return *error;
+  }
+  const QString now = timestamp(clock);
+  for (const GoogleCalendarEventMirror& event : events) {
+    if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now, true);
+        error.has_value()) {
+      return *error;
+    }
+  }
+  const QString expiresAt = timestampAt(
+      clock, std::chrono::duration_cast<std::chrono::milliseconds>(kCalendarInstanceCacheTtl));
+  if (const std::optional<AppError> error =
+          execute(handle,
+                  "INSERT INTO local_calendar_instance_coverage "
+                  "(calendar_id, recurring_remote_id, range_start_at, range_end_at, fetched_at, expires_at) "
+                  "VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                  {textValue(localCalendarId),
+                   textValue(recurringRemoteId),
+                   textValue(rangeStart.toUTC().toString(Qt::ISODateWithMs)),
+                   textValue(rangeEnd.toUTC().toString(Qt::ISODateWithMs)),
+                   textValue(now),
+                   textValue(expiresAt)});
+      error.has_value()) {
+    return *error;
   }
   if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
     return *error;
@@ -1005,6 +1148,32 @@ GoogleMirrorStore::mergeCalendarEvents(QString accountId,
     return mergeStoredCalendarEvents(
         connection, accountId, calendarRemoteId, events, fullReconciliation, clock_);
   });
+}
+
+std::future<GoogleMirrorWriteResult>
+GoogleMirrorStore::cacheCalendarInstances(QString accountId,
+                                          QString calendarRemoteId,
+                                          QString recurringRemoteId,
+                                          QString rangeStartAt,
+                                          QString rangeEndAt,
+                                          QList<GoogleCalendarEventMirror> events) {
+  return writerQueue_.enqueueResult(
+      [this,
+       accountId = std::move(accountId),
+       calendarRemoteId = std::move(calendarRemoteId),
+       recurringRemoteId = std::move(recurringRemoteId),
+       rangeStartAt = std::move(rangeStartAt),
+       rangeEndAt = std::move(rangeEndAt),
+       events = std::move(events)](SqliteConnection& connection) {
+        return cacheStoredCalendarInstances(connection,
+                                            accountId,
+                                            calendarRemoteId,
+                                            recurringRemoteId,
+                                            rangeStartAt,
+                                            rangeEndAt,
+                                            events,
+                                            clock_);
+      });
 }
 
 } // namespace hcb

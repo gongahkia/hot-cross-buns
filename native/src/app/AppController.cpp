@@ -9,6 +9,7 @@
 #include "core/LocalSearchQuery.h"
 #include "core/MonthGridModel.h"
 #include "core/NotesModel.h"
+#include "core/RecurrenceExpansionWorker.h"
 #include "core/SearchResultsModel.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
@@ -16,6 +17,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QHash>
 #include <QMetaType>
 #include <QSet>
 #include <QTimeZone>
@@ -297,9 +299,85 @@ struct CalendarViewLayouts final {
   MonthGridModel::Layout month;
 };
 
+[[nodiscard]] QString recurrenceOccurrenceKey(const QString& calendarId,
+                                              const QString& recurringRemoteId,
+                                              const QString& originalStartAt) {
+  return calendarId + QChar::Null + recurringRemoteId + QChar::Null + originalStartAt;
+}
+
+[[nodiscard]] QList<CalendarEventSummary>
+calendarPresentation(QList<CalendarEventSummary> events,
+                     const QString& rangeStartAt,
+                     const QString& rangeEndAt) {
+  QList<CalendarEventSummary> presentation;
+  QList<CalendarEventSummary> masters;
+  QHash<QString, CalendarEventSummary> exceptions;
+  for (CalendarEventSummary& event : events) {
+    if (event.recurringRemoteId.has_value() && event.originalStartAt.has_value()) {
+      exceptions.insert(recurrenceOccurrenceKey(
+                            event.calendarId, *event.recurringRemoteId, *event.originalStartAt),
+                        std::move(event));
+    } else if (event.recurrenceRule.has_value()) {
+      masters.append(std::move(event));
+    } else if (event.status != QStringLiteral("cancelled")) {
+      presentation.append(std::move(event));
+    }
+  }
+  QSet<QString> representedExceptionKeys;
+  RecurrenceExpansionWorker worker;
+  for (const CalendarEventSummary& master : masters) {
+    const RecurrenceExpansionResult expanded = worker
+                                                   .expand({.eventId = master.id,
+                                                            .startAt = master.startAt,
+                                                            .endAt = master.endAt,
+                                                            .allDay = master.allDay,
+                                                            .timeZone = master.startTimeZone,
+                                                            .recurrenceRule = master.recurrenceRule,
+                                                            .rangeStartAt = rangeStartAt,
+                                                            .rangeEndAt = rangeEndAt})
+                                                   .get();
+    if (std::holds_alternative<AppError>(expanded) || !master.remoteId.has_value()) {
+      continue;
+    }
+    for (const RecurrenceOccurrence& occurrence : std::get<QList<RecurrenceOccurrence>>(expanded)) {
+      if (!occurrence.originalStartAt.has_value()) {
+        continue;
+      }
+      const QString key = recurrenceOccurrenceKey(
+          master.calendarId, *master.remoteId, *occurrence.originalStartAt);
+      const auto exception = exceptions.constFind(key);
+      if (exception != exceptions.cend()) {
+        representedExceptionKeys.insert(key);
+        if (exception->status != QStringLiteral("cancelled")) {
+          presentation.append(*exception);
+        }
+        continue;
+      }
+      CalendarEventSummary projected = master;
+      projected.id = occurrence.id;
+      projected.startAt = occurrence.startAt;
+      projected.endAt = occurrence.endAt;
+      projected.originalStartAt = occurrence.originalStartAt;
+      presentation.append(std::move(projected));
+    }
+  }
+  for (auto exception = exceptions.cbegin(); exception != exceptions.cend(); ++exception) {
+    if (!representedExceptionKeys.contains(exception.key()) &&
+        exception->status != QStringLiteral("cancelled")) {
+      presentation.append(*exception);
+    }
+  }
+  std::sort(presentation.begin(), presentation.end(),
+            [](const CalendarEventSummary& left, const CalendarEventSummary& right) {
+              return left.startAt == right.startAt ? left.id < right.id : left.startAt < right.startAt;
+            });
+  return presentation;
+}
+
 [[nodiscard]] CalendarViewLayouts buildCalendarViewLayouts(QDate date,
                                                            QList<CalendarEventSummary> events,
                                                            const QTimeZone& displayTimeZone) {
+  events = calendarPresentation(std::move(events), calendarRangeStart(date), calendarRangeEnd(date));
   return {
       .agendaEvents = events,
       .timeline = TimelineModel::buildLayout(
@@ -1473,7 +1551,8 @@ void AppController::createEventDetailed(QString calendarId,
                                         QString visibility,
                                         QVariantList attendees,
                                         bool remindersUseDefault,
-                                        QVariantList reminders) {
+                                        QVariantList reminders,
+                                        QString recurrenceRule) {
   const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
   const std::optional<CalendarEventReminderSettings> parsedReminders =
       eventRemindersFromVariantList(remindersUseDefault, reminders);
@@ -1504,7 +1583,10 @@ void AppController::createEventDetailed(QString calendarId,
                                ? std::optional<QString>{}
                                : std::optional<QString>(visibility.trimmed()),
              .attendeeEmails = *parsedAttendees,
-             .reminders = *parsedReminders}),
+             .reminders = *parsedReminders,
+             .recurrenceRule = recurrenceRule.trimmed().isEmpty()
+                                   ? std::optional<QString>{}
+                                   : std::optional<QString>(recurrenceRule.trimmed())}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
@@ -1528,7 +1610,9 @@ void AppController::updateEventDetailed(QString eventId,
                                         QString visibility,
                                         QVariantList attendees,
                                         bool remindersUseDefault,
-                                        QVariantList reminders) {
+                                        QVariantList reminders,
+                                        QString recurrenceRule,
+                                        int recurrenceScope) {
   const std::optional<QList<QString>> parsedAttendees = eventAttendeesFromVariantList(attendees);
   const std::optional<CalendarEventReminderSettings> parsedReminders =
       eventRemindersFromVariantList(remindersUseDefault, reminders);
@@ -1539,8 +1623,15 @@ void AppController::updateEventDetailed(QString eventId,
   const std::optional<QString> eventTimeZone = timeZone.trimmed().isEmpty()
                                                    ? std::optional<QString>{}
                                                    : std::optional<QString>(timeZone.trimmed());
-  watch(calendarMutationService_.update(
-            {.eventId = std::move(eventId),
+  const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
+                     : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
+                                            : CalendarEventRecurrenceScope::FullSeries;
+  if (recurrenceScope < 0 || recurrenceScope > 2) {
+    setStatus(QStringLiteral("Calendar recurrence scope is invalid"));
+    return;
+  }
+  watch(calendarMutationService_.updateScoped(
+            {.update = {.eventId = std::move(eventId),
              .calendarId = std::move(calendarId),
              .title = std::move(title),
              .description = std::optional<std::optional<QString>>(
@@ -1563,7 +1654,11 @@ void AppController::updateEventDetailed(QString eventId,
                                ? std::optional<QString>{}
                                : std::optional<QString>(visibility.trimmed()),
              .attendeeEmails = *parsedAttendees,
-             .reminders = *parsedReminders}),
+             .reminders = *parsedReminders,
+             .recurrenceRule = std::optional<std::optional<QString>>(
+                 recurrenceRule.trimmed().isEmpty() ? std::optional<QString>{}
+                                                   : std::optional<QString>(recurrenceRule.trimmed()))},
+             .scope = scope}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
@@ -1573,8 +1668,15 @@ void AppController::updateEventDetailed(QString eventId,
         });
 }
 
-void AppController::deleteEvent(QString eventId) {
-  watch(calendarMutationService_.remove(std::move(eventId)),
+void AppController::deleteEvent(QString eventId, int recurrenceScope) {
+  if (recurrenceScope < 0 || recurrenceScope > 2) {
+    setStatus(QStringLiteral("Calendar recurrence scope is invalid"));
+    return;
+  }
+  const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
+                     : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
+                                            : CalendarEventRecurrenceScope::FullSeries;
+  watch(calendarMutationService_.removeScoped({.eventId = std::move(eventId), .scope = scope}),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));

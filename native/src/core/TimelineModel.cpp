@@ -94,6 +94,12 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const {
     return item.event.id;
   case CalendarIdRole:
     return item.event.calendarId;
+  case RecurringRemoteIdRole:
+    return item.event.recurringRemoteId.value_or(QString());
+  case OriginalStartAtRole:
+    return item.event.originalStartAt.value_or(QString());
+  case RecurrenceRuleRole:
+    return item.event.recurrenceRule.value_or(QString());
   case StatusRole:
     return item.event.status;
   case ColorIdRole:
@@ -146,6 +152,9 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> TimelineModel::roleNames() const {
   return {{IdRole, "id"},
           {CalendarIdRole, "calendarId"},
+          {RecurringRemoteIdRole, "recurringRemoteId"},
+          {OriginalStartAtRole, "originalStartAt"},
+          {RecurrenceRuleRole, "recurrenceRule"},
           {TitleRole, "title"},
           {StatusRole, "status"},
           {ColorIdRole, "colorId"},

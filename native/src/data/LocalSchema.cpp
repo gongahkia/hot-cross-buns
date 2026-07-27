@@ -797,6 +797,28 @@ ALTER TABLE local_tasks
 ADD COLUMN recurrence_diagnostic TEXT CHECK(recurrence_diagnostic IS NULL OR length(recurrence_diagnostic) BETWEEN 1 AND 1024)
 )";
 
+constexpr char calendarInstanceCacheSchemaSql[] = R"(
+ALTER TABLE local_calendar_events
+ADD COLUMN is_instance_cache INTEGER NOT NULL DEFAULT 0 CHECK(is_instance_cache IN (0, 1));
+
+CREATE INDEX local_calendar_events_instance_cache
+ON local_calendar_events(calendar_id, recurring_remote_id, original_start_at, is_instance_cache)
+WHERE deleted_at IS NULL AND is_instance_cache = 1;
+
+CREATE TABLE local_calendar_instance_coverage (
+  calendar_id TEXT NOT NULL REFERENCES local_calendars(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  recurring_remote_id TEXT NOT NULL CHECK(length(trim(recurring_remote_id)) BETWEEN 1 AND 256),
+  range_start_at TEXT NOT NULL CHECK(length(trim(range_start_at)) BETWEEN 1 AND 64 AND julianday(range_start_at) IS NOT NULL),
+  range_end_at TEXT NOT NULL CHECK(length(trim(range_end_at)) BETWEEN 1 AND 64 AND julianday(range_end_at) IS NOT NULL AND julianday(range_end_at) > julianday(range_start_at)),
+  fetched_at TEXT NOT NULL CHECK(length(trim(fetched_at)) BETWEEN 1 AND 64 AND julianday(fetched_at) IS NOT NULL),
+  expires_at TEXT NOT NULL CHECK(length(trim(expires_at)) BETWEEN 1 AND 64 AND julianday(expires_at) IS NOT NULL AND julianday(expires_at) > julianday(fetched_at)),
+  PRIMARY KEY(calendar_id, recurring_remote_id, range_start_at, range_end_at)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_calendar_instance_coverage_lookup
+ON local_calendar_instance_coverage(calendar_id, recurring_remote_id, range_start_at, range_end_at, expires_at);
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -905,8 +927,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite task-recurrence safety schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 18>& migrations() {
-  static const std::array<SqliteMigration, 18> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarInstanceCacheSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     calendarInstanceCacheSchemaSql,
+                     QStringLiteral("SQLite calendar-instance cache schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 19>& migrations() {
+  static const std::array<SqliteMigration, 19> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -967,6 +995,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("add task recurrence safety metadata"),
        checksum(taskRecurrenceSafetySchemaSql),
        applyTaskRecurrenceSafetySchema},
+      {19,
+       QStringLiteral("add calendar instance cache"),
+       checksum(calendarInstanceCacheSchemaSql),
+       applyCalendarInstanceCacheSchema},
   }};
   return catalogue;
 }

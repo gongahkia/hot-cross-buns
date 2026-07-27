@@ -20,7 +20,8 @@ Pane {
                               string endAt, bool allDay, string description, string location,
                               string startTimeZone, string colorId, string transparency,
                               string visibility, string attendeeEmailsJson, string remindersJson,
-                              bool remindersUseDefault)
+                              bool remindersUseDefault, string recurrenceRule,
+                              string recurringRemoteId, string originalStartAt)
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -67,10 +68,12 @@ Pane {
 
     function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                         remindersJson, remindersUseDefault) {
+                         remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                         originalStartAt) {
         eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                            startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                           remindersJson, remindersUseDefault)
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt)
     }
 
     function isCalendarVisible(calendarId) {
@@ -116,6 +119,9 @@ Pane {
                     required property string attendeeEmailsJson
                     required property string remindersJson
                     required property bool remindersUseDefault
+                    required property string recurrenceRule
+                    required property string recurringRemoteId
+                    required property string originalStartAt
                     visible: allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                     width: parent.width
                     text: title + " — All day"
@@ -125,7 +131,8 @@ Pane {
                         root.selectEvent(id)
                         root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
                                          location, startTimeZone, colorId, transparency, visibility,
-                                         attendeeEmailsJson, remindersJson, remindersUseDefault)
+                                         attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                         recurrenceRule, recurringRemoteId, originalStartAt)
                     }
 
                     CheckBox {
@@ -208,6 +215,9 @@ Pane {
                         required property string attendeeEmailsJson
                         required property string remindersJson
                         required property bool remindersUseDefault
+                        required property string recurrenceRule
+                        required property string recurringRemoteId
+                        required property string originalStartAt
                         visible: !allDay && dayIndex === root.dayIndex && root.isCalendarVisible(calendarId)
                         x: root.timeColumnWidth + laneIndex *
                            (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount)
@@ -221,7 +231,8 @@ Pane {
                             root.selectEvent(id)
                             root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
                                              location, startTimeZone, colorId, transparency, visibility,
-                                             attendeeEmailsJson, remindersJson, remindersUseDefault)
+                                             attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                             recurrenceRule, recurringRemoteId, originalStartAt)
                         }
 
                         DragHandler {

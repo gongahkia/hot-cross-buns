@@ -54,6 +54,13 @@ struct GoogleCalendarEventPullRequest final {
   std::optional<QString> syncToken;
 };
 
+struct GoogleCalendarEventInstancesPullRequest final {
+  QString calendarId;
+  QString recurringEventId;
+  QString timeMin;
+  QString timeMax;
+};
+
 struct GoogleCalendarEventPullResult final {
   QList<GoogleCalendarEventMirror> events;
   std::optional<QString> nextSyncToken;
@@ -63,12 +70,22 @@ struct GoogleCalendarEventPullResult final {
 using GoogleCalendarEventPullResultOrError =
     std::variant<GoogleCalendarEventPullResult, GoogleApiError>;
 
+struct GoogleCalendarEventInstancesPullResult final {
+  QList<GoogleCalendarEventMirror> events;
+  std::optional<QString> serverDate;
+};
+
+using GoogleCalendarEventInstancesPullResultOrError =
+    std::variant<GoogleCalendarEventInstancesPullResult, GoogleApiError>;
+
 class GoogleCalendarEventPullClient final {
 public:
   explicit GoogleCalendarEventPullClient(GoogleHttpClient& httpClient);
 
   [[nodiscard]] std::future<GoogleCalendarEventPullResultOrError>
   list(GoogleCalendarEventPullRequest request, const QString& accessToken);
+  [[nodiscard]] std::future<GoogleCalendarEventInstancesPullResultOrError>
+  instances(GoogleCalendarEventInstancesPullRequest request, const QString& accessToken);
 
 private:
   GoogleHttpClient& httpClient_;

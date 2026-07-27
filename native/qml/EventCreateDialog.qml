@@ -20,7 +20,7 @@ HcbDialog {
     signal eventCreateRequested(string calendarId, string title, string startAt, string endAt,
                                 bool allDay, string description, string location, string timeZone,
                                 string colorId, bool available, string visibility, var attendees,
-                                bool remindersUseDefault, var reminders)
+                                bool remindersUseDefault, var reminders, string recurrenceRule)
 
     function validRange() {
         const start = Date.parse(startField.text)
@@ -62,6 +62,17 @@ HcbDialog {
                 /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim()))
     }
 
+    function recurrenceSummary() {
+        const match = /(?:^|\n)RRULE:([^\n]+)/.exec(recurrenceRuleField.text.trim())
+        if (match === null) return ""
+        const frequency = /(?:^|;)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;|$)/.exec(match[1])
+        const interval = /(?:^|;)INTERVAL=(\d+)(?:;|$)/.exec(match[1])
+        if (frequency === null) return "Rule will be validated before creation"
+        const unit = frequency[1].toLowerCase().slice(0, -2)
+        return interval !== null && interval[1] !== "1" ? "Repeats every " + interval[1] + " " + unit + "s"
+                                                         : "Repeats " + unit + "ly"
+    }
+
     function roundedStartAt() {
         const now = new Date()
         now.setUTCMinutes(0, 0, 0)
@@ -91,6 +102,7 @@ HcbDialog {
         attendeeField.clear()
         defaultRemindersCheck.checked = true
         reminderField.clear()
+        recurrenceRuleField.clear()
         calendarPicker.currentIndex = calendarPicker.indexOfValue(calendarId)
         open()
     }
@@ -101,7 +113,8 @@ HcbDialog {
                                           locationField.text, timeZoneField.text.trim(),
                                           colorIdField.text.trim(), availableCheck.checked,
                                           visibilityPicker.currentValue, attendeeValues(),
-                                          defaultRemindersCheck.checked, reminderValues())
+                                          defaultRemindersCheck.checked, reminderValues(),
+                                          recurrenceRuleField.text.trim())
 
     TextField {
         id: titleField
@@ -169,6 +182,24 @@ HcbDialog {
         placeholderText: "Custom reminders, e.g. popup:10, email:60"
         Accessible.name: "Event custom reminders"
         selectByMouse: true
+    }
+
+    TextField {
+        id: recurrenceRuleField
+        Layout.fillWidth: true
+        placeholderText: "Repeat rule, e.g. RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"
+        Accessible.name: "Event recurrence rule"
+        Accessible.description: "Optional Google Calendar RFC 5545 recurrence rule"
+        selectByMouse: true
+    }
+
+    Label {
+        Layout.fillWidth: true
+        visible: root.recurrenceSummary().length > 0
+        text: root.recurrenceSummary()
+        color: Theme.textSecondary
+        wrapMode: Text.WordWrap
+        Accessible.name: "Recurrence summary: " + text
     }
 
     ComboBox {

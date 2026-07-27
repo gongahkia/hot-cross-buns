@@ -8,6 +8,7 @@
 #include <QList>
 #include <QString>
 
+#include <cstdint>
 #include <future>
 #include <optional>
 #include <variant>
@@ -22,6 +23,12 @@ struct CalendarEventReminder final {
 struct CalendarEventReminderSettings final {
   bool useDefault{true};
   QList<CalendarEventReminder> overrides;
+};
+
+enum class CalendarEventRecurrenceScope : std::uint8_t {
+  ThisInstance,
+  ThisAndFollowing,
+  FullSeries
 };
 
 struct CalendarEventCreateInput final {
@@ -39,6 +46,7 @@ struct CalendarEventCreateInput final {
   std::optional<QString> visibility;
   QList<QString> attendeeEmails;
   CalendarEventReminderSettings reminders;
+  std::optional<QString> recurrenceRule;
 };
 
 struct CalendarEventUpdateInput final {
@@ -57,6 +65,17 @@ struct CalendarEventUpdateInput final {
   std::optional<QString> visibility;
   std::optional<QList<QString>> attendeeEmails;
   std::optional<CalendarEventReminderSettings> reminders;
+  std::optional<std::optional<QString>> recurrenceRule;
+};
+
+struct CalendarEventScopedUpdateInput final {
+  CalendarEventUpdateInput update;
+  CalendarEventRecurrenceScope scope{CalendarEventRecurrenceScope::ThisInstance};
+};
+
+struct CalendarEventScopedDeleteInput final {
+  QString eventId;
+  CalendarEventRecurrenceScope scope{CalendarEventRecurrenceScope::ThisInstance};
 };
 
 struct CalendarEventMutationReceipt final {
@@ -77,6 +96,7 @@ struct CalendarEventMutationSnapshot final {
   std::optional<QString> calendarAccessRole;
   QString status;
   std::optional<QString> recurringRemoteId;
+  std::optional<QString> originalStartAt;
   std::optional<QString> recurrenceRule;
   std::optional<QString> eventType;
   QString startAt;
@@ -103,7 +123,11 @@ public:
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
+  [[nodiscard]] std::future<CalendarEventMutationResult>
+  updateScoped(CalendarEventScopedUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);
+  [[nodiscard]] std::future<CalendarEventMutationResult>
+  removeScoped(CalendarEventScopedDeleteInput input);
   [[nodiscard]] std::future<CalendarEventMutationSnapshotResult> inspect(QList<QString> eventIds);
   [[nodiscard]] std::future<CalendarEventMutationResult>
   reconcileGoogleEvent(CalendarEventRemoteReconciliationInput input);

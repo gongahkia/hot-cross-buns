@@ -59,6 +59,14 @@ struct EventPushRequest final {
 
 using EventPushRequestOrError = std::variant<EventPushRequest, QString>;
 
+struct ResolvedInstanceRequest final {
+  PendingMutation mutation;
+  GoogleHttpRequest request;
+};
+
+using ResolvedInstanceRequestOrError =
+    std::variant<ResolvedInstanceRequest, GoogleApiError, QString>;
+
 struct GoogleEventWriteResponse final {
   QString remoteEventId;
   std::optional<QString> remoteEtag;
@@ -284,6 +292,51 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
                      {QStringLiteral("overrides"), canonicalOverrides}};
 }
 
+[[nodiscard]] std::optional<QJsonArray> canonicalRecurrence(const QJsonValue& value, bool creating) {
+  if (!value.isArray() || value.toArray().size() > 16) {
+    return std::nullopt;
+  }
+  QJsonArray result;
+  int ruleCount = 0;
+  for (const QJsonValue& item : value.toArray()) {
+    if (!item.isString()) {
+      return std::nullopt;
+    }
+    const QString line = item.toString().trimmed();
+    const qsizetype separator = line.indexOf(u':');
+    if (line.isEmpty() || line.size() > 1'024 || separator <= 0 || separator == line.size() - 1 ||
+        line.contains(QChar::Null)) {
+      return std::nullopt;
+    }
+    const QString name = line.first(separator);
+    const QString property = name.section(u';', 0, 0);
+    if (property != QStringLiteral("RRULE") && property != QStringLiteral("EXDATE") &&
+        property != QStringLiteral("RDATE") && property != QStringLiteral("EXRULE")) {
+      return std::nullopt;
+    }
+    if ((property == QStringLiteral("RRULE") || property == QStringLiteral("EXRULE")) &&
+        name != property) {
+      return std::nullopt;
+    }
+    if ((property == QStringLiteral("EXDATE") || property == QStringLiteral("RDATE")) &&
+        !QRegularExpression(QStringLiteral(
+             "^(?:EXDATE|RDATE)(?:;(?:VALUE=DATE|TZID=(?:UTC|[A-Za-z_]+(?:/[A-Za-z_+-]+)+)))*$"))
+             .match(name)
+             .hasMatch()) {
+      return std::nullopt;
+    }
+    if (property == QStringLiteral("RRULE")) {
+      ++ruleCount;
+      if (!line.contains(QStringLiteral("FREQ="))) {
+        return std::nullopt;
+      }
+    }
+    result.append(line);
+  }
+  return ruleCount == 1 || (!creating && result.isEmpty()) ? std::optional<QJsonArray>(result)
+                                                            : std::nullopt;
+}
+
 [[nodiscard]] std::optional<QJsonObject> canonicalEvent(const QJsonObject& payload, bool creating) {
   const QJsonValue eventValue = payload.value(QStringLiteral("event"));
   if (!eventValue.isObject()) {
@@ -369,6 +422,14 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
   if (start.has_value() && end.has_value()) {
     result.insert(QStringLiteral("start"), start->json);
     result.insert(QStringLiteral("end"), end->json);
+  }
+  const QJsonValue recurrence = event.value(QStringLiteral("recurrence"));
+  if (!recurrence.isUndefined()) {
+    const std::optional<QJsonArray> canonical = canonicalRecurrence(recurrence, creating);
+    if (!canonical.has_value()) {
+      return std::nullopt;
+    }
+    result.insert(QStringLiteral("recurrence"), *canonical);
   }
   const QJsonValue attendees = event.value(QStringLiteral("attendees"));
   if (!attendees.isUndefined()) {
@@ -457,6 +518,94 @@ using EventPushOutcomeOrError = std::variant<EventPushOutcome, AppError>;
     return EventPushRequest{.request = std::move(request)};
   }
   return QStringLiteral("Pending event mutation operation is invalid");
+}
+
+[[nodiscard]] bool isInstanceMutation(const PendingMutation& mutation) {
+  return mutation.operation == QStringLiteral("event.instance.update") ||
+         mutation.operation == QStringLiteral("event.instance.delete");
+}
+
+[[nodiscard]] std::optional<QDateTime> canonicalTimestamp(const QString& value) {
+  if (value.size() > 64 || value.contains(QChar::Null) || !value.contains(u'T')) {
+    return std::nullopt;
+  }
+  const QDateTime parsed = QDateTime::fromString(value, Qt::ISODateWithMs);
+  return parsed.isValid() ? std::optional<QDateTime>(parsed.toUTC()) : std::nullopt;
+}
+
+[[nodiscard]] ResolvedInstanceRequestOrError
+resolveInstanceRequest(const PendingMutation& mutation,
+                       GoogleHttpClient& httpClient,
+                       const QString& accessToken) {
+  const std::optional<QString> calendarId = requiredIdentifier(mutation.payload, u"calendarId");
+  const std::optional<QString> seriesId = requiredIdentifier(mutation.payload, u"recurringRemoteId");
+  const QJsonValue originalStartValue = mutation.payload.value(QStringLiteral("originalStartAt"));
+  if (!calendarId.has_value() || !seriesId.has_value() || !originalStartValue.isString()) {
+    return QStringLiteral("Pending calendar-instance mutation payload is invalid");
+  }
+  const std::optional<QDateTime> originalStart = canonicalTimestamp(originalStartValue.toString());
+  if (!originalStart.has_value()) {
+    return QStringLiteral("Pending calendar-instance original start is invalid");
+  }
+  GoogleHttpRequest lookup{.method = GoogleHttpMethod::Get,
+                           .path = eventCollectionPath(*calendarId) + QStringLiteral("/") +
+                                   *seriesId + QStringLiteral("/instances"),
+                           .query = {{.name = QStringLiteral("originalStart"),
+                                      .value = originalStart->toString(Qt::ISODateWithMs)},
+                                     {.name = QStringLiteral("maxResults"),
+                                      .value = QStringLiteral("1")},
+                                     {.name = QStringLiteral("showDeleted"),
+                                      .value = QStringLiteral("true")},
+                                     {.name = QStringLiteral("fields"),
+                                      .value = QStringLiteral(
+                                          "items(id,etag,status,recurringEventId,originalStartTime)")}}};
+  GoogleHttpResult lookupResult = httpClient.send(std::move(lookup), accessToken).get();
+  if (std::holds_alternative<GoogleApiError>(lookupResult)) {
+    return std::get<GoogleApiError>(std::move(lookupResult));
+  }
+  QJsonParseError parseError;
+  const QJsonDocument document = QJsonDocument::fromJson(
+      std::get<GoogleHttpResponse>(lookupResult).body, &parseError);
+  if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+    return QStringLiteral("Google calendar-instance lookup response is invalid");
+  }
+  const QJsonValue itemsValue = document.object().value(QStringLiteral("items"));
+  if (!itemsValue.isArray() || itemsValue.toArray().size() != 1 || !itemsValue.toArray().at(0).isObject()) {
+    return QStringLiteral("Google calendar instance is unavailable");
+  }
+  const QJsonObject instance = itemsValue.toArray().at(0).toObject();
+  const std::optional<QString> instanceId = requiredIdentifier(instance, u"id");
+  const std::optional<QString> instanceEtag = optionalEtag(instance);
+  const std::optional<QString> instanceSeriesId = requiredIdentifier(instance, u"recurringEventId");
+  const std::optional<CanonicalEventTime> instanceOriginalStart =
+      canonicalTime(instance.value(QStringLiteral("originalStartTime")));
+  if (!instanceId.has_value() || !instanceEtag.has_value() || !instanceSeriesId.has_value() ||
+      *instanceSeriesId != *seriesId || !instanceOriginalStart.has_value() ||
+      instanceOriginalStart->at != *originalStart) {
+    return QStringLiteral("Google calendar-instance lookup response is invalid");
+  }
+  GoogleHttpRequest request;
+  request.path = eventCollectionPath(*calendarId) + QStringLiteral("/") + *instanceId;
+  request.ifMatch = *instanceEtag;
+  if (mutation.operation == QStringLiteral("event.instance.update")) {
+    const std::optional<QJsonObject> event = canonicalEvent(mutation.payload, false);
+    if (!event.has_value()) {
+      return QStringLiteral("Pending calendar-instance update payload is invalid");
+    }
+    request.method = GoogleHttpMethod::Patch;
+    request.body = QJsonDocument(*event).toJson(QJsonDocument::Compact);
+    if (event->contains(QStringLiteral("attendees"))) {
+      request.query.append({.name = QStringLiteral("sendUpdates"), .value = QStringLiteral("all")});
+    }
+  } else if (mutation.operation == QStringLiteral("event.instance.delete")) {
+    request.method = GoogleHttpMethod::Delete;
+  } else {
+    return QStringLiteral("Pending calendar-instance mutation operation is invalid");
+  }
+  PendingMutation resolved = mutation;
+  resolved.remoteEtag = *instanceEtag;
+  resolved.payload.insert(QStringLiteral("remoteEventId"), *instanceId);
+  return ResolvedInstanceRequest{.mutation = std::move(resolved), .request = std::move(request)};
 }
 
 [[nodiscard]] GoogleEventWriteResponseOrError
@@ -837,6 +986,20 @@ decodeBatchResponse(const QByteArray& responseBody, int expectedParts) {
     const QString& accessToken) {
   if (std::holds_alternative<GoogleApiError>(response)) {
     GoogleApiError error = std::get<GoogleApiError>(std::move(response));
+    if (isInstanceMutation(claimed) &&
+        (error.kind() == GoogleApiErrorKind::Conflict ||
+         error.kind() == GoogleApiErrorKind::PreconditionFailed)) {
+      if (const std::optional<AppError> failure = markFailure(
+              mutations,
+              claimed,
+              QStringLiteral("recurrence_instance_conflict"),
+              QStringLiteral("Google changed this recurring instance; refresh before retrying"),
+              std::nullopt);
+          failure.has_value()) {
+        return *failure;
+      }
+      return EventPushOutcome{.failed = 1};
+    }
     if ((error.kind() == GoogleApiErrorKind::Conflict ||
          error.kind() == GoogleApiErrorKind::PreconditionFailed) &&
         conflictResolver != nullptr) {
@@ -1145,29 +1308,71 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
               continue;
             }
           }
-          const EventPushRequestOrError request = buildRequest(claimed);
-          if (std::holds_alternative<QString>(request)) {
-            const std::optional<AppError> failure = markFailure(mutations_,
-                                                                claimed,
-                                                                QStringLiteral("invalid_payload"),
-                                                                std::get<QString>(request),
-                                                                std::nullopt);
-            if (failure.has_value()) {
-              completion->set_value(*failure);
-              return;
+          PendingMutation responseMutation = claimed;
+          GoogleHttpRequest request;
+          if (isInstanceMutation(claimed)) {
+            ResolvedInstanceRequestOrError resolved =
+                resolveInstanceRequest(claimed, httpClient_, accessToken);
+            if (std::holds_alternative<GoogleApiError>(resolved)) {
+              EventPushOutcomeOrError outcome = processEventResponse(mutations_,
+                                                                       calendarMutationService_,
+                                                                       conflictResolver_,
+                                                                       clock_,
+                                                                       backoffPolicy_,
+                                                                       std::move(claimed),
+                                                                       std::get<GoogleApiError>(std::move(resolved)),
+                                                                       accessToken);
+              if (std::holds_alternative<AppError>(outcome)) {
+                completion->set_value(std::get<AppError>(std::move(outcome)));
+                return;
+              }
+              addOutcome(summary, std::get<EventPushOutcome>(outcome));
+              ++dueIndex;
+              continue;
             }
-            ++summary.failed;
-            ++dueIndex;
-            continue;
+            if (std::holds_alternative<QString>(resolved)) {
+              const std::optional<AppError> failure = markFailure(
+                  mutations_,
+                  claimed,
+                  QStringLiteral("instance_resolution_failed"),
+                  std::get<QString>(resolved),
+                  std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              ++dueIndex;
+              continue;
+            }
+            ResolvedInstanceRequest instance = std::get<ResolvedInstanceRequest>(std::move(resolved));
+            responseMutation = std::move(instance.mutation);
+            request = std::move(instance.request);
+          } else {
+            const EventPushRequestOrError built = buildRequest(claimed);
+            if (std::holds_alternative<QString>(built)) {
+              const std::optional<AppError> failure = markFailure(mutations_,
+                                                                  claimed,
+                                                                  QStringLiteral("invalid_payload"),
+                                                                  std::get<QString>(built),
+                                                                  std::nullopt);
+              if (failure.has_value()) {
+                completion->set_value(*failure);
+                return;
+              }
+              ++summary.failed;
+              ++dueIndex;
+              continue;
+            }
+            request = std::get<EventPushRequest>(built).request;
           }
-          GoogleHttpResult response =
-              httpClient_.send(std::get<EventPushRequest>(request).request, accessToken).get();
+          GoogleHttpResult response = httpClient_.send(std::move(request), accessToken).get();
           EventPushOutcomeOrError outcome = processEventResponse(mutations_,
                                                                    calendarMutationService_,
                                                                    conflictResolver_,
                                                                    clock_,
                                                                    backoffPolicy_,
-                                                                   std::move(claimed),
+                                                                   std::move(responseMutation),
                                                                    std::move(response),
                                                                    accessToken);
           if (std::holds_alternative<AppError>(outcome)) {

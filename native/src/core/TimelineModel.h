@@ -18,6 +18,9 @@ public:
   enum Role : std::int32_t {
     IdRole = Qt::UserRole + 1,
     CalendarIdRole,
+    RecurringRemoteIdRole,
+    OriginalStartAtRole,
+    RecurrenceRuleRole,
     TitleRole,
     StatusRole,
     ColorIdRole,

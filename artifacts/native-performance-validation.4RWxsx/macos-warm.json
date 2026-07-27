@@ -1,0 +1,1 @@
+{"idle_rss":{"bytes":105938944,"duration_ms":1000},"launch":{"iterations":3,"maximum_ms":2833,"median_ms":2351,"minimum_ms":1926,"samples_ms":[1926,2351,2833]},"platform":{"cpu_architecture":"arm64","product_type":"macos","product_version":"26.5.2"},"schema_version":1}

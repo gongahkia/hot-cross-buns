@@ -1,0 +1,1 @@
+{"bulk_selection":{"iterations":5,"median_ns":118417,"samples_ns":[113167,114250,118417,190209,561625]},"first_cached_render_ns":1654919250,"frames":5,"maximum_ns":9806041,"median_ns":9396042,"minimum_ns":5363875,"samples_ns":[5363875,8725292,9396042,9563584,9806041],"schema_version":1,"task_count":10000}

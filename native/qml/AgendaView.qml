@@ -14,7 +14,8 @@ Pane {
                               string endAt, bool allDay, string description, string location,
                               string startTimeZone, string colorId, string transparency,
                               string visibility, string attendeeEmailsJson, string remindersJson,
-                              bool remindersUseDefault)
+                              bool remindersUseDefault, string recurrenceRule,
+                              string recurringRemoteId, string originalStartAt)
 
     function scheduleLabel(startAt, allDay) {
         return allDay ? "All day" : startAt
@@ -26,10 +27,12 @@ Pane {
 
     function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                         remindersJson, remindersUseDefault) {
+                         remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                         originalStartAt) {
         eventEditRequested(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                            startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
-                           remindersJson, remindersUseDefault)
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt)
     }
 
     function isCalendarVisible(calendarId) {
@@ -75,6 +78,9 @@ Pane {
                 required property string attendeeEmailsJson
                 required property string remindersJson
                 required property bool remindersUseDefault
+                required property string recurrenceRule
+                required property string recurringRemoteId
+                required property string originalStartAt
                 width: ListView.view.width
                 visible: root.isCalendarVisible(calendarId)
                 height: visible ? implicitHeight : 0
@@ -86,7 +92,8 @@ Pane {
                     root.selectEvent(id)
                     root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location,
                                      startTimeZone, colorId, transparency, visibility,
-                                     attendeeEmailsJson, remindersJson, remindersUseDefault)
+                                     attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                     recurrenceRule, recurringRemoteId, originalStartAt)
                 }
 
                 CheckBox {

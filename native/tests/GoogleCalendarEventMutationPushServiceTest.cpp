@@ -35,6 +35,7 @@ private slots:
   void pushesCreateUpdateAndDeleteMutations();
   void batchesIndependentEventWritesWithPerItemResults();
   void pushesMoveBeforeDependentPatch();
+  void resolvesGeneratedInstanceBeforeApplyingScopedUpdate();
   void reconcilesCreatedEventIdentity();
   void recordsPermanentAndRetriableFailures();
 };
@@ -277,6 +278,57 @@ void GoogleCalendarEventMutationPushServiceTest::pushesCreateUpdateAndDeleteMuta
   QCOMPARE(find(coordinator, created.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleCalendarEventMutationPushServiceTest::resolvesGeneratedInstanceBeforeApplyingScopedUpdate() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation mutation = enqueue(
+      coordinator,
+      QStringLiteral("event.instance.update"),
+      {{QStringLiteral("calendarId"), QStringLiteral("calendar-1")},
+       {QStringLiteral("localCalendarId"), QStringLiteral("calendar-local")},
+       {QStringLiteral("localEventId"), QStringLiteral("event-local-instance")},
+       {QStringLiteral("recurringRemoteId"), QStringLiteral("series-remote")},
+       {QStringLiteral("originalStartAt"), QStringLiteral("2026-08-02T09:00:00.000Z")},
+       {QStringLiteral("event"),
+        QJsonObject{{QStringLiteral("description"), QStringLiteral("Changed instance")}}}},
+      QStringLiteral("event-local-instance"));
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray(
+                      R"({"items":[{"id":"instance-remote","etag":"instance-etag","status":"confirmed","recurringEventId":"series-remote","originalStartTime":{"dateTime":"2026-08-02T09:00:00.000Z"}}]})")});
+  manager.enqueue({.body = QByteArray(R"({"id":"instance-remote","etag":"new-instance-etag"})")});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleCalendarEventMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+
+  const hcb::GoogleCalendarEventMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 1);
+  QCOMPARE(result.failed, 0);
+  QCOMPARE(manager.requests().size(), 2);
+  if (manager.requests().size() != 2) {
+    return;
+  }
+  const hcb::test::CapturedNetworkRequest& lookup = manager.requests().at(0);
+  const hcb::test::CapturedNetworkRequest& patch = manager.requests().at(1);
+  QCOMPARE(lookup.operation, QNetworkAccessManager::GetOperation);
+  QCOMPARE(lookup.request.url().path(),
+           QStringLiteral("/calendar/v3/calendars/calendar-1/events/series-remote/instances"));
+  QCOMPARE(QUrlQuery(lookup.request.url()).queryItemValue(QStringLiteral("originalStart")),
+           QStringLiteral("2026-08-02T09:00:00.000Z"));
+  QCOMPARE(patch.operation, QNetworkAccessManager::CustomOperation);
+  QCOMPARE(patch.request.url().path(),
+           QStringLiteral("/calendar/v3/calendars/calendar-1/events/instance-remote"));
+  QCOMPARE(QString::fromUtf8(patch.request.rawHeader("If-Match")), QStringLiteral("instance-etag"));
+  QCOMPARE(QJsonDocument::fromJson(patch.body).object().value(QStringLiteral("description")).toString(),
+           QStringLiteral("Changed instance"));
+  QCOMPARE(find(coordinator, mutation.id).status, hcb::PendingMutationStatus::Applied);
 }
 
 void GoogleCalendarEventMutationPushServiceTest::batchesIndependentEventWritesWithPerItemResults() {

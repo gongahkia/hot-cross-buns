@@ -213,6 +213,7 @@ private slots:
   void createsUpdatesMovesAndDeletesEvents();
   void journalsRemoteUpdatesMovesAndCreateReconciliation();
   void rejectsInvalidAndUnavailableMutations();
+  void scopesRecurringSeriesWithoutUnsafeLegacyMutations();
   void bulkClassifiesAndQueuesEligibleEvents();
 };
 
@@ -578,6 +579,128 @@ void CalendarMutationServiceTest::rejectsInvalidAndUnavailableMutations() {
   const hcb::CalendarEventMutationResult crossAccountMoveResult = awaitResult(crossAccountMove);
   QVERIFY(std::holds_alternative<hcb::AppError>(crossAccountMoveResult));
   QCOMPARE(std::get<hcb::AppError>(crossAccountMoveResult).code(), hcb::AppErrorCode::Validation);
+}
+
+void CalendarMutationServiceTest::scopesRecurringSeriesWithoutUnsafeLegacyMutations() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  execute(connection.nativeHandle(),
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, start_at, "
+          "end_at, is_all_day, recurrence_rule, etag, updated_at, deleted_at) VALUES "
+          "('event-series', 'calendar-work', 'remote-series', 'confirmed', 'Series', "
+          "'2026-07-25T09:00:00.000Z', '2026-07-25T10:00:00.000Z', 0, "
+          "'RRULE:FREQ=DAILY;COUNT=5', 'etag-series', '2026-07-25T00:00:00Z', NULL)");
+
+  std::future<hcb::CalendarEventMutationResult> legacy = service.update(
+      {.eventId = QStringLiteral("event-series"), .title = QStringLiteral("Unsafe")});
+  const hcb::CalendarEventMutationResult legacyResult = awaitResult(legacy);
+  QVERIFY(std::holds_alternative<hcb::AppError>(legacyResult));
+
+  std::future<hcb::CalendarEventMutationResult> exception = service.updateScoped(
+      {.update = {.eventId = QStringLiteral("event-series:instance:20260726T090000Z"),
+                  .title = QStringLiteral("Changed instance")},
+       .scope = hcb::CalendarEventRecurrenceScope::ThisInstance});
+  const hcb::CalendarEventMutationResult exceptionResult = awaitResult(exception);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(exceptionResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(exceptionResult)) {
+    return;
+  }
+  const QString exceptionId = std::get<hcb::CalendarEventMutationReceipt>(exceptionResult).eventId;
+  std::future<hcb::CalendarEventMutationSnapshotResult> exceptionInspectFuture =
+      service.inspect({exceptionId});
+  const hcb::CalendarEventMutationSnapshotResult exceptionInspect = awaitResult(exceptionInspectFuture);
+  QVERIFY(std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(exceptionInspect));
+  if (!std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(exceptionInspect)) {
+    return;
+  }
+  const QList<hcb::CalendarEventMutationSnapshot>& exceptionSnapshots =
+      std::get<QList<hcb::CalendarEventMutationSnapshot>>(exceptionInspect);
+  QCOMPARE(exceptionSnapshots.size(), 1);
+  QCOMPARE(exceptionSnapshots.constFirst().recurringRemoteId,
+           std::optional<QString>(QStringLiteral("remote-series")));
+  QCOMPARE(exceptionSnapshots.constFirst().originalStartAt,
+           std::optional<QString>(QStringLiteral("2026-07-26T09:00:00.000Z")));
+  const QList<PendingMutationSnapshot> exceptionMutations =
+      readPendingEventMutations(connection.nativeHandle(), exceptionId);
+  QCOMPARE(exceptionMutations.size(), 1);
+  if (exceptionMutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(exceptionMutations.constFirst().operation, QStringLiteral("event.instance.update"));
+  QCOMPARE(exceptionMutations.constFirst().payload.value(QStringLiteral("recurringRemoteId")).toString(),
+           QStringLiteral("remote-series"));
+  QCOMPARE(exceptionMutations.constFirst().payload.value(QStringLiteral("originalStartAt")).toString(),
+           QStringLiteral("2026-07-26T09:00:00.000Z"));
+
+  std::future<hcb::CalendarEventMutationResult> cancelException = service.removeScoped(
+      {.eventId = exceptionId, .scope = hcb::CalendarEventRecurrenceScope::ThisInstance});
+  const hcb::CalendarEventMutationResult cancelExceptionResult = awaitResult(cancelException);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(cancelExceptionResult));
+  const QList<PendingMutationSnapshot> cancelledExceptionMutations =
+      readPendingEventMutations(connection.nativeHandle(), exceptionId);
+  QCOMPARE(cancelledExceptionMutations.size(), 1);
+  if (cancelledExceptionMutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(cancelledExceptionMutations.constFirst().operation, QStringLiteral("event.instance.delete"));
+
+  std::future<hcb::CalendarEventMutationResult> split = service.updateScoped(
+      {.update = {.eventId = QStringLiteral("event-series:instance:20260727T090000Z"),
+                  .title = QStringLiteral("Tail")},
+       .scope = hcb::CalendarEventRecurrenceScope::ThisAndFollowing});
+  const hcb::CalendarEventMutationResult splitResult = awaitResult(split);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventMutationReceipt>(splitResult));
+  if (!std::holds_alternative<hcb::CalendarEventMutationReceipt>(splitResult)) {
+    return;
+  }
+  std::future<hcb::CalendarEventMutationSnapshotResult> inspectFuture =
+      service.inspect({QStringLiteral("event-series")});
+  const hcb::CalendarEventMutationSnapshotResult inspectResult = awaitResult(inspectFuture);
+  QVERIFY(std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(inspectResult));
+  if (!std::holds_alternative<QList<hcb::CalendarEventMutationSnapshot>>(inspectResult)) {
+    return;
+  }
+  const QList<hcb::CalendarEventMutationSnapshot>& snapshots =
+      std::get<QList<hcb::CalendarEventMutationSnapshot>>(inspectResult);
+  QCOMPARE(snapshots.size(), 1);
+  QCOMPARE(snapshots.constFirst().recurrenceRule,
+           std::optional<QString>(QStringLiteral("RRULE:FREQ=DAILY;UNTIL=20260727T085959Z")));
+  const QList<PendingMutationSnapshot> masterMutations =
+      readPendingEventMutations(connection.nativeHandle(), QStringLiteral("event-series"));
+  QCOMPARE(masterMutations.size(), 1);
+  if (masterMutations.size() != 1) {
+    return;
+  }
+  QCOMPARE(masterMutations.constFirst().operation, QStringLiteral("event.update"));
+  QCOMPARE(masterMutations.constFirst().payload.value(QStringLiteral("event"))
+               .toObject()
+               .value(QStringLiteral("recurrence"))
+               .toArray()
+               .at(0)
+               .toString(),
+           QStringLiteral("RRULE:FREQ=DAILY;UNTIL=20260727T085959Z"));
+
+  std::future<hcb::CalendarEventMutationResult> virtualInstance = service.removeScoped(
+      {.eventId = QStringLiteral("event-series:instance:20260728T090000Z"),
+       .scope = hcb::CalendarEventRecurrenceScope::ThisInstance});
+  const hcb::CalendarEventMutationResult virtualInstanceResult = awaitResult(virtualInstance);
+  QVERIFY(std::holds_alternative<hcb::AppError>(virtualInstanceResult));
 }
 
 void CalendarMutationServiceTest::bulkClassifiesAndQueuesEligibleEvents() {

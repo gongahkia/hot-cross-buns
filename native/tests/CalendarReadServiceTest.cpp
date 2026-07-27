@@ -3,6 +3,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QTest>
 
+#include <algorithm>
 #include <chrono>
 #include <future>
 #include <optional>
@@ -20,6 +21,7 @@ class CalendarReadServiceTest final : public QObject {
 
 private slots:
   void readsCalendarPagesAndOverlappingEventRanges();
+  void includesRecurringMastersAndCancelledInstancesForProjection();
   void rejectsInvalidReadRequests();
 };
 
@@ -180,6 +182,62 @@ void CalendarReadServiceTest::readsCalendarPagesAndOverlappingEventRanges() {
   QCOMPARE(workEventPage.items.size(), 2);
   QCOMPARE(workEventPage.items.at(0).id, QStringLiteral("event-early"));
   QCOMPARE(workEventPage.items.at(1).id, QStringLiteral("event-mid"));
+}
+
+void CalendarReadServiceTest::includesRecurringMastersAndCancelledInstancesForProjection() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  hcb::CalendarReadService service(*databasePath);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  execute(connection.nativeHandle(),
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, start_at, "
+          "end_at, is_all_day, recurrence_rule, recurring_remote_id, original_start_at, updated_at, "
+          "deleted_at) VALUES "
+          "('event-series', 'calendar-work', 'remote-series', 'confirmed', 'Series', "
+          "'2024-01-01T09:00:00.000Z', '2024-01-01T10:00:00.000Z', 0, "
+          "'RRULE:FREQ=DAILY', NULL, NULL, '2026-07-25T00:00:00Z', NULL), "
+          "('event-series-cancelled', 'calendar-work', 'remote-instance', 'cancelled', "
+          "'Cancelled instance', '2026-07-26T09:00:00.000Z', '2026-07-26T10:00:00.000Z', 0, "
+          "NULL, 'remote-series', '2026-07-26T09:00:00.000Z', '2026-07-25T00:00:00Z', NULL)");
+  std::future<hcb::CalendarEventPageResult> future = service.listEvents(
+      {.calendarIds = {QStringLiteral("calendar-work")},
+       .startAt = QStringLiteral("2026-07-25T00:00:00Z"),
+       .endAt = QStringLiteral("2026-07-28T00:00:00Z")});
+  const hcb::CalendarEventPageResult result = awaitResult(future);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventPage>(result));
+  if (!std::holds_alternative<hcb::CalendarEventPage>(result)) {
+    return;
+  }
+  const hcb::CalendarEventPage& page = std::get<hcb::CalendarEventPage>(result);
+  QCOMPARE(page.totalKnown, 6);
+  QCOMPARE(page.items.size(), 6);
+  const auto cancelled = std::find_if(
+      page.items.cbegin(), page.items.cend(), [](const hcb::CalendarEventSummary& event) {
+        return event.id == QStringLiteral("event-series-cancelled");
+      });
+  QVERIFY(cancelled != page.items.cend());
+  if (cancelled == page.items.cend()) {
+    return;
+  }
+  QVERIFY(std::any_of(page.items.cbegin(), page.items.cend(), [](const hcb::CalendarEventSummary& event) {
+    return event.id == QStringLiteral("event-series");
+  }));
+  QCOMPARE(cancelled->status, QStringLiteral("cancelled"));
+  QCOMPARE(cancelled->originalStartAt,
+           std::optional<QString>(QStringLiteral("2026-07-26T09:00:00.000Z")));
 }
 
 void CalendarReadServiceTest::rejectsInvalidReadRequests() {

@@ -51,6 +51,8 @@ QVariant AgendaModel::data(const QModelIndex& index, int role) const {
     return event.recurringRemoteId.value_or(QString());
   case OriginalStartAtRole:
     return event.originalStartAt.value_or(QString());
+  case RecurrenceRuleRole:
+    return event.recurrenceRule.value_or(QString());
   case StatusRole:
     return event.status;
   case DescriptionRole:
@@ -91,6 +93,7 @@ QHash<int, QByteArray> AgendaModel::roleNames() const {
           {CalendarIdRole, "calendarId"},
           {RecurringRemoteIdRole, "recurringRemoteId"},
           {OriginalStartAtRole, "originalStartAt"},
+          {RecurrenceRuleRole, "recurrenceRule"},
           {StatusRole, "status"},
           {TitleRole, "title"},
           {DescriptionRole, "description"},

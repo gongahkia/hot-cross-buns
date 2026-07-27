@@ -17,7 +17,10 @@ struct RecurrenceExpansionRequest final {
   QString startAt;
   QString endAt;
   bool allDay{false};
+  std::optional<QString> timeZone;
   std::optional<QString> recurrenceRule;
+  std::optional<QString> rangeStartAt;
+  std::optional<QString> rangeEndAt;
 };
 
 struct RecurrenceOccurrence final {

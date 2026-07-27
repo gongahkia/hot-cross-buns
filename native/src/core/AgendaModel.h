@@ -17,6 +17,7 @@ public:
     CalendarIdRole,
     RecurringRemoteIdRole,
     OriginalStartAtRole,
+    RecurrenceRuleRole,
     StatusRole,
     TitleRole,
     DescriptionRole,

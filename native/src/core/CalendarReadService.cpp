@@ -362,11 +362,12 @@ WHERE calendars.deleted_at IS NULL
 }
 
 [[nodiscard]] QString eventFilterSql(const CalendarEventRangeReadRequest& request) {
-  QString filter = QStringLiteral("events.deleted_at IS NULL "
-                                  "AND events.status != 'cancelled' "
-                                  "AND calendars.deleted_at IS NULL "
-                                  "AND events.start_at < ?1 "
-                                  "AND events.end_at > ?2");
+  QString filter = QStringLiteral(
+      "events.deleted_at IS NULL AND calendars.deleted_at IS NULL AND ("
+      "(events.status != 'cancelled' AND events.start_at < ?1 AND events.end_at > ?2) "
+      "OR (events.recurrence_rule IS NOT NULL AND events.start_at < ?1) "
+      "OR (events.status = 'cancelled' AND events.recurring_remote_id IS NOT NULL "
+      "AND events.original_start_at >= ?2 AND events.original_start_at < ?1))");
   for (qsizetype index = 0; index < request.calendarIds.size(); ++index) {
     filter.append(index == 0 ? QStringLiteral(" AND events.calendar_id IN (?%1").arg(index + 3)
                              : QStringLiteral(", ?%1").arg(index + 3));

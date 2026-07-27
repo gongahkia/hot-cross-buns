@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QHash>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTime>
 #include <QTimeZone>
 
@@ -19,6 +20,8 @@ namespace hcb {
 namespace {
 
 constexpr int kMaximumOccurrences = 366;
+constexpr int kMaximumExpansionIterations = 200'000;
+constexpr int kMaximumRangeOccurrences = 5'000;
 constexpr int kMaximumInterval = 366;
 constexpr int kMaximumMonthDay = 31;
 constexpr int kMaximumWeekdayPosition = 5;
@@ -177,7 +180,7 @@ parseRecurrenceRule(const std::optional<QString>& recurrenceRule) {
   }
   if (parts.contains(QStringLiteral("COUNT"))) {
     parsed.count =
-        positiveBoundedInteger(parts.value(QStringLiteral("COUNT")), kMaximumOccurrences);
+        positiveBoundedInteger(parts.value(QStringLiteral("COUNT")), kMaximumExpansionIterations);
   }
   if (parts.contains(QStringLiteral("UNTIL"))) {
     parsed.until = parseUntil(parts.value(QStringLiteral("UNTIL")));
@@ -209,7 +212,7 @@ parseRecurrenceRule(const std::optional<QString>& recurrenceRule) {
   }
   const QDate target(static_cast<int>(year), month, 1);
   return target.isValid()
-             ? QDateTime(target.addDays(date.day() - 1), value.time(), QTimeZone::utc())
+             ? QDateTime(target.addDays(date.day() - 1), value.time(), value.timeZone())
              : QDateTime{};
 }
 
@@ -221,8 +224,97 @@ parseRecurrenceRule(const std::optional<QString>& recurrenceRule) {
   }
   const QDate target(static_cast<int>(year), date.month(), 1);
   return target.isValid()
-             ? QDateTime(target.addDays(date.day() - 1), value.time(), QTimeZone::utc())
+             ? QDateTime(target.addDays(date.day() - 1), value.time(), value.timeZone())
              : QDateTime{};
+}
+
+[[nodiscard]] QTimeZone recurrenceTimeZone(const std::optional<QString>& value, bool allDay) {
+  if (allDay || !value.has_value()) {
+    return QTimeZone::utc();
+  }
+  const QTimeZone timeZone(value->toUtf8());
+  return timeZone.isValid() ? timeZone : QTimeZone::utc();
+}
+
+[[nodiscard]] QString recurrencePropertyName(const QString& line) {
+  const qsizetype separator = line.indexOf(u':');
+  return separator > 0 ? line.first(separator).section(u';', 0, 0) : QString();
+}
+
+[[nodiscard]] std::optional<QTimeZone> recurrencePropertyTimeZone(const QString& line,
+                                                                   const QTimeZone& fallback) {
+  const qsizetype separator = line.indexOf(u':');
+  if (separator <= 0) {
+    return std::nullopt;
+  }
+  for (const QString& parameter : line.first(separator).split(u';').sliced(1)) {
+    const qsizetype equals = parameter.indexOf(u'=');
+    if (equals <= 0 || equals == parameter.size() - 1) {
+      return std::nullopt;
+    }
+    if (parameter.first(equals) == QStringLiteral("TZID")) {
+      const QTimeZone timeZone(parameter.sliced(equals + 1).toUtf8());
+      return timeZone.isValid() ? std::optional<QTimeZone>(timeZone) : std::nullopt;
+    }
+  }
+  return fallback;
+}
+
+[[nodiscard]] std::optional<QDateTime> recurrenceDateTime(QStringView value,
+                                                           const QTimeZone& timeZone) {
+  static const QRegularExpression datePattern(QStringLiteral("^\\d{8}$"));
+  static const QRegularExpression localDateTimePattern(QStringLiteral("^\\d{8}T\\d{6}$"));
+  if (!datePattern.matchView(value).hasMatch() &&
+      !localDateTimePattern.matchView(value).hasMatch() &&
+      !QRegularExpression(QStringLiteral("^\\d{8}T\\d{6}Z$")).matchView(value).hasMatch()) {
+    return std::nullopt;
+  }
+  const QDate date = QDate::fromString(value.first(8).toString(), QStringLiteral("yyyyMMdd"));
+  if (!date.isValid()) {
+    return std::nullopt;
+  }
+  if (value.size() == 8) {
+    return QDateTime(date, QTime(0, 0), timeZone).toUTC();
+  }
+  bool hourConverted = false;
+  bool minuteConverted = false;
+  bool secondConverted = false;
+  const QTime time(value.sliced(9, 2).toInt(&hourConverted),
+                   value.sliced(11, 2).toInt(&minuteConverted),
+                   value.sliced(13, 2).toInt(&secondConverted));
+  if (!hourConverted || !minuteConverted || !secondConverted || !time.isValid()) {
+    return std::nullopt;
+  }
+  const QTimeZone zone = value.endsWith(u'Z') ? QTimeZone::utc() : timeZone;
+  return QDateTime(date, time, zone).toUTC();
+}
+
+[[nodiscard]] std::optional<QList<QDateTime>> recurrenceDates(const std::optional<QString>& rule,
+                                                               QStringView property,
+                                                               const QTimeZone& fallback) {
+  QList<QDateTime> values;
+  if (!rule.has_value()) {
+    return values;
+  }
+  for (const QString& rawLine : rule->split(u'\n', Qt::SkipEmptyParts)) {
+    const QString line = rawLine.trimmed();
+    if (recurrencePropertyName(line) != property) {
+      continue;
+    }
+    const qsizetype separator = line.indexOf(u':');
+    const std::optional<QTimeZone> timeZone = recurrencePropertyTimeZone(line, fallback);
+    if (!timeZone.has_value()) {
+      return std::nullopt;
+    }
+    for (const QString& rawValue : line.sliced(separator + 1).split(u',', Qt::SkipEmptyParts)) {
+      const std::optional<QDateTime> parsed = recurrenceDateTime(rawValue, *timeZone);
+      if (!parsed.has_value() || values.size() >= kMaximumRangeOccurrences) {
+        return std::nullopt;
+      }
+      values.append(*parsed);
+    }
+  }
+  return values;
 }
 
 [[nodiscard]] bool
@@ -359,12 +451,72 @@ matchesRecurrenceWeek(const QDateTime& seriesStart, const QDateTime& candidate, 
   if (!rule.has_value()) {
     return QList<RecurrenceOccurrence>{single};
   }
+  const QTimeZone timeZone = recurrenceTimeZone(request.timeZone, request.allDay);
+  const QDateTime recurrenceStart = start->toTimeZone(timeZone);
+  const bool hasRange = request.rangeStartAt.has_value() || request.rangeEndAt.has_value();
+  const std::optional<QDateTime> rangeStart =
+      request.rangeStartAt.has_value() ? parseUtcDateTime(*request.rangeStartAt) : std::nullopt;
+  const std::optional<QDateTime> rangeEnd =
+      request.rangeEndAt.has_value() ? parseUtcDateTime(*request.rangeEndAt) : std::nullopt;
+  if (hasRange && (!rangeStart.has_value() || !rangeEnd.has_value() || *rangeEnd <= *rangeStart)) {
+    return AppError(AppErrorCode::Validation, QStringLiteral("Recurrence display range is invalid"));
+  }
   const qint64 duration = start->msecsTo(*end);
-  const int maximum = std::min(rule->count.value_or(kMaximumOccurrences), kMaximumOccurrences);
-  const QDateTime until = rule->until.value_or(start->addDays(kMaximumOccurrences));
-  QList<RecurrenceOccurrence> occurrences;
-  occurrences.reserve(maximum);
-  QDateTime cursor = firstRecurrenceDate(*start, *rule);
+  const std::optional<QList<QDateTime>> exceptionDates =
+      recurrenceDates(request.recurrenceRule, u"EXDATE", timeZone);
+  const std::optional<QList<QDateTime>> additionalDates =
+      recurrenceDates(request.recurrenceRule, u"RDATE", timeZone);
+  if (!exceptionDates.has_value() || !additionalDates.has_value()) {
+    return AppError(AppErrorCode::Validation,
+                    QStringLiteral("Recurrence exception date is invalid"));
+  }
+  QSet<QString> excludedStarts;
+  for (const QDateTime& exception : *exceptionDates) {
+    excludedStarts.insert(exception.toUTC().toString(Qt::ISODateWithMs));
+  }
+  if (request.recurrenceRule.has_value()) {
+    for (const QString& rawLine : request.recurrenceRule->split(u'\n', Qt::SkipEmptyParts)) {
+      const QString line = rawLine.trimmed();
+      if (recurrencePropertyName(line) != QStringLiteral("EXRULE")) {
+        continue;
+      }
+      const qsizetype separator = line.indexOf(u':');
+      const RecurrenceExpansionRequest exclusionRequest{
+          .eventId = request.eventId,
+          .startAt = request.startAt,
+          .endAt = request.endAt,
+          .allDay = request.allDay,
+          .timeZone = request.timeZone,
+          .recurrenceRule = QStringLiteral("RRULE:") + line.sliced(separator + 1),
+          .rangeStartAt = request.rangeStartAt,
+          .rangeEndAt = request.rangeEndAt};
+      const RecurrenceExpansionResult exclusion = expandStored(exclusionRequest, cancellation);
+      if (!std::holds_alternative<QList<RecurrenceOccurrence>>(exclusion)) {
+        return std::get<AppError>(exclusion);
+      }
+      for (const RecurrenceOccurrence& occurrence :
+           std::get<QList<RecurrenceOccurrence>>(exclusion)) {
+        if (occurrence.originalStartAt.has_value()) {
+          excludedStarts.insert(*occurrence.originalStartAt);
+        }
+      }
+    }
+  }
+  const auto withinRange = [&rangeStart, &rangeEnd, duration](const QDateTime& occurrenceStart) {
+    const QDateTime utcStart = occurrenceStart.toUTC();
+    return (!rangeStart.has_value() || utcStart.addMSecs(duration) > *rangeStart) &&
+           (!rangeEnd.has_value() || utcStart < *rangeEnd);
+  };
+  const int maximum = rule->count.value_or(hasRange ? kMaximumExpansionIterations : kMaximumOccurrences);
+  QDateTime until = rule->until.value_or(
+      hasRange ? *rangeEnd : start->addDays(kMaximumOccurrences));
+  if (rangeEnd.has_value() && *rangeEnd < until) {
+    until = *rangeEnd;
+  }
+  QList<QDateTime> starts;
+  starts.reserve(std::min(maximum, hasRange ? kMaximumRangeOccurrences : kMaximumOccurrences));
+  QSet<QString> representedStarts;
+  QDateTime cursor = firstRecurrenceDate(recurrenceStart, *rule);
   for (int index = 0; index < maximum && cursor <= until; ++index) {
     if (cancellation.stop_requested()) {
       return AppError(AppErrorCode::Cancelled,
@@ -374,22 +526,49 @@ matchesRecurrenceWeek(const QDateTime& seriesStart, const QDateTime& candidate, 
       return AppError(AppErrorCode::Validation,
                       QStringLiteral("Recurrence rule exceeds date range"));
     }
-    const QString occurrenceStart = cursor.toString(Qt::ISODateWithMs);
+    if (!withinRange(cursor)) {
+      cursor = nextRecurrenceDate(cursor, *rule, recurrenceStart);
+      continue;
+    }
+    const QString occurrenceStart = cursor.toUTC().toString(Qt::ISODateWithMs);
+    if (!excludedStarts.contains(occurrenceStart) && !representedStarts.contains(occurrenceStart)) {
+      starts.append(cursor.toUTC());
+      representedStarts.insert(occurrenceStart);
+    }
+    if (starts.size() > kMaximumRangeOccurrences) {
+      return AppError(AppErrorCode::Validation,
+                      QStringLiteral("Recurrence produces too many visible occurrences"));
+    }
+    cursor = nextRecurrenceDate(cursor, *rule, recurrenceStart);
+  }
+  for (const QDateTime& additional : *additionalDates) {
+    const QString occurrenceStart = additional.toUTC().toString(Qt::ISODateWithMs);
+    if (withinRange(additional) && !excludedStarts.contains(occurrenceStart) &&
+        !representedStarts.contains(occurrenceStart)) {
+      starts.append(additional.toUTC());
+      representedStarts.insert(occurrenceStart);
+    }
+  }
+  std::sort(starts.begin(), starts.end());
+  QList<RecurrenceOccurrence> occurrences;
+  occurrences.reserve(starts.size());
+  const QString masterStart = start->toString(Qt::ISODateWithMs);
+  for (const QDateTime& occurrenceStartAt : starts) {
+    const QString occurrenceStart = occurrenceStartAt.toString(Qt::ISODateWithMs);
     QString suffix = occurrenceStart;
     if (request.allDay) {
       suffix = suffix.left(10).remove(u'-');
     } else {
       suffix.remove(u'-').remove(u':').remove(QStringLiteral(".000"));
     }
-    occurrences.append({.id = index == 0 ? request.eventId
-                                         : request.eventId + QStringLiteral(":instance:") + suffix,
+    occurrences.append({.id = occurrenceStart == masterStart
+                                 ? request.eventId
+                                 : request.eventId + QStringLiteral(":instance:") + suffix,
                         .startAt = occurrenceStart,
-                        .endAt = cursor.addMSecs(duration).toString(Qt::ISODateWithMs),
+                        .endAt = occurrenceStartAt.addMSecs(duration).toUTC().toString(Qt::ISODateWithMs),
                         .originalStartAt = occurrenceStart});
-    cursor = nextRecurrenceDate(cursor, *rule, *start);
   }
-  return occurrences.isEmpty() ? RecurrenceExpansionResult(QList<RecurrenceOccurrence>{single})
-                               : RecurrenceExpansionResult(std::move(occurrences));
+  return occurrences;
 }
 
 } // namespace

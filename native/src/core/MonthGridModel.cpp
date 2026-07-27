@@ -53,6 +53,9 @@ namespace {
 [[nodiscard]] QVariantMap eventMap(const CalendarEventSummary& event) {
   return {{QStringLiteral("id"), event.id},
           {QStringLiteral("calendarId"), event.calendarId},
+          {QStringLiteral("recurringRemoteId"), event.recurringRemoteId.value_or(QString())},
+          {QStringLiteral("originalStartAt"), event.originalStartAt.value_or(QString())},
+          {QStringLiteral("recurrenceRule"), event.recurrenceRule.value_or(QString())},
           {QStringLiteral("title"), event.title},
           {QStringLiteral("status"), event.status},
           {QStringLiteral("startAt"), event.startAt},
