@@ -15,6 +15,7 @@ func _initialize() -> void:
 	assert(main.display_filter_layer.layer < main.ui.layer, "pixel filter overlays the ui")
 	assert(InputMap.has_action("grapple"), "grapple input missing")
 	assert(InputMap.has_action("glide"), "glide input missing")
+	assert(InputMap.has_action("sprint"), "sprint input missing")
 	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
 	app_settings.call("set_pixel_filter_mode", 0)
 	assert(not main.display_filter.visible, "pixel filter remained visible when disabled")
@@ -57,6 +58,19 @@ func _initialize() -> void:
 		main._restart_level()
 		assert(is_zero_approx(float(runs.elapsed)), "reset did not clear timer for " + level.id)
 	var wall_jump_player = main.player
+	wall_jump_player.is_sliding = false
+	wall_jump_player.velocity = Vector3(0.0, 0.0, -10.0)
+	Input.action_press("sprint")
+	wall_jump_player._handle_sprint(true)
+	assert(wall_jump_player.is_sprinting, "ground sprint did not activate")
+	assert(is_equal_approx(wall_jump_player._movement_top_speed(true), 17.0), "sprint speed missing")
+	wall_jump_player.velocity = Vector3(0.0, 0.0, -19.0)
+	assert(is_equal_approx(wall_jump_player._movement_top_speed(true), 19.0), "slide momentum did not carry into sprint")
+	assert(wall_jump_player._sprint_dash_requested(false), "sprint did not request an air dash")
+	Input.action_release("sprint")
+	wall_jump_player._handle_sprint(false)
+	wall_jump_player.velocity = Vector3(0.0, 0.0, -19.0)
+	assert(is_equal_approx(wall_jump_player._movement_top_speed(false), 19.0), "slide momentum did not carry into air")
 	wall_jump_player.wall_jump_normal = Vector3(1.0, 0.0, 0.0)
 	wall_jump_player.wall_jump_timer = 0.14
 	wall_jump_player.velocity = Vector3(0.0, 0.0, 16.0)
@@ -86,6 +100,15 @@ func _initialize() -> void:
 	assert(wall_jump_player.tool_status() == "TETHER", "grapple tool status missing")
 	wall_jump_player._stop_grapple()
 	assert(not wall_jump_player.is_grappling, "grapple did not release")
+	wall_jump_player.velocity = Vector3(0.0, 0.0, -5.0)
+	main._refresh_grapple_reticle()
+	await process_frame
+	assert(main.grapple_reticle.visible, "grapple reticle did not appear while moving")
+	assert(main.grapple_reticle.target_anchor_id == grapple_anchor.get_instance_id(), "grapple reticle chose the wrong anchor")
+	assert(main.grapple_reticle.lock_progress > 0.0, "grapple reticle did not contract")
+	wall_jump_player.velocity = Vector3.ZERO
+	main._refresh_grapple_reticle()
+	assert(not main.grapple_reticle.visible, "grapple reticle remained while stationary")
 	wall_jump_player.is_slamming = false
 	wall_jump_player.velocity.y = -8.0
 	Input.action_press("glide")

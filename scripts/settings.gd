@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
-const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "slide", "grapple", "glide", "reset_run", "pause"]
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "reset_run", "pause"]
 const PIXEL_FILTER_OFF := 0
 const PIXEL_FILTER_2X := 2
 const PIXEL_FILTER_4X := 4
@@ -30,7 +30,8 @@ func default_binding_data() -> Dictionary:
 		"jump": [{"type": "key", "code": KEY_SPACE}, {"type": "joy_button", "button": JOY_BUTTON_A}],
 		"slam": [{"type": "key", "code": KEY_Q}, {"type": "joy_button", "button": JOY_BUTTON_LEFT_SHOULDER}],
 		"dash": [{"type": "key", "code": KEY_SHIFT}, {"type": "joy_button", "button": JOY_BUTTON_RIGHT_SHOULDER}],
-		"slide": [{"type": "key", "code": KEY_CTRL}, {"type": "joy_button", "button": JOY_BUTTON_B}],
+		"sprint": [{"type": "key", "code": KEY_CTRL}, {"type": "joy_button", "button": JOY_BUTTON_LEFT_STICK}],
+		"slide": [{"type": "key", "code": KEY_C}, {"type": "joy_button", "button": JOY_BUTTON_B}],
 		"grapple": [{"type": "key", "code": KEY_E}, {"type": "joy_button", "button": JOY_BUTTON_X}],
 		"glide": [{"type": "key", "code": KEY_F}, {"type": "joy_button", "button": JOY_BUTTON_DPAD_UP}],
 		"reset_run": [{"type": "key", "code": KEY_R}, {"type": "joy_button", "button": JOY_BUTTON_Y}],
@@ -57,6 +58,7 @@ func load_settings() -> void:
 		for action in ACTIONS:
 			if saved_bindings.has(action):
 				bindings[action] = saved_bindings[action]
+		_migrate_ctrl_slide_binding(saved_bindings)
 
 func save_settings() -> void:
 	var data := {
@@ -138,3 +140,12 @@ func binding_label(action: String) -> String:
 		return "Unbound"
 	var event := event_from_data(action_bindings[0])
 	return event.as_text().replace(" (Physical)", "") if event else "Unbound"
+
+func _migrate_ctrl_slide_binding(saved_bindings: Dictionary) -> void:
+	var saved_slide = saved_bindings.get("slide", [])
+	if not saved_slide is Array or saved_slide.size() != 1:
+		return
+	var binding = saved_slide[0]
+	if not binding is Dictionary or String(binding.get("type", "")) != "key" or int(binding.get("code", 0)) != KEY_CTRL:
+		return
+	bindings["slide"] = default_binding_data()["slide"]

@@ -2,6 +2,7 @@ extends Node3D
 
 const LEVELS := preload("res://scripts/level_library.gd")
 const PERFORMANCE_HISTOGRAM := preload("res://scripts/performance_histogram.gd")
+const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
 
 var course: Node3D
 var player: SpeedPlayer
@@ -23,6 +24,7 @@ var par_label: Label
 var collect_label: Label
 var tool_label: Label
 var briefing_label: Label
+var grapple_reticle: GrappleReticle
 var rebinding_action := ""
 var rebinding_button: Button
 var menu_mode := "title"
@@ -104,6 +106,8 @@ func _build_ui() -> void:
 	briefing_label.size.x = 640.0
 	briefing_label.position.x = -320.0
 	hud.add_child(briefing_label)
+	grapple_reticle = GRAPPLE_RETICLE.new()
+	hud.add_child(grapple_reticle)
 	hud.visible = false
 	menu = Control.new()
 	menu.theme = ui_theme
@@ -132,6 +136,7 @@ func _process(delta: float) -> void:
 	if RunData.running:
 		RunData.advance(delta)
 		_refresh_hud()
+		_refresh_grapple_reticle()
 		if Input.is_action_just_pressed("pause"):
 			show_pause()
 
@@ -156,6 +161,7 @@ func show_title() -> void:
 		player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+	grapple_reticle.clear_target()
 	_clear_menu()
 	var panel := _center_panel(Vector2(680.0, 520.0))
 	var box := VBoxContainer.new()
@@ -172,13 +178,14 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse - Space jump/wall jump - E tether - F glide - Q slam - Shift dash - Ctrl slide - R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+	grapple_reticle.clear_target()
 	_clear_menu()
 	var panel := _center_panel(Vector2(780.0, 610.0))
 	var box := VBoxContainer.new()
@@ -219,6 +226,7 @@ func start_level(level_id: String) -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	current_level = LEVELS.by_id(level_id)
 	collected_in_level = 0
+	grapple_reticle.clear_target()
 	_build_course(current_level)
 	RunData.begin_run(level_id)
 	hud.visible = true
@@ -882,12 +890,32 @@ func _refresh_hud() -> void:
 	if player:
 		tool_label.text = player.tool_status()
 
+func _refresh_grapple_reticle() -> void:
+	if grapple_reticle == null or player == null or not player.movement_enabled or player.is_grappling:
+		if grapple_reticle:
+			grapple_reticle.clear_target()
+		return
+	if Vector2(player.velocity.x, player.velocity.z).length() < 2.5:
+		grapple_reticle.clear_target()
+		return
+	var anchor := player.grapple_candidate()
+	if anchor == null or player.camera.is_position_behind(anchor.global_position):
+		grapple_reticle.clear_target()
+		return
+	var screen_position := player.camera.unproject_position(anchor.global_position)
+	var viewport_size := get_viewport().get_visible_rect().size
+	if screen_position.x < -64.0 or screen_position.y < -64.0 or screen_position.x > viewport_size.x + 64.0 or screen_position.y > viewport_size.y + 64.0:
+		grapple_reticle.clear_target()
+		return
+	grapple_reticle.track(anchor, screen_position)
+
 func _collectible_count(level: Dictionary) -> int:
 	return total_collectibles_in_level
 
 func show_pause() -> void:
 	if not RunData.running:
 		return
+	grapple_reticle.clear_target()
 	menu_mode = "pause"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().paused = true
@@ -924,6 +952,7 @@ func show_results(result: Dictionary) -> void:
 	menu_mode = "results"
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud.visible = false
+	grapple_reticle.clear_target()
 	_clear_menu()
 	var panel := _center_panel(Vector2(760.0, 610.0))
 	var box := VBoxContainer.new()

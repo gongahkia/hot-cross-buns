@@ -4,8 +4,10 @@ extends CharacterBody3D
 signal reset_requested
 
 const WALK_SPEED := 10.0
-const SLIDE_SPEED := 14.0
+const SPRINT_SPEED := 17.0
+const SLIDE_SPEED := 19.0
 const DASH_SPEED := 22.0
+const AIR_MOMENTUM_SPEED := 25.0
 const JUMP_VELOCITY := 7.6
 const GRAVITY := 24.0
 const COYOTE_TIME := 0.12
@@ -39,13 +41,13 @@ var yaw := 0.0
 var pitch := 0.0
 var can_dash := true
 var can_double_jump := true
-var was_on_floor := false
 var coyote_timer := 0.0
 var jump_buffer := 0.0
 var wall_jump_timer := 0.0
 var wall_jump_normal := Vector3.ZERO
 var dash_timer := 0.0
 var is_sliding := false
+var is_sprinting := false
 var is_slamming := false
 var is_gliding := false
 var is_grappling := false
@@ -101,8 +103,7 @@ func _physics_process(delta: float) -> void:
 	if on_floor_before_move:
 		coyote_timer = COYOTE_TIME
 		can_double_jump = true
-		if not was_on_floor:
-			can_dash = true
+		can_dash = true
 	else:
 		coyote_timer = max(coyote_timer - delta, 0.0)
 	if Input.is_action_just_pressed("grapple"):
@@ -135,15 +136,17 @@ func _physics_process(delta: float) -> void:
 		if is_gliding:
 			velocity.y = maxf(velocity.y, -GLIDE_FALL_SPEED)
 	_handle_slide(on_floor_before_move)
+	_handle_sprint(on_floor_before_move)
 	if is_sliding and not was_sliding:
 		_add_camera_shake(0.018)
 		landing_offset = minf(landing_offset, -0.045)
-	if Input.is_action_just_pressed("dash") and can_dash:
+	var sprint_dash := _sprint_dash_requested(on_floor_before_move)
+	if (Input.is_action_just_pressed("dash") or sprint_dash) and can_dash:
 		_stop_grapple()
 		_dash()
 	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var input_direction := (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
-	var top_speed := GLIDE_SPEED if is_gliding else (SLIDE_SPEED if is_sliding else WALK_SPEED)
+	var top_speed := _movement_top_speed(on_floor_before_move)
 	if dash_timer > 0.0:
 		dash_timer = max(dash_timer - delta, 0.0)
 	else:
@@ -170,7 +173,6 @@ func _physics_process(delta: float) -> void:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
 		landing_offset = minf(landing_offset, -impact * 0.006)
-	was_on_floor = is_on_floor()
 	was_sliding = is_sliding
 	_update_camera_fx(delta, input_vector)
 	if global_position.y < -18.0:
@@ -185,6 +187,21 @@ func _handle_slide(on_floor: bool) -> void:
 		_slide_latched = Input.is_action_pressed("slide")
 	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > 2.0
 
+func _handle_sprint(on_floor: bool) -> void:
+	is_sprinting = on_floor and not is_sliding and Input.is_action_pressed("sprint")
+
+func _sprint_dash_requested(on_floor: bool) -> bool:
+	return Input.is_action_just_pressed("sprint") and not on_floor
+
+func _movement_top_speed(on_floor: bool) -> float:
+	var top_speed := GLIDE_SPEED if is_gliding else (SLIDE_SPEED if is_sliding else (SPRINT_SPEED if is_sprinting else WALK_SPEED))
+	var planar_speed := Vector2(velocity.x, velocity.z).length()
+	if is_sprinting:
+		top_speed = maxf(top_speed, minf(planar_speed, SLIDE_SPEED))
+	if not on_floor:
+		top_speed = maxf(top_speed, minf(planar_speed, AIR_MOMENTUM_SPEED))
+	return top_speed
+
 func _update_glide_state(on_floor: bool) -> void:
 	is_gliding = not on_floor and not is_grappling and not is_slamming and Input.is_action_pressed("glide") and velocity.y <= 1.5
 
@@ -192,6 +209,26 @@ func _try_grapple() -> bool:
 	if is_grappling:
 		_stop_grapple()
 		return false
+	var best_anchor := grapple_candidate()
+	if best_anchor == null:
+		return false
+	is_grappling = true
+	is_gliding = false
+	is_sprinting = false
+	is_slamming = false
+	grapple_anchor = best_anchor
+	grapple_target = best_anchor.global_position
+	can_dash = true
+	can_double_jump = true
+	_add_camera_shake(0.028)
+	_emit_burst(0.72)
+	Audio.play_sfx("dash")
+	_refresh_grapple_line()
+	return true
+
+func grapple_candidate() -> Node3D:
+	if camera == null:
+		return null
 	var origin := global_position + Vector3(0.0, 1.1, 0.0)
 	var view_direction := -camera.global_transform.basis.z.normalized()
 	var best_anchor: Node3D
@@ -211,20 +248,7 @@ func _try_grapple() -> bool:
 		if score > best_score:
 			best_score = score
 			best_anchor = anchor
-	if best_anchor == null:
-		return false
-	is_grappling = true
-	is_gliding = false
-	is_slamming = false
-	grapple_anchor = best_anchor
-	grapple_target = best_anchor.global_position
-	can_dash = true
-	can_double_jump = true
-	_add_camera_shake(0.028)
-	_emit_burst(0.72)
-	Audio.play_sfx("dash")
-	_refresh_grapple_line()
-	return true
+	return best_anchor
 
 func _update_grapple(delta: float) -> void:
 	if grapple_anchor == null or not is_instance_valid(grapple_anchor):
@@ -284,6 +308,7 @@ func launch(force: float) -> void:
 	can_double_jump = true
 	is_slamming = false
 	is_gliding = false
+	is_sprinting = false
 	_add_camera_shake(0.026)
 
 func _cache_wall_contact() -> void:
@@ -326,6 +351,7 @@ func _ground_slam() -> void:
 	can_double_jump = false
 	is_slamming = true
 	is_gliding = false
+	is_sprinting = false
 	_add_camera_shake(0.030)
 	_emit_burst(0.34)
 	Audio.play_sfx("dash")
@@ -357,7 +383,7 @@ func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	camera.position = camera.position.lerp(target_position, minf(delta * 16.0, 1.0))
 	camera.rotation = Vector3(pitch + bob_pitch + shake_y * 0.34, 0.0, current_roll + shake_roll)
 	var speed_fov := clampf(speed / DASH_SPEED, 0.0, 1.0) * 4.0
-	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (2.5 if is_slamming else 0.0) + (5.0 if is_grappling else 0.0) + (2.5 if is_gliding else 0.0)
+	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (3.5 if is_sprinting else 0.0) + (2.5 if is_slamming else 0.0) + (5.0 if is_grappling else 0.0) + (2.5 if is_gliding else 0.0)
 	camera.fov = move_toward(camera.fov, target_fov, FOV_RESPONSE * delta)
 	_update_particles(speed)
 
