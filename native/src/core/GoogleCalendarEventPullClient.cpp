@@ -575,7 +575,7 @@ requestForInstancesPage(const GoogleCalendarEventInstancesPullRequest& request,
        .value = QStringLiteral(
            "nextPageToken,items(id,status,summary,description,location,start,end,recurringEventId,"
            "originalStartTime,recurrence,colorId,transparency,visibility,eventType,attendees,"
-           "reminders,etag,sequence,updated)"))}};
+           "reminders,etag,sequence,updated)")}};
   if (pageToken.has_value()) {
     httpRequest.query.append({.name = QStringLiteral("pageToken"), .value = *pageToken});
   }

@@ -20,6 +20,7 @@ namespace {
 constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr std::int64_t kMaximumCalendarPageLimit = 100;
 constexpr std::int64_t kMaximumEventPageLimit = 25'000;
+constexpr std::int64_t kMaximumInstanceCacheTargetLimit = 1'000;
 constexpr qsizetype kMaximumCalendarFilterCount = 25;
 constexpr qint64 kMaximumRangeDurationMilliseconds = 397LL * 24 * 60 * 60 * 1000;
 
@@ -149,7 +150,8 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
   if (!id.has_value() || !calendarId.has_value() || !status.has_value() || !title.has_value() ||
       !startAt.has_value() || !endAt.has_value() || !updatedAt.has_value() ||
       !isStoredBoolean(statement, 13) || !attendeeEmailsJson.has_value() ||
-      !remindersJson.has_value() || !isStoredBoolean(statement, 23)) {
+      !remindersJson.has_value() || !isStoredBoolean(statement, 23) ||
+      !isStoredBoolean(statement, 28)) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored calendar event row is invalid"));
   }
   return CalendarEventSummary{.id = *id,
@@ -179,7 +181,8 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                               .etag = optionalText(statement, 24),
                               .sequence = optionalInteger(statement, 25),
                               .remoteUpdatedAt = optionalText(statement, 26),
-                              .updatedAt = *updatedAt};
+                              .updatedAt = *updatedAt,
+                              .instanceRangeCached = sqlite3_column_int(statement, 28) == 1};
 }
 
 constexpr char calendarProjectionSql[] = R"(
@@ -362,12 +365,28 @@ WHERE calendars.deleted_at IS NULL
 }
 
 [[nodiscard]] QString eventFilterSql(const CalendarEventRangeReadRequest& request) {
+  constexpr char coverageSql[] = R"(
+EXISTS (
+  SELECT 1 FROM local_calendar_instance_coverage AS coverage
+  WHERE coverage.calendar_id = events.calendar_id
+    AND coverage.recurring_remote_id = events.recurring_remote_id
+    AND coverage.range_start_at <= ?2
+    AND coverage.range_end_at >= ?1
+    AND coverage.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+)
+)";
   QString filter = QStringLiteral(
       "events.deleted_at IS NULL AND calendars.deleted_at IS NULL AND ("
+      "(events.is_instance_cache = 0 AND ("
       "(events.status != 'cancelled' AND events.start_at < ?1 AND events.end_at > ?2) "
       "OR (events.recurrence_rule IS NOT NULL AND events.start_at < ?1) "
       "OR (events.status = 'cancelled' AND events.recurring_remote_id IS NOT NULL "
-      "AND events.original_start_at >= ?2 AND events.original_start_at < ?1))");
+      "AND events.original_start_at >= ?2 AND events.original_start_at < ?1))) "
+      "OR (events.is_instance_cache = 1 AND %1 AND ("
+      "(events.status != 'cancelled' AND events.start_at < ?1 AND events.end_at > ?2) "
+      "OR (events.status = 'cancelled' AND events.original_start_at >= ?2 "
+      "AND events.original_start_at < ?1))))")
+                       .arg(QString::fromLatin1(coverageSql));
   for (qsizetype index = 0; index < request.calendarIds.size(); ++index) {
     filter.append(index == 0 ? QStringLiteral(" AND events.calendar_id IN (?%1").arg(index + 3)
                              : QStringLiteral(", ?%1").arg(index + 3));
@@ -376,6 +395,15 @@ WHERE calendars.deleted_at IS NULL
     filter.append(u')');
   }
   return filter;
+}
+
+[[nodiscard]] QString instanceCoverageSql() {
+  return QStringLiteral(
+      "EXISTS (SELECT 1 FROM local_calendar_instance_coverage AS coverage "
+      "WHERE coverage.calendar_id = events.calendar_id "
+      "AND coverage.recurring_remote_id = events.remote_id "
+      "AND coverage.range_start_at <= ?2 AND coverage.range_end_at >= ?1 "
+      "AND coverage.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
 }
 
 [[nodiscard]] std::optional<AppError>
@@ -417,13 +445,13 @@ readStoredCalendarEvents(SqliteConnection& connection,
                      "events.transparency, events.visibility, events.time_zone, events.hcb_kind, "
                      "events.event_type, events.attendee_emails_json, events.reminders_json, "
                      "events.reminders_use_default, events.etag, events.sequence, "
-                     "events.remote_updated_at, events.updated_at "
+                     "events.remote_updated_at, events.updated_at, %1 "
                      "FROM local_calendar_events AS events "
                      "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
-                     "WHERE %1 "
+                     "WHERE %2 "
                      "ORDER BY events.start_at ASC, events.end_at ASC, events.id ASC "
-                     "LIMIT ?%2 OFFSET ?%3")
-          .arg(filter)
+                     "LIMIT ?%3 OFFSET ?%4")
+          .arg(instanceCoverageSql(), filter)
           .arg(limitIndex)
           .arg(limitIndex + 1)
           .toUtf8();
@@ -510,6 +538,89 @@ readStoredCalendarEvents(SqliteConnection& connection,
       .totalKnown = totalKnown};
 }
 
+[[nodiscard]] CalendarRecurringInstanceCacheTargetsResult
+readUncachedRecurringInstances(SqliteConnection& connection,
+                               const CalendarRecurringInstanceCacheReadRequest& request) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar connection is unavailable"));
+  }
+  QString filter = QStringLiteral(
+      "events.deleted_at IS NULL AND calendars.deleted_at IS NULL "
+      "AND events.is_instance_cache = 0 AND events.recurrence_rule IS NOT NULL "
+      "AND events.remote_id IS NOT NULL AND events.recurring_remote_id IS NULL "
+      "AND NOT EXISTS (SELECT 1 FROM local_calendar_instance_coverage AS coverage "
+      "WHERE coverage.calendar_id = events.calendar_id "
+      "AND coverage.recurring_remote_id = events.remote_id "
+      "AND coverage.range_start_at <= ?2 AND coverage.range_end_at >= ?1 "
+      "AND coverage.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))");
+  for (qsizetype index = 0; index < request.calendarIds.size(); ++index) {
+    filter.append(index == 0 ? QStringLiteral(" AND events.calendar_id IN (?%1").arg(index + 3)
+                             : QStringLiteral(", ?%1").arg(index + 3));
+  }
+  if (!request.calendarIds.isEmpty()) {
+    filter.append(u')');
+  }
+  const int limitIndex = static_cast<int>(request.calendarIds.size()) + 3;
+  const QByteArray sql =
+      QStringLiteral("SELECT events.calendar_id, calendars.remote_id, events.remote_id "
+                     "FROM local_calendar_events AS events "
+                     "INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id "
+                     "WHERE %1 ORDER BY events.updated_at DESC, events.id ASC LIMIT ?%2")
+          .arg(filter)
+          .arg(limitIndex)
+          .toUtf8();
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult = sqlite3_prepare_v3(
+      handle, sql.constData(), -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite recurrence-cache list preparation failed (%1)"),
+                         prepareResult);
+  }
+  CalendarEventRangeReadRequest range{.calendarIds = request.calendarIds,
+                                      .startAt = request.startAt,
+                                      .endAt = request.endAt};
+  if (const std::optional<AppError> error = bindEventFilter(statement, range); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  if (const std::optional<AppError> error = bindInteger(statement, limitIndex, request.limit);
+      error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  QList<CalendarRecurringInstanceCacheTarget> targets;
+  while (true) {
+    const int stepResult = sqlite3_step(statement);
+    if (stepResult == SQLITE_DONE) {
+      break;
+    }
+    if (stepResult != SQLITE_ROW) {
+      sqlite3_finalize(statement);
+      return databaseError(QStringLiteral("SQLite recurrence-cache list failed (%1)"), stepResult);
+    }
+    const std::optional<QString> calendarId = requiredText(statement, 0);
+    const std::optional<QString> calendarRemoteId = requiredText(statement, 1);
+    const std::optional<QString> recurringRemoteId = requiredText(statement, 2);
+    if (!calendarId.has_value() || !calendarRemoteId.has_value() || !recurringRemoteId.has_value()) {
+      sqlite3_finalize(statement);
+      return AppError(AppErrorCode::Database,
+                      QStringLiteral("Stored recurrence-cache target is invalid"));
+    }
+    targets.append({.calendarId = *calendarId,
+                    .calendarRemoteId = *calendarRemoteId,
+                    .recurringRemoteId = *recurringRemoteId});
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? CalendarRecurringInstanceCacheTargetsResult(std::move(targets))
+             : CalendarRecurringInstanceCacheTargetsResult(
+                   databaseError(QStringLiteral("SQLite recurrence-cache list finalization failed (%1)"),
+                                 finalizeResult));
+}
+
 } // namespace
 
 CalendarReadService::CalendarReadService(FilePath databasePath)
@@ -570,6 +681,27 @@ CalendarReadService::listEvents(CalendarEventRangeReadRequest request) {
   }
   return writerQueue_.enqueueResult([request = std::move(request)](SqliteConnection& connection) {
     return readStoredCalendarEvents(connection, request);
+  });
+}
+
+std::future<CalendarRecurringInstanceCacheTargetsResult>
+CalendarReadService::listUncachedRecurringInstances(CalendarRecurringInstanceCacheReadRequest request) {
+  const std::optional<QDateTime> startAt = parseDateTime(request.startAt);
+  const std::optional<QDateTime> endAt = parseDateTime(request.endAt);
+  const bool invalidCalendarId =
+      request.calendarIds.size() > kMaximumCalendarFilterCount ||
+      std::any_of(request.calendarIds.cbegin(),
+                  request.calendarIds.cend(),
+                  [](const QString& calendarId) { return !isValidIdentifier(calendarId); });
+  if (!startAt.has_value() || !endAt.has_value() || *endAt <= *startAt ||
+      endAt->toMSecsSinceEpoch() - startAt->toMSecsSinceEpoch() >
+          kMaximumRangeDurationMilliseconds ||
+      invalidCalendarId || request.limit <= 0 || request.limit > kMaximumInstanceCacheTargetLimit) {
+    return readyFuture(CalendarRecurringInstanceCacheTargetsResult(
+        AppError(AppErrorCode::Validation, QStringLiteral("Calendar recurrence-cache request is invalid"))));
+  }
+  return writerQueue_.enqueueResult([request = std::move(request)](SqliteConnection& connection) {
+    return readUncachedRecurringInstances(connection, request);
   });
 }
 

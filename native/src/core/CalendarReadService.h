@@ -68,6 +68,7 @@ struct CalendarEventSummary final {
   std::optional<std::int64_t> sequence;
   std::optional<QString> remoteUpdatedAt;
   QString updatedAt;
+  bool instanceRangeCached{false};
 };
 
 struct CalendarEventRangeReadRequest final {
@@ -76,6 +77,19 @@ struct CalendarEventRangeReadRequest final {
   QString endAt;
   std::int64_t limit{100};
   std::int64_t offset{0};
+};
+
+struct CalendarRecurringInstanceCacheTarget final {
+  QString calendarId;
+  QString calendarRemoteId;
+  QString recurringRemoteId;
+};
+
+struct CalendarRecurringInstanceCacheReadRequest final {
+  QList<QString> calendarIds;
+  QString startAt;
+  QString endAt;
+  std::int64_t limit{250};
 };
 
 template <typename Item> struct CalendarPage final {
@@ -89,6 +103,8 @@ using CalendarListPage = CalendarPage<CalendarSummary>;
 using CalendarListPageResult = std::variant<CalendarListPage, AppError>;
 using CalendarEventPage = CalendarPage<CalendarEventSummary>;
 using CalendarEventPageResult = std::variant<CalendarEventPage, AppError>;
+using CalendarRecurringInstanceCacheTargetsResult =
+    std::variant<QList<CalendarRecurringInstanceCacheTarget>, AppError>;
 
 class CalendarReadService final {
 public:
@@ -102,6 +118,8 @@ public:
   listCalendars(CalendarListReadRequest request = {});
   [[nodiscard]] std::future<CalendarEventPageResult>
   listEvents(CalendarEventRangeReadRequest request);
+  [[nodiscard]] std::future<CalendarRecurringInstanceCacheTargetsResult>
+  listUncachedRecurringInstances(CalendarRecurringInstanceCacheReadRequest request);
 
 private:
   SqliteWriterQueue writerQueue_;

@@ -9,7 +9,6 @@
 #include "core/LocalSearchQuery.h"
 #include "core/MonthGridModel.h"
 #include "core/NotesModel.h"
-#include "core/RecurrenceExpansionWorker.h"
 #include "core/SearchResultsModel.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
@@ -17,7 +16,6 @@
 
 #include <QDate>
 #include <QDateTime>
-#include <QHash>
 #include <QMetaType>
 #include <QSet>
 #include <QTimeZone>
@@ -299,72 +297,17 @@ struct CalendarViewLayouts final {
   MonthGridModel::Layout month;
 };
 
-[[nodiscard]] QString recurrenceOccurrenceKey(const QString& calendarId,
-                                              const QString& recurringRemoteId,
-                                              const QString& originalStartAt) {
-  return calendarId + QChar::Null + recurringRemoteId + QChar::Null + originalStartAt;
-}
-
 [[nodiscard]] QList<CalendarEventSummary>
-calendarPresentation(QList<CalendarEventSummary> events,
-                     const QString& rangeStartAt,
-                     const QString& rangeEndAt) {
+calendarPresentation(QList<CalendarEventSummary> events) {
   QList<CalendarEventSummary> presentation;
-  QList<CalendarEventSummary> masters;
-  QHash<QString, CalendarEventSummary> exceptions;
   for (CalendarEventSummary& event : events) {
     if (event.recurringRemoteId.has_value() && event.originalStartAt.has_value()) {
-      exceptions.insert(recurrenceOccurrenceKey(
-                            event.calendarId, *event.recurringRemoteId, *event.originalStartAt),
-                        std::move(event));
+      if (event.status != QStringLiteral("cancelled")) {
+        presentation.append(std::move(event));
+      }
     } else if (event.recurrenceRule.has_value()) {
-      masters.append(std::move(event));
     } else if (event.status != QStringLiteral("cancelled")) {
       presentation.append(std::move(event));
-    }
-  }
-  QSet<QString> representedExceptionKeys;
-  RecurrenceExpansionWorker worker;
-  for (const CalendarEventSummary& master : masters) {
-    const RecurrenceExpansionResult expanded = worker
-                                                   .expand({.eventId = master.id,
-                                                            .startAt = master.startAt,
-                                                            .endAt = master.endAt,
-                                                            .allDay = master.allDay,
-                                                            .timeZone = master.startTimeZone,
-                                                            .recurrenceRule = master.recurrenceRule,
-                                                            .rangeStartAt = rangeStartAt,
-                                                            .rangeEndAt = rangeEndAt})
-                                                   .get();
-    if (std::holds_alternative<AppError>(expanded) || !master.remoteId.has_value()) {
-      continue;
-    }
-    for (const RecurrenceOccurrence& occurrence : std::get<QList<RecurrenceOccurrence>>(expanded)) {
-      if (!occurrence.originalStartAt.has_value()) {
-        continue;
-      }
-      const QString key = recurrenceOccurrenceKey(
-          master.calendarId, *master.remoteId, *occurrence.originalStartAt);
-      const auto exception = exceptions.constFind(key);
-      if (exception != exceptions.cend()) {
-        representedExceptionKeys.insert(key);
-        if (exception->status != QStringLiteral("cancelled")) {
-          presentation.append(*exception);
-        }
-        continue;
-      }
-      CalendarEventSummary projected = master;
-      projected.id = occurrence.id;
-      projected.startAt = occurrence.startAt;
-      projected.endAt = occurrence.endAt;
-      projected.originalStartAt = occurrence.originalStartAt;
-      presentation.append(std::move(projected));
-    }
-  }
-  for (auto exception = exceptions.cbegin(); exception != exceptions.cend(); ++exception) {
-    if (!representedExceptionKeys.contains(exception.key()) &&
-        exception->status != QStringLiteral("cancelled")) {
-      presentation.append(*exception);
     }
   }
   std::sort(presentation.begin(), presentation.end(),
@@ -377,7 +320,7 @@ calendarPresentation(QList<CalendarEventSummary> events,
 [[nodiscard]] CalendarViewLayouts buildCalendarViewLayouts(QDate date,
                                                            QList<CalendarEventSummary> events,
                                                            const QTimeZone& displayTimeZone) {
-  events = calendarPresentation(std::move(events), calendarRangeStart(date), calendarRangeEnd(date));
+  events = calendarPresentation(std::move(events));
   return {
       .agendaEvents = events,
       .timeline = TimelineModel::buildLayout(
@@ -430,7 +373,10 @@ AppController::AppController(FilePath databasePath,
                                               &calendarMutationService_,
                                               &googleSyncConflictResolver_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
-      calendarReadService_(databasePath), localSearchService_(databasePath),
+      calendarReadService_(databasePath),
+      googleCalendarInstanceCacheService_(
+          googleCalendarEventPullClient_, calendarReadService_, googleMirrorStore_),
+      localSearchService_(databasePath),
       googleTaskMirrorSyncService_(googleTaskListPullClient_,
                                    googleTaskPullClient_,
                                    googleMirrorStore_,
@@ -1970,11 +1916,13 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
           applyLayouts);
     return;
   }
+  const QList<QString> cacheCalendarIds = calendarIds;
   watch(calendarReadService_.listEvents({.calendarIds = std::move(calendarIds),
                                          .startAt = calendarRangeStart(date),
                                          .endAt = calendarRangeEnd(date),
                                          .limit = 25'000}),
-        [this, generation, date, displayTimeZone, applyLayouts](CalendarEventPageResult result) {
+        [this, generation, date, displayTimeZone, applyLayouts, cacheCalendarIds](
+            CalendarEventPageResult result) {
           if (generation != calendarRefreshGeneration_) {
             return;
           }
@@ -1987,14 +1935,89 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
                             .arg(page.items.size()));
             }
             QList<CalendarEventSummary> events = std::move(page.items);
+            const qsizetype uncachedSeries = std::count_if(
+                events.cbegin(), events.cend(), [](const CalendarEventSummary& event) {
+                  return event.recurrenceRule.has_value() && !event.instanceRangeCached;
+                });
             watch(std::async(std::launch::async,
                              [date, events = std::move(events), displayTimeZone]() mutable {
                                return buildCalendarViewLayouts(
                                    date, std::move(events), displayTimeZone);
                              }),
                   applyLayouts);
+            if (uncachedSeries > 0 && !page.nextOffset.has_value()) {
+              setStatus(googleConnected_
+                            ? QStringLiteral("Loading Google recurrence for %1 series")
+                                  .arg(uncachedSeries)
+                            : QStringLiteral("Google recurrence is unavailable offline for %1 series")
+                                  .arg(uncachedSeries));
+            }
+            refreshCalendarInstanceCache(cacheCalendarIds, date, generation);
           }
         });
+}
+
+void AppController::refreshCalendarInstanceCache(QList<QString> calendarIds,
+                                                 QDate date,
+                                                 std::uint64_t generation) {
+  if (generation != calendarRefreshGeneration_ || !googleConnected_ || credentialStore_ == nullptr) {
+    return;
+  }
+  const QString rangeStartAt = calendarRangeStart(date);
+  const QString rangeEndAt = calendarRangeEnd(date);
+  QList<QString> refreshCalendarIds = calendarIds;
+  QList<QString> resultCalendarIds = std::move(calendarIds);
+  watch(
+      std::async(std::launch::async,
+                 [this,
+                  calendarIds = std::move(refreshCalendarIds),
+                  rangeStartAt,
+                  rangeEndAt]() mutable -> GoogleCalendarInstanceCacheRefreshResultOrError {
+                   OAuthCredentialReadResult read =
+                       credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                   if (std::holds_alternative<AppError>(read)) {
+                     return std::get<AppError>(std::move(read));
+                   }
+                   std::optional<OAuthStoredCredential> stored =
+                       std::get<std::optional<OAuthStoredCredential>>(std::move(read));
+                   if (!stored.has_value() || stored->accessToken.isEmpty()) {
+                     return AppError(AppErrorCode::Configuration,
+                                     QStringLiteral("Google authorization must be renewed"));
+                   }
+                   return googleCalendarInstanceCacheService_
+                       .refresh(QString::fromLatin1(kGoogleAccountId),
+                                std::move(stored->accessToken),
+                                {.calendarIds = std::move(calendarIds),
+                                 .startAt = rangeStartAt,
+                                 .endAt = rangeEndAt,
+                                 .limit = 1'000})
+                       .get();
+                 }),
+      [this, calendarIds = std::move(resultCalendarIds), date, generation](
+          GoogleCalendarInstanceCacheRefreshResultOrError result) mutable {
+        if (generation != calendarRefreshGeneration_) {
+          return;
+        }
+        if (std::holds_alternative<AppError>(result)) {
+          setStatus(QStringLiteral("Google recurrence cache: %1")
+                        .arg(errorMessage(std::get<AppError>(std::move(result)))));
+          return;
+        }
+        GoogleCalendarInstanceCacheRefreshResult refreshed =
+            std::get<GoogleCalendarInstanceCacheRefreshResult>(std::move(result));
+        if (refreshed.failed > 0) {
+          setStatus(QStringLiteral("Google recurrence cache: %1 of %2 series unavailable%3")
+                        .arg(refreshed.failed)
+                        .arg(refreshed.requested)
+                        .arg(refreshed.firstFailure.has_value()
+                                 ? QStringLiteral(" (%1)").arg(*refreshed.firstFailure)
+                                 : QString()));
+        }
+        if (refreshed.cached > 0 && date == calendarDate_) {
+          refreshCalendarEvents(std::move(calendarIds), generation);
+        }
+      },
+      false);
 }
 
 void AppController::setStatus(QString message) {

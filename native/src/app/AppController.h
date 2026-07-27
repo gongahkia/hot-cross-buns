@@ -7,6 +7,7 @@
 #include "core/Clock.h"
 #include "core/FilePath.h"
 #include "core/GoogleCalendarEventPullClient.h"
+#include "core/GoogleCalendarInstanceCacheService.h"
 #include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleCalendarListPullClient.h"
 #include "core/GoogleCalendarMirrorSyncService.h"
@@ -292,6 +293,9 @@ private:
   void refreshTasks();
   void refreshCalendar();
   void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
+  void refreshCalendarInstanceCache(QList<QString> calendarIds,
+                                    QDate date,
+                                    std::uint64_t generation);
   void runSearch();
   void refreshSearchProjection();
   void applyTaskProjections(QList<TaskModelTask> tasks);
@@ -356,6 +360,7 @@ private:
   TaskListReadService taskListReadService_;
   TaskReadService taskReadService_;
   CalendarReadService calendarReadService_;
+  GoogleCalendarInstanceCacheService googleCalendarInstanceCacheService_;
   LocalSearchService localSearchService_;
   SearchResultsModel* searchResultsModelPointer_{nullptr};
   GoogleTaskMirrorSyncService googleTaskMirrorSyncService_;

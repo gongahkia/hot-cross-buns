@@ -97,6 +97,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleCalendarListPullClient.h
   src/core/GoogleCalendarEventPullClient.cpp
   src/core/GoogleCalendarEventPullClient.h
+  src/core/GoogleCalendarInstanceCacheService.cpp
+  src/core/GoogleCalendarInstanceCacheService.h
   src/core/GoogleCalendarEventMutationPushService.cpp
   src/core/GoogleCalendarEventMutationPushService.h
   src/core/GoogleTaskListPullClient.cpp
