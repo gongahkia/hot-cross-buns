@@ -10,6 +10,7 @@
 #include "core/GoogleCalendarInstanceCacheService.h"
 #include "core/GoogleCalendarEventMutationPushService.h"
 #include "core/GoogleCalendarListPullClient.h"
+#include "core/GoogleCalendarManagementClient.h"
 #include "core/GoogleCalendarMirrorSyncService.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
@@ -89,6 +90,16 @@ class AppController final : public QObject {
   Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY
                  bulkEventStatusMessageChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
+  Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
+  Q_PROPERTY(int visualDensity READ visualDensity NOTIFY visualDensityChanged)
+  Q_PROPERTY(int weekStartDay READ weekStartDay NOTIFY weekStartDayChanged)
+  Q_PROPERTY(bool use24HourTime READ use24HourTime NOTIFY use24HourTimeChanged)
+  Q_PROPERTY(QString displayTimeZone READ displayTimeZone NOTIFY displayTimeZoneChanged)
+  Q_PROPERTY(int workdayStartHour READ workdayStartHour NOTIFY workdayStartHourChanged)
+  Q_PROPERTY(int workdayEndHour READ workdayEndHour NOTIFY workdayEndHourChanged)
+  Q_PROPERTY(QVariantList visibleCalendarIds READ visibleCalendarIds NOTIFY visibleCalendarIdsChanged)
+  Q_PROPERTY(bool calendarVisibilityConfigured READ calendarVisibilityConfigured NOTIFY
+                 calendarVisibilityConfiguredChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
@@ -124,6 +135,15 @@ public:
   [[nodiscard]] QString bulkTaskStatusMessage() const;
   [[nodiscard]] QString bulkEventStatusMessage() const;
   [[nodiscard]] QString calendarDate() const;
+  [[nodiscard]] int appearanceMode() const;
+  [[nodiscard]] int visualDensity() const;
+  [[nodiscard]] int weekStartDay() const;
+  [[nodiscard]] bool use24HourTime() const;
+  [[nodiscard]] QString displayTimeZone() const;
+  [[nodiscard]] int workdayStartHour() const;
+  [[nodiscard]] int workdayEndHour() const;
+  [[nodiscard]] QVariantList visibleCalendarIds() const;
+  [[nodiscard]] bool calendarVisibilityConfigured() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] bool busy() const;
@@ -132,6 +152,15 @@ public:
   Q_INVOKABLE void initialize();
   Q_INVOKABLE void refresh();
   Q_INVOKABLE void setCalendarDate(QString date);
+  Q_INVOKABLE void saveAppearanceMode(int mode);
+  Q_INVOKABLE void saveVisualDensity(int density);
+  Q_INVOKABLE void saveWeekStartDay(int day);
+  Q_INVOKABLE void saveUse24HourTime(bool enabled);
+  Q_INVOKABLE void saveDisplayTimeZone(QString timeZone);
+  Q_INVOKABLE void saveWorkdayHours(int startHour, int endHour);
+  Q_INVOKABLE void saveCalendarVisibility(QVariantList calendarIds);
+  Q_INVOKABLE void createGoogleCalendar(QString title, QString description, QString timeZone);
+  Q_INVOKABLE void subscribeGoogleCalendar(QString calendarId);
   Q_INVOKABLE void saveClientId(QString clientId);
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
@@ -272,6 +301,15 @@ signals:
   void bulkTaskStatusMessageChanged();
   void bulkEventStatusMessageChanged();
   void calendarDateChanged();
+  void appearanceModeChanged();
+  void visualDensityChanged();
+  void weekStartDayChanged();
+  void use24HourTimeChanged();
+  void displayTimeZoneChanged();
+  void workdayStartHourChanged();
+  void workdayEndHourChanged();
+  void visibleCalendarIdsChanged();
+  void calendarVisibilityConfiguredChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
   void busyChanged();
@@ -371,6 +409,7 @@ private:
   GoogleTaskListPullClient googleTaskListPullClient_;
   GoogleTaskPullClient googleTaskPullClient_;
   GoogleCalendarListPullClient googleCalendarListPullClient_;
+  GoogleCalendarManagementClient googleCalendarManagementClient_;
   GoogleCalendarEventPullClient googleCalendarEventPullClient_;
   GoogleMirrorStore googleMirrorStore_;
   SettingsService settingsService_;
@@ -415,6 +454,15 @@ private:
   QString bulkTaskStatusMessage_;
   QString bulkEventStatusMessage_;
   QDate calendarDate_{QDate::currentDate()};
+  int appearanceMode_{0};
+  int visualDensity_{1};
+  int weekStartDay_{0};
+  bool use24HourTime_{true};
+  QString displayTimeZone_{QString::fromUtf8(QTimeZone::systemTimeZoneId())};
+  int workdayStartHour_{9};
+  int workdayEndHour_{17};
+  QVariantList visibleCalendarIds_;
+  bool calendarVisibilityConfigured_{false};
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
   QList<TaskModelTask> taskProjectionTasks_;

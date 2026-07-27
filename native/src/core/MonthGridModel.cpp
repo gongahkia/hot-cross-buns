@@ -124,11 +124,13 @@ QHash<int, QByteArray> MonthGridModel::roleNames() const {
 
 MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
                                                    const QList<CalendarEventSummary>& events,
-                                                   const QTimeZone& displayTimeZone) {
+                                                   const QTimeZone& displayTimeZone,
+                                                   int weekStartDay) {
   QList<Cell> cells;
-  if (month.isValid() && displayTimeZone.isValid()) {
+  if (month.isValid() && displayTimeZone.isValid() && (weekStartDay == 0 || weekStartDay == 1)) {
     const QDate firstDay(month.year(), month.month(), 1);
-    const QDate gridStart = firstDay.addDays(-firstDay.dayOfWeek() % 7);
+    const int firstQtDay = weekStartDay == 0 ? 7 : 1;
+    const QDate gridStart = firstDay.addDays(-(firstDay.dayOfWeek() - firstQtDay + 7) % 7);
     cells.reserve(42);
     for (int dayOffset = 0; dayOffset < 42; ++dayOffset) {
       cells.append(Cell{.date = gridStart.addDays(dayOffset)});
@@ -157,8 +159,9 @@ void MonthGridModel::applyLayout(Layout layout) {
 
 void MonthGridModel::setMonth(QDate month,
                               const QList<CalendarEventSummary>& events,
-                              const QTimeZone& displayTimeZone) {
-  applyLayout(buildLayout(month, events, displayTimeZone));
+                              const QTimeZone& displayTimeZone,
+                              int weekStartDay) {
+  applyLayout(buildLayout(month, events, displayTimeZone, weekStartDay));
 }
 
 } // namespace hcb

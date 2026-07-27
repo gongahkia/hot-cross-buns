@@ -6,6 +6,8 @@ Pane {
     id: root
     property var calendarSourceModel: null
     property var visibleCalendarIds: []
+    property var persistedVisibleCalendarIds: []
+    property bool calendarVisibilityConfigured: false
     property bool visibilityInitialized: false
     property int sourceRevision: calendarSourceModel !== null && calendarSourceModel.revision !== undefined
                                  ? calendarSourceModel.revision : 0
@@ -50,8 +52,12 @@ Pane {
             visibilityInitialized = false
             return
         }
+        const persisted = persistedVisibleCalendarIds.filter(function(calendarId) {
+            return ids.indexOf(calendarId) >= 0
+        })
         const selected = selectedCalendarIds()
-        visibleCalendarIds = selected.length > 0 ? selected : ids
+        visibleCalendarIds = calendarVisibilityConfigured ? persisted
+                                                     : selected.length > 0 ? selected : ids
         visibilityInitialized = true
     }
 
@@ -85,6 +91,10 @@ Pane {
     }
 
     onCalendarSourceModelChanged: initializeVisibility()
+    onCalendarVisibilityConfiguredChanged: initializeVisibility()
+    onPersistedVisibleCalendarIdsChanged: {
+        if (calendarVisibilityConfigured) initializeVisibility()
+    }
     onSourceRevisionChanged: {
         if (visibilityInitialized) {
             reconcileVisibility()

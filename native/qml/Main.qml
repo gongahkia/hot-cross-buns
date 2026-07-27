@@ -26,6 +26,17 @@ ApplicationWindow {
     property int notesProjectionMode: appController !== null &&
                                       typeof appController.notesProjectionMode === "number"
                                       ? appController.notesProjectionMode : 0
+    property int appearanceMode: appController !== null && typeof appController.appearanceMode === "number"
+                                 ? appController.appearanceMode : 0
+    property int visualDensity: appController !== null && typeof appController.visualDensity === "number"
+                                ? appController.visualDensity : 1
+    property int weekStartDay: appController !== null && typeof appController.weekStartDay === "number"
+                               ? appController.weekStartDay : 0
+    property bool use24HourTime: appController === null || appController.use24HourTime !== false
+    property int workdayStartHour: appController !== null && typeof appController.workdayStartHour === "number"
+                                   ? appController.workdayStartHour : 9
+    property int workdayEndHour: appController !== null && typeof appController.workdayEndHour === "number"
+                                 ? appController.workdayEndHour : 17
     property var transitionTimings: null
     property var selectedCalendarEventIds: []
     property string calendarDate: appController !== null &&
@@ -79,6 +90,18 @@ ApplicationWindow {
     signal eventResizeRequested(string eventId, string endAt)
     signal searchResultActivated(string resource, string resultId, string title, string detail)
 
+    Binding {
+        target: Theme
+        property: "appearanceMode"
+        value: window.appearanceMode
+    }
+
+    Binding {
+        target: Theme
+        property: "visualDensity"
+        value: window.visualDensity
+    }
+
     function controllerCall(method, args) {
         if (appController !== null && typeof appController[method] === "function") {
             appController[method].apply(appController, args)
@@ -128,7 +151,7 @@ ApplicationWindow {
 
     function calendarWeekDayIndex() {
         const parsed = new Date(calendarDate + "T12:00:00Z")
-        return Number.isFinite(parsed.getTime()) ? parsed.getUTCDay() : 0
+        return Number.isFinite(parsed.getTime()) ? (parsed.getUTCDay() - weekStartDay + 7) % 7 : 0
     }
 
     function calendarWeekLabels() {
@@ -746,7 +769,17 @@ ApplicationWindow {
                     id: calendarVisibility
                     Layout.fillWidth: true
                     calendarSourceModel: window.calendarSourceModel
-                    onVisibleCalendarIdsChanged: window.clearCalendarEventSelection()
+                    persistedVisibleCalendarIds: window.appController !== null &&
+                                                 window.appController.visibleCalendarIds !== undefined
+                                                 ? window.appController.visibleCalendarIds : []
+                    calendarVisibilityConfigured: window.appController !== null &&
+                                                   window.appController.calendarVisibilityConfigured === true
+                    onVisibleCalendarIdsChanged: {
+                        window.clearCalendarEventSelection()
+                        if (visibilityInitialized) {
+                            window.controllerCall("saveCalendarVisibility", [visibleCalendarIds])
+                        }
+                    }
                 }
 
                 RowLayout {
@@ -871,6 +904,9 @@ ApplicationWindow {
                         selectedEventIds: window.selectedCalendarEventIds
                         dayIndex: window.calendarWeekDayIndex()
                         dateLabel: window.calendarDate
+                        use24HourTime: window.use24HourTime
+                        workdayStartHour: window.workdayStartHour
+                        hourHeight: Theme.timelineHourHeight
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -901,6 +937,9 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
                         dayLabels: window.calendarWeekLabels()
+                        use24HourTime: window.use24HourTime
+                        workdayStartHour: window.workdayStartHour
+                        hourHeight: Theme.timelineHourHeight
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -930,6 +969,7 @@ ApplicationWindow {
                         monthGridModel: window.monthGridModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        weekStartDay: window.weekStartDay
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -1005,6 +1045,62 @@ ApplicationWindow {
                 }
 
                 Label {
+                    text: "Google calendars"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                TextField {
+                    id: newGoogleCalendarTitle
+                    Layout.fillWidth: true
+                    placeholderText: "New calendar name"
+                    Accessible.name: "New Google Calendar name"
+                    selectByMouse: true
+                }
+
+                TextField {
+                    id: newGoogleCalendarDescription
+                    Layout.fillWidth: true
+                    placeholderText: "New calendar description (optional)"
+                    Accessible.name: "New Google Calendar description"
+                    selectByMouse: true
+                }
+
+                Button {
+                    text: "Create Google Calendar"
+                    enabled: window.appController !== null && window.appController.googleConnected &&
+                             newGoogleCalendarTitle.text.trim().length > 0 && !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("createGoogleCalendar", [newGoogleCalendarTitle.text,
+                                                                                newGoogleCalendarDescription.text,
+                                                                                window.appController.displayTimeZone])
+                }
+
+                TextField {
+                    id: subscribeGoogleCalendarId
+                    Layout.fillWidth: true
+                    placeholderText: "Calendar ID to subscribe to"
+                    Accessible.name: "Google Calendar ID to subscribe to"
+                    selectByMouse: true
+                }
+
+                Button {
+                    text: "Subscribe to Google Calendar"
+                    enabled: window.appController !== null && window.appController.googleConnected &&
+                             subscribeGoogleCalendarId.text.trim().length > 0 && !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("subscribeGoogleCalendar", [subscribeGoogleCalendarId.text])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Calendar sharing/ACL administration is intentionally deferred; this release creates calendars and subscribes to calendars you can access."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Label {
                     text: "Undated task presentation"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -1039,6 +1135,92 @@ ApplicationWindow {
                           : "Notes are disabled. Every Google Task remains in Tasks."
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
+                }
+
+                Label {
+                    text: "Appearance and calendar"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                ComboBox {
+                    Layout.fillWidth: true
+                    model: ["System appearance", "Light", "Dark"]
+                    currentIndex: window.appearanceMode
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Appearance"
+                    onActivated: index => window.controllerCall("saveAppearanceMode", [index])
+                }
+
+                ComboBox {
+                    Layout.fillWidth: true
+                    model: ["Compact density", "Standard density", "Comfortable density"]
+                    currentIndex: window.visualDensity
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Visual density"
+                    onActivated: index => window.controllerCall("saveVisualDensity", [index])
+                }
+
+                ComboBox {
+                    Layout.fillWidth: true
+                    model: ["Sunday first", "Monday first"]
+                    currentIndex: window.weekStartDay
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "First day of week"
+                    onActivated: index => window.controllerCall("saveWeekStartDay", [index])
+                }
+
+                Switch {
+                    text: "Use 24-hour time"
+                    checked: window.use24HourTime
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    onToggled: window.controllerCall("saveUse24HourTime", [checked])
+                }
+
+                TextField {
+                    id: displayTimeZoneField
+                    Layout.fillWidth: true
+                    text: window.appController !== null && typeof window.appController.displayTimeZone === "string"
+                          ? window.appController.displayTimeZone : ""
+                    placeholderText: "Display time zone (IANA), e.g. Asia/Singapore"
+                    Accessible.name: "Display time zone"
+                    selectByMouse: true
+                    onEditingFinished: window.controllerCall("saveDisplayTimeZone", [text])
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    SpinBox {
+                        id: workdayStart
+                        from: 0
+                        to: 23
+                        value: window.workdayStartHour
+                        editable: true
+                        enabled: window.appController !== null && !window.appController.busy
+                        Accessible.name: "Workday starts at hour"
+                    }
+
+                    Label { text: "to" }
+
+                    SpinBox {
+                        id: workdayEnd
+                        from: 1
+                        to: 24
+                        value: window.workdayEndHour
+                        editable: true
+                        enabled: window.appController !== null && !window.appController.busy
+                        Accessible.name: "Workday ends at hour"
+                    }
+
+                    Button {
+                        text: "Save work hours"
+                        enabled: window.appController !== null && !window.appController.busy
+                        Accessible.name: text
+                        onClicked: window.controllerCall("saveWorkdayHours", [workdayStart.value, workdayEnd.value])
+                    }
                 }
 
                 Label {

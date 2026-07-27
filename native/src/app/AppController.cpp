@@ -17,6 +17,8 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QMetaType>
 #include <QSet>
 #include <QTimeZone>
@@ -44,6 +46,14 @@ constexpr char kConflictPolicySettingsKey[] = "conflict_policy";
 constexpr char kPresentationSettingsScope[] = "presentation";
 constexpr char kNotesEnabledSettingsKey[] = "notes_enabled";
 constexpr char kNotesProjectionSettingsKey[] = "notes_projection";
+constexpr char kAppearanceModeSettingsKey[] = "appearance_mode";
+constexpr char kVisualDensitySettingsKey[] = "visual_density";
+constexpr char kWeekStartDaySettingsKey[] = "week_start_day";
+constexpr char kUse24HourTimeSettingsKey[] = "use_24_hour_time";
+constexpr char kDisplayTimeZoneSettingsKey[] = "display_time_zone";
+constexpr char kWorkdayStartHourSettingsKey[] = "workday_start_hour";
+constexpr char kWorkdayEndHourSettingsKey[] = "workday_end_hour";
+constexpr char kCalendarVisibilitySettingsKey[] = "calendar_visibility";
 constexpr int kNotesOnlyProjection = 0;
 constexpr int kMirrorNotesProjection = 1;
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
@@ -74,6 +84,30 @@ constexpr int kSearchDebounceMilliseconds = 180;
 }
 
 [[nodiscard]] QString errorMessage(const AppError& error) { return error.message(); }
+
+[[nodiscard]] bool isValidAppearanceMode(int value) { return value >= 0 && value <= 2; }
+
+[[nodiscard]] bool isValidVisualDensity(int value) { return value >= 0 && value <= 2; }
+
+[[nodiscard]] bool isValidWeekStartDay(int value) { return value == 0 || value == 1; }
+
+[[nodiscard]] bool isValidWorkdayHours(int startHour, int endHour) {
+  return startHour >= 0 && startHour <= 23 && endHour >= 1 && endHour <= 24 && startHour < endHour;
+}
+
+[[nodiscard]] std::optional<QString> jsonArrayString(const QString& value) {
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray() || document.array().size() != 1 ||
+      !document.array().at(0).isString()) {
+    return std::nullopt;
+  }
+  return document.array().at(0).toString();
+}
+
+[[nodiscard]] QString jsonStringArray(const QString& value) {
+  return QString::fromUtf8(QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact));
+}
 
 [[nodiscard]] std::optional<TaskPriority> priorityForValue(int value) {
   switch (value) {
@@ -373,19 +407,24 @@ searchPresentation(QList<LocalSearchRankedResult> results, bool notesEnabled, in
   return rows;
 }
 
-[[nodiscard]] QDate weekStart(const QDate& date) { return date.addDays(-(date.dayOfWeek() % 7)); }
+[[nodiscard]] QDate weekStart(const QDate& date, int firstDay) {
+  const int firstQtDay = firstDay == 0 ? 7 : 1;
+  return date.addDays(-(date.dayOfWeek() - firstQtDay + 7) % 7);
+}
 
-[[nodiscard]] QDate monthGridStart(const QDate& date) {
+[[nodiscard]] QDate monthGridStart(const QDate& date, int firstDayValue) {
   const QDate firstDay(date.year(), date.month(), 1);
-  return firstDay.addDays(-(firstDay.dayOfWeek() % 7));
+  const int firstQtDay = firstDayValue == 0 ? 7 : 1;
+  return firstDay.addDays(-(firstDay.dayOfWeek() - firstQtDay + 7) % 7);
 }
 
-[[nodiscard]] QString calendarRangeStart(const QDate& date) {
-  return QDateTime(monthGridStart(date), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+[[nodiscard]] QString calendarRangeStart(const QDate& date, int firstDay) {
+  return QDateTime(monthGridStart(date, firstDay), QTime(0, 0), QTimeZone::UTC)
+      .toString(Qt::ISODateWithMs);
 }
 
-[[nodiscard]] QString calendarRangeEnd(const QDate& date) {
-  return QDateTime(monthGridStart(date).addDays(42), QTime(0, 0), QTimeZone::UTC)
+[[nodiscard]] QString calendarRangeEnd(const QDate& date, int firstDay) {
+  return QDateTime(monthGridStart(date, firstDay).addDays(42), QTime(0, 0), QTimeZone::UTC)
       .toString(Qt::ISODateWithMs);
 }
 
@@ -417,13 +456,14 @@ calendarPresentation(QList<CalendarEventSummary> events) {
 
 [[nodiscard]] CalendarViewLayouts buildCalendarViewLayouts(QDate date,
                                                            QList<CalendarEventSummary> events,
-                                                           const QTimeZone& displayTimeZone) {
+                                                           const QTimeZone& displayTimeZone,
+                                                           int firstDay) {
   events = calendarPresentation(std::move(events));
   return {
       .agendaEvents = events,
       .timeline = TimelineModel::buildLayout(
-          weekStart(date), kCalendarTimelineDays, events, displayTimeZone, kVisibleAllDayLaneCount),
-      .month = MonthGridModel::buildLayout(date, events, displayTimeZone)};
+          weekStart(date, firstDay), kCalendarTimelineDays, events, displayTimeZone, kVisibleAllDayLaneCount),
+      .month = MonthGridModel::buildLayout(date, events, displayTimeZone, firstDay)};
 }
 
 } // namespace
@@ -447,6 +487,7 @@ AppController::AppController(FilePath databasePath,
       pkceStateRegistry_(clock), googleHttpClient_(this),
       googleTaskListPullClient_(googleHttpClient_), googleTaskPullClient_(googleHttpClient_),
       googleCalendarListPullClient_(googleHttpClient_),
+      googleCalendarManagementClient_(googleHttpClient_),
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
       settingsService_(databasePath, clock), savedSearchStore_(settingsService_),
       optimisticMutationCoordinator_(databasePath, clock),
@@ -538,6 +579,24 @@ QString AppController::bulkEventStatusMessage() const { return bulkEventStatusMe
 
 QString AppController::calendarDate() const { return calendarDate_.toString(Qt::ISODate); }
 
+int AppController::appearanceMode() const { return appearanceMode_; }
+
+int AppController::visualDensity() const { return visualDensity_; }
+
+int AppController::weekStartDay() const { return weekStartDay_; }
+
+bool AppController::use24HourTime() const { return use24HourTime_; }
+
+QString AppController::displayTimeZone() const { return displayTimeZone_; }
+
+int AppController::workdayStartHour() const { return workdayStartHour_; }
+
+int AppController::workdayEndHour() const { return workdayEndHour_; }
+
+QVariantList AppController::visibleCalendarIds() const { return visibleCalendarIds_; }
+
+bool AppController::calendarVisibilityConfigured() const { return calendarVisibilityConfigured_; }
+
 bool AppController::notesEnabled() const { return notesEnabled_; }
 
 int AppController::notesProjectionMode() const { return notesProjectionMode_; }
@@ -621,6 +680,155 @@ void AppController::initialize() {
             emit notesProjectionModeChanged();
           }
         });
+  const auto loadPresentationInt = [this](const char* key,
+                                          auto valid,
+                                          auto apply,
+                                          QString invalidMessage) {
+    watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                    QString::fromLatin1(key)),
+          [this, valid, apply, invalidMessage = std::move(invalidMessage)](
+              SettingsJsonReadResult result) mutable {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+            if (!stored.has_value()) {
+              return;
+            }
+            bool parsed = false;
+            const int value = stored->toInt(&parsed);
+            if (!parsed || !valid(value)) {
+              setStatus(std::move(invalidMessage));
+              return;
+            }
+            apply(value);
+          });
+  };
+  loadPresentationInt(kAppearanceModeSettingsKey,
+                      isValidAppearanceMode,
+                      [this](int value) {
+                        if (appearanceMode_ != value) {
+                          appearanceMode_ = value;
+                          emit appearanceModeChanged();
+                        }
+                      },
+                      QStringLiteral("Stored appearance mode is invalid"));
+  loadPresentationInt(kVisualDensitySettingsKey,
+                      isValidVisualDensity,
+                      [this](int value) {
+                        if (visualDensity_ != value) {
+                          visualDensity_ = value;
+                          emit visualDensityChanged();
+                        }
+                      },
+                      QStringLiteral("Stored visual density is invalid"));
+  loadPresentationInt(kWeekStartDaySettingsKey,
+                      isValidWeekStartDay,
+                      [this](int value) {
+                        if (weekStartDay_ != value) {
+                          weekStartDay_ = value;
+                          emit weekStartDayChanged();
+                          refreshCalendar();
+                        }
+                      },
+                      QStringLiteral("Stored week start is invalid"));
+  loadPresentationInt(kWorkdayStartHourSettingsKey,
+                      [](int value) { return value >= 0 && value <= 23; },
+                      [this](int value) {
+                        if (isValidWorkdayHours(value, workdayEndHour_) && workdayStartHour_ != value) {
+                          workdayStartHour_ = value;
+                          emit workdayStartHourChanged();
+                        }
+                      },
+                      QStringLiteral("Stored workday start is invalid"));
+  loadPresentationInt(kWorkdayEndHourSettingsKey,
+                      [](int value) { return value >= 1 && value <= 24; },
+                      [this](int value) {
+                        if (isValidWorkdayHours(workdayStartHour_, value) && workdayEndHour_ != value) {
+                          workdayEndHour_ = value;
+                          emit workdayEndHourChanged();
+                        }
+                      },
+                      QStringLiteral("Stored workday end is invalid"));
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kUse24HourTimeSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          const std::optional<bool> value = !stored.has_value() ? std::optional<bool>{}
+              : *stored == QStringLiteral("true") ? std::optional<bool>(true)
+              : *stored == QStringLiteral("false") ? std::optional<bool>(false)
+                                                 : std::nullopt;
+          if (!value.has_value() && stored.has_value()) {
+            setStatus(QStringLiteral("Stored time format is invalid"));
+          } else if (value.has_value() && use24HourTime_ != *value) {
+            use24HourTime_ = *value;
+            emit use24HourTimeChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kDisplayTimeZoneSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<QString> value = jsonArrayString(*stored);
+          if (!value.has_value() || !QTimeZone(value->toUtf8()).isValid()) {
+            setStatus(QStringLiteral("Stored display time zone is invalid"));
+            return;
+          }
+          if (displayTimeZone_ != *value) {
+            displayTimeZone_ = *value;
+            emit displayTimeZoneChanged();
+            refreshCalendar();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kCalendarVisibilitySettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          QVariantList values;
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (stored.has_value()) {
+            QJsonParseError error;
+            const QJsonDocument document = QJsonDocument::fromJson(stored->toUtf8(), &error);
+            if (error.error != QJsonParseError::NoError || !document.isArray() ||
+                document.array().size() > 20'000) {
+              setStatus(QStringLiteral("Stored calendar visibility is invalid"));
+              return;
+            }
+            QSet<QString> seen;
+            for (const QJsonValue& item : document.array()) {
+              if (!item.isString() || item.toString().isEmpty() || item.toString().size() > 256 ||
+                  item.toString() != item.toString().trimmed() || seen.contains(item.toString())) {
+                setStatus(QStringLiteral("Stored calendar visibility is invalid"));
+                return;
+              }
+              seen.insert(item.toString());
+              values.append(item.toString());
+            }
+          }
+          if (visibleCalendarIds_ != values) {
+            visibleCalendarIds_ = std::move(values);
+            emit visibleCalendarIdsChanged();
+          }
+          if (!calendarVisibilityConfigured_) {
+            calendarVisibilityConfigured_ = true;
+            emit calendarVisibilityConfiguredChanged();
+          }
+        });
   watch(syncConflictStore_.listUnresolved(), [this](SyncConflictListResult result) {
     if (std::holds_alternative<AppError>(result)) {
       setStatus(errorMessage(std::get<AppError>(result)));
@@ -691,6 +899,247 @@ void AppController::setCalendarDate(QString date) {
   calendarDate_ = parsed;
   emit calendarDateChanged();
   refreshCalendar();
+}
+
+void AppController::saveAppearanceMode(int mode) {
+  if (!isValidAppearanceMode(mode)) {
+    setStatus(QStringLiteral("Appearance mode is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kAppearanceModeSettingsKey),
+                                   QString::number(mode)),
+        [this, mode](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (appearanceMode_ != mode) {
+            appearanceMode_ = mode;
+            emit appearanceModeChanged();
+          }
+        });
+}
+
+void AppController::saveVisualDensity(int density) {
+  if (!isValidVisualDensity(density)) {
+    setStatus(QStringLiteral("Visual density is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kVisualDensitySettingsKey),
+                                   QString::number(density)),
+        [this, density](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (visualDensity_ != density) {
+            visualDensity_ = density;
+            emit visualDensityChanged();
+          }
+        });
+}
+
+void AppController::saveWeekStartDay(int day) {
+  if (!isValidWeekStartDay(day)) {
+    setStatus(QStringLiteral("Week start is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kWeekStartDaySettingsKey),
+                                   QString::number(day)),
+        [this, day](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (weekStartDay_ != day) {
+            weekStartDay_ = day;
+            emit weekStartDayChanged();
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::saveUse24HourTime(bool enabled) {
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kUse24HourTimeSettingsKey),
+                                   enabled ? QStringLiteral("true") : QStringLiteral("false")),
+        [this, enabled](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (use24HourTime_ != enabled) {
+            use24HourTime_ = enabled;
+            emit use24HourTimeChanged();
+          }
+        });
+}
+
+void AppController::saveDisplayTimeZone(QString timeZone) {
+  timeZone = timeZone.trimmed();
+  if (!QTimeZone(timeZone.toUtf8()).isValid()) {
+    setStatus(QStringLiteral("Display time zone is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kDisplayTimeZoneSettingsKey),
+                                   jsonStringArray(timeZone)),
+        [this, timeZone = std::move(timeZone)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (displayTimeZone_ != timeZone) {
+            displayTimeZone_ = timeZone;
+            emit displayTimeZoneChanged();
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::saveWorkdayHours(int startHour, int endHour) {
+  if (!isValidWorkdayHours(startHour, endHour)) {
+    setStatus(QStringLiteral("Workday hours are invalid"));
+    return;
+  }
+  const QString start = QString::number(startHour);
+  const QString end = QString::number(endHour);
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kWorkdayStartHourSettingsKey), start),
+        [this, startHour](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (workdayStartHour_ != startHour) {
+            workdayStartHour_ = startHour;
+            emit workdayStartHourChanged();
+          }
+        });
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kWorkdayEndHourSettingsKey), end),
+        [this, endHour](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (workdayEndHour_ != endHour) {
+            workdayEndHour_ = endHour;
+            emit workdayEndHourChanged();
+          }
+        });
+}
+
+void AppController::saveCalendarVisibility(QVariantList calendarIds) {
+  if (calendarIds.size() > 20'000) {
+    setStatus(QStringLiteral("Calendar visibility is invalid"));
+    return;
+  }
+  QJsonArray stored;
+  QVariantList values;
+  QSet<QString> seen;
+  for (const QVariant& value : calendarIds) {
+    if (!value.canConvert<QString>()) {
+      setStatus(QStringLiteral("Calendar visibility is invalid"));
+      return;
+    }
+    const QString id = value.toString();
+    if (id.isEmpty() || id.size() > 256 || id != id.trimmed() || id.contains(QChar::Null) ||
+        seen.contains(id)) {
+      setStatus(QStringLiteral("Calendar visibility is invalid"));
+      return;
+    }
+    seen.insert(id);
+    stored.append(id);
+    values.append(id);
+  }
+  const QString json = QString::fromUtf8(QJsonDocument(stored).toJson(QJsonDocument::Compact));
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kCalendarVisibilitySettingsKey), json),
+        [this, values = std::move(values)](SettingsMutationResultOrError result) mutable {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          if (visibleCalendarIds_ != values) {
+            visibleCalendarIds_ = std::move(values);
+            emit visibleCalendarIdsChanged();
+          }
+          if (!calendarVisibilityConfigured_) {
+            calendarVisibilityConfigured_ = true;
+            emit calendarVisibilityConfiguredChanged();
+          }
+        });
+}
+
+void AppController::createGoogleCalendar(QString title, QString description, QString timeZone) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before creating a calendar"));
+    return;
+  }
+  const GoogleCalendarCreateRequest request{
+      .title = std::move(title),
+      .description = description.trimmed().isEmpty() ? std::optional<QString>{}
+                                                  : std::optional<QString>(std::move(description)),
+      .timeZone = timeZone.trimmed().isEmpty() ? std::optional<QString>{}
+                                              : std::optional<QString>(std::move(timeZone))};
+  watch(std::async(std::launch::async,
+                   [this, request]() -> std::variant<GoogleCalendarManagementResult, AppError> {
+                     OAuthCredentialReadResult read =
+                         credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                     if (std::holds_alternative<AppError>(read)) {
+                       return std::get<AppError>(std::move(read));
+                     }
+                     const std::optional<OAuthStoredCredential>& credential =
+                         std::get<std::optional<OAuthStoredCredential>>(read);
+                     if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                       return AppError(AppErrorCode::Configuration,
+                                       QStringLiteral("Google authorization must be renewed"));
+                     }
+                     GoogleCalendarManagementResultOrError created =
+                         googleCalendarManagementClient_.create(request, credential->accessToken).get();
+                     return std::holds_alternative<GoogleApiError>(created)
+                                ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                      AppErrorCode::Network,
+                                      std::get<GoogleApiError>(std::move(created)).message()))
+                                : std::variant<GoogleCalendarManagementResult, AppError>(
+                                      std::get<GoogleCalendarManagementResult>(std::move(created)));
+                   }),
+        [this](std::variant<GoogleCalendarManagementResult, AppError> result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          setStatus(QStringLiteral("Google calendar created"));
+          requestGoogleSync(SyncScheduleTrigger::Manual);
+        });
+}
+
+void AppController::subscribeGoogleCalendar(QString calendarId) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before subscribing to a calendar"));
+    return;
+  }
+  const GoogleCalendarSubscribeRequest request{.calendarId = std::move(calendarId)};
+  watch(std::async(std::launch::async,
+                   [this, request]() -> std::variant<GoogleCalendarManagementResult, AppError> {
+                     OAuthCredentialReadResult read =
+                         credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                     if (std::holds_alternative<AppError>(read)) {
+                       return std::get<AppError>(std::move(read));
+                     }
+                     const std::optional<OAuthStoredCredential>& credential =
+                         std::get<std::optional<OAuthStoredCredential>>(read);
+                     if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                       return AppError(AppErrorCode::Configuration,
+                                       QStringLiteral("Google authorization must be renewed"));
+                     }
+                     GoogleCalendarManagementResultOrError subscribed =
+                         googleCalendarManagementClient_.subscribe(request, credential->accessToken).get();
+                     return std::holds_alternative<GoogleApiError>(subscribed)
+                                ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                      AppErrorCode::Network,
+                                      std::get<GoogleApiError>(std::move(subscribed)).message()))
+                                : std::variant<GoogleCalendarManagementResult, AppError>(
+                                      std::get<GoogleCalendarManagementResult>(std::move(subscribed)));
+                   }),
+        [this](std::variant<GoogleCalendarManagementResult, AppError> result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          setStatus(QStringLiteral("Google calendar subscribed"));
+          requestGoogleSync(SyncScheduleTrigger::Manual);
+        });
 }
 
 void AppController::setSearchQuery(QString query) {
@@ -2183,7 +2632,8 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
     return;
   }
   const QDate date = calendarDate_;
-  const QTimeZone displayTimeZone = QTimeZone::systemTimeZone();
+  const QTimeZone displayTimeZone(displayTimeZone_.toUtf8());
+  const int firstDay = weekStartDay_;
   const auto applyLayouts = [this, generation](CalendarViewLayouts layouts) {
     if (generation != calendarRefreshGeneration_) {
       return;
@@ -2195,18 +2645,19 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
   if (calendarIds.isEmpty()) {
     const QList<CalendarEventSummary> events;
     watch(std::async(std::launch::async,
-                     [date, events, displayTimeZone]() mutable {
-                       return buildCalendarViewLayouts(date, std::move(events), displayTimeZone);
+                     [date, events, displayTimeZone, firstDay]() mutable {
+                       return buildCalendarViewLayouts(
+                           date, std::move(events), displayTimeZone, firstDay);
                      }),
           applyLayouts);
     return;
   }
   const QList<QString> cacheCalendarIds = calendarIds;
   watch(calendarReadService_.listEvents({.calendarIds = std::move(calendarIds),
-                                         .startAt = calendarRangeStart(date),
-                                         .endAt = calendarRangeEnd(date),
+                                         .startAt = calendarRangeStart(date, firstDay),
+                                         .endAt = calendarRangeEnd(date, firstDay),
                                          .limit = 25'000}),
-        [this, generation, date, displayTimeZone, applyLayouts, cacheCalendarIds](
+        [this, generation, date, displayTimeZone, firstDay, applyLayouts, cacheCalendarIds](
             CalendarEventPageResult result) {
           if (generation != calendarRefreshGeneration_) {
             return;
@@ -2225,9 +2676,9 @@ void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint6
                   return event.recurrenceRule.has_value() && !event.instanceRangeCached;
                 });
             watch(std::async(std::launch::async,
-                             [date, events = std::move(events), displayTimeZone]() mutable {
+                             [date, events = std::move(events), displayTimeZone, firstDay]() mutable {
                                return buildCalendarViewLayouts(
-                                   date, std::move(events), displayTimeZone);
+                                   date, std::move(events), displayTimeZone, firstDay);
                              }),
                   applyLayouts);
             if (uncachedSeries > 0 && !page.nextOffset.has_value()) {
@@ -2248,8 +2699,8 @@ void AppController::refreshCalendarInstanceCache(QList<QString> calendarIds,
   if (generation != calendarRefreshGeneration_ || !googleConnected_ || credentialStore_ == nullptr) {
     return;
   }
-  const QString rangeStartAt = calendarRangeStart(date);
-  const QString rangeEndAt = calendarRangeEnd(date);
+  const QString rangeStartAt = calendarRangeStart(date, weekStartDay_);
+  const QString rangeEndAt = calendarRangeEnd(date, weekStartDay_);
   QList<QString> refreshCalendarIds = calendarIds;
   QList<QString> resultCalendarIds = std::move(calendarIds);
   watch(

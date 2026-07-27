@@ -7,6 +7,7 @@ Pane {
     property var monthGridModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property int weekStartDay: 0
     property alias cells: cells
     signal dateSelected(string date)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -60,7 +61,9 @@ Pane {
             Layout.fillWidth: true
 
             Repeater {
-                model: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                model: root.weekStartDay === 1
+                       ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                       : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
                 delegate: Label {
                     required property string modelData

@@ -10,6 +10,8 @@ Pane {
     property var dayLabels: []
     property int dayCount: 7
     property int hourHeight: 48
+    property bool use24HourTime: true
+    property int workdayStartHour: 9
     property int timeColumnWidth: 64
     property int allDayLaneHeight: 28
     property alias eventRows: eventRows
@@ -34,6 +36,13 @@ Pane {
 
     function timePosition(minute) {
         return minute * hourHeight / 60
+    }
+
+    function hourLabel(hour) {
+        if (use24HourTime) return String(hour).padStart(2, "0") + ":00"
+        const suffix = hour < 12 ? "AM" : "PM"
+        const display = hour % 12 === 0 ? 12 : hour % 12
+        return display + " " + suffix
     }
 
     function dropDayIndex(x, availableWidth) {
@@ -255,6 +264,18 @@ Pane {
             contentWidth: width
             contentHeight: timelineCanvas.height
 
+            function revealWorkday() {
+                contentY = Math.max(0, Math.min(contentHeight - height,
+                                                 root.workdayStartHour * root.hourHeight))
+            }
+
+            Component.onCompleted: Qt.callLater(revealWorkday)
+            onHeightChanged: Qt.callLater(revealWorkday)
+            Connections {
+                target: root
+                function onWorkdayStartHourChanged() { Qt.callLater(timelineViewport.revealWorkday) }
+            }
+
             Item {
                 id: timelineCanvas
                 width: timelineViewport.width
@@ -271,7 +292,7 @@ Pane {
 
                         Label {
                             width: root.timeColumnWidth
-                            text: String(index).padStart(2, "0") + ":00"
+                            text: root.hourLabel(index)
                             color: Theme.textSecondary
                         }
 

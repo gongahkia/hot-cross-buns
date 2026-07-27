@@ -1615,7 +1615,7 @@ TestCase {
             request = { taskListId, parentTaskId, title }
         })
         mainWindow.taskCreateDialog.taskCreateRequested("list-active", "", "Plan release", "",
-                                                        "", "", 0, false, 0, 1, 0, "", 0)
+                                                        "", "", 0, false, 0, 1, 0, "", 0, "", "", "")
         compare(request.taskListId, "list-active")
         compare(request.parentTaskId, "")
         compare(request.title, "Plan release")

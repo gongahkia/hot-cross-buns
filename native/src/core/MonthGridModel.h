@@ -42,12 +42,14 @@ public:
 
   [[nodiscard]] static Layout buildLayout(QDate month,
                                           const QList<CalendarEventSummary>& events,
-                                          const QTimeZone& displayTimeZone);
+                                          const QTimeZone& displayTimeZone,
+                                          int weekStartDay = 0);
   void applyLayout(Layout layout);
 
   void setMonth(QDate month,
                 const QList<CalendarEventSummary>& events,
-                const QTimeZone& displayTimeZone);
+                const QTimeZone& displayTimeZone,
+                int weekStartDay = 0);
 
 private:
   QDate month_;
