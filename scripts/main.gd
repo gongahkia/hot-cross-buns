@@ -7,11 +7,13 @@ var player: SpeedPlayer
 var ghost: RunGhost
 var current_level: Dictionary = {}
 var collected_in_level := 0
+var total_collectibles_in_level := 0
 
 var ui: CanvasLayer
 var hud: Control
 var menu: Control
 var display_filter: ColorRect
+var display_filter_layer: CanvasLayer
 var timer_label: Label
 var par_label: Label
 var collect_label: Label
@@ -101,15 +103,15 @@ func _build_ui() -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(menu)
-	var filter_layer := CanvasLayer.new()
-	filter_layer.layer = 20
-	filter_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(filter_layer)
+	display_filter_layer = CanvasLayer.new()
+	display_filter_layer.layer = 5
+	display_filter_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(display_filter_layer)
 	display_filter = ColorRect.new()
 	display_filter.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	display_filter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	display_filter.material = _make_pixel_filter_material()
-	filter_layer.add_child(display_filter)
+	display_filter_layer.add_child(display_filter)
 	_apply_pixel_filter(Settings.pixel_filter_mode)
 
 func _process(delta: float) -> void:
@@ -225,38 +227,138 @@ func _build_course(level: Dictionary) -> void:
 	course.name = "Course"
 	add_child(course)
 	_add_forest_motes()
-	var start_floor := _make_platform(Vector3(0.0, 0.0, 2.0), Vector3(8.0, 0.7, 9.0), Color("#39553e"))
+	total_collectibles_in_level = 0
+	var world_length := maxf(float(level.length), 72.0)
+	var world_shift := float(level.get("offset", 0.0)) * 0.7
+	var summit_height := 7.2 + (0.8 if level.launches else 0.0)
+	var summit_surface := Vector3(world_shift, summit_height, -world_length + 8.0)
+	var basin := _make_platform(Vector3(world_shift, -0.45, -world_length * 0.5 + 4.0), Vector3(38.0, 0.9, world_length + 20.0), Color("#2d4433"))
+	course.add_child(basin)
+	var start_floor := _make_platform(Vector3(world_shift, 0.0, 2.0), Vector3(13.0, 0.7, 11.0), Color("#39553e"))
 	course.add_child(start_floor)
 	player = SpeedPlayer.new()
-	player.position = Vector3(0.0, 0.9, 3.0)
+	player.position = Vector3(world_shift, 0.9, 3.0)
 	player.reset_requested.connect(_restart_level)
 	course.add_child(player)
-	var segments := int(ceil(float(level.length) / 4.8))
-	var route_offset: float = float(level.get("offset", 0.0))
-	for index in range(segments):
-		var z := -3.5 - index * 4.8
-		var x: float = sin(float(index) * 0.85) * (1.1 + abs(route_offset) * 0.36) + route_offset
-		var y := 0.0
-		if level.launches and index > 7:
-			y = sin(float(index) * 0.75) * 1.4 + 1.0
-		var width := 5.8 if index % 4 != 2 else 4.4
-		course.add_child(_make_platform(Vector3(x, y, z), Vector3(width, 0.7, 3.5), Color("#486443")))
-		if level.boosts and index in [3, 8, 12]:
-			course.add_child(_make_boost(Vector3(x, y + 0.42, z), Vector3(0.0, 0.0, -1.0)))
-		if level.launches and index in [5, 11]:
-			course.add_child(_make_launch(Vector3(x, y + 0.45, z)))
-		if index % 3 == 1:
-			course.add_child(_make_collectible(Vector3(x + 1.7, y + 1.25, z - 0.5)))
-		if index % 2 == 0:
-			_add_tree(Vector3(x + 5.5, y, z + 1.0), 0.8 + float(index % 3) * 0.18)
-			_add_tree(Vector3(x - 5.2, y, z - 1.0), 0.7 + float((index + 1) % 3) * 0.2)
-	var goal_z := -4.5 - segments * 4.8
-	var goal_x: float = sin(float(segments) * 0.85) * (1.1 + abs(route_offset) * 0.36) + route_offset
-	course.add_child(_make_platform(Vector3(goal_x, 0.0, goal_z), Vector3(8.0, 0.7, 7.0), Color("#5b7749")))
-	course.add_child(_make_goal(Vector3(goal_x, 1.1, goal_z - 1.0)))
+	_build_safe_switchbacks(world_shift, world_length, summit_surface)
+	_build_direct_ridge(level, world_shift, world_length, summit_surface)
+	_build_canopy_route(level, world_shift, world_length, summit_surface)
+	_build_open_terrain(world_shift, world_length)
+	course.add_child(_make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), Color("#5b7749")))
+	course.add_child(_make_goal(summit_surface + Vector3(0.0, 1.15, -1.0)))
 	ghost = RunGhost.new()
 	ghost.set_frames(RunData.ghost_for(level.id))
 	course.add_child(ghost)
+
+func _build_safe_switchbacks(world_shift: float, world_length: float, summit_surface: Vector3) -> void:
+	var step_count := int(clampf(round(world_length / 15.0), 5.0, 8.0))
+	var previous_surface := Vector3(world_shift - 4.0, 0.35, -3.0)
+	course.add_child(_make_platform(previous_surface - Vector3(0.0, 0.4, 0.0), Vector3(8.0, 0.8, 7.0), Color("#456445")))
+	for index in range(step_count):
+		var progress := float(index + 1) / float(step_count + 1)
+		var x := world_shift - 10.5 if index % 2 == 0 else world_shift - 4.0
+		var surface := Vector3(x, lerpf(0.9, summit_surface.y - 1.0, progress), lerpf(-11.0, summit_surface.z + 7.0, progress))
+		course.add_child(_make_ramp_between(previous_surface, surface, 5.8, Color("#557551")))
+		course.add_child(_make_platform(surface - Vector3(0.0, 0.4, 0.0), Vector3(8.6, 0.8, 7.2), Color("#496a48")))
+		if index % 2 == 0:
+			_add_collectible_to_course(surface + Vector3(2.1, 1.2, 0.0))
+		previous_surface = surface
+	course.add_child(_make_ramp_between(previous_surface, summit_surface, 6.4, Color("#5c7b51")))
+
+func _build_direct_ridge(level: Dictionary, world_shift: float, world_length: float, summit_surface: Vector3) -> void:
+	var ridge_points: Array[Vector3] = [
+		Vector3(world_shift + 0.5, 0.5, -5.0),
+		Vector3(world_shift + 2.5, 2.4, -world_length * 0.33),
+		Vector3(world_shift - 1.2, 4.6, -world_length * 0.62),
+		summit_surface
+	]
+	for index in range(ridge_points.size() - 1):
+		var current := ridge_points[index]
+		var next := ridge_points[index + 1]
+		course.add_child(_make_platform(current - Vector3(0.0, 0.35, 0.0), Vector3(5.8, 0.7, 6.2), Color("#628253")))
+		course.add_child(_make_ramp_between(current, next, 3.6, Color("#6b8958")))
+		_add_climbable_trunk(current + Vector3(2.8 if index % 2 == 0 else -2.8, -0.4, -1.6), 5.0 + float(index) * 1.3, 0.42)
+		if level.boosts:
+			var direction := Vector3(next.x - current.x, 0.0, next.z - current.z).normalized()
+			course.add_child(_make_boost(current + Vector3(0.0, 0.42, -1.1), direction))
+		if index > 0:
+			_add_collectible_to_course(current + Vector3(-1.1, 1.15, 0.9))
+	course.add_child(_make_platform(summit_surface - Vector3(0.0, 0.35, 0.0), Vector3(5.8, 0.7, 6.2), Color("#628253")))
+
+func _build_canopy_route(level: Dictionary, world_shift: float, world_length: float, summit_surface: Vector3) -> void:
+	var canopy_points: Array[Vector3] = [
+		Vector3(world_shift + 9.0, 0.55, -8.0),
+		Vector3(world_shift + 10.5, 3.0, -world_length * 0.30),
+		Vector3(world_shift + 7.4, 5.3, -world_length * 0.58),
+		Vector3(world_shift + 3.5, summit_surface.y - 0.7, summit_surface.z + 6.0)
+	]
+	for index in range(canopy_points.size()):
+		var current := canopy_points[index]
+		course.add_child(_make_platform(current - Vector3(0.0, 0.35, 0.0), Vector3(6.8, 0.7, 6.0), Color("#4f7654")))
+		_add_climbable_trunk(current + Vector3(1.9, -0.35, 1.5), 7.2 + float(index) * 1.4, 0.5)
+		if index < canopy_points.size() - 1:
+			course.add_child(_make_ramp_between(current, canopy_points[index + 1], 3.8, Color("#567b5b")))
+		if index == 0 and level.launches:
+			course.add_child(_make_launch(current + Vector3(0.0, 0.42, -1.0)))
+		if index > 0:
+			_add_collectible_to_course(current + Vector3(-1.2, 1.2, -0.6))
+	course.add_child(_make_ramp_between(canopy_points.back(), summit_surface, 4.4, Color("#5f8058")))
+
+func _build_open_terrain(world_shift: float, world_length: float) -> void:
+	var tree_count := int(clampf(round(world_length / 7.0), 10.0, 18.0))
+	for index in range(tree_count):
+		var z := -6.0 - float(index) * (world_length - 6.0) / float(tree_count - 1)
+		var left_x := world_shift - 15.0 + sin(float(index) * 1.7) * 1.4
+		var right_x := world_shift + 15.0 + cos(float(index) * 1.3) * 1.4
+		_add_tree(Vector3(left_x, 0.0, z), 0.85 + float(index % 3) * 0.18)
+		_add_tree(Vector3(right_x, 0.0, z + 1.5), 0.80 + float((index + 1) % 3) * 0.20)
+		if index % 3 == 1:
+			course.add_child(_make_platform(Vector3(left_x + 2.0, 0.35, z - 2.0), Vector3(2.2, 1.5, 2.4), Color("#3b563d")))
+			course.add_child(_make_platform(Vector3(right_x - 2.2, 0.55, z + 3.0), Vector3(2.6, 1.9, 2.6), Color("#3b563d")))
+
+func _make_ramp_between(start_surface: Vector3, end_surface: Vector3, width: float, color: Color) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	var path := end_surface - start_surface
+	var length := path.length()
+	var ramp_center := (start_surface + end_surface) * 0.5 - Vector3(0.0, 0.28, 0.0)
+	body.look_at_from_position(ramp_center, end_surface, Vector3.UP)
+	var visual := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(width, 0.56, length)
+	visual.mesh = box
+	visual.material_override = _material(color)
+	body.add_child(visual)
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = box.size
+	collision.shape = shape
+	body.add_child(collision)
+	return body
+
+func _add_climbable_trunk(position: Vector3, height: float, radius: float) -> void:
+	var body := StaticBody3D.new()
+	body.position = position
+	var visual := MeshInstance3D.new()
+	var trunk := CylinderMesh.new()
+	trunk.top_radius = radius * 0.78
+	trunk.bottom_radius = radius
+	trunk.height = height
+	visual.mesh = trunk
+	visual.position.y = height * 0.5
+	visual.material_override = _material(Color("#33442e"))
+	body.add_child(visual)
+	var collision := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	shape.radius = radius
+	shape.height = height
+	collision.shape = shape
+	collision.position.y = height * 0.5
+	body.add_child(collision)
+	course.add_child(body)
+
+func _add_collectible_to_course(position: Vector3) -> void:
+	total_collectibles_in_level += 1
+	course.add_child(_make_collectible(position))
 
 func _make_platform(position: Vector3, size: Vector3, color: Color) -> StaticBody3D:
 	var body := StaticBody3D.new()
@@ -528,12 +630,7 @@ func _refresh_hud() -> void:
 	collect_label.text = "* %d/%d" % [RunData.collected, total]
 
 func _collectible_count(level: Dictionary) -> int:
-	var segments := int(ceil(float(level.length) / 4.8))
-	var count := 0
-	for index in range(segments):
-		if index % 3 == 1:
-			count += 1
-	return count
+	return total_collectibles_in_level
 
 func show_pause() -> void:
 	if not RunData.running:

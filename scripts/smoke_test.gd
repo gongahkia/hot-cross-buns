@@ -12,6 +12,7 @@ func _initialize() -> void:
 	assert(main.hud.theme != null, "ui theme missing")
 	assert(main.hud.theme.default_font is FontFile, "BigBlueTerm font missing")
 	assert(main.hud.theme.default_font.antialiasing == TextServer.FONT_ANTIALIASING_NONE, "pixel font antialiasing enabled")
+	assert(main.display_filter_layer.layer < main.ui.layer, "pixel filter overlays the ui")
 	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
 	app_settings.call("set_pixel_filter_mode", 0)
 	assert(not main.display_filter.visible, "pixel filter remained visible when disabled")
