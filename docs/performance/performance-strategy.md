@@ -1,80 +1,31 @@
 # Performance Strategy
 
-Hot Cross Buns must feel immediate because it is a keyboard-first planning tool. Performance work is not a late cleanup pass; every layer should preserve responsiveness from the first scaffold.
+## Budgets
 
-## Product-Level Targets
+| Path | Budget |
+| --- | ---: |
+| Local search wrapper-scale median | 105 ms |
+| Visible timeline delegate work | 16 ms target; 32 ms sustained maximum |
+| Release sync-apply benchmark | 45 s maximum |
 
-Use these budgets as engineering targets until real measurements justify different values:
+The 105 ms local-search limit is deliberate headroom for a 10,000-task / 25,000-instance deterministic fixture; ordinary searches should be materially faster. See [native wrapper budgets](native-wrapper-scale-budgets-v1.md).
 
-| Flow | Target |
-|---|---:|
-| Cold app shell visible on a typical developer Mac | under 1500ms |
-| Warm app shell visible | under 700ms |
-| Cached Today/Tasks/Calendar render after database open | under 300ms |
-| Command palette opens after shortcut | under 100ms |
-| Quick capture opens after global hotkey | under 150ms |
-| Search result update after typing | under 100ms for cached local data |
-| Common task/event mutation optimistic feedback | under 100ms |
-| Renderer frame budget during scrolling/typing | 16ms target, 32ms maximum sustained |
-| Main-process synchronous blocking during user interaction | under 20ms per operation |
+## Rules
 
-These are user-perceived goals, not promises. If a budget is missed, the implementation must record the reason and a follow-up path.
+- Keep the Qt GUI thread to input, model replacement, and visible delegates.
+- Keep SQLite/search/sync/recurrence work in C++ services or their queues.
+- Use indexed, prepared, bounded queries; apply filters before candidate limits and derive `hasMore` from post-filter results.
+- Window or virtualize calendar views. Never instantiate an account-wide event set in QML.
+- Batch independent Google writes only when API semantics preserve ordering and failure reporting.
+- Give each Google request explicit timeout and cancellation; shutdown waits for or cancels workers safely.
+- Measure a running release build before changing a limit.
 
-## Architecture Rules
+## Required checks
 
-- Keep renderer work small and predictable. Large data shaping belongs in main/worker services before crossing IPC.
-- Keep main process responsive. Startup orchestration, window lifecycle, menus, tray, shortcuts, and IPC registration must not wait on full sync.
-- Move database-heavy, sync-heavy, CPU-heavy, and indexing work to service queues, worker threads, or Electron utility processes when it can block the app.
-- Render from local SQLite cache first, then refresh from Google.
-- Send view models across IPC, not raw unbounded database rows or raw Google payloads.
-- Do not use performance shortcuts that weaken the security model.
+```sh
+cmake --build --preset macos-debug --target hcb_native --parallel 3
+ctest --preset macos-debug --output-on-failure
+.github/scripts/check-native-wrapper-performance.sh <artifact-directory>
+```
 
-## Startup Strategy
-
-Startup should be staged:
-
-1. Create the main window and load the renderer.
-2. Initialize minimal app services needed for the shell.
-3. Open SQLite and run migrations.
-4. Render cached shell and primary view.
-5. Start background sync only after the app is interactive.
-6. Defer optional services such as MCP, updater checks, deep diagnostics, and expensive search indexing.
-
-Do not block first paint on Google OAuth refresh, remote sync, full diagnostics, update checks, MCP startup, or large database compaction.
-
-## Measurement First
-
-Electron's own performance guidance emphasizes profiling running code and optimizing the actual bottleneck. Hot Cross Buns should keep that discipline:
-
-- Add timing spans around startup phases.
-- Measure IPC latency for common calls.
-- Measure database query duration for primary views.
-- Measure renderer commit duration for heavy screens.
-- Measure search latency as account size grows.
-- Track memory after launch, after first sync, and after large list/calendar navigation.
-
-## Performance Fixtures
-
-The native test suite includes deterministic generated fixtures:
-
-- Small: 50 tasks, 20 events, 10 notes
-- Medium: 1000 tasks, 1000 events, 200 notes
-- Wrapper scale: 10000 tasks, 25000 event instances, 2000 notes, 500 recurrence exceptions, 500 queued mutations
-
-Large fixtures must use generated local data only. They must not hit Google or a user's real app data.
-
-## Regression Gates
-
-The scheduled/manual macOS native-wrapper gate records and enforces cold/warm launch, cached first render, local search, task scroll, bulk selection, calendar navigation, sync apply, and RSS at wrapper scale. Budgets, measurement semantics, and artifact hardware evidence are versioned in [Native Wrapper Scale Budgets v1](native-wrapper-scale-budgets-v1.md).
-
-## Reference Docs
-
-Useful upstream docs:
-
-- Electron performance checklist: https://www.electronjs.org/docs/latest/tutorial/performance
-- Electron process model: https://www.electronjs.org/docs/latest/tutorial/process-model
-- React Profiler: https://react.dev/reference/react/Profiler
-- Vite performance guide: https://main.vitejs.dev/guide/performance.html
-- TanStack Query render optimizations: https://tanstack.com/query/latest/docs/framework/react/guides/render-optimizations
-- TanStack Virtual introduction: https://tanstack.com/virtual/v3/docs/introduction
-- SQLite query planner: https://www.sqlite.org/queryplanner.html
+Physical-display profiling remains required for dense Day and Week timelines; offscreen QML coverage is a regression signal, not proof of interaction smoothness.

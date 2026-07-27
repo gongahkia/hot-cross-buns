@@ -591,6 +591,7 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        timeZoneConverter: window.appController
         timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
                    ? window.appController.availableTimeZones : ["", "UTC"]
         driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []
@@ -624,6 +625,7 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        timeZoneConverter: window.appController
         timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
                    ? window.appController.availableTimeZones : ["", "UTC"]
         driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []

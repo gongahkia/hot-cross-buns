@@ -97,6 +97,11 @@ constexpr int kSearchDebounceMilliseconds = 180;
   return startHour >= 0 && startHour <= 23 && endHour >= 1 && endHour <= 24 && startHour < endHour;
 }
 
+[[nodiscard]] QTimeZone resolvedTimeZone(const QString& value) {
+  const QTimeZone zone(value.toUtf8());
+  return zone.isValid() ? zone : QTimeZone::systemTimeZone();
+}
+
 [[nodiscard]] std::optional<QString> jsonArrayString(const QString& value) {
   QJsonParseError error;
   const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
@@ -1031,6 +1036,31 @@ void AppController::saveDisplayTimeZone(QString timeZone) {
             refreshCalendar();
           }
         });
+}
+
+QVariantMap AppController::dateTimeComponents(QString value, QString timeZone) const {
+  const QDateTime parsed = QDateTime::fromString(value, Qt::ISODate);
+  if (!parsed.isValid()) {
+    return {};
+  }
+  const QDateTime local = parsed.toTimeZone(resolvedTimeZone(timeZone));
+  return {{QStringLiteral("year"), local.date().year()},
+          {QStringLiteral("month"), local.date().month()},
+          {QStringLiteral("day"), local.date().day()},
+          {QStringLiteral("hour"), local.time().hour()},
+          {QStringLiteral("minute"), local.time().minute()}};
+}
+
+QString AppController::dateTimeFromComponents(int year,
+                                              int month,
+                                              int day,
+                                              int hour,
+                                              int minute,
+                                              QString timeZone) const {
+  const QDate date(year, month, day);
+  const QTime time(hour, minute);
+  const QDateTime local(date, time, resolvedTimeZone(timeZone));
+  return local.isValid() ? local.toUTC().toString(Qt::ISODateWithMs) : QString();
 }
 
 void AppController::saveWorkdayHours(int startHour, int endHour) {

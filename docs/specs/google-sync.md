@@ -11,8 +11,8 @@ Use a desktop OAuth loopback flow. OAuth client configuration must support bring
 Token rules:
 
 - Access and refresh tokens must be stored in the OS keychain.
-- Tokens must never be stored in renderer state, localStorage, sessionStorage, logs, SQLite, diagnostics, or MCP responses.
-- Renderer may receive sanitized connection status only.
+- Tokens must never be stored in QML models, logs, SQLite, or diagnostics.
+- Qt Quick may receive sanitized connection status only.
 - OAuth errors must be translated into user-actionable messages.
 
 ## Scopes
@@ -21,8 +21,9 @@ Required Google scopes:
 
 - `https://www.googleapis.com/auth/tasks`
 - `https://www.googleapis.com/auth/calendar`
+- `https://www.googleapis.com/auth/drive.metadata.readonly` for user-initiated attachment metadata search only
 
-Do not request identity, Google Drive, or broader account scopes in the private preview.
+Do not request Gmail, Contacts, Photos, or broader account scopes.
 
 ## Tasks Mapping
 
@@ -49,7 +50,7 @@ Scheduled-task-block reconciliation rules:
 
 - A task can have only one active scheduled block in local metadata. Repeated scheduling of the exact same block is idempotent; scheduling the same task into a different slot must use move or unschedule first.
 - If Google sync moves or resizes the linked Calendar event externally, the local block surfaces the Calendar event's current start/end and recalculates duration from that event.
-- If Google sync deletes/cancels the linked Calendar event, the local block becomes orphaned and the renderer can repair it by creating a replacement Calendar event linked to the same task.
+- If Google sync deletes/cancels the linked Calendar event, the local block becomes orphaned and the UI can repair it by creating a replacement Calendar event linked to the same task.
 
 ## Calendar Mapping
 
@@ -124,7 +125,7 @@ Required tests:
 
 ## Current Native Preview
 
-- Settings persists a tester-supplied Desktop OAuth client ID in SQLite.
+- Settings stores a tester-supplied Desktop OAuth client configuration through the credential adapter, separately from SQLite mirrors.
 - The app uses browser-based PKCE with a temporary `127.0.0.1` callback, exchanges the authorization code without a client secret, and stores access/refresh tokens in the platform credential adapter.
 - Connect, launch, and manual sync refresh the access token, pull Google Tasks and Calendar, and update the SQLite mirror before GUI models update on the Qt GUI thread. Calendar stores incremental sync tokens and falls back to a full sync after a `410`; Tasks use per-list `updatedMin` watermarks with periodic full reconciliation.
 - Local task, task-list, and Calendar mutations are persisted before network delivery and pushed through authenticated Google mutation services. The default conflict policy is Prefer Google; users can select Prefer HCB or Ask each time in Settings. Retry/backoff, recovery, and conflict behavior have automated coverage, but real-account acceptance remains mandatory before release promotion.

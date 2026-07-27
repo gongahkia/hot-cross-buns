@@ -1,74 +1,37 @@
 # Contributing
 
-Hot Cross Buns is a macOS-first Electron, React, TypeScript, and SQLite rebuild. Keep renderer code unprivileged and route filesystem, SQLite, Google, native shell, MCP, and package behavior through main-process services and typed preload IPC.
+Hot Cross Buns is a macOS-first C++20/Qt 6/QML/SQLite application. Google Calendar and Google Tasks are the synced sources of truth; the local database is a cache and durable mutation journal.
 
-## Local Setup
+## Requirements
 
-Required tools:
+- macOS 14+
+- CMake, Ninja, Qt 6, and Xcode command-line tools
+- a Google Desktop OAuth client only for live-account validation
 
-- Node.js 20 or newer
-- Corepack-enabled `pnpm` from `package.json` (`pnpm@9.15.4`)
-- macOS for Electron smoke and preview packaging
-
-Recommended setup:
+## Build and test
 
 ```sh
-corepack enable
-corepack prepare pnpm@9.15.4 --activate
-pnpm install
+cmake --preset macos-debug
+cmake --build --preset macos-debug --target hcb_native --parallel 3
+ctest --preset macos-debug --output-on-failure
+./script/build_and_run.sh --verify
 ```
 
-## Daily Commands
+Use focused test targets while changing a subsystem. Run the complete debug suite before handing off a feature. The release-scale gate is:
 
 ```sh
-pnpm dev
-pnpm typecheck
-pnpm test
-pnpm test:smoke
-pnpm test:perf
+.github/scripts/check-native-wrapper-performance.sh <artifact-directory>
 ```
 
-`pnpm test` runs the default Vitest suite. `pnpm test:smoke` builds the app and launches the Playwright Electron smoke test. `pnpm test:perf` writes local report-only performance evidence under `artifacts/perf/`; do not commit generated performance artifacts unless a release checklist explicitly asks for a baseline.
+## Change boundaries
 
-## Release Commands
+- QML owns presentation and calls `AppController`; it must not access SQLite, tokens, or network clients.
+- C++ services validate inputs, perform queued SQLite work, and create durable optimistic mutations.
+- Google clients own protocol mapping, retries, cancellation, batching, and redaction.
+- Keep all-day values date-stable and timed values timezone-aware.
+- Preserve arbitrary Google Calendar recurrence lines; use Google-resolved instances rather than a local RFC expansion engine.
+- Do not add a global quick-capture feature.
 
-Use the unsigned macOS preview packaging flow only for internal/technical preview builds:
+## Validation
 
-```sh
-pnpm pack:mac:preview
-```
-
-For the full local preview gate:
-
-```sh
-pnpm release:mac:preview
-```
-
-These commands do not sign, notarize, or enable auto-update. Release artifacts are written under `release/`, and checksums are written to `release/SHASUMS256.txt`.
-
-## CI Expectations
-
-GitHub Actions runs:
-
-- install with the pinned package manager
-- `pnpm typecheck`
-- `pnpm test`
-- macOS Electron smoke
-- scheduled/manual performance smoke
-- manual Linux AppImage preview validation
-- manual Windows NSIS preview validation
-
-Failed smoke and performance runs upload available Playwright and performance artifacts for diagnosis.
-
-## Pull Request Notes
-
-Include:
-
-- user-visible behavior
-- architecture or IPC changes
-- tests run
-- docs updated
-- known limitations
-- manual macOS checks if native shell or package behavior changed
-
-Do not add credentials, signing certificates, OAuth secrets, notarization material, MCP bearer tokens, or generated local databases to the repository.
+Use mock and local-fixture tests for automation. Do not use a personal Google account in automated tests. Live validation is a separate redacted procedure in [live Google smoke](testing/live-google-smoke.md). macOS is the only release target; Linux and Windows parity is deferred.

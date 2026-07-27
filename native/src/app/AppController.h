@@ -49,6 +49,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <chrono>
 #include <cstdint>
@@ -174,6 +175,13 @@ public:
   Q_INVOKABLE void saveWeekStartDay(int day);
   Q_INVOKABLE void saveUse24HourTime(bool enabled);
   Q_INVOKABLE void saveDisplayTimeZone(QString timeZone);
+  Q_INVOKABLE QVariantMap dateTimeComponents(QString value, QString timeZone) const;
+  Q_INVOKABLE QString dateTimeFromComponents(int year,
+                                             int month,
+                                             int day,
+                                             int hour,
+                                             int minute,
+                                             QString timeZone) const;
   Q_INVOKABLE void saveWorkdayHours(int startHour, int endHour);
   Q_INVOKABLE void saveCalendarVisibility(QVariantList calendarIds);
   Q_INVOKABLE void createGoogleCalendar(QString title, QString description, QString timeZone);

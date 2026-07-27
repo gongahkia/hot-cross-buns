@@ -20,13 +20,13 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 - Default stack: C++20, Qt 6, CMake, SQLite
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: Google Tasks/Calendar cache, settings, checkpoints, offline mutations, diagnostics
-- Agent access: opt-in local MCP server on `127.0.0.1`
+- Agent access: deferred; no local MCP server currently ships
 
 ## Implementation Status
 
 - Qt Quick views bind to C++ task, notes, calendar, and navigation models.
 - SQLite domain services own local reads and mutations; the app controller applies completed results only on the Qt GUI thread.
-- The private preview supports bring-your-own Google Desktop OAuth client IDs, PKCE loopback authorization, platform credential storage, and full read synchronization for Google Tasks and Calendar.
+- The macOS app supports a user-supplied Google Desktop OAuth client ID, PKCE loopback authorization, Keychain-backed credentials, and Google Tasks/Calendar sync.
 - Native shell and package validation are macOS release work; Linux and Windows documents are deferred-port references.
 
 ## Documentation Map
@@ -56,8 +56,8 @@ Subsystem specs:
 Performance:
 
 - [Performance Strategy](performance/performance-strategy.md)
-- [Renderer Performance](performance/renderer-performance.md)
-- [Main, IPC, And Data Performance](performance/main-and-data-performance.md)
+- [Qt Quick UI Performance](performance/renderer-performance.md)
+- [Main And Data Performance](performance/main-and-data-performance.md)
 - [Build And Test Performance](performance/build-and-test-performance.md)
 
 Ports:

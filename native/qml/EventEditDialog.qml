@@ -11,6 +11,7 @@ HcbDialog {
     property var calendarSourceModel: null
     property var driveAttachmentCandidates: []
     property var freeBusyIntervals: []
+    property var timeZoneConverter: null
     property var timeZones: ["", "UTC", "America/Los_Angeles", "America/New_York", "Asia/Singapore", "Europe/London"]
     property string eventId: ""
     property string eventCalendarId: ""
@@ -532,6 +533,8 @@ HcbDialog {
         id: startField
         Layout.fillWidth: true
         allDay: allDayCheck.checked
+        timeZone: timeZonePicker.timeZone
+        timeZoneConverter: root.timeZoneConverter
         accessibleName: "Event starts"
     }
 
@@ -539,6 +542,8 @@ HcbDialog {
         id: endField
         Layout.fillWidth: true
         allDay: allDayCheck.checked
+        timeZone: timeZonePicker.timeZone
+        timeZoneConverter: root.timeZoneConverter
         accessibleName: "Event ends"
     }
 

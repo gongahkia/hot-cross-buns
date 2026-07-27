@@ -1,83 +1,37 @@
 # Product PRD
 
-## Product Summary
+## Product
 
-Hot Cross Buns is a keyboard-first desktop planner backed by Google Tasks and Google Calendar. It helps one user capture tasks quickly, plan across tasks and calendar events, keep lightweight notes, and optionally expose controlled local MCP tools to their own agent clients.
+Hot Cross Buns is a macOS-first local desktop client for a user's Google Calendar and Google Tasks account. It keeps an on-device cache and mutation journal for speed and offline work; it does not operate an HCB cloud backend. Notes are an optional HCB projection of undated Google Tasks and sync as ordinary Google Tasks.
 
-The first release is a macOS core app. The product direction must support future Windows and Linux releases without rewriting the app architecture.
+## Target user
 
-## Target Users
+An individual who needs a fast, keyboard-accessible planner that is a credible desktop alternative to Apple Calendar while retaining Google Calendar and Google Tasks as the authoritative services.
 
-- The primary user is an individual desktop power user who lives in Google Tasks and Google Calendar.
-- The secondary user is an agent-driven workflow user who wants local MCP tools for planning and task/calendar actions.
-- The maintainer/user is also a developer who needs fast local builds, clear debugging, and agent-friendly specs.
+## Release success
 
-## Goals
+- User supplies a Google Desktop OAuth client and connects their own account through PKCE loopback authorization.
+- Tasks support lists, hierarchy, create/edit/complete/delete/move/reparent/reorder, batch actions, and durable offline mutations.
+- Notes can be disabled, shown only as undated task projections, or mirrored in Tasks and Notes.
+- HCB-managed recurring tasks preserve portable marker metadata and reconcile successor duplicates.
+- Calendar supports agenda/day/week/month views, search, structured create/edit/delete/move/bulk actions, arbitrary Google recurrence round-tripping, Google-resolved instances, Meet creation, Drive metadata attachment picking, invitations/RSVP comments, free-busy, calendars, subscriptions, sharing, and Focus/OOO/working-location fields where Google exposes them.
+- Calendar popup reminders create local macOS notifications with Snooze 10 minutes and Dismiss.
+- Search is local-first, structured, saved, ranked, and does not query Google per keystroke.
+- Presentation settings cover appearance, density, week start, 12/24-hour time, display timezone, work hours, calendar visibility, event colors, and reminders.
+- The app has a macOS native bundle, automated C++/QML/shell coverage, and a redacted live Google account smoke procedure.
 
-- Deliver a native C++20/Qt app with a fast, debuggable local cache and Google-backed workflow.
-- Preserve the core value of Hot Cross Buns: fast capture, calendar/task planning, keyboard navigation, local cache, Google sync, and agent access.
-- Make the implementation easy for future agents to extend safely.
-- Keep Google Tasks and Calendar as the synced sources of truth.
-- Avoid creating a custom cloud backend in v1.
+## Explicit exclusions
 
-## Success Criteria
+- HCB cloud storage or multi-user collaboration outside Google Calendar sharing.
+- A global quick-capture shortcut.
+- A separate remote notes schema.
+- Reimplementing Google Calendar RFC recurrence expansion locally.
+- Linux/Windows release parity before macOS acceptance.
+- Full Google Calendar administrator ACL management; this is deferred as a dedicated issue.
 
-Mac core app success:
+## Product rules
 
-- User can connect Google through desktop OAuth.
-- User can view selected task lists and calendars from local cache after sync.
-- User can create, edit, complete/reopen, move, and delete tasks.
-- User can create, edit, and delete calendar events.
-- User can create and search task-backed notes.
-- User can use command palette, local search, and keyboard-accessible task/event forms without leaving the keyboard.
-- Tray/menu bar and global hotkey flows work on macOS.
-- Local MCP read tools work behind bearer-token authentication.
-- MCP write tools support dry-run and confirmation.
-- Tests cover domain logic, SQLite migrations, Google transport mocks, QML flows, and launch smoke flows.
-
-## V1 Scope
-
-Core v1 includes:
-
-- Onboarding and Google OAuth setup
-- Tasks, task lists, subtasks, completion, deletion, and move flows
-- Calendar agenda/day/week/month views with event create/edit/delete
-- Task-backed notes and note search
-- Command palette
-- Local-first search over cached tasks, events, and notes
-- Local cache and sync checkpoints
-- Offline mutation queue
-- Settings for Google, sync, appearance, time zone, week start, work hours, calendar visibility, notes, notifications, MCP, and diagnostics
-- Local MCP server
-- Basic local notification scheduling
-- GitHub Releases based preview distribution
-
-## Non-Goals
-
-V1 does not include:
-
-- Hosted sync server
-- Multi-user collaboration beyond Google sharing behavior
-- Google Drive integration
-- Mobile apps
-- Full Spotlight/App Intents/Share Extension parity
-- Public analytics SDK
-- Cloud crash reporter by default
-- App-specific task fields that cannot be represented in Google Tasks unless explicitly local-only
-
-## Product Principles
-
-- Correctness before polish.
-- Local cache improves speed but does not become the synced source of truth.
-- The keyboard path must be first-class.
-- Every privileged boundary must be explicit.
-- If a feature cannot work safely through renderer-only code, it belongs in main/worker services.
-- Mac-first should not mean Mac-only architecture.
-
-## Open Product Questions
-
-These do not block docs or scaffold, but must be resolved before v1 release:
-
-- Whether notes need a future provider beyond their current Google Tasks-backed representation.
-- Whether Windows/Linux v1 should support feature parity or a smaller planner-only subset.
-- Whether public distribution should remain unsigned preview or move to signed/notarized releases before broad use.
+- Google Calendar/Tasks behavior wins by default during sync conflict resolution; alternatives are user-selectable in Settings.
+- Cross-list task moves recreate on the destination and delete the original, so the remote task ID changes.
+- Calendar recurrence stores and sends valid Google recurrence lines unchanged. Google’s instances API resolves exceptions, cancellations, and concrete instances.
+- Task due values follow the Google Tasks date-only API constraint. Timed work is modeled as Calendar events.

@@ -6,6 +6,8 @@ ColumnLayout {
     id: root
     property string value: ""
     property bool allDay: false
+    property string timeZone: ""
+    property var timeZoneConverter: null
     property string accessibleName: "Date and time"
     property bool updating: false
 
@@ -14,24 +16,34 @@ ColumnLayout {
         const parsed = new Date(value)
         if (!Number.isFinite(parsed.getTime())) return
         updating = true
-        year.value = allDay ? parsed.getUTCFullYear() : parsed.getFullYear()
-        month.value = allDay ? parsed.getUTCMonth() + 1 : parsed.getMonth() + 1
+        const components = !allDay && timeZoneConverter !== null
+                         ? timeZoneConverter.dateTimeComponents(value, timeZone) : null
+        year.value = components && components.year !== undefined ? components.year
+                                                                 : (allDay ? parsed.getUTCFullYear() : parsed.getFullYear())
+        month.value = components && components.month !== undefined ? components.month
+                                                                   : (allDay ? parsed.getUTCMonth() + 1 : parsed.getMonth() + 1)
         day.to = daysInMonth(year.value, month.value)
-        day.value = allDay ? parsed.getUTCDate() : parsed.getDate()
-        hour.value = allDay ? 0 : parsed.getHours()
-        minute.value = allDay ? 0 : parsed.getMinutes()
+        day.value = components && components.day !== undefined ? components.day
+                                                               : (allDay ? parsed.getUTCDate() : parsed.getDate())
+        hour.value = allDay ? 0 : (components && components.hour !== undefined ? components.hour : parsed.getHours())
+        minute.value = allDay ? 0 : (components && components.minute !== undefined ? components.minute : parsed.getMinutes())
         updating = false
     }
     function commit() {
         if (updating) return
         day.to = daysInMonth(year.value, month.value)
         if (day.value > day.to) day.value = day.to
-        value = allDay
-                ? new Date(Date.UTC(year.value, month.value - 1, day.value, 0, 0, 0, 0)).toISOString()
-                : new Date(year.value, month.value - 1, day.value, hour.value, minute.value,
-                           0, 0).toISOString()
+        const next = allDay
+                     ? new Date(Date.UTC(year.value, month.value - 1, day.value, 0, 0, 0, 0)).toISOString()
+                     : (timeZoneConverter !== null
+                        ? timeZoneConverter.dateTimeFromComponents(year.value, month.value - 1, day.value,
+                                                                     hour.value, minute.value, timeZone)
+                        : new Date(year.value, month.value - 1, day.value, hour.value, minute.value,
+                                   0, 0).toISOString())
+        if (next.length > 0) value = next
     }
     onValueChanged: syncFromValue()
+    onTimeZoneChanged: syncFromValue()
     onAllDayChanged: {
         syncFromValue()
         commit()
