@@ -3,6 +3,7 @@ extends Node3D
 const LEVELS := preload("res://scripts/level_library.gd")
 const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
 const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
+const GRIND_RAIL := preload("res://scripts/grind_rail.gd")
 const SANDBOX_GEOMETRY_EXPORTER := preload("res://scripts/generate_sandbox_geometry.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
@@ -27,6 +28,8 @@ var traversal_ramp_count := 0
 var climbable_trunk_count := 0
 var grapple_anchor_count := 0
 var combo_gap_count := 0
+var grind_rail_count := 0
+var recharge_gate_count := 0
 var trigger_count := 0
 var sandbox_stations: Array[Dictionary] = []
 var current_station := "Central Plaza"
@@ -345,6 +348,8 @@ func _build_course(level: Dictionary) -> void:
 	climbable_trunk_count = 0
 	grapple_anchor_count = 0
 	combo_gap_count = 0
+	grind_rail_count = 0
+	recharge_gate_count = 0
 	trigger_count = 0
 	sandbox_stations.clear()
 	current_station = "Central Plaza"
@@ -381,6 +386,8 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 	climbable_trunk_count = 0
 	grapple_anchor_count = 0
 	combo_gap_count = 0
+	grind_rail_count = 0
+	recharge_gate_count = 0
 	trigger_count = 0
 	sandbox_stations.clear()
 	current_station = "Central Plaza"
@@ -399,11 +406,15 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 			grapple_anchor_count += 1
 		if node.has_meta("gap_id"):
 			combo_gap_count += 1
+		if node.has_meta("grind_rail"):
+			grind_rail_count += 1
 	for trigger in course.find_children("*", "CourseTrigger", true, false):
 		trigger.callback = _on_trigger
 		trigger_count += 1
 		if trigger.trigger_type == CourseTrigger.TriggerType.COLLECTIBLE:
 			total_collectibles_in_level += 1
+		if trigger.trigger_type == CourseTrigger.TriggerType.RECHARGE:
+			recharge_gate_count += 1
 	player = SpeedPlayer.new()
 	player_spawn = Vector3(0.0, 0.9, 3.0)
 	player.position = player_spawn
@@ -437,6 +448,14 @@ func _add_route_collectibles(route: Node3D, positions: Array[Vector3]) -> void:
 func _add_arena_gaps(parent: Node3D, positions: Array[Vector3], id_prefix: String, points: int) -> void:
 	for index in range(positions.size()):
 		parent.add_child(_make_combo_gap(positions[index] + Vector3(0.0, 1.75, 0.0), id_prefix + "-" + str(index + 1), points))
+
+func _add_grind_rail(parent: Node3D, name: String, points: Array[Vector3]) -> void:
+	var rail := GRIND_RAIL.new() as GrindRail
+	rail.name = name
+	rail.rail_points = PackedVector3Array(points)
+	rail.set_meta("grind_rail", true)
+	parent.add_child(rail)
+	grind_rail_count += 1
 
 func _add_course_sign(parent: Node3D, position: Vector3, text: String, color: Color) -> void:
 	var sign := Label3D.new()
@@ -764,6 +783,32 @@ func _make_combo_gap(position: Vector3, gap_id: String, points: int) -> CourseTr
 	gap.add_child(label)
 	return gap
 
+func _make_recharge_gate(position: Vector3, tool: String, gate_id: String) -> CourseTrigger:
+	var gate := _trigger(CourseTrigger.TriggerType.RECHARGE, Vector3(3.0, 3.4, 1.5), {"tool": tool, "id": gate_id})
+	gate.name = "RechargeGate"
+	gate.position = position
+	gate.set_meta("recharge_gate", tool)
+	var visual := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.86
+	ring.outer_radius = 1.02
+	visual.mesh = ring
+	visual.rotation.x = deg_to_rad(90.0)
+	visual.material_override = _material(Color("#8be6ff"), true)
+	gate.add_child(visual)
+	var label := Label3D.new()
+	label.text = "DASH REFILL" if tool == "dash" else "JUMP REFILL"
+	label.font = ui_theme.default_font
+	label.font_size = 22
+	label.outline_size = 4
+	label.modulate = Color("#d8f6ff")
+	label.position = Vector3(0.0, 1.45, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.008
+	gate.add_child(label)
+	recharge_gate_count += 1
+	return gate
+
 func _make_reset_pad(position: Vector3, spawn: Vector3, station: String, restart_session := false) -> CourseTrigger:
 	var pad := _trigger(CourseTrigger.TriggerType.RESET, Vector3(3.2, 1.2, 3.2), {"spawn": spawn, "station": station, "restart": restart_session})
 	pad.name = "CentralResetPad" if restart_session else "StationResetPad"
@@ -831,6 +876,11 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 				call_deferred("_restart_level")
 			else:
 				_reset_to_station(reset)
+		CourseTrigger.TriggerType.RECHARGE:
+			var recharge: Dictionary = payload if payload is Dictionary else {}
+			player.recharge_air_tool(str(recharge.get("tool", "dash")))
+			Audio.play_sfx("pickup")
+			last_sandbox_event = "REFILL " + str(recharge.get("tool", "dash")).to_upper()
 
 func _on_traversal_action(action: String, override_points: int) -> void:
 	last_sandbox_event = action.replace("_", " ").to_upper()

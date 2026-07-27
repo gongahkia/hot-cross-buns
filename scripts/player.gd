@@ -590,6 +590,16 @@ func launch(force: float) -> void:
 	traversal_action.emit("launch", -1)
 	_add_camera_shake(0.026)
 
+func recharge_air_tool(tool: String) -> void:
+	match tool:
+		"double_jump": can_double_jump = true
+		"both":
+			can_dash = true
+			can_double_jump = true
+		_: can_dash = true
+	traversal_action.emit("recharge", -1)
+	_emit_burst(0.40)
+
 func _cache_wall_contact() -> void:
 	wall_jump_collider_id = 0
 	if not is_on_wall():

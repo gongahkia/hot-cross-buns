@@ -1,7 +1,7 @@
 class_name CourseTrigger
 extends Area3D
 
-enum TriggerType { COLLECTIBLE, BOOST, LAUNCH, COMBO_GAP, RESET }
+enum TriggerType { COLLECTIBLE, BOOST, LAUNCH, COMBO_GAP, RESET, RECHARGE }
 
 @export var trigger_type: TriggerType
 @export var payload: Variant
