@@ -20,4 +20,4 @@ Native release tags (`v*`) run macOS, Linux, and Windows build, test, installati
 
 Each tester supplies a Google Cloud **Desktop app** OAuth client ID in Settings. Enable Google Tasks and Google Calendar APIs, add the tester to the OAuth consent screen, save the client ID, then select **Connect Google**. The app uses a temporary localhost loopback callback and does not accept a client secret.
 
-The current preview refreshes the credential and performs a full Google read sync on connect, launch, or **Sync Google now**. Local task and calendar edits are not pushed to Google yet; use a disposable account for testing.
+The preview refreshes credentials and synchronizes Google Tasks and Calendar on connect, launch, and **Sync Google now**. Local task and calendar edits use a persisted mutation queue and Google push services; Calendar keeps incremental sync tokens and Tasks use per-list update watermarks. Real-account acceptance is still required before release promotion, so use a disposable account for testing.

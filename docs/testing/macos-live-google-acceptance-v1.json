@@ -2,7 +2,7 @@
   "schema_version": 1,
   "platform": "macos",
   "attestation_status": "incomplete",
-  "redacted": false,
+  "redacted": true,
   "evidence": {
     "candidate_commit": "",
     "package_version": "",
