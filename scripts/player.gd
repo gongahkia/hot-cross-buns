@@ -441,7 +441,7 @@ func grapple_candidate() -> Node3D:
 			best_anchor = anchor
 	return best_anchor
 
-func _update_grapple(delta: float, input_vector: Vector2) -> void:
+func _update_grapple(delta: float, input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")) -> void:
 	if grapple_anchor == null or not is_instance_valid(grapple_anchor):
 		_stop_grapple()
 		return
@@ -723,6 +723,90 @@ func _slam_bounce() -> void:
 	can_double_jump = true
 	is_slamming = false
 	traversal_action.emit("slam_bounce", -1)
+
+func _try_start_grind() -> void:
+	if is_grinding or grind_cooldown > 0.0 or is_slamming or is_grappling:
+		return
+	var planar_speed := _planar_velocity().length()
+	if planar_speed < GRIND_MIN_SPEED:
+		return
+	var best_rail: GrindRail
+	var best_sample := {}
+	var best_distance := INF
+	for candidate in get_tree().get_nodes_in_group("grind_rail"):
+		var rail := candidate as GrindRail
+		if rail == null:
+			continue
+		var sample := rail.closest_sample(global_position)
+		var distance := float(sample.get("distance", INF))
+		if distance <= rail.activation_radius and distance < best_distance:
+			best_rail = rail
+			best_sample = sample
+			best_distance = distance
+	if best_rail == null or best_sample.is_empty():
+		return
+	var tangent: Vector3 = best_sample.get("tangent", Vector3.ZERO)
+	if tangent.length() < 0.1:
+		return
+	grind_rail = best_rail
+	grind_distance = float(best_sample.get("rail_distance", 0.0))
+	grind_direction = 1.0 if tangent.dot(_planar_velocity()) >= 0.0 else -1.0
+	is_grinding = true
+	is_gliding = false
+	is_wall_running = false
+	is_wall_sliding = false
+	global_position = best_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
+	velocity = tangent * planar_speed * grind_direction
+	traversal_action.emit("grind", -1)
+	_add_camera_shake(0.026)
+	_play_sfx("boost")
+
+func _update_grind(delta: float, input_vector: Vector2) -> void:
+	if grind_rail == null or not is_instance_valid(grind_rail):
+		_exit_grind()
+		return
+	if Input.is_action_just_pressed("jump"):
+		_exit_grind()
+		velocity.y = JUMP_VELOCITY
+		traversal_action.emit("grind_exit", -1)
+		return
+	if Input.is_action_just_pressed("dash") and can_dash:
+		_exit_grind()
+		_dash()
+		return
+	var sample := grind_rail.sample(grind_distance)
+	if sample.is_empty():
+		_exit_grind()
+		return
+	var tangent: Vector3 = sample.get("tangent", Vector3.FORWARD)
+	var speed := maxf(GRIND_MIN_SPEED, _planar_velocity().length())
+	speed += grind_rail.speed_boost * delta
+	speed += -tangent.y * GRAVITY * delta
+	speed = clampf(speed, GRIND_MIN_SPEED, DASH_MAX_SPEED)
+	grind_distance += speed * grind_direction * delta
+	if grind_distance <= 0.0 or grind_distance >= grind_rail.length():
+		grind_distance = clampf(grind_distance, 0.0, grind_rail.length())
+		var end_sample := grind_rail.sample(grind_distance)
+		global_position = end_sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
+		velocity = end_sample.get("tangent", tangent) * speed * grind_direction
+		velocity.y = maxf(velocity.y, 1.8)
+		_exit_grind()
+		return
+	sample = grind_rail.sample(grind_distance)
+	global_position = sample.get("position", global_position) + Vector3.UP * GRIND_FLOOR_OFFSET
+	velocity = sample.get("tangent", tangent) * speed * grind_direction
+	if input_vector.y > 0.5:
+		grind_direction = -1.0
+	elif input_vector.y < -0.5:
+		grind_direction = 1.0
+	_sample_flow(delta)
+
+func _exit_grind() -> void:
+	if not is_grinding:
+		return
+	is_grinding = false
+	grind_rail = null
+	grind_cooldown = GRIND_EXIT_COOLDOWN
 
 func _double_jump() -> void:
 	velocity.y = DOUBLE_JUMP_VELOCITY
