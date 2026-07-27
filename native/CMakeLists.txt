@@ -1042,6 +1042,33 @@ if(BUILD_TESTING)
   hcb_enable_sanitizers(hcb_calendar_mutation_service_tests)
   add_test(NAME hcb_calendar_mutation_service_tests COMMAND hcb_calendar_mutation_service_tests)
 
+  qt_add_executable(hcb_reminder_service_tests
+    tests/ReminderServiceTest.cpp
+    tests/support/TemporarySqliteDatabase.h
+    src/app/NativeReminderNotifier.cpp
+    src/app/NativeReminderNotifier.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/ReminderService.cpp
+    src/core/ReminderService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+  )
+  target_link_libraries(hcb_reminder_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_reminder_service_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_reminder_service_tests)
+  hcb_enable_sanitizers(hcb_reminder_service_tests)
+  add_test(NAME hcb_reminder_service_tests COMMAND hcb_reminder_service_tests)
+
   qt_add_executable(hcb_notes_model_tests
     tests/NotesModelTest.cpp
     src/core/NotesModel.cpp

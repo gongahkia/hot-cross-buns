@@ -57,6 +57,30 @@ struct ReminderState final {
   return result.isValid() ? std::optional<QDateTime>(result.toUTC()) : std::nullopt;
 }
 
+[[nodiscard]] std::optional<QDateTime>
+reminderStartAt(const QString& startAt,
+                bool allDay,
+                const std::optional<QString>& eventTimeZone,
+                const std::optional<QString>& calendarTimeZone) {
+  const std::optional<QDateTime> parsed = parseDateTime(startAt);
+  if (!parsed.has_value() || !allDay) {
+    return parsed;
+  }
+  QTimeZone timeZone = QTimeZone::systemTimeZone();
+  for (const std::optional<QString>& identifier : {eventTimeZone, calendarTimeZone}) {
+    if (!identifier.has_value()) {
+      continue;
+    }
+    const QTimeZone candidate(identifier->toUtf8());
+    if (candidate.isValid()) {
+      timeZone = candidate;
+      break;
+    }
+  }
+  const QDateTime localStart(parsed->date(), QTime(0, 0), timeZone);
+  return localStart.isValid() ? std::optional<QDateTime>(localStart.toUTC()) : std::nullopt;
+}
+
 [[nodiscard]] std::optional<QString> textColumn(sqlite3_stmt* statement, int column) {
   const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(statement, column));
   const int size = sqlite3_column_bytes(statement, column);
@@ -273,7 +297,8 @@ void ReminderService::refresh() {
   const QDateTime current = now(clock_);
   const QDateTime upperBound = current.addDays(kMaximumScheduledDays);
   constexpr char sql[] = R"(
-SELECT events.id, events.title, events.start_at, events.reminders_json, events.reminders_use_default,
+SELECT events.id, events.title, events.start_at, events.start_time_zone, events.is_all_day,
+       events.reminders_json, events.reminders_use_default, calendars.time_zone,
        calendars.default_reminders_json
 FROM local_calendar_events AS events
 INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
@@ -300,15 +325,22 @@ WHERE events.deleted_at IS NULL AND events.status != 'cancelled'
     const std::optional<QString> eventId = textColumn(statement, 0);
     const std::optional<QString> title = textColumn(statement, 1);
     const std::optional<QString> startAt = textColumn(statement, 2);
-    const std::optional<QString> overrides = textColumn(statement, 3);
-    const std::optional<QString> defaults = textColumn(statement, 5);
-    const std::optional<QDateTime> start = startAt.has_value() ? parseDateTime(*startAt) : std::nullopt;
+    const std::optional<QString> eventTimeZone = textColumn(statement, 3);
+    const std::optional<QString> overrides = textColumn(statement, 5);
+    const std::optional<QString> calendarTimeZone = textColumn(statement, 7);
+    const std::optional<QString> defaults = textColumn(statement, 8);
+    const std::optional<QDateTime> start =
+        startAt.has_value() ? reminderStartAt(*startAt,
+                                               sqlite3_column_int(statement, 4) != 0,
+                                               eventTimeZone,
+                                               calendarTimeZone)
+                            : std::nullopt;
     if (!eventId.has_value() || !title.has_value() || !overrides.has_value() || !defaults.has_value() ||
         !start.has_value()) {
       valid = false;
       break;
     }
-    const QString& source = sqlite3_column_int(statement, 4) != 0 ? *defaults : *overrides;
+    const QString& source = sqlite3_column_int(statement, 6) != 0 ? *defaults : *overrides;
     for (const int minutes : reminderMinutes(source)) {
       const QDateTime triggerAt = start->addSecs(-minutes * 60);
       if (triggerAt > upperBound) {
