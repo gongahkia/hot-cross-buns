@@ -1230,6 +1230,8 @@ if(BUILD_TESTING)
     src/data/SqliteMigrationRunner.h
     src/data/SqliteQueryTimingTracker.cpp
     src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteStatementCache.cpp
+    src/data/SqliteStatementCache.h
     src/data/SqliteTransaction.cpp
     src/data/SqliteTransaction.h
     src/data/SqliteWriterQueue.cpp
@@ -1453,6 +1455,8 @@ if(BUILD_TESTING)
     src/data/SqliteMigrationRunner.h
     src/data/SqliteQueryTimingTracker.cpp
     src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteStatementCache.cpp
+    src/data/SqliteStatementCache.h
     src/data/SqliteTransaction.cpp
     src/data/SqliteTransaction.h
     src/data/SqliteWriterQueue.cpp
