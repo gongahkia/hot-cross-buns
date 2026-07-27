@@ -10,6 +10,12 @@ const SPRINT_SPEED := 17.0
 const SLIDE_SPEED := 19.0
 const DASH_SPEED := 22.0
 const AIR_MOMENTUM_SPEED := 25.0
+const AIR_SOFT_SPEED_CAP := 32.0
+const GROUND_ACCELERATION := 46.0
+const GROUND_FRICTION := 13.0
+const AIR_ACCELERATION := 21.0
+const AIR_STRAFE_ACCELERATION := 13.0
+const AIR_OVERSPEED_DRAG := 1.6
 const JUMP_VELOCITY := 7.6
 const GRAVITY := 24.0
 const COYOTE_TIME := 0.12
@@ -21,16 +27,43 @@ const WALL_JUMP_SEPARATION_SPEED := 4.5
 const WALL_JUMP_MIN_SEPARATION := 1.8
 const WALL_JUMP_MAX_SEPARATION := 6.0
 const WALL_SLIDE_FALL_SPEED := 3.6
+const WALL_RUN_MIN_SPEED := 9.0
+const WALL_RUN_MAX_TIME := 1.45
+const WALL_RUN_GRAVITY_SCALE := 0.34
+const WALL_RUN_ACCELERATION := 15.0
+const WALL_RUN_FALL_SPEED := 2.4
 const SLAM_SPEED := 38.0
+const SLAM_BOUNCE_VELOCITY := 7.4
+const SLAM_BOUNCE_BOOST := 7.0
 const DASH_TIME := 0.16
+const DASH_MAX_SPEED := 34.0
+const DASH_DIRECTIONAL_BOOST := 14.0
 const GLIDE_SPEED := 15.0
 const GLIDE_GRAVITY_SCALE := 0.23
 const GLIDE_FALL_SPEED := 4.2
+const GLIDE_DIVE_ACCELERATION := 28.0
+const GLIDE_LIFT_ACCELERATION := 11.0
+const GLIDE_MAX_SPEED := 34.0
 const GRAPPLE_RANGE := 29.0
 const GRAPPLE_MIN_AIM_DOT := 0.22
-const GRAPPLE_ACCELERATION := 62.0
-const GRAPPLE_MAX_SPEED := 29.0
 const GRAPPLE_RELEASE_DISTANCE := 2.4
+const GRAPPLE_MIN_ROPE_LENGTH := 5.0
+const GRAPPLE_REEL_SPEED := 5.5
+const GRAPPLE_ROPE_STIFFNESS := 52.0
+const GRAPPLE_PUMP_ACCELERATION := 18.0
+const GRAPPLE_SLINGSHOT_BOOST := 3.0
+const SLIDE_ENTRY_BOOST := 2.5
+const SLIDE_MIN_SPEED := 4.0
+const SLIDE_FRICTION := 1.5
+const SLIDE_JUMP_BOOST := 3.0
+const LANDING_SLIDE_BOOST := 5.0
+const PERFECT_ROLL_WINDOW := 0.18
+const RAMP_LAUNCH_MIN_SPEED := 14.0
+const RAMP_LAUNCH_SLOPE := 0.16
+const RAMP_LAUNCH_COOLDOWN := 0.2
+const GRIND_MIN_SPEED := 7.0
+const GRIND_FLOOR_OFFSET := 0.58
+const GRIND_EXIT_COOLDOWN := 0.22
 const BASE_CAMERA_FOV := 96.0
 const MAX_STRAFE_ROLL := 0.13962634
 const SLIDE_STRAFE_ROLL := 0.05235988
@@ -57,8 +90,20 @@ var is_slamming := false
 var is_gliding := false
 var is_grappling := false
 var is_wall_sliding := false
+var is_wall_running := false
+var is_grinding := false
 var grapple_anchor: Node3D
 var grapple_target := Vector3.ZERO
+var grapple_rope_length := 0.0
+var wall_run_timer := 0.0
+var wall_run_normal := Vector3.ZERO
+var grind_rail: GrindRail
+var grind_distance := 0.0
+var grind_direction := 1.0
+var grind_cooldown := 0.0
+var roll_window := 0.0
+var ramp_launch_cooldown := 0.0
+var glide_dive_timer := 0.0
 var _slide_latched := false
 var movement_enabled := true
 var bob_time := 0.0
@@ -111,7 +156,16 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("reset_run"):
 		reset_requested.emit()
 		return
+	_roll_timers(delta)
+	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if is_grinding:
+		_update_grind(delta, input_vector)
+		_update_camera_fx(delta, input_vector)
+		if global_position.y < -18.0:
+			reset_requested.emit()
+		return
 	var on_floor_before_move := is_on_floor()
+	var floor_normal_before_move := get_floor_normal() if on_floor_before_move else Vector3.UP
 	if not on_floor_before_move:
 		airborne_time += delta
 	if on_floor_before_move:
@@ -136,56 +190,59 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = max(jump_buffer - delta, 0.0)
 	wall_jump_timer = max(wall_jump_timer - delta, 0.0)
 	if jump_buffer > 0.0 and coyote_timer > 0.0:
-		velocity.y = JUMP_VELOCITY
-		jump_buffer = 0.0
-		coyote_timer = 0.0
-		traversal_action.emit("jump", -1)
-		_play_sfx("jump")
+		if is_sliding:
+			_slide_jump()
+		else:
+			velocity.y = JUMP_VELOCITY
+			jump_buffer = 0.0
+			coyote_timer = 0.0
+			traversal_action.emit("jump", -1)
+			_play_sfx("jump")
 	elif jump_buffer > 0.0 and wall_jump_timer > 0.0:
 		_wall_jump()
 	elif jump_buffer > 0.0 and can_double_jump:
 		_double_jump()
 	if Input.is_action_just_pressed("slam") and not on_floor_before_move:
 		_stop_grapple()
+		_exit_grind()
 		_ground_slam()
 	_update_glide_state(on_floor_before_move)
-	if is_grappling:
-		_update_grapple(delta)
-	elif not on_floor_before_move:
-		var gravity_scale := GLIDE_GRAVITY_SCALE if is_gliding else 1.0
-		velocity.y -= GRAVITY * gravity_scale * delta
-		if is_gliding:
-			velocity.y = maxf(velocity.y, -GLIDE_FALL_SPEED)
 	_handle_slide(on_floor_before_move)
 	_handle_sprint(on_floor_before_move)
 	if is_sliding and not was_sliding:
 		_add_camera_shake(0.018)
 		landing_offset = minf(landing_offset, -0.045)
+	if not on_floor_before_move:
+		var gravity_scale := WALL_RUN_GRAVITY_SCALE if is_wall_running else (GLIDE_GRAVITY_SCALE if is_gliding else 1.0)
+		velocity.y -= GRAVITY * gravity_scale * delta
+		if is_wall_running:
+			velocity.y = maxf(velocity.y, -WALL_RUN_FALL_SPEED)
+		if is_gliding:
+			velocity.y = maxf(velocity.y, -GLIDE_FALL_SPEED)
+	if on_floor_before_move:
+		_apply_slope_acceleration(floor_normal_before_move, delta)
 	var sprint_dash := _sprint_dash_requested(on_floor_before_move)
 	if (Input.is_action_just_pressed("dash") or sprint_dash) and can_dash:
 		_stop_grapple()
 		_dash("sprint_dash" if sprint_dash else "dash")
-	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var input_direction := (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
-	var top_speed := _movement_top_speed(on_floor_before_move)
 	if dash_timer > 0.0:
 		dash_timer = max(dash_timer - delta, 0.0)
 	else:
-		var desired := input_direction * top_speed
-		var acceleration := 42.0 if on_floor_before_move else 18.0
-		velocity.x = move_toward(velocity.x, desired.x, acceleration * delta)
-		velocity.z = move_toward(velocity.z, desired.z, acceleration * delta)
-	if is_sliding and input_direction.length() < 0.1:
-		velocity.x = move_toward(velocity.x, 0.0, 5.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, 5.0 * delta)
+		_apply_horizontal_movement(input_vector, on_floor_before_move, delta)
+	if is_gliding:
+		_apply_glide_swoop(delta)
+	if is_grappling:
+		_update_grapple(delta, input_vector)
 	var impact_velocity := velocity.y
 	move_and_slide()
 	_cache_wall_contact()
+	_update_wall_run(on_floor_before_move)
 	_update_wall_slide()
 	if is_on_floor():
 		can_double_jump = true
 		is_gliding = false
 		is_wall_sliding = false
+		is_wall_running = false
 		last_wall_jump_collider_id = 0
 	if not on_floor_before_move and is_on_floor():
 		if airborne_time >= 0.45:
@@ -193,16 +250,16 @@ func _physics_process(delta: float) -> void:
 		combo_landed.emit()
 		airborne_time = 0.0
 	if is_slamming and is_on_floor():
-		_add_camera_shake(0.060)
-		landing_offset = minf(landing_offset, -0.110)
-		_emit_burst(0.10)
-		_play_sfx("boost")
-		traversal_action.emit("slam_land", -1)
-		is_slamming = false
+		_slam_bounce()
+	elif not on_floor_before_move and is_on_floor() and _try_perfect_land(impact_velocity):
+		pass
 	elif not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
 		landing_offset = minf(landing_offset, -impact * 0.006)
+	if on_floor_before_move and not is_on_floor():
+		_try_ramp_launch(floor_normal_before_move)
+	_try_start_grind()
 	was_sliding = is_sliding
 	_sample_flow(delta)
 	_update_camera_fx(delta, input_vector)
@@ -213,12 +270,17 @@ func _physics_process(delta: float) -> void:
 func _handle_slide(on_floor: bool) -> void:
 	var app_settings := _settings()
 	var slide_toggle := bool(app_settings.get("slide_toggle")) if app_settings else false
+	if Input.is_action_just_pressed("slide"):
+		roll_window = PERFECT_ROLL_WINDOW
 	if slide_toggle and Input.is_action_just_pressed("slide"):
 		_slide_latched = not _slide_latched
 	if not slide_toggle:
 		_slide_latched = Input.is_action_pressed("slide")
-	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > 2.0
+	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > SLIDE_MIN_SPEED
 	if is_sliding and not was_sliding:
+		var planar := _planar_velocity()
+		var direction := planar.normalized() if planar.length() > 0.1 else _forward_direction()
+		_set_planar_velocity(direction * minf(planar.length() + SLIDE_ENTRY_BOOST, AIR_SOFT_SPEED_CAP))
 		traversal_action.emit("slide", -1)
 
 func _handle_sprint(on_floor: bool) -> void:
@@ -237,7 +299,95 @@ func _movement_top_speed(on_floor: bool) -> float:
 	return top_speed
 
 func _update_glide_state(on_floor: bool) -> void:
-	is_gliding = not on_floor and not is_grappling and not is_slamming and Input.is_action_pressed("glide") and velocity.y <= 1.5
+	is_gliding = not on_floor and not is_grappling and not is_slamming and not is_wall_running and Input.is_action_pressed("glide") and velocity.y <= 1.5
+
+func _roll_timers(delta: float) -> void:
+	roll_window = maxf(roll_window - delta, 0.0)
+	grind_cooldown = maxf(grind_cooldown - delta, 0.0)
+	ramp_launch_cooldown = maxf(ramp_launch_cooldown - delta, 0.0)
+	glide_dive_timer = maxf(glide_dive_timer - delta, 0.0)
+	if is_wall_running:
+		wall_run_timer = maxf(wall_run_timer - delta, 0.0)
+
+func _apply_horizontal_movement(input_vector: Vector2, on_floor: bool, delta: float) -> void:
+	var direction := _input_direction(input_vector)
+	var planar := _planar_velocity()
+	if is_sliding:
+		if direction.length() > 0.1:
+			var steer := direction * minf(SLIDE_FRICTION * 2.0, planar.length() * 0.12) * delta
+			planar += steer
+		else:
+			planar = planar.move_toward(Vector3.ZERO, SLIDE_FRICTION * delta)
+		_set_planar_velocity(planar)
+		return
+	if is_wall_running:
+		var tangent := _wall_run_tangent()
+		if tangent.length() > 0.1:
+			var desired_sign := signf(tangent.dot(direction)) if direction.length() > 0.1 else signf(tangent.dot(planar))
+			if is_zero_approx(desired_sign):
+				desired_sign = 1.0
+			planar = tangent * desired_sign * maxf(planar.length(), WALL_RUN_MIN_SPEED)
+			planar += tangent * desired_sign * WALL_RUN_ACCELERATION * delta
+		_set_planar_velocity(_soft_cap_planar(planar, AIR_SOFT_SPEED_CAP))
+		return
+	if on_floor:
+		var target := direction * _movement_top_speed(true)
+		if direction.length() > 0.1:
+			planar = planar.move_toward(target, GROUND_ACCELERATION * delta)
+		else:
+			planar = planar.move_toward(Vector3.ZERO, GROUND_FRICTION * delta)
+		_set_planar_velocity(planar)
+		return
+	if direction.length() > 0.1:
+		var aligned_speed := planar.dot(direction)
+		var acceleration := AIR_ACCELERATION if aligned_speed < _movement_top_speed(false) else AIR_STRAFE_ACCELERATION
+		planar += direction * acceleration * delta
+	_set_planar_velocity(_soft_cap_planar(planar, GLIDE_MAX_SPEED if is_gliding else AIR_SOFT_SPEED_CAP))
+
+func _apply_slope_acceleration(floor_normal: Vector3, delta: float) -> void:
+	var downhill := Vector3.DOWN.slide(floor_normal)
+	if downhill.length() < 0.08:
+		return
+	downhill.y = 0.0
+	if downhill.length() < 0.08:
+		return
+	_set_planar_velocity(_soft_cap_planar(_planar_velocity() + downhill.normalized() * GRAVITY * floor_normal.angle_to(Vector3.UP) * delta, AIR_SOFT_SPEED_CAP))
+
+func _apply_glide_swoop(delta: float) -> void:
+	var view_direction := -camera.global_transform.basis.z.normalized()
+	var dive_amount := maxf(0.0, -view_direction.y)
+	var planar_view := Vector3(view_direction.x, 0.0, view_direction.z).normalized()
+	if dive_amount > 0.18 and planar_view.length() > 0.1:
+		_set_planar_velocity(_soft_cap_planar(_planar_velocity() + planar_view * GLIDE_DIVE_ACCELERATION * dive_amount * delta, GLIDE_MAX_SPEED))
+		velocity.y -= GRAVITY * dive_amount * 0.45 * delta
+		if glide_dive_timer <= 0.0:
+			traversal_action.emit("glide_dive", -1)
+			glide_dive_timer = 0.65
+	elif view_direction.y > 0.25 and _planar_velocity().length() > GLIDE_SPEED:
+		velocity.y += GLIDE_LIFT_ACCELERATION * view_direction.y * delta
+		_set_planar_velocity(_planar_velocity().move_toward(Vector3.ZERO, GLIDE_LIFT_ACCELERATION * view_direction.y * delta))
+
+func _input_direction(input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")) -> Vector3:
+	return (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
+
+func _forward_direction() -> Vector3:
+	var forward := -transform.basis.z
+	forward.y = 0.0
+	return forward.normalized()
+
+func _planar_velocity() -> Vector3:
+	return Vector3(velocity.x, 0.0, velocity.z)
+
+func _set_planar_velocity(planar: Vector3) -> void:
+	velocity.x = planar.x
+	velocity.z = planar.z
+
+func _soft_cap_planar(planar: Vector3, cap: float) -> Vector3:
+	var speed := planar.length()
+	if speed <= cap:
+		return planar
+	var excess := speed - cap
+	return planar * ((speed - excess * AIR_OVERSPEED_DRAG * 0.0166667) / speed)
 
 func _try_grapple() -> bool:
 	if is_grappling:
@@ -249,12 +399,15 @@ func _try_grapple() -> bool:
 	is_grappling = true
 	is_gliding = false
 	is_wall_sliding = false
+	is_wall_running = false
+	_exit_grind()
 	wall_jump_collider_id = 0
 	last_wall_jump_collider_id = 0
 	is_sprinting = false
 	is_slamming = false
 	grapple_anchor = best_anchor
 	grapple_target = best_anchor.global_position
+	grapple_rope_length = maxf(GRAPPLE_MIN_ROPE_LENGTH, global_position.distance_to(grapple_target) * 0.82)
 	can_dash = true
 	can_double_jump = true
 	traversal_action.emit("grapple", -1)
@@ -288,7 +441,7 @@ func grapple_candidate() -> Node3D:
 			best_anchor = anchor
 	return best_anchor
 
-func _update_grapple(delta: float) -> void:
+func _update_grapple(delta: float, input_vector: Vector2) -> void:
 	if grapple_anchor == null or not is_instance_valid(grapple_anchor):
 		_stop_grapple()
 		return
@@ -300,17 +453,29 @@ func _update_grapple(delta: float) -> void:
 		_stop_grapple()
 		return
 	var direction := offset / distance
-	velocity += direction * GRAPPLE_ACCELERATION * delta
-	var along_speed := velocity.dot(direction)
-	if along_speed > GRAPPLE_MAX_SPEED:
-		velocity -= direction * (along_speed - GRAPPLE_MAX_SPEED)
+	grapple_rope_length = maxf(GRAPPLE_MIN_ROPE_LENGTH, grapple_rope_length - GRAPPLE_REEL_SPEED * delta)
+	var radial_speed := velocity.dot(direction)
+	if radial_speed > 0.0:
+		velocity -= direction * radial_speed
+	var tension := maxf(distance - grapple_rope_length, 0.0)
+	if tension > 0.0:
+		velocity += direction * minf(tension * GRAPPLE_ROPE_STIFFNESS, 42.0) * delta
+	var pump_direction := _input_direction(input_vector).slide(direction)
+	if pump_direction.length() > 0.1:
+		velocity += pump_direction.normalized() * GRAPPLE_PUMP_ACCELERATION * delta
+	_set_planar_velocity(_soft_cap_planar(_planar_velocity(), DASH_MAX_SPEED))
 	_refresh_grapple_line()
 
 func _stop_grapple(award_release := false) -> void:
 	var had_grapple := is_grappling
 	var release_speed := Vector2(velocity.x, velocity.z).length()
+	if award_release and had_grapple and release_speed >= 12.0:
+		var planar := _planar_velocity()
+		if planar.length() > 0.1:
+			_set_planar_velocity(_soft_cap_planar(planar + planar.normalized() * GRAPPLE_SLINGSHOT_BOOST, DASH_MAX_SPEED))
 	is_grappling = false
 	grapple_anchor = null
+	grapple_rope_length = 0.0
 	if grapple_line:
 		grapple_line.visible = false
 	if grapple_line_mesh:
@@ -319,8 +484,12 @@ func _stop_grapple(award_release := false) -> void:
 		traversal_action.emit("tether_release", -1)
 
 func tool_status() -> String:
+	if is_grinding:
+		return "FLOW RAIL"
 	if is_grappling:
 		return "TETHER"
+	if is_wall_running:
+		return "WALL RUN"
 	if is_gliding:
 		return "GLIDE"
 	if is_wall_sliding:
@@ -367,12 +536,19 @@ func reset_for_bail(spawn_position: Vector3) -> void:
 	is_slamming = false
 	is_gliding = false
 	is_wall_sliding = false
+	is_wall_running = false
+	is_grinding = false
 	wall_jump_collider_id = 0
 	last_wall_jump_collider_id = 0
 	can_dash = true
 	can_double_jump = true
 	airborne_time = 0.0
 	flow_timer = 0.0
+	grind_rail = null
+	grind_distance = 0.0
+	grind_cooldown = 0.0
+	roll_window = 0.0
+	wall_run_timer = 0.0
 	_stop_grapple()
 
 func _dash(style_action := "dash") -> void:
@@ -382,11 +558,13 @@ func _dash(style_action := "dash") -> void:
 	landing_offset = minf(landing_offset, -0.028)
 	_emit_burst(0.62)
 	_play_sfx("dash")
-	var direction := -transform.basis.z
-	direction.y = 0.0
-	direction = direction.normalized()
-	velocity.x = direction.x * DASH_SPEED
-	velocity.z = direction.z * DASH_SPEED
+	var direction := _input_direction()
+	if direction.length() < 0.1:
+		direction = _forward_direction()
+	var planar := _planar_velocity()
+	var along_speed := planar.dot(direction)
+	var boost := maxf(DASH_DIRECTIONAL_BOOST, DASH_SPEED - along_speed)
+	_set_planar_velocity(_soft_cap_planar(planar + direction * boost, DASH_MAX_SPEED))
 	var airborne := not is_on_floor()
 	if airborne:
 		velocity.y = max(velocity.y, 0.0)
@@ -394,8 +572,11 @@ func _dash(style_action := "dash") -> void:
 	traversal_action.emit(action, -1)
 
 func apply_boost(direction: Vector3) -> void:
-	velocity.x = direction.x * 25.0
-	velocity.z = direction.z * 25.0
+	var planar_direction := Vector3(direction.x, 0.0, direction.z).normalized()
+	if planar_direction.length() > 0.1:
+		var planar := _planar_velocity()
+		var boost := maxf(12.0, 25.0 - planar.dot(planar_direction))
+		_set_planar_velocity(_soft_cap_planar(planar + planar_direction * boost, DASH_MAX_SPEED))
 	traversal_action.emit("boost", -1)
 
 func launch(force: float) -> void:
@@ -405,6 +586,7 @@ func launch(force: float) -> void:
 	is_slamming = false
 	is_gliding = false
 	is_sprinting = false
+	is_wall_running = false
 	traversal_action.emit("launch", -1)
 	_add_camera_shake(0.026)
 
@@ -444,6 +626,7 @@ func _wall_jump() -> void:
 	wall_jump_timer = 0.0
 	last_wall_jump_collider_id = wall_jump_collider_id
 	is_wall_sliding = false
+	is_wall_running = false
 	can_dash = true
 	can_double_jump = true
 	traversal_action.emit("wall_jump", -1)
@@ -455,9 +638,91 @@ func _update_wall_slide() -> void:
 	_set_wall_slide(is_on_wall(), is_on_floor())
 
 func _set_wall_slide(has_wall_contact: bool, on_floor: bool) -> void:
-	is_wall_sliding = has_wall_contact and not on_floor and velocity.y < 0.0 and not is_slamming and not is_gliding and not is_grappling
+	is_wall_sliding = has_wall_contact and not on_floor and velocity.y < 0.0 and not is_slamming and not is_gliding and not is_grappling and not is_wall_running
 	if is_wall_sliding:
 		velocity.y = maxf(velocity.y, -WALL_SLIDE_FALL_SPEED)
+
+func _update_wall_run(on_floor_before_move: bool) -> void:
+	if on_floor_before_move or is_on_floor() or is_slamming or is_gliding or is_grappling or is_grinding or wall_jump_collider_id == 0:
+		is_wall_running = false
+		return
+	var planar_speed := _planar_velocity().length()
+	var wants_forward_flow := Input.is_action_pressed("move_forward") or planar_speed >= WALL_RUN_MIN_SPEED * 1.35
+	if not wants_forward_flow or planar_speed < WALL_RUN_MIN_SPEED or wall_run_timer <= 0.0 and is_wall_running:
+		is_wall_running = false
+		return
+	if not is_wall_running:
+		is_wall_running = true
+		wall_run_timer = WALL_RUN_MAX_TIME
+		wall_run_normal = wall_jump_normal
+		velocity.y = maxf(velocity.y, -0.6)
+		traversal_action.emit("wall_run", -1)
+		_add_camera_shake(0.018)
+	else:
+		wall_run_normal = wall_jump_normal
+
+func _wall_run_tangent() -> Vector3:
+	if wall_run_normal.length() < 0.1:
+		return Vector3.ZERO
+	var tangent := Vector3.UP.cross(wall_run_normal).normalized()
+	if tangent.dot(_planar_velocity()) < 0.0:
+		tangent = -tangent
+	return tangent
+
+func _slide_jump() -> void:
+	var planar := _planar_velocity()
+	var direction := planar.normalized() if planar.length() > 0.1 else _forward_direction()
+	_set_planar_velocity(_soft_cap_planar(planar + direction * SLIDE_JUMP_BOOST, AIR_SOFT_SPEED_CAP))
+	velocity.y = JUMP_VELOCITY
+	jump_buffer = 0.0
+	coyote_timer = 0.0
+	is_sliding = false
+	_slide_latched = false
+	traversal_action.emit("slide_jump", -1)
+	_add_camera_shake(0.030)
+	_emit_burst(0.18)
+	_play_sfx("jump")
+
+func _try_perfect_land(impact_velocity: float) -> bool:
+	if roll_window <= 0.0 or impact_velocity > -6.0:
+		return false
+	var planar := _planar_velocity()
+	var direction := planar.normalized() if planar.length() > 0.1 else _forward_direction()
+	var recovered_speed := clampf(absf(impact_velocity) * 0.45, 0.0, LANDING_SLIDE_BOOST)
+	_set_planar_velocity(_soft_cap_planar(planar + direction * recovered_speed, AIR_SOFT_SPEED_CAP))
+	velocity.y = 0.0
+	is_sliding = true
+	_slide_latched = true
+	roll_window = 0.0
+	traversal_action.emit("perfect_land", -1)
+	_add_camera_shake(0.032)
+	_emit_burst(0.10)
+	return true
+
+func _try_ramp_launch(floor_normal: Vector3) -> void:
+	if ramp_launch_cooldown > 0.0 or _planar_velocity().length() < RAMP_LAUNCH_MIN_SPEED:
+		return
+	var slope := clampf(floor_normal.angle_to(Vector3.UP) / deg_to_rad(45.0), 0.0, 1.0)
+	if slope < 0.18:
+		return
+	velocity.y = maxf(velocity.y, _planar_velocity().length() * RAMP_LAUNCH_SLOPE * slope)
+	ramp_launch_cooldown = RAMP_LAUNCH_COOLDOWN
+	traversal_action.emit("ramp_launch", -1)
+
+func _slam_bounce() -> void:
+	_add_camera_shake(0.060)
+	landing_offset = minf(landing_offset, -0.110)
+	_emit_burst(0.10)
+	_play_sfx("boost")
+	traversal_action.emit("slam_land", -1)
+	var planar := _planar_velocity()
+	var direction := planar.normalized() if planar.length() > 0.1 else _forward_direction()
+	_set_planar_velocity(_soft_cap_planar(planar + direction * SLAM_BOUNCE_BOOST, DASH_MAX_SPEED))
+	velocity.y = SLAM_BOUNCE_VELOCITY
+	can_dash = true
+	can_double_jump = true
+	is_slamming = false
+	traversal_action.emit("slam_bounce", -1)
 
 func _double_jump() -> void:
 	velocity.y = DOUBLE_JUMP_VELOCITY
@@ -474,6 +739,7 @@ func _ground_slam() -> void:
 	is_slamming = true
 	is_gliding = false
 	is_sprinting = false
+	is_wall_running = false
 	_add_camera_shake(0.030)
 	_emit_burst(0.34)
 	_play_sfx("dash")
