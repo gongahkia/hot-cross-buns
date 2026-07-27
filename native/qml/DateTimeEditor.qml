@@ -14,23 +14,28 @@ ColumnLayout {
         const parsed = new Date(value)
         if (!Number.isFinite(parsed.getTime())) return
         updating = true
-        year.value = parsed.getFullYear()
-        month.value = parsed.getMonth() + 1
+        year.value = allDay ? parsed.getUTCFullYear() : parsed.getFullYear()
+        month.value = allDay ? parsed.getUTCMonth() + 1 : parsed.getMonth() + 1
         day.to = daysInMonth(year.value, month.value)
-        day.value = parsed.getDate()
-        hour.value = parsed.getHours()
-        minute.value = parsed.getMinutes()
+        day.value = allDay ? parsed.getUTCDate() : parsed.getDate()
+        hour.value = allDay ? 0 : parsed.getHours()
+        minute.value = allDay ? 0 : parsed.getMinutes()
         updating = false
     }
     function commit() {
         if (updating) return
         day.to = daysInMonth(year.value, month.value)
         if (day.value > day.to) day.value = day.to
-        value = new Date(year.value, month.value - 1, day.value, allDay ? 0 : hour.value,
-                         allDay ? 0 : minute.value, 0, 0).toISOString()
+        value = allDay
+                ? new Date(Date.UTC(year.value, month.value - 1, day.value, 0, 0, 0, 0)).toISOString()
+                : new Date(year.value, month.value - 1, day.value, hour.value, minute.value,
+                           0, 0).toISOString()
     }
     onValueChanged: syncFromValue()
-    onAllDayChanged: commit()
+    onAllDayChanged: {
+        syncFromValue()
+        commit()
+    }
     Component.onCompleted: syncFromValue()
 
     RowLayout {

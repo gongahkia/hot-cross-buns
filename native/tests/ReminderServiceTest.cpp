@@ -115,7 +115,7 @@ void ReminderServiceTest::schedulesAllDayReminderInCalendarTimeZone() {
       hcb::LocalSchema::initialize(*connection)));
   seed(connection->nativeHandle());
 
-  const FixedClock clock(QDateTime(QDate(2026, 7, 30), QTime(12, 0), QTimeZone::UTC));
+  FixedClock clock(QDateTime(QDate(2026, 7, 30), QTime(12, 0), QTimeZone::UTC));
   hcb::NativeReminderNotifier notifier;
   hcb::ReminderService service(database->databasePath(), clock, notifier);
   service.refresh();
@@ -144,7 +144,7 @@ void ReminderServiceTest::persistsSnoozeAndDismissal() {
       hcb::LocalSchema::initialize(*connection)));
   seed(connection->nativeHandle());
 
-  const FixedClock clock(QDateTime(QDate(2026, 7, 30), QTime(12, 0), QTimeZone::UTC));
+  FixedClock clock(QDateTime(QDate(2026, 7, 30), QTime(12, 0), QTimeZone::UTC));
   hcb::NativeReminderNotifier notifier;
   hcb::ReminderService service(database->databasePath(), clock, notifier);
   service.refresh();

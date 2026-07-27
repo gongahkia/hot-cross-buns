@@ -47,6 +47,19 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_dateTimeEditorUsesUtcDatesForAllDayEvents() {
+        const component = Qt.createComponent("../../qml/DateTimeEditor.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const editor = component.createObject(testCase, {
+            value: "2026-08-01T15:00:00.000Z",
+            allDay: false
+        })
+        verify(editor !== null)
+        editor.allDay = true
+        compare(editor.value, "2026-08-01T00:00:00.000Z")
+        editor.destroy()
+    }
+
     function test_recordsSidebarTransition() {
         startedTransitions = []
         completedTransitions = []
