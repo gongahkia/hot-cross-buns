@@ -11,6 +11,7 @@ HcbDialog {
     property var calendarSourceModel: null
     property var driveAttachmentCandidates: []
     property var freeBusyIntervals: []
+    property var timeZones: ["", "UTC", "America/Los_Angeles", "America/New_York", "Asia/Singapore", "Europe/London"]
     property string eventId: ""
     property string eventCalendarId: ""
     property string recurrenceRule: ""
@@ -19,13 +20,13 @@ HcbDialog {
     property string conferenceJson: ""
     property bool guestPermissionsCustomized: false
     property alias eventTitle: titleField.text
-    property alias eventStartAt: startField.text
-    property alias eventEndAt: endField.text
+    property alias eventStartAt: startField.value
+    property alias eventEndAt: endField.value
     property alias eventAllDay: allDayCheck.checked
     property alias eventDescription: descriptionField.text
     property alias eventLocation: locationField.text
-    property alias eventTimeZone: timeZoneField.text
-    property alias eventColorId: colorIdField.text
+    property alias eventTimeZone: timeZonePicker.timeZone
+    property alias eventColorId: colorPicker.colorId
     property alias calendarPicker: calendarPicker
     property alias eventTitleField: titleField
     property alias deleteButton: deleteButton
@@ -45,7 +46,7 @@ HcbDialog {
                                 string recurringRemoteId, string originalStartAt)
     signal driveSearchRequested(string query)
     signal availabilityRequested(var calendarIds, string startAt, string endAt)
-    signal rsvpRequested(string eventId, string responseStatus)
+    signal rsvpRequested(string eventId, string responseStatus, string responseComment)
     ListModel { id: attachmentModel }
 
     function recurrenceScopeOptions() {
@@ -64,8 +65,8 @@ HcbDialog {
     }
 
     function validRange() {
-        const start = Date.parse(startField.text)
-        const end = Date.parse(endField.text)
+        const start = Date.parse(startField.value)
+        const end = Date.parse(endField.value)
         return Number.isFinite(start) && Number.isFinite(end) && end > start
     }
 
@@ -83,25 +84,13 @@ HcbDialog {
     }
 
     function reminderValues() {
-        const text = reminderField.text.trim()
-        if (text.length === 0) return []
-        const values = text.split(/[\n,;]/).map(function(value) { return value.trim() })
-            .filter(function(value) { return value.length > 0 })
-        const reminders = []
-        for (let index = 0; index < values.length; ++index) {
-            const match = /^(email|popup)\s*:\s*(\d+)$/.exec(values[index])
-            if (match === null) return null
-            const minutes = Number(match[2])
-            if (!Number.isInteger(minutes) || minutes < 0 || minutes > 40320) return null
-            reminders.push({ method: match[1], minutes: minutes })
-        }
-        return reminders.length <= 5 ? reminders : null
+        return reminderEditor.valid ? reminderEditor.values() : null
     }
 
     function validMetadata() {
         return attendeeValues() !== null && reminderValues() !== null &&
-               (timeZoneField.text.trim().length === 0 ||
-                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZoneField.text.trim())) &&
+               (timeZonePicker.timeZone.trim().length === 0 ||
+                /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z_+-]+)+)$/.test(timeZonePicker.timeZone.trim())) &&
                validStatusProperties()
     }
 
@@ -130,7 +119,7 @@ HcbDialog {
     }
 
     function busyIntervalCount() {
-        return freeBusyIntervals === null ? 0 : freeBusyIntervals.length
+        return Array.isArray(freeBusyIntervals) ? freeBusyIntervals.length : 0
     }
 
     function conferenceLink() {
@@ -167,16 +156,6 @@ HcbDialog {
         }
     }
 
-    function remindersFromJson(json) {
-        try {
-            return JSON.parse(json).map(function(reminder) {
-                return reminder.method + ":" + reminder.minutes
-            }).join(", ")
-        } catch (error) {
-            return ""
-        }
-    }
-
     function openForEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
                          startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
                          remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
@@ -185,17 +164,18 @@ HcbDialog {
         root.eventId = eventId
         eventCalendarId = calendarId
         titleField.text = title
-        startField.text = startAt
-        endField.text = endAt
+        startField.value = startAt
+        endField.value = endAt
         allDayCheck.checked = allDay
         descriptionField.text = description
         locationField.text = location
-        timeZoneField.text = startTimeZone || ""
-        colorIdField.text = colorId || ""
+        timeZonePicker.timeZone = startTimeZone || ""
+        colorPicker.colorId = colorId || ""
         availableCheck.checked = transparency === "transparent"
         visibilityPicker.currentIndex = visibilityPicker.indexOfValue(visibility || "default")
         attendeeField.text = csvFromJson(attendeeEmailsJson || "[]")
-        reminderField.text = remindersFromJson(remindersJson || "[]")
+        try { reminderEditor.setValues(JSON.parse(remindersJson || "[]")) }
+        catch (error) { reminderEditor.setValues([]) }
         defaultRemindersCheck.checked = remindersUseDefault === undefined ? true : remindersUseDefault
         root.recurrenceRule = recurrenceRule || ""
         root.recurringRemoteId = recurringRemoteId || ""
@@ -204,6 +184,7 @@ HcbDialog {
         recurrencePresetPicker.currentIndex = 0
         root.conferenceJson = conferenceJson || ""
         googleMeetCheck.checked = false
+        rsvpCommentField.clear()
         attachmentModel.clear()
         const existingAttachments = objectFromJson(attachmentsJson || "[]")
         if (Array.isArray(existingAttachments)) {
@@ -230,16 +211,16 @@ HcbDialog {
 
     onOpened: titleField.forceActiveFocus()
     onPrimaryAction: {
-        eventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(), startField.text,
-                             endField.text, allDayCheck.checked, descriptionField.text,
-                             locationField.text, timeZoneField.text.trim(), colorIdField.text.trim(),
+        eventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(), startField.value,
+                             endField.value, allDayCheck.checked, descriptionField.text,
+                             locationField.text, timeZonePicker.timeZone.trim(), colorPicker.colorId,
                              availableCheck.checked, visibilityPicker.currentValue, attendeeValues(),
                              defaultRemindersCheck.checked, reminderValues(), recurrenceRuleField.text,
                              recurrenceScopePicker.currentValue)
         richEventUpdateRequested(eventId, eventCalendarId, titleField.text.trim(),
-                                          startField.text, endField.text, allDayCheck.checked,
+                                          startField.value, endField.value, allDayCheck.checked,
                                           descriptionField.text, locationField.text,
-                                          timeZoneField.text.trim(), colorIdField.text.trim(),
+                                          timeZonePicker.timeZone.trim(), colorPicker.colorId,
                                           availableCheck.checked, visibilityPicker.currentValue,
                                           attendeeValues(), defaultRemindersCheck.checked,
                                           reminderValues(), recurrenceRuleField.text,
@@ -297,23 +278,77 @@ HcbDialog {
         Accessible.name: "RSVP response"
     }
 
+    RowLayout {
+        Layout.fillWidth: true
+        visible: root.recurringRemoteId.length === 0
+        Label { text: "Repeat interval" }
+        SpinBox { id: recurrenceInterval; from: 1; to: 999; value: 1; editable: true
+                  Accessible.name: "Event repeat interval" }
+        Button {
+            text: "Apply structured repeat"
+            enabled: recurrencePresetPicker.currentValue.length > 0
+            onClicked: {
+                let rule = recurrencePresetPicker.currentValue.replace(/;INTERVAL=\d+/, "")
+                rule += ";INTERVAL=" + recurrenceInterval.value
+                const selected = weekdayChecks.selectedDays()
+                if (selected.length > 0 && rule.indexOf("FREQ=WEEKLY") >= 0) {
+                    rule = rule.replace(/;BYDAY=[^;\n]+/, "") + ";BYDAY=" + selected.join(",")
+                }
+                recurrenceRuleField.text = rule
+            }
+        }
+    }
+
+    RowLayout {
+        id: weekdayChecks
+        Layout.fillWidth: true
+        visible: root.recurringRemoteId.length === 0
+        function selectedDays() {
+            const days = []
+            for (let index = 0; index < weekdayRepeater.count; ++index) {
+                if (weekdayRepeater.itemAt(index).checked) days.push(weekdayRepeater.itemAt(index).day)
+            }
+            return days
+        }
+        Repeater {
+            id: weekdayRepeater
+            model: [{ label: "Mon", value: "MO" }, { label: "Tue", value: "TU" },
+                    { label: "Wed", value: "WE" }, { label: "Thu", value: "TH" },
+                    { label: "Fri", value: "FR" }, { label: "Sat", value: "SA" },
+                    { label: "Sun", value: "SU" }]
+            delegate: CheckBox { required property var modelData; property string day: modelData.value
+                                 text: modelData.label; Accessible.name: "Repeat on " + text }
+        }
+    }
+
+    TextArea {
+        id: rsvpCommentField
+        Layout.fillWidth: true
+        Layout.preferredHeight: 64
+        placeholderText: "RSVP comment (optional)"
+        Accessible.name: "RSVP comment"
+        selectByMouse: true
+        wrapMode: TextEdit.Wrap
+    }
+
     Button {
         Layout.fillWidth: true
         text: "Send RSVP"
         enabled: root.eventId.length > 0
-        onClicked: root.rsvpRequested(root.eventId, rsvpPicker.currentValue)
+        onClicked: root.rsvpRequested(root.eventId, rsvpPicker.currentValue,
+                                      rsvpCommentField.text.trim())
     }
 
     Button {
         Layout.fillWidth: true
         text: "Check availability"
         enabled: root.eventCalendarId.length > 0 && root.validRange()
-        onClicked: root.availabilityRequested([root.eventCalendarId], startField.text, endField.text)
+        onClicked: root.availabilityRequested([root.eventCalendarId], startField.value, endField.value)
     }
 
     Label {
         Layout.fillWidth: true
-        visible: root.freeBusyIntervals && root.freeBusyIntervals.length > 0
+        visible: root.busyIntervalCount() > 0
         text: root.busyIntervalCount() + " busy interval(s) in this range"
         color: Theme.textSecondary
     }
@@ -387,21 +422,9 @@ HcbDialog {
         }
     }
 
-    TextField {
-        id: timeZoneField
-        Layout.fillWidth: true
-        placeholderText: "Time zone (IANA, optional)"
-        Accessible.name: "Event time zone"
-        selectByMouse: true
-    }
+    TimeZonePicker { id: timeZonePicker; timeZones: root.timeZones }
 
-    TextField {
-        id: colorIdField
-        Layout.fillWidth: true
-        placeholderText: "Google color ID (optional)"
-        Accessible.name: "Event color"
-        selectByMouse: true
-    }
+    EventColorPicker { id: colorPicker }
 
     CheckBox {
         id: availableCheck
@@ -433,13 +456,10 @@ HcbDialog {
         Accessible.name: text
     }
 
-    TextField {
-        id: reminderField
+    ReminderEditor {
+        id: reminderEditor
         Layout.fillWidth: true
         enabled: !defaultRemindersCheck.checked
-        placeholderText: "Custom reminders, e.g. popup:10, email:60"
-        Accessible.name: "Event custom reminders"
-        selectByMouse: true
     }
 
     ComboBox {
@@ -508,20 +528,18 @@ HcbDialog {
         Accessible.name: text
     }
 
-    TextField {
+    DateTimeEditor {
         id: startField
         Layout.fillWidth: true
-        placeholderText: "Start (ISO 8601)"
-        Accessible.name: "Event starts"
-        selectByMouse: true
+        allDay: allDayCheck.checked
+        accessibleName: "Event starts"
     }
 
-    TextField {
+    DateTimeEditor {
         id: endField
         Layout.fillWidth: true
-        placeholderText: "End (ISO 8601)"
-        Accessible.name: "Event ends"
-        selectByMouse: true
+        allDay: allDayCheck.checked
+        accessibleName: "Event ends"
     }
 
     TextField {

@@ -2429,14 +2429,19 @@ std::future<TaskMutationResult>
 TaskMutationService::reconfigureManagedRecurrence(QString taskId,
                                                    TaskRecurrenceFrequency frequency,
                                                    std::int32_t interval,
-                                                   TaskRecurrenceEndCondition end) {
+                                                   TaskRecurrenceEndCondition end,
+                                                   std::optional<QString> recurrenceRule,
+                                                   std::optional<QList<QString>> exclusionDates,
+                                                   std::optional<QList<QString>> additionDates) {
   if (!isValidRequiredText(taskId, kMaximumIdentifierLength)) {
     return readyFuture(TaskMutationResult(
         validationError(QStringLiteral("Managed recurrence configuration input is invalid"))));
   }
   const QString updatedAt = timestamp(clock_);
   return writerQueue_.enqueueResult(
-      [taskId = std::move(taskId), frequency, interval, end = std::move(end), updatedAt](
+      [taskId = std::move(taskId), frequency, interval, end = std::move(end),
+       recurrenceRule = std::move(recurrenceRule), exclusionDates = std::move(exclusionDates),
+       additionDates = std::move(additionDates), updatedAt](
           SqliteConnection& connection) {
         SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
         if (std::holds_alternative<AppError>(transactionResult)) {
@@ -2469,6 +2474,15 @@ TaskMutationService::reconfigureManagedRecurrence(QString taskId,
         marker.frequency = frequency;
         marker.interval = interval;
         marker.end = std::move(end);
+        if (recurrenceRule.has_value()) {
+          marker.recurrenceRule = *recurrenceRule;
+        }
+        if (exclusionDates.has_value()) {
+          marker.exclusionDates = *exclusionDates;
+        }
+        if (additionDates.has_value()) {
+          marker.additionDates = *additionDates;
+        }
         const TaskRecurrenceSerializationResult serialized =
             serializeTaskRecurrenceNotes(recurrence.userNotes, marker);
         if (serialized.error.has_value()) {

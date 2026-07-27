@@ -14,7 +14,7 @@ The first release is a macOS core app. The product direction must support future
 
 ## Goals
 
-- Rebuild the app on a stack with a faster edit-debug loop than the Swift implementation.
+- Deliver a native C++20/Qt app with a fast, debuggable local cache and Google-backed workflow.
 - Preserve the core value of Hot Cross Buns: fast capture, calendar/task planning, keyboard navigation, local cache, Google sync, and agent access.
 - Make the implementation easy for future agents to extend safely.
 - Keep Google Tasks and Calendar as the synced sources of truth.
@@ -29,11 +29,11 @@ Mac core app success:
 - User can create, edit, complete/reopen, move, and delete tasks.
 - User can create, edit, and delete calendar events.
 - User can create and search task-backed notes.
-- User can open command palette and quick capture without leaving the keyboard.
+- User can use command palette, local search, and keyboard-accessible task/event forms without leaving the keyboard.
 - Tray/menu bar and global hotkey flows work on macOS.
 - Local MCP read tools work behind bearer-token authentication.
 - MCP write tools support dry-run and confirmation.
-- Tests cover domain logic, SQLite migrations, IPC contracts, Google transport mocks, MCP contracts, and launch smoke flows.
+- Tests cover domain logic, SQLite migrations, Google transport mocks, QML flows, and launch smoke flows.
 
 ## V1 Scope
 
@@ -44,11 +44,10 @@ Core v1 includes:
 - Calendar agenda/day/week/month views with event create/edit/delete
 - Task-backed notes and note search
 - Command palette
-- Global quick capture
 - Local-first search over cached tasks, events, and notes
 - Local cache and sync checkpoints
 - Offline mutation queue
-- Settings for Google, sync, appearance, hotkeys, tray, notifications, MCP, diagnostics
+- Settings for Google, sync, appearance, time zone, week start, work hours, calendar visibility, notes, notifications, MCP, and diagnostics
 - Local MCP server
 - Basic local notification scheduling
 - GitHub Releases based preview distribution

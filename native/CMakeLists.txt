@@ -263,19 +263,24 @@ qt_add_qml_module(hcb_native
     qml/CalendarBulkControls.qml
     qml/CalendarSourceControls.qml
     qml/DayTimelineView.qml
+    qml/DateEditor.qml
+    qml/DateTimeEditor.qml
     qml/EventBulkDeleteDialog.qml
     qml/EventBulkEditDialog.qml
     qml/EventBulkMoveDialog.qml
     qml/EventCreateDialog.qml
+    qml/EventColorPicker.qml
     qml/EventDeleteDialog.qml
     qml/EventEditDialog.qml
     qml/HcbDialog.qml
+    qml/InvitationInbox.qml
     qml/Main.qml
     qml/MonthGridView.qml
     qml/NavigationSidebar.qml
     qml/NoteEditorDialog.qml
     qml/NotesListView.qml
     qml/QuickCaptureDialog.qml
+    qml/ReminderEditor.qml
     qml/SearchPopup.qml
     qml/StatusEventPropertiesEditor.qml
     qml/TaskCreateDialog.qml
@@ -285,6 +290,7 @@ qt_add_qml_module(hcb_native
     qml/TaskBulkMoveDialog.qml
     qml/TaskEditDialog.qml
     qml/TaskRecurrenceActionDialog.qml
+    qml/TimeZonePicker.qml
     qml/TaskListView.qml
     qml/TaskListControls.qml
     qml/TaskListDeleteDialog.qml

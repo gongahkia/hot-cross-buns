@@ -593,6 +593,17 @@ bool AppController::use24HourTime() const { return use24HourTime_; }
 
 QString AppController::displayTimeZone() const { return displayTimeZone_; }
 
+QVariantList AppController::availableTimeZones() const {
+  QVariantList zones;
+  const QList<QByteArray> identifiers = QTimeZone::availableTimeZoneIds();
+  zones.reserve(identifiers.size() + 1);
+  zones.append(QString());
+  for (const QByteArray& identifier : identifiers) {
+    zones.append(QString::fromUtf8(identifier));
+  }
+  return zones;
+}
+
 int AppController::workdayStartHour() const { return workdayStartHour_; }
 
 int AppController::workdayEndHour() const { return workdayEndHour_; }
@@ -608,6 +619,10 @@ int AppController::notesProjectionMode() const { return notesProjectionMode_; }
 QVariantList AppController::freeBusyIntervals() const { return freeBusyIntervals_; }
 
 QVariantList AppController::driveAttachmentCandidates() const { return driveAttachmentCandidates_; }
+
+QVariantList AppController::invitations() const { return invitations_; }
+
+int AppController::pendingInvitationCount() const { return static_cast<int>(invitations_.size()); }
 
 QString AppController::reminderStatusMessage() const { return reminderStatusMessage_; }
 
@@ -2121,7 +2136,10 @@ void AppController::updateTaskDetailed(QString taskId,
                                        int recurrenceInterval,
                                        int recurrenceEndKind,
                                        QString recurrenceEndUntil,
-                                       int recurrenceEndCount) {
+                                       int recurrenceEndCount,
+                                       QString recurrenceRule,
+                                       QString exclusionDates,
+                                       QString additionDates) {
   const std::optional<TaskPriority> parsedPriority = priorityForValue(priority);
   const bool clearingDue = dueAt.trimmed().isEmpty();
   const std::optional<QString> normalizedDue =
@@ -2138,6 +2156,18 @@ void AppController::updateTaskDetailed(QString taskId,
     setStatus(QStringLiteral("Task recurrence input is invalid"));
     return;
   }
+  const std::optional<QList<QString>> excluded =
+      managedRecurrence ? recurrenceDatesFromText(exclusionDates) : std::optional<QList<QString>>{};
+  const std::optional<QList<QString>> added =
+      managedRecurrence ? recurrenceDatesFromText(additionDates) : std::optional<QList<QString>>{};
+  if (managedRecurrence && (!excluded.has_value() || !added.has_value())) {
+    setStatus(QStringLiteral("Task recurrence dates must be unique ISO dates"));
+    return;
+  }
+  const QString selectedRule = managedRecurrence
+                                   ? (recurrenceRule.trimmed().isEmpty() ? recurrence->defaultRule
+                                                                         : recurrenceRule.trimmed())
+                                   : QString();
   const QString selectedTaskId = taskId;
   watch(taskMutationService_.update(
             {.taskId = std::move(taskId),
@@ -2148,7 +2178,7 @@ void AppController::updateTaskDetailed(QString taskId,
                                             ? std::optional<QString>(std::move(dueTimeZone))
                                             : std::nullopt},
              .priority = *parsedPriority}),
-        [this, selectedTaskId, recurrence](TaskMutationResult result) {
+        [this, selectedTaskId, recurrence, selectedRule, excluded, added](TaskMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
             return;
@@ -2160,7 +2190,10 @@ void AppController::updateTaskDetailed(QString taskId,
           watch(taskMutationService_.reconfigureManagedRecurrence(selectedTaskId,
                                                                     recurrence->frequency,
                                                                     recurrence->interval,
-                                                                    recurrence->end),
+                                                                    recurrence->end,
+                                                                    selectedRule,
+                                                                    *excluded,
+                                                                    *added),
                 [this](TaskMutationResult reconfigured) {
                   if (std::holds_alternative<AppError>(reconfigured)) {
                     setStatus(errorMessage(std::get<AppError>(reconfigured)));
@@ -2545,8 +2578,9 @@ void AppController::deleteEvent(QString eventId, int recurrenceScope) {
         });
 }
 
-void AppController::respondToEvent(QString eventId, QString responseStatus) {
-  watch(calendarMutationService_.respond(std::move(eventId), std::move(responseStatus)),
+void AppController::respondToEvent(QString eventId, QString responseStatus, QString responseComment) {
+  watch(calendarMutationService_.respond(std::move(eventId), std::move(responseStatus),
+                                         std::move(responseComment)),
         [this](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
@@ -2801,6 +2835,7 @@ void AppController::refreshCalendar() {
     reminderService_->refresh();
   }
   const std::uint64_t generation = ++calendarRefreshGeneration_;
+  refreshInvitations();
   watch(calendarReadService_.listCalendars(), [this, generation](CalendarListPageResult result) {
     if (generation != calendarRefreshGeneration_) {
       return;
@@ -2818,6 +2853,61 @@ void AppController::refreshCalendar() {
     calendarSourceModel_.setCalendars(std::move(calendars));
     refreshCalendarEvents(std::move(ids), generation);
   });
+}
+
+void AppController::refreshInvitations() {
+  const std::uint64_t generation = ++invitationRefreshGeneration_;
+  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      clock_.wallNow().time_since_epoch());
+  const QDateTime current = QDateTime::fromMSecsSinceEpoch(milliseconds.count(), QTimeZone::UTC);
+  watch(calendarReadService_.listEvents({.startAt = current.addDays(-1).toString(Qt::ISODateWithMs),
+                                         .endAt = current.addDays(366).toString(Qt::ISODateWithMs),
+                                         .limit = 25'000}),
+        [this, generation](CalendarEventPageResult result) {
+          if (generation != invitationRefreshGeneration_) {
+            return;
+          }
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          QVariantList rows;
+          const CalendarEventPage page = std::get<CalendarEventPage>(std::move(result));
+          for (const CalendarEventSummary& event : page.items) {
+            QJsonParseError error;
+            const QJsonDocument attendees =
+                QJsonDocument::fromJson(event.attendeeDetailsJson.toUtf8(), &error);
+            if (error.error != QJsonParseError::NoError || !attendees.isArray()) {
+              continue;
+            }
+            QString response;
+            QString comment;
+            bool self = false;
+            for (const QJsonValue& attendeeValue : attendees.array()) {
+              if (!attendeeValue.isObject()) {
+                continue;
+              }
+              const QJsonObject attendee = attendeeValue.toObject();
+              if (attendee.value(QStringLiteral("self")).toBool()) {
+                self = true;
+                response = attendee.value(QStringLiteral("responseStatus")).toString();
+                comment = attendee.value(QStringLiteral("comment")).toString();
+                break;
+              }
+            }
+            if (!self || response != QStringLiteral("needsAction")) {
+              continue;
+            }
+            rows.append(QVariantMap{{QStringLiteral("eventId"), event.id},
+                                    {QStringLiteral("calendarId"), event.calendarId},
+                                    {QStringLiteral("title"), event.title},
+                                    {QStringLiteral("startAt"), event.startAt},
+                                    {QStringLiteral("allDay"), event.allDay},
+                                    {QStringLiteral("comment"), comment}});
+          }
+          setInvitations(std::move(rows));
+        },
+        false);
 }
 
 void AppController::refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation) {
@@ -3077,6 +3167,14 @@ void AppController::setReminderStatusMessage(QString message) {
   }
   reminderStatusMessage_ = std::move(message);
   emit reminderStatusMessageChanged();
+}
+
+void AppController::setInvitations(QVariantList invitations) {
+  if (invitations_ == invitations) {
+    return;
+  }
+  invitations_ = std::move(invitations);
+  emit invitationsChanged();
 }
 
 void AppController::setBusy(bool busy) {

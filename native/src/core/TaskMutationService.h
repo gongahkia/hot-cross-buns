@@ -109,7 +109,10 @@ public:
   reconfigureManagedRecurrence(QString taskId,
                                TaskRecurrenceFrequency frequency,
                                std::int32_t interval,
-                               TaskRecurrenceEndCondition end);
+                               TaskRecurrenceEndCondition end,
+                               std::optional<QString> recurrenceRule = std::nullopt,
+                               std::optional<QList<QString>> exclusionDates = std::nullopt,
+                               std::optional<QList<QString>> additionDates = std::nullopt);
   [[nodiscard]] std::future<TaskMutationResult> splitManagedRecurrence(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);

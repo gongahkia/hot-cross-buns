@@ -7,6 +7,7 @@ Pane {
     required property var commandRegistry
     required property string currentPage
     property bool notesEnabled: false
+    property int pendingInvitationCount: 0
     signal pageSelected(string pageName)
 
     SplitView.preferredWidth: Theme.navigationWidth
@@ -40,6 +41,8 @@ Pane {
                 required property string commandLabel
                 Layout.fillWidth: true
                 pageName: commandLabel
+                badgeText: commandLabel === "Invitations" && root.pendingInvitationCount > 0
+                           ? String(root.pendingInvitationCount) : ""
                 currentPage: root.currentPage === commandLabel
                 visible: commandLabel !== "Notes" || root.notesEnabled
                 onPageSelected: pageName => root.selectPage(pageName)

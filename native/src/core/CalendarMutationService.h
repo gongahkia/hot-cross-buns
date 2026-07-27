@@ -82,6 +82,7 @@ struct CalendarEventUpdateInput final {
   std::optional<QString> statusPropertiesJson;
   std::optional<QString> sendUpdates;
   std::optional<QString> selfResponseStatus;
+  std::optional<QString> selfResponseComment;
 };
 
 struct CalendarEventScopedUpdateInput final {
@@ -145,7 +146,7 @@ public:
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult>
-  respond(QString eventId, QString responseStatus);
+  respond(QString eventId, QString responseStatus, QString responseComment = {});
   [[nodiscard]] std::future<CalendarEventMutationResult>
   updateScoped(CalendarEventScopedUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);

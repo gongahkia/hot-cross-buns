@@ -5,12 +5,10 @@
 #include <QMetaObject>
 #include <QPointer>
 
-namespace {
-
-NSString* const HCBReminderCategory = @"hcb.calendar.reminder";
-NSString* const HCBReminderSnoozeAction = @"hcb.calendar.reminder.snooze";
-NSString* const HCBReminderDismissAction = @"hcb.calendar.reminder.dismiss";
-NSString* const HCBReminderIdentifierKey = @"hcbReminderIdentifier";
+static NSString* const HCBReminderCategory = @"hcb.calendar.reminder";
+static NSString* const HCBReminderSnoozeAction = @"hcb.calendar.reminder.snooze";
+static NSString* const HCBReminderDismissAction = @"hcb.calendar.reminder.dismiss";
+static NSString* const HCBReminderIdentifierKey = @"hcbReminderIdentifier";
 
 @interface HCBReminderDelegate : NSObject <UNUserNotificationCenterDelegate>
 @property(nonatomic, assign) hcb::NativeReminderNotifier* owner;
@@ -48,11 +46,9 @@ NSString* const HCBReminderIdentifierKey = @"hcbReminderIdentifier";
 
 @end
 
-} // namespace
-
 namespace hcb {
 
-class NativeReminderNotifierPrivate final {
+class NativeReminderNotifier::NativeReminderNotifierPrivate final {
 public:
   HCBReminderDelegate* __strong delegate{nil};
 };

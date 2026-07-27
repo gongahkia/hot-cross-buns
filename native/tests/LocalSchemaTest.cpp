@@ -205,6 +205,14 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
                   "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'local_calendar_event_recurrences'"),
            1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM pragma_table_info('local_calendars') "
+                  "WHERE name = 'default_reminders_json'"),
+           1);
+  QCOMPARE(scalar(connection->nativeHandle(),
+                  "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'local_reminder_state'"),
+           1);
   const std::optional<QString> settingsSchema = scalarText(
       connection->nativeHandle(), "SELECT sql FROM sqlite_master WHERE name = 'local_settings'");
   QVERIFY(settingsSchema.has_value());
@@ -220,7 +228,7 @@ void LocalSchemaTest::createsSettingsSchemaAndRecordsMigration() {
   }
   const hcb::SqliteMigrationRunResult second =
       std::get<hcb::SqliteMigrationRunResult>(std::move(secondResult));
-  QCOMPARE(second.version, 21);
+  QCOMPARE(second.version, 23);
   QVERIFY(second.appliedVersions.empty());
 }
 
@@ -1001,11 +1009,13 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
           "DROP INDEX local_calendar_events_instance_cache; "
           "DROP TABLE local_calendar_instance_coverage; "
           "DROP TABLE local_calendar_event_recurrences; "
+          "DROP TABLE local_reminder_state; "
           "ALTER TABLE local_tasks DROP COLUMN is_assigned; "
           "ALTER TABLE local_tasks DROP COLUMN recurrence_diagnostic; "
           "ALTER TABLE local_calendar_events DROP COLUMN event_type; "
           "ALTER TABLE local_calendar_events DROP COLUMN is_instance_cache; "
-          "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)"),
+          "ALTER TABLE local_calendars DROP COLUMN default_reminders_json; "
+          "DELETE FROM local_schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23)"),
       SQLITE_OK);
   hcb::SqliteMigrationRunResultOrError backfillResult = hcb::LocalSchema::initialize(*connection);
   QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(backfillResult));
@@ -1015,7 +1025,7 @@ void LocalSchemaTest::createsFtsIndexesTriggersAndBackfillsExistingData() {
   const hcb::SqliteMigrationRunResult backfill =
       std::get<hcb::SqliteMigrationRunResult>(std::move(backfillResult));
   QCOMPARE(backfill.appliedVersions,
-           std::vector<int>({10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}));
+           std::vector<int>({10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}));
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_task_lists_fts"), 1);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_tasks_fts"), 0);
   QCOMPARE(scalar(handle, "SELECT COUNT(*) FROM local_calendars_fts"), 1);

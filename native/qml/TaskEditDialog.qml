@@ -9,23 +9,25 @@ HcbDialog {
     primaryEnabled: taskId.length > 0 && titleField.text.trim().length > 0 && recurrenceInputValid()
     property string taskId: ""
     property string taskDueTimeZone: ""
+    property var timeZones: ["", "UTC", "America/Los_Angeles", "America/New_York", "Asia/Singapore", "Europe/London"]
     property int taskPriority: 0
     property bool taskManagedRecurrence: false
     property string taskRecurrenceSummary: ""
     property alias taskTitle: titleField.text
     property alias taskNotes: notesField.text
-    property alias taskDueAt: dueField.text
+    property alias taskDueAt: dueField.value
     property alias taskPriorityPicker: priorityPicker
     property alias taskTitleField: titleField
     signal taskUpdateRequested(string taskId, string title, string notes, string dueAt,
                                string dueTimeZone, int priority, bool managedRecurrence,
                                int recurrenceFrequency, int recurrenceInterval, int recurrenceEndKind,
-                               string recurrenceEndUntil, int recurrenceEndCount)
+                               string recurrenceEndUntil, int recurrenceEndCount, string recurrenceRule,
+                               string exclusionDates, string additionDates)
     signal taskRecurrenceActionRequested(string taskId, string title, int action)
 
     function recurrenceInputValid() {
         if (!taskManagedRecurrence) return true
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueField.text.trim())) return false
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueField.value.trim())) return false
         const interval = Number(intervalField.text)
         if (!Number.isInteger(interval) || interval < 1 || interval > 1000) return false
         if (endPicker.currentValue === 1) return /^\d{4}-\d{2}-\d{2}$/.test(untilField.text.trim())
@@ -38,11 +40,12 @@ HcbDialog {
 
     function openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
                          recurrenceSummary, recurrenceFrequency, recurrenceInterval,
-                         recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount) {
+                         recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount, recurrenceRule,
+                         exclusionDates, additionDates) {
         root.taskId = taskId
         titleField.text = title
         notesField.text = notes
-        dueField.text = dueAt
+        dueField.value = dueAt
         root.taskDueTimeZone = dueTimeZone
         priorityPicker.currentIndex = priorityPicker.indexOfValue(priority)
         root.taskPriority = priorityPicker.currentValue
@@ -57,15 +60,20 @@ HcbDialog {
                                               ? recurrenceEndKind : 0))
         untilField.text = recurrenceEndUntil || ""
         countField.text = String(recurrenceEndCount > 0 ? recurrenceEndCount : 1)
+        ruleField.text = recurrenceRule || ""
+        exclusionDatesField.text = exclusionDates || ""
+        additionDatesField.text = additionDates || ""
         open()
     }
 
     onOpened: titleField.forceActiveFocus()
     onPrimaryAction: taskUpdateRequested(taskId, titleField.text.trim(), notesField.text,
-                                         dueField.text.trim(), dueField.text.trim().length > 0
+                                         dueField.value.trim(), dueField.value.trim().length > 0
                                          ? taskDueTimeZone : "", taskPriority, taskManagedRecurrence,
                                          frequencyPicker.currentValue, Number(intervalField.text),
-                                         endPicker.currentValue, untilField.text.trim(), Number(countField.text))
+                                         endPicker.currentValue, untilField.text.trim(), Number(countField.text),
+                                         ruleField.text.trim(), exclusionDatesField.text.trim(),
+                                         additionDatesField.text.trim())
 
     TextField {
         id: titleField
@@ -90,12 +98,17 @@ HcbDialog {
         wrapMode: TextEdit.Wrap
     }
 
-    TextField {
+    DateEditor {
         id: dueField
         Layout.fillWidth: true
-        placeholderText: "Due date (YYYY-MM-DD)"
-        Accessible.name: "Task due date"
-        selectByMouse: true
+        accessibleName: "Task due date"
+    }
+
+    TimeZonePicker {
+        id: timeZonePicker
+        timeZones: root.timeZones
+        timeZone: root.taskDueTimeZone
+        onTimeZoneChanged: root.taskDueTimeZone = timeZone
     }
 
     ComboBox {
@@ -144,6 +157,79 @@ HcbDialog {
         placeholderText: "Repeat interval"
         inputMethodHints: Qt.ImhDigitsOnly
         Accessible.name: "Task repeat interval"
+        selectByMouse: true
+    }
+
+    RowLayout {
+        id: weekdayChecks
+        Layout.fillWidth: true
+        visible: taskManagedRecurrence
+        function selectedDays() {
+            const days = []
+            for (let index = 0; index < weekdayRepeater.count; ++index) {
+                if (weekdayRepeater.itemAt(index).checked) days.push(weekdayRepeater.itemAt(index).day)
+            }
+            return days
+        }
+        Repeater {
+            id: weekdayRepeater
+            model: [{ label: "Mon", value: "MO" }, { label: "Tue", value: "TU" }, { label: "Wed", value: "WE" },
+                    { label: "Thu", value: "TH" }, { label: "Fri", value: "FR" }, { label: "Sat", value: "SA" },
+                    { label: "Sun", value: "SU" }]
+            delegate: CheckBox { required property var modelData; property string day: modelData.value
+                                 text: modelData.label; Accessible.name: "Repeat on " + text }
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        visible: taskManagedRecurrence
+        ComboBox {
+            id: monthlyOrdinal
+            model: [{ text: "Monthly date", value: "" }, { text: "First weekday", value: "1" },
+                    { text: "Second weekday", value: "2" }, { text: "Third weekday", value: "3" },
+                    { text: "Fourth weekday", value: "4" }, { text: "Last weekday", value: "-1" }]
+            textRole: "text"; valueRole: "value"; Accessible.name: "Monthly repeat pattern"
+        }
+        Button {
+            text: "Apply structured rule"
+            onClicked: {
+                const interval = Math.max(1, Number(intervalField.text) || 1)
+                const frequencies = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]
+                let rule = "FREQ=" + frequencies[frequencyPicker.currentValue] + ";INTERVAL=" + interval
+                const days = weekdayChecks.selectedDays()
+                if (frequencyPicker.currentValue === 1 && days.length > 0) rule += ";BYDAY=" + days.join(",")
+                if (frequencyPicker.currentValue === 2 && monthlyOrdinal.currentValue.length > 0 && days.length === 1)
+                    rule += ";BYDAY=" + monthlyOrdinal.currentValue + days[0]
+                ruleField.text = rule
+            }
+        }
+    }
+
+    TextField {
+        id: ruleField
+        Layout.fillWidth: true
+        visible: taskManagedRecurrence
+        placeholderText: "Advanced rule (e.g. FREQ=WEEKLY;BYDAY=MO,WE)"
+        Accessible.name: "Advanced task recurrence rule"
+        selectByMouse: true
+    }
+
+    TextField {
+        id: exclusionDatesField
+        Layout.fillWidth: true
+        visible: taskManagedRecurrence
+        placeholderText: "Skip dates (YYYY-MM-DD, comma separated)"
+        Accessible.name: "Task recurrence skip dates"
+        selectByMouse: true
+    }
+
+    TextField {
+        id: additionDatesField
+        Layout.fillWidth: true
+        visible: taskManagedRecurrence
+        placeholderText: "Add dates (YYYY-MM-DD, comma separated)"
+        Accessible.name: "Task recurrence additional dates"
         selectByMouse: true
     }
 

@@ -500,15 +500,19 @@ ApplicationWindow {
         id: taskEditDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
+        timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
+                   ? window.appController.availableTimeZones : ["", "UTC"]
         onTaskUpdateRequested: function(taskId, title, notes, dueAt, dueTimeZone, priority,
                                         managedRecurrence, recurrenceFrequency, recurrenceInterval,
-                                        recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount) {
+                                        recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount,
+                                        recurrenceRule, exclusionDates, additionDates) {
             window.taskUpdateRequested(taskId, title, notes, dueAt, dueTimeZone, priority)
             window.controllerCall("updateTaskDetailed", [taskId, title, notes, dueAt, dueTimeZone,
                                                             priority, managedRecurrence,
                                                             recurrenceFrequency, recurrenceInterval,
                                                             recurrenceEndKind, recurrenceEndUntil,
-                                                            recurrenceEndCount])
+                                                            recurrenceEndCount, recurrenceRule,
+                                                            exclusionDates, additionDates])
         }
         onTaskRecurrenceActionRequested: function(taskId, title, action) {
             taskRecurrenceActionDialog.openForAction(taskId, title, action)
@@ -520,6 +524,8 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         taskListModel: window.taskListModel
+        timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
+                   ? window.appController.availableTimeZones : ["", "UTC"]
         onTaskCreateRequested: function(taskListId, parentTaskId, title, notes, dueAt, dueTimeZone,
                                         priority, managedRecurrence, recurrenceFrequency,
                                         recurrenceInterval, recurrenceEndKind, recurrenceEndUntil,
@@ -585,6 +591,8 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
+                   ? window.appController.availableTimeZones : ["", "UTC"]
         driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []
         freeBusyIntervals: window.appController ? window.appController.freeBusyIntervals : []
         onEventCreateRequested: function(calendarId, title, startAt, endAt, allDay, description, location,
@@ -616,6 +624,8 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         calendarSourceModel: window.calendarSourceModel
+        timeZones: window.appController && Array.isArray(window.appController.availableTimeZones)
+                   ? window.appController.availableTimeZones : ["", "UTC"]
         driveAttachmentCandidates: window.appController ? window.appController.driveAttachmentCandidates : []
         freeBusyIntervals: window.appController ? window.appController.freeBusyIntervals : []
         onEventUpdateRequested: function(eventId, calendarId, title, startAt, endAt, allDay, description, location,
@@ -640,8 +650,8 @@ ApplicationWindow {
         onAvailabilityRequested: function(calendarIds, startAt, endAt) {
             window.controllerCall("queryGoogleFreeBusy", [calendarIds, startAt, endAt])
         }
-        onRsvpRequested: function(eventId, responseStatus) {
-            window.controllerCall("respondToEvent", [eventId, responseStatus])
+        onRsvpRequested: function(eventId, responseStatus, responseComment) {
+            window.controllerCall("respondToEvent", [eventId, responseStatus, responseComment])
         }
         onEventDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
             eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
@@ -690,6 +700,8 @@ ApplicationWindow {
             commandRegistry: window.navigationCommands
             currentPage: window.currentPage
             notesEnabled: window.notesEnabled
+            pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
+                                    ? window.appController.pendingInvitationCount : 0
             onPageSelected: pageName => window.selectPage(pageName)
         }
 
@@ -736,12 +748,14 @@ ApplicationWindow {
                                                managedRecurrence, recurrenceSummary,
                                                recurrenceFrequency, recurrenceInterval,
                                                recurrenceEndKind, recurrenceEndUntil,
-                                               recurrenceEndCount) {
+                                               recurrenceEndCount, recurrenceRule,
+                                               recurrenceExclusionDates, recurrenceAdditionDates) {
                     taskEditDialog.openForEdit(taskId, title, notes, dueAt, dueTimeZone, priority,
                                                managedRecurrence, recurrenceSummary,
                                                recurrenceFrequency, recurrenceInterval,
                                                recurrenceEndKind, recurrenceEndUntil,
-                                               recurrenceEndCount)
+                                               recurrenceEndCount, recurrenceRule,
+                                               recurrenceExclusionDates, recurrenceAdditionDates)
                 }
                 onTaskDeleteRequested: function(taskId, taskTitle, managedRecurrence) {
                     taskDeleteDialog.openForDelete(taskId, taskTitle, managedRecurrence)
@@ -793,6 +807,16 @@ ApplicationWindow {
                 }
                 onNoteMoveRequested: function(taskId, taskListId, title) {
                     taskMoveDialog.openForMove(taskId, title, taskListId)
+                }
+            }
+
+            InvitationInbox {
+                anchors.fill: parent
+                visible: window.currentPage === "Invitations"
+                invitations: window.appController && Array.isArray(window.appController.invitations)
+                             ? window.appController.invitations : []
+                onResponseRequested: function(eventId, responseStatus, comment) {
+                    window.controllerCall("respondToEvent", [eventId, responseStatus, comment])
                 }
             }
 
@@ -1143,6 +1167,20 @@ ApplicationWindow {
                 Label {
                     Layout.fillWidth: true
                     text: "Calendar sharing/ACL administration is intentionally deferred; this release creates calendars and subscribes to calendars you can access."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Label {
+                    text: "Desktop reminders"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: window.appController ? window.appController.reminderStatusMessage : "Calendar reminders are unavailable"
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }

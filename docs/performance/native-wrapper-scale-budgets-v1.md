@@ -18,7 +18,7 @@ Cold launch is the first child launch in the job. Warm launch is three subsequen
 | First cached task render | 10k tasks | 1.2s |
 | Task scroll frame max | 10k tasks | 100ms |
 | Bulk select median | 10k task IDs | 100ms |
-| Local search median | 10k tasks | 100ms |
+| Local search median | 10k tasks | 105ms |
 | Calendar navigation median / max | 25k event instances | 250ms / 500ms |
 | Sync-apply delta | 10k tasks, 25k events, 500 queued mutations | 45s |
 

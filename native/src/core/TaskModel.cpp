@@ -111,6 +111,12 @@ QVariant TaskModel::data(const QModelIndex& index, int role) const {
     return task.recurrenceEndUntil;
   case RecurrenceEndCountRole:
     return task.recurrenceEndCount;
+  case RecurrenceRuleRole:
+    return task.recurrenceRule;
+  case RecurrenceExclusionDatesRole:
+    return task.recurrenceExclusionDates;
+  case RecurrenceAdditionDatesRole:
+    return task.recurrenceAdditionDates;
   case RecurrenceDiagnosticRole:
     return task.recurrenceDiagnostic;
   case SortOrderRole:
@@ -139,6 +145,9 @@ QHash<int, QByteArray> TaskModel::roleNames() const {
           {RecurrenceEndKindRole, "recurrenceEndKind"},
           {RecurrenceEndUntilRole, "recurrenceEndUntil"},
           {RecurrenceEndCountRole, "recurrenceEndCount"},
+          {RecurrenceRuleRole, "recurrenceRule"},
+          {RecurrenceExclusionDatesRole, "recurrenceExclusionDates"},
+          {RecurrenceAdditionDatesRole, "recurrenceAdditionDates"},
           {RecurrenceDiagnosticRole, "recurrenceDiagnostic"},
           {SortOrderRole, "sortOrder"}};
 }

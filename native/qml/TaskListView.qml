@@ -26,7 +26,9 @@ Pane {
     signal taskEditRequested(string taskId, string title, string notes, string dueAt,
                              string dueTimeZone, int priority, bool managedRecurrence,
                              string recurrenceSummary, int recurrenceFrequency, int recurrenceInterval,
-                             int recurrenceEndKind, string recurrenceEndUntil, int recurrenceEndCount)
+                             int recurrenceEndKind, string recurrenceEndUntil, int recurrenceEndCount,
+                             string recurrenceRule, string recurrenceExclusionDates,
+                             string recurrenceAdditionDates)
     signal taskCompletionRequested(string taskId, bool completed)
     signal taskDeleteRequested(string taskId, string taskTitle, bool managedRecurrence)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
@@ -58,10 +60,12 @@ Pane {
 
     function requestTaskEdit(taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
                              recurrenceSummary, recurrenceFrequency, recurrenceInterval,
-                             recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount) {
+                             recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount,
+                             recurrenceRule, recurrenceExclusionDates, recurrenceAdditionDates) {
         taskEditRequested(taskId, title, notes, dueAt, dueTimeZone, priority, managedRecurrence,
                           recurrenceSummary, recurrenceFrequency, recurrenceInterval,
-                          recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount)
+                          recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount,
+                          recurrenceRule, recurrenceExclusionDates, recurrenceAdditionDates)
     }
 
     function requestTaskCompletion(taskId, completed) {
@@ -302,6 +306,9 @@ Pane {
                 required property int recurrenceEndKind
                 required property string recurrenceEndUntil
                 required property int recurrenceEndCount
+                property string recurrenceRule: ""
+                property string recurrenceExclusionDates: ""
+                property string recurrenceAdditionDates: ""
                 property string recurrenceDiagnostic: ""
 
                 property alias completionButton: completionButton
@@ -368,7 +375,9 @@ Pane {
                                                             managedRecurrence, recurrenceSummary,
                                                             recurrenceFrequency, recurrenceInterval,
                                                             recurrenceEndKind, recurrenceEndUntil,
-                                                            recurrenceEndCount)
+                                                            recurrenceEndCount, recurrenceRule,
+                                                            recurrenceExclusionDates,
+                                                            recurrenceAdditionDates)
                         }
 
                         Button {

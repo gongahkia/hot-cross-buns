@@ -1439,7 +1439,8 @@ canonicalize(CalendarEventUpdateInput input) {
       input.attendeeEmails.has_value() || input.reminders.has_value() || input.recurrenceRule.has_value() ||
       input.createGoogleMeet.has_value() || input.attachmentsJson.has_value() ||
       input.guestPermissionsJson.has_value() || input.statusPropertiesJson.has_value() ||
-      input.sendUpdates.has_value() || input.selfResponseStatus.has_value();
+      input.sendUpdates.has_value() || input.selfResponseStatus.has_value() ||
+      input.selfResponseComment.has_value();
   if (!isValidRequiredText(input.eventId, kMaximumIdentifierLength) ||
       (input.calendarId.has_value() &&
        !isValidRequiredText(*input.calendarId, kMaximumIdentifierLength)) ||
@@ -1474,7 +1475,9 @@ canonicalize(CalendarEventUpdateInput input) {
       (input.statusPropertiesJson.has_value() &&
        !boundedJsonObject(*input.statusPropertiesJson, kMaximumEventPropertiesJsonBytes).has_value()) ||
       (input.sendUpdates.has_value() && !isValidSendUpdates(*input.sendUpdates)) ||
-      (input.selfResponseStatus.has_value() && !isValidResponseStatus(*input.selfResponseStatus))) {
+      (input.selfResponseStatus.has_value() && !isValidResponseStatus(*input.selfResponseStatus)) ||
+      (input.selfResponseComment.has_value() &&
+       !isValidOptionalText(*input.selfResponseComment, 4'096))) {
     return validationError(QStringLiteral("Calendar event rich metadata is invalid"));
   }
   if (input.attachmentsJson.has_value()) {
@@ -1667,15 +1670,25 @@ WHERE id = ?1
   const QList<QString> attendees = input.attendeeEmails.has_value()
                                        ? *input.attendeeEmails
                                        : storedAttendeeEmails(before.attendeeEmailsJson);
-  QJsonArray details = (input.attendeeEmails.has_value() || input.selfResponseStatus.has_value())
+  QJsonArray details = (input.attendeeEmails.has_value() || input.selfResponseStatus.has_value() ||
+                        input.selfResponseComment.has_value())
                            ? attendeeDetails(attendees, before.attendeeDetailsJson)
                            : QJsonArray();
-  if (input.selfResponseStatus.has_value()) {
+  if (input.selfResponseStatus.has_value() || input.selfResponseComment.has_value()) {
     bool foundSelf = false;
     for (QJsonValueRef attendeeValue : details) {
       QJsonObject attendee = attendeeValue.toObject();
       if (attendee.value(QStringLiteral("self")).toBool()) {
-        attendee.insert(QStringLiteral("responseStatus"), *input.selfResponseStatus);
+        if (input.selfResponseStatus.has_value()) {
+          attendee.insert(QStringLiteral("responseStatus"), *input.selfResponseStatus);
+        }
+        if (input.selfResponseComment.has_value()) {
+          if (input.selfResponseComment->isEmpty()) {
+            attendee.remove(QStringLiteral("comment"));
+          } else {
+            attendee.insert(QStringLiteral("comment"), *input.selfResponseComment);
+          }
+        }
         attendeeValue = attendee;
         foundSelf = true;
         break;
@@ -1685,7 +1698,8 @@ WHERE id = ?1
       return validationError(QStringLiteral("Google attendee identity is unavailable for RSVP"));
     }
   }
-  const bool attendeeUpdate = input.attendeeEmails.has_value() || input.selfResponseStatus.has_value();
+  const bool attendeeUpdate = input.attendeeEmails.has_value() || input.selfResponseStatus.has_value() ||
+                              input.selfResponseComment.has_value();
   const CalendarEventReminderSettings reminders =
       input.reminders.value_or(CalendarEventReminderSettings{});
   const QJsonObject reminderSettings = remindersJson(reminders);
@@ -2538,7 +2552,7 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
                                operation,
                                updatedAt,
                                input.sendUpdates.value_or(QStringLiteral("all")),
-                               input.selfResponseStatus.has_value());
+                               input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
         error.has_value()) {
       return CalendarEventMutationResult(*error);
     }
@@ -2550,9 +2564,10 @@ CalendarMutationService::update(CalendarEventUpdateInput input) {
 }
 
 std::future<CalendarEventMutationResult>
-CalendarMutationService::respond(QString eventId, QString responseStatus) {
+CalendarMutationService::respond(QString eventId, QString responseStatus, QString responseComment) {
   return update({.eventId = std::move(eventId),
-                 .selfResponseStatus = std::move(responseStatus)});
+                 .selfResponseStatus = std::move(responseStatus),
+                 .selfResponseComment = std::move(responseComment)});
 }
 
 std::future<CalendarEventMutationResult>
@@ -2630,7 +2645,7 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                     QStringLiteral("event.instance.update"),
                     updatedAt,
                     input.sendUpdates.value_or(QStringLiteral("all")),
-                    input.selfResponseStatus.has_value());
+                    input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
                 error.has_value()) {
               return CalendarEventMutationResult(*error);
             }
@@ -2674,7 +2689,7 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                     QStringLiteral("event.instance.update"),
                     updatedAt,
                     input.sendUpdates.value_or(QStringLiteral("all")),
-                    input.selfResponseStatus.has_value());
+                    input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
                 error.has_value()) {
               return CalendarEventMutationResult(*error);
             }
@@ -2693,7 +2708,7 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                                      operation,
                                      updatedAt,
                                      input.sendUpdates.value_or(QStringLiteral("all")),
-                                     input.selfResponseStatus.has_value());
+                                     input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
               error.has_value()) {
             return CalendarEventMutationResult(*error);
           }
@@ -2740,7 +2755,7 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                   QStringLiteral("event.update"),
                   updatedAt,
                   input.sendUpdates.value_or(QStringLiteral("all")),
-                  input.selfResponseStatus.has_value());
+                  input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
               error.has_value()) {
             return CalendarEventMutationResult(*error);
           }
@@ -2783,7 +2798,7 @@ CalendarMutationService::updateScoped(CalendarEventScopedUpdateInput scopedInput
                 QStringLiteral("event.update"),
                 updatedAt,
                 input.sendUpdates.value_or(QStringLiteral("all")),
-                input.selfResponseStatus.has_value());
+                input.selfResponseStatus.has_value() || input.selfResponseComment.has_value());
             error.has_value()) {
           return CalendarEventMutationResult(*error);
         }

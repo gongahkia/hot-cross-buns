@@ -34,6 +34,9 @@ struct TaskModelTask final {
   int recurrenceEndKind{0};
   QString recurrenceEndUntil;
   int recurrenceEndCount{0};
+  QString recurrenceRule;
+  QString recurrenceExclusionDates;
+  QString recurrenceAdditionDates;
   QString recurrenceDiagnostic;
   std::int64_t sortOrder{0};
 };
@@ -61,6 +64,9 @@ public:
     RecurrenceEndKindRole,
     RecurrenceEndUntilRole,
     RecurrenceEndCountRole,
+    RecurrenceRuleRole,
+    RecurrenceExclusionDatesRole,
+    RecurrenceAdditionDatesRole,
     RecurrenceDiagnosticRole,
     SortOrderRole
   };

@@ -19,11 +19,12 @@ HcbDialog {
     }
     property string taskListId: ""
     property string parentTaskId: ""
+    property var timeZones: ["", "UTC", "America/Los_Angeles", "America/New_York", "Asia/Singapore", "Europe/London"]
     property alias taskTitle: titleField.text
     property alias taskListPicker: taskListPicker
     property alias taskTitleField: titleField
     property alias taskNotes: notesField.text
-    property alias taskDueAt: dueField.text
+    property alias taskDueAt: dueField.value
     property alias managedRecurrenceCheck: recurrenceCheck
     property alias recurrenceFrequencyPicker: frequencyPicker
     property alias recurrenceIntervalField: intervalField
@@ -41,7 +42,7 @@ HcbDialog {
 
     function recurrenceInputValid() {
         if (!recurrenceCheck.checked) return true
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueField.text.trim())) return false
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueField.value.trim())) return false
         const interval = Number(intervalField.text)
         if (!Number.isInteger(interval) || interval < 1 || interval > 1000) return false
         if (endPicker.currentValue === 1) return /^\d{4}-\d{2}-\d{2}$/.test(untilField.text.trim())
@@ -55,8 +56,8 @@ HcbDialog {
     function openForCreate(initialTaskListId, initialParentTaskId) {
         titleField.clear()
         notesField.clear()
-        dueField.clear()
-        timeZoneField.clear()
+        dueField.value = ""
+        timeZonePicker.timeZone = ""
         priorityPicker.currentIndex = 0
         recurrenceCheck.checked = false
         frequencyPicker.currentIndex = 1
@@ -78,7 +79,7 @@ HcbDialog {
 
     onOpened: titleField.forceActiveFocus()
     onPrimaryAction: taskCreateRequested(taskListId, parentTaskId, titleField.text.trim(), notesField.text,
-                                         dueField.text.trim(), timeZoneField.text.trim(), priorityPicker.currentValue,
+                                         dueField.value.trim(), timeZonePicker.timeZone.trim(), priorityPicker.currentValue,
                                          recurrenceCheck.checked, frequencyPicker.currentValue,
                                          Number(intervalField.text), endPicker.currentValue,
                                          untilField.text.trim(), Number(countField.text),
@@ -108,21 +109,13 @@ HcbDialog {
         wrapMode: TextEdit.Wrap
     }
 
-    TextField {
+    DateEditor {
         id: dueField
         Layout.fillWidth: true
-        placeholderText: "Due date (YYYY-MM-DD)"
-        Accessible.name: "Task due date"
-        selectByMouse: true
+        accessibleName: "Task due date"
     }
 
-    TextField {
-        id: timeZoneField
-        Layout.fillWidth: true
-        placeholderText: "Time zone (IANA, optional)"
-        Accessible.name: "Task due time zone"
-        selectByMouse: true
-    }
+    TimeZonePicker { id: timeZonePicker; timeZones: root.timeZones }
 
     ComboBox {
         id: priorityPicker
@@ -171,6 +164,55 @@ HcbDialog {
         inputMethodHints: Qt.ImhDigitsOnly
         Accessible.name: "Task repeat interval"
         selectByMouse: true
+    }
+
+    RowLayout {
+        id: weekdayChecks
+        Layout.fillWidth: true
+        visible: recurrenceCheck.checked
+        function selectedDays() {
+            const days = []
+            for (let index = 0; index < weekdayRepeater.count; ++index) {
+                if (weekdayRepeater.itemAt(index).checked) days.push(weekdayRepeater.itemAt(index).day)
+            }
+            return days
+        }
+        Repeater {
+            id: weekdayRepeater
+            model: [{ label: "Mon", value: "MO" }, { label: "Tue", value: "TU" }, { label: "Wed", value: "WE" },
+                    { label: "Thu", value: "TH" }, { label: "Fri", value: "FR" }, { label: "Sat", value: "SA" },
+                    { label: "Sun", value: "SU" }]
+            delegate: CheckBox { required property var modelData; property string day: modelData.value
+                                 text: modelData.label; Accessible.name: "Repeat on " + text }
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        visible: recurrenceCheck.checked
+        ComboBox {
+            id: monthlyOrdinal
+            model: [{ text: "Monthly date", value: "" }, { text: "First weekday", value: "1" },
+                    { text: "Second weekday", value: "2" }, { text: "Third weekday", value: "3" },
+                    { text: "Fourth weekday", value: "4" }, { text: "Last weekday", value: "-1" }]
+            textRole: "text"; valueRole: "value"; Accessible.name: "Monthly repeat pattern"
+        }
+        Button {
+            text: "Apply structured rule"
+            onClicked: {
+                const interval = Math.max(1, Number(intervalField.text) || 1)
+                const days = weekdayChecks.selectedDays()
+                if (frequencyPicker.currentValue === 4) ruleField.text = "FREQ=DAILY;INTERVAL=" + interval + ";BYDAY=MO,TU,WE,TH,FR"
+                else {
+                    const frequencies = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]
+                    let rule = "FREQ=" + frequencies[frequencyPicker.currentValue] + ";INTERVAL=" + interval
+                    if (frequencyPicker.currentValue === 1 && days.length > 0) rule += ";BYDAY=" + days.join(",")
+                    if (frequencyPicker.currentValue === 2 && monthlyOrdinal.currentValue.length > 0 && days.length === 1)
+                        rule += ";BYDAY=" + monthlyOrdinal.currentValue + days[0]
+                    ruleField.text = rule
+                }
+            }
+        }
     }
 
     TextField {

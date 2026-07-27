@@ -4,9 +4,10 @@ AccessibleButton {
     id: root
     required property string pageName
     required property bool currentPage
+    property string badgeText: ""
     signal pageSelected(string pageName)
 
-    text: pageName
+    text: pageName + (badgeText.length > 0 ? " (" + badgeText + ")" : "")
     checkable: true
     checked: currentPage
     accessibleDescription: currentPage ? pageName + " page, selected" : pageName + " page"

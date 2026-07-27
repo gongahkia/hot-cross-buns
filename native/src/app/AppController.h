@@ -98,6 +98,7 @@ class AppController final : public QObject {
   Q_PROPERTY(int weekStartDay READ weekStartDay NOTIFY weekStartDayChanged)
   Q_PROPERTY(bool use24HourTime READ use24HourTime NOTIFY use24HourTimeChanged)
   Q_PROPERTY(QString displayTimeZone READ displayTimeZone NOTIFY displayTimeZoneChanged)
+  Q_PROPERTY(QVariantList availableTimeZones READ availableTimeZones CONSTANT)
   Q_PROPERTY(int workdayStartHour READ workdayStartHour NOTIFY workdayStartHourChanged)
   Q_PROPERTY(int workdayEndHour READ workdayEndHour NOTIFY workdayEndHourChanged)
   Q_PROPERTY(QVariantList visibleCalendarIds READ visibleCalendarIds NOTIFY visibleCalendarIdsChanged)
@@ -108,6 +109,8 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
   Q_PROPERTY(QVariantList driveAttachmentCandidates READ driveAttachmentCandidates NOTIFY
                  driveAttachmentCandidatesChanged)
+  Q_PROPERTY(QVariantList invitations READ invitations NOTIFY invitationsChanged)
+  Q_PROPERTY(int pendingInvitationCount READ pendingInvitationCount NOTIFY invitationsChanged)
   Q_PROPERTY(QString reminderStatusMessage READ reminderStatusMessage NOTIFY reminderStatusMessageChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
@@ -147,6 +150,7 @@ public:
   [[nodiscard]] int weekStartDay() const;
   [[nodiscard]] bool use24HourTime() const;
   [[nodiscard]] QString displayTimeZone() const;
+  [[nodiscard]] QVariantList availableTimeZones() const;
   [[nodiscard]] int workdayStartHour() const;
   [[nodiscard]] int workdayEndHour() const;
   [[nodiscard]] QVariantList visibleCalendarIds() const;
@@ -155,6 +159,8 @@ public:
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
   [[nodiscard]] QVariantList driveAttachmentCandidates() const;
+  [[nodiscard]] QVariantList invitations() const;
+  [[nodiscard]] int pendingInvitationCount() const;
   [[nodiscard]] QString reminderStatusMessage() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
@@ -225,7 +231,10 @@ public:
                                       int recurrenceInterval,
                                       int recurrenceEndKind,
                                       QString recurrenceEndUntil,
-                                      int recurrenceEndCount);
+                                      int recurrenceEndCount,
+                                      QString recurrenceRule = {},
+                                      QString exclusionDates = {},
+                                      QString additionDates = {});
   Q_INVOKABLE void setTaskCompleted(QString taskId, bool completed);
   Q_INVOKABLE void stopTaskRecurrence(QString taskId, int recurrenceScope);
   Q_INVOKABLE void splitTaskRecurrence(QString taskId);
@@ -299,7 +308,7 @@ public:
                                        QString statusPropertiesJson,
                                        QString sendUpdates);
   Q_INVOKABLE void deleteEvent(QString eventId, int recurrenceScope = 0);
-  Q_INVOKABLE void respondToEvent(QString eventId, QString responseStatus);
+  Q_INVOKABLE void respondToEvent(QString eventId, QString responseStatus, QString responseComment = {});
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);
   Q_INVOKABLE void bulkDeleteEvents(QVariantList eventIds);
@@ -339,6 +348,7 @@ signals:
   void notesProjectionModeChanged();
   void freeBusyIntervalsChanged();
   void driveAttachmentCandidatesChanged();
+  void invitationsChanged();
   void reminderStatusMessageChanged();
   void busyChanged();
 
@@ -389,6 +399,7 @@ private:
   void refreshTasks();
   void refreshCalendar();
   void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
+  void refreshInvitations();
   void refreshCalendarInstanceCache(QList<QString> calendarIds,
                                     QDate date,
                                     std::uint64_t generation);
@@ -416,6 +427,7 @@ private:
   void setBulkTaskStatusMessage(QString message);
   void setBulkEventStatusMessage(QString message);
   void setReminderStatusMessage(QString message);
+  void setInvitations(QVariantList invitations);
   void setBusy(bool busy);
 
   Clock& clock_;
@@ -498,6 +510,8 @@ private:
   int notesProjectionMode_{0};
   QVariantList freeBusyIntervals_;
   QVariantList driveAttachmentCandidates_;
+  QVariantList invitations_;
+  std::uint64_t invitationRefreshGeneration_{0};
   ReminderService* reminderService_{nullptr};
   QString reminderStatusMessage_{QStringLiteral("Calendar reminders are initializing")};
   QList<TaskModelTask> taskProjectionTasks_;

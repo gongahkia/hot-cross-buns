@@ -201,6 +201,13 @@ bindText(sqlite3_stmt* statement, int index, const QString& value) {
                   .recurrenceEndKind = recurrenceEndKind(),
                   .recurrenceEndUntil = recurrenceEndUntil(),
                   .recurrenceEndCount = recurrenceEndCount(),
+                  .recurrenceRule = recurrence.marker.has_value() ? recurrence.marker->recurrenceRule : QString(),
+                  .recurrenceExclusionDates = recurrence.marker.has_value()
+                                                 ? recurrence.marker->exclusionDates.join(QStringLiteral(","))
+                                                 : QString(),
+                  .recurrenceAdditionDates = recurrence.marker.has_value()
+                                                ? recurrence.marker->additionDates.join(QStringLiteral(","))
+                                                : QString(),
                   .recurrenceDiagnostic = recurrenceDiagnostic,
                   .sortOrder = sortOrder});
   }

@@ -157,7 +157,10 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                                .accessRole = hcb::GoogleCalendarAccessRole::Owner,
                                .selected = true,
                                .hidden = false,
-                               .primary = true}},
+                               .primary = true,
+                               .defaultReminders = QJsonArray{
+                                   QJsonObject{{QStringLiteral("method"), QStringLiteral("popup")},
+                                               {QStringLiteral("minutes"), 30}}}}},
                              {{.id = QStringLiteral("event"),
                                .calendarId = QStringLiteral("primary"),
                                .status = hcb::GoogleCalendarEventStatus::Confirmed,
@@ -195,6 +198,8 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
   const hcb::GoogleMirrorWriteResult calendarResult = awaitResult(calendarWrite);
   QVERIFY(std::holds_alternative<std::monostate>(calendarResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
+  QCOMPARE(text(handle, "SELECT default_reminders_json FROM local_calendars"),
+           QStringLiteral("[{\"method\":\"popup\",\"minutes\":30}]"));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"), 1);
   QCOMPARE(text(handle, "SELECT visibility FROM local_calendar_events"),
            QStringLiteral("confidential"));

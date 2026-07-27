@@ -1676,7 +1676,7 @@ TestCase {
         })
         mainWindow.taskEditDialog.taskUpdateRequested("task-1", "Plan release", "Prepare checklist",
                                                       "2026-07-26", "Asia/Singapore", 2, false,
-                                                      0, 1, 0, "", 0)
+                                                      0, 1, 0, "", 0, "", "", "")
         compare(request.taskId, "task-1")
         compare(request.title, "Plan release")
         compare(request.notes, "Prepare checklist")

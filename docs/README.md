@@ -81,9 +81,7 @@ Operational docs:
 - [Manual Windows Native Shell Checklist](testing/manual-windows-native-shell.md)
 - [Agent Workflow](agents/workflow.md)
 
-## Historical Non-Goals For The Initial Documentation Pass
+## Historical Documentation Notes
 
-- No Electron scaffold yet.
-- No package manager lockfile yet.
-- No source code copied from the Swift app.
-- No product decisions that contradict Google Tasks and Calendar as the primary synced sources.
+- Electron/React/IPC references in release notes and improvement logs describe retired work and are not implementation guidance.
+- The current implementation is C++20, Qt 6, CMake, and SQLite.

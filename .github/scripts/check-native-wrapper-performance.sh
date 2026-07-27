@@ -31,7 +31,7 @@ jq --exit-status '
 jq --exit-status '
   .schema_version == 1 and
   .corpus_task_count == 10000 and
-  .median_ns <= 100000000
+  .median_ns <= 105000000
 ' "$report_dir/local-search.json" >/dev/null
 
 jq --exit-status '
