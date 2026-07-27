@@ -1,4 +1,6 @@
-# Release Candidate Checklist - Mac v1
+# Historical Release Candidate Checklist - Mac v1
+
+> Historical Electron-era evidence from 2026-05-23. It does not describe the current C++/Qt macOS release or its acceptance status.
 
 Date: 2026-05-23
 Result: Not release-ready.

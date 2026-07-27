@@ -12,11 +12,16 @@ ColumnLayout {
     property bool updating: false
 
     function daysInMonth(year, month) { return new Date(Date.UTC(year, month, 0)).getUTCDate() }
+    function hasTimeZoneConversion() {
+        return timeZoneConverter !== null && timeZoneConverter !== undefined &&
+               typeof timeZoneConverter.dateTimeComponents === "function" &&
+               typeof timeZoneConverter.dateTimeFromComponents === "function"
+    }
     function syncFromValue() {
         const parsed = new Date(value)
         if (!Number.isFinite(parsed.getTime())) return
         updating = true
-        const components = !allDay && timeZoneConverter !== null
+        const components = !allDay && hasTimeZoneConversion()
                          ? timeZoneConverter.dateTimeComponents(value, timeZone) : null
         year.value = components && components.year !== undefined ? components.year
                                                                  : (allDay ? parsed.getUTCFullYear() : parsed.getFullYear())
@@ -35,7 +40,7 @@ ColumnLayout {
         if (day.value > day.to) day.value = day.to
         const next = allDay
                      ? new Date(Date.UTC(year.value, month.value - 1, day.value, 0, 0, 0, 0)).toISOString()
-                     : (timeZoneConverter !== null
+                     : (hasTimeZoneConversion()
                         ? timeZoneConverter.dateTimeFromComponents(year.value, month.value - 1, day.value,
                                                                      hour.value, minute.value, timeZone)
                         : new Date(year.value, month.value - 1, day.value, hour.value, minute.value,

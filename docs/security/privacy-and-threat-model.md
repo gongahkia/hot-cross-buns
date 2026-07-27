@@ -2,7 +2,7 @@
 
 ## Assets
 
-- Google OAuth credentials and user-supplied OAuth client configuration
+- Google OAuth credentials; the user-supplied OAuth client ID is configuration, not a secret
 - task notes, event descriptions, attendees, locations, and local cache data
 - pending mutations, sync checkpoints, and diagnostic summaries
 

@@ -14,7 +14,7 @@ An individual who needs a fast, keyboard-accessible planner that is a credible d
 - Tasks support lists, hierarchy, create/edit/complete/delete/move/reparent/reorder, batch actions, and durable offline mutations.
 - Notes can be disabled, shown only as undated task projections, or mirrored in Tasks and Notes.
 - HCB-managed recurring tasks preserve portable marker metadata and reconcile successor duplicates.
-- Calendar supports agenda/day/week/month views, search, structured create/edit/delete/move/bulk actions, arbitrary Google recurrence round-tripping, Google-resolved instances, Meet creation, Drive metadata attachment picking, invitations/RSVP comments, free-busy, calendars, subscriptions, sharing, and Focus/OOO/working-location fields where Google exposes them.
+- Calendar supports agenda/day/week/month views, search, structured create/edit/delete/move/bulk actions, arbitrary Google recurrence round-tripping, Google-resolved instances, Meet creation, Drive metadata attachment picking, invitations/RSVP comments, free-busy, calendar creation/subscription, and Focus/OOO/working-location fields where Google exposes them.
 - Calendar popup reminders create local macOS notifications with Snooze 10 minutes and Dismiss.
 - Search is local-first, structured, saved, ranked, and does not query Google per keystroke.
 - Presentation settings cover appearance, density, week start, 12/24-hour time, display timezone, work hours, calendar visibility, event colors, and reminders.

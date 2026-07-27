@@ -24,7 +24,7 @@ QML is unprivileged presentation. It consumes `QAbstractItemModel` data and invo
 - Timed editors display and create wall time in the selected event timezone. All-day dates remain date-stable.
 - Calendar recurrence lines are preserved. Google-resolved instance data is authoritative for rendering and exceptions.
 - Invitation Inbox lists the current user’s `needsAction` invitations and sends RSVP status plus optional comment.
-- Calendar creation, subscription, sharing actions, free-busy, and status-event fields use Google APIs where the active account grants access.
+- Calendar creation, subscription, free-busy, and status-event fields use Google APIs where the active account grants access. Calendar sharing/ACL administration is deferred.
 
 ## Search and command palette
 

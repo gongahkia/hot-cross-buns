@@ -1,4 +1,6 @@
-# Security, Native, Release, MCP, And Perf Audit - 2026-06-10
+# Historical Security, Native, Release, MCP, And Perf Audit - 2026-06-10
+
+> Historical Electron-era audit. Use the current native wrapper-scale benchmark and [performance strategy](../performance/performance-strategy.md) for release decisions.
 
 Scope: static repo audit plus local test/perf harness surfaces. No packaged-app QA, external MCP client QA, live Google API run, or native helper implementation was performed.
 

@@ -125,7 +125,7 @@ Required tests:
 
 ## Current Native Preview
 
-- Settings stores a tester-supplied Desktop OAuth client configuration through the credential adapter, separately from SQLite mirrors.
+- Settings stores a tester-supplied Desktop OAuth client ID in local settings; OAuth access/refresh tokens remain in the credential adapter, outside SQLite mirrors.
 - The app uses browser-based PKCE with a temporary `127.0.0.1` callback, exchanges the authorization code without a client secret, and stores access/refresh tokens in the platform credential adapter.
 - Connect, launch, and manual sync refresh the access token, pull Google Tasks and Calendar, and update the SQLite mirror before GUI models update on the Qt GUI thread. Calendar stores incremental sync tokens and falls back to a full sync after a `410`; Tasks use per-list `updatedMin` watermarks with periodic full reconciliation.
 - Local task, task-list, and Calendar mutations are persisted before network delivery and pushed through authenticated Google mutation services. The default conflict policy is Prefer Google; users can select Prefer HCB or Ask each time in Settings. Retry/backoff, recovery, and conflict behavior have automated coverage, but real-account acceptance remains mandatory before release promotion.

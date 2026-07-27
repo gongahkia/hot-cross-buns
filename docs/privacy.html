@@ -59,7 +59,7 @@
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens are stored in macOS Keychain, not SQLite. The user-supplied Desktop OAuth client configuration is stored separately from account tokens. Linux and Windows credential adapters are deferred and are not release behavior.</p>
+      <p>Google OAuth tokens are stored in macOS Keychain, not SQLite. The user-supplied Desktop OAuth client ID is stored separately in local settings; a Desktop client ID is not treated as a credential. Linux and Windows credential adapters are deferred and are not release behavior.</p>
     </article>
 
     <article class="doc-card">
@@ -86,7 +86,7 @@
 
     <article class="doc-card">
       <h2>OAuth client ownership</h2>
-      <p>Hot Cross Buns uses a Google Cloud Desktop OAuth client controlled by the person or organization using the app. The macOS app stores the user-supplied client configuration in Keychain-backed storage and uses a localhost browser redirect. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
+      <p>Hot Cross Buns uses a Google Cloud Desktop OAuth client controlled by the person or organization using the app. The macOS app stores the user-supplied client ID in local settings and uses a localhost browser redirect. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
     </article>
 
     <article class="doc-card">

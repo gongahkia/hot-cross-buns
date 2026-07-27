@@ -1,5 +1,7 @@
 # Windows Signing And SmartScreen
 
+> Deferred platform reference. Windows is not a supported target until macOS acceptance completes and a dedicated Windows parity issue closes.
+
 Status: expected policy only. This has not been verified against an installed
 Hot Cross Buns NSIS artifact on Windows 11 25H2.
 
