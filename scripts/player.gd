@@ -18,6 +18,14 @@ const WALL_JUMP_MIN_SEPARATION := 1.8
 const WALL_JUMP_MAX_SEPARATION := 6.0
 const SLAM_SPEED := 38.0
 const DASH_TIME := 0.16
+const GLIDE_SPEED := 15.0
+const GLIDE_GRAVITY_SCALE := 0.23
+const GLIDE_FALL_SPEED := 4.2
+const GRAPPLE_RANGE := 29.0
+const GRAPPLE_MIN_AIM_DOT := 0.22
+const GRAPPLE_ACCELERATION := 62.0
+const GRAPPLE_MAX_SPEED := 29.0
+const GRAPPLE_RELEASE_DISTANCE := 2.4
 const BASE_CAMERA_FOV := 96.0
 const MAX_STRAFE_ROLL := 0.13962634
 const SLIDE_STRAFE_ROLL := 0.05235988
@@ -39,6 +47,10 @@ var wall_jump_normal := Vector3.ZERO
 var dash_timer := 0.0
 var is_sliding := false
 var is_slamming := false
+var is_gliding := false
+var is_grappling := false
+var grapple_anchor: Node3D
+var grapple_target := Vector3.ZERO
 var _slide_latched := false
 var movement_enabled := true
 var bob_time := 0.0
@@ -47,6 +59,9 @@ var shake_strength := 0.0
 var shake_phase := 0.0
 var landing_offset := 0.0
 var was_sliding := false
+var grapple_line: MeshInstance3D
+var grapple_line_mesh: ImmediateMesh
+var grapple_line_material: StandardMaterial3D
 
 func _ready() -> void:
 	name = "Player"
@@ -65,6 +80,7 @@ func _ready() -> void:
 	camera.fov = BASE_CAMERA_FOV
 	add_child(camera)
 	_create_particles()
+	_create_grapple_line()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not movement_enabled:
@@ -89,6 +105,10 @@ func _physics_process(delta: float) -> void:
 			can_dash = true
 	else:
 		coyote_timer = max(coyote_timer - delta, 0.0)
+	if Input.is_action_just_pressed("grapple"):
+		_try_grapple()
+	if is_grappling and Input.is_action_just_pressed("jump"):
+		_stop_grapple()
 	if Input.is_action_just_pressed("jump"):
 		jump_buffer = JUMP_BUFFER_TIME
 	else:
@@ -104,18 +124,26 @@ func _physics_process(delta: float) -> void:
 	elif jump_buffer > 0.0 and can_double_jump:
 		_double_jump()
 	if Input.is_action_just_pressed("slam") and not on_floor_before_move:
+		_stop_grapple()
 		_ground_slam()
-	if not on_floor_before_move:
-		velocity.y -= GRAVITY * delta
+	_update_glide_state(on_floor_before_move)
+	if is_grappling:
+		_update_grapple(delta)
+	elif not on_floor_before_move:
+		var gravity_scale := GLIDE_GRAVITY_SCALE if is_gliding else 1.0
+		velocity.y -= GRAVITY * gravity_scale * delta
+		if is_gliding:
+			velocity.y = maxf(velocity.y, -GLIDE_FALL_SPEED)
 	_handle_slide(on_floor_before_move)
 	if is_sliding and not was_sliding:
 		_add_camera_shake(0.018)
 		landing_offset = minf(landing_offset, -0.045)
 	if Input.is_action_just_pressed("dash") and can_dash:
+		_stop_grapple()
 		_dash()
 	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var input_direction := (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
-	var top_speed := SLIDE_SPEED if is_sliding else WALK_SPEED
+	var top_speed := GLIDE_SPEED if is_gliding else (SLIDE_SPEED if is_sliding else WALK_SPEED)
 	if dash_timer > 0.0:
 		dash_timer = max(dash_timer - delta, 0.0)
 	else:
@@ -131,6 +159,7 @@ func _physics_process(delta: float) -> void:
 	_cache_wall_contact()
 	if is_on_floor():
 		can_double_jump = true
+		is_gliding = false
 	if is_slamming and is_on_floor():
 		_add_camera_shake(0.060)
 		landing_offset = minf(landing_offset, -0.110)
@@ -156,6 +185,80 @@ func _handle_slide(on_floor: bool) -> void:
 		_slide_latched = Input.is_action_pressed("slide")
 	is_sliding = on_floor and _slide_latched and Vector2(velocity.x, velocity.z).length() > 2.0
 
+func _update_glide_state(on_floor: bool) -> void:
+	is_gliding = not on_floor and not is_grappling and not is_slamming and Input.is_action_pressed("glide") and velocity.y <= 1.5
+
+func _try_grapple() -> bool:
+	if is_grappling:
+		_stop_grapple()
+		return false
+	var origin := global_position + Vector3(0.0, 1.1, 0.0)
+	var view_direction := -camera.global_transform.basis.z.normalized()
+	var best_anchor: Node3D
+	var best_score := -INF
+	for candidate in get_tree().get_nodes_in_group("grapple_anchor"):
+		var anchor := candidate as Node3D
+		if anchor == null:
+			continue
+		var offset := anchor.global_position - origin
+		var distance := offset.length()
+		if distance < 1.0 or distance > GRAPPLE_RANGE:
+			continue
+		var aim_dot := view_direction.dot(offset / distance)
+		if aim_dot < GRAPPLE_MIN_AIM_DOT:
+			continue
+		var score := aim_dot * 2.0 - distance / GRAPPLE_RANGE
+		if score > best_score:
+			best_score = score
+			best_anchor = anchor
+	if best_anchor == null:
+		return false
+	is_grappling = true
+	is_gliding = false
+	is_slamming = false
+	grapple_anchor = best_anchor
+	grapple_target = best_anchor.global_position
+	can_dash = true
+	can_double_jump = true
+	_add_camera_shake(0.028)
+	_emit_burst(0.72)
+	Audio.play_sfx("dash")
+	_refresh_grapple_line()
+	return true
+
+func _update_grapple(delta: float) -> void:
+	if grapple_anchor == null or not is_instance_valid(grapple_anchor):
+		_stop_grapple()
+		return
+	grapple_target = grapple_anchor.global_position
+	var origin := global_position + Vector3(0.0, 1.1, 0.0)
+	var offset := grapple_target - origin
+	var distance := offset.length()
+	if distance <= GRAPPLE_RELEASE_DISTANCE:
+		_stop_grapple()
+		return
+	var direction := offset / distance
+	velocity += direction * GRAPPLE_ACCELERATION * delta
+	var along_speed := velocity.dot(direction)
+	if along_speed > GRAPPLE_MAX_SPEED:
+		velocity -= direction * (along_speed - GRAPPLE_MAX_SPEED)
+	_refresh_grapple_line()
+
+func _stop_grapple() -> void:
+	is_grappling = false
+	grapple_anchor = null
+	if grapple_line:
+		grapple_line.visible = false
+	if grapple_line_mesh:
+		grapple_line_mesh.clear_surfaces()
+
+func tool_status() -> String:
+	if is_grappling:
+		return "TETHER"
+	if is_gliding:
+		return "GLIDE"
+	return "E TETHER / F GLIDE"
+
 func _dash() -> void:
 	can_dash = false
 	dash_timer = DASH_TIME
@@ -180,6 +283,7 @@ func launch(force: float) -> void:
 	can_dash = true
 	can_double_jump = true
 	is_slamming = false
+	is_gliding = false
 	_add_camera_shake(0.026)
 
 func _cache_wall_contact() -> void:
@@ -221,6 +325,7 @@ func _ground_slam() -> void:
 	velocity.y = -SLAM_SPEED
 	can_double_jump = false
 	is_slamming = true
+	is_gliding = false
 	_add_camera_shake(0.030)
 	_emit_burst(0.34)
 	Audio.play_sfx("dash")
@@ -252,7 +357,7 @@ func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	camera.position = camera.position.lerp(target_position, minf(delta * 16.0, 1.0))
 	camera.rotation = Vector3(pitch + bob_pitch + shake_y * 0.34, 0.0, current_roll + shake_roll)
 	var speed_fov := clampf(speed / DASH_SPEED, 0.0, 1.0) * 4.0
-	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (2.5 if is_slamming else 0.0)
+	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (2.5 if is_slamming else 0.0) + (5.0 if is_grappling else 0.0) + (2.5 if is_gliding else 0.0)
 	camera.fov = move_toward(camera.fov, target_fov, FOV_RESPONSE * delta)
 	_update_particles(speed)
 
@@ -306,6 +411,30 @@ func _create_particles() -> void:
 	burst_particles.draw_pass_1 = _particle_quad(0.20, Color("d8f3b8d9"))
 	burst_particles.emitting = false
 	add_child(burst_particles)
+
+func _create_grapple_line() -> void:
+	grapple_line = MeshInstance3D.new()
+	grapple_line.name = "GrappleLine"
+	grapple_line_mesh = ImmediateMesh.new()
+	grapple_line.mesh = grapple_line_mesh
+	grapple_line_material = StandardMaterial3D.new()
+	grapple_line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	grapple_line_material.albedo_color = Color("#b9f6df")
+	grapple_line_material.emission_enabled = true
+	grapple_line_material.emission = Color("#7ee7c0")
+	grapple_line_material.emission_energy_multiplier = 2.4
+	grapple_line.visible = false
+	add_child(grapple_line)
+
+func _refresh_grapple_line() -> void:
+	if grapple_line == null or grapple_line_mesh == null or not is_grappling:
+		return
+	grapple_line_mesh.clear_surfaces()
+	grapple_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES, grapple_line_material)
+	grapple_line_mesh.surface_add_vertex(Vector3(0.0, 1.1, 0.0))
+	grapple_line_mesh.surface_add_vertex(to_local(grapple_target))
+	grapple_line_mesh.surface_end()
+	grapple_line.visible = true
 
 func _particle_quad(size: float, color: Color) -> QuadMesh:
 	var quad := QuadMesh.new()

@@ -11,6 +11,7 @@ var collected_in_level := 0
 var total_collectibles_in_level := 0
 var traversal_ramp_count := 0
 var climbable_trunk_count := 0
+var grapple_anchor_count := 0
 
 var ui: CanvasLayer
 var hud: Control
@@ -20,6 +21,7 @@ var display_filter_layer: CanvasLayer
 var timer_label: Label
 var par_label: Label
 var collect_label: Label
+var tool_label: Label
 var briefing_label: Label
 var rebinding_action := ""
 var rebinding_button: Button
@@ -83,15 +85,18 @@ func _build_ui() -> void:
 	timer_label = _label("00:00.000", 32, Color("#edf3d5"))
 	par_label = _label("PAR --:--.---", 16, Color("#b5c6a5"))
 	collect_label = _label("* 0/0", 16, Color("#f2d98c"))
+	tool_label = _label("E TETHER / F GLIDE", 16, Color("#9edbb8"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	timer_label.custom_minimum_size = Vector2(170.0, 42.0)
 	par_label.custom_minimum_size = Vector2(170.0, 28.0)
 	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
+	tool_label.custom_minimum_size = Vector2(210.0, 28.0)
 	top.add_child(timer_label)
 	top.add_child(par_label)
 	top.add_child(collect_label)
+	top.add_child(tool_label)
 	briefing_label = _label("", 22, Color("#e9f0d8"))
 	briefing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	briefing_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -167,7 +172,7 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse - Space jump/wall jump - Q slam - Shift dash - Ctrl slide - R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse - Space jump/wall jump - E tether - F glide - Q slam - Shift dash - Ctrl slide - R reset", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"
@@ -235,6 +240,7 @@ func _build_course(level: Dictionary) -> void:
 	total_collectibles_in_level = 0
 	traversal_ramp_count = 0
 	climbable_trunk_count = 0
+	grapple_anchor_count = 0
 	var world_length := float(level.world_length)
 	var world_width := float(level.world_width)
 	var palette := _palette_for(str(level.terrain_style))
@@ -268,6 +274,7 @@ func _build_course(level: Dictionary) -> void:
 			_build_green_light(summit_surface, palette)
 		_:
 			push_error("Unknown level layout: " + str(level.id))
+	_build_tool_route(level, palette)
 	var summit := _make_platform(summit_surface - Vector3(0.0, 0.45, 0.0), Vector3(13.0, 0.9, 12.0), palette.summit)
 	summit.name = "Summit"
 	course.add_child(summit)
@@ -445,6 +452,63 @@ func _build_finale(start: Vector3, summit: Vector3, palette: Dictionary, label: 
 	var direction := Vector3(summit.x - start.x, 0.0, summit.z - start.z).normalized()
 	finale.add_child(_make_boost(start + Vector3(0.0, 0.42, -1.3), direction))
 	_add_course_sign(finale, midpoint + Vector3(0.0, 2.3, 0.0), label, palette.sign)
+
+func _build_tool_route(level: Dictionary, palette: Dictionary) -> void:
+	var route := _route("ToolRoute", "grapple + glide")
+	var anchors: Array[Vector3] = []
+	match str(level.id):
+		"01-trailhead":
+			anchors = [Vector3(7.0, 5.2, -24.0), Vector3(3.0, 7.1, -42.0)]
+		"02-moss-run":
+			anchors = [Vector3(11.0, 5.0, -35.0), Vector3(4.0, 7.2, -55.0)]
+		"03-canopy-gap":
+			anchors = [Vector3(10.0, 5.9, -30.0), Vector3(8.0, 7.4, -50.0)]
+		"04-root-tunnel":
+			anchors = [Vector3(10.0, 5.5, -39.0), Vector3(5.0, 7.3, -59.0)]
+		"05-sky-sap":
+			anchors = [Vector3(10.0, 6.7, -31.0), Vector3(8.0, 8.0, -59.0)]
+		"06-wild-line":
+			anchors = [Vector3(10.0, 6.1, -38.0), Vector3(7.0, 8.0, -66.0)]
+		"07-green-light":
+			anchors = [Vector3(13.0, 6.1, -42.0), Vector3(8.0, 8.2, -69.0)]
+	for anchor in anchors:
+		_add_grapple_anchor(route, anchor, palette.sign)
+	if not anchors.is_empty():
+		_add_course_sign(route, anchors[0] + Vector3(0.0, 2.4, 0.0), "E TETHER  /  HOLD F GLIDE", palette.sign)
+
+func _add_grapple_anchor(parent: Node3D, position: Vector3, color: Color) -> void:
+	grapple_anchor_count += 1
+	var anchor := Node3D.new()
+	anchor.name = "GrappleAnchor"
+	anchor.position = position
+	anchor.add_to_group("grapple_anchor")
+	anchor.set_meta("tool", "grapple")
+	var ring := MeshInstance3D.new()
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.56
+	ring_mesh.outer_radius = 0.76
+	ring.mesh = ring_mesh
+	ring.rotation.x = deg_to_rad(90.0)
+	ring.material_override = _material(color, true)
+	anchor.add_child(ring)
+	var core := MeshInstance3D.new()
+	var core_mesh := SphereMesh.new()
+	core_mesh.radius = 0.20
+	core_mesh.height = 0.40
+	core.mesh = core_mesh
+	core.material_override = _material(Color("#f1ffe5"), true)
+	anchor.add_child(core)
+	var label := Label3D.new()
+	label.text = "E TETHER"
+	label.font = ui_theme.default_font
+	label.font_size = 28
+	label.outline_size = 4
+	label.modulate = color
+	label.position = Vector3(0.0, 1.0, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.008
+	anchor.add_child(label)
+	parent.add_child(anchor)
 
 func _add_root_arch(parent: Node3D, position: Vector3, width: float, color: Color) -> void:
 	var arch := Node3D.new()
@@ -815,6 +879,8 @@ func _refresh_hud() -> void:
 	par_label.text = "PAR " + _time_text(float(current_level.par))
 	var total := _collectible_count(current_level)
 	collect_label.text = "* %d/%d" % [RunData.collected, total]
+	if player:
+		tool_label.text = player.tool_status()
 
 func _collectible_count(level: Dictionary) -> int:
 	return total_collectibles_in_level
