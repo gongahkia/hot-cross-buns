@@ -1,10 +1,13 @@
 #include "core/TaskRecurrenceMarker.h"
 
 #include <QDate>
+#include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSet>
 #include <QTimeZone>
 #include <QUuid>
 
@@ -19,6 +22,8 @@ constexpr qsizetype kMaximumTitleLength = 500;
 constexpr qsizetype kMaximumTimeZoneLength = 128;
 constexpr std::int32_t kMaximumInterval = 1'000;
 constexpr std::int32_t kMaximumOccurrenceCount = 10'000;
+constexpr qsizetype kMaximumRuleLength = 512;
+constexpr int kMaximumExpansionYears = 1'000;
 constexpr char kMarkerPrefix[] = "[HCB-RECURRENCE v";
 constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
 
@@ -68,6 +73,124 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
     return TaskRecurrenceFrequency::Yearly;
   }
   return std::nullopt;
+}
+
+struct DateOnlyRule final {
+  TaskRecurrenceFrequency frequency;
+  std::int32_t interval{1};
+  QSet<int> weekdays;
+  QHash<int, QSet<int>> ordinalWeekdays;
+  QSet<int> monthDays;
+  QSet<int> months;
+};
+
+[[nodiscard]] std::optional<int> weekdayForToken(QStringView value) {
+  if (value == u"MO") return 1;
+  if (value == u"TU") return 2;
+  if (value == u"WE") return 3;
+  if (value == u"TH") return 4;
+  if (value == u"FR") return 5;
+  if (value == u"SA") return 6;
+  if (value == u"SU") return 7;
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<DateOnlyRule> parseDateOnlyRule(const QString& text) {
+  if (text.isEmpty()) {
+    return std::nullopt;
+  }
+  if (text.size() > kMaximumRuleLength || text != text.trimmed() || text.contains(QChar::Null)) {
+    return std::nullopt;
+  }
+  QHash<QString, QString> parts;
+  for (const QString& component : text.split(u';', Qt::SkipEmptyParts)) {
+    const qsizetype separator = component.indexOf(u'=');
+    if (separator <= 0 || separator == component.size() - 1) {
+      return std::nullopt;
+    }
+    const QString key = component.left(separator);
+    const QString value = component.sliced(separator + 1);
+    if (key != key.toUpper() || value != value.toUpper() || parts.contains(key) ||
+        (key != QStringLiteral("FREQ") && key != QStringLiteral("INTERVAL") &&
+         key != QStringLiteral("BYDAY") && key != QStringLiteral("BYMONTHDAY") &&
+         key != QStringLiteral("BYMONTH"))) {
+      return std::nullopt;
+    }
+    parts.insert(key, value);
+  }
+  const auto frequency = parts.constFind(QStringLiteral("FREQ"));
+  if (frequency == parts.cend()) {
+    return std::nullopt;
+  }
+  const std::optional<TaskRecurrenceFrequency> parsedFrequency =
+      frequencyForText(frequency->toLower());
+  if (!parsedFrequency.has_value()) {
+    return std::nullopt;
+  }
+  DateOnlyRule rule{.frequency = *parsedFrequency};
+  if (const auto interval = parts.constFind(QStringLiteral("INTERVAL")); interval != parts.cend()) {
+    bool valid = false;
+    const int parsed = interval->toInt(&valid);
+    if (!valid || parsed < 1 || parsed > kMaximumInterval) {
+      return std::nullopt;
+    }
+    rule.interval = parsed;
+  }
+  if (const auto days = parts.constFind(QStringLiteral("BYDAY")); days != parts.cend()) {
+    for (const QString& token : days->split(u',', Qt::SkipEmptyParts)) {
+      const QString suffix = token.right(2);
+      const std::optional<int> weekday = weekdayForToken(suffix);
+      if (!weekday.has_value()) {
+        return std::nullopt;
+      }
+      const QString ordinalText = token.left(token.size() - 2);
+      if (ordinalText.isEmpty()) {
+        rule.weekdays.insert(*weekday);
+      } else {
+        bool valid = false;
+        const int ordinal = ordinalText.toInt(&valid);
+        if (!valid || ordinal == 0 || ordinal < -5 || ordinal > 5) {
+          return std::nullopt;
+        }
+        rule.ordinalWeekdays[ordinal].insert(*weekday);
+      }
+    }
+  }
+  if (const auto days = parts.constFind(QStringLiteral("BYMONTHDAY")); days != parts.cend()) {
+    for (const QString& token : days->split(u',', Qt::SkipEmptyParts)) {
+      bool valid = false;
+      const int day = token.toInt(&valid);
+      if (!valid || day == 0 || day < -31 || day > 31) {
+        return std::nullopt;
+      }
+      rule.monthDays.insert(day);
+    }
+  }
+  if (const auto months = parts.constFind(QStringLiteral("BYMONTH")); months != parts.cend()) {
+    for (const QString& token : months->split(u',', Qt::SkipEmptyParts)) {
+      bool valid = false;
+      const int month = token.toInt(&valid);
+      if (!valid || month < 1 || month > 12) {
+        return std::nullopt;
+      }
+      rule.months.insert(month);
+    }
+  }
+  return rule;
+}
+
+[[nodiscard]] bool isValidDateList(const QList<QString>& values) {
+  if (values.size() > kMaximumOccurrenceCount) {
+    return false;
+  }
+  QSet<QString> unique;
+  for (const QString& value : values) {
+    if (!isValidDate(value) || unique.contains(value)) {
+      return false;
+    }
+    unique.insert(value);
+  }
+  return true;
 }
 
 [[nodiscard]] QString endKindText(TaskRecurrenceEndKind kind) {
@@ -152,6 +275,20 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
       !QTimeZone(marker.timeZone.toUtf8()).isValid()) {
     return QStringLiteral("timezone is invalid");
   }
+  if (!marker.recurrenceRule.isEmpty()) {
+    const std::optional<DateOnlyRule> rule = parseDateOnlyRule(marker.recurrenceRule);
+    if (!rule.has_value() || rule->frequency != marker.frequency || rule->interval != marker.interval) {
+      return QStringLiteral("date-only recurrence rule is invalid");
+    }
+  }
+  if (!isValidDateList(marker.exclusionDates) || !isValidDateList(marker.additionDates)) {
+    return QStringLiteral("recurrence date exceptions are invalid");
+  }
+  if (marker.exclusionDates.contains(marker.anchorDate) ||
+      std::any_of(marker.additionDates.cbegin(), marker.additionDates.cend(),
+                  [&marker](const QString& date) { return date < marker.anchorDate; })) {
+    return QStringLiteral("recurrence date exceptions are outside the series");
+  }
   switch (marker.end.kind) {
   case TaskRecurrenceEndKind::Never:
     if (marker.end.untilDate.has_value() || marker.end.count.has_value()) {
@@ -180,18 +317,31 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
           .diagnostic = malformed(std::move(diagnostic))};
 }
 
+[[nodiscard]] std::optional<QList<QString>> dateListFromJson(const QJsonValue& value) {
+  if (!value.isArray() || value.toArray().size() > kMaximumOccurrenceCount) {
+    return std::nullopt;
+  }
+  QList<QString> dates;
+  dates.reserve(value.toArray().size());
+  for (const QJsonValue& item : value.toArray()) {
+    if (!item.isString() || !isValidDate(item.toString())) {
+      return std::nullopt;
+    }
+    dates.append(item.toString());
+  }
+  return isValidDateList(dates) ? std::optional<QList<QString>>(std::move(dates)) : std::nullopt;
+}
+
 [[nodiscard]] std::optional<TaskRecurrenceMarker> markerFromJson(const QJsonObject& object,
-                                                                 QString& diagnostic) {
-  if (!hasKeys(object,
-               {QStringLiteral("a"),
-                QStringLiteral("e"),
-                QStringLiteral("i"),
-                QStringLiteral("n"),
-                QStringLiteral("o"),
-                QStringLiteral("r"),
-                QStringLiteral("s"),
-                QStringLiteral("t"),
-                QStringLiteral("z")})) {
+                                                                 QString& diagnostic,
+                                                                 bool versionTwo) {
+  QStringList keys{QStringLiteral("a"), QStringLiteral("e"), QStringLiteral("i"),
+                   QStringLiteral("n"), QStringLiteral("o"), QStringLiteral("r"),
+                   QStringLiteral("s"), QStringLiteral("t"), QStringLiteral("z")};
+  if (versionTwo) {
+    keys.append({QStringLiteral("d"), QStringLiteral("q"), QStringLiteral("x")});
+  }
+  if (!hasKeys(object, keys)) {
     diagnostic = QStringLiteral("payload fields are invalid");
     return std::nullopt;
   }
@@ -209,6 +359,22 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
       !timeZone.has_value() || !endValue.isObject() || !templateValue.isObject()) {
     diagnostic = QStringLiteral("payload values are invalid");
     return std::nullopt;
+  }
+  QString recurrenceRule;
+  QList<QString> exclusionDates;
+  QList<QString> additionDates;
+  if (versionTwo) {
+    const std::optional<QString> rule = requiredString(object, QStringLiteral("q"));
+    const std::optional<QList<QString>> excluded =
+        dateListFromJson(object.value(QStringLiteral("x")));
+    const std::optional<QList<QString>> added = dateListFromJson(object.value(QStringLiteral("d")));
+    if (!rule.has_value() || !excluded.has_value() || !added.has_value()) {
+      diagnostic = QStringLiteral("date-only rule fields are invalid");
+      return std::nullopt;
+    }
+    recurrenceRule = *rule;
+    exclusionDates = *excluded;
+    additionDates = *added;
   }
   const std::optional<TaskRecurrenceFrequency> parsedFrequency = frequencyForText(*frequency);
   const QJsonObject endObject = endValue.toObject();
@@ -263,6 +429,9 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
                               .anchorDate = *anchorDate,
                               .timeZone = *timeZone,
                               .end = std::move(end),
+                              .recurrenceRule = std::move(recurrenceRule),
+                              .exclusionDates = std::move(exclusionDates),
+                              .additionDates = std::move(additionDates),
                               .templateTitle = *templateTitle,
                               .templateDueDate = *templateDueDate,
                               .templatePriority = *templatePriority};
@@ -271,6 +440,105 @@ constexpr char kMarkerSuffix[] = "\n[/HCB-RECURRENCE]";
     return std::nullopt;
   }
   return marker;
+}
+
+[[nodiscard]] bool matchesMonthDay(const QDate& date, const QSet<int>& monthDays) {
+  if (monthDays.isEmpty()) {
+    return true;
+  }
+  return monthDays.contains(date.day()) || monthDays.contains(date.day() - date.daysInMonth() - 1);
+}
+
+[[nodiscard]] bool matchesOrdinalWeekday(const QDate& date,
+                                         const QHash<int, QSet<int>>& ordinalWeekdays) {
+  if (ordinalWeekdays.isEmpty()) {
+    return true;
+  }
+  const int weekday = date.dayOfWeek();
+  const int fromStart = (date.day() - 1) / 7 + 1;
+  const int fromEnd = -((date.daysInMonth() - date.day()) / 7 + 1);
+  const auto positive = ordinalWeekdays.constFind(fromStart);
+  if (positive != ordinalWeekdays.cend() && positive->contains(weekday)) {
+    return true;
+  }
+  const auto negative = ordinalWeekdays.constFind(fromEnd);
+  return negative != ordinalWeekdays.cend() && negative->contains(weekday);
+}
+
+[[nodiscard]] bool matchesDateOnlyRule(const QDate& date,
+                                       const QDate& anchor,
+                                       const DateOnlyRule& rule) {
+  if (date < anchor || (!rule.months.isEmpty() && !rule.months.contains(date.month()))) {
+    return false;
+  }
+  const qint64 days = anchor.daysTo(date);
+  const qint64 months = static_cast<qint64>(date.year() - anchor.year()) * 12 +
+                         date.month() - anchor.month();
+  const qint64 years = date.year() - anchor.year();
+  switch (rule.frequency) {
+  case TaskRecurrenceFrequency::Daily:
+    if (days % rule.interval != 0) return false;
+    break;
+  case TaskRecurrenceFrequency::Weekly: {
+    const QDate anchorWeek = anchor.addDays(1 - anchor.dayOfWeek());
+    const qint64 weeks = anchorWeek.daysTo(date.addDays(1 - date.dayOfWeek())) / 7;
+    if (weeks < 0 || weeks % rule.interval != 0) return false;
+    break;
+  }
+  case TaskRecurrenceFrequency::Monthly:
+    if (months < 0 || months % rule.interval != 0) return false;
+    break;
+  case TaskRecurrenceFrequency::Yearly:
+    if (years < 0 || years % rule.interval != 0) return false;
+    break;
+  }
+  if (!rule.weekdays.isEmpty() && !rule.weekdays.contains(date.dayOfWeek())) {
+    return false;
+  }
+  if (!matchesOrdinalWeekday(date, rule.ordinalWeekdays) || !matchesMonthDay(date, rule.monthDays)) {
+    return false;
+  }
+  if (rule.weekdays.isEmpty() && rule.ordinalWeekdays.isEmpty() && rule.monthDays.isEmpty()) {
+    if (rule.frequency == TaskRecurrenceFrequency::Weekly && date.dayOfWeek() != anchor.dayOfWeek()) {
+      return false;
+    }
+    if (rule.frequency == TaskRecurrenceFrequency::Monthly &&
+        date != anchor.addMonths(static_cast<int>(months))) {
+      return false;
+    }
+    if (rule.frequency == TaskRecurrenceFrequency::Yearly &&
+        date != anchor.addYears(static_cast<int>(years))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+[[nodiscard]] std::optional<QString> expandedRuleDate(const TaskRecurrenceMarker& marker,
+                                                       std::int32_t ordinal) {
+  const std::optional<DateOnlyRule> rule = parseDateOnlyRule(marker.recurrenceRule);
+  if (!rule.has_value()) {
+    return std::nullopt;
+  }
+  const QDate anchor = QDate::fromString(marker.anchorDate, Qt::ISODate);
+  QSet<QString> excluded(marker.exclusionDates.cbegin(), marker.exclusionDates.cend());
+  QSet<QString> added(marker.additionDates.cbegin(), marker.additionDates.cend());
+  std::int32_t seen = 0;
+  const QDate horizon = anchor.addYears(kMaximumExpansionYears);
+  for (QDate date = anchor; date.isValid() && date <= horizon; date = date.addDays(1)) {
+    const QString text = date.toString(Qt::ISODate);
+    if (excluded.contains(text) || (!added.contains(text) && !matchesDateOnlyRule(date, anchor, *rule))) {
+      continue;
+    }
+    if (seen == ordinal) {
+      return text;
+    }
+    if (seen == std::numeric_limits<std::int32_t>::max()) {
+      return std::nullopt;
+    }
+    ++seen;
+  }
+  return std::nullopt;
 }
 
 } // namespace
@@ -298,7 +566,7 @@ TaskRecurrenceNotes parseTaskRecurrenceNotes(const QString& notes) {
       markerEnd + suffix.size() != notes.size()) {
     return invalidNotes(notes, QStringLiteral("marker envelope is invalid"));
   }
-  if (parsedVersion != 1) {
+  if (parsedVersion != 1 && parsedVersion != 2) {
     return {.state = TaskRecurrenceNotesState::UnsupportedVersion,
             .userNotes = notes,
             .diagnostic = QStringLiteral("HCB recurrence marker version is unsupported")};
@@ -314,7 +582,8 @@ TaskRecurrenceNotes parseTaskRecurrenceNotes(const QString& notes) {
     return invalidNotes(notes, QStringLiteral("marker payload is not a JSON object"));
   }
   QString diagnostic;
-  const std::optional<TaskRecurrenceMarker> marker = markerFromJson(document.object(), diagnostic);
+  const std::optional<TaskRecurrenceMarker> marker =
+      markerFromJson(document.object(), diagnostic, parsedVersion == 2);
   if (!marker.has_value()) {
     return invalidNotes(notes, std::move(diagnostic));
   }
@@ -342,17 +611,20 @@ TaskRecurrenceSerializationResult serializeTaskRecurrenceNotes(const QString& us
                                    {QStringLiteral("p"), marker.templatePriority},
                                    {QStringLiteral("t"), marker.templateTitle}};
   const QJsonObject payload{{QStringLiteral("a"), marker.anchorDate},
+                            {QStringLiteral("d"), QJsonArray::fromStringList(marker.additionDates)},
                             {QStringLiteral("e"), end},
                             {QStringLiteral("i"), marker.interval},
                             {QStringLiteral("n"), marker.ordinal},
                             {QStringLiteral("o"), marker.occurrenceId},
+                            {QStringLiteral("q"), marker.recurrenceRule},
                             {QStringLiteral("r"), frequencyText(marker.frequency)},
                             {QStringLiteral("s"), marker.seriesId},
                             {QStringLiteral("t"), templateObject},
+                            {QStringLiteral("x"), QJsonArray::fromStringList(marker.exclusionDates)},
                             {QStringLiteral("z"), marker.timeZone}};
   const QString compact = QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
   const QString notes = userNotes + QStringLiteral("\n\n") + QString::fromLatin1(kMarkerPrefix) +
-                        QStringLiteral("1]\n") + compact + QString::fromLatin1(kMarkerSuffix);
+                        QStringLiteral("2]\n") + compact + QString::fromLatin1(kMarkerSuffix);
   if (notes.toUtf8().size() > kMaximumNotesBytes) {
     return {.error = QStringLiteral("Task notes and recurrence marker exceed Google Tasks limit")};
   }
@@ -363,6 +635,9 @@ std::optional<QString> taskRecurrenceDate(const TaskRecurrenceMarker& marker,
                                           std::int32_t ordinal) {
   if (ordinal < 0 || validate(marker).has_value()) {
     return std::nullopt;
+  }
+  if (!marker.recurrenceRule.isEmpty()) {
+    return expandedRuleDate(marker, ordinal);
   }
   const QDate anchor = QDate::fromString(marker.anchorDate, Qt::ISODate);
   const qint64 intervals = static_cast<qint64>(marker.interval) * ordinal;
@@ -411,6 +686,16 @@ std::optional<TaskRecurrenceMarker> taskRecurrenceSuccessor(const TaskRecurrence
 }
 
 QString taskRecurrenceSummary(const TaskRecurrenceMarker& marker) {
+  if (!marker.recurrenceRule.isEmpty()) {
+    QString summary = QStringLiteral("Custom: ") + marker.recurrenceRule;
+    if (!marker.exclusionDates.isEmpty()) {
+      summary += QStringLiteral(" · skips %1 date(s)").arg(marker.exclusionDates.size());
+    }
+    if (!marker.additionDates.isEmpty()) {
+      summary += QStringLiteral(" · adds %1 date(s)").arg(marker.additionDates.size());
+    }
+    return summary;
+  }
   const QString singular = frequencyText(marker.frequency);
   const QString plural =
       marker.frequency == TaskRecurrenceFrequency::Daily     ? QStringLiteral("days")

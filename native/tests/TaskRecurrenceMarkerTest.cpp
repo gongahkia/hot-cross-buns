@@ -10,6 +10,7 @@ private slots:
   void rejectsMalformedAndUnknownMarkersWithoutDiscardingNotes();
   void enforcesGoogleNotesLimit();
   void advancesDatesFromTheAnchorAcrossDstAndMonthEnds();
+  void expandsDateOnlyWeekdayOrdinalAndExceptionRules();
 };
 
 namespace {
@@ -36,7 +37,7 @@ void TaskRecurrenceMarkerTest::roundTripsWithoutChangingUserNotes() {
   const hcb::TaskRecurrenceSerializationResult serialized =
       hcb::serializeTaskRecurrenceNotes(body, marker());
   QVERIFY(!serialized.error.has_value());
-  QVERIFY(serialized.notes.contains(QStringLiteral("[HCB-RECURRENCE v1]")));
+  QVERIFY(serialized.notes.contains(QStringLiteral("[HCB-RECURRENCE v2]")));
 
   const hcb::TaskRecurrenceNotes parsed = hcb::parseTaskRecurrenceNotes(serialized.notes);
   QCOMPARE(parsed.state, hcb::TaskRecurrenceNotesState::Managed);
@@ -70,7 +71,7 @@ void TaskRecurrenceMarkerTest::rejectsMalformedAndUnknownMarkersWithoutDiscardin
   QVERIFY(!malformedParsed.diagnostic.isEmpty());
 
   QString unsupported = serialized.notes;
-  unsupported.replace(QStringLiteral("[HCB-RECURRENCE v1]"), QStringLiteral("[HCB-RECURRENCE v2]"));
+  unsupported.replace(QStringLiteral("[HCB-RECURRENCE v2]"), QStringLiteral("[HCB-RECURRENCE v3]"));
   const hcb::TaskRecurrenceNotes unsupportedParsed = hcb::parseTaskRecurrenceNotes(unsupported);
   QCOMPARE(unsupportedParsed.state, hcb::TaskRecurrenceNotesState::UnsupportedVersion);
   QCOMPARE(unsupportedParsed.userNotes, unsupported);
@@ -161,6 +162,58 @@ void TaskRecurrenceMarkerTest::advancesDatesFromTheAnchorAcrossDstAndMonthEnds()
     return;
   }
   QCOMPARE(yearlySuccessor->templateDueDate, QStringLiteral("2025-02-28"));
+}
+
+void TaskRecurrenceMarkerTest::expandsDateOnlyWeekdayOrdinalAndExceptionRules() {
+  hcb::TaskRecurrenceMarker weekdays = marker();
+  weekdays.frequency = hcb::TaskRecurrenceFrequency::Weekly;
+  weekdays.interval = 1;
+  weekdays.anchorDate = QStringLiteral("2026-07-27");
+  weekdays.templateDueDate = weekdays.anchorDate;
+  weekdays.ordinal = 0;
+  weekdays.occurrenceId = weekdays.seriesId + QStringLiteral(":0");
+  weekdays.recurrenceRule = QStringLiteral("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR");
+  weekdays.exclusionDates = {QStringLiteral("2026-07-29")};
+  weekdays.additionDates = {QStringLiteral("2026-07-30")};
+  const std::optional<hcb::TaskRecurrenceMarker> addedSuccessor =
+      hcb::taskRecurrenceSuccessor(weekdays);
+  QVERIFY(addedSuccessor.has_value());
+  if (!addedSuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(addedSuccessor->templateDueDate, QStringLiteral("2026-07-30"));
+
+  hcb::TaskRecurrenceMarker lastFriday = marker();
+  lastFriday.frequency = hcb::TaskRecurrenceFrequency::Monthly;
+  lastFriday.interval = 1;
+  lastFriday.anchorDate = QStringLiteral("2026-08-28");
+  lastFriday.templateDueDate = lastFriday.anchorDate;
+  lastFriday.ordinal = 0;
+  lastFriday.occurrenceId = lastFriday.seriesId + QStringLiteral(":0");
+  lastFriday.recurrenceRule = QStringLiteral("FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR");
+  const std::optional<hcb::TaskRecurrenceMarker> monthlySuccessor =
+      hcb::taskRecurrenceSuccessor(lastFriday);
+  QVERIFY(monthlySuccessor.has_value());
+  if (!monthlySuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(monthlySuccessor->templateDueDate, QStringLiteral("2026-09-25"));
+
+  hcb::TaskRecurrenceMarker businessDays = marker();
+  businessDays.frequency = hcb::TaskRecurrenceFrequency::Daily;
+  businessDays.interval = 1;
+  businessDays.anchorDate = QStringLiteral("2026-07-31");
+  businessDays.templateDueDate = businessDays.anchorDate;
+  businessDays.ordinal = 0;
+  businessDays.occurrenceId = businessDays.seriesId + QStringLiteral(":0");
+  businessDays.recurrenceRule = QStringLiteral("FREQ=DAILY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR");
+  const std::optional<hcb::TaskRecurrenceMarker> businessSuccessor =
+      hcb::taskRecurrenceSuccessor(businessDays);
+  QVERIFY(businessSuccessor.has_value());
+  if (!businessSuccessor.has_value()) {
+    return;
+  }
+  QCOMPARE(businessSuccessor->templateDueDate, QStringLiteral("2026-08-03"));
 }
 
 QTEST_GUILESS_MAIN(TaskRecurrenceMarkerTest)

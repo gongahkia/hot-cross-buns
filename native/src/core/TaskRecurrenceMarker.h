@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QString>
 
 #include <cstdint>
@@ -35,6 +36,9 @@ struct TaskRecurrenceMarker final {
   QString anchorDate;
   QString timeZone;
   TaskRecurrenceEndCondition end;
+  QString recurrenceRule;
+  QList<QString> exclusionDates;
+  QList<QString> additionDates;
   QString templateTitle;
   QString templateDueDate;
   QString templatePriority;

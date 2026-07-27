@@ -496,13 +496,14 @@ ApplicationWindow {
         onTaskCreateRequested: function(taskListId, parentTaskId, title, notes, dueAt, dueTimeZone,
                                         priority, managedRecurrence, recurrenceFrequency,
                                         recurrenceInterval, recurrenceEndKind, recurrenceEndUntil,
-                                        recurrenceEndCount) {
+                                        recurrenceEndCount, recurrenceRule, exclusionDates, additionDates) {
             window.taskCreateRequested(taskListId, parentTaskId, title)
             window.controllerCall("createTaskDetailed", [taskListId, parentTaskId, title, notes, dueAt,
                                                             dueTimeZone, priority, managedRecurrence,
                                                             recurrenceFrequency, recurrenceInterval,
                                                             recurrenceEndKind, recurrenceEndUntil,
-                                                            recurrenceEndCount])
+                                                            recurrenceEndCount, recurrenceRule,
+                                                            exclusionDates, additionDates])
         }
     }
 

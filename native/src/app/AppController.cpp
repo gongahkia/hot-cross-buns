@@ -108,6 +108,7 @@ struct ManagedTaskRecurrenceConfiguration final {
   TaskRecurrenceFrequency frequency;
   std::int32_t interval;
   TaskRecurrenceEndCondition end;
+  QString defaultRule;
 };
 
 [[nodiscard]] std::optional<ManagedTaskRecurrenceConfiguration>
@@ -129,6 +130,9 @@ managedTaskRecurrenceConfiguration(int frequency,
     break;
   case 3:
     parsedFrequency = TaskRecurrenceFrequency::Yearly;
+    break;
+  case 4:
+    parsedFrequency = TaskRecurrenceFrequency::Daily;
     break;
   default:
     return std::nullopt;
@@ -162,7 +166,25 @@ managedTaskRecurrenceConfiguration(int frequency,
   }
   return ManagedTaskRecurrenceConfiguration{.frequency = *parsedFrequency,
                                             .interval = static_cast<std::int32_t>(interval),
-                                            .end = std::move(end)};
+                                            .end = std::move(end),
+                                            .defaultRule = frequency == 4
+                                                               ? QStringLiteral("FREQ=DAILY;INTERVAL=%1;BYDAY=MO,TU,WE,TH,FR").arg(interval)
+                                                               : QString()};
+}
+
+[[nodiscard]] std::optional<QList<QString>> recurrenceDatesFromText(const QString& value) {
+  QList<QString> dates;
+  QSet<QString> seen;
+  for (const QString& token : value.split(u',', Qt::SkipEmptyParts)) {
+    const QDate date = QDate::fromString(token.trimmed(), Qt::ISODate);
+    const QString normalized = date.toString(Qt::ISODate);
+    if (!date.isValid() || seen.contains(normalized)) {
+      return std::nullopt;
+    }
+    seen.insert(normalized);
+    dates.append(normalized);
+  }
+  return dates;
 }
 
 [[nodiscard]] std::optional<QList<QString>> taskIdsFromVariantList(const QVariantList& values) {
@@ -1257,7 +1279,10 @@ void AppController::createTaskDetailed(QString taskListId,
                                        int recurrenceInterval,
                                        int recurrenceEndKind,
                                        QString recurrenceEndUntil,
-                                       int recurrenceEndCount) {
+                                       int recurrenceEndCount,
+                                       QString recurrenceRule,
+                                       QString exclusionDates,
+                                       QString additionDates) {
   const std::optional<TaskPriority> parsedPriority = priorityForValue(priority);
   const bool clearingDue = dueAt.trimmed().isEmpty();
   const std::optional<QString> normalizedDue =
@@ -1291,6 +1316,12 @@ void AppController::createTaskDetailed(QString taskListId,
       setStatus(QStringLiteral("Managed recurrence requires a top-level task with a valid due date"));
       return;
     }
+    const std::optional<QList<QString>> excluded = recurrenceDatesFromText(exclusionDates);
+    const std::optional<QList<QString>> added = recurrenceDatesFromText(additionDates);
+    if (!excluded.has_value() || !added.has_value()) {
+      setStatus(QStringLiteral("Task recurrence dates must be unique ISO dates"));
+      return;
+    }
     const QDate anchor = QDateTime::fromString(*normalizedDue, Qt::ISODate).date();
     const QString timeZone = dueTimeZone.trimmed().isEmpty()
                                  ? QString::fromUtf8(QTimeZone::systemTimeZoneId())
@@ -1307,6 +1338,11 @@ void AppController::createTaskDetailed(QString taskListId,
                                 .anchorDate = anchor.toString(Qt::ISODate),
                                 .timeZone = timeZone,
                                 .end = recurrence->end,
+                                .recurrenceRule = recurrenceRule.trimmed().isEmpty()
+                                                      ? recurrence->defaultRule
+                                                      : recurrenceRule.trimmed(),
+                                .exclusionDates = *excluded,
+                                .additionDates = *added,
                                 .templateTitle = input.title,
                                 .templateDueDate = anchor.toString(Qt::ISODate),
                                 .templatePriority = priorityText(*parsedPriority)};

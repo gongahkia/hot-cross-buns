@@ -161,7 +161,10 @@ public:
                                       int recurrenceInterval,
                                       int recurrenceEndKind,
                                       QString recurrenceEndUntil,
-                                      int recurrenceEndCount);
+                                      int recurrenceEndCount,
+                                      QString recurrenceRule = {},
+                                      QString exclusionDates = {},
+                                      QString additionDates = {});
   Q_INVOKABLE void saveNoteTask(QString taskId, QString taskListId, QString title, QString notes);
   Q_INVOKABLE void updateTask(QString taskId,
                               QString title,

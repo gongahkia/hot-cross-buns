@@ -30,10 +30,14 @@ HcbDialog {
     property alias recurrenceEndPicker: endPicker
     property alias recurrenceEndUntilField: untilField
     property alias recurrenceEndCountField: countField
+    property alias recurrenceRuleField: ruleField
+    property alias recurrenceExclusionDatesField: exclusionDatesField
+    property alias recurrenceAdditionDatesField: additionDatesField
     signal taskCreateRequested(string taskListId, string parentTaskId, string title, string notes,
                                string dueAt, string dueTimeZone, int priority, bool managedRecurrence,
                                int recurrenceFrequency, int recurrenceInterval, int recurrenceEndKind,
-                               string recurrenceEndUntil, int recurrenceEndCount)
+                               string recurrenceEndUntil, int recurrenceEndCount, string recurrenceRule,
+                               string exclusionDates, string additionDates)
 
     function recurrenceInputValid() {
         if (!recurrenceCheck.checked) return true
@@ -60,6 +64,9 @@ HcbDialog {
         endPicker.currentIndex = 0
         untilField.clear()
         countField.text = "1"
+        ruleField.clear()
+        exclusionDatesField.clear()
+        additionDatesField.clear()
         taskListPicker.currentIndex = taskListPicker.indexOfValue(initialTaskListId || "")
         if (taskListPicker.currentIndex < 0 && taskListPicker.count > 0) {
             taskListPicker.currentIndex = 0
@@ -74,7 +81,9 @@ HcbDialog {
                                          dueField.text.trim(), timeZoneField.text.trim(), priorityPicker.currentValue,
                                          recurrenceCheck.checked, frequencyPicker.currentValue,
                                          Number(intervalField.text), endPicker.currentValue,
-                                         untilField.text.trim(), Number(countField.text))
+                                         untilField.text.trim(), Number(countField.text),
+                                         ruleField.text.trim(), exclusionDatesField.text.trim(),
+                                         additionDatesField.text.trim())
 
     TextField {
         id: titleField
@@ -146,7 +155,8 @@ HcbDialog {
             { label: "Daily", value: 0 },
             { label: "Weekly", value: 1 },
             { label: "Monthly", value: 2 },
-            { label: "Yearly", value: 3 }
+            { label: "Yearly", value: 3 },
+            { label: "Business days (Mon–Fri)", value: 4 }
         ]
         textRole: "label"
         valueRole: "value"
@@ -160,6 +170,34 @@ HcbDialog {
         placeholderText: "Repeat interval"
         inputMethodHints: Qt.ImhDigitsOnly
         Accessible.name: "Task repeat interval"
+        selectByMouse: true
+    }
+
+    TextField {
+        id: ruleField
+        Layout.fillWidth: true
+        visible: recurrenceCheck.checked
+        placeholderText: "Advanced rule (e.g. FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE)"
+        Accessible.name: "Advanced task recurrence rule"
+        Accessible.description: "Optional date-only HCB rule. It must match the selected frequency and interval."
+        selectByMouse: true
+    }
+
+    TextField {
+        id: exclusionDatesField
+        Layout.fillWidth: true
+        visible: recurrenceCheck.checked
+        placeholderText: "Skip dates (YYYY-MM-DD, comma separated)"
+        Accessible.name: "Task recurrence skip dates"
+        selectByMouse: true
+    }
+
+    TextField {
+        id: additionDatesField
+        Layout.fillWidth: true
+        visible: recurrenceCheck.checked
+        placeholderText: "Add dates (YYYY-MM-DD, comma separated)"
+        Accessible.name: "Task recurrence additional dates"
         selectByMouse: true
     }
 
