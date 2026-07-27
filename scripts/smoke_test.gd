@@ -219,7 +219,6 @@ func _initialize() -> void:
 	grapple_anchor.add_to_group("grapple_anchor")
 	main.course.add_child(grapple_anchor)
 	grapple_anchor.global_position = sandbox_player.global_position + Vector3(0.0, 3.0, -8.0)
-	await process_frame
 	sandbox_player.velocity = Vector3.ZERO
 	assert(sandbox_player._try_grapple(), "grapple did not acquire visible anchor")
 	sandbox_player.grapple_anchor = grapple_anchor
