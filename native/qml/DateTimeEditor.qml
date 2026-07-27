@@ -17,22 +17,32 @@ ColumnLayout {
                typeof timeZoneConverter.dateTimeComponents === "function" &&
                typeof timeZoneConverter.dateTimeFromComponents === "function"
     }
+    function timedComponents() {
+        const parsed = new Date(value)
+        if (!Number.isFinite(parsed.getTime())) return null
+        if (hasTimeZoneConversion()) return timeZoneConverter.dateTimeComponents(value, timeZone)
+        return { year: parsed.getFullYear(), month: parsed.getMonth() + 1, day: parsed.getDate(),
+                 hour: parsed.getHours(), minute: parsed.getMinutes() }
+    }
+    function setComponents(components) {
+        if (components === null || components.year === undefined || components.month === undefined ||
+            components.day === undefined || components.hour === undefined || components.minute === undefined) return false
+        updating = true
+        year.value = components.year
+        month.value = components.month
+        day.to = daysInMonth(year.value, month.value)
+        day.value = components.day
+        hour.value = components.hour
+        minute.value = components.minute
+        updating = false
+        return true
+    }
     function syncFromValue() {
         const parsed = new Date(value)
         if (!Number.isFinite(parsed.getTime())) return
-        updating = true
-        const components = !allDay && hasTimeZoneConversion()
-                         ? timeZoneConverter.dateTimeComponents(value, timeZone) : null
-        year.value = components && components.year !== undefined ? components.year
-                                                                 : (allDay ? parsed.getUTCFullYear() : parsed.getFullYear())
-        month.value = components && components.month !== undefined ? components.month
-                                                                   : (allDay ? parsed.getUTCMonth() + 1 : parsed.getMonth() + 1)
-        day.to = daysInMonth(year.value, month.value)
-        day.value = components && components.day !== undefined ? components.day
-                                                               : (allDay ? parsed.getUTCDate() : parsed.getDate())
-        hour.value = allDay ? 0 : (components && components.hour !== undefined ? components.hour : parsed.getHours())
-        minute.value = allDay ? 0 : (components && components.minute !== undefined ? components.minute : parsed.getMinutes())
-        updating = false
+        if (!allDay && setComponents(timedComponents())) return
+        setComponents({ year: parsed.getUTCFullYear(), month: parsed.getUTCMonth() + 1,
+                        day: parsed.getUTCDate(), hour: 0, minute: 0 })
     }
     function commit() {
         if (updating) return
@@ -50,8 +60,14 @@ ColumnLayout {
     onValueChanged: syncFromValue()
     onTimeZoneChanged: syncFromValue()
     onAllDayChanged: {
-        syncFromValue()
-        commit()
+        if (allDay) {
+            if (setComponents(timedComponents())) commit()
+        } else {
+            const parsed = new Date(value)
+            if (Number.isFinite(parsed.getTime()) &&
+                    setComponents({ year: parsed.getUTCFullYear(), month: parsed.getUTCMonth() + 1,
+                                    day: parsed.getUTCDate(), hour: 0, minute: 0 })) commit()
+        }
     }
     Component.onCompleted: syncFromValue()
 

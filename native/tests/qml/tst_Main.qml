@@ -90,6 +90,38 @@ TestCase {
         editor.destroy()
     }
 
+    function test_dateTimeEditorConvertsAllDayThroughSelectedTimeZone() {
+        const component = Qt.createComponent("../../qml/DateTimeEditor.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const converter = {
+            dateTimeComponents: function(value, timeZone) {
+                compare(timeZone, "Asia/Singapore")
+                if (value === "2026-08-01T01:30:00.000Z")
+                    return { year: 2026, month: 8, day: 1, hour: 9, minute: 30 }
+                return { year: 2026, month: 8, day: 1, hour: 8, minute: 0 }
+            },
+            dateTimeFromComponents: function(year, month, day, hour, minute, timeZone) {
+                compare(year, 2026)
+                compare(month, 7)
+                compare(day, 1)
+                compare(timeZone, "Asia/Singapore")
+                return hour === 0 && minute === 0 ? "2026-07-31T16:00:00.000Z"
+                                                  : "2026-08-01T01:30:00.000Z"
+            }
+        }
+        const editor = component.createObject(testCase, {
+            value: "2026-08-01T01:30:00.000Z",
+            timeZone: "Asia/Singapore",
+            timeZoneConverter: converter
+        })
+        verify(editor !== null)
+        editor.allDay = true
+        compare(editor.value, "2026-08-01T00:00:00.000Z")
+        editor.allDay = false
+        compare(editor.value, "2026-07-31T16:00:00.000Z")
+        editor.destroy()
+    }
+
     function test_recordsSidebarTransition() {
         startedTransitions = []
         completedTransitions = []

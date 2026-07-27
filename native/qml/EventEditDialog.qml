@@ -165,12 +165,12 @@ HcbDialog {
         root.eventId = eventId
         eventCalendarId = calendarId
         titleField.text = title
+        timeZonePicker.timeZone = startTimeZone || ""
         startField.value = startAt
         endField.value = endAt
         allDayCheck.checked = allDay
         descriptionField.text = description
         locationField.text = location
-        timeZonePicker.timeZone = startTimeZone || ""
         colorPicker.colorId = colorId || ""
         availableCheck.checked = transparency === "transparent"
         visibilityPicker.currentIndex = visibilityPicker.indexOfValue(visibility || "default")
