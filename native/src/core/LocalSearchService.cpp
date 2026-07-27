@@ -18,8 +18,6 @@ namespace {
 
 constexpr int kMaximumPageSize = 100;
 constexpr int kMaximumOffset = 10'000;
-constexpr int kMaximumRankedResults = 200;
-constexpr int kMaximumCandidatesPerResource = 250;
 
 struct QuerySpec final {
   LocalSearchResource resource;
@@ -44,8 +42,7 @@ constexpr QuerySpec querySpecs[] = {
      R"(SELECT f.task_list_id, lists.title, '', lists.title, '', 0, '', '', '', 0
          FROM local_task_lists_fts AS f
          INNER JOIN local_task_lists AS lists ON lists.id = f.task_list_id
-         WHERE local_task_lists_fts MATCH ?1 AND lists.deleted_at IS NULL
-         LIMIT ?2)"},
+         WHERE local_task_lists_fts MATCH ?1 AND lists.deleted_at IS NULL)"},
     {LocalSearchResource::Task,
      "local_tasks_fts",
      R"(SELECT f.task_id, tasks.title, COALESCE(tasks.notes, ''), lists.title,
@@ -55,8 +52,7 @@ constexpr QuerySpec querySpecs[] = {
          FROM local_tasks_fts AS f
          INNER JOIN local_tasks AS tasks ON tasks.id = f.task_id
          INNER JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
-         WHERE local_tasks_fts MATCH ?1 AND lists.deleted_at IS NULL
-         LIMIT ?2)"},
+         WHERE local_tasks_fts MATCH ?1 AND lists.deleted_at IS NULL)"},
     {LocalSearchResource::Note,
      "local_notes_fts",
      R"(SELECT f.note_id, f.title, f.body, lists.title, tasks.state, tasks.is_hidden,
@@ -65,15 +61,13 @@ constexpr QuerySpec querySpecs[] = {
          FROM local_notes_fts AS f
          INNER JOIN local_tasks AS tasks ON tasks.id = f.note_id
          INNER JOIN local_task_lists AS lists ON lists.id = f.list_id
-         WHERE local_notes_fts MATCH ?1 AND lists.deleted_at IS NULL
-         LIMIT ?2)"},
+         WHERE local_notes_fts MATCH ?1 AND lists.deleted_at IS NULL)"},
     {LocalSearchResource::Calendar,
      "local_calendars_fts",
      R"(SELECT f.calendar_id, calendars.title, '', calendars.title, '', 0, '', '', '', 0
          FROM local_calendars_fts AS f
          INNER JOIN local_calendars AS calendars ON calendars.id = f.calendar_id
-         WHERE local_calendars_fts MATCH ?1 AND calendars.deleted_at IS NULL
-         LIMIT ?2)"},
+         WHERE local_calendars_fts MATCH ?1 AND calendars.deleted_at IS NULL)"},
     {LocalSearchResource::Event,
      "local_calendar_events_fts",
      R"(SELECT f.calendar_event_id, events.title,
@@ -84,8 +78,7 @@ constexpr QuerySpec querySpecs[] = {
          INNER JOIN local_calendar_events AS events ON events.id = f.calendar_event_id
          INNER JOIN local_calendars AS calendars ON calendars.id = events.calendar_id
          WHERE local_calendar_events_fts MATCH ?1 AND events.status != 'cancelled'
-               AND calendars.deleted_at IS NULL
-         LIMIT ?2)"},
+               AND calendars.deleted_at IS NULL)"},
 };
 
 [[nodiscard]] AppError databaseError(const QString& message, int code) {
@@ -218,7 +211,7 @@ readCandidates(SqliteConnection& connection,
                     QStringLiteral("SQLite search connection is unavailable"));
   }
   QList<LocalSearchCandidate> candidates;
-  candidates.reserve(static_cast<qsizetype>(std::size(querySpecs)) * kMaximumCandidatesPerResource);
+  candidates.reserve(512);
   for (const QuerySpec& spec : querySpecs) {
     if (cancellation.stop_requested()) {
       return AppError(AppErrorCode::Cancelled, QStringLiteral("Search request was cancelled"));
@@ -241,11 +234,9 @@ readCandidates(SqliteConnection& connection,
                                                   encodedQuery.constData(),
                                                   static_cast<int>(encodedQuery.size()),
                                                   SQLITE_TRANSIENT);
-    const int bindLimitResult = sqlite3_bind_int(statement, 2, kMaximumCandidatesPerResource);
-    if (bindQueryResult != SQLITE_OK || bindLimitResult != SQLITE_OK) {
+    if (bindQueryResult != SQLITE_OK) {
       sqlite3_finalize(statement);
-      return databaseError(QStringLiteral("SQLite search binding failed (%1)"),
-                           bindQueryResult != SQLITE_OK ? bindQueryResult : bindLimitResult);
+      return databaseError(QStringLiteral("SQLite search binding failed (%1)"), bindQueryResult);
     }
     while (true) {
       if (cancellation.stop_requested()) {
@@ -322,8 +313,8 @@ readCandidates(SqliteConnection& connection,
   if (std::holds_alternative<AppError>(candidates)) {
     return std::get<AppError>(candidates);
   }
-  const QList<LocalSearchRankedResult> ranked = ranker.rank(
-      parsed.plainText, std::get<QList<LocalSearchCandidate>>(candidates), kMaximumRankedResults);
+  const QList<LocalSearchRankedResult> ranked =
+      ranker.rank(parsed.plainText, std::get<QList<LocalSearchCandidate>>(candidates), 0);
   const int rankedCount = static_cast<int>(ranked.size());
   const int start = std::min(request.offset, rankedCount);
   const int end = std::min(start + request.limit, rankedCount);

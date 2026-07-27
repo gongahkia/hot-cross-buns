@@ -24,6 +24,7 @@ private slots:
   void returnsCancelledForStoppedSearch();
   void rejectsInvalidRequests();
   void appliesStructuredFiltersLocally();
+  void returnsAllStructuredMatchesBeyondLegacyCandidateCap();
   void rejectsInvalidStructuredSyntax();
 };
 
@@ -183,6 +184,44 @@ void LocalSearchServiceTest::appliesStructuredFiltersLocally() {
   QCOMPARE(notes.items.size(), 1);
   QCOMPARE(notes.items.front().resource, hcb::LocalSearchResource::Note);
   QCOMPARE(notes.items.front().id, QStringLiteral("task"));
+}
+
+void LocalSearchServiceTest::returnsAllStructuredMatchesBeyondLegacyCandidateCap() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) {
+    return;
+  }
+  initializeDatabase(*database);
+  hcb::SqliteConnectionResult connectionResult =
+      database->open(hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  QCOMPARE(execute(connection.nativeHandle(), R"(
+    WITH RECURSIVE numbers(value) AS (
+      VALUES(1) UNION ALL SELECT value + 1 FROM numbers WHERE value < 300
+    )
+    INSERT INTO local_tasks (id, task_list_id, remote_id, title, notes, updated_at)
+    SELECT 'bulk-' || value, 'list', 'bulk-' || value, 'bulk review ' || value, '',
+           '2026-07-25T00:00:00Z' FROM numbers
+  )"), SQLITE_OK);
+  hcb::LocalSearchService service(database->databasePath());
+  QCOMPARE(service.ready().wait_for(2s), std::future_status::ready);
+  QVERIFY(!service.ready().get().has_value());
+  std::future<hcb::LocalSearchPageResult> firstFuture =
+      service.search({.query = QStringLiteral("bulk source:tasks"), .limit = 100});
+  const hcb::LocalSearchPage first = awaitPage(firstFuture);
+  QCOMPARE(first.totalKnown, 300);
+  QCOMPARE(first.items.size(), 100);
+  QVERIFY(first.hasMore);
+  std::future<hcb::LocalSearchPageResult> finalFuture =
+      service.search({.query = QStringLiteral("bulk source:tasks"), .offset = 200, .limit = 100});
+  const hcb::LocalSearchPage final = awaitPage(finalFuture);
+  QCOMPARE(final.items.size(), 100);
+  QVERIFY(!final.hasMore);
 }
 
 void LocalSearchServiceTest::rejectsInvalidStructuredSyntax() {

@@ -5,7 +5,6 @@
 namespace hcb {
 namespace {
 
-constexpr int kMaximumResults = 100;
 constexpr int kExactPhraseScore = 1'000;
 constexpr int kPrefixPhraseScore = 800;
 constexpr int kContainsPhraseScore = 500;
@@ -83,7 +82,6 @@ QList<LocalSearchRankedResult> UnifiedLocalSearchRanker::rank(
     QString query, QList<LocalSearchCandidate> candidates, int limit) const {
   const QString phrase = normalized(std::move(query));
   const QStringList tokens = queryTokens(phrase);
-  const int cappedLimit = std::clamp(limit, 1, kMaximumResults);
   QList<LocalSearchRankedResult> results;
   results.reserve(candidates.size());
   for (const LocalSearchCandidate& candidate : candidates) {
@@ -104,8 +102,8 @@ QList<LocalSearchRankedResult> UnifiedLocalSearchRanker::rank(
                     .isUndatedTask = candidate.isUndatedTask});
   }
   std::sort(results.begin(), results.end(), comesBefore);
-  if (results.size() > cappedLimit) {
-    results.resize(cappedLimit);
+  if (limit > 0 && results.size() > limit) {
+    results.resize(limit);
   }
   return results;
 }
