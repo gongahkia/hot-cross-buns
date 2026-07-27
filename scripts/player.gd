@@ -2,6 +2,8 @@ class_name SpeedPlayer
 extends CharacterBody3D
 
 signal reset_requested
+signal traversal_action(action: String, override_points: int)
+signal combo_landed
 
 const WALK_SPEED := 10.0
 const SPRINT_SPEED := 17.0
@@ -64,6 +66,8 @@ var was_sliding := false
 var grapple_line: MeshInstance3D
 var grapple_line_mesh: ImmediateMesh
 var grapple_line_material: StandardMaterial3D
+var airborne_time := 0.0
+var flow_timer := 0.0
 
 func _ready() -> void:
 	name = "Player"
@@ -100,6 +104,8 @@ func _physics_process(delta: float) -> void:
 		reset_requested.emit()
 		return
 	var on_floor_before_move := is_on_floor()
+	if not on_floor_before_move:
+		airborne_time += delta
 	if on_floor_before_move:
 		coyote_timer = COYOTE_TIME
 		can_double_jump = true
@@ -119,6 +125,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 		jump_buffer = 0.0
 		coyote_timer = 0.0
+		traversal_action.emit("jump", -1)
 		Audio.play_sfx("jump")
 	elif jump_buffer > 0.0 and wall_jump_timer > 0.0:
 		_wall_jump()
@@ -143,7 +150,7 @@ func _physics_process(delta: float) -> void:
 	var sprint_dash := _sprint_dash_requested(on_floor_before_move)
 	if (Input.is_action_just_pressed("dash") or sprint_dash) and can_dash:
 		_stop_grapple()
-		_dash()
+		_dash("sprint_dash" if sprint_dash else "dash")
 	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var input_direction := (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
 	var top_speed := _movement_top_speed(on_floor_before_move)
@@ -163,17 +170,24 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor():
 		can_double_jump = true
 		is_gliding = false
+	if not on_floor_before_move and is_on_floor():
+		if airborne_time >= 0.45:
+			traversal_action.emit("airtime", clampi(int(round(airborne_time * 85.0)), 45, 180))
+		combo_landed.emit()
+		airborne_time = 0.0
 	if is_slamming and is_on_floor():
 		_add_camera_shake(0.060)
 		landing_offset = minf(landing_offset, -0.110)
 		_emit_burst(0.10)
 		Audio.play_sfx("boost")
+		traversal_action.emit("slam_land", -1)
 		is_slamming = false
 	elif not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
 		landing_offset = minf(landing_offset, -impact * 0.006)
 	was_sliding = is_sliding
+	_sample_flow(delta)
 	_update_camera_fx(delta, input_vector)
 	if global_position.y < -18.0:
 		reset_requested.emit()
