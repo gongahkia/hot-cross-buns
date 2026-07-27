@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
-const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "dash", "slide", "reset_run", "pause"]
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "slide", "reset_run", "pause"]
 
 var mouse_sensitivity := 0.0022
 var invert_y := false
@@ -22,6 +22,7 @@ func default_binding_data() -> Dictionary:
 		"move_left": [{"type": "key", "code": KEY_A}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": -1.0}],
 		"move_right": [{"type": "key", "code": KEY_D}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": 1.0}],
 		"jump": [{"type": "key", "code": KEY_SPACE}, {"type": "joy_button", "button": JOY_BUTTON_A}],
+		"slam": [{"type": "key", "code": KEY_Q}, {"type": "joy_button", "button": JOY_BUTTON_LEFT_SHOULDER}],
 		"dash": [{"type": "key", "code": KEY_SHIFT}, {"type": "joy_button", "button": JOY_BUTTON_RIGHT_SHOULDER}],
 		"slide": [{"type": "key", "code": KEY_CTRL}, {"type": "joy_button", "button": JOY_BUTTON_B}],
 		"reset_run": [{"type": "key", "code": KEY_R}, {"type": "joy_button", "button": JOY_BUTTON_Y}],

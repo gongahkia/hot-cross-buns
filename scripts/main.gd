@@ -141,7 +141,7 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
-	box.add_child(_label("WASD + Mouse · Space jump/wall jump · Shift dash · Ctrl slide · R reset", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse · Space jump/wall jump · Q slam · Shift dash · Ctrl slide · R reset", 14, Color("#8ea18a")))
 
 func show_level_select() -> void:
 	menu_mode = "levels"

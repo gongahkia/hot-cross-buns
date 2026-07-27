@@ -28,6 +28,14 @@ func _initialize() -> void:
 	assert(is_equal_approx(wall_jump_player.velocity.y, 8.4), "wall jump vertical force missing")
 	assert(is_equal_approx(wall_jump_player.velocity.x, 13.0), "wall jump horizontal force missing")
 	assert(wall_jump_player.can_dash, "wall jump did not refresh dash")
+	wall_jump_player.can_double_jump = true
+	wall_jump_player._double_jump()
+	assert(is_equal_approx(wall_jump_player.velocity.y, 7.0), "double jump vertical force missing")
+	assert(not wall_jump_player.can_double_jump, "double jump was not consumed")
+	wall_jump_player.velocity.y = 4.0
+	wall_jump_player._ground_slam()
+	assert(is_equal_approx(wall_jump_player.velocity.y, -38.0), "ground slam did not cancel vertical momentum")
+	assert(wall_jump_player.is_slamming, "ground slam state missing")
 	main.queue_free()
 	await process_frame
 	quit()

@@ -10,9 +10,11 @@ const JUMP_VELOCITY := 7.6
 const GRAVITY := 24.0
 const COYOTE_TIME := 0.12
 const JUMP_BUFFER_TIME := 0.12
+const DOUBLE_JUMP_VELOCITY := 7.0
 const WALL_JUMP_GRACE := 0.14
 const WALL_JUMP_VELOCITY := 8.4
 const WALL_JUMP_PUSH := 13.0
+const SLAM_SPEED := 38.0
 const DASH_TIME := 0.16
 const BASE_CAMERA_FOV := 96.0
 const MAX_STRAFE_ROLL := 0.13962634
@@ -21,10 +23,10 @@ const FOV_RESPONSE := 96.0
 const SHAKE_DECAY := 0.28
 
 var camera: Camera3D
-var hands: Node3D
 var yaw := 0.0
 var pitch := 0.0
 var can_dash := true
+var can_double_jump := true
 var was_on_floor := false
 var coyote_timer := 0.0
 var jump_buffer := 0.0
@@ -32,6 +34,7 @@ var wall_jump_timer := 0.0
 var wall_jump_normal := Vector3.ZERO
 var dash_timer := 0.0
 var is_sliding := false
+var is_slamming := false
 var _slide_latched := false
 var movement_enabled := true
 var bob_time := 0.0
@@ -57,7 +60,6 @@ func _ready() -> void:
 	camera.current = true
 	camera.fov = BASE_CAMERA_FOV
 	add_child(camera)
-	_create_view_model()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not movement_enabled:
@@ -77,6 +79,7 @@ func _physics_process(delta: float) -> void:
 	var on_floor_before_move := is_on_floor()
 	if on_floor_before_move:
 		coyote_timer = COYOTE_TIME
+		can_double_jump = true
 		if not was_on_floor:
 			can_dash = true
 	else:
@@ -93,6 +96,10 @@ func _physics_process(delta: float) -> void:
 		Audio.play_sfx("jump")
 	elif jump_buffer > 0.0 and wall_jump_timer > 0.0:
 		_wall_jump()
+	elif jump_buffer > 0.0 and can_double_jump:
+		_double_jump()
+	if Input.is_action_just_pressed("slam") and not on_floor_before_move:
+		_ground_slam()
 	if not on_floor_before_move:
 		velocity.y -= GRAVITY * delta
 	_handle_slide(on_floor_before_move)
@@ -117,7 +124,14 @@ func _physics_process(delta: float) -> void:
 	var impact_velocity := velocity.y
 	move_and_slide()
 	_cache_wall_contact()
-	if not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
+	if is_on_floor():
+		can_double_jump = true
+	if is_slamming and is_on_floor():
+		_add_camera_shake(0.060)
+		landing_offset = minf(landing_offset, -0.110)
+		Audio.play_sfx("boost")
+		is_slamming = false
+	elif not on_floor_before_move and is_on_floor() and impact_velocity < -4.0:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
 		landing_offset = minf(landing_offset, -impact * 0.006)
@@ -157,6 +171,8 @@ func apply_boost(direction: Vector3) -> void:
 func launch(force: float) -> void:
 	velocity.y = max(velocity.y, force)
 	can_dash = true
+	can_double_jump = true
+	is_slamming = false
 	_add_camera_shake(0.026)
 
 func _cache_wall_contact() -> void:
@@ -176,9 +192,25 @@ func _wall_jump() -> void:
 	coyote_timer = 0.0
 	wall_jump_timer = 0.0
 	can_dash = true
+	can_double_jump = true
 	_add_camera_shake(0.032)
 	landing_offset = minf(landing_offset, -0.032)
 	Audio.play_sfx("jump")
+
+func _double_jump() -> void:
+	velocity.y = DOUBLE_JUMP_VELOCITY
+	jump_buffer = 0.0
+	can_double_jump = false
+	_add_camera_shake(0.024)
+	landing_offset = minf(landing_offset, -0.018)
+	Audio.play_sfx("jump")
+
+func _ground_slam() -> void:
+	velocity.y = -SLAM_SPEED
+	can_double_jump = false
+	is_slamming = true
+	_add_camera_shake(0.030)
+	Audio.play_sfx("dash")
 
 func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()
@@ -207,38 +239,8 @@ func _update_camera_fx(delta: float, input_vector: Vector2) -> void:
 	camera.position = camera.position.lerp(target_position, minf(delta * 16.0, 1.0))
 	camera.rotation = Vector3(pitch + bob_pitch + shake_y * 0.34, 0.0, current_roll + shake_roll)
 	var speed_fov := clampf(speed / DASH_SPEED, 0.0, 1.0) * 4.0
-	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0)
+	var target_fov := BASE_CAMERA_FOV + speed_fov + dash_pulse * 11.0 + (5.0 if is_sliding else 0.0) + (2.5 if is_slamming else 0.0)
 	camera.fov = move_toward(camera.fov, target_fov, FOV_RESPONSE * delta)
-	_update_view_model(bob_y, dash_pulse, input_vector.x)
 
 func _add_camera_shake(amount: float) -> void:
 	shake_strength = maxf(shake_strength, amount)
-
-func _create_view_model() -> void:
-	hands = Node3D.new()
-	hands.name = "RunnerHands"
-	camera.add_child(hands)
-	_add_view_piece(Vector3(0.13, 0.32, 0.13), Vector3(-0.38, -0.10, -1.08), Vector3(-0.34, 0.08, 0.30), Color("55755a"))
-	_add_view_piece(Vector3(0.13, 0.32, 0.13), Vector3(0.38, -0.10, -1.08), Vector3(-0.34, -0.08, -0.30), Color("55755a"))
-	_add_view_piece(Vector3(0.18, 0.14, 0.20), Vector3(-0.43, -0.29, -1.13), Vector3(-0.18, 0.04, 0.18), Color("1b3429"))
-	_add_view_piece(Vector3(0.18, 0.14, 0.20), Vector3(0.43, -0.29, -1.13), Vector3(-0.18, -0.04, -0.18), Color("1b3429"))
-
-func _add_view_piece(size: Vector3, piece_position: Vector3, piece_rotation: Vector3, color: Color) -> void:
-	var piece := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	piece.mesh = mesh
-	piece.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	piece.position = piece_position
-	piece.rotation = piece_rotation
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.92
-	piece.set_surface_override_material(0, material)
-	hands.add_child(piece)
-
-func _update_view_model(bob_y: float, dash_pulse: float, strafe: float) -> void:
-	if hands == null:
-		return
-	hands.position = Vector3(-strafe * 0.026, -0.34 + bob_y * 1.7 - (0.12 if is_sliding else 0.0), -dash_pulse * 0.14)
-	hands.rotation = Vector3(-dash_pulse * 0.12, 0.0, current_roll * 0.46)
