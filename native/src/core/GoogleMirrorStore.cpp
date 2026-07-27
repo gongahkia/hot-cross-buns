@@ -15,6 +15,7 @@
 #include <chrono>
 #include <optional>
 #include <utility>
+#include <variant>
 
 namespace hcb {
 namespace {
@@ -506,6 +507,82 @@ invalidateCachedInstances(sqlite3* handle, const QString& localCalendarId, const
       {textValue(localCalendarId), textValue(masterRemoteId)});
 }
 
+using CachedInstanceMasterIdsResult = std::variant<QSet<QString>, AppError>;
+
+[[nodiscard]] CachedInstanceMasterIdsResult
+cachedInstanceMasterIds(sqlite3* handle, const QString& localCalendarId) {
+  constexpr char sql[] = R"(
+SELECT DISTINCT recurring_remote_id
+FROM local_calendar_instance_coverage
+WHERE calendar_id = ?1
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite cached-instance lookup preparation failed (%1)"),
+                         prepareResult);
+  }
+  const QByteArray calendarIdUtf8 = localCalendarId.toUtf8();
+  const int bindResult = sqlite3_bind_text(statement,
+                                           1,
+                                           calendarIdUtf8.constData(),
+                                           static_cast<int>(calendarIdUtf8.size()),
+                                           SQLITE_TRANSIENT);
+  if (bindResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite cached-instance lookup binding failed (%1)"),
+                         bindResult);
+  }
+  QSet<QString> masterIds;
+  int stepResult = SQLITE_ROW;
+  while ((stepResult = sqlite3_step(statement)) == SQLITE_ROW) {
+    const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(statement, 0));
+    const int size = sqlite3_column_bytes(statement, 0);
+    if (value == nullptr || size < 0) {
+      sqlite3_finalize(statement);
+      return databaseError(QStringLiteral("SQLite cached-instance lookup returned invalid data (%1)"),
+                           SQLITE_MISMATCH);
+    }
+    masterIds.insert(QString::fromUtf8(value, size));
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite cached-instance lookup failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite cached-instance lookup finalization failed (%1)"),
+                         finalizeResult);
+  }
+  return masterIds;
+}
+
+[[nodiscard]] std::optional<AppError>
+invalidateChangedCachedInstances(sqlite3* handle,
+                                 const QString& localCalendarId,
+                                 const QList<GoogleCalendarEventMirror>& events) {
+  CachedInstanceMasterIdsResult cachedResult = cachedInstanceMasterIds(handle, localCalendarId);
+  if (std::holds_alternative<AppError>(cachedResult)) {
+    return std::get<AppError>(std::move(cachedResult));
+  }
+  const QSet<QString> cachedMasterIds = std::get<QSet<QString>>(std::move(cachedResult));
+  QSet<QString> changedMasterIds;
+  for (const GoogleCalendarEventMirror& event : events) {
+    if (cachedMasterIds.contains(event.id)) {
+      changedMasterIds.insert(event.id);
+    }
+  }
+  for (const QString& masterRemoteId : changedMasterIds) {
+    if (const std::optional<AppError> error =
+            invalidateCachedInstances(handle, localCalendarId, masterRemoteId);
+        error.has_value()) {
+      return error;
+    }
+  }
+  return std::nullopt;
+}
+
 [[nodiscard]] std::optional<AppError>
 invalidateCachedCalendar(sqlite3* handle, const QString& localCalendarId) {
   if (const std::optional<AppError> error =
@@ -916,11 +993,6 @@ replaceStoredCalendars(SqliteConnection& connection,
     }
   }
   for (const GoogleCalendarEventMirror& event : events) {
-    if (const std::optional<AppError> error =
-            invalidateCachedInstances(handle, calendarId(accountId, event.calendarId), event.id);
-        error.has_value()) {
-      return *error;
-    }
     if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
         error.has_value()) {
       return *error;
@@ -1009,12 +1081,13 @@ mergeStoredCalendarEvents(SqliteConnection& connection,
       return *error;
     }
   }
+  const QString localCalendarId = calendarId(accountId, calendarRemoteId);
+  if (const std::optional<AppError> error =
+          invalidateChangedCachedInstances(handle, localCalendarId, events);
+      error.has_value()) {
+    return *error;
+  }
   for (const GoogleCalendarEventMirror& event : events) {
-    if (const std::optional<AppError> error =
-            invalidateCachedInstances(handle, calendarId(accountId, event.calendarId), event.id);
-        error.has_value()) {
-      return *error;
-    }
     if (const std::optional<AppError> error = upsertEvent(handle, accountId, event, now);
         error.has_value()) {
       return *error;

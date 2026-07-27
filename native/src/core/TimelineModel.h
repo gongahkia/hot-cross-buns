@@ -13,6 +13,7 @@ namespace hcb {
 
 class TimelineModel final : public QAbstractListModel {
   Q_OBJECT
+  Q_PROPERTY(int totalItemCount READ totalItemCount NOTIFY totalItemCountChanged)
 
 public:
   enum Role : std::int32_t {
@@ -52,6 +53,9 @@ public:
   [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+  [[nodiscard]] int totalItemCount() const;
+
+  Q_INVOKABLE void setVisibleMinuteRange(int startMinute, int endMinute);
 
   Q_INVOKABLE QVariantMap moveInput(const QString& eventId,
                                     int targetDayIndex,
@@ -95,11 +99,19 @@ public:
                 const QTimeZone& displayTimeZone,
                 int visibleAllDayLaneCount);
 
+signals:
+  void totalItemCountChanged();
+
 private:
   QList<Item> items_;
+  QList<Item> visibleItems_;
   QDate rangeStartDate_;
   int dayCount_{0};
   QTimeZone displayTimeZone_;
+  int visibleStartMinute_{0};
+  int visibleEndMinute_{24 * 60};
+
+  void rebuildVisibleItems();
 };
 
 } // namespace hcb

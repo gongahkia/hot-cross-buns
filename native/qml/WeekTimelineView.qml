@@ -126,6 +126,8 @@ Pane {
         return selectedEventIds.indexOf(eventId) >= 0
     }
 
+    onTimelineModelChanged: Qt.callLater(timelineViewport.updateVisibleMinuteRange)
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingMedium
@@ -267,13 +269,34 @@ Pane {
             function revealWorkday() {
                 contentY = Math.max(0, Math.min(contentHeight - height,
                                                  root.workdayStartHour * root.hourHeight))
+                updateVisibleMinuteRange()
+            }
+
+            function updateVisibleMinuteRange() {
+                if (root.timelineModel === null ||
+                        typeof root.timelineModel.setVisibleMinuteRange !== "function" ||
+                        root.hourHeight <= 0 || height <= 0) {
+                    return
+                }
+                const startMinute = Math.max(0, Math.floor(
+                                               (contentY * 60 / root.hourHeight - 60) / 30) * 30)
+                const endMinute = Math.min(24 * 60, Math.ceil(
+                                             ((contentY + height) * 60 / root.hourHeight + 60) / 30) * 30)
+                if (endMinute > startMinute) {
+                    root.timelineModel.setVisibleMinuteRange(startMinute, endMinute)
+                }
             }
 
             Component.onCompleted: Qt.callLater(revealWorkday)
-            onHeightChanged: Qt.callLater(revealWorkday)
+            onHeightChanged: {
+                Qt.callLater(revealWorkday)
+                Qt.callLater(updateVisibleMinuteRange)
+            }
+            onContentYChanged: updateVisibleMinuteRange()
             Connections {
                 target: root
                 function onWorkdayStartHourChanged() { Qt.callLater(timelineViewport.revealWorkday) }
+                function onHourHeightChanged() { Qt.callLater(timelineViewport.updateVisibleMinuteRange) }
             }
 
             Item {
@@ -431,7 +454,7 @@ Pane {
 
     Label {
         anchors.centerIn: parent
-        visible: eventRows.count === 0
+        visible: root.timelineModel === null || root.timelineModel.totalItemCount === 0
         text: "No events this week."
         color: Theme.textSecondary
     }

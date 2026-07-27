@@ -10,6 +10,7 @@ private slots:
   void buildsMoveInputInDisplayTimeZone();
   void buildsResizeInputInDisplayTimeZone();
   void movesAndResizesAllDayEventsWithoutTimezoneShift();
+  void exposesOnlyBufferedVisibleTimedRows();
   void clearsInvalidRanges();
 };
 
@@ -170,6 +171,48 @@ void TimelineModelTest::movesAndResizesAllDayEventsWithoutTimezoneShift() {
                .value(QStringLiteral("endAt"))
                .toString(),
            QStringLiteral("2026-08-02T00:00:00.000Z"));
+}
+
+void TimelineModelTest::exposesOnlyBufferedVisibleTimedRows() {
+  hcb::TimelineModel model;
+  model.setRange(QDate(2026, 8, 1),
+                 1,
+                 {{.id = QStringLiteral("all-day"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("All day"),
+                   .startAt = QStringLiteral("2026-08-01T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-02T00:00:00.000Z"),
+                   .allDay = true},
+                  {.id = QStringLiteral("morning"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Morning"),
+                   .startAt = QStringLiteral("2026-08-01T08:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-01T09:00:00.000Z"),
+                   .allDay = false},
+                  {.id = QStringLiteral("afternoon"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Afternoon"),
+                   .startAt = QStringLiteral("2026-08-01T15:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-01T16:00:00.000Z"),
+                   .allDay = false}},
+                 QTimeZone::utc(),
+                 1);
+
+  QCOMPARE(model.totalItemCount(), 3);
+  model.setVisibleMinuteRange(14 * 60, 17 * 60);
+  QCOMPARE(model.rowCount(), 2);
+  QCOMPARE(model.data(model.index(0, 0), hcb::TimelineModel::IdRole).toString(),
+           QStringLiteral("all-day"));
+  QCOMPARE(model.data(model.index(1, 0), hcb::TimelineModel::IdRole).toString(),
+           QStringLiteral("afternoon"));
+  const QVariantMap hiddenMove = model.moveInput(QStringLiteral("morning"), 0, 10 * 60);
+  QCOMPARE(hiddenMove.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-08-01T10:00:00.000Z"));
+  model.setVisibleMinuteRange(17 * 60, 14 * 60);
+  QCOMPARE(model.rowCount(), 2);
 }
 
 void TimelineModelTest::clearsInvalidRanges() {
