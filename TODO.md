@@ -656,13 +656,13 @@ outcome, defaults to 60 seconds, and accepts `--timeout-seconds 1..=600`.
 
 For each addon:
 
-- [ ] Pin an immutable source.
-- [ ] Verify expected files.
-- [ ] Verify cold installation.
-- [ ] Verify warm installation.
-- [ ] Verify no-op sync.
-- [ ] Run headless validation where feasible.
-- [ ] Record failures and required layout overrides.
+- [x] Pin an immutable source.
+- [x] Verify expected files.
+- [x] Verify cold installation.
+- [x] Verify warm installation.
+- [x] Verify no-op sync.
+- [x] Run headless validation where feasible.
+- [x] Record failures and required layout overrides.
 
 Version `0.1.0` must not be released before this task is complete.
 

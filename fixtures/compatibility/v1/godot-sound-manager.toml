@@ -1,0 +1,30 @@
+schema = 1
+id = "godot-sound-manager"
+godot = ">=4.6,<5.0"
+package_sha256 = "23f0044bb77464e7dde7e0af4e5c10e5a59fdb98bbb90ef606446ac82f83a03e"
+installed_paths = [
+  "addons/sound_manager/LICENSE",
+  "addons/sound_manager/SoundManager.cs",
+  "addons/sound_manager/SoundManager.cs.uid",
+  "addons/sound_manager/abstract_audio_player_pool.gd",
+  "addons/sound_manager/abstract_audio_player_pool.gd.uid",
+  "addons/sound_manager/ambient_sounds.gd",
+  "addons/sound_manager/ambient_sounds.gd.uid",
+  "addons/sound_manager/music.gd",
+  "addons/sound_manager/music.gd.uid",
+  "addons/sound_manager/plugin.cfg",
+  "addons/sound_manager/plugin.gd",
+  "addons/sound_manager/plugin.gd.uid",
+  "addons/sound_manager/sound_effects.gd",
+  "addons/sound_manager/sound_effects.gd.uid",
+  "addons/sound_manager/sound_manager.gd",
+  "addons/sound_manager/sound_manager.gd.uid",
+]
+
+[source]
+url = "https://github.com/nathanhoad/godot_sound_manager.git"
+revision = "1c041582db806a0d0edad77111d1fb7a009346ef"
+
+[layout]
+source_subdirectory = "addons/sound_manager"
+target_path = "addons/sound_manager"

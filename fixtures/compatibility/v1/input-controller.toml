@@ -1,0 +1,25 @@
+schema = 1
+id = "input-controller"
+godot = ">=4.2,<5.0"
+package_sha256 = "fd6972c2b4030021bb2dd40e8f95a4151b4d528b6783042357e298e53ea62935"
+installed_paths = [
+  "addons/input_controller/LICENSE",
+  "addons/input_controller/README.md",
+  "addons/input_controller/action_handler_map.gd",
+  "addons/input_controller/action_state.gd",
+  "addons/input_controller/icon.png",
+  "addons/input_controller/icon.png.import",
+  "addons/input_controller/icon.svg",
+  "addons/input_controller/icon.svg.import",
+  "addons/input_controller/input_controller.gd",
+  "addons/input_controller/plugin.cfg",
+  "addons/input_controller/plugin.gd",
+]
+
+[source]
+url = "https://github.com/sscovil/godot-input-controller-addon.git"
+revision = "8e5c43e55c48c1170cd542e4625789bdd04743aa"
+
+[layout]
+source_subdirectory = "addons/input_controller"
+target_path = "addons/input_controller"

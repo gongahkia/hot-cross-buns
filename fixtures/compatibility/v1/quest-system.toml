@@ -1,0 +1,43 @@
+schema = 1
+id = "quest-system"
+godot = ">=4.4,<5.0"
+package_sha256 = "1adf9d3d3ddd150ecfd9c9a4ebd2faf78352e6c8947ac58865efd619416056a9"
+installed_paths = [
+  "addons/quest_system/LICENSE",
+  "addons/quest_system/abstract_manager.gd",
+  "addons/quest_system/abstract_manager.gd.uid",
+  "addons/quest_system/active_pool.gd",
+  "addons/quest_system/active_pool.gd.uid",
+  "addons/quest_system/assets/quest_resource.svg",
+  "addons/quest_system/assets/quest_resource.svg.import",
+  "addons/quest_system/assets/update.svg",
+  "addons/quest_system/assets/update.svg.import",
+  "addons/quest_system/available_pool.gd",
+  "addons/quest_system/available_pool.gd.uid",
+  "addons/quest_system/base_quest_pool.gd",
+  "addons/quest_system/base_quest_pool.gd.uid",
+  "addons/quest_system/completed_pool.gd",
+  "addons/quest_system/completed_pool.gd.uid",
+  "addons/quest_system/plugin.cfg",
+  "addons/quest_system/plugin.gd",
+  "addons/quest_system/plugin.gd.uid",
+  "addons/quest_system/quest_manager.gd",
+  "addons/quest_system/quest_manager.gd.uid",
+  "addons/quest_system/quest_resource.gd",
+  "addons/quest_system/quest_resource.gd.uid",
+  "addons/quest_system/settings.gd",
+  "addons/quest_system/settings.gd.uid",
+  "addons/quest_system/translation_plugin.gd",
+  "addons/quest_system/translation_plugin.gd.uid",
+  "addons/quest_system/views/update_dialog.gd",
+  "addons/quest_system/views/update_dialog.gd.uid",
+  "addons/quest_system/views/update_dialog.tscn",
+]
+
+[source]
+url = "https://github.com/shomykohai/quest-system.git"
+revision = "853276e6bbd55f34abd515a33ccc0a982059044b"
+
+[layout]
+source_subdirectory = "addons/quest_system"
+target_path = "addons/quest_system"

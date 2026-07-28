@@ -1,15 +1,22 @@
 use std::{
+    collections::BTreeSet,
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 use tempfile::TempDir;
 use wukong_core::{
     compatibility_fixture::{CompatibilityFixture, verify_checked_out_fixture},
+    installed_state::{DependencyGroup, InstalledPackage},
     layout::{LayoutOptions, detect_package_layout},
+    ownership::{PackageMaterialization, build_desired_file_map},
     package_tree::prepare_package_tree,
+    project_sync::sync_project,
+    source::ImmutableSourceId,
 };
 
 const PATH: &str = "fixture/compatibility.toml";
+const EXPECTED_CORPUS_SIZE: usize = 20;
 
 #[test]
 fn invariant_fixture_parses_complete_immutable_metadata_without_execution() {
@@ -74,7 +81,7 @@ target_path = "addons/example"
 }
 
 #[test]
-fn invariant_initial_public_corpus_has_five_unique_complete_fixtures() {
+fn invariant_public_corpus_has_twenty_unique_complete_fixtures() {
     let fixtures = fixture_paths()
         .into_iter()
         .map(|path| {
@@ -83,7 +90,7 @@ fn invariant_initial_public_corpus_has_five_unique_complete_fixtures() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(fixtures.len(), 5);
+    assert_eq!(fixtures.len(), EXPECTED_CORPUS_SIZE);
     let ids = fixtures
         .iter()
         .map(CompatibilityFixture::id)
@@ -97,8 +104,46 @@ fn invariant_initial_public_corpus_has_five_unique_complete_fixtures() {
 }
 
 #[test]
+fn invariant_fixture_verification_normalizes_prepared_path_order() {
+    let temporary = TempDir::new().expect("temporary fixture root should exist");
+    let source = temporary.path().join("source");
+    let addon = source.join("addons/example");
+    fs::create_dir_all(addon.join("plugin")).expect("addon child directory should exist");
+    fs::write(addon.join("plugin/child.gd"), "extends Node\n")
+        .expect("addon child file should write");
+    fs::write(addon.join("plugin.cfg"), "[plugin]\nname=\"Example\"\n")
+        .expect("addon root file should write");
+    let prepared = prepare_package_tree(&addon, &temporary.path().join("initial-stage"))
+        .expect("synthetic addon should prepare");
+    let fixture = parse(&format!(
+        r#"
+schema = 1
+id = "example-addon"
+godot = ">=4.0,<5.0"
+package_sha256 = "{}"
+installed_paths = [
+  "addons/example/plugin/child.gd",
+  "addons/example/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/example/example-addon.git"
+revision = "0123456789abcdef0123456789abcdef01234567"
+
+[layout]
+source_subdirectory = "addons/example"
+target_path = "addons/example"
+"#,
+        prepared.sha256()
+    ));
+
+    verify_checked_out_fixture(&fixture, &source, &temporary.path().join("verify-stage"))
+        .expect("fixture verification should use the persisted path ordering");
+}
+
+#[test]
 #[ignore = "requires manually checked-out pinned public addon sources"]
-fn invariant_pinned_public_sources_match_recorded_canonical_content() {
+fn invariant_pinned_public_sources_cold_warm_and_noop_materialise_as_recorded() {
     let root = env::var_os("WUKONG_COMPATIBILITY_SOURCES")
         .map(PathBuf::from)
         .expect("set WUKONG_COMPATIBILITY_SOURCES to checked-out fixture sources");
@@ -108,6 +153,7 @@ fn invariant_pinned_public_sources_match_recorded_canonical_content() {
         let fixture =
             CompatibilityFixture::parse(&fixture_path, &input).expect("fixture should parse");
         let source = root.join(fixture.id().as_str());
+        assert_checkout_revision(&source, fixture.revision());
         let stage = staging.path().join(fixture.id().as_str());
         let layout = detect_package_layout(
             &source,
@@ -119,11 +165,12 @@ fn invariant_pinned_public_sources_match_recorded_canonical_content() {
         .expect("pinned source layout should resolve");
         let prepared = prepare_package_tree(layout.source_root(), &stage)
             .expect("pinned source should prepare");
-        let actual_paths = prepared
+        let mut actual_paths = prepared
             .files()
             .iter()
             .map(|file| fixture.target_path().join(file.path()))
             .collect::<Vec<_>>();
+        actual_paths.sort();
         assert_eq!(
             prepared.sha256(),
             fixture.package_sha256(),
@@ -137,7 +184,76 @@ fn invariant_pinned_public_sources_match_recorded_canonical_content() {
             &staging.path().join(format!("{}-verify", fixture.id())),
         )
         .expect("recorded fixture should verify without executing commands");
+        let desired = build_desired_file_map([PackageMaterialization::new(
+            fixture.id(),
+            &prepared,
+            fixture.target_path(),
+        )])
+        .expect("prepared fixture should have no ownership conflicts");
+        let package = InstalledPackage::new(
+            fixture.id().clone(),
+            ImmutableSourceId::new(format!("git:{}", fixture.revision()))
+                .expect("fixture revision should create an immutable identity"),
+            fixture.package_sha256().to_owned(),
+        )
+        .expect("fixture package should form installed state");
+        let groups = BTreeSet::from([DependencyGroup::Dependencies]);
+        let cold_project = TempDir::new().expect("cold project should exist");
+        let cold = sync_project(
+            cold_project.path(),
+            groups.clone(),
+            [package.clone()],
+            &desired,
+        )
+        .expect("cold fixture materialisation should work");
+        assert_eq!(cold.written, desired.files().len(), "{}", fixture.id());
+        let warm_project = TempDir::new().expect("warm project should exist");
+        let warm = sync_project(
+            warm_project.path(),
+            groups.clone(),
+            [package.clone()],
+            &desired,
+        )
+        .expect("warm fixture materialisation should reuse the prepared tree");
+        assert_eq!(warm.written, desired.files().len(), "{}", fixture.id());
+        let noop = sync_project(warm_project.path(), groups, [package], &desired)
+            .expect("repeat fixture materialisation should be idempotent");
+        assert_eq!(noop.written, 0, "{}", fixture.id());
+        assert_eq!(noop.unchanged, desired.files().len(), "{}", fixture.id());
     }
+}
+
+fn assert_checkout_revision(source: &Path, expected: &str) {
+    let output = Command::new("git")
+        .args(["-C"])
+        .arg(source)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .expect("Git should inspect the supplied checked-out fixture");
+    assert!(output.status.success(), "{}", source.display());
+    assert_eq!(
+        String::from_utf8(output.stdout)
+            .expect("Git revision should be UTF-8")
+            .trim(),
+        expected,
+        "{}",
+        source.display()
+    );
+    let output = Command::new("git")
+        .args(["-C"])
+        .arg(source)
+        .args(["status", "--porcelain", "--untracked-files=all"])
+        .output()
+        .expect("Git should inspect the supplied checkout state");
+    assert!(output.status.success(), "{}", source.display());
+    assert!(
+        String::from_utf8(output.stdout)
+            .expect("Git status should be UTF-8")
+            .trim()
+            .is_empty(),
+        "{} must be clean before fixture verification",
+        source.display()
+    );
 }
 
 fn parse(input: &str) -> CompatibilityFixture {

@@ -1,0 +1,23 @@
+schema = 1
+id = "slider-gamepad"
+godot = ">=4.2,<5.0"
+package_sha256 = "ee94242fccb1199b1b28bae4d6339e5d2b7bbc61b211543023102582ac1f6597"
+installed_paths = [
+  "addons/slidergamepad/LICENSE",
+  "addons/slidergamepad/hslider_gamepad.gd",
+  "addons/slidergamepad/hslider_gamepad.svg",
+  "addons/slidergamepad/hslider_gamepad.svg.import",
+  "addons/slidergamepad/plugin.cfg",
+  "addons/slidergamepad/plugin.gd",
+  "addons/slidergamepad/vslider_gamepad.gd",
+  "addons/slidergamepad/vslider_gamepad.svg",
+  "addons/slidergamepad/vslider_gamepad.svg.import",
+]
+
+[source]
+url = "https://github.com/MrEliptik/slider_gamepad.git"
+revision = "78f3e7aadf04983c2c545ca1b3677ad485913821"
+
+[layout]
+source_subdirectory = "addons/slidergamepad"
+target_path = "addons/slidergamepad"

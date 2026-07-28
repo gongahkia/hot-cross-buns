@@ -214,11 +214,12 @@ pub fn verify_checked_out_fixture(
             "refresh the fixture only after reviewing the pinned source change",
         ));
     }
-    let actual_paths = prepared
+    let mut actual_paths = prepared
         .files()
         .iter()
         .map(|file| fixture.target_path.join(file.path()))
         .collect::<Vec<_>>();
+    actual_paths.sort();
     if actual_paths != fixture.installed_paths {
         return Err(user(
             source_checkout,

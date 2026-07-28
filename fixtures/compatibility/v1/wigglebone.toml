@@ -1,0 +1,50 @@
+schema = 1
+id = "wigglebone"
+godot = ">=4.3,<5.0"
+package_sha256 = "2c29ba841ce83920eba4cfebc193a9e4df4e089d46a09e9b42f4c3720d12ee87"
+installed_paths = [
+  "addons/wigglebone/LICENSE",
+  "addons/wigglebone/functions.gd",
+  "addons/wigglebone/functions.gd.uid",
+  "addons/wigglebone/gizmo_functions.gd",
+  "addons/wigglebone/gizmo_functions.gd.uid",
+  "addons/wigglebone/icons/wiggle_bone.svg",
+  "addons/wigglebone/icons/wiggle_bone.svg.import",
+  "addons/wigglebone/icons/wiggle_position_modifier_3d.svg",
+  "addons/wigglebone/icons/wiggle_position_modifier_3d.svg.import",
+  "addons/wigglebone/icons/wiggle_position_properties_3d.svg",
+  "addons/wigglebone/icons/wiggle_position_properties_3d.svg.import",
+  "addons/wigglebone/icons/wiggle_rotation_modifier_3d.svg",
+  "addons/wigglebone/icons/wiggle_rotation_modifier_3d.svg.import",
+  "addons/wigglebone/icons/wiggle_rotation_properties_3d.svg",
+  "addons/wigglebone/icons/wiggle_rotation_properties_3d.svg.import",
+  "addons/wigglebone/plugin.cfg",
+  "addons/wigglebone/plugin.gd",
+  "addons/wigglebone/plugin.gd.uid",
+  "addons/wigglebone/wiggle_bone.gd",
+  "addons/wigglebone/wiggle_bone.gd.uid",
+  "addons/wigglebone/wiggle_gizmo_plugin.gd",
+  "addons/wigglebone/wiggle_gizmo_plugin.gd.uid",
+  "addons/wigglebone/wiggle_position_gizmo_plugin.gd",
+  "addons/wigglebone/wiggle_position_gizmo_plugin.gd.uid",
+  "addons/wigglebone/wiggle_position_modifier_3d.gd",
+  "addons/wigglebone/wiggle_position_modifier_3d.gd.uid",
+  "addons/wigglebone/wiggle_position_properties_3d.gd",
+  "addons/wigglebone/wiggle_position_properties_3d.gd.uid",
+  "addons/wigglebone/wiggle_properties.gd",
+  "addons/wigglebone/wiggle_properties.gd.uid",
+  "addons/wigglebone/wiggle_rotation_gizmo_plugin.gd",
+  "addons/wigglebone/wiggle_rotation_gizmo_plugin.gd.uid",
+  "addons/wigglebone/wiggle_rotation_modifier_3d.gd",
+  "addons/wigglebone/wiggle_rotation_modifier_3d.gd.uid",
+  "addons/wigglebone/wiggle_rotation_properties_3d.gd",
+  "addons/wigglebone/wiggle_rotation_properties_3d.gd.uid",
+]
+
+[source]
+url = "https://github.com/detomon/wigglebone.git"
+revision = "d45042dd05680149b4c1174771f1f666f262057d"
+
+[layout]
+source_subdirectory = "addons/wigglebone"
+target_path = "addons/wigglebone"
