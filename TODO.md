@@ -84,14 +84,14 @@ Tests:
 
 ## wukong-011: Define the manifest schema
 
-- [ ] Adopt `wukong.toml`.
-- [ ] Define `[project]`.
-- [ ] Define `[dependencies]`.
-- [ ] Define `[dev-dependencies]`.
-- [ ] Define Git, URL and path dependency forms.
-- [ ] Define Godot version constraints.
-- [ ] Reject ambiguous source declarations.
-- [ ] Add schema-version handling if required.
+- [x] Adopt `wukong.toml`.
+- [x] Define `[project]`.
+- [x] Define `[dependencies]`.
+- [x] Define `[dev-dependencies]`.
+- [x] Define Git, URL and path dependency forms.
+- [x] Define Godot version constraints.
+- [x] Reject ambiguous source declarations.
+- [x] Add schema-version handling if required.
 
 Acceptance criteria:
 
@@ -100,23 +100,23 @@ Acceptance criteria:
 
 ## wukong-012: Implement manifest parsing
 
-- [ ] Parse TOML into typed domain structures.
-- [ ] Validate package names.
-- [ ] Validate source definitions.
-- [ ] Validate version constraints.
-- [ ] Canonicalise paths relative to the manifest.
-- [ ] Preserve enough source-position information for useful errors.
+- [x] Parse TOML into typed domain structures.
+- [x] Validate package names.
+- [x] Validate source definitions.
+- [x] Validate version constraints.
+- [x] Canonicalise paths relative to the manifest.
+- [x] Preserve enough source-position information for useful errors.
 
 Tests:
 
-- [ ] Valid minimal manifest.
-- [ ] Full manifest.
-- [ ] Duplicate keys.
-- [ ] Invalid versions.
-- [ ] Multiple source types.
-- [ ] Missing project metadata.
-- [ ] Invalid relative paths.
-- [ ] Unicode package names policy.
+- [x] Valid minimal manifest.
+- [x] Full manifest.
+- [x] Duplicate keys.
+- [x] Invalid versions.
+- [x] Multiple source types.
+- [x] Missing project metadata.
+- [x] Invalid relative paths.
+- [x] Unicode package names policy.
 
 ## wukong-013: Implement `wukong init`
 
