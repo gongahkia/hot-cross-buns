@@ -909,16 +909,16 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-141: Complete user documentation
 
-- [ ] 60-second quick start.
-- [ ] Command reference.
-- [ ] Manifest reference.
-- [ ] Lockfile policy.
-- [ ] Git dependency guide.
-- [ ] HTTP dependency guide.
-- [ ] Local dependency guide.
-- [ ] Offline and CI guide.
-- [ ] Security guide.
-- [ ] Troubleshooting.
+- [x] 60-second quick start.
+- [x] Command reference.
+- [x] Manifest reference.
+- [x] Lockfile policy.
+- [x] Git dependency guide.
+- [x] HTTP dependency guide.
+- [x] Local dependency guide.
+- [x] Offline and CI guide.
+- [x] Security guide.
+- [x] Troubleshooting.
 
 ## wukong-142: Complete contributor documentation
 

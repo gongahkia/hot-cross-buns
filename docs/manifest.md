@@ -41,6 +41,23 @@ HTTPS user information and sensitive query parameters are rejected. SSH user
 names are allowed for standard Git remotes, but SSH passwords are rejected.
 Manifests declare inputs only: `wukong` does not execute package scripts.
 
+## Field reference
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `project.name` | Yes | Non-empty project label. |
+| `project.godot` | Yes | Godot semantic-version requirement; not an installed-engine probe. |
+| `dependencies` | No | Runtime direct dependencies. |
+| `dev-dependencies` | No | Dependencies selected only with `--dev`. |
+| `path` | One source | Existing local directory, relative to the manifest when not absolute. |
+| `git` | One source | Canonicalisable Git URL. |
+| `rev`, `tag`, `branch` | Git only | At most one selector; locks always record a complete commit. |
+| `url` | One source | Credential-free HTTPS ZIP URL. |
+| `sha256` | URL only | Required lowercase 64-character archive checksum. |
+
+Version-only dependencies require a catalogue and are currently rejected before
+resolution. See [versioning policy](versioning.md).
+
 ## Editing
 
 The core manifest-edit API can add or remove runtime and development

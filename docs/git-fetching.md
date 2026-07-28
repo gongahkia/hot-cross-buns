@@ -23,6 +23,20 @@ cached mapping. See [ADR 0021](adr/0021-system-git-fetching.md) and
 canonical URL and resolved complete commit in schema-two locks; `wukong sync`
 materialises locked direct Git sources transactionally.
 
+## Dependency guide
+
+Prefer an explicit `rev` for a reviewable declaration:
+
+```toml
+[dependencies]
+example = { git = "https://github.com/example/addon.git", rev = "0123456789abcdef0123456789abcdef01234567" }
+```
+
+Tags and branches are permitted only as manifest selectors. Lock before relying
+on them: the resulting lockfile records a complete commit and later sync uses
+that immutable commit. Private access is delegated to the installed Git and SSH
+configuration; do not add credentials to the declaration.
+
 ## Version tags
 
 The core Git fetcher can discover version tags with an optional exact

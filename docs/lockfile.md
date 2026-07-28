@@ -69,3 +69,12 @@ read this lockfile without resolving, fetching, or modifying project files.
 [`wukong update`](update.md) re-locks all direct dependencies or one selected
 entry, prints immutable source or version changes, and synchronises the result
 transactionally.
+
+## Policy
+
+Commit `wukong.lock` with `wukong.toml`. Treat it as the reviewed desired state:
+normal sync verifies it, `--locked` refuses declaration or source drift, and
+`--frozen` additionally prohibits network access. Do not hand edit source
+identities, checksums, ownership data, or schema fields. Regenerate a lock with
+`wukong lock` after an intentional manifest change, then review the deterministic
+diff before synchronising it.
