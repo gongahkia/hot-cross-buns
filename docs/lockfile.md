@@ -15,6 +15,7 @@ target_path = "addons/example-addon"
 godot = ">=4.4,<5" # or "unknown"
 development = false
 package_sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+declaration_sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 [package.source]
 kind = "local"

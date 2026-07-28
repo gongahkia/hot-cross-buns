@@ -71,6 +71,7 @@ pub struct LockedPackage {
     version: Option<Version>,
     source: LockedLocalSource,
     package_sha256: String,
+    declaration_sha256: String,
     dependencies: BTreeSet<PackageName>,
     source_subdirectory: PathBuf,
     target_path: PathBuf,
@@ -91,6 +92,7 @@ impl LockedPackage {
         version: Option<Version>,
         source: LockedLocalSource,
         package_sha256: String,
+        declaration_sha256: String,
         dependencies: BTreeSet<PackageName>,
         source_subdirectory: PathBuf,
         target_path: PathBuf,
@@ -99,6 +101,7 @@ impl LockedPackage {
     ) -> Result<Self, Box<Diagnostic>> {
         let path = Path::new(LOCKFILE_FILE_NAME);
         valid_hex(&package_sha256, 64, path, "package_sha256")?;
+        valid_hex(&declaration_sha256, 64, path, "declaration_sha256")?;
         let source_subdirectory =
             safe_path(&source_subdirectory, true, path, "source_subdirectory")?;
         let target_path = safe_path(&target_path, false, path, "target_path")?;
@@ -107,6 +110,7 @@ impl LockedPackage {
             version,
             source,
             package_sha256,
+            declaration_sha256,
             dependencies,
             source_subdirectory,
             target_path,
@@ -130,6 +134,11 @@ impl LockedPackage {
     #[must_use]
     pub fn package_sha256(&self) -> &str {
         &self.package_sha256
+    }
+    /// Returns the direct-declaration fingerprint used for safe reuse.
+    #[must_use]
+    pub fn declaration_sha256(&self) -> &str {
+        &self.declaration_sha256
     }
     #[must_use]
     pub fn dependencies(&self) -> &BTreeSet<PackageName> {
@@ -264,6 +273,7 @@ impl Lockfile {
                 "development = false\n"
             });
             line(&mut out, "package_sha256", &package.package_sha256);
+            line(&mut out, "declaration_sha256", &package.declaration_sha256);
             for (key, value) in &package.extensions {
                 line(&mut out, key, value);
             }
@@ -299,6 +309,7 @@ fn parse_package(
             "godot",
             "development",
             "package_sha256",
+            "declaration_sha256",
             "source",
         ],
         path,
@@ -373,6 +384,8 @@ fn parse_package(
         })?;
     let package_sha256 = string(package_table, "package_sha256", path, "package")?;
     valid_hex(&package_sha256, 64, path, "package.package_sha256")?;
+    let declaration_sha256 = string(package_table, "declaration_sha256", path, "package")?;
+    valid_hex(&declaration_sha256, 64, path, "package.declaration_sha256")?;
     let source_table = table(package_table, "source", path, "package")?;
     let source_extensions = extensions(
         source_table,
@@ -402,6 +415,7 @@ fn parse_package(
         version,
         source,
         package_sha256,
+        declaration_sha256,
         dependencies,
         source_subdirectory,
         target_path,

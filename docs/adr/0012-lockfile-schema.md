@@ -16,7 +16,7 @@ Use UTF-8 TOML in `wukong.lock`. Schema one has a mandatory top-level integer
 `schema = 1` and sorted `[[package]]` entries. Each package records its
 canonical `name`; optional resolved `version`; local source `kind`, immutable
 identity, and source checksum; canonical package checksum; sorted resolved
-dependency names; source subdirectory; target path; Godot requirement or the
+dependency names; source-declaration SHA-256 fingerprint; source subdirectory; target path; Godot requirement or the
 literal `"unknown"`; and whether it is development-only.
 
 All source and package checksums are lowercase SHA-256. A local source's
@@ -40,7 +40,8 @@ Schema-one locks are portable across machines when their local source contents
 are available, without persisting machine-specific canonical paths. A local
 dependency changing produces a different source identity and checksum. The
 package checksum captures canonical W033 content independently of its source
-snapshot.
+snapshot. The declaration fingerprint permits safe reuse only when the direct
+manifest declaration is unchanged without persisting its host path.
 
 ## Alternatives considered
 

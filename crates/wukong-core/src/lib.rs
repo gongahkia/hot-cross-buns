@@ -27,6 +27,9 @@ pub mod compatibility_fixture;
 /// Deterministic lockfile parsing and serialization.
 pub mod lockfile;
 
+/// Direct local-dependency lock construction.
+pub mod direct_lock;
+
 /// Optional package-owned metadata parsing.
 pub mod package_metadata;
 

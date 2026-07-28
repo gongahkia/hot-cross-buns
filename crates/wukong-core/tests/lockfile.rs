@@ -77,6 +77,7 @@ fn package(name: &str, index: usize) -> LockedPackage {
         None,
         source,
         checksum,
+        format!("{index:064x}"),
         BTreeSet::new(),
         ".".into(),
         format!("addons/{name}").into(),
