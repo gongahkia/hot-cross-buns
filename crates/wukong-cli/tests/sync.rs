@@ -1,5 +1,15 @@
-use std::{fs, path::Path, process::Command};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::TempDir;
+use wukong_core::{
+    identity::PackageName,
+    lockfile::{GodotCompatibility, LockedGitSource, LockedHttpSource, LockedPackage, Lockfile},
+    source::ImmutableSourceId,
+};
 
 #[test]
 fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop() {
@@ -145,6 +155,57 @@ fn invariant_incompatible_package_godot_metadata_blocks_lock_publication_and_ins
 }
 
 #[test]
+fn invariant_offline_cli_sync_lists_missing_remote_cache_objects_before_project_mutation() {
+    let fixture = Fixture::new();
+    let git_commit = "1".repeat(40);
+    let archive_sha256 = "2".repeat(64);
+    fixture.manifest(&format!(
+        "[dependencies]\ngit-addon = {{ git = \"https://fixture.test/git-addon.git\", rev = \"{git_commit}\" }}\nhttp-addon = {{ url = \"https://fixture.test/http-addon.zip\", sha256 = \"{archive_sha256}\" }}\n"
+    ));
+    let lock = Lockfile::new([
+        remote_locked_package(
+            "git-addon",
+            LockedGitSource::new(
+                ImmutableSourceId::new(format!("git:{git_commit}"))
+                    .expect("Git identity should be valid"),
+                "https://fixture.test/git-addon.git",
+                git_commit.clone(),
+            )
+            .expect("Git source should be valid")
+            .into(),
+        ),
+        remote_locked_package(
+            "http-addon",
+            LockedHttpSource::new(
+                ImmutableSourceId::new(format!("sha256:{archive_sha256}"))
+                    .expect("HTTP identity should be valid"),
+                "https://fixture.test/http-addon.zip",
+                archive_sha256.clone(),
+            )
+            .expect("HTTP source should be valid")
+            .into(),
+        ),
+    ])
+    .expect("lockfile should be valid");
+    fs::write(fixture.root().join("wukong.lock"), lock.to_toml()).expect("lockfile should write");
+
+    let output = command("sync", fixture.root())
+        .arg("--offline")
+        .env("WUKONG_CACHE_DIR", fixture.root().join("cache"))
+        .output()
+        .expect("offline sync should run");
+
+    assert_eq!(output.status.code(), Some(3));
+    let stderr = String::from_utf8(output.stderr).expect("diagnostic should be UTF-8");
+    assert!(stderr.contains(&format!("git-addon (Git checkout {git_commit})")));
+    assert!(stderr.contains(&format!(
+        "http-addon (HTTPS archive sha256:{archive_sha256})"
+    )));
+    assert!(!fixture.root().join("addons").exists());
+    assert!(!fixture.root().join(".wukong/state.toml").exists());
+}
+
+#[test]
 fn invariant_unknown_package_godot_metadata_is_reported_without_blocking_lock() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
@@ -162,6 +223,22 @@ fn command(subcommand: &str, current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg(subcommand).current_dir(current_directory);
     command
+}
+
+fn remote_locked_package(name: &str, source: wukong_core::lockfile::LockedSource) -> LockedPackage {
+    LockedPackage::new(
+        PackageName::parse(name).expect("package name should be valid"),
+        None,
+        source,
+        "3".repeat(64),
+        "4".repeat(64),
+        BTreeSet::new(),
+        PathBuf::from("."),
+        PathBuf::from(format!("addons/{name}")),
+        GodotCompatibility::Unknown,
+        false,
+    )
+    .expect("locked package should be valid")
 }
 
 struct Fixture {

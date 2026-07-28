@@ -13,11 +13,12 @@ Paths and metadata contain no source URLs or credentials.
 
 An advisory source lock serialises concurrent fetches. A retry removes only
 staging directories with its own source-derived prefix, recovering from an
-interrupted fetch without touching another source. Offline fetching accepts only
-a verified cached selector mapping and checkout. See
+interrupted fetch without touching another source. Offline fetching accepts a
+verified checkout for an exact immutable revision without selector metadata;
+tag, branch, and HEAD selectors still require a verified cached mapping. See
 [ADR 0021](adr/0021-system-git-fetching.md). `wukong lock` records the
-canonical URL and resolved complete commit in schema-two locks; project
-materialisation of Git sources remains later work.
+canonical URL and resolved complete commit in schema-two locks; `wukong sync`
+materialises locked direct Git sources transactionally.
 
 ## Version tags
 

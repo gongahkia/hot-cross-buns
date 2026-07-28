@@ -20,8 +20,11 @@ checksum still matches.
 - `--project <path>` selects a Godot project directory or `project.godot`.
 - `--dev` includes `[dev-dependencies]`; the default selects runtime dependencies
   only.
-- `--offline` permits only verified cached Git checkouts and HTTP archives.
-  Local-path sync performs no network I/O.
+- `--offline` first verifies every selected cached Git checkout and HTTP archive.
+  It reports all unavailable immutable artifacts before package preparation or
+  project mutation, and does not start Git or an HTTPS request for a cache
+  miss. A verified checkout for the locked Git commit is sufficient; mutable
+  selector metadata is not required. Local-path sync performs no network I/O.
 - `--godot <x.y.z>` validates an explicit active engine version against
   `[project].godot` before synchronisation.
 - `--locked` recomputes direct source resolution and refuses any manifest,

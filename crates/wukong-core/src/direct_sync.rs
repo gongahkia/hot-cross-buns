@@ -37,10 +37,13 @@ pub fn sync_direct_dependencies(
     cache: &CacheLayout,
     offline: bool,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
-    let staging = TempDir::new()
-        .map_err(|error| internal("could not create sync preparation directory", error))?;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
+    if offline {
+        verify_offline_cache(lock, include_dev, &git, &http)?;
+    }
+    let staging = TempDir::new()
+        .map_err(|error| internal("could not create sync preparation directory", error))?;
     let cancellation = CancellationToken::new();
     let mut trees = BTreeMap::new();
     let mut packages = Vec::new();
@@ -110,6 +113,63 @@ pub fn sync_direct_dependencies(
         groups.insert(DependencyGroup::DevDependencies);
     }
     sync_project(project_root, groups, packages, &desired)
+}
+
+fn verify_offline_cache(
+    lock: &Lockfile,
+    include_dev: bool,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+) -> Result<(), Box<Diagnostic>> {
+    let mut unavailable = Vec::new();
+    for locked in lock
+        .packages()
+        .values()
+        .filter(|locked| !locked.development() || include_dev)
+    {
+        match locked.source() {
+            LockedSource::Local(_) => {}
+            LockedSource::Git(source) => {
+                let request = GitSourceRequest::new(
+                    source.url().to_owned(),
+                    Some(GitReference::Rev(source.commit().to_owned())),
+                );
+                if let Err(error) = git.fetch(&request, true) {
+                    if error.code() != ErrorCode::SourceAccess {
+                        return Err(error);
+                    }
+                    unavailable.push(format!(
+                        "{} (Git checkout {})",
+                        locked.name(),
+                        source.commit()
+                    ));
+                }
+            }
+            LockedSource::Http(source) => {
+                if let Err(error) = http.fetch(source.url(), source.sha256(), true) {
+                    if error.code() != ErrorCode::SourceAccess {
+                        return Err(error);
+                    }
+                    unavailable.push(format!(
+                        "{} (HTTPS archive sha256:{})",
+                        locked.name(),
+                        source.sha256()
+                    ));
+                }
+            }
+        }
+    }
+    if unavailable.is_empty() {
+        Ok(())
+    } else {
+        Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                format!("offline cache is incomplete: {}", unavailable.join(", ")),
+            )
+            .with_recovery("run wukong sync without --offline to fetch the listed artifacts"),
+        ))
+    }
 }
 
 /// Synchronises selected direct local dependencies exactly as locked.

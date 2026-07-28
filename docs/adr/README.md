@@ -32,6 +32,7 @@ Current records:
 - [0026: Git version discovery](0026-git-version-discovery.md)
 - [0027: dependency mutation transaction](0027-dependency-mutation-transaction.md)
 - [0028: optional headless validation execution](0028-headless-validation-execution.md)
+- [0029: strict offline mode](0029-strict-offline-mode.md)
 
 ## When to write an ADR
 

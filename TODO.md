@@ -672,10 +672,10 @@ Version `0.1.0` must not be released before this task is complete.
 
 ## wukong-090: Implement strict offline mode
 
-- [ ] Prevent all network access.
-- [ ] Explain every missing cache object.
-- [ ] Install successfully from a complete cache.
-- [ ] Add tests that fail if a network socket is opened.
+- [x] Prevent all network access.
+- [x] Explain every missing cache object.
+- [x] Install successfully from a complete cache.
+- [x] Add tests that fail if a network socket is opened.
 
 ## wukong-091: Implement cross-process locking
 

@@ -13,7 +13,8 @@ wukong update example-addon --dry-run
 
 `--dry-run` resolves the candidate lockfile and prints each version or immutable
 source identity change without changing `wukong.lock` or project files.
-`--offline` permits only cached Git and HTTPS sources. A selected update refuses
+`--offline` permits only cached Git and HTTPS sources and lists every
+unavailable artifact selected for update. A selected update refuses
 to run when any unrelated manifest declaration differs from its lockfile entry;
 run `wukong lock` first so it cannot silently retain stale state. It also rolls
 back its new lockfile when synchronisation detects a changed unrelated local

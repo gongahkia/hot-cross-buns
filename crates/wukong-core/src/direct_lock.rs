@@ -43,11 +43,14 @@ pub fn lock_direct_dependencies(
     if let Some(lock) = existing.filter(|lock| reusable(lock, &declarations)) {
         return Ok(lock.clone());
     }
-    let staging = TempDir::new()
-        .map_err(|error| internal("could not create package-lock staging directory", error))?;
     let local = LocalPathAdapter;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
+    if offline {
+        verify_offline_declarations(declarations.values(), &git, &http)?;
+    }
+    let staging = TempDir::new()
+        .map_err(|error| internal("could not create package-lock staging directory", error))?;
     let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for declaration in declarations.values() {
@@ -96,11 +99,21 @@ pub fn update_direct_dependencies(
             ));
         }
     }
-    let staging = TempDir::new()
-        .map_err(|error| internal("could not create package-update staging directory", error))?;
     let local = LocalPathAdapter;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
+    if offline {
+        verify_offline_declarations(
+            declarations
+                .iter()
+                .filter(|(name, _)| selected.is_none_or(|selected| selected == *name))
+                .map(|(_, declaration)| declaration),
+            &git,
+            &http,
+        )?;
+    }
+    let staging = TempDir::new()
+        .map_err(|error| internal("could not create package-update staging directory", error))?;
     let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for (name, declaration) in &declarations {
@@ -349,6 +362,64 @@ fn declaration_source(dependency: &Dependency) -> Result<DeclaredSource, Box<Dia
         )),
     }
 }
+
+fn verify_offline_declarations<'a>(
+    declarations: impl IntoIterator<Item = &'a Declaration>,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+) -> Result<(), Box<Diagnostic>> {
+    let mut unavailable = Vec::new();
+    for declaration in declarations {
+        match &declaration.source {
+            DeclaredSource::Local(_) => {}
+            DeclaredSource::Git { url, reference } => {
+                let request = GitSourceRequest::new(url.clone(), reference.clone());
+                if let Err(error) = git.fetch(&request, true) {
+                    if error.code() != ErrorCode::SourceAccess {
+                        return Err(error);
+                    }
+                    unavailable.push(format!(
+                        "{} ({})",
+                        declaration.name,
+                        git_cache_requirement(reference.as_ref())
+                    ));
+                }
+            }
+            DeclaredSource::Http { url, sha256 } => {
+                if let Err(error) = http.fetch(url, sha256, true) {
+                    if error.code() != ErrorCode::SourceAccess {
+                        return Err(error);
+                    }
+                    unavailable.push(format!(
+                        "{} (HTTPS archive sha256:{sha256})",
+                        declaration.name
+                    ));
+                }
+            }
+        }
+    }
+    if unavailable.is_empty() {
+        Ok(())
+    } else {
+        Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                format!("offline cache is incomplete: {}", unavailable.join(", ")),
+            )
+            .with_recovery("run wukong lock without --offline to fetch the listed artifacts"),
+        ))
+    }
+}
+
+fn git_cache_requirement(reference: Option<&GitReference>) -> String {
+    match reference {
+        None => "Git selector HEAD".to_owned(),
+        Some(GitReference::Rev(commit)) => format!("Git checkout {commit}"),
+        Some(GitReference::Tag(tag)) => format!("Git selector tag:{tag}"),
+        Some(GitReference::Branch(branch)) => format!("Git selector branch:{branch}"),
+    }
+}
+
 fn reusable(lock: &Lockfile, declarations: &BTreeMap<PackageName, Declaration>) -> bool {
     lock.packages().len() == declarations.len()
         && declarations.iter().all(|(name, declaration)| {

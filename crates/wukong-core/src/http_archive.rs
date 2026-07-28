@@ -490,7 +490,8 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::{
         fs,
-        io::{self, Cursor, Read},
+        io::{self, Cursor, ErrorKind, Read},
+        net::TcpListener,
     };
     use tempfile::TempDir;
 
@@ -514,6 +515,30 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(first.sha256(), checksum);
+    }
+
+    #[test]
+    fn invariant_offline_archive_fetch_never_opens_a_socket_on_cache_miss() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener should bind");
+        listener
+            .set_nonblocking(true)
+            .expect("listener should become nonblocking");
+        let url = format!(
+            "https://127.0.0.1:{}/addon.zip",
+            listener
+                .local_addr()
+                .expect("listener should have an address")
+                .port()
+        );
+
+        let error = fixture
+            .fetcher
+            .fetch(&url, &"0".repeat(64), true)
+            .expect_err("offline cache miss should fail without a request");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        assert_no_connection(&listener);
     }
 
     #[test]
@@ -731,5 +756,13 @@ mod tests {
         let mut hasher = Sha256::new();
         hasher.update(content);
         format!("{:x}", hasher.finalize())
+    }
+
+    fn assert_no_connection(listener: &TcpListener) {
+        match listener.accept() {
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+            Ok((_, address)) => panic!("offline archive fetch opened a socket to {address}"),
+            Err(error) => panic!("could not inspect offline archive listener: {error}"),
+        }
     }
 }

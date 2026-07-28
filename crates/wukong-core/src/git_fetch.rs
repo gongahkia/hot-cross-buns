@@ -143,7 +143,7 @@ impl GitFetcher {
 
     /// Fetches a Git declaration or reuses its verified immutable checkout.
     ///
-    /// `offline` permits only an existing selector mapping and verified checkout.
+    /// `offline` permits only a verified exact checkout or selector mapping.
     ///
     /// # Errors
     ///
@@ -196,6 +196,11 @@ impl GitFetcher {
     ) -> SourceResult<GitCheckout> {
         let selector = selector(reference);
         let _lock = CacheLock::acquire(&self.lock_path(source))?;
+        if let Some(GitReference::Rev(commit)) = reference {
+            if self.checkout_path(source, commit).is_dir() {
+                return self.verified_checkout(source, commit);
+            }
+        }
         if let Some(commit) = self.cached_commit(source, &selector)? {
             if let Ok(checkout) = self.verified_checkout(source, &commit) {
                 return Ok(checkout);
@@ -768,10 +773,26 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
 mod tests {
     use super::{GitFetcher, GitSourceIdentity, GitTagPrefix};
     use crate::{
-        cache::CacheLayout, diagnostic::ErrorCode, git_source::GitSourceRequest,
-        manifest::GitReference, semantic_version::SemanticVersion,
+        cache::CacheLayout,
+        diagnostic::ErrorCode,
+        direct_sync::sync_direct_dependencies,
+        git_source::GitSourceRequest,
+        identity::PackageName,
+        lockfile::{GodotCompatibility, LockedGitSource, LockedPackage, Lockfile},
+        manifest::{GitReference, Manifest},
+        package_tree::prepare_package_tree,
+        semantic_version::SemanticVersion,
+        source::ImmutableSourceId,
     };
-    use std::{collections::BTreeMap, fs, path::Path, process::Command, thread};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fs,
+        io::ErrorKind,
+        net::TcpListener,
+        path::{Path, PathBuf},
+        process::Command,
+        thread,
+    };
     use tempfile::TempDir;
 
     #[test]
@@ -813,6 +834,105 @@ mod tests {
                 .expect("cache checkout directory should exist")
                 .next()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn invariant_offline_git_fetch_never_opens_a_socket_on_cache_miss() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listener should bind");
+        listener
+            .set_nonblocking(true)
+            .expect("listener should become nonblocking");
+        let request = GitSourceRequest::new(
+            format!(
+                "https://127.0.0.1:{}/addon.git",
+                listener
+                    .local_addr()
+                    .expect("listener should have an address")
+                    .port()
+            ),
+            Some(GitReference::Rev("a".repeat(40))),
+        );
+
+        let error = fixture
+            .fetcher()
+            .fetch(&request, true)
+            .expect_err("offline cache miss should fail without invoking Git");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        match listener.accept() {
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+            Ok((_, address)) => panic!("offline Git fetch opened a socket to {address}"),
+            Err(error) => panic!("could not inspect offline Git listener: {error}"),
+        }
+    }
+
+    #[test]
+    fn invariant_offline_sync_materialises_a_complete_git_checkout_without_selector_metadata() {
+        let fixture = Fixture::new();
+        let source = GitSourceIdentity::new("https://127.0.0.1:9/addon.git".to_owned());
+        let commit = fixture.commit();
+        let reference = GitReference::Rev(commit.clone());
+        let fetcher = fixture.fetcher();
+        let checkout = fetcher
+            .fetch_remote(&source, Some(&reference), fixture.remote(), false)
+            .expect("fixture checkout should populate the cache");
+        fs::remove_file(fetcher.selector_path(&source, &format!("rev:{commit}")))
+            .expect("mutable selector metadata should remove");
+        let prepared = prepare_package_tree(checkout.root(), &fixture.path().join("prepared"))
+            .expect("cached checkout should prepare");
+        let project = fixture.path().join("offline-project");
+        fs::create_dir(&project).expect("project should create");
+        let manifest_path = project.join("wukong.toml");
+        let manifest = Manifest::parse(
+            &manifest_path,
+            &format!(
+                "[project]\nname=\"fixture\"\ngodot=\"4\"\n\n[dependencies]\naddon = {{ git = \"{}\", rev = \"{commit}\" }}\n",
+                source.as_str()
+            ),
+        )
+        .expect("manifest should parse");
+        let lock = Lockfile::new([LockedPackage::new(
+            PackageName::parse("addon").expect("package name should parse"),
+            None,
+            LockedGitSource::new(
+                ImmutableSourceId::new(format!("git:{commit}"))
+                    .expect("immutable identity should form"),
+                source.as_str(),
+                commit,
+            )
+            .expect("locked Git source should form"),
+            prepared.sha256().to_owned(),
+            "0".repeat(64),
+            BTreeSet::new(),
+            PathBuf::from("."),
+            PathBuf::from("addons/addon"),
+            GodotCompatibility::Unknown,
+            false,
+        )
+        .expect("locked package should form")])
+        .expect("lockfile should form");
+        fs::remove_dir_all(fixture.remote()).expect("remote should remove");
+        let cache =
+            CacheLayout::for_root(fixture.path().join("cache")).expect("cache layout should form");
+
+        let summary = sync_direct_dependencies(
+            &project,
+            &manifest_path,
+            &manifest,
+            &lock,
+            false,
+            &cache,
+            true,
+        )
+        .expect("complete cache should materialise offline");
+
+        assert_eq!(summary.written, 1);
+        assert_eq!(
+            fs::read_to_string(project.join("addons/addon/plugin.gd"))
+                .expect("materialised plugin should read"),
+            "fixture"
         );
     }
 

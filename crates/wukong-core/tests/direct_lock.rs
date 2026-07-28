@@ -5,6 +5,7 @@ use std::{
 use tempfile::TempDir;
 use wukong_core::{
     cache::CacheLayout,
+    diagnostic::ErrorCode,
     direct_lock::{lock_direct_dependencies, update_direct_dependencies},
     direct_sync::sync_direct_dependencies,
     lockfile::LockedSource,
@@ -97,6 +98,31 @@ fn invariant_direct_remote_dependencies_lock_to_immutable_sources_and_reuse_offl
             .join(".wukong/state.toml")
             .is_file()
     );
+}
+
+#[test]
+fn invariant_offline_lock_reports_every_missing_remote_cache_object() {
+    let fixture = Fixture::new();
+    let git_commit = "1".repeat(40);
+    let archive_sha256 = "2".repeat(64);
+    let manifest = fixture.manifest(&format!(
+        "[dependencies]\ngit-addon = {{ git = \"https://fixture.test/git-addon.git\", rev = \"{git_commit}\" }}\nhttp-addon = {{ url = \"https://fixture.test/http-addon.zip\", sha256 = \"{archive_sha256}\" }}\n"
+    ));
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should work");
+
+    let error = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect_err("offline lock should report unavailable artifacts");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert!(
+        error
+            .message()
+            .contains(&format!("git-addon (Git checkout {git_commit})"))
+    );
+    assert!(error.message().contains(&format!(
+        "http-addon (HTTPS archive sha256:{archive_sha256})"
+    )));
 }
 
 #[test]
