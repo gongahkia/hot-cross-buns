@@ -27,6 +27,7 @@ library; package installation is not implemented yet.
 - [Archive extraction](docs/archive-extraction.md)
 - [Package layout](docs/package-layout.md)
 - [Package metadata](docs/package-metadata.md)
+- [Canonical package trees](docs/canonical-package-trees.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

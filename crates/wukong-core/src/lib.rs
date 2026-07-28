@@ -18,6 +18,9 @@ pub mod local_source;
 /// Conservative package-layout detection.
 pub mod layout;
 
+/// Canonical package-tree preparation.
+pub mod package_tree;
+
 /// Optional package-owned metadata parsing.
 pub mod package_metadata;
 

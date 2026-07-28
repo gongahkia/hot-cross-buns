@@ -13,6 +13,7 @@ Current records:
 - [0007: ZIP extraction security](0007-zip-extraction-security.md)
 - [0008: package layout detection](0008-package-layout-detection.md)
 - [0009: package metadata schema](0009-package-metadata-schema.md)
+- [0010: canonical package trees](0010-canonical-package-trees.md)
 
 ## When to write an ADR
 

@@ -304,20 +304,20 @@ Acceptance criteria:
 
 ## wukong-033: Prepare canonical package trees
 
-- [ ] Copy or transform fetched sources into a canonical staging tree.
-- [ ] Exclude source-control metadata.
-- [ ] Exclude unrelated repository files where layout rules permit.
-- [ ] Compute a deterministic content hash.
-- [ ] Record file paths and permissions.
-- [ ] Reject path collisions after normalisation.
+- [x] Copy or transform fetched sources into a canonical staging tree.
+- [x] Exclude source-control metadata.
+- [x] Exclude unrelated repository files where layout rules permit.
+- [x] Compute a deterministic content hash.
+- [x] Record file paths and permissions.
+- [x] Reject path collisions after normalisation.
 
 Tests:
 
-- [ ] Deterministic hash.
-- [ ] Different source wrappers produce identical canonical content where intended.
-- [ ] Case-collision fixture.
-- [ ] Unicode-normalisation collision fixture.
-- [ ] Executable-bit behaviour across platforms.
+- [x] Deterministic hash.
+- [x] Different source wrappers produce identical canonical content where intended.
+- [x] Case-collision fixture.
+- [x] Unicode-normalisation collision fixture.
+- [x] Executable-bit behaviour across platforms.
 
 ## wukong-034: Build the first compatibility-fixture format
 
