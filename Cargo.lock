@@ -245,6 +245,7 @@ dependencies = [
 name = "wukong-cli"
 version = "0.0.0"
 dependencies = [
+ "tempfile",
  "wukong-core",
 ]
 

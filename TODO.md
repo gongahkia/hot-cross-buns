@@ -120,11 +120,11 @@ Tests:
 
 ## wukong-013: Implement `wukong init`
 
-- [ ] Detect the project.
-- [ ] Refuse to overwrite an existing manifest.
-- [ ] Infer a default project name.
-- [ ] Write a minimal manifest atomically.
-- [ ] Add an optional non-interactive mode.
+- [x] Detect the project.
+- [x] Refuse to overwrite an existing manifest.
+- [x] Infer a default project name.
+- [x] Write a minimal manifest atomically.
+- [x] Add an optional non-interactive mode.
 
 Acceptance criteria:
 

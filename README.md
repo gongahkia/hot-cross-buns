@@ -7,8 +7,9 @@ lockfile, and source content should produce the same project addon state.
 
 ## Status
 
-Pre-alpha. The core library provides project discovery and manifest parsing;
-no package-management command is implemented yet.
+Pre-alpha. `wukong init` creates a minimal manifest for a discovered Godot
+project. Project discovery and manifest parsing are available in the core
+library; package installation is not implemented yet.
 
 ## Project documents
 
@@ -20,6 +21,7 @@ no package-management command is implemented yet.
 - [Diagnostics](docs/diagnostics.md)
 - [Project discovery](docs/project-discovery.md)
 - [Manifest schema](docs/manifest.md)
+- [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

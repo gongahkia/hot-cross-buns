@@ -2,6 +2,11 @@
 
 ADRs capture consequential, durable technical decisions.
 
+Current records:
+
+- [0001: manifest v1 schema](0001-manifest-schema.md)
+- [0002: manifest initialisation transaction](0002-manifest-initialisation-transaction.md)
+
 ## When to write an ADR
 
 Create one before changing manifest or lockfile formats, package identity,
