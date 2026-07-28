@@ -942,16 +942,16 @@ Start only after Git, URL and local sources are stable.
 
 Release criteria:
 
-- [ ] Git, HTTP and path dependencies work.
-- [ ] Deterministic lockfile.
-- [ ] Content-addressed cache.
-- [ ] Offline installation.
-- [ ] Atomic sync.
-- [ ] Conflict detection.
-- [ ] Security fixtures pass.
+- [x] Git, HTTP and path dependencies work.
+- [x] Deterministic lockfile.
+- [x] Content-addressed cache.
+- [x] Offline installation.
+- [x] Atomic sync.
+- [x] Conflict detection.
+- [x] Security fixtures pass.
 - [ ] CI passes on macOS, Linux and Windows.
-- [ ] At least 20 compatibility fixtures pass.
-- [ ] Documentation is complete enough for an external user.
+- [x] At least 20 compatibility fixtures pass.
+- [x] Documentation is complete enough for an external user.
 - [ ] No known critical data-loss or credential-exposure bugs.
 
 ---
