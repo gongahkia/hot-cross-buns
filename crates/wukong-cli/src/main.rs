@@ -29,6 +29,7 @@ use wukong_core::{
     operation_lock::AdvisoryLock,
     outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
     project::ProjectRoot,
+    provenance::ProvenanceReport,
     transactional_file::{FileSnapshot, write_atomic},
 };
 
@@ -66,6 +67,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "outdated" => match run_outdated(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "audit" => match run_audit(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -729,6 +734,35 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
     Ok(())
 }
 
+fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_audit_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
+        user_error(
+            "wukong.lock is required to audit dependency provenance",
+            "run wukong lock before wukong audit",
+        )
+    })?;
+    let report = ProvenanceReport::from_lockfile(&lock);
+    if options.json {
+        println!("{}", render_audit_json(&report));
+    } else {
+        println!("{}", render_audit(&report));
+    }
+    Ok(())
+}
+
 fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let command = arguments.next().ok_or_else(|| {
         user_error(
@@ -1276,6 +1310,46 @@ struct OutdatedOptions {
     project: Option<PathBuf>,
 }
 
+struct AuditOptions {
+    json: bool,
+    project: Option<PathBuf>,
+}
+
+fn parse_audit_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<AuditOptions, Box<Diagnostic>> {
+    let mut options = AuditOptions {
+        json: false,
+        project: None,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong audit --json",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported audit argument {}", argument.to_string_lossy()),
+            "use --json or --project <path>",
+        ));
+    }
+    Ok(options)
+}
+
 fn parse_outdated_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<OutdatedOptions, Box<Diagnostic>> {
@@ -1401,6 +1475,60 @@ fn render_outdated_json(report: &[OutdatedPackage]) -> String {
         .collect::<Vec<_>>()
         .join(",");
     format!("{{\"schema\":1,\"packages\":[{packages}]}}")
+}
+
+fn render_audit(report: &ProvenanceReport) -> String {
+    let mut lines = vec![
+        "audit format: 1".to_owned(),
+        "signature verification: not implemented".to_owned(),
+    ];
+    for package in report.packages() {
+        lines.push(String::new());
+        lines.push(package.name().to_string());
+        lines.push(format!("  source kind: {}", package.source_kind().as_str()));
+        lines.push(format!(
+            "  canonical source: {}",
+            package.canonical_source()
+        ));
+        lines.push(format!("  immutable identity: {}", package.immutable_id()));
+        lines.push(format!(
+            "  immutable revision: {}",
+            package.immutable_revision().unwrap_or("unavailable")
+        ));
+        lines.push(format!(
+            "  source checksum: {}",
+            package.source_sha256().unwrap_or("unavailable")
+        ));
+        lines.push(format!("  package checksum: {}", package.package_sha256()));
+    }
+    lines.join("\n")
+}
+
+fn render_audit_json(report: &ProvenanceReport) -> String {
+    let packages = report
+        .packages()
+        .iter()
+        .map(|package| {
+            let revision = package
+                .immutable_revision()
+                .map_or_else(|| "null".to_owned(), json_string);
+            let source_checksum = package
+                .source_sha256()
+                .map_or_else(|| "null".to_owned(), json_string);
+            format!(
+                "{{\"name\":{},\"source_kind\":{},\"canonical_source\":{},\"immutable_id\":{},\"immutable_revision\":{revision},\"source_checksum\":{source_checksum},\"package_checksum\":{}}}",
+                json_string(&package.name().to_string()),
+                json_string(package.source_kind().as_str()),
+                json_string(package.canonical_source()),
+                json_string(package.immutable_id().as_str()),
+                json_string(package.package_sha256()),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"schema\":1,\"signature_verification\":\"not_implemented\",\"packages\":[{packages}]}}"
+    )
 }
 
 struct RemoveOptions {
@@ -2401,7 +2529,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|godot path|validate|lock|install|sync|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

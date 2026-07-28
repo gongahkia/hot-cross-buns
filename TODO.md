@@ -761,11 +761,11 @@ Check:
 
 ## wukong-104: Add dependency provenance
 
-- [ ] Display canonical source.
-- [ ] Display immutable revision.
-- [ ] Display checksum.
-- [ ] Add `wukong audit` baseline output.
-- [ ] Reserve signature-verification design for a later milestone.
+- [x] Display canonical source.
+- [x] Display immutable revision.
+- [x] Display checksum.
+- [x] Add `wukong audit` baseline output.
+- [x] Reserve signature-verification design for a later milestone.
 
 ## wukong-105: Commission or perform a security review before `1.0`
 

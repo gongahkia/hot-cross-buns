@@ -96,6 +96,9 @@ pub mod semantic_version;
 /// Lazy, deterministic transitive dependency resolution.
 pub mod resolver;
 
+/// Immutable dependency provenance derived from a lockfile.
+pub mod provenance;
+
 /// Deterministic views over the locked dependency graph.
 pub mod dependency_graph;
 

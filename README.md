@@ -71,6 +71,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [`wukong add`](docs/add.md)
 - [`wukong update`](docs/update.md)
 - [`wukong outdated`](docs/outdated.md)
+- [`wukong audit`](docs/audit.md)
 - [Materialisation](docs/materialization.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
