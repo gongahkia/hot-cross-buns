@@ -11,7 +11,7 @@ use std::{
 };
 
 /// A canonical ASCII package name.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PackageName(String);
 
 impl PackageName {

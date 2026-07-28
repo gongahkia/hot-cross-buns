@@ -26,5 +26,7 @@ declaration.
 
 This intentionally follows Cargo-compatible SemVer rather than npm-style
 version grammar; for example, alternatives separated by `||` are not accepted.
-Git tag discovery is implemented in W062; transitive version selection remains
-deferred to W063.
+Git tag discovery is implemented in W062. W063 resolves candidate metadata
+lazily with the selected compatible lock version preferred; otherwise it picks
+the highest compatible available candidate. The resolver does not execute
+package scripts or mutate project files.

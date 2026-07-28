@@ -519,13 +519,13 @@ For other sources:
 
 ## wukong-063: Resolve transitive dependencies
 
-- [ ] Read package-owned metadata.
-- [ ] Build the package universe lazily.
-- [ ] Resolve complete graphs.
-- [ ] Detect cycles.
-- [ ] Prefer existing valid lockfile selections.
-- [ ] Avoid unnecessary package updates.
-- [ ] Report conflicts with dependency paths.
+- [x] Read package-owned metadata.
+- [x] Build the package universe lazily.
+- [x] Resolve complete graphs.
+- [x] Detect cycles.
+- [x] Prefer existing valid lockfile selections.
+- [x] Avoid unnecessary package updates.
+- [x] Report conflicts with dependency paths.
 
 Acceptance criteria:
 

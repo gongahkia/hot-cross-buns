@@ -74,3 +74,6 @@ pub mod source;
 
 /// Canonical semantic-version values and requirements.
 pub mod semantic_version;
+
+/// Lazy, deterministic transitive dependency resolution.
+pub mod resolver;

@@ -26,6 +26,7 @@ and converts their results into human or machine-readable output.
 | Project discovery | Locate and validate a Godot project. |
 | Manifest and lockfile | Parse, validate, and deterministically serialise project state. |
 | Package identity and sources | Canonicalise identities and resolve immutable source content. |
+| Resolver | Lazily select a deterministic, compatible transitive package graph. |
 | Preparation and cache | Verify source content and produce canonical package trees. |
 | Ownership and materialisation | Detect conflicts and reconcile only proven package-owned files. |
 | Transactions | Stage, verify, commit, and recover filesystem changes. |
