@@ -317,6 +317,7 @@ class TaskMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesCompletesAndDeletesTask();
+  void createsBatchAtomically();
   void queuesRemoteTaskChangesWithBaseEtag();
   void movesTaskToAnotherActiveList();
   void reordersTaskAmongSiblings();
@@ -482,6 +483,43 @@ void TaskMutationServiceTest::createsUpdatesCompletesAndDeletesTask() {
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
   QCOMPARE(removed->updatedAt, expectedTimestamp);
   QCOMPARE(pendingMutationCount(handle), 0);
+}
+
+void TaskMutationServiceTest::createsBatchAtomically() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::TaskMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+
+  std::future<hcb::TaskBatchMutationResult> rejected = service.createBatch(
+      {{.taskListId = QStringLiteral("list-active"), .title = QStringLiteral("first")},
+       {.taskListId = QStringLiteral("list-deleted"), .title = QStringLiteral("second")}});
+  QVERIFY(std::holds_alternative<hcb::AppError>(awaitResult(rejected)));
+  QCOMPARE(pendingMutationCount(handle), std::int64_t{0});
+
+  std::future<hcb::TaskBatchMutationResult> created = service.createBatch(
+      {{.taskListId = QStringLiteral("list-active"), .title = QStringLiteral("first")},
+       {.taskListId = QStringLiteral("list-active"), .title = QStringLiteral("second")}});
+  const hcb::TaskBatchMutationResult result = awaitResult(created);
+  QVERIFY(std::holds_alternative<QList<hcb::TaskMutationReceipt>>(result));
+  QCOMPARE(std::get<QList<hcb::TaskMutationReceipt>>(result).size(), qsizetype{2});
+  QCOMPARE(pendingMutationCount(handle), std::int64_t{2});
 }
 
 void TaskMutationServiceTest::preservesManagedRecurrenceAcrossOrdinaryEdits() {

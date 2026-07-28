@@ -204,6 +204,23 @@ ORDER BY created_at ASC, id ASC
                                                                     : QList<PendingMutationSnapshot>{};
 }
 
+[[nodiscard]] std::int64_t pendingEventMutationCount(sqlite3* handle) {
+  sqlite3_stmt* statement = nullptr;
+  if (sqlite3_prepare_v3(handle,
+                         "SELECT COUNT(*) FROM local_pending_mutations WHERE resource_type = 'event'",
+                         -1,
+                         SQLITE_PREPARE_PERSISTENT,
+                         &statement,
+                         nullptr) != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return -1;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const std::int64_t count = sqlite3_column_int64(statement, 0);
+  const int finalizeResult = sqlite3_finalize(statement);
+  return stepResult == SQLITE_ROW && finalizeResult == SQLITE_OK ? count : -1;
+}
+
 } // namespace
 
 class CalendarMutationServiceTest final : public QObject {
@@ -211,6 +228,7 @@ class CalendarMutationServiceTest final : public QObject {
 
 private slots:
   void createsUpdatesMovesAndDeletesEvents();
+  void createsBatchAtomically();
   void createsRichGoogleEventsAndCarriesDeliveryPolicy();
   void preservesAdvancedGoogleRecurrenceLines();
   void journalsRemoteUpdatesMovesAndCreateReconciliation();
@@ -326,6 +344,55 @@ void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
     return;
   }
   QCOMPARE(removed->deletedAt, std::optional<QString>(expectedTimestamp));
+}
+
+void CalendarMutationServiceTest::createsBatchAtomically() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+
+  std::future<hcb::CalendarEventBatchMutationResult> rejected = service.createBatch(
+      {{.calendarId = QStringLiteral("calendar-work"),
+        .title = QStringLiteral("first"),
+        .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T10:00:00.000Z")},
+       {.calendarId = QStringLiteral("calendar-deleted"),
+        .title = QStringLiteral("second"),
+        .startAt = QStringLiteral("2026-07-26T11:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T12:00:00.000Z")}});
+  QVERIFY(std::holds_alternative<hcb::AppError>(awaitResult(rejected)));
+  QCOMPARE(pendingEventMutationCount(handle), std::int64_t{0});
+
+  std::future<hcb::CalendarEventBatchMutationResult> created = service.createBatch(
+      {{.calendarId = QStringLiteral("calendar-work"),
+        .title = QStringLiteral("first"),
+        .startAt = QStringLiteral("2026-07-26T09:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T10:00:00.000Z")},
+       {.calendarId = QStringLiteral("calendar-work"),
+        .title = QStringLiteral("second"),
+        .startAt = QStringLiteral("2026-07-26T11:00:00.000Z"),
+        .endAt = QStringLiteral("2026-07-26T12:00:00.000Z")}});
+  const hcb::CalendarEventBatchMutationResult result = awaitResult(created);
+  QVERIFY(std::holds_alternative<QList<hcb::CalendarEventMutationReceipt>>(result));
+  QCOMPARE(std::get<QList<hcb::CalendarEventMutationReceipt>>(result).size(), qsizetype{2});
+  QCOMPARE(pendingEventMutationCount(handle), std::int64_t{2});
 }
 
 void CalendarMutationServiceTest::createsRichGoogleEventsAndCarriesDeliveryPolicy() {
