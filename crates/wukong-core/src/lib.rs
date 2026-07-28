@@ -42,6 +42,9 @@ pub mod git_source;
 /// Project-level Godot compatibility inputs.
 pub mod godot_compatibility;
 
+/// Godot executable discovery without execution.
+pub mod godot_executable;
+
 /// Git fetching through the user-installed Git executable.
 pub mod git_fetch;
 

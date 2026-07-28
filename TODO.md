@@ -631,10 +631,14 @@ guessed compatibility.
 
 ## wukong-082: Add optional Godot executable discovery
 
-- [ ] Support explicit executable path.
-- [ ] Search common platform locations.
-- [ ] Support environment-variable configuration.
-- [ ] Print the selected executable in verbose mode.
+- [x] Support explicit executable path.
+- [x] Search common platform locations.
+- [x] Support environment-variable configuration.
+- [x] Print the selected executable in verbose mode.
+
+`wukong godot path` performs discovery without running Godot. It uses explicit
+path, `WUKONG_GODOT_EXECUTABLE`, `PATH`, then platform locations; `--verbose`
+prints the chosen source.
 
 ## wukong-083: Add headless validation
 

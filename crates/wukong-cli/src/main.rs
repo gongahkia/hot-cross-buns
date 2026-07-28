@@ -12,6 +12,7 @@ use wukong_core::{
         PackageGodotCompatibilityReport, resolve_project_godot_compatibility,
         validate_locked_package_godot_compatibility,
     },
+    godot_executable::discover_godot_executable,
     identity::PackageName,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
@@ -56,6 +57,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "outdated" => match run_outdated(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "godot" => match run_godot(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -705,6 +710,77 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
         println!("{}", render_outdated(&report));
     }
     Ok(())
+}
+
+fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let command = arguments.next().ok_or_else(|| {
+        user_error(
+            "godot requires a subcommand",
+            "run wukong godot path [--godot-executable <path>] [--verbose]",
+        )
+    })?;
+    if command != "path" {
+        return Err(user_error(
+            format!("unsupported godot subcommand {}", command.to_string_lossy()),
+            "run wukong godot path",
+        ));
+    }
+    let options = parse_godot_path_arguments(arguments)?;
+    let executable =
+        discover_godot_executable(options.executable.as_deref())?.ok_or_else(|| {
+            user_error(
+                "could not locate a Godot executable",
+                "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+            )
+        })?;
+    if options.verbose {
+        println!("selected from {}", executable.source().as_str());
+    }
+    println!("{}", executable.path().display());
+    Ok(())
+}
+
+struct GodotPathOptions {
+    executable: Option<PathBuf>,
+    verbose: bool,
+}
+
+fn parse_godot_path_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotPathOptions, Box<Diagnostic>> {
+    let mut options = GodotPathOptions {
+        executable: None,
+        verbose: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--godot-executable" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--godot-executable")?);
+            if options.executable.replace(path).is_some() {
+                return Err(user_error(
+                    "--godot-executable may be supplied only once",
+                    "provide one executable path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--verbose" {
+            if std::mem::replace(&mut options.verbose, true) {
+                return Err(user_error(
+                    "--verbose may be supplied only once",
+                    "run wukong godot path --verbose",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported godot path argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --godot-executable <path> or --verbose",
+        ));
+    }
+    Ok(options)
 }
 
 struct OutdatedOptions {
@@ -1748,7 +1824,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|lock|install|sync|tree|why|cache verify> [options]"
+        "usage: wukong <init|add|remove|update|outdated|godot path|lock|install|sync|tree|why|cache verify> [options]"
     );
 }
 
@@ -1759,8 +1835,8 @@ fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AddOptions, parse_add_arguments, parse_outdated_arguments, parse_sync_arguments,
-        parse_update_arguments,
+        AddOptions, parse_add_arguments, parse_godot_path_arguments, parse_outdated_arguments,
+        parse_sync_arguments, parse_update_arguments,
     };
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
@@ -1878,5 +1954,18 @@ mod tests {
             .expect("sync specification should parse");
 
         assert_eq!(options.godot_version.as_deref(), Some("4.4.1"));
+    }
+
+    #[test]
+    fn godot_path_parser_accepts_explicit_executable_and_verbose_output() {
+        let options = parse_godot_path_arguments(
+            ["--godot-executable", "godot", "--verbose"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("Godot path specification should parse");
+
+        assert_eq!(options.executable, Some(PathBuf::from("godot")));
+        assert!(options.verbose);
     }
 }
