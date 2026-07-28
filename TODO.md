@@ -424,13 +424,13 @@ Tests:
 
 ## wukong-053: Define installed-state metadata
 
-- [ ] Create `.wukong/`.
-- [ ] Record installed package identities.
-- [ ] Record owned files.
-- [ ] Record file hashes.
-- [ ] Record selected dependency groups.
-- [ ] Record materialisation strategy.
-- [ ] Version the state schema.
+- [x] Create `.wukong/`.
+- [x] Record installed package identities.
+- [x] Record owned files.
+- [x] Record file hashes.
+- [x] Record selected dependency groups.
+- [x] Record materialisation strategy.
+- [x] Version the state schema.
 
 ## wukong-054: Build desired file ownership maps
 

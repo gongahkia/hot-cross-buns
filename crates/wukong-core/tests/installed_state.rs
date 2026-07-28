@@ -1,0 +1,112 @@
+use std::{collections::BTreeSet, fs, path::Path};
+use tempfile::TempDir;
+use wukong_core::{
+    identity::PackageName,
+    installed_state::{
+        DependencyGroup, InstalledPackage, InstalledState, MaterializationStrategy, OwnedFile,
+        STATE_DIRECTORY_NAME, STATE_FILE_NAME, create_state_directory, state_path,
+    },
+    source::ImmutableSourceId,
+};
+
+#[test]
+fn invariant_installed_state_serializes_identity_ownership_hashes_and_groups_deterministically() {
+    let first = state(["zeta", "alpha"]);
+    let second = state(["alpha", "zeta"]);
+    let output = first.to_toml();
+
+    assert_eq!(output, second.to_toml());
+    assert!(output.contains("groups = [\"dependencies\", \"dev-dependencies\"]"));
+    assert!(output.find("name = \"alpha\"") < output.find("name = \"zeta\""));
+    assert!(output.contains("path = \"addons/alpha/plugin.gd\""));
+    assert!(output.contains("materialization = \"copy\""));
+    assert_eq!(
+        InstalledState::parse(Path::new("fixture/.wukong/state.toml"), &output)
+            .expect("serialized state should parse"),
+        first
+    );
+}
+
+#[test]
+fn invariant_state_rejects_unsafe_paths_unknown_owners_and_unknown_fields() {
+    let package = package("alpha", 1);
+    assert!(
+        OwnedFile::new(
+            "../outside.gd",
+            PackageName::parse("alpha").expect("name should parse"),
+            hash(1),
+            MaterializationStrategy::Copy,
+        )
+        .is_err()
+    );
+    let file = OwnedFile::new(
+        "addons/alpha/plugin.gd",
+        PackageName::parse("other").expect("name should parse"),
+        hash(1),
+        MaterializationStrategy::Copy,
+    )
+    .expect("file should parse");
+    assert!(InstalledState::new(BTreeSet::new(), [package], [file]).is_err());
+    assert!(
+        InstalledState::parse(
+            Path::new("fixture/.wukong/state.toml"),
+            "schema = 1\ngroups = []\nx-unknown = \"no\"\n"
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn invariant_state_directory_creation_never_overwrites_a_non_directory() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let state = create_state_directory(fixture.path()).expect("state directory should create");
+
+    assert_eq!(state, fixture.path().join(STATE_DIRECTORY_NAME));
+    assert_eq!(state_path(fixture.path()), state.join(STATE_FILE_NAME));
+    assert!(state.is_dir());
+
+    let conflict = TempDir::new().expect("conflict fixture should exist");
+    fs::write(
+        conflict.path().join(STATE_DIRECTORY_NAME),
+        "not a directory\n",
+    )
+    .expect("conflict should write");
+    assert!(create_state_directory(conflict.path()).is_err());
+}
+
+fn state(names: impl IntoIterator<Item = &'static str>) -> InstalledState {
+    let packages = names
+        .into_iter()
+        .map(|name| package(name, usize::from(name != "alpha")));
+    let files = [OwnedFile::new(
+        "addons/alpha/plugin.gd",
+        PackageName::parse("alpha").expect("name should parse"),
+        hash(0),
+        MaterializationStrategy::Copy,
+    )
+    .expect("file should parse")];
+    InstalledState::new(
+        [
+            DependencyGroup::Dependencies,
+            DependencyGroup::DevDependencies,
+        ]
+        .into_iter()
+        .collect(),
+        packages,
+        files,
+    )
+    .expect("state should parse")
+}
+
+fn package(name: &str, index: usize) -> InstalledPackage {
+    InstalledPackage::new(
+        PackageName::parse(name).expect("name should parse"),
+        ImmutableSourceId::new(format!("sha256:{}", hash(index))).expect("identity should parse"),
+        hash(index),
+    )
+    .expect("package should parse")
+}
+
+fn hash(index: usize) -> String {
+    format!("{index:064x}")
+}

@@ -19,6 +19,7 @@ Current records:
 - [0013: cache layout](0013-cache-layout.md)
 - [0014: cache publication](0014-cache-publication.md)
 - [0015: cache integrity verification](0015-cache-integrity-verification.md)
+- [0016: installed-state schema](0016-installed-state-schema.md)
 
 ## When to write an ADR
 

@@ -9,6 +9,9 @@ pub mod archive;
 /// Atomic creation of a minimal project manifest.
 pub mod init;
 
+/// Deterministic installed-package ownership metadata.
+pub mod installed_state;
+
 /// Canonical package and source identities.
 pub mod identity;
 

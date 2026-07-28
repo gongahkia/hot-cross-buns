@@ -32,6 +32,7 @@ implemented yet.
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
 - [Lockfile schema](docs/lockfile.md)
 - [Cache layout](docs/cache.md)
+- [Installed state](docs/installed-state.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
