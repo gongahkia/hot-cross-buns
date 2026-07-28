@@ -14,8 +14,11 @@ checkouts; connection to direct dependency locking remains later resolver work.
 The HTTP archive core fetcher accepts only credential-free HTTPS URLs and an
 explicit lowercase SHA-256, then publishes verified immutable downloads; its
 connection to manifest and lockfile source declarations remains later resolver
-work. See
+work. Resolution and fetching accept a source-neutral cancellation token;
+adapters clean any adapter-owned staging state before returning cancellation.
+See
 [ADR 0005](adr/0005-source-adapter-contract.md) and
 [ADR 0020](adr/0020-git-source-canonicalisation.md), plus
 [ADR 0021](adr/0021-system-git-fetching.md) and
-[ADR 0022](adr/0022-http-archive-transport.md).
+[ADR 0022](adr/0022-http-archive-transport.md), plus
+[ADR 0023](adr/0023-source-adapter-cancellation.md).

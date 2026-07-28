@@ -247,12 +247,12 @@ Tests:
 
 ## wukong-026: Define source adapter contract tests
 
-- [ ] Create a reusable adapter test suite.
-- [ ] Verify immutable resolution.
-- [ ] Verify offline behaviour.
-- [ ] Verify deterministic source identity.
-- [ ] Verify fetch integrity.
-- [ ] Verify cancellation and cleanup.
+- [x] Create a reusable adapter test suite.
+- [x] Verify immutable resolution.
+- [x] Verify offline behaviour.
+- [x] Verify deterministic source identity.
+- [x] Verify fetch integrity.
+- [x] Verify cancellation and cleanup.
 
 ---
 

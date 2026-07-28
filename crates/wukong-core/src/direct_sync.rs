@@ -9,7 +9,7 @@ use crate::{
     ownership::{PackageMaterialization, build_desired_file_map},
     package_tree::prepare_package_tree,
     project_sync::{SyncSummary, sync_project},
-    source::{ResolvedSource, SourceAdapter},
+    source::{CancellationToken, ResolvedSource, SourceAdapter},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -33,6 +33,7 @@ pub fn sync_direct_local_dependencies(
     let staging = TempDir::new()
         .map_err(|error| internal("could not create local sync preparation directory", error))?;
     let adapter = LocalPathAdapter;
+    let cancellation = CancellationToken::new();
     let mut trees = BTreeMap::new();
     let mut packages = Vec::new();
     for locked in lock.packages().values() {
@@ -52,10 +53,10 @@ pub fn sync_direct_local_dependencies(
                 .with_recovery("regenerate wukong.lock with an implemented source adapter"),
             ));
         };
-        let resolution = adapter.resolve(&LocalPathRequest::new(
-            manifest_path.to_path_buf(),
-            path.clone(),
-        ))?;
+        let resolution = adapter.resolve(
+            &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
+            &cancellation,
+        )?;
         if resolution.immutable_id() != locked.source().immutable_id() {
             return Err(Box::new(
                 Diagnostic::new(

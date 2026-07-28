@@ -1,15 +1,61 @@
 //! Source-neutral adapter contracts for package acquisition.
 
-use crate::{diagnostic::Diagnostic, identity::SourceIdentity};
+use crate::{
+    diagnostic::{Diagnostic, ErrorCode},
+    identity::SourceIdentity,
+};
 use semver::Version;
 use std::{
     collections::BTreeSet,
     error::Error,
     fmt::{self, Display, Formatter},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 /// The result type used by source adapters.
 pub type SourceResult<T> = std::result::Result<T, Box<Diagnostic>>;
+
+/// A cooperative, cloneable cancellation signal for source operations.
+#[derive(Clone, Debug, Default)]
+pub struct CancellationToken(Arc<AtomicBool>);
+
+impl CancellationToken {
+    /// Creates a token that has not been cancelled.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Requests cancellation of every operation sharing this token.
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+
+    /// Returns whether cancellation has been requested.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    /// Returns a source diagnostic if cancellation has been requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns a recoverable source diagnostic when the token is cancelled.
+    pub fn check(&self) -> SourceResult<()> {
+        if self.is_cancelled() {
+            Err(Box::new(
+                Diagnostic::new(ErrorCode::SourceAccess, "source operation was cancelled")
+                    .with_recovery("retry the operation when ready"),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
 
 /// A source-neutral immutable revision recorded after resolution.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -111,14 +157,22 @@ pub trait SourceAdapter {
     /// # Errors
     ///
     /// Returns a structured diagnostic when immutable resolution fails.
-    fn resolve(&self, request: &Self::Request) -> SourceResult<Self::Resolution>;
+    fn resolve(
+        &self,
+        request: &Self::Request,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Resolution>;
 
     /// Fetches or otherwise materialises the resolved source.
     ///
     /// # Errors
     ///
     /// Returns a structured diagnostic when source acquisition fails.
-    fn fetch(&self, resolved: &Self::Resolution) -> SourceResult<Self::Fetched>;
+    fn fetch(
+        &self,
+        resolved: &Self::Resolution,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Fetched>;
 
     /// Returns integrity information for fetched source content.
     ///
@@ -143,4 +197,23 @@ pub trait SourceAdapter {
         &self,
         resolved: &Self::Resolution,
     ) -> SourceResult<OfflineAvailability>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CancellationToken;
+    use crate::diagnostic::ErrorCode;
+
+    #[test]
+    fn invariant_cloned_cancellation_tokens_stop_the_same_source_operation() {
+        let token = CancellationToken::new();
+        let clone = token.clone();
+        clone.cancel();
+
+        let error = token
+            .check()
+            .expect_err("shared cancellation should stop work");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+    }
 }

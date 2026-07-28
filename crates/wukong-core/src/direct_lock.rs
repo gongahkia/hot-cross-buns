@@ -9,7 +9,7 @@ use crate::{
     manifest::{Dependency, DependencyAlias, Manifest},
     package_metadata::PackageMetadata,
     package_tree::prepare_package_tree,
-    source::{ResolvedSource, SourceAdapter},
+    source::{CancellationToken, ResolvedSource, SourceAdapter},
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -36,12 +36,13 @@ pub fn lock_direct_local_dependencies(
     let staging = TempDir::new()
         .map_err(|error| internal("could not create package-lock staging directory", error))?;
     let adapter = LocalPathAdapter;
+    let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for declaration in declarations.values() {
-        let resolution = adapter.resolve(&LocalPathRequest::new(
-            manifest_path.to_path_buf(),
-            declaration.path.clone(),
-        ))?;
+        let resolution = adapter.resolve(
+            &LocalPathRequest::new(manifest_path.to_path_buf(), declaration.path.clone()),
+            &cancellation,
+        )?;
         let source_root = resolution.root().path();
         let metadata = PackageMetadata::load_optional(source_root)?;
         let layout = detect_package_layout(

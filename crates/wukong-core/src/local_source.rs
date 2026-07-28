@@ -4,8 +4,8 @@ use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     identity::{LocalSourceIdentity, SourceIdentity},
     source::{
-        ImmutableSourceId, OfflineAvailability, ResolvedSource, SourceAdapter, SourceResult,
-        VersionAvailability,
+        CancellationToken, ImmutableSourceId, OfflineAvailability, ResolvedSource, SourceAdapter,
+        SourceResult, VersionAvailability,
     },
 };
 use sha2::{Digest, Sha256};
@@ -126,9 +126,14 @@ impl SourceAdapter for LocalPathAdapter {
         Ok(VersionAvailability::Unsupported)
     }
 
-    fn resolve(&self, request: &Self::Request) -> SourceResult<Self::Resolution> {
+    fn resolve(
+        &self,
+        request: &Self::Request,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Resolution> {
+        cancellation.check()?;
         let root = resolve_root(request)?;
-        let snapshot = snapshot(root.path(), &request.ignored_names)?;
+        let snapshot = snapshot(root.path(), &request.ignored_names, cancellation)?;
         let immutable_id = ImmutableSourceId::new(format!("sha256:{}", snapshot.sha256()))
             .map_err(|error| {
                 boxed(
@@ -147,7 +152,12 @@ impl SourceAdapter for LocalPathAdapter {
         })
     }
 
-    fn fetch(&self, resolved: &Self::Resolution) -> SourceResult<Self::Fetched> {
+    fn fetch(
+        &self,
+        resolved: &Self::Resolution,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Fetched> {
+        cancellation.check()?;
         Ok(LocalPathFetched {
             root: resolved.root.clone(),
             snapshot: resolved.snapshot.clone(),
@@ -217,9 +227,13 @@ fn resolve_root(request: &LocalPathRequest) -> SourceResult<LocalSourceIdentity>
     })
 }
 
-fn snapshot(root: &Path, ignored_names: &BTreeSet<OsString>) -> SourceResult<LocalContentSnapshot> {
+fn snapshot(
+    root: &Path,
+    ignored_names: &BTreeSet<OsString>,
+    cancellation: &CancellationToken,
+) -> SourceResult<LocalContentSnapshot> {
     let mut hasher = Sha256::new();
-    hash_directory(root, root, ignored_names, &mut hasher)?;
+    hash_directory(root, root, ignored_names, &mut hasher, cancellation)?;
     Ok(LocalContentSnapshot {
         sha256: format!("{:x}", hasher.finalize()),
     })
@@ -230,13 +244,16 @@ fn hash_directory(
     directory: &Path,
     ignored_names: &BTreeSet<OsString>,
     hasher: &mut Sha256,
+    cancellation: &CancellationToken,
 ) -> SourceResult<()> {
+    cancellation.check()?;
     let mut entries = fs::read_dir(directory)
         .map_err(|error| source_path_error(directory, error))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| source_path_error(directory, error))?;
     entries.sort_by_key(fs::DirEntry::file_name);
     for entry in entries {
+        cancellation.check()?;
         if ignored_names.contains(&entry.file_name()) {
             continue;
         }
@@ -247,9 +264,9 @@ fn hash_directory(
         let file_type = metadata.file_type();
         if file_type.is_dir() {
             hash_record(hasher, b'd', &relative, None);
-            hash_directory(root, &path, ignored_names, hasher)?;
+            hash_directory(root, &path, ignored_names, hasher, cancellation)?;
         } else if file_type.is_file() {
-            hash_file(hasher, &relative, &path)?;
+            hash_file(hasher, &relative, &path, cancellation)?;
         } else if file_type.is_symlink() {
             let target = fs::read_link(&path).map_err(|error| source_path_error(&path, error))?;
             let target = target.to_str().ok_or_else(|| invalid_path_error(&path))?;
@@ -270,12 +287,57 @@ fn hash_directory(
     Ok(())
 }
 
-fn hash_file(hasher: &mut Sha256, relative: &str, path: &Path) -> SourceResult<()> {
+fn hash_file(
+    hasher: &mut Sha256,
+    relative: &str,
+    path: &Path,
+    cancellation: &CancellationToken,
+) -> SourceResult<()> {
+    cancellation.check()?;
     let mut file = fs::File::open(path).map_err(|error| source_path_error(path, error))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|error| source_path_error(path, error))?;
-    hash_record(hasher, b'f', relative, Some(&bytes));
+    let length = file
+        .metadata()
+        .map_err(|error| source_path_error(path, error))?
+        .len();
+    hasher.update([b'f']);
+    update_length_prefixed(hasher, relative.as_bytes());
+    hasher.update(length.to_be_bytes());
+    let mut buffer = [0_u8; 8192];
+    let mut total = 0_u64;
+    loop {
+        cancellation.check()?;
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| source_path_error(path, error))?;
+        if read == 0 {
+            break;
+        }
+        total = total.checked_add(read as u64).ok_or_else(|| {
+            boxed(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    format!(
+                        "local dependency file changed while snapshotting {}",
+                        path.display()
+                    ),
+                )
+                .with_recovery("retry after the local dependency stops changing"),
+            )
+        })?;
+        hasher.update(&buffer[..read]);
+    }
+    if total != length {
+        return Err(boxed(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                format!(
+                    "local dependency file changed while snapshotting {}",
+                    path.display()
+                ),
+            )
+            .with_recovery("retry after the local dependency stops changing"),
+        ));
+    }
     Ok(())
 }
 

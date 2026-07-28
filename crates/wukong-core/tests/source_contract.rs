@@ -1,69 +1,84 @@
+mod support;
+
 use semver::Version;
 use std::{collections::BTreeSet, fs, path::PathBuf};
+use support::source_adapter_contract::{SourceAdapterFixture, assert_source_adapter_contract};
 use tempfile::TempDir;
 use wukong_core::{
     identity::{LocalSourceIdentity, SourceIdentity},
     source::{
-        ImmutableSourceId, OfflineAvailability, ResolvedSource, SourceAdapter, SourceResult,
-        VersionAvailability,
+        CancellationToken, ImmutableSourceId, OfflineAvailability, ResolvedSource, SourceAdapter,
+        SourceResult, VersionAvailability,
     },
 };
 
 #[test]
-fn invariant_source_adapter_contract_keeps_source_details_outside_shared_resolution() {
-    let fixture = TempDir::new().expect("temporary directory should be created");
-    let package = fixture.path().join("package");
-    fs::create_dir(&package).expect("package directory should be created");
-    let adapter = TestAdapter;
-    let request = TestRequest { path: package };
+fn invariant_reusable_source_adapter_contract_keeps_source_details_outside_resolution() {
+    assert_source_adapter_contract(&Fixture::new());
+}
 
-    let identity = adapter
-        .canonical_identity(&request)
-        .expect("identity should canonicalize");
-    let versions = adapter
-        .available_versions(&request)
-        .expect("version availability should resolve");
-    let resolved = adapter.resolve(&request).expect("request should resolve");
-    let fetched = adapter.fetch(&resolved).expect("source should fetch");
-    let integrity = adapter
-        .integrity_metadata(&fetched)
-        .expect("integrity metadata should resolve");
-    let layout = adapter
-        .layout_metadata(&fetched)
-        .expect("layout metadata should resolve");
-    let offline = adapter
-        .offline_availability(&resolved)
-        .expect("offline availability should resolve");
+struct Fixture {
+    _directory: TempDir,
+    adapter: TestAdapter,
+    request: TestRequest,
+}
+impl Fixture {
+    fn new() -> Self {
+        let directory = TempDir::new().expect("temporary directory should be created");
+        let path = directory.path().join("package");
+        fs::create_dir(&path).expect("package directory should be created");
+        Self {
+            _directory: directory,
+            adapter: TestAdapter,
+            request: TestRequest { path },
+        }
+    }
+}
+impl SourceAdapterFixture for Fixture {
+    type Adapter = TestAdapter;
 
-    assert!(matches!(identity, SourceIdentity::Local(_)));
-    assert_eq!(
-        versions,
-        VersionAvailability::Available(BTreeSet::from([Version::new(1, 0, 0)]))
-    );
-    assert_eq!(resolved.immutable_id().as_str(), "test-revision-1");
-    assert_eq!(integrity, "test-integrity");
-    assert_eq!(layout, "test-layout");
-    assert_eq!(offline, OfflineAvailability::Available);
+    fn adapter(&self) -> &Self::Adapter {
+        &self.adapter
+    }
+    fn request(&self) -> &TestRequest {
+        &self.request
+    }
+    fn assert_identity(&self, identity: &SourceIdentity) {
+        assert!(matches!(identity, SourceIdentity::Local(_)));
+    }
+    fn assert_versions(&self, versions: &VersionAvailability) {
+        assert_eq!(
+            versions,
+            &VersionAvailability::Available(BTreeSet::from([Version::new(1, 0, 0)]))
+        );
+    }
+    fn assert_integrity(&self, integrity: &&'static str) {
+        assert_eq!(*integrity, "test-integrity");
+    }
+    fn assert_layout(&self, layout: &&'static str) {
+        assert_eq!(*layout, "test-layout");
+    }
+    fn assert_offline_availability(&self, availability: OfflineAvailability) {
+        assert_eq!(availability, OfflineAvailability::Available);
+    }
+    fn assert_cancelled_cleanup(&self) {
+        assert!(!self.request.path.join(".wukong-source-staging").exists());
+    }
 }
 
 struct TestRequest {
     path: PathBuf,
 }
-
 struct TestResolution {
     immutable_id: ImmutableSourceId,
 }
-
 impl ResolvedSource for TestResolution {
     fn immutable_id(&self) -> &ImmutableSourceId {
         &self.immutable_id
     }
 }
-
 struct TestFetched;
-
 struct TestAdapter;
-
 impl SourceAdapter for TestAdapter {
     type Request = TestRequest;
     type Resolution = TestResolution;
@@ -77,35 +92,39 @@ impl SourceAdapter for TestAdapter {
                 .expect("fixture path should canonicalize"),
         ))
     }
-
     fn available_versions(&self, _request: &Self::Request) -> SourceResult<VersionAvailability> {
         Ok(VersionAvailability::Available(BTreeSet::from([
             Version::new(1, 0, 0),
         ])))
     }
-
-    fn resolve(&self, _request: &Self::Request) -> SourceResult<Self::Resolution> {
+    fn resolve(
+        &self,
+        _request: &Self::Request,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Resolution> {
+        cancellation.check()?;
         Ok(TestResolution {
             immutable_id: ImmutableSourceId::new("test-revision-1")
                 .expect("identifier should be valid"),
         })
     }
-
-    fn fetch(&self, _resolved: &Self::Resolution) -> SourceResult<Self::Fetched> {
+    fn fetch(
+        &self,
+        _resolved: &Self::Resolution,
+        cancellation: &CancellationToken,
+    ) -> SourceResult<Self::Fetched> {
+        cancellation.check()?;
         Ok(TestFetched)
     }
-
     fn integrity_metadata(
         &self,
         _fetched: &Self::Fetched,
     ) -> SourceResult<Self::IntegrityMetadata> {
         Ok("test-integrity")
     }
-
     fn layout_metadata(&self, _fetched: &Self::Fetched) -> SourceResult<Self::LayoutMetadata> {
         Ok("test-layout")
     }
-
     fn offline_availability(
         &self,
         _resolved: &Self::Resolution,

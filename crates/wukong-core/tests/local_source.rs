@@ -1,9 +1,15 @@
+mod support;
+
 use std::{ffi::OsString, fs, path::Path};
+use support::source_adapter_contract::{SourceAdapterFixture, assert_source_adapter_contract};
 use tempfile::TempDir;
 use wukong_core::{
     diagnostic::ErrorCode,
-    local_source::{LocalPathAdapter, LocalPathRequest},
-    source::{ResolvedSource, SourceAdapter, VersionAvailability},
+    identity::SourceIdentity,
+    local_source::{
+        LocalIntegrityMetadata, LocalLayoutMetadata, LocalPathAdapter, LocalPathRequest,
+    },
+    source::{CancellationToken, ResolvedSource, SourceAdapter, VersionAvailability},
 };
 
 #[test]
@@ -51,7 +57,7 @@ fn invariant_missing_local_path_is_a_recoverable_source_error() {
     let request = LocalPathRequest::new(fixture.manifest_path().to_path_buf(), "missing".into());
 
     let error = LocalPathAdapter
-        .resolve(&request)
+        .resolve(&request, &CancellationToken::new())
         .expect_err("missing path should fail");
 
     assert_eq!(error.code(), ErrorCode::SourceAccess);
@@ -85,12 +91,12 @@ fn invariant_git_and_configured_names_are_ignored_during_hashing() {
     let request = LocalPathRequest::new(fixture.manifest_path().to_path_buf(), "addon".into())
         .with_ignored_names([OsString::from("generated")]);
     let first = LocalPathAdapter
-        .resolve(&request)
+        .resolve(&request, &CancellationToken::new())
         .expect("first snapshot should resolve");
     fs::write(addon.join(".git/index"), "second").expect("git file should change");
     fs::write(addon.join("generated"), "second").expect("generated file should change");
     let second = LocalPathAdapter
-        .resolve(&request)
+        .resolve(&request, &CancellationToken::new())
         .expect("second snapshot should resolve");
 
     assert_eq!(first.snapshot(), second.snapshot());
@@ -128,16 +134,79 @@ fn invariant_paths_outside_the_project_are_supported() {
     );
 }
 
+#[test]
+fn invariant_local_path_adapter_satisfies_the_reusable_source_contract() {
+    assert_source_adapter_contract(&LocalContractFixture::new());
+}
+
 fn resolve(
     manifest_path: &Path,
     declared_path: &Path,
 ) -> wukong_core::local_source::LocalPathResolution {
     LocalPathAdapter
-        .resolve(&LocalPathRequest::new(
-            manifest_path.to_path_buf(),
-            declared_path.to_path_buf(),
-        ))
+        .resolve(
+            &LocalPathRequest::new(manifest_path.to_path_buf(), declared_path.to_path_buf()),
+            &CancellationToken::new(),
+        )
         .expect("local path should resolve")
+}
+
+struct LocalContractFixture {
+    fixture: Fixture,
+    adapter: LocalPathAdapter,
+    request: LocalPathRequest,
+}
+impl LocalContractFixture {
+    fn new() -> Self {
+        let fixture = Fixture::new();
+        let addon = fixture.root().join("contract-addon");
+        fs::create_dir(&addon).expect("addon directory should be created");
+        fs::write(addon.join("plugin.gd"), "extends Node\n").expect("addon file should be written");
+        let request = LocalPathRequest::new(
+            fixture.manifest_path().to_path_buf(),
+            Path::new("contract-addon").to_path_buf(),
+        );
+        Self {
+            fixture,
+            adapter: LocalPathAdapter,
+            request,
+        }
+    }
+}
+impl SourceAdapterFixture for LocalContractFixture {
+    type Adapter = LocalPathAdapter;
+
+    fn adapter(&self) -> &Self::Adapter {
+        &self.adapter
+    }
+    fn request(&self) -> &LocalPathRequest {
+        &self.request
+    }
+    fn assert_identity(&self, identity: &SourceIdentity) {
+        assert!(matches!(identity, SourceIdentity::Local(_)));
+    }
+    fn assert_versions(&self, versions: &VersionAvailability) {
+        assert_eq!(versions, &VersionAvailability::Unsupported);
+    }
+    fn assert_integrity(&self, integrity: &LocalIntegrityMetadata) {
+        assert_eq!(integrity.content_snapshot.sha256().len(), 64);
+    }
+    fn assert_layout(&self, layout: &LocalLayoutMetadata) {
+        assert_eq!(
+            layout.source_root,
+            fs::canonicalize(self.fixture.root().join("contract-addon"))
+                .expect("addon should canonicalize")
+        );
+    }
+    fn assert_offline_availability(&self, availability: wukong_core::source::OfflineAvailability) {
+        assert_eq!(
+            availability,
+            wukong_core::source::OfflineAvailability::Available
+        );
+    }
+    fn assert_cancelled_cleanup(&self) {
+        assert!(!self.fixture.root().join(".wukong-source-staging").exists());
+    }
 }
 
 struct Fixture {

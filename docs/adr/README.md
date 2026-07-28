@@ -26,6 +26,7 @@ Current records:
 - [0020: Git source canonicalisation](0020-git-source-canonicalisation.md)
 - [0021: system Git fetching](0021-system-git-fetching.md)
 - [0022: HTTP archive transport](0022-http-archive-transport.md)
+- [0023: source-adapter cancellation](0023-source-adapter-cancellation.md)
 
 ## When to write an ADR
 
