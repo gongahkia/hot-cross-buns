@@ -25,3 +25,8 @@ Git checkouts use `checkouts/git/sha256/<digest>`, where the digest derives from
 a canonical source identity and immutable commit. Selector-to-commit metadata
 uses hashed names below `metadata/git/sha256`; Git source URLs and credentials
 are never persisted. See [Git fetching](git-fetching.md).
+
+HTTP archives use `downloads/sha256/<checksum>`, keyed solely by their declared
+lowercase SHA-256. The source URL, redirect destinations, timestamps, and
+credentials are never persisted. Every cache reuse re-hashes the archive before
+it is returned. See [HTTP archives](http-archives.md).

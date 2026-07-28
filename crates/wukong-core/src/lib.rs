@@ -42,6 +42,9 @@ pub mod git_source;
 /// Git fetching through the user-installed Git executable.
 pub mod git_fetch;
 
+/// HTTPS archive download, integrity verification, and cache publication.
+pub mod http_archive;
+
 /// Versioned content-addressed cache layout.
 pub mod cache;
 

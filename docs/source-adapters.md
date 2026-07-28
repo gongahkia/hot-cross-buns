@@ -11,7 +11,11 @@ discovery as unsupported rather than inventing versions. The local-path adapter
 is the first implementation. Git source locations canonicalise without network
 I/O, and the core Git fetcher resolves immutable commits into verified cache
 checkouts; connection to direct dependency locking remains later resolver work.
-HTTP remains unimplemented. See
+The HTTP archive core fetcher accepts only credential-free HTTPS URLs and an
+explicit lowercase SHA-256, then publishes verified immutable downloads; its
+connection to manifest and lockfile source declarations remains later resolver
+work. See
 [ADR 0005](adr/0005-source-adapter-contract.md) and
 [ADR 0020](adr/0020-git-source-canonicalisation.md), plus
-[ADR 0021](adr/0021-system-git-fetching.md).
+[ADR 0021](adr/0021-system-git-fetching.md) and
+[ADR 0022](adr/0022-http-archive-transport.md).

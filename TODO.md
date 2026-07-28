@@ -227,23 +227,23 @@ Tests:
 
 ## wukong-025: Implement HTTP archive sources
 
-- [ ] Support HTTPS.
-- [ ] Require or derive a checksum.
-- [ ] Stream downloads to disk.
-- [ ] Enforce configured size limits.
-- [ ] Support redirects with a safe policy.
-- [ ] Use temporary files and atomic publication.
-- [ ] Support conditional requests later if useful.
+- [x] Support HTTPS.
+- [x] Require or derive a checksum.
+- [x] Stream downloads to disk.
+- [x] Enforce configured size limits.
+- [x] Support redirects with a safe policy.
+- [x] Use temporary files and atomic publication.
+- [x] Support conditional requests later if useful (deferred; immutable checksum cache).
 
 Tests:
 
-- [ ] Successful ZIP download.
-- [ ] Checksum mismatch.
-- [ ] Redirect.
-- [ ] Excessive size.
-- [ ] Interrupted download.
-- [ ] Warm cache.
-- [ ] Invalid TLS or URL.
+- [x] Successful ZIP download (fixture and ignored pinned HTTPS integration test).
+- [x] Checksum mismatch.
+- [x] Redirect.
+- [x] Excessive size.
+- [x] Interrupted download.
+- [x] Warm cache.
+- [x] Invalid TLS or URL (ignored invalid-TLS integration test and URL tests).
 
 ## wukong-026: Define source adapter contract tests
 

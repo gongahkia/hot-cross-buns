@@ -10,8 +10,10 @@ lockfile, and source content should produce the same project addon state.
 Pre-alpha. The local-path vertical slice provides `wukong init`, `wukong lock`,
 and transactional `wukong install`/`wukong sync`. `wukong cache verify` verifies
 prepared-package cache objects. Git canonicalisation and core fetching are
-implemented, but Git dependency locking, HTTP archives, official asset sources,
-package scripts, and a dependency solver are not implemented yet.
+implemented. HTTPS archive retrieval and immutable checksum-addressed caching
+are implemented in the core, but Git and HTTP dependency locking, official
+asset sources, package scripts, and a dependency solver are not implemented
+yet.
 
 ## Local-path workflow
 
@@ -38,6 +40,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Local paths](docs/local-paths.md)
 - [Git source canonicalisation](docs/git-sources.md)
 - [Git fetching](docs/git-fetching.md)
+- [HTTP archives](docs/http-archives.md)
 - [Archive extraction](docs/archive-extraction.md)
 - [Package layout](docs/package-layout.md)
 - [Package metadata](docs/package-metadata.md)

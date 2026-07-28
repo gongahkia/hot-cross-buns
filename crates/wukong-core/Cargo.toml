@@ -17,6 +17,7 @@ toml_edit = "0.25.13"
 tempfile = "3.27.0"
 unicode-normalization = "0.1.25"
 url = "2.5.8"
+ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
 zip = { version = "7.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
