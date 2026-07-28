@@ -690,14 +690,14 @@ Version `0.1.0` must not be released before this task is complete.
 
 Simulate failure during:
 
-- [ ] Download.
-- [ ] Extraction.
-- [ ] Hashing.
-- [ ] Cache publication.
-- [ ] File staging.
-- [ ] Project commit.
-- [ ] State-file write.
-- [ ] Stale-file removal.
+- [x] Download.
+- [x] Extraction.
+- [x] Hashing.
+- [x] Cache publication.
+- [x] File staging.
+- [x] Project commit.
+- [x] State-file write.
+- [x] Stale-file removal.
 
 ## wukong-093: Add cache maintenance commands
 

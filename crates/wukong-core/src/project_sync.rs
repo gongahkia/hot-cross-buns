@@ -218,6 +218,8 @@ fn stage_files(
     Journal::create(staging)?;
     let mut strategies = BTreeMap::new();
     for (path, file) in &plan.writes {
+        #[cfg(test)]
+        interrupt_if_requested(InterruptionPoint::FileStaging)?;
         let staged = staging.join("files").join(path);
         let parent = staged
             .parent()
@@ -233,6 +235,8 @@ fn stage_files(
 }
 
 fn stage_state(staging: &Path, next: &InstalledState) -> Result<(), Box<Diagnostic>> {
+    #[cfg(test)]
+    interrupt_if_requested(InterruptionPoint::StateFileWrite)?;
     let state = staging.join(STATE_FILE_NAME);
     fs::File::create(&state)
         .and_then(|mut file| {
@@ -264,6 +268,8 @@ fn commit(project_root: &Path, staging: &Path, plan: &SyncPlan) -> Result<(), Bo
         fs::rename(staging.join("files").join(path), &destination)
             .map_err(|error| internal("could not publish staged project file", error))?;
     }
+    #[cfg(test)]
+    interrupt_if_requested(InterruptionPoint::ProjectCommit)?;
     let state = Path::new(".wukong").join(STATE_FILE_NAME);
     if fs::symlink_metadata(state_path(project_root)).is_ok() {
         journal.record_moved(&state)?;
@@ -289,7 +295,10 @@ fn move_to_rollback(
     )
     .map_err(|error| internal("could not create rollback directory", error))?;
     fs::rename(project_root.join(path), target)
-        .map_err(|error| internal("could not back up project file", error))
+        .map_err(|error| internal("could not back up project file", error))?;
+    #[cfg(test)]
+    interrupt_if_requested(InterruptionPoint::StaleFileRemoval)?;
+    Ok(())
 }
 
 fn recover_transaction(project_root: &Path) -> Result<(), Box<Diagnostic>> {
@@ -477,9 +486,53 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
 }
 
 #[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InterruptionPoint {
+    FileStaging,
+    ProjectCommit,
+    StateFileWrite,
+    StaleFileRemoval,
+}
+
+#[cfg(test)]
+thread_local! {
+    static INTERRUPTION_POINT: std::cell::Cell<Option<InterruptionPoint>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+fn interrupt_if_requested(point: InterruptionPoint) -> Result<(), Box<Diagnostic>> {
+    let interrupted = INTERRUPTION_POINT.with(|requested| {
+        if requested.get() == Some(point) {
+            requested.set(None);
+            true
+        } else {
+            false
+        }
+    });
+    if interrupted {
+        Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                format!("simulated interruption during {point:?}"),
+            )
+            .with_recovery("retry; the interrupted transaction was rolled back"),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use super::recover_transaction;
-    use std::fs;
+    use super::{INTERRUPTION_POINT, InterruptionPoint, recover_transaction, sync_project};
+    use crate::{
+        identity::PackageName,
+        installed_state::{DependencyGroup, InstalledPackage, state_path},
+        ownership::{PackageMaterialization, build_desired_file_map},
+        package_tree::{PreparedPackageTree, prepare_package_tree},
+        source::ImmutableSourceId,
+    };
+    use std::{collections::BTreeSet, fs, path::Path};
     use tempfile::TempDir;
 
     #[test]
@@ -520,6 +573,212 @@ mod tests {
             "new"
         );
         assert!(!transaction.exists());
+    }
+
+    #[test]
+    fn invariant_interruption_during_file_staging_leaves_project_unchanged() {
+        let fixture = SyncFixture::new();
+        let package = fixture.package("first");
+        let interruption = Interruption::at(InterruptionPoint::FileStaging);
+
+        assert!(
+            sync_project(
+                fixture.project(),
+                groups(),
+                [package.installed.clone()],
+                &package.desired(),
+            )
+            .is_err()
+        );
+
+        drop(interruption);
+        assert!(!fixture.project().join("addons/alpha/plugin.gd").exists());
+        assert!(!fixture.project().join(".wukong/.transaction").exists());
+    }
+
+    #[test]
+    fn invariant_interruption_during_project_commit_recovers_prior_files_and_state() {
+        let fixture = SyncFixture::new();
+        let first = fixture.package("first");
+        sync_project(
+            fixture.project(),
+            groups(),
+            [first.installed.clone()],
+            &first.desired(),
+        )
+        .expect("initial sync should work");
+        let state = fs::read(state_path(fixture.project())).expect("state should read");
+        let second = fixture.package("second");
+        let interruption = Interruption::at(InterruptionPoint::ProjectCommit);
+
+        assert!(
+            sync_project(
+                fixture.project(),
+                groups(),
+                [second.installed.clone()],
+                &second.desired(),
+            )
+            .is_err()
+        );
+
+        drop(interruption);
+        assert_eq!(
+            fs::read_to_string(fixture.project().join("addons/alpha/plugin.gd"))
+                .expect("prior file should restore"),
+            "first"
+        );
+        assert_eq!(
+            fs::read(state_path(fixture.project())).expect("state should restore"),
+            state
+        );
+        assert!(!fixture.project().join(".wukong/.transaction").exists());
+    }
+
+    #[test]
+    fn invariant_interruption_during_state_write_leaves_prior_files_and_state_unchanged() {
+        let fixture = SyncFixture::new();
+        let first = fixture.package("first");
+        sync_project(
+            fixture.project(),
+            groups(),
+            [first.installed.clone()],
+            &first.desired(),
+        )
+        .expect("initial sync should work");
+        let state = fs::read(state_path(fixture.project())).expect("state should read");
+        let second = fixture.package("second");
+        let interruption = Interruption::at(InterruptionPoint::StateFileWrite);
+
+        assert!(
+            sync_project(
+                fixture.project(),
+                groups(),
+                [second.installed.clone()],
+                &second.desired(),
+            )
+            .is_err()
+        );
+
+        drop(interruption);
+        assert_eq!(
+            fs::read_to_string(fixture.project().join("addons/alpha/plugin.gd"))
+                .expect("prior file should remain"),
+            "first"
+        );
+        assert_eq!(
+            fs::read(state_path(fixture.project())).expect("state should remain"),
+            state
+        );
+        assert!(!fixture.project().join(".wukong/.transaction").exists());
+    }
+
+    #[test]
+    fn invariant_interruption_during_stale_removal_restores_the_owned_file() {
+        let fixture = SyncFixture::new();
+        let first = fixture.package("first");
+        sync_project(
+            fixture.project(),
+            groups(),
+            [first.installed.clone()],
+            &first.desired(),
+        )
+        .expect("initial sync should work");
+        let state = fs::read(state_path(fixture.project())).expect("state should read");
+        let interruption = Interruption::at(InterruptionPoint::StaleFileRemoval);
+
+        assert!(
+            sync_project(
+                fixture.project(),
+                groups(),
+                [],
+                &crate::ownership::DesiredFileMap::default(),
+            )
+            .is_err()
+        );
+
+        drop(interruption);
+        assert_eq!(
+            fs::read_to_string(fixture.project().join("addons/alpha/plugin.gd"))
+                .expect("owned file should restore"),
+            "first"
+        );
+        assert_eq!(
+            fs::read(state_path(fixture.project())).expect("state should remain"),
+            state
+        );
+        assert!(!fixture.project().join(".wukong/.transaction").exists());
+    }
+
+    fn groups() -> BTreeSet<DependencyGroup> {
+        BTreeSet::from([DependencyGroup::Dependencies])
+    }
+
+    struct Interruption;
+    impl Interruption {
+        fn at(point: InterruptionPoint) -> Self {
+            INTERRUPTION_POINT.with(|requested| requested.set(Some(point)));
+            Self
+        }
+    }
+    impl Drop for Interruption {
+        fn drop(&mut self) {
+            INTERRUPTION_POINT.with(|requested| requested.set(None));
+        }
+    }
+
+    struct SyncFixture {
+        directory: TempDir,
+        project: std::path::PathBuf,
+    }
+    impl SyncFixture {
+        fn new() -> Self {
+            let directory = TempDir::new().expect("fixture should exist");
+            let project = directory.path().join("project");
+            fs::create_dir(&project).expect("project should create");
+            Self { directory, project }
+        }
+        fn project(&self) -> &Path {
+            &self.project
+        }
+        fn package(&self, content: &str) -> PackageFixture {
+            let source = self.directory.path().join(format!("source-{content}"));
+            fs::create_dir_all(&source).expect("source should create");
+            fs::write(source.join("plugin.gd"), content).expect("source should write");
+            let tree = prepare_package_tree(
+                &source,
+                &self.directory.path().join(format!("prepared-{content}")),
+            )
+            .expect("tree should prepare");
+            let name = PackageName::parse("alpha").expect("name should parse");
+            let installed = InstalledPackage::new(
+                name.clone(),
+                ImmutableSourceId::new(format!("sha256:{}", tree.sha256()))
+                    .expect("source should parse"),
+                tree.sha256().to_owned(),
+            )
+            .expect("package should parse");
+            PackageFixture {
+                name,
+                tree,
+                installed,
+            }
+        }
+    }
+
+    struct PackageFixture {
+        name: PackageName,
+        tree: PreparedPackageTree,
+        installed: InstalledPackage,
+    }
+    impl PackageFixture {
+        fn desired(&self) -> crate::ownership::DesiredFileMap {
+            build_desired_file_map([PackageMaterialization::new(
+                &self.name,
+                &self.tree,
+                Path::new("addons/alpha"),
+            )])
+            .expect("desired map should build")
+        }
     }
 
     fn write(path: &std::path::Path, content: &str) {

@@ -106,6 +106,25 @@ fn invariant_expansion_ratio_limit_rejects_nonempty_entries() {
     assert!(staging_entries(fixture.staging_parent()).is_empty());
 }
 
+#[test]
+fn invariant_mid_extraction_failure_removes_the_staging_root() {
+    let fixture = Fixture::new();
+    fixture.write_zip(&[
+        ("addons", b"file blocks directory"),
+        ("addons/alpha/plugin.gd", b"x"),
+    ]);
+
+    let error = extract_zip(
+        fixture.archive_path(),
+        fixture.staging_parent(),
+        ExtractionLimits::default(),
+    )
+    .expect_err("mid-extraction directory conflict should fail");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert!(staging_entries(fixture.staging_parent()).is_empty());
+}
+
 fn staging_entries(path: &Path) -> Vec<std::path::PathBuf> {
     fs::read_dir(path)
         .expect("staging parent should be readable")
