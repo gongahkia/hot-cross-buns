@@ -15,6 +15,8 @@
 
 namespace hcb {
 
+class ImportMutationService;
+
 struct CalendarEventReminder final {
   QString method;
   int minutes{0};
@@ -148,6 +150,8 @@ public:
   CalendarMutationService& operator=(const CalendarMutationService&) = delete;
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
+  [[nodiscard]] static std::variant<CalendarEventCreateInput, AppError>
+  validateCreate(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
   [[nodiscard]] std::future<CalendarEventBatchMutationResult>
   createBatch(QList<CalendarEventCreateInput> inputs);
@@ -164,6 +168,11 @@ public:
   reconcileGoogleEvent(CalendarEventRemoteReconciliationInput input);
 
 private:
+  friend class ImportMutationService;
+  [[nodiscard]] static CalendarEventBatchMutationResult
+  createBatchWithinTransaction(SqliteConnection& connection,
+                               QList<CalendarEventCreateInput> inputs,
+                               const QString& updatedAt);
   const Clock& clock_;
   SqliteWriterQueue writerQueue_;
   std::shared_future<SqliteWriteResult> initialization_;

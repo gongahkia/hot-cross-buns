@@ -16,6 +16,8 @@
 
 namespace hcb {
 
+class ImportMutationService;
+
 enum class TaskPriority : std::uint8_t {
   None,
   Low,
@@ -103,6 +105,8 @@ public:
   TaskMutationService& operator=(const TaskMutationService&) = delete;
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
+  [[nodiscard]] static std::variant<TaskCreateInput, AppError>
+  validateCreate(TaskCreateInput input);
   [[nodiscard]] std::future<TaskMutationResult> create(TaskCreateInput input);
   [[nodiscard]] std::future<TaskBatchMutationResult> createBatch(QList<TaskCreateInput> inputs);
   [[nodiscard]] std::future<TaskMutationResult> update(TaskUpdateInput input);
@@ -132,6 +136,11 @@ public:
   [[nodiscard]] std::future<TaskRemoteIdResult> remoteTaskId(QString taskId);
 
 private:
+  friend class ImportMutationService;
+  [[nodiscard]] static TaskBatchMutationResult
+  createBatchWithinTransaction(SqliteConnection& connection,
+                               QList<TaskCreateInput> inputs,
+                               const QString& updatedAt);
   const Clock& clock_;
   SqliteWriterQueue writerQueue_;
   std::shared_future<SqliteWriteResult> initialization_;

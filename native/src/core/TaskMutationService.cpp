@@ -1916,8 +1916,13 @@ TaskMutationService::TaskMutationService(FilePath databasePath, const Clock& clo
 
 std::shared_future<SqliteWriteResult> TaskMutationService::ready() const { return initialization_; }
 
+std::variant<TaskCreateInput, AppError>
+TaskMutationService::validateCreate(TaskCreateInput input) {
+  return canonicalize(std::move(input));
+}
+
 std::future<TaskMutationResult> TaskMutationService::create(TaskCreateInput input) {
-  const std::variant<TaskCreateInput, AppError> canonical = canonicalize(std::move(input));
+  const std::variant<TaskCreateInput, AppError> canonical = validateCreate(std::move(input));
   if (std::holds_alternative<AppError>(canonical)) {
     return readyFuture(TaskMutationResult(std::get<AppError>(canonical)));
   }
@@ -1977,17 +1982,40 @@ std::future<TaskMutationResult> TaskMutationService::create(TaskCreateInput inpu
 }
 
 std::future<TaskBatchMutationResult> TaskMutationService::createBatch(QList<TaskCreateInput> inputs) {
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [inputs = std::move(inputs), updatedAt](SqliteConnection& connection) mutable {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return TaskBatchMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        TaskBatchMutationResult created =
+            createBatchWithinTransaction(connection, std::move(inputs), updatedAt);
+        if (std::holds_alternative<AppError>(created)) {
+          return created;
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return TaskBatchMutationResult(*error);
+        }
+        return created;
+      });
+}
+
+TaskBatchMutationResult TaskMutationService::createBatchWithinTransaction(
+    SqliteConnection& connection,
+    QList<TaskCreateInput> inputs,
+    const QString& updatedAt) {
   constexpr qsizetype kMaximumBatchSize = 1'000;
   if (inputs.isEmpty() || inputs.size() > kMaximumBatchSize) {
-    return readyFuture(TaskBatchMutationResult(
-        validationError(QStringLiteral("Task creation batch is invalid"))));
+    return validationError(QStringLiteral("Task creation batch is invalid"));
   }
   QList<TaskCreateInput> canonicalInputs;
   canonicalInputs.reserve(inputs.size());
   for (TaskCreateInput& input : inputs) {
-    const std::variant<TaskCreateInput, AppError> canonical = canonicalize(std::move(input));
+    const std::variant<TaskCreateInput, AppError> canonical = validateCreate(std::move(input));
     if (std::holds_alternative<AppError>(canonical)) {
-      return readyFuture(TaskBatchMutationResult(std::get<AppError>(canonical)));
+      return std::get<AppError>(canonical);
     }
     canonicalInputs.append(std::get<TaskCreateInput>(canonical));
   }
@@ -2004,60 +2032,46 @@ std::future<TaskBatchMutationResult> TaskMutationService::createBatch(QList<Task
                     .taskId = QStringLiteral("task:") + localId,
                     .remoteId = QStringLiteral("pending:") + localId});
   }
-  const QString updatedAt = timestamp(clock_);
-  return writerQueue_.enqueueResult(
-      [creates = std::move(creates), updatedAt](SqliteConnection& connection) {
-        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
-        if (std::holds_alternative<AppError>(transactionResult)) {
-          return TaskBatchMutationResult(std::get<AppError>(std::move(transactionResult)));
-        }
-        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
-        QList<TaskMutationReceipt> receipts;
-        receipts.reserve(creates.size());
-        for (const PendingCreate& create : creates) {
-          if (create.input.parentTaskId.has_value()) {
-            const std::variant<std::optional<StoredTaskContext>, AppError> parentResult =
-                readTaskContext(connection, *create.input.parentTaskId);
-            if (std::holds_alternative<AppError>(parentResult)) {
-              return TaskBatchMutationResult(std::get<AppError>(parentResult));
-            }
-            const std::optional<StoredTaskContext>& parent =
-                std::get<std::optional<StoredTaskContext>>(parentResult);
-            if (!parent.has_value() || parent->isAssigned ||
-                parseTaskRecurrenceNotes(parent->notes.value_or(QString())).state ==
-                    TaskRecurrenceNotesState::Managed) {
-              return TaskBatchMutationResult(
-                  validationError(QStringLiteral("Task cannot be a subtask of this parent")));
-            }
-          }
-          TaskMutationResult created =
-              createStoredTask(connection, create.input, create.taskId, create.remoteId, updatedAt);
-          if (std::holds_alternative<AppError>(created)) {
-            return TaskBatchMutationResult(std::get<AppError>(std::move(created)));
-          }
-          const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
-              readTaskContext(connection, create.taskId);
-          if (std::holds_alternative<AppError>(contextResult)) {
-            return TaskBatchMutationResult(std::get<AppError>(contextResult));
-          }
-          const std::optional<StoredTaskContext>& context =
-              std::get<std::optional<StoredTaskContext>>(contextResult);
-          if (!context.has_value()) {
-            return TaskBatchMutationResult(
-                AppError(AppErrorCode::Database, QStringLiteral("Created task is unavailable")));
-          }
-          if (const std::optional<AppError> error = queueTaskMutation(
-                  connection, *context, context, QStringLiteral("task.create"), updatedAt);
-              error.has_value()) {
-            return TaskBatchMutationResult(*error);
-          }
-          receipts.append(std::get<TaskMutationReceipt>(std::move(created)));
-        }
-        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
-          return TaskBatchMutationResult(*error);
-        }
-        return TaskBatchMutationResult(std::move(receipts));
-      });
+  QList<TaskMutationReceipt> receipts;
+  receipts.reserve(creates.size());
+  for (const PendingCreate& create : creates) {
+    if (create.input.parentTaskId.has_value()) {
+      const std::variant<std::optional<StoredTaskContext>, AppError> parentResult =
+          readTaskContext(connection, *create.input.parentTaskId);
+      if (std::holds_alternative<AppError>(parentResult)) {
+        return std::get<AppError>(parentResult);
+      }
+      const std::optional<StoredTaskContext>& parent =
+          std::get<std::optional<StoredTaskContext>>(parentResult);
+      if (!parent.has_value() || parent->isAssigned ||
+          parseTaskRecurrenceNotes(parent->notes.value_or(QString())).state ==
+              TaskRecurrenceNotesState::Managed) {
+        return validationError(QStringLiteral("Task cannot be a subtask of this parent"));
+      }
+    }
+    TaskMutationResult created =
+        createStoredTask(connection, create.input, create.taskId, create.remoteId, updatedAt);
+    if (std::holds_alternative<AppError>(created)) {
+      return std::get<AppError>(std::move(created));
+    }
+    const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+        readTaskContext(connection, create.taskId);
+    if (std::holds_alternative<AppError>(contextResult)) {
+      return std::get<AppError>(contextResult);
+    }
+    const std::optional<StoredTaskContext>& context =
+        std::get<std::optional<StoredTaskContext>>(contextResult);
+    if (!context.has_value()) {
+      return AppError(AppErrorCode::Database, QStringLiteral("Created task is unavailable"));
+    }
+    if (const std::optional<AppError> error = queueTaskMutation(
+            connection, *context, context, QStringLiteral("task.create"), updatedAt);
+        error.has_value()) {
+      return *error;
+    }
+    receipts.append(std::get<TaskMutationReceipt>(std::move(created)));
+  }
+  return receipts;
 }
 
 std::future<TaskMutationResult> TaskMutationService::update(TaskUpdateInput input) {
