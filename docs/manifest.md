@@ -28,6 +28,7 @@ catalogue = "^1.2"
 local = { path = "../local-addon" }
 git-addon = { git = "https://example.test/addon", tag = "v1.2.0" }
 archive = { url = "https://example.test/addon.zip", sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
+ui = { git = "https://example.test/addons.git", rev = "0123456789abcdef0123456789abcdef01234567", root = "addons/ui", target = "addons/ui" }
 ```
 
 Local paths may be relative or absolute. Relative paths are resolved against
@@ -40,6 +41,13 @@ ID. Archive sources require a 64-character hexadecimal SHA-256 value.
 HTTPS user information and sensitive query parameters are rejected. SSH user
 names are allowed for standard Git remotes, but SSH passwords are rejected.
 Manifests declare inputs only: `wukong` does not execute package scripts.
+
+`root` selects one safe directory below a source and `target` selects its safe
+project-relative destination. They allow two declarations to select different
+addons from one immutable repository. Explicit manifest layout values override
+package-owned `wukong-package.toml` metadata; omitted values retain metadata
+then layout inference. Changing either requires `wukong lock` because both are
+part of the declaration identity.
 
 ## Field reference
 
@@ -54,6 +62,8 @@ Manifests declare inputs only: `wukong` does not execute package scripts.
 | `rev`, `tag`, `branch` | Git only | At most one selector; locks always record a complete commit. |
 | `url` | One source | Credential-free HTTPS ZIP URL. |
 | `sha256` | URL only | Required lowercase 64-character archive checksum. |
+| `root` | Direct sources | Safe source-relative package directory. |
+| `target` | Direct sources | Safe project-relative installation directory. |
 
 Version-only dependencies require a catalogue and are currently rejected before
 resolution. See [versioning policy](versioning.md).

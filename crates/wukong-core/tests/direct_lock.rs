@@ -143,6 +143,35 @@ fn invariant_changed_local_content_changes_the_direct_lock() {
 }
 
 #[test]
+fn invariant_changed_layout_override_relocks_the_same_source() {
+    let fixture = Fixture::new();
+    let source = fixture.directory.path().join("suite/addons");
+    fs::create_dir_all(source.join("alpha")).expect("alpha source should create");
+    fs::create_dir_all(source.join("beta")).expect("beta source should create");
+    fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
+    fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
+    let alpha = fixture.manifest(
+        "[dependencies]\naddon = { path = \"suite\", root = \"addons/alpha\", target = \"addons/alpha\" }\n",
+    );
+    let first = lock(&fixture, &alpha, None);
+    let beta = fixture.manifest(
+        "[dependencies]\naddon = { path = \"suite\", root = \"addons/beta\", target = \"addons/beta\" }\n",
+    );
+
+    let second = lock(&fixture, &beta, Some(&first));
+
+    assert_ne!(first.to_toml(), second.to_toml());
+    assert_eq!(
+        second
+            .packages()
+            .get("addon")
+            .expect("layout override should lock")
+            .source_subdirectory(),
+        Path::new("addons/beta")
+    );
+}
+
+#[test]
 fn invariant_parallel_lock_failures_are_reported_in_package_order() {
     let fixture = Fixture::new();
     let manifest = fixture.manifest(

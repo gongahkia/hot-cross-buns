@@ -261,7 +261,7 @@ fn source_root(
     package: &str,
 ) -> Result<std::path::PathBuf, Box<Diagnostic>> {
     match (source, dependency) {
-        (LockedSource::Local(locked), Dependency::Path(path)) => {
+        (LockedSource::Local(locked), Dependency::Path { path, .. }) => {
             let resolution = LocalPathAdapter.resolve(
                 &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
                 cancellation,
@@ -301,7 +301,7 @@ fn source_root(
             }
             Ok(checkout.root().to_path_buf())
         }
-        (LockedSource::Http(locked), Dependency::Url { url, sha256 }) => {
+        (LockedSource::Http(locked), Dependency::Url { url, sha256, .. }) => {
             if canonicalize_archive_url(url)? != locked.url() || sha256 != locked.sha256() {
                 return Err(source_mismatch(package));
             }
@@ -310,7 +310,7 @@ fn source_root(
             Ok(extracted.root().to_path_buf())
         }
         #[cfg(feature = "asset-library")]
-        (LockedSource::Http(locked), Dependency::Asset(_)) => {
+        (LockedSource::Http(locked), Dependency::Asset { .. }) => {
             let archive = http.fetch(locked.url(), locked.sha256(), offline)?;
             let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
             Ok(extracted.root().to_path_buf())

@@ -88,7 +88,7 @@ archive = { url = "https://example.test/addon.zip", sha256 = "0123456789abcdef01
 
     assert!(matches!(
         manifest.dependencies().get("local"),
-        Some(Dependency::Path(_))
+        Some(Dependency::Path { .. })
     ));
     assert!(matches!(
         manifest.dependencies().get("git"),

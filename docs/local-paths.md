@@ -18,6 +18,14 @@ Declare a local addon relative to the project manifest or by an absolute path:
 example = { path = "../example-addon" }
 ```
 
+For a source containing multiple addons, select each directory explicitly:
+
+```toml
+[dependencies]
+alpha = { path = "../addon-suite", root = "addons/alpha", target = "addons/alpha" }
+beta = { path = "../addon-suite", root = "addons/beta", target = "addons/beta" }
+```
+
 Run `wukong lock` after any intended source change. A later sync refuses a
 local tree whose immutable snapshot differs from the lockfile; this prevents a
 silent install of changed development content. Local dependencies work with

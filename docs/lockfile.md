@@ -48,6 +48,10 @@ sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 Package entries and their dependency lists are sorted. No timestamps, host
 paths, credentials, mutable references, or executable commands are permitted.
+`source_subdirectory` and `target_path` are the exact selected layout; they
+change when the manifest's `root` or `target` override changes. They are part
+of the declaration fingerprint and cannot be silently reused from a prior
+lock.
 `x-` fields are reserved for preserved extensions; unknown unprefixed fields
 are errors. Parsing and re-serializing a valid schema-one lock produces stable
 canonical bytes. Schema two supports `local`, `git`, and `http`; official

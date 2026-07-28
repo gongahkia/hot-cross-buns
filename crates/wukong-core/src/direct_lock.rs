@@ -16,7 +16,7 @@ use crate::{
         GodotCompatibility, LockedGitSource, LockedHttpSource, LockedLocalSource, LockedPackage,
         LockedSource, Lockfile,
     },
-    manifest::{Dependency, DependencyAlias, GitReference, Manifest},
+    manifest::{Dependency, DependencyAlias, DependencyLayout, GitReference, Manifest},
     package_metadata::PackageMetadata,
     package_tree::prepare_package_tree,
     source::{CancellationToken, ResolvedSource, SourceAdapter},
@@ -345,19 +345,30 @@ fn lock_package(
     let source_root = std::fs::canonicalize(source_root)
         .map_err(|error| internal("could not canonicalize source root for locking", error))?;
     let metadata = PackageMetadata::load_optional(&source_root)?;
-    let layout = detect_package_layout(
-        &source_root,
-        &LayoutOptions {
-            source_subdirectory: metadata
-                .as_ref()
-                .and_then(|metadata| metadata.root())
-                .map(Path::to_path_buf),
-            target_path: metadata
-                .as_ref()
-                .and_then(|metadata| metadata.target())
-                .map(Path::to_path_buf),
-        },
-    )?;
+    let layout =
+        detect_package_layout(
+            &source_root,
+            &LayoutOptions {
+                source_subdirectory: declaration.layout.root().map(Path::to_path_buf).or_else(
+                    || {
+                        metadata
+                            .as_ref()
+                            .and_then(|metadata| metadata.root())
+                            .map(Path::to_path_buf)
+                    },
+                ),
+                target_path: declaration
+                    .layout
+                    .target()
+                    .map(Path::to_path_buf)
+                    .or_else(|| {
+                        metadata
+                            .as_ref()
+                            .and_then(|metadata| metadata.target())
+                            .map(Path::to_path_buf)
+                    }),
+            },
+        )?;
     let source_subdirectory = layout
         .source_root()
         .strip_prefix(&source_root)
@@ -473,6 +484,7 @@ enum DeclaredSource {
 struct Declaration {
     name: PackageName,
     source: DeclaredSource,
+    layout: DependencyLayout,
     development: bool,
     fingerprint: String,
 }
@@ -490,7 +502,7 @@ fn insert_declarations(
     development: bool,
 ) -> Result<(), Box<Diagnostic>> {
     for (alias, dependency) in dependencies {
-        let source = declaration_source(dependency)?;
+        let (source, layout) = declaration_source(dependency)?;
         let name = PackageName::parse(alias.as_str()).map_err(|error| {
             Box::new(
                 Diagnostic::new(ErrorCode::InternalFailure, "manifest alias was invalid")
@@ -499,43 +511,67 @@ fn insert_declarations(
         })?;
         let declaration = Declaration {
             name: name.clone(),
-            fingerprint: declaration_fingerprint(alias, &source, development),
+            fingerprint: declaration_fingerprint(alias, &source, &layout, development),
             source,
+            layout,
             development,
         };
         match out.get(&name) {
             None => {
                 out.insert(name, declaration);
             }
-            Some(existing) if existing.source == declaration.source => {}
+            Some(existing)
+                if existing.source == declaration.source
+                    && existing.layout == declaration.layout => {}
             Some(_) => {
                 return Err(Box::new(
                     Diagnostic::new(
                         ErrorCode::UserInput,
-                        format!("dependency {} has conflicting sources", alias.as_str()),
+                        format!(
+                            "dependency {} has conflicting sources or layouts",
+                            alias.as_str()
+                        ),
                     )
-                    .with_recovery("use one source per package alias"),
+                    .with_recovery("use one source and layout per package alias"),
                 ));
             }
         }
     }
     Ok(())
 }
-fn declaration_source(dependency: &Dependency) -> Result<DeclaredSource, Box<Diagnostic>> {
+fn declaration_source(
+    dependency: &Dependency,
+) -> Result<(DeclaredSource, DependencyLayout), Box<Diagnostic>> {
     match dependency {
-        Dependency::Path(path) => Ok(DeclaredSource::Local(path.clone())),
-        Dependency::Git { url, reference } => Ok(DeclaredSource::Git {
-            url: crate::git_source::canonicalize_git_url(url)?
-                .as_str()
-                .to_owned(),
-            reference: reference.clone(),
-        }),
-        Dependency::Url { url, sha256 } => Ok(DeclaredSource::Http {
-            url: canonicalize_archive_url(url)?,
-            sha256: sha256.clone(),
-        }),
+        Dependency::Path { path, layout } => {
+            Ok((DeclaredSource::Local(path.clone()), layout.clone()))
+        }
+        Dependency::Git {
+            url,
+            reference,
+            layout,
+        } => Ok((
+            DeclaredSource::Git {
+                url: crate::git_source::canonicalize_git_url(url)?
+                    .as_str()
+                    .to_owned(),
+                reference: reference.clone(),
+            },
+            layout.clone(),
+        )),
+        Dependency::Url {
+            url,
+            sha256,
+            layout,
+        } => Ok((
+            DeclaredSource::Http {
+                url: canonicalize_archive_url(url)?,
+                sha256: sha256.clone(),
+            },
+            layout.clone(),
+        )),
         #[cfg(feature = "asset-library")]
-        Dependency::Asset(id) => Ok(DeclaredSource::Asset(id.clone())),
+        Dependency::Asset { id, layout } => Ok((DeclaredSource::Asset(id.clone()), layout.clone())),
         Dependency::Version(_) => Err(Box::new(
             Diagnostic::new(
                 ErrorCode::UserInput,
@@ -637,6 +673,7 @@ fn validate_existing_lock(
 fn declaration_fingerprint(
     alias: &DependencyAlias,
     source: &DeclaredSource,
+    layout: &DependencyLayout,
     development: bool,
 ) -> String {
     let mut hasher = Sha256::new();
@@ -673,6 +710,18 @@ fn declaration_fingerprint(
             update_fingerprint(&mut hasher, id.as_str());
         }
     }
+    update_fingerprint(
+        &mut hasher,
+        &layout
+            .root()
+            .map_or_else(String::new, |path| path.to_string_lossy().into()),
+    );
+    update_fingerprint(
+        &mut hasher,
+        &layout
+            .target()
+            .map_or_else(String::new, |path| path.to_string_lossy().into()),
+    );
     hasher.update([u8::from(development)]);
     format!("{:x}", hasher.finalize())
 }
@@ -691,7 +740,10 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::{Declaration, DeclaredSource, preparation_groups};
-    use crate::{identity::PackageName, manifest::GitReference};
+    use crate::{
+        identity::PackageName,
+        manifest::{DependencyLayout, GitReference},
+    };
 
     #[test]
     fn invariant_parallel_preparation_serializes_shared_cache_resources() {
@@ -722,6 +774,7 @@ mod tests {
         Declaration {
             name: PackageName::parse(name).expect("fixture package name should parse"),
             source,
+            layout: DependencyLayout::default(),
             development: false,
             fingerprint: String::new(),
         }

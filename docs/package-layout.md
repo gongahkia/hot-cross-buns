@@ -2,6 +2,10 @@
 
 An explicit source subdirectory wins and must stay below the source root. An
 optional target path is retained for later installation and must be relative.
+Direct declarations use `root` and `target` to provide these values; they take
+precedence over optional package-owned metadata. Both reject traversal,
+absolute, Windows-drive, and backslash paths. See
+[ADR 0038](adr/0038-direct-dependency-layout-overrides.md).
 
 Without an override, `wukong` selects a single `addons/<name>` child. Multiple
 children are an error with all candidates listed. A sole wrapper directory is

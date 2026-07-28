@@ -142,17 +142,55 @@ pub enum Dependency {
     /// A future catalogue version requirement.
     Version(VersionRequirement),
     /// A local directory resolved relative to `wukong.toml`.
-    Path(PathBuf),
+    Path {
+        /// Directory resolved relative to `wukong.toml` when needed.
+        path: PathBuf,
+        /// Optional source and target layout overrides.
+        layout: DependencyLayout,
+    },
     /// A Git source and optional revision selector.
     Git {
         url: String,
         reference: Option<GitReference>,
+        /// Optional source and target layout overrides.
+        layout: DependencyLayout,
     },
     /// A checksummed HTTP archive.
-    Url { url: String, sha256: String },
+    Url {
+        url: String,
+        sha256: String,
+        /// Optional source and target layout overrides.
+        layout: DependencyLayout,
+    },
     /// A feature-gated official `AssetLib` addon ID.
     #[cfg(feature = "asset-library")]
-    Asset(AssetId),
+    Asset {
+        /// Stable `AssetLib` identifier.
+        id: AssetId,
+        /// Optional source and target layout overrides.
+        layout: DependencyLayout,
+    },
+}
+
+/// Optional project-owned package-layout selection.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct DependencyLayout {
+    root: Option<PathBuf>,
+    target: Option<PathBuf>,
+}
+
+impl DependencyLayout {
+    /// Returns an explicit source-relative package root when declared.
+    #[must_use]
+    pub fn root(&self) -> Option<&Path> {
+        self.root.as_deref()
+    }
+
+    /// Returns an explicit project-relative installation target when declared.
+    #[must_use]
+    pub fn target(&self) -> Option<&Path> {
+        self.target.as_deref()
+    }
 }
 
 /// A Git manifest revision selector.
@@ -282,10 +320,12 @@ fn parse_source(
 ) -> ManifestResult<Dependency> {
     #[cfg(feature = "asset-library")]
     let allowed = vec![
-        "path", "git", "url", "rev", "tag", "branch", "sha256", "asset",
+        "path", "git", "url", "rev", "tag", "branch", "sha256", "asset", "root", "target",
     ];
     #[cfg(not(feature = "asset-library"))]
-    let allowed = vec!["path", "git", "url", "rev", "tag", "branch", "sha256"];
+    let allowed = vec![
+        "path", "git", "url", "rev", "tag", "branch", "sha256", "root", "target",
+    ];
     reject_unknown_fields(table, &allowed, path, input, field)?;
     let source_count = ["path", "git", "url"]
         .into_iter()
@@ -349,7 +389,10 @@ fn parse_path_source(
             "must not contain a null character",
         ));
     }
-    Ok(Dependency::Path(resolve_path(directory, Path::new(&raw))))
+    Ok(Dependency::Path {
+        path: resolve_path(directory, Path::new(&raw)),
+        layout: parse_layout(table, path, input, field)?,
+    })
 }
 
 fn parse_git_source(
@@ -403,7 +446,11 @@ fn parse_git_source(
             Ok::<GitReference, Box<Diagnostic>>(reference)
         })
         .transpose()?;
-    Ok(Dependency::Git { url, reference })
+    Ok(Dependency::Git {
+        url,
+        reference,
+        layout: parse_layout(table, path, input, field)?,
+    })
 }
 
 fn parse_url_source(
@@ -436,7 +483,11 @@ fn parse_url_source(
             "must be a 64-character hexadecimal SHA-256",
         ));
     }
-    Ok(Dependency::Url { url, sha256 })
+    Ok(Dependency::Url {
+        url,
+        sha256,
+        layout: parse_layout(table, path, input, field)?,
+    })
 }
 
 #[cfg(feature = "asset-library")]
@@ -463,7 +514,86 @@ fn parse_asset_source(
             &error.to_string(),
         )
     })?;
-    Ok(Dependency::Asset(asset))
+    Ok(Dependency::Asset {
+        id: asset,
+        layout: parse_layout(table, path, input, field)?,
+    })
+}
+
+fn parse_layout(
+    table: &dyn TableLike,
+    path: &Path,
+    input: &str,
+    field: &str,
+) -> ManifestResult<DependencyLayout> {
+    Ok(DependencyLayout {
+        root: optional_layout_path(table, "root", path, input, field)?,
+        target: optional_layout_path(table, "target", path, input, field)?,
+    })
+}
+
+fn optional_layout_path(
+    table: &dyn TableLike,
+    key: &str,
+    path: &Path,
+    input: &str,
+    field: &str,
+) -> ManifestResult<Option<PathBuf>> {
+    let Some(item) = table.get(key) else {
+        return Ok(None);
+    };
+    let value = item.as_str().ok_or_else(|| {
+        field_error(
+            path,
+            input,
+            &format!("{field}.{key}"),
+            Some(item),
+            "must be a safe relative path",
+        )
+    })?;
+    let raw = Path::new(value);
+    let windows_drive = value
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_alphabetic)
+        && value.as_bytes().get(1).is_some_and(|byte| *byte == b':');
+    let invalid =
+        value.is_empty() || value.contains(['\\', '\0']) || value.starts_with('/') || windows_drive;
+    if invalid {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{field}.{key}"),
+            Some(item),
+            "must be a safe relative path without traversal or a platform prefix",
+        ));
+    }
+    let mut normalised = PathBuf::new();
+    for component in raw.components() {
+        match component {
+            Component::Normal(part) => normalised.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(field_error(
+                    path,
+                    input,
+                    &format!("{field}.{key}"),
+                    Some(item),
+                    "must be a safe relative path without traversal or a platform prefix",
+                ));
+            }
+        }
+    }
+    if normalised.as_os_str().is_empty() {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{field}.{key}"),
+            Some(item),
+            "must be a non-empty relative path",
+        ));
+    }
+    Ok(Some(normalised))
 }
 
 fn require_table<'a>(

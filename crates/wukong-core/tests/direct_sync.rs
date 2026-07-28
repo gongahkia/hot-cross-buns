@@ -41,6 +41,49 @@ fn invariant_direct_sync_follows_the_lockfile_and_is_idempotent() {
 }
 
 #[test]
+fn invariant_multi_addon_source_layout_overrides_lock_and_sync_each_selected_tree() {
+    let fixture = Fixture::new();
+    let source = fixture.project().join("multi-addon-source/addons");
+    fs::create_dir_all(source.join("alpha")).expect("alpha source should create");
+    fs::create_dir_all(source.join("beta")).expect("beta source should create");
+    fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
+    fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
+    let manifest = fixture.manifest(
+        "[dependencies]\nalpha = { path = \"multi-addon-source\", root = \"addons/alpha\", target = \"addons/alpha\" }\nbeta = { path = \"multi-addon-source\", root = \"addons/beta\", target = \"addons/beta\" }\n",
+    );
+    let lock = lock(&fixture, &manifest);
+
+    assert_eq!(
+        lock.packages()
+            .get("alpha")
+            .expect("alpha should lock")
+            .source_subdirectory(),
+        Path::new("addons/alpha")
+    );
+    assert_eq!(
+        lock.packages()
+            .get("beta")
+            .expect("beta should lock")
+            .source_subdirectory(),
+        Path::new("addons/beta")
+    );
+    sync(&fixture, &manifest, &lock, false).expect("selected trees should sync");
+    let noop = sync(&fixture, &manifest, &lock, false).expect("repeat sync should work");
+
+    assert_eq!(noop.written, 0);
+    assert_eq!(
+        fs::read_to_string(fixture.project().join("addons/alpha/plugin.gd"))
+            .expect("alpha should materialise"),
+        "alpha"
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.project().join("addons/beta/plugin.gd"))
+            .expect("beta should materialise"),
+        "beta"
+    );
+}
+
+#[test]
 fn invariant_direct_sync_rejects_changed_locked_content_before_project_mutation() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");

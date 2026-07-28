@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use wukong_core::{
     diagnostic::ErrorCode,
-    manifest::{Dependency, GitReference, Manifest},
+    manifest::{Dependency, DependencyLayout, GitReference, Manifest},
 };
 
 const MANIFEST_PATH: &str = "fixture/wukong.toml";
@@ -45,10 +45,11 @@ fn invariant_prd_manifest_example_parses_successfully() {
         manifest.dependencies().get("custom-ui"),
         Some(Dependency::Url { sha256, .. }) if sha256 == SHA256_EMPTY_FILE
     ));
-    assert_eq!(
+    assert!(matches!(
         manifest.dependencies().get("shared-tools"),
-        Some(&Dependency::Path(PathBuf::from("shared-tools")))
-    );
+        Some(Dependency::Path { path, layout })
+            if path == &PathBuf::from("shared-tools") && layout == &DependencyLayout::default()
+    ));
 }
 
 #[test]
@@ -87,12 +88,43 @@ example = { path = "./addons/../addons/example" }
     let manifest = Manifest::parse(Path::new("fixtures/project/wukong.toml"), input)
         .expect("manifest should parse");
 
-    assert_eq!(
+    assert!(matches!(
         manifest.dependencies().get("example"),
-        Some(&Dependency::Path(
-            PathBuf::from("fixtures").join("project/addons/example")
-        ))
+        Some(Dependency::Path { path, .. })
+            if path == &PathBuf::from("fixtures").join("project/addons/example")
+    ));
+}
+
+#[test]
+fn invariant_direct_source_layout_overrides_are_safe_and_typed() {
+    let manifest = parse(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+alpha = { path = "../multi-addon", root = "3d/alpha", target = "addons/alpha" }
+"#,
     );
+
+    let Some(Dependency::Path { layout, .. }) = manifest.dependencies().get("alpha") else {
+        panic!("path dependency should retain layout overrides");
+    };
+    assert_eq!(layout.root(), Some(Path::new("3d/alpha")));
+    assert_eq!(layout.target(), Some(Path::new("addons/alpha")));
+
+    let error = parse_error(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+alpha = { path = "../multi-addon", root = "C:\\escape" }
+"#,
+    );
+    assert!(error.message().contains("dependencies.alpha.root"));
 }
 
 #[test]
@@ -300,7 +332,7 @@ example = { asset = "0" }
     );
 
     assert!(
-        matches!(manifest.dependencies().get("example"), Some(Dependency::Asset(id)) if id.as_str() == "42")
+        matches!(manifest.dependencies().get("example"), Some(Dependency::Asset { id, .. }) if id.as_str() == "42")
     );
     assert!(
         error
