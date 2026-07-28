@@ -535,13 +535,13 @@ Acceptance criteria:
 
 ## wukong-064: Add resolver property tests
 
-- [ ] Generated solvable graphs.
-- [ ] Generated unsatisfiable graphs.
-- [ ] Cyclic graphs.
-- [ ] Multiple valid solutions.
-- [ ] Locked-version preference.
-- [ ] Pre-release cases.
-- [ ] Duplicate source identities.
+- [x] Generated solvable graphs.
+- [x] Generated unsatisfiable graphs.
+- [x] Cyclic graphs.
+- [x] Multiple valid solutions.
+- [x] Locked-version preference.
+- [x] Pre-release cases.
+- [x] Duplicate source identities.
 
 ## wukong-065: Implement `wukong tree` and `wukong why`
 
