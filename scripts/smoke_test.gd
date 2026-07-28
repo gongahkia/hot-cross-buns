@@ -318,6 +318,36 @@ func _initialize() -> void:
 	assert(is_equal_approx(float(local_trace[0]), 1.0) and is_equal_approx(float(local_trace[1]), 0.5), "reference-local tracing transform failed")
 	main.creative_editor.snap_step.value = 0.5
 	assert(main.creative_editor._snap_point(Vector3(0.74, 0.0, -0.74)).is_equal_approx(Vector3(0.5, 0.0, -0.5)), "editor grid snapping failed")
+	main.creative_editor.top_down = true
+	main.creative_editor._update_camera(true)
+	var projected_modules: Dictionary = main.creative_editor._module_viewport_positions()
+	var viewport_rect := Rect2(Vector2.ZERO, root.get_visible_rect().size)
+	var expected_selected := 0
+	for module_id in projected_modules:
+		if viewport_rect.has_point(projected_modules[module_id]): expected_selected += 1
+	assert(expected_selected > 0, "top-down editor view has no selectable modules")
+	var selectable_module_id := ""
+	for module_id in projected_modules:
+		if viewport_rect.has_point(projected_modules[module_id]):
+			selectable_module_id = module_id
+			break
+	var right_click := InputEventMouseButton.new()
+	right_click.button_index = MOUSE_BUTTON_RIGHT
+	right_click.pressed = true
+	right_click.position = projected_modules[selectable_module_id]
+	main.creative_editor._unhandled_input(right_click)
+	right_click.pressed = false
+	main.creative_editor._unhandled_input(right_click)
+	assert(main.creative_editor.selected_module_id == selectable_module_id, "editor right-click did not select projected module")
+	main.creative_editor._select_in_viewport_rect(viewport_rect)
+	assert(main.creative_editor.selected_module_ids.size() == expected_selected, "top-down marquee did not select projected modules")
+	var fov_before: float = main.creative_editor.creative_camera.fov
+	var wheel_up := InputEventMouseButton.new()
+	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel_up.pressed = true
+	wheel_up.factor = 1.0
+	main.creative_editor._unhandled_input(wheel_up)
+	assert(main.creative_editor.creative_camera.fov < fov_before, "editor mouse wheel did not zoom in")
 	var incremental_document: Variant = level_document_script.create_blank("smoke-incremental-" + smoke_id, "Smoke Incremental")
 	var incremental_target := Node3D.new()
 	main.add_child(incremental_target)

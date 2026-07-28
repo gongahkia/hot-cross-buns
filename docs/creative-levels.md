@@ -1,6 +1,6 @@
 # Creative levels
 
-Open **Creative mode** from the title screen or pause menu, or press `F2` during play. The editor uses `WASD`/`Q`/`E` to fly, right-drag to look, `Tab` to switch between map and free-fly views, and left-click to place or select modules.
+Open **Creative mode** from the title screen or pause menu, or press `F2` during play. The editor uses `WASD` to fly, `Space` to rise, `Shift` to descend, `Ctrl` to boost speed, and right-drag to control the free-fly camera. The mouse wheel zooms. Press `Tab` to switch between map and free-fly views; right-click selects a module, and right-drag in the map view selects every module whose projected position is within the viewport rectangle. Left-click places a chosen module or selects one when no module is chosen.
 
 Drafts are local and ignored by Git in `levels/_drafts/`. Save/publish only after reviewing the validation warnings and any estimated-reference assumptions. Published drafts appear in the normal level selector as additional playable levels.
 

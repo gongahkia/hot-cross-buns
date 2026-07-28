@@ -23,9 +23,11 @@ var active := false
 var top_down := false
 var selected_kind := ""
 var selected_module_id := ""
+var selected_module_ids: Array[String] = []
 var yaw := 0.0
 var pitch := -0.32
 var top_focus := Vector3(0.0, 0.0, -35.0)
+var top_camera_altitude := 56.0
 var fly_speed := 22.0
 var authoring_mode := ""
 var trace_points: Array[Vector3] = []
@@ -38,6 +40,13 @@ var reference_fields: Dictionary = {}
 var history_label: Label
 var evidence_label: Label
 var latest_playtest_report: Dictionary = {}
+var selection_box: Panel
+var right_drag_start := Vector2.ZERO
+var right_drag_current := Vector2.ZERO
+var right_dragging := false
+
+const CAMERA_ZOOM_STEP := 4.0
+const SELECTION_DRAG_THRESHOLD := 6.0
 
 func configure(next_host: Node3D, next_document: Variant, next_geometry_root: Node3D) -> void:
 	host = next_host
@@ -70,7 +79,7 @@ func is_open() -> bool:
 
 func set_geometry_root(next_geometry_root: Node3D) -> void:
 	geometry_root = next_geometry_root
-	selected_module_id = ""
+	_clear_selection()
 	_refresh_ui()
 
 func _process(delta: float) -> void:
@@ -81,12 +90,13 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S): move.z += 1.0
 	if Input.is_key_pressed(KEY_A): move.x -= 1.0
 	if Input.is_key_pressed(KEY_D): move.x += 1.0
-	if Input.is_key_pressed(KEY_Q): move.y -= 1.0
-	if Input.is_key_pressed(KEY_E): move.y += 1.0
+	if Input.is_key_pressed(KEY_SPACE): move.y += 1.0
+	if Input.is_key_pressed(KEY_SHIFT): move.y -= 1.0
 	if move.length() > 0.0:
-		var speed := fly_speed * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+		var speed := fly_speed * (2.0 if Input.is_key_pressed(KEY_CTRL) else 1.0)
 		if top_down:
 			top_focus += Vector3(move.x, 0.0, move.z) * speed * delta
+			top_camera_altitude = clampf(top_camera_altitude + move.y * speed * delta, 10.0, 200.0)
 		else:
 			creative_rig.global_position += creative_rig.global_transform.basis * move.normalized() * speed * delta
 	_update_camera(false)
@@ -107,22 +117,49 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.physical_keycode == KEY_ESCAPE:
 			selected_kind = ""
-			selected_module_id = ""
+			_clear_selection()
 			_refresh_ui()
 			get_viewport().set_input_as_handled()
 			return
-		if event.physical_keycode == KEY_DELETE and not selected_module_id.is_empty():
-			_apply({"action": "remove_module", "module_id": selected_module_id})
+		if event.physical_keycode == KEY_DELETE and not selected_module_ids.is_empty():
+			_remove()
 			get_viewport().set_input_as_handled()
 			return
-		if event.physical_keycode == KEY_D and event.ctrl_pressed and not selected_module_id.is_empty():
+		if event.physical_keycode == KEY_D and event.ctrl_pressed and not selected_module_ids.is_empty():
 			_apply({"action": "duplicate_module", "module_id": selected_module_id})
 			get_viewport().set_input_as_handled()
 			return
+	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var zoom_direction := -1.0 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0
+		creative_camera.fov = clampf(creative_camera.fov + zoom_direction * CAMERA_ZOOM_STEP * maxf(event.factor, 1.0), 30.0, 100.0)
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		if event.pressed:
+			right_drag_start = event.position
+			right_drag_current = event.position
+			right_dragging = false
+			get_viewport().set_input_as_handled()
+			return
+		else:
+			if top_down and right_dragging:
+				_select_in_viewport_rect(_drag_rect())
+			elif not right_dragging:
+				_select_at_viewport(event.position)
+			_hide_selection_box()
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		yaw -= event.relative.x * 0.004
-		pitch = clampf(pitch - event.relative.y * 0.004, -1.45, 1.45)
-		_update_camera(false)
+		right_drag_current = event.position
+		if top_down:
+			if right_drag_current.distance_to(right_drag_start) >= SELECTION_DRAG_THRESHOLD:
+				right_dragging = true
+				_show_selection_box(_drag_rect())
+		else:
+			right_dragging = right_dragging or not is_zero_approx(event.relative.length())
+			yaw -= event.relative.x * 0.004
+			pitch = clampf(pitch - event.relative.y * 0.004, -1.45, 1.45)
+			_update_camera(false)
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -164,6 +201,15 @@ func _ensure_ui() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(root)
+	selection_box = Panel.new()
+	selection_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	selection_box.visible = false
+	var selection_style := StyleBoxFlat.new()
+	selection_style.bg_color = Color("#8ed6ae33")
+	selection_style.border_color = Color("#b9f6df")
+	selection_style.set_border_width_all(1)
+	selection_box.add_theme_stylebox_override("panel", selection_style)
+	root.add_child(selection_box)
 	var toolbar := PanelContainer.new()
 	toolbar.position = Vector2(18.0, 16.0)
 	toolbar.size = Vector2(1244.0, 48.0)
@@ -325,13 +371,21 @@ func _refresh_ui() -> void:
 		button.button_pressed = kind == selected_kind
 		button.pressed.connect(_choose_module.bind(kind))
 		module_list.add_child(button)
+	var valid_selection: Array[String] = []
+	for module_id in selected_module_ids:
+		if not document.module_by_id(module_id).is_empty(): valid_selection.append(module_id)
+	if valid_selection.is_empty() and not selected_module_id.is_empty() and not document.module_by_id(selected_module_id).is_empty():
+		valid_selection.append(selected_module_id)
+	selected_module_ids = valid_selection
+	selected_module_id = selected_module_ids[0] if not selected_module_ids.is_empty() else ""
 	var selected: Dictionary = document.module_by_id(selected_module_id)
 	if selected.is_empty():
 		selected_label.text = "No module selected"
 		for axis in inspector:
 			(inspector[axis] as SpinBox).value = 0.0
 	else:
-		selected_label.text = str(selected.get("kind", "")).to_upper() + "\n" + selected_module_id
+		var selection_prefix := "%d MODULES SELECTED\n" % selected_module_ids.size() if selected_module_ids.size() > 1 else ""
+		selected_label.text = selection_prefix + str(selected.get("kind", "")).to_upper() + "\n" + selected_module_id
 		var position: Variant = LEVEL_DOCUMENT.vector_from(selected.get("position", [0.0, 0.0, 0.0]))
 		(inspector["x"] as SpinBox).value = position.x
 		(inspector["y"] as SpinBox).value = position.y
@@ -344,7 +398,7 @@ func _refresh_ui() -> void:
 func _choose_module(kind: String) -> void:
 	authoring_mode = ""
 	selected_kind = "" if selected_kind == kind else kind
-	selected_module_id = ""
+	_clear_selection()
 	_set_status("SELECT A SURFACE TO PLACE " + kind.to_upper())
 	_refresh_ui()
 
@@ -352,7 +406,7 @@ func _place(kind: String, point: Vector3) -> void:
 	var module := _default_module(kind, point)
 	_apply({"action": "add_module", "module": module})
 	selected_kind = ""
-	selected_module_id = str(module.get("id", ""))
+	_refresh_ui()
 
 func _default_module(kind: String, point: Vector3) -> Dictionary:
 	var module := {"id": "", "kind": kind, "route": "Ungrouped", "position": LEVEL_DOCUMENT.vector_data(point)}
@@ -392,9 +446,71 @@ func _select_at(point: Vector3) -> void:
 		if distance < nearest_distance:
 			nearest = module_id
 			nearest_distance = distance
-	selected_module_id = nearest
+	_set_selected_modules([nearest])
 	_set_status("SELECTED " + nearest.to_upper() if not nearest.is_empty() else "NO MODULE SELECTED")
 	_refresh_ui()
+
+func _select_at_viewport(viewport_position: Vector2) -> void:
+	var nearest := ""
+	var nearest_distance := 28.0
+	var positions := _module_viewport_positions()
+	for module_id in positions:
+		var module_position: Vector2 = positions[module_id]
+		var distance := viewport_position.distance_to(module_position)
+		if distance < nearest_distance:
+			nearest = module_id
+			nearest_distance = distance
+	_set_selected_modules([nearest])
+	_set_status("SELECTED " + nearest.to_upper() if not nearest.is_empty() else "NO MODULE SELECTED")
+	_refresh_ui()
+
+func _select_in_viewport_rect(viewport_rect: Rect2) -> void:
+	var module_ids: Array[String] = []
+	var positions := _module_viewport_positions()
+	for module_id in positions:
+		var module_position: Vector2 = positions[module_id]
+		if viewport_rect.has_point(module_position): module_ids.append(module_id)
+	_set_selected_modules(module_ids)
+	_set_status("SELECTED %d MODULES" % module_ids.size() if not module_ids.is_empty() else "NO MODULE SELECTED")
+	_refresh_ui()
+
+func _module_viewport_positions() -> Dictionary:
+	var positions := {}
+	if geometry_root == null or creative_camera == null:
+		return positions
+	for node in geometry_root.find_children("*", "Node3D", true, false):
+		var module_node := node as Node3D
+		var module_id := str(module_node.get_meta("level_module_id", ""))
+		if module_id.is_empty() or positions.has(module_id) or creative_camera.is_position_behind(module_node.global_position):
+			continue
+		positions[module_id] = creative_camera.unproject_position(module_node.global_position)
+	return positions
+
+func _set_selected_modules(module_ids: Array[String]) -> void:
+	selected_module_ids.clear()
+	for module_id in module_ids:
+		if module_id.is_empty() or selected_module_ids.has(module_id) or document.module_by_id(module_id).is_empty():
+			continue
+		selected_module_ids.append(module_id)
+	selected_module_id = selected_module_ids[0] if not selected_module_ids.is_empty() else ""
+
+func _clear_selection() -> void:
+	selected_module_ids.clear()
+	selected_module_id = ""
+
+func _drag_rect() -> Rect2:
+	return Rect2(right_drag_start, right_drag_current - right_drag_start).abs()
+
+func _show_selection_box(viewport_rect: Rect2) -> void:
+	if selection_box == null:
+		return
+	selection_box.position = viewport_rect.position
+	selection_box.size = viewport_rect.size
+	selection_box.visible = true
+
+func _hide_selection_box() -> void:
+	if selection_box:
+		selection_box.visible = false
 
 func _apply_transform() -> void:
 	if selected_module_id.is_empty():
@@ -406,9 +522,13 @@ func _duplicate() -> void:
 		_apply({"action": "duplicate_module", "module_id": selected_module_id})
 
 func _remove() -> void:
-	if not selected_module_id.is_empty():
-		_apply({"action": "remove_module", "module_id": selected_module_id})
-		selected_module_id = ""
+	var to_remove := selected_module_ids.duplicate()
+	for module_id in to_remove:
+		_apply({"action": "remove_module", "module_id": module_id})
+	_clear_selection()
+	if not to_remove.is_empty():
+		_set_status("REMOVED %d MODULES" % to_remove.size())
+		_refresh_ui()
 
 func _undo() -> void:
 	var result: Dictionary = document.undo()
@@ -771,7 +891,7 @@ func _update_camera(force: bool) -> void:
 	if creative_camera == null:
 		return
 	if top_down:
-		creative_rig.global_position = top_focus + Vector3(0.0, 56.0, 0.0)
+		creative_rig.global_position = top_focus + Vector3(0.0, top_camera_altitude, 0.0)
 		creative_rig.look_at(top_focus, Vector3.FORWARD)
 		creative_camera.rotation = Vector3.ZERO
 		return
