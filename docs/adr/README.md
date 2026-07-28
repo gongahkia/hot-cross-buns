@@ -20,6 +20,7 @@ Current records:
 - [0014: cache publication](0014-cache-publication.md)
 - [0015: cache integrity verification](0015-cache-integrity-verification.md)
 - [0016: installed-state schema](0016-installed-state-schema.md)
+- [0017: desired ownership maps](0017-ownership-maps.md)
 
 ## When to write an ADR
 

@@ -434,12 +434,12 @@ Tests:
 
 ## wukong-054: Build desired file ownership maps
 
-- [ ] Combine package file trees.
-- [ ] Detect exact-path conflicts.
-- [ ] Detect case-insensitive conflicts.
-- [ ] Detect conflicts with non-package project files.
-- [ ] Distinguish identical shared content from incompatible collisions.
-- [ ] Produce a clear conflict report.
+- [x] Combine package file trees.
+- [x] Detect exact-path conflicts.
+- [x] Detect case-insensitive conflicts.
+- [x] Detect conflicts with non-package project files.
+- [x] Distinguish identical shared content from incompatible collisions.
+- [x] Produce a clear conflict report.
 
 ## wukong-055: Implement transactional project synchronisation
 

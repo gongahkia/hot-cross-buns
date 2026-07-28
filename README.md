@@ -33,6 +33,7 @@ implemented yet.
 - [Lockfile schema](docs/lockfile.md)
 - [Cache layout](docs/cache.md)
 - [Installed state](docs/installed-state.md)
+- [Ownership maps](docs/ownership.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

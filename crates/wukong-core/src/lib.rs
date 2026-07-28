@@ -45,6 +45,9 @@ pub mod manifest;
 /// Transactional manifest editing.
 pub mod manifest_edit;
 
+/// Desired package-file ownership maps and conflict checks.
+pub mod ownership;
+
 /// Godot project-root discovery.
 pub mod project;
 
