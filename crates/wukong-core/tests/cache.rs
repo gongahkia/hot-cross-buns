@@ -1,5 +1,18 @@
-use std::path::PathBuf;
-use wukong_core::cache::{CACHE_SCHEMA, CacheLayout};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+};
+use tempfile::TempDir;
+use wukong_core::{
+    cache::{CACHE_SCHEMA, CacheLayout, publish_prepared_package},
+    diagnostic::ErrorCode,
+    package_tree::{PreparedPackageTree, prepare_package_tree},
+};
 
 #[test]
 fn invariant_cache_objects_and_locks_are_content_addressed_and_separated() {
@@ -29,4 +42,177 @@ fn invariant_cache_objects_and_locks_are_content_addressed_and_separated() {
 fn invariant_invalid_cache_object_names_are_rejected() {
     let layout = CacheLayout::for_root(PathBuf::from("cache")).expect("layout should parse");
     assert!(layout.package_object("not-a-hash").is_err());
+}
+
+#[test]
+fn invariant_publication_is_verified_and_readers_only_observe_complete_content() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture_with_large_file(&fixture);
+    let layout = cache_layout(&fixture);
+    let final_path = layout
+        .package_object(prepared.sha256())
+        .expect("hash should be valid");
+    let publication_layout = layout.clone();
+    let publication_tree = prepared.clone();
+    let completed = Arc::new(AtomicBool::new(false));
+    let publication_completed = Arc::clone(&completed);
+
+    let publisher = thread::spawn(move || {
+        let result = publish_prepared_package(&publication_layout, &publication_tree);
+        publication_completed.store(true, Ordering::Release);
+        result
+    });
+    let mut observed = false;
+    while !completed.load(Ordering::Acquire) {
+        if final_path.exists() {
+            observed = true;
+            assert_eq!(
+                fs::read_to_string(final_path.join("plugin.cfg"))
+                    .expect("visible object should contain complete plugin file"),
+                "[plugin]\nname=\"Example\"\n"
+            );
+        }
+        thread::yield_now();
+    }
+    let object = publisher
+        .join()
+        .expect("publisher should not panic")
+        .expect("publication should succeed");
+
+    assert_eq!(object.path(), final_path.as_path());
+    assert_eq!(object.sha256(), prepared.sha256());
+    assert!(
+        observed,
+        "reader should observe the completed published object"
+    );
+    let verification = prepare_package_tree(object.path(), &fixture.path().join("reader-stage"))
+        .expect("published object should be readable as a complete tree");
+    assert_eq!(verification.sha256(), prepared.sha256());
+    assert_no_temporary_candidates(&layout);
+}
+
+#[test]
+fn invariant_concurrent_publishers_converge_on_one_verified_object() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = Arc::new(prepared_fixture(&fixture));
+    let layout = Arc::new(cache_layout(&fixture));
+    let publishers = (0..2)
+        .map(|_| {
+            let prepared = Arc::clone(&prepared);
+            let layout = Arc::clone(&layout);
+            thread::spawn(move || publish_prepared_package(&layout, &prepared))
+        })
+        .collect::<Vec<_>>();
+    let objects = publishers
+        .into_iter()
+        .map(|publisher| {
+            publisher
+                .join()
+                .expect("publisher should not panic")
+                .expect("concurrent publication should succeed")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(objects[0], objects[1]);
+    assert_eq!(objects[0].sha256(), prepared.sha256());
+    assert_no_temporary_candidates(&layout);
+}
+
+#[test]
+fn invariant_failed_publication_leaves_no_visible_or_partial_object() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let final_path = layout
+        .package_object(prepared.sha256())
+        .expect("hash should be valid");
+    fs::remove_file(prepared.root().join("plugin.cfg"))
+        .expect("fixture should allow a simulated interrupted source");
+
+    assert!(publish_prepared_package(&layout, &prepared).is_err());
+    assert!(!final_path.exists());
+    assert_no_temporary_candidates(&layout);
+}
+
+#[test]
+fn invariant_corrupted_existing_object_is_rejected() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let final_path = layout
+        .package_object(prepared.sha256())
+        .expect("hash should be valid");
+    write(
+        &final_path.join("plugin.cfg"),
+        "[plugin]\nname=\"Tampered\"\n",
+    );
+
+    let error = publish_prepared_package(&layout, &prepared)
+        .expect_err("publication should reject a corrupt existing object");
+
+    assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+}
+
+#[cfg(windows)]
+#[test]
+fn invariant_windows_existing_object_is_verified_and_reused() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+
+    let first =
+        publish_prepared_package(&layout, &prepared).expect("first publication should work");
+    let second =
+        publish_prepared_package(&layout, &prepared).expect("existing object should reuse");
+
+    assert_eq!(first, second);
+}
+
+fn cache_layout(fixture: &TempDir) -> CacheLayout {
+    CacheLayout::for_root(fixture.path().join("cache")).expect("layout should parse")
+}
+
+fn prepared_fixture(fixture: &TempDir) -> PreparedPackageTree {
+    let source = fixture.path().join("source");
+    write(&source.join("plugin.cfg"), "[plugin]\nname=\"Example\"\n");
+    write(&source.join("scripts/main.gd"), "extends Node\n");
+    prepare_package_tree(&source, &fixture.path().join("prepared"))
+        .expect("fixture tree should prepare")
+}
+
+fn prepared_fixture_with_large_file(fixture: &TempDir) -> PreparedPackageTree {
+    let source = fixture.path().join("source");
+    write(&source.join("plugin.cfg"), "[plugin]\nname=\"Example\"\n");
+    fs::create_dir_all(source.join("scripts")).expect("fixture directory should exist");
+    fs::write(
+        source.join("scripts/payload.bin"),
+        vec![0_u8; 16 * 1024 * 1024],
+    )
+    .expect("fixture payload should write");
+    prepare_package_tree(&source, &fixture.path().join("prepared"))
+        .expect("fixture tree should prepare")
+}
+
+fn assert_no_temporary_candidates(layout: &CacheLayout) {
+    let packages = layout.packages().join("sha256");
+    if !packages.exists() {
+        return;
+    }
+    let entries = fs::read_dir(packages).expect("cache package directory should be readable");
+    for entry in entries {
+        let entry = entry.expect("cache entry should be readable");
+        assert!(
+            !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".wukong-tmp-"),
+            "temporary staging candidate should be removed"
+        );
+    }
+}
+
+fn write(path: &Path, contents: &str) {
+    fs::create_dir_all(path.parent().expect("fixture file should have a parent"))
+        .expect("fixture directory should exist");
+    fs::write(path, contents).expect("fixture file should write");
 }

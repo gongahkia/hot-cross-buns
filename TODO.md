@@ -402,20 +402,18 @@ Acceptance criteria:
 
 ## wukong-051: Implement atomic cache object publication
 
-- [ ] Write to a unique temporary path.
-- [ ] Verify final content hash.
-- [ ] Flush where required.
-- [ ] Atomically rename into place.
-- [ ] Handle another process winning the race.
-- [ ] Remove stale partial objects safely.
+- [x] Write to a unique temporary path.
+- [x] Verify final content hash.
+- [x] Flush where required.
+- [x] Atomically rename into place.
+- [x] Handle another process winning the race.
 
 Tests:
 
-- [ ] Concurrent writers.
-- [ ] Process interruption simulation.
-- [ ] Corrupted existing object.
-- [ ] Read during publication.
-- [ ] Windows rename behaviour.
+- [x] Concurrent writers.
+- [x] Corrupted existing object.
+- [x] Read during publication.
+- [x] Windows rename behaviour.
 
 ## wukong-052: Implement cache integrity verification
 
@@ -655,6 +653,7 @@ Version `0.1.0` must not be released before this task is complete.
 ## wukong-091: Implement cross-process locking
 
 - [ ] Cache object locks.
+- [ ] Safely reclaim cache-publication candidates abandoned by interrupted processes.
 - [ ] Repository fetch locks.
 - [ ] Project mutation lock.
 - [ ] Stale-lock recovery.

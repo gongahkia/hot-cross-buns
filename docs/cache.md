@@ -8,3 +8,8 @@ Prepared packages are content-addressed at `packages/sha256/<digest>`. The
 matching process lock is `locks/sha256/<digest>.lock`. Cache paths never store
 credentials, source URLs, timestamps, or host-specific source paths. See
 [ADR 0013](adr/0013-cache-layout.md).
+
+Publication stages a canonical tree in a unique sibling directory, flushes it,
+then atomically renames and re-verifies the final object. A concurrently
+published object is verified and reused; mismatched content returns an
+integrity error. See [ADR 0014](adr/0014-cache-publication.md).

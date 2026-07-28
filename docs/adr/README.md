@@ -17,6 +17,7 @@ Current records:
 - [0011: compatibility-fixture schema](0011-compatibility-fixture-schema.md)
 - [0012: lockfile schema](0012-lockfile-schema.md)
 - [0013: cache layout](0013-cache-layout.md)
+- [0014: cache publication](0014-cache-publication.md)
 
 ## When to write an ADR
 
