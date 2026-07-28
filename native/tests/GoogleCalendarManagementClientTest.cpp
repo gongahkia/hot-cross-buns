@@ -19,6 +19,7 @@ private slots:
   void subscribesCalendar();
   void updatesAndDeletesCalendar();
   void updatesAndRemovesCalendarListEntry();
+  void surfacesApiFailure();
   void rejectsInvalidInputBeforeNetwork();
 };
 
@@ -148,6 +149,24 @@ void GoogleCalendarManagementClientTest::updatesAndRemovesCalendarListEntry() {
            QStringLiteral("/calendar/v3/users/me/calendarList/calendar-shared"));
 }
 
+void GoogleCalendarManagementClientTest::surfacesApiFailure() {
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.status = 403,
+                   .body = QByteArray(
+                       "{\"error\":{\"code\":403,\"message\":\"Insufficient permissions\"}}")});
+  hcb::GoogleHttpClient http(nullptr, &manager);
+  hcb::GoogleCalendarManagementClient client(http);
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> future =
+      client.remove(QStringLiteral("calendar-reader"), QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::GoogleCalendarManagementResultOrError result = future.get();
+  QVERIFY(std::holds_alternative<hcb::GoogleApiError>(result));
+  QCOMPARE(std::get<hcb::GoogleApiError>(result).kind(), hcb::GoogleApiErrorKind::Forbidden);
+  QCOMPARE(std::get<hcb::GoogleApiError>(result).status(), std::optional<int>(403));
+}
+
 void GoogleCalendarManagementClientTest::rejectsInvalidInputBeforeNetwork() {
   hcb::test::MockNetworkAccessManager manager;
   hcb::GoogleHttpClient http(nullptr, &manager);
@@ -158,6 +177,17 @@ void GoogleCalendarManagementClientTest::rejectsInvalidInputBeforeNetwork() {
   const hcb::GoogleCalendarManagementResultOrError result = future.get();
   QVERIFY(std::holds_alternative<hcb::GoogleApiError>(result));
   QCOMPARE(std::get<hcb::GoogleApiError>(result).kind(), hcb::GoogleApiErrorKind::InvalidPayload);
+  QCOMPARE(manager.requests().size(), 0);
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> update = client.update(
+      {.calendarId = QStringLiteral("calendar-owned"),
+       .title = QStringLiteral("Calendar"),
+       .timeZone = QStringLiteral("Invalid/TimeZone")},
+      QStringLiteral("access-token"));
+  QVERIFY(std::holds_alternative<hcb::GoogleApiError>(update.get()));
+  std::future<hcb::GoogleCalendarManagementResultOrError> listUpdate = client.updateListEntry(
+      {.calendarId = QStringLiteral(" ")}, QStringLiteral("access-token"));
+  QVERIFY(std::holds_alternative<hcb::GoogleApiError>(listUpdate.get()));
   QCOMPARE(manager.requests().size(), 0);
 }
 

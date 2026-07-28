@@ -70,6 +70,7 @@ Ports:
 Operational docs:
 
 - [Contributing](CONTRIBUTING.md)
+- [Importing Tasks and events](importing-tasks-and-events.md)
 - [Privacy And Threat Model](security/privacy-and-threat-model.md)
 - [Local Hoster Threat Model](security/local-hoster-threat-model.md)
 - [QA Plan](testing/qa-plan.md)

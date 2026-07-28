@@ -2124,4 +2124,63 @@ TestCase {
         compare(secondaryActions, 1)
         dialog.destroy()
     }
+
+    function test_calendarManagementRestrictsOwnedAndPrimaryOperations() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const controller = {
+            googleConnected: true,
+            busy: false,
+            calendarManagementRows: [],
+            importPreviewRows: [],
+            importReadyToCommit: false
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        mainWindow.calendarManagerDialog.openForCalendar({
+            id: "owned", title: "Owned", accessRole: "owner", primary: false
+        })
+        verify(mainWindow.calendarManagerDialog.ownedSecondary)
+        mainWindow.calendarManagerDialog.close()
+        mainWindow.calendarManagerDialog.openForCalendar({
+            id: "primary", title: "Primary", accessRole: "owner", primary: true
+        })
+        verify(!mainWindow.calendarManagerDialog.ownedSecondary)
+        verify(mainWindow.calendarManagerDialog.primaryCalendar)
+        mainWindow.calendarManagerDialog.close()
+        mainWindow.calendarManagerDialog.openForCalendar({
+            id: "reader", title: "Reader", accessRole: "reader", primary: false
+        })
+        verify(!mainWindow.calendarManagerDialog.ownedSecondary)
+        mainWindow.destroy()
+    }
+
+    function test_importCommandOpensPastePreview() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            busy: false,
+            importPreviewRows: [],
+            importSourceName: "",
+            importReadyToCommit: false,
+            previewDelimitedImport: function(text) { calls.push(text) }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        mainWindow.activateCommand({ commandId: "import.items" })
+        tryVerify(function() { return mainWindow.importDialog.opened })
+        compare(mainWindow.importDialog.primaryText, "Validate rows")
+        mainWindow.importPastedText.text = "task title=\"Buy milk\""
+        mainWindow.importPreviewPasteButton.click()
+        compare(calls, ["task title=\"Buy milk\""])
+        mainWindow.destroy()
+    }
 }

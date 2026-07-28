@@ -102,6 +102,11 @@ ApplicationWindow {
     property alias taskListEditorDialog: taskListEditorDialog
     property alias taskListDeleteDialog: taskListDeleteDialog
     property alias taskMoveDialog: taskMoveDialog
+    property alias calendarManagerDialog: calendarManagerDialog
+    property alias calendarRemovalDialog: calendarRemovalDialog
+    property alias importDialog: importDialog
+    property alias importPastedText: importPastedText
+    property alias importPreviewPasteButton: importPreviewPasteButton
     property alias paletteModeSelector: paletteModeSelector
     property alias accentColorField: accentColorField
     property alias fontFamilySelector: fontFamilySelector
@@ -944,6 +949,7 @@ ApplicationWindow {
         }
 
         Button {
+            id: importPreviewPasteButton
             text: "Preview pasted text"
             enabled: window.appController !== null && !window.appController.busy &&
                      importPastedText.text.trim().length > 0
