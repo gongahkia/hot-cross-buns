@@ -14,10 +14,29 @@ fn invariant_editor_plugin_delegates_state_and_sync_to_versioned_cli_events() {
     assert!(entrypoint.contains("add_control_to_dock"));
     assert!(entrypoint.contains("remove_control_from_docks"));
     assert!(dock.contains("OS.execute_with_pipe"));
-    assert!(dock.contains("[\"status\", \"--json\", \"--project\", _project_path()]"));
-    assert!(dock.contains("[\"sync\", \"--json\", \"--project\", _project_path()]"));
+    assert!(
+        dock.contains(
+            "PackedStringArray([\"status\", \"--json\", \"--project\", _project_path()])"
+        )
+    );
+    assert!(
+        dock.contains("PackedStringArray([\"sync\", \"--json\", \"--project\", _project_path()])")
+    );
+    assert!(
+        dock.contains("PackedStringArray([\"tree\", \"--json\", \"--project\", _project_path()])")
+    );
+    assert!(
+        dock.contains(
+            "PackedStringArray([\"outdated\", \"--json\", \"--project\", _project_path()])"
+        )
+    );
+    assert!(
+        dock.contains("PackedStringArray([\"audit\", \"--json\", \"--project\", _project_path()])")
+    );
     assert!(dock.contains("const PROTOCOL_VERSION := 1"));
     assert!(dock.contains("_show_diagnostic"));
+    assert!(dock.contains("Ownership conflict"));
+    assert!(dock.contains("_show_godot_warnings"));
     assert!(dock.contains("navigate_to_path"));
     assert!(!dock.contains("ConfigFile"));
     assert!(!dock.contains("FileAccess.open"));

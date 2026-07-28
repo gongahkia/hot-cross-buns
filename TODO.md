@@ -886,11 +886,11 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-132: Add editor dependency views
 
-- [ ] Dependency tree.
-- [ ] Outdated packages.
-- [ ] Source and checksum.
-- [ ] Godot compatibility warnings.
-- [ ] Package ownership conflicts.
+- [x] Dependency tree.
+- [x] Outdated packages.
+- [x] Source and checksum.
+- [x] Godot compatibility warnings.
+- [x] Package ownership conflicts.
 
 ---
 

@@ -12,6 +12,7 @@ var _stderr: FileAccess
 var _packages: ItemList
 var _status: Label
 var _sync_button: Button
+var _details: TextEdit
 
 func _ready() -> void:
 	_build_ui()
@@ -53,9 +54,27 @@ func _build_ui() -> void:
 	_sync_button.pressed.connect(_run_sync)
 	controls.add_child(_sync_button)
 	add_child(controls)
+	var views := HBoxContainer.new()
+	var tree := Button.new()
+	tree.text = "Tree"
+	tree.pressed.connect(_view_tree)
+	views.add_child(tree)
+	var outdated := Button.new()
+	outdated.text = "Outdated"
+	outdated.pressed.connect(_view_outdated)
+	views.add_child(outdated)
+	var provenance := Button.new()
+	provenance.text = "Provenance"
+	provenance.pressed.connect(_view_provenance)
+	views.add_child(provenance)
+	add_child(views)
 	_packages = ItemList.new()
 	_packages.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(_packages)
+	_details = TextEdit.new()
+	_details.editable = false
+	_details.custom_minimum_size.y = 140.0
+	add_child(_details)
 	var files := HBoxContainer.new()
 	var manifest := Button.new()
 	manifest.text = "Manifest"
@@ -79,10 +98,19 @@ func _detect_cli() -> String:
 	return ""
 
 func _refresh_status() -> void:
-	_start("status", ["status", "--json", "--project", _project_path()])
+	_start("status", PackedStringArray(["status", "--json", "--project", _project_path()]))
 
 func _run_sync() -> void:
-	_start("sync", ["sync", "--json", "--project", _project_path()])
+	_start("sync", PackedStringArray(["sync", "--json", "--project", _project_path()]))
+
+func _view_tree() -> void:
+	_start("tree", PackedStringArray(["tree", "--json", "--project", _project_path()]))
+
+func _view_outdated() -> void:
+	_start("outdated", PackedStringArray(["outdated", "--json", "--project", _project_path()]))
+
+func _view_provenance() -> void:
+	_start("audit", PackedStringArray(["audit", "--json", "--project", _project_path()]))
 
 func _start(command: String, arguments: PackedStringArray) -> void:
 	if _cli_path.is_empty() or not _active_process.is_empty():
@@ -136,11 +164,71 @@ func _handle_result(result: Dictionary) -> void:
 			"sync: %d written, %d unchanged, %d removed"
 			% [result.get("written", 0), result.get("unchanged", 0), result.get("removed", 0)]
 		)
+		_show_godot_warnings(result.get("godot", {}))
+		return
+	if _command == "tree":
+		_show_tree(result)
+		return
+	if _command == "outdated":
+		_show_outdated(result)
+		return
+	if _command == "audit":
+		_show_provenance(result)
+
+func _show_tree(result: Dictionary) -> void:
+	var lines := PackedStringArray(["Dependency tree"])
+	for package in result.get("packages", []):
+		lines.append("%s -> %s" % [package.get("name"), package.get("dependencies", [])])
+	_details.text = "\n".join(lines)
+	_set_status("Dependency tree loaded.")
+
+func _show_outdated(result: Dictionary) -> void:
+	var lines := PackedStringArray(["Outdated packages"])
+	for package in result.get("packages", []):
+		lines.append(
+			"%s: %s; compatible %s; breaking %s"
+			% [
+				package.get("name"),
+				package.get("status"),
+				package.get("compatible", "none"),
+				package.get("breaking", "none"),
+			]
+		)
+	_details.text = "\n".join(lines)
+	_set_status("Outdated package view loaded.")
+
+func _show_provenance(result: Dictionary) -> void:
+	var lines := PackedStringArray(["Source and checksum"])
+	for package in result.get("packages", []):
+		lines.append(
+			"%s\n  %s %s\n  source checksum: %s\n  package checksum: %s"
+			% [
+				package.get("name"),
+				package.get("source_kind"),
+				package.get("canonical_source"),
+				package.get("source_checksum", "unavailable"),
+				package.get("package_checksum"),
+			]
+		)
+	_details.text = "\n".join(lines)
+	_set_status("Provenance view loaded.")
+
+func _show_godot_warnings(godot: Dictionary) -> void:
+	var lines := PackedStringArray()
+	if not godot.get("unknown", []).is_empty():
+		lines.append("Godot compatibility unknown: %s" % godot.get("unknown"))
+	if not godot.get("indeterminate", []).is_empty():
+		lines.append("Godot compatibility needs an exact engine version: %s" % godot.get("indeterminate"))
+	if not lines.is_empty():
+		_details.text = "\n".join(lines)
 
 func _show_diagnostic(diagnostic: Dictionary) -> void:
 	var message := "error[%s]: %s" % [diagnostic.get("code", "unknown"), diagnostic.get("message", "unknown failure")]
 	if diagnostic.get("recovery") != null:
 		message += "\n%s" % diagnostic.get("recovery")
+	if message.to_lower().contains("conflict"):
+		message = "Ownership conflict\n%s" % message
+	_details.text = message
 	_set_status(message)
 
 func _open_manifest() -> void:
