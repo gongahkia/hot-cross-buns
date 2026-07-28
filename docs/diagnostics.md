@@ -19,6 +19,6 @@ Default output identifies the error code and summary, package and source when
 known, project modification state, rollback result, and a recovery action when
 available. Verbose output additionally includes the causal error text.
 
-Source user information and sensitive query values are redacted before they are
-stored in diagnostics or rendered. Raw backtraces are not part of default
-output.
+Source user information, sensitive query values, and common authentication or
+cookie header values are redacted before they are stored in diagnostics or
+rendered. Raw backtraces are not part of default output.

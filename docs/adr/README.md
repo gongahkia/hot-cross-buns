@@ -35,6 +35,7 @@ Current records:
 - [0029: strict offline mode](0029-strict-offline-mode.md)
 - [0030: advisory operation locks](0030-advisory-operation-locks.md)
 - [0031: conservative cache maintenance](0031-conservative-cache-maintenance.md)
+- [0032: credential handling](0032-credential-handling.md)
 
 ## When to write an ADR
 

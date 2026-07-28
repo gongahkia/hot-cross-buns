@@ -1,6 +1,7 @@
 //! Typed parsing for the version-one `wukong.toml` schema.
 
 use crate::{
+    credentials::has_sensitive_url_query,
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
     semantic_version::VersionRequirement,
@@ -529,22 +530,7 @@ fn safe_url(
         let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
         authority[..authority_end].contains('@')
     });
-    let has_secret_query = value.split_once('?').is_some_and(|(_, query)| {
-        query.split('#').next().is_some_and(|query| {
-            query.split('&').any(|pair| {
-                pair.split_once('=').is_some_and(|(key, _)| {
-                    let key = key.to_ascii_lowercase();
-                    key.contains("token")
-                        || key.contains("secret")
-                        || key.contains("password")
-                        || key.contains("credential")
-                        || key == "key"
-                        || key.contains("api_key")
-                        || key.contains("apikey")
-                })
-            })
-        })
-    });
+    let has_secret_query = has_sensitive_url_query(&value);
     if has_user_info || has_secret_query {
         Err(field_error(
             path,
@@ -583,22 +569,7 @@ fn safe_git_url(
                 || user.contains(':')
         })
     });
-    let has_secret_query = value.split_once('?').is_some_and(|(_, query)| {
-        query.split('#').next().is_some_and(|query| {
-            query.split('&').any(|pair| {
-                pair.split_once('=').is_some_and(|(key, _)| {
-                    let key = key.to_ascii_lowercase();
-                    key.contains("token")
-                        || key.contains("secret")
-                        || key.contains("password")
-                        || key.contains("credential")
-                        || key == "key"
-                        || key.contains("api_key")
-                        || key.contains("apikey")
-                })
-            })
-        })
-    });
+    let has_secret_query = has_sensitive_url_query(&value);
     if has_disallowed_user_info || has_secret_query {
         Err(field_error(
             path,

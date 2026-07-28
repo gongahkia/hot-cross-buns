@@ -217,20 +217,31 @@ godot = "4"
 
 #[test]
 fn invariant_credentials_are_rejected_without_appearing_in_diagnostics() {
-    let error = parse_error(
-        r#"
+    for source in [
+        r#"{ git = "https://secret-token@example.test/repository" }"#,
+        r#"{ url = "https://example.test/addon.zip?access%5Ftoken=secret-token", sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }"#,
+        r#"{ url = "https://example.test/addon.zip?signature=secret-token", sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }"#,
+    ] {
+        let error = parse_error(&format!(
+            r#"
 [project]
 name = "my-game"
 godot = "4"
 
 [dependencies]
-example = { git = "https://secret-token@example.test/repository" }
+example = {source}
 "#,
-    );
+        ));
 
-    assert_eq!(error.code(), ErrorCode::UserInput);
-    assert!(error.message().contains("must not contain credentials"));
-    assert!(!error.message().contains("secret-token"));
+        assert_eq!(error.code(), ErrorCode::UserInput);
+        assert!(error.message().contains("must not contain credentials"));
+        assert!(!error.message().contains("secret-token"));
+        assert!(
+            error
+                .source_description()
+                .is_none_or(|source| !source.as_str().contains("secret-token"))
+        );
+    }
 }
 
 #[test]

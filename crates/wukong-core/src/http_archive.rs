@@ -2,6 +2,7 @@
 
 use crate::{
     cache::CacheLayout,
+    credentials::is_sensitive_query_key,
     diagnostic::{Diagnostic, ErrorCode},
     operation_lock::AdvisoryLock,
 };
@@ -381,16 +382,6 @@ fn redirect_target(
             "use an archive URL with valid HTTPS redirects",
         )
     })
-}
-fn is_sensitive_query_key(key: &str) -> bool {
-    let key = key.to_ascii_lowercase();
-    key.contains("token")
-        || key.contains("secret")
-        || key.contains("password")
-        || key.contains("credential")
-        || key == "key"
-        || key.contains("api_key")
-        || key.contains("apikey")
 }
 fn size_limit_recovery(limits: DownloadLimits) -> String {
     format!("use an archive no larger than {} bytes", limits.max_bytes)

@@ -92,6 +92,41 @@ fn invariant_schema_two_round_trips_immutable_git_and_http_sources() {
     assert!(!output.contains("branch ="));
 }
 
+#[test]
+fn invariant_lockfile_rejects_remote_credentials_without_retaining_them() {
+    let secret = "do-not-persist";
+    let checksum = "77c61f3a6ace3a2b9d1729f6d52af90e6c9b6671e1db798cd91dec1ad666e91b";
+    let source = LockedHttpSource::new(
+        ImmutableSourceId::new(format!("sha256:{checksum}")).expect("identity should parse"),
+        "https://example.test/addon.zip",
+        checksum.to_owned(),
+    )
+    .expect("safe source should lock");
+    let lock =
+        Lockfile::new([remote_package("example", source.into(), 1)]).expect("lock should create");
+    let input = lock.to_toml().replace(
+        "https://example.test/addon.zip",
+        &format!("https://example.test/addon.zip?signature={secret}"),
+    );
+
+    let error = Lockfile::parse(Path::new(PATH), &input)
+        .expect_err("credential-bearing archive URL should not parse");
+
+    assert_eq!(error.code(), wukong_core::diagnostic::ErrorCode::UserInput);
+    assert!(!error.message().contains(secret));
+    assert!(
+        error
+            .source_description()
+            .is_none_or(|source| !source.as_str().contains(secret))
+    );
+    assert!(
+        error
+            .recovery()
+            .is_none_or(|recovery| !recovery.contains(secret))
+    );
+    assert!(error.cause().is_none_or(|cause| !cause.contains(secret)));
+}
+
 fn lock<'a>(names: impl IntoIterator<Item = &'a str>) -> Lockfile {
     Lockfile::new(
         names

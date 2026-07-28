@@ -753,11 +753,11 @@ Check:
 
 ## wukong-103: Harden credential handling
 
-- [ ] Redact embedded URL credentials.
-- [ ] Avoid logging authentication headers.
-- [ ] Do not persist private tokens in the lockfile.
-- [ ] Delegate Git authentication safely.
-- [ ] Review crash reports for secret exposure.
+- [x] Redact embedded URL credentials.
+- [x] Avoid logging authentication headers.
+- [x] Do not persist private tokens in the lockfile.
+- [x] Delegate Git authentication safely.
+- [x] Review crash reports for secret exposure.
 
 ## wukong-104: Add dependency provenance
 

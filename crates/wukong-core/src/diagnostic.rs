@@ -1,5 +1,6 @@
 //! Structured errors that preserve context while redacting source credentials.
 
+use crate::credentials::redact_sensitive_text;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -65,7 +66,7 @@ impl RedactedSource {
     /// Redacts embedded user information and sensitive query values.
     #[must_use]
     pub fn new(value: impl AsRef<str>) -> Self {
-        Self(redact_sensitive_source(value.as_ref()))
+        Self(redact_sensitive_text(value.as_ref()))
     }
 
     /// Returns the safe source description.
@@ -145,7 +146,7 @@ impl Diagnostic {
     pub fn new(code: ErrorCode, message: impl AsRef<str>) -> Self {
         Self {
             code,
-            message: redact_sensitive_source(message.as_ref()),
+            message: redact_sensitive_text(message.as_ref()),
             package: None,
             source: None,
             modification: Modification::None,
@@ -186,14 +187,14 @@ impl Diagnostic {
     /// Adds a concrete recovery action.
     #[must_use]
     pub fn with_recovery(mut self, recovery: impl AsRef<str>) -> Self {
-        self.recovery = Some(redact_sensitive_source(recovery.as_ref()));
+        self.recovery = Some(redact_sensitive_text(recovery.as_ref()));
         self
     }
 
     /// Adds a cause whose displayed text is redacted before retention.
     #[must_use]
     pub fn with_cause(mut self, cause: impl Display) -> Self {
-        self.cause = Some(RedactedCause(redact_sensitive_source(&cause.to_string())));
+        self.cause = Some(RedactedCause(redact_sensitive_text(&cause.to_string())));
         self
     }
 
@@ -282,75 +283,6 @@ impl Display for RedactedCause {
 }
 
 impl Error for RedactedCause {}
-
-fn redact_sensitive_source(value: &str) -> String {
-    let with_redacted_user_info = redact_user_info(value);
-    redact_sensitive_query_values(&with_redacted_user_info)
-}
-
-fn redact_user_info(value: &str) -> String {
-    let Some(scheme_end) = value.find("://") else {
-        return value.to_owned();
-    };
-    let authority_start = scheme_end + 3;
-    let authority_end = value[authority_start..]
-        .find(['/', '?', '#'])
-        .map_or(value.len(), |offset| authority_start + offset);
-    let authority = &value[authority_start..authority_end];
-    let Some(user_info_end) = authority.rfind('@') else {
-        return value.to_owned();
-    };
-
-    let mut redacted = String::with_capacity(value.len());
-    redacted.push_str(&value[..authority_start]);
-    redacted.push_str("<redacted>@");
-    redacted.push_str(&authority[user_info_end + 1..]);
-    redacted.push_str(&value[authority_end..]);
-    redacted
-}
-
-fn redact_sensitive_query_values(value: &str) -> String {
-    let Some(query_start) = value.find('?') else {
-        return value.to_owned();
-    };
-    let query_content_start = query_start + 1;
-    let query_end = value[query_content_start..]
-        .find(|character: char| character == '#' || character.is_whitespace())
-        .map_or(value.len(), |offset| query_content_start + offset);
-    let query = &value[query_content_start..query_end];
-    let mut redacted = String::with_capacity(value.len());
-    redacted.push_str(&value[..query_content_start]);
-
-    for (index, parameter) in query.split('&').enumerate() {
-        if index > 0 {
-            redacted.push('&');
-        }
-        let Some((key, _)) = parameter.split_once('=') else {
-            redacted.push_str(parameter);
-            continue;
-        };
-        if is_sensitive_query_key(key) {
-            redacted.push_str(key);
-            redacted.push_str("=<redacted>");
-        } else {
-            redacted.push_str(parameter);
-        }
-    }
-
-    redacted.push_str(&value[query_end..]);
-    redacted
-}
-
-fn is_sensitive_query_key(key: &str) -> bool {
-    let key = key.to_ascii_lowercase();
-    key.contains("token")
-        || key.contains("secret")
-        || key.contains("password")
-        || key.contains("credential")
-        || key == "key"
-        || key.contains("api_key")
-        || key.contains("apikey")
-}
 
 #[cfg(test)]
 mod tests {

@@ -3,6 +3,9 @@
 /// Structured diagnostics shared by every non-terminal-facing subsystem.
 pub mod diagnostic;
 
+/// Credential detection and redaction shared by source handling and diagnostics.
+pub(crate) mod credentials;
+
 /// Secure staging extraction for ZIP archives.
 pub mod archive;
 

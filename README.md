@@ -42,6 +42,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Fuzzing](docs/fuzzing.md)
 - [Benchmark methodology](docs/benchmarks.md)
 - [Diagnostics](docs/diagnostics.md)
+- [Credential handling](docs/credentials.md)
 - [`wukong doctor`](docs/doctor.md)
 - [Project discovery](docs/project-discovery.md)
 - [Manifest schema](docs/manifest.md)
