@@ -986,16 +986,16 @@ Targets:
 
 Cover:
 
-- [ ] Existing Godot addon workflow.
-- [ ] Why reproducibility is the main product.
-- [ ] Resolver architecture.
-- [ ] Lockfile design.
-- [ ] Content-addressed cache.
-- [ ] Atomic installation.
-- [ ] Security model.
-- [ ] Benchmarks.
-- [ ] Known limitations.
-- [ ] Comparison with existing managers.
+- [x] Existing Godot addon workflow.
+- [x] Why reproducibility is the main product.
+- [x] Resolver architecture.
+- [x] Lockfile design.
+- [x] Content-addressed cache.
+- [x] Atomic installation.
+- [x] Security model.
+- [x] Benchmarks.
+- [x] Known limitations.
+- [x] Comparison with existing managers.
 
 ## wukong-153: Decide whether to pursue `1.0`
 
