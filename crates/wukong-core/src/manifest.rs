@@ -280,18 +280,19 @@ fn parse_source(
     field: &str,
     item: &Item,
 ) -> ManifestResult<Dependency> {
-    let mut allowed = vec!["path", "git", "url", "rev", "tag", "branch", "sha256"];
     #[cfg(feature = "asset-library")]
-    allowed.push("asset");
+    let allowed = vec![
+        "path", "git", "url", "rev", "tag", "branch", "sha256", "asset",
+    ];
+    #[cfg(not(feature = "asset-library"))]
+    let allowed = vec!["path", "git", "url", "rev", "tag", "branch", "sha256"];
     reject_unknown_fields(table, &allowed, path, input, field)?;
-    let mut source_count = ["path", "git", "url"]
+    let source_count = ["path", "git", "url"]
         .into_iter()
         .filter(|key| table.contains_key(key))
         .count();
     #[cfg(feature = "asset-library")]
-    if table.contains_key("asset") {
-        source_count += 1;
-    }
+    let source_count = source_count + usize::from(table.contains_key("asset"));
     if source_count != 1 {
         return Err(field_error(
             path,
