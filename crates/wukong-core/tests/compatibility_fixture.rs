@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Path, PathBuf},
     process::Command,
@@ -330,6 +330,79 @@ fn invariant_pinned_public_sources_cold_warm_and_noop_materialise_as_recorded() 
         assert_eq!(noop.written, 0, "{}", fixture.id());
         assert_eq!(noop.unchanged, desired.files().len(), "{}", fixture.id());
     }
+}
+
+#[test]
+#[ignore = "requires manually checked-out pinned public addon sources"]
+fn invariant_large_public_project_syncs_transactionally_and_is_idempotent() {
+    let root = env::var_os("WUKONG_COMPATIBILITY_SOURCES")
+        .map(PathBuf::from)
+        .expect("set WUKONG_COMPATIBILITY_SOURCES to checked-out fixture sources");
+    let staging = TempDir::new().expect("staging parent should exist");
+    let mut fixtures = BTreeMap::new();
+    for fixture_path in fixture_paths() {
+        let input = fs::read_to_string(&fixture_path).expect("fixture should read");
+        let fixture =
+            CompatibilityFixture::parse(&fixture_path, &input).expect("fixture should parse");
+        fixtures
+            .entry(fixture.target_path().to_path_buf())
+            .or_insert(fixture);
+    }
+    assert_eq!(fixtures.len(), 99);
+
+    let mut prepared = Vec::with_capacity(fixtures.len());
+    for fixture in fixtures.values() {
+        let source = root.join(fixture.id().as_str());
+        assert_checkout_revision(&source, fixture.revision());
+        let layout = detect_package_layout(
+            &source,
+            &LayoutOptions {
+                source_subdirectory: Some(fixture.source_subdirectory().to_path_buf()),
+                target_path: Some(fixture.target_path().to_path_buf()),
+            },
+        )
+        .expect("pinned source layout should resolve");
+        let prepared_tree = prepare_package_tree(
+            layout.source_root(),
+            &staging.path().join(fixture.id().as_str()),
+        )
+        .expect("pinned source should prepare");
+        assert_eq!(
+            prepared_tree.sha256(),
+            fixture.package_sha256(),
+            "{fixture:?}"
+        );
+        prepared.push(prepared_tree);
+    }
+    let desired = build_desired_file_map(fixtures.values().zip(&prepared).map(
+        |(fixture, prepared_tree)| {
+            PackageMaterialization::new(fixture.id(), prepared_tree, fixture.target_path())
+        },
+    ))
+    .expect("selected public fixtures should not have ownership conflicts");
+    let packages = fixtures
+        .values()
+        .zip(&prepared)
+        .map(|(fixture, prepared_tree)| {
+            InstalledPackage::new(
+                fixture.id().clone(),
+                ImmutableSourceId::new(format!("git:{}", fixture.revision()))
+                    .expect("fixture revision should create an immutable identity"),
+                prepared_tree.sha256().to_owned(),
+            )
+            .expect("fixture package should form installed state")
+        })
+        .collect::<Vec<_>>();
+    let project = TempDir::new().expect("large project should exist");
+    let groups = BTreeSet::from([DependencyGroup::Dependencies]);
+    let file_count = desired.files().len();
+    let first = sync_project(project.path(), groups.clone(), packages.clone(), &desired)
+        .expect("large project should materialise transactionally");
+    assert_eq!(first.written, file_count);
+    let noop = sync_project(project.path(), groups, packages, &desired)
+        .expect("large project repeat sync should be idempotent");
+    assert_eq!(noop.written, 0);
+    assert_eq!(noop.unchanged, file_count);
 }
 
 fn assert_checkout_revision(source: &Path, expected: &str) {

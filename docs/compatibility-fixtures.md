@@ -108,3 +108,11 @@ On 2026-07-29, 50 further addon layouts from 49 public MIT-licensed sources
 passed the same opt-in source verification. This completes the 100-addon
 corpus target. The two Ready-to-Go layouts use distinct explicit source and
 target paths. No Godot executable or package script ran.
+
+## W151 large-project validation record
+
+On 2026-07-29, the 99 fixtures with distinct target paths materialised into
+one project in a single transaction, then completed a no-op repeat sync. The
+two YATI fixtures share `addons/YATI`; the deterministic aggregate test keeps
+the lexical-first fixture and excludes the other. This validates source-tree
+materialisation and ownership only, not Godot runtime compatibility.

@@ -11,7 +11,7 @@ public-addon count targets.
 | One hundred public addons | One hundred pinned MIT-licensed addon layouts passed source verification. | target met |
 | Native extensions | Pinned QuarkPhysics source passed fixture verification for a `.gdextension` descriptor layout. | package layout/materialisation covered; runtime and binary compatibility unverified |
 | Private Git sources | Credentials stay outside manifests and are delegated to the installed Git client. | requires a consented private test source |
-| Large projects | The benchmark suite contains a deterministic large graph. | benchmark coverage only; no public compatibility case |
+| Large projects | One project materialised 99 non-conflicting target paths selected from the 100-fixture corpus, then completed a no-op repeat sync. | public source materialisation covered; runtime compatibility unverified |
 | Windows-specific cases | Windows-target lint passes locally. | native filesystem and Godot validation require Windows |
 
 Add public fixtures only after recording licence/access review, immutable

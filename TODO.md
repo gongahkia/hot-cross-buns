@@ -979,7 +979,7 @@ Targets:
 - [x] Multi-addon repositories.
 - [x] Native-extension packages.
 - [ ] Private Git sources.
-- [ ] Large projects.
+- [x] Large projects.
 - [ ] Windows-specific cases.
 
 ## wukong-152: Publish a technical launch article
