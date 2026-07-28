@@ -443,13 +443,13 @@ Tests:
 
 ## wukong-055: Implement transactional project synchronisation
 
-- [ ] Calculate differences before writing.
-- [ ] Stage new files.
-- [ ] Preserve unrelated files.
-- [ ] Remove only previously recorded package-owned files.
-- [ ] Commit changes atomically where possible.
-- [ ] Restore prior state after failure where practical.
-- [ ] Write state metadata last.
+- [x] Calculate differences before writing.
+- [x] Stage new files.
+- [x] Preserve unrelated files.
+- [x] Remove only previously recorded package-owned files.
+- [x] Commit changes atomically where possible.
+- [x] Restore prior state after failure where practical.
+- [x] Write state metadata last.
 
 Acceptance criteria:
 

@@ -123,7 +123,7 @@ impl InstalledPackage {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OwnedFile {
     path: PathBuf,
-    package: PackageName,
+    packages: BTreeSet<PackageName>,
     sha256: String,
     materialization: MaterializationStrategy,
 }
@@ -135,15 +135,21 @@ impl OwnedFile {
     /// Returns a diagnostic when the path or checksum is unsafe.
     pub fn new(
         path: impl AsRef<Path>,
-        package: PackageName,
+        packages: BTreeSet<PackageName>,
         sha256: String,
         materialization: MaterializationStrategy,
     ) -> Result<Self, Box<Diagnostic>> {
         let path = safe_relative_path(path.as_ref(), "file.path")?;
         valid_sha256(&sha256, "file.sha256")?;
+        if packages.is_empty() {
+            return Err(user(
+                "file.packages must not be empty",
+                "record at least one installed package owner",
+            ));
+        }
         Ok(Self {
             path,
-            package,
+            packages,
             sha256,
             materialization,
         })
@@ -153,10 +159,10 @@ impl OwnedFile {
     pub fn path(&self) -> &Path {
         &self.path
     }
-    /// Returns the owning package name.
+    /// Returns every owning package name in canonical order.
     #[must_use]
-    pub fn package(&self) -> &PackageName {
-        &self.package
+    pub fn packages(&self) -> &BTreeSet<PackageName> {
+        &self.packages
     }
     /// Returns the content hash recorded at materialisation time.
     #[must_use]
@@ -202,10 +208,14 @@ impl InstalledState {
         }
         let mut file_entries = BTreeMap::new();
         for file in files {
-            if !package_entries.contains_key(&file.package) {
+            if !file
+                .packages
+                .iter()
+                .all(|package| package_entries.contains_key(package))
+            {
                 return Err(user(
                     "installed file references a package that is not installed",
-                    "record the package identity before its owned files",
+                    "record every file owner as an installed package identity",
                 ));
             }
             if file_entries.insert(file.path.clone(), file).is_some() {
@@ -278,7 +288,11 @@ impl InstalledState {
         for file in self.files.values() {
             output.push_str("\n[[file]]\n");
             line(&mut output, "path", path_string(&file.path));
-            line(&mut output, "package", file.package.as_str());
+            array(
+                &mut output,
+                "packages",
+                file.packages.iter().map(PackageName::as_str),
+            );
             line(&mut output, "sha256", &file.sha256);
             line(
                 &mut output,
@@ -374,21 +388,65 @@ fn parse_package(table: &dyn TableLike) -> Result<InstalledPackage, Box<Diagnost
 fn parse_file(table: &dyn TableLike) -> Result<OwnedFile, Box<Diagnostic>> {
     known(
         table,
-        &["path", "package", "sha256", "materialization"],
+        &["path", "packages", "sha256", "materialization"],
         "file",
     )?;
-    let package = PackageName::parse(&string(table, "package", "file")?).map_err(|error| {
-        user(
-            format!("file.package {error}"),
-            "use a canonical package name",
-        )
-    })?;
+    let packages = package_names(table, "packages", "file")?;
     OwnedFile::new(
         PathBuf::from(string(table, "path", "file")?),
-        package,
+        packages,
         string(table, "sha256", "file")?,
         MaterializationStrategy::parse(&string(table, "materialization", "file")?)?,
     )
+}
+
+fn package_names(
+    table: &dyn TableLike,
+    key: &str,
+    scope: &str,
+) -> Result<BTreeSet<PackageName>, Box<Diagnostic>> {
+    let values = table.get(key).and_then(Item::as_array).ok_or_else(|| {
+        user(
+            format!("{scope}.{key} must be an array"),
+            "use sorted package names",
+        )
+    })?;
+    let mut packages = BTreeSet::new();
+    for value in values {
+        let value = value.as_str().ok_or_else(|| {
+            user(
+                format!("{scope}.{key} entries must be strings"),
+                "use package names",
+            )
+        })?;
+        let name = PackageName::parse(value).map_err(|error| {
+            user(
+                format!("{scope}.{key} {error}"),
+                "use canonical package names",
+            )
+        })?;
+        if !packages.insert(name) {
+            return Err(user(
+                format!("{scope}.{key} must not contain duplicates"),
+                "remove duplicate package owners",
+            ));
+        }
+    }
+    if packages.is_empty()
+        || values.len() != packages.len()
+        || !values
+            .iter()
+            .filter_map(toml_edit::Value::as_str)
+            .collect::<Vec<_>>()
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+    {
+        return Err(user(
+            format!("{scope}.{key} must be non-empty and sorted"),
+            "use sorted canonical package names",
+        ));
+    }
+    Ok(packages)
 }
 
 fn groups(table: &dyn TableLike) -> Result<BTreeSet<DependencyGroup>, Box<Diagnostic>> {

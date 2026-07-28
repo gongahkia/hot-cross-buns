@@ -51,5 +51,8 @@ pub mod ownership;
 /// Godot project-root discovery.
 pub mod project;
 
+/// Transactional project-file reconciliation.
+pub mod project_sync;
+
 /// Source-adapter contracts.
 pub mod source;

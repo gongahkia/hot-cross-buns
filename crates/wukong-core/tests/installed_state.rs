@@ -33,7 +33,7 @@ fn invariant_state_rejects_unsafe_paths_unknown_owners_and_unknown_fields() {
     assert!(
         OwnedFile::new(
             "../outside.gd",
-            PackageName::parse("alpha").expect("name should parse"),
+            BTreeSet::from([PackageName::parse("alpha").expect("name should parse")]),
             hash(1),
             MaterializationStrategy::Copy,
         )
@@ -41,7 +41,7 @@ fn invariant_state_rejects_unsafe_paths_unknown_owners_and_unknown_fields() {
     );
     let file = OwnedFile::new(
         "addons/alpha/plugin.gd",
-        PackageName::parse("other").expect("name should parse"),
+        BTreeSet::from([PackageName::parse("other").expect("name should parse")]),
         hash(1),
         MaterializationStrategy::Copy,
     )
@@ -53,6 +53,35 @@ fn invariant_state_rejects_unsafe_paths_unknown_owners_and_unknown_fields() {
             "schema = 1\ngroups = []\nx-unknown = \"no\"\n"
         )
         .is_err()
+    );
+}
+
+#[test]
+fn invariant_state_retains_all_identical_file_owners() {
+    let alpha = package("alpha", 0);
+    let beta = package("beta", 1);
+    let state = InstalledState::new(
+        BTreeSet::new(),
+        [alpha, beta],
+        [OwnedFile::new(
+            "addons/shared/plugin.gd",
+            BTreeSet::from([
+                PackageName::parse("alpha").expect("name should parse"),
+                PackageName::parse("beta").expect("name should parse"),
+            ]),
+            hash(0),
+            MaterializationStrategy::Copy,
+        )
+        .expect("file should parse")],
+    )
+    .expect("state should parse");
+
+    let output = state.to_toml();
+    assert!(output.contains("packages = [\"alpha\", \"beta\"]"));
+    assert_eq!(
+        InstalledState::parse(Path::new("fixture/.wukong/state.toml"), &output)
+            .expect("state should parse"),
+        state
     );
 }
 
@@ -80,7 +109,7 @@ fn state(names: impl IntoIterator<Item = &'static str>) -> InstalledState {
         .map(|name| package(name, usize::from(name != "alpha")));
     let files = [OwnedFile::new(
         "addons/alpha/plugin.gd",
-        PackageName::parse("alpha").expect("name should parse"),
+        BTreeSet::from([PackageName::parse("alpha").expect("name should parse")]),
         hash(0),
         MaterializationStrategy::Copy,
     )
