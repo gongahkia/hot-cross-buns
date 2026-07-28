@@ -1,0 +1,30 @@
+schema = 1
+id = "lovely-event"
+godot = ">=4.0,<5.0"
+package_sha256 = "7423aef3e2874a3aa5d32f7dafe27b76c86b63e3db2cee098c09be5ef4b34e3f"
+installed_paths = [
+  "addons/lovely_event/node-icon.svg",
+  "addons/lovely_event/node-icon.svg.import",
+  "addons/lovely_event/plugin.cfg",
+  "addons/lovely_event/plugin.gd",
+  "addons/lovely_event/scripts/LovelyEvent.gd",
+  "addons/lovely_event/scripts/base_events/EVENT.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_call.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_canSkip.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_print.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_setVisible.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_wait.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_waitForInput.gd",
+  "addons/lovely_event/scripts/base_events/EVENT_waitFrame.gd",
+  "addons/lovely_event/scripts/queues/EventQueue.gd",
+  "addons/lovely_event/scripts/queues/LinkedEventQueue.gd",
+  "addons/lovely_event/scripts/queues/TempEventQueue.gd",
+]
+
+[source]
+url = "https://github.com/ImTiredRat/Lovely-Event.git"
+revision = "f5108611e7f4f3f2c95a7e3e16c4eea768bee5a6"
+
+[layout]
+source_subdirectory = "addons/lovely_event"
+target_path = "addons/lovely_event"

@@ -13,7 +13,7 @@ not yet exist.
 | External recurring users | No verified recurring-user record. | open |
 | Stable manifest and lockfile semantics | Versioned formats, ADRs, deterministic serialisation tests, and an explicit 1.0 compatibility policy exist. | insufficient external stability evidence |
 | Manageable support burden | No external support history. | open |
-| Strong compatibility corpus results | Twenty-five pinned public fixtures passed source verification; 50/100 targets are open. | insufficient |
+| Strong compatibility corpus results | Fifty pinned public fixtures passed source verification; the 100-addon target is open. | insufficient |
 | No unresolved architectural blockers | GitHub Actions billing/spending configuration blocks required three-platform CI. | blocked |
 | Credible migration policy | [ADR 0039](adr/0039-one-point-zero-compatibility-policy.md) defines explicit, transactional format migration. | ready |
 

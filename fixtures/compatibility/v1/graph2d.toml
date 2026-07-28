@@ -1,0 +1,24 @@
+schema = 1
+id = "graph2d"
+godot = ">=4.0,<5.0"
+package_sha256 = "51dd350ff7e1d106650a2a6cf747113d1d7fbe321a12b7cf56ac9cdce6ec9d01"
+installed_paths = [
+  "addons/graph_2d/custom_nodes/axis.gd",
+  "addons/graph_2d/custom_nodes/coordinate.gd",
+  "addons/graph_2d/custom_nodes/grid.gd",
+  "addons/graph_2d/custom_nodes/legend.gd",
+  "addons/graph_2d/custom_nodes/plot_2d.gd",
+  "addons/graph_2d/custom_refcounted/plot_item.gd",
+  "addons/graph_2d/graph_2d.gd",
+  "addons/graph_2d/graph_2d.svg",
+  "addons/graph_2d/plugin.cfg",
+  "addons/graph_2d/plugin.gd",
+]
+
+[source]
+url = "https://github.com/LD2Studio/godot4-graph2d.git"
+revision = "6734c5530fd91a9058c774a27c00299bda13f919"
+
+[layout]
+source_subdirectory = "addons/graph_2d"
+target_path = "addons/graph_2d"

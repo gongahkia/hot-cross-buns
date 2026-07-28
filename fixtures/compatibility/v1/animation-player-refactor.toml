@@ -1,0 +1,26 @@
+schema = 1
+id = "animation-player-refactor"
+godot = ">=4.0,<5.0"
+package_sha256 = "e6db5756258435f419ea61664ba5e32d5212b11a4a0f1f5333566a3a20e718d8"
+installed_paths = [
+  "addons/anim_player_refactor/lib/anim_player_refactor.gd",
+  "addons/anim_player_refactor/lib/editor_util.gd",
+  "addons/anim_player_refactor/plugin.cfg",
+  "addons/anim_player_refactor/plugin.gd",
+  "addons/anim_player_refactor/scenes/autocomplete/autocomplete.gd",
+  "addons/anim_player_refactor/scenes/autocomplete/autocomplete_option.gd",
+  "addons/anim_player_refactor/scenes/inspector_button/inspector_button.gd",
+  "addons/anim_player_refactor/scenes/refactor_dialogue/components/anim_player_tree.gd",
+  "addons/anim_player_refactor/scenes/refactor_dialogue/components/edit_info.gd",
+  "addons/anim_player_refactor/scenes/refactor_dialogue/components/node_select.gd",
+  "addons/anim_player_refactor/scenes/refactor_dialogue/refactor_dialogue.gd",
+  "addons/anim_player_refactor/scenes/refactor_dialogue/refactor_dialogue.tscn",
+]
+
+[source]
+url = "https://github.com/poohcom1/godot-animation-player-refactor.git"
+revision = "4f69b3b32f6a24e1c74bc1f67f072e0d7914f5b9"
+
+[layout]
+source_subdirectory = "addons/anim_player_refactor"
+target_path = "addons/anim_player_refactor"

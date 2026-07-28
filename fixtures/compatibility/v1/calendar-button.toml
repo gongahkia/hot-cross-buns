@@ -1,0 +1,32 @@
+schema = 1
+id = "calendar-button"
+godot = ">=4.4,<5.0"
+package_sha256 = "8a8c398758adea374506250b0f79015366f07e4e1fe02cfd211e58cab4f3886d"
+installed_paths = [
+  "addons/calendar_button/assets/calendar.gd",
+  "addons/calendar_button/assets/calendar.gd.uid",
+  "addons/calendar_button/assets/calendar.tscn",
+  "addons/calendar_button/assets/calendar_button.gd",
+  "addons/calendar_button/assets/calendar_button.gd.uid",
+  "addons/calendar_button/assets/date_button.tscn",
+  "addons/calendar_button/assets/icon.svg.import",
+  "addons/calendar_button/assets/icon_green.svg",
+  "addons/calendar_button/assets/icon_green.svg.import",
+  "addons/calendar_button/assets/min_box.gd",
+  "addons/calendar_button/assets/min_box.gd.uid",
+  "addons/calendar_button/icon.png",
+  "addons/calendar_button/icon.png.import",
+  "addons/calendar_button/icon.svg",
+  "addons/calendar_button/icon.svg.import",
+  "addons/calendar_button/plugin.cfg",
+  "addons/calendar_button/plugin.gd",
+  "addons/calendar_button/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/untamedlabs/Godot4xCalendarButton.git"
+revision = "9bc1123665b5742c3c3a9acbeddb2c1125558d8b"
+
+[layout]
+source_subdirectory = "addons/calendar_button"
+target_path = "addons/calendar_button"

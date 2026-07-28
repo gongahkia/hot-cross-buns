@@ -1,0 +1,22 @@
+schema = 1
+id = "gdterminal"
+godot = ">=4.0,<5.0"
+package_sha256 = "62de3ff9e06db9cbce8b5ec11335481086307d3476bc45ee57974d33e73d7902"
+installed_paths = [
+  "addons/GDTerminal/LICENSE.txt",
+  "addons/GDTerminal/README.md",
+  "addons/GDTerminal/dock.tscn",
+  "addons/GDTerminal/icon.png",
+  "addons/GDTerminal/icon.png.import",
+  "addons/GDTerminal/plugin.cfg",
+  "addons/GDTerminal/plugin.gd",
+  "addons/GDTerminal/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/ProgrammerOnCoffee/GDTerminal.git"
+revision = "e29cd6b412b1267578bbc96725aa0cd840be2009"
+
+[layout]
+source_subdirectory = "addons/GDTerminal"
+target_path = "addons/GDTerminal"

@@ -1,0 +1,20 @@
+schema = 1
+id = "live-debugger"
+godot = ">=4.3,<5.0"
+package_sha256 = "395a93178be955efefd71d6d96cd7b6388532b4bf9efebf59304858e16adfe61"
+installed_paths = [
+  "addons/godot-live-debugger/node_live_debugger.gd",
+  "addons/godot-live-debugger/node_live_debugger.gd.uid",
+  "addons/godot-live-debugger/node_live_debugger.tscn",
+  "addons/godot-live-debugger/plugin.cfg",
+  "addons/godot-live-debugger/plugin.gd",
+  "addons/godot-live-debugger/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/folt-a/godot-live-debugger.git"
+revision = "8a9a14b7f4b2d57349a81df7d61620fa38c58cef"
+
+[layout]
+source_subdirectory = "addons/godot-live-debugger"
+target_path = "addons/godot-live-debugger"

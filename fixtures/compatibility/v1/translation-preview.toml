@@ -1,0 +1,25 @@
+schema = 1
+id = "translation-preview"
+godot = ">=4.0,<5.0"
+package_sha256 = "f577b3e3a422fbd47fee7aac14c848ba6f6f0e8c1667008f06cbec1e5c12d40e"
+installed_paths = [
+  "addons/translation_preview/LICENSE",
+  "addons/translation_preview/README.md",
+  "addons/translation_preview/icon.svg",
+  "addons/translation_preview/plugin.cfg",
+  "addons/translation_preview/plugin.gd",
+  "addons/translation_preview/tr_preview_demo/demo.tscn",
+  "addons/translation_preview/tr_preview_demo/test_locales/en_US.po",
+  "addons/translation_preview/tr_preview_demo/test_locales/ru_RU.po",
+  "addons/translation_preview/translation_option_button.gd",
+  "addons/translation_preview/translation_option_button.tscn",
+  "addons/translation_preview/translation_service.gd",
+]
+
+[source]
+url = "https://github.com/1MaxSon/translation_preview.git"
+revision = "5d17359bf2bb72207c221eac90e8f7b210daf52b"
+
+[layout]
+source_subdirectory = "addons/translation_preview"
+target_path = "addons/translation_preview"

@@ -1,0 +1,23 @@
+schema = 1
+id = "playtime-timer"
+godot = ">=4.0,<5.0"
+package_sha256 = "7143f7fd63a19fd44785c1af0944d8250ff59a474a56bde3bc43ccbc5a5d9402"
+installed_paths = [
+  "addons/playtime_timer/icon.svg",
+  "addons/playtime_timer/icon.svg.import",
+  "addons/playtime_timer/playtime_manager.gd",
+  "addons/playtime_timer/playtime_manager.gd.uid",
+  "addons/playtime_timer/playtime_timer.gd",
+  "addons/playtime_timer/playtime_timer.gd.uid",
+  "addons/playtime_timer/plugin.cfg",
+  "addons/playtime_timer/plugin.gd",
+  "addons/playtime_timer/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/NovaDC/Godot-PlaytimeTimer.git"
+revision = "8c7c8f121a978b0a88a2faf0655ab53168f02985"
+
+[layout]
+source_subdirectory = "addons/playtime_timer"
+target_path = "addons/playtime_timer"

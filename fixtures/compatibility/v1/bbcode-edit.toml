@@ -1,0 +1,44 @@
+schema = 1
+id = "bbcode-edit"
+godot = ">=4.0,<5.0"
+package_sha256 = "adddbbccdb761b77c3d325b23aaa5ece8c7b83cd6d9ad89c4312bd34f8de493f"
+installed_paths = [
+  "addons/bbcode_edit.editor/.assets_for_readme/color_completion.gif",
+  "addons/bbcode_edit.editor/.assets_for_readme/color_completion.mp4",
+  "addons/bbcode_edit.editor/.assets_for_readme/reference_completion.gif",
+  "addons/bbcode_edit.editor/.assets_for_readme/reference_completion.mp4",
+  "addons/bbcode_edit.editor/.assets_for_readme/shortcuts.gif",
+  "addons/bbcode_edit.editor/.assets_for_readme/shortcuts.mp4",
+  "addons/bbcode_edit.editor/.assets_for_readme/snippet.gif",
+  "addons/bbcode_edit.editor/.assets_for_readme/snippet.mp4",
+  "addons/bbcode_edit.editor/LICENCE.txt",
+  "addons/bbcode_edit.editor/README.md",
+  "addons/bbcode_edit.editor/bbcode_completion_icon.svg",
+  "addons/bbcode_edit.editor/bbcode_completion_icon.svg.import",
+  "addons/bbcode_edit.editor/bbcode_edit.gd",
+  "addons/bbcode_edit.editor/bbcode_edit.gd.uid",
+  "addons/bbcode_edit.editor/bbcode_edit_main.gd",
+  "addons/bbcode_edit.editor/bbcode_edit_main.gd.uid",
+  "addons/bbcode_edit.editor/color_picker.tscn",
+  "addons/bbcode_edit.editor/completions_db/builtin_classes_4.3.txt",
+  "addons/bbcode_edit.editor/completions_db/builtin_classes_4.4.txt",
+  "addons/bbcode_edit.editor/completions_db/builtin_classes_4.5.txt",
+  "addons/bbcode_edit.editor/completions_db/completions.gd",
+  "addons/bbcode_edit.editor/completions_db/completions.gd.uid",
+  "addons/bbcode_edit.editor/completions_db/fetch_builtin_classes.gd",
+  "addons/bbcode_edit.editor/completions_db/fetch_builtin_classes.gd.uid",
+  "addons/bbcode_edit.editor/completions_db/fetch_builtin_classes.tscn",
+  "addons/bbcode_edit.editor/completions_db/godot_version.gd",
+  "addons/bbcode_edit.editor/completions_db/godot_version.gd.uid",
+  "addons/bbcode_edit.editor/editor_interface_scraper.gd",
+  "addons/bbcode_edit.editor/editor_interface_scraper.gd.uid",
+  "addons/bbcode_edit.editor/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/Patou-todoG/BBCodeEdit.git"
+revision = "c9fe24f73f4ce686e4f0013da2bae2b6b9c9b020"
+
+[layout]
+source_subdirectory = "addons/bbcode_edit.editor"
+target_path = "addons/bbcode_edit.editor"

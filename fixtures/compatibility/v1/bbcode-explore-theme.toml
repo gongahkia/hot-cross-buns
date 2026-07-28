@@ -1,0 +1,66 @@
+schema = 1
+id = "bbcode-explore-theme"
+godot = ">=4.0,<5.0"
+package_sha256 = "bdc0cab0d51db9474c04290489a3d0dbc77b6ea9ae34e4a2b0112e58e3ba7f60"
+installed_paths = [
+  "addons/explore-editor-theme/ExplorerDialog.gd",
+  "addons/explore-editor-theme/ExplorerDialog.gd.uid",
+  "addons/explore-editor-theme/ExplorerDialog.tscn",
+  "addons/explore-editor-theme/LICENSE",
+  "addons/explore-editor-theme/color-preview-icon.png",
+  "addons/explore-editor-theme/color-preview-icon.png.import",
+  "addons/explore-editor-theme/lists/FontListItem.gd",
+  "addons/explore-editor-theme/lists/FontListItem.gd.uid",
+  "addons/explore-editor-theme/lists/FontListItem.tscn",
+  "addons/explore-editor-theme/lists/StyleboxListItem.gd",
+  "addons/explore-editor-theme/lists/StyleboxListItem.gd.uid",
+  "addons/explore-editor-theme/lists/StyleboxListItem.tscn",
+  "addons/explore-editor-theme/plugin-icon.png",
+  "addons/explore-editor-theme/plugin-icon.png.import",
+  "addons/explore-editor-theme/plugin.cfg",
+  "addons/explore-editor-theme/plugin.gd",
+  "addons/explore-editor-theme/plugin.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorColors.gd",
+  "addons/explore-editor-theme/tabs/EditorColors.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorColors.tscn",
+  "addons/explore-editor-theme/tabs/EditorConstants.gd",
+  "addons/explore-editor-theme/tabs/EditorConstants.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorConstants.tscn",
+  "addons/explore-editor-theme/tabs/EditorFonts.gd",
+  "addons/explore-editor-theme/tabs/EditorFonts.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorFonts.tscn",
+  "addons/explore-editor-theme/tabs/EditorIcons.gd",
+  "addons/explore-editor-theme/tabs/EditorIcons.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorIcons.tscn",
+  "addons/explore-editor-theme/tabs/EditorStyleboxes.gd",
+  "addons/explore-editor-theme/tabs/EditorStyleboxes.gd.uid",
+  "addons/explore-editor-theme/tabs/EditorStyleboxes.tscn",
+  "addons/explore-editor-theme/ui/CodePreview.gd",
+  "addons/explore-editor-theme/ui/CodePreview.gd.uid",
+  "addons/explore-editor-theme/ui/CodePreview.tscn",
+  "addons/explore-editor-theme/ui/FilterTool.gd",
+  "addons/explore-editor-theme/ui/FilterTool.gd.uid",
+  "addons/explore-editor-theme/ui/FilterTool.tscn",
+  "addons/explore-editor-theme/ui/IconSaver.gd",
+  "addons/explore-editor-theme/ui/IconSaver.gd.uid",
+  "addons/explore-editor-theme/ui/IconSaver.tscn",
+  "addons/explore-editor-theme/ui/ResourceInspector.gd",
+  "addons/explore-editor-theme/ui/ResourceInspector.gd.uid",
+  "addons/explore-editor-theme/ui/ResourceInspector.tscn",
+  "addons/explore-editor-theme/ui/SampleTool.gd",
+  "addons/explore-editor-theme/ui/SampleTool.gd.uid",
+  "addons/explore-editor-theme/ui/SampleTool.tscn",
+  "addons/explore-editor-theme/ui/TypeTool.gd",
+  "addons/explore-editor-theme/ui/TypeTool.gd.uid",
+  "addons/explore-editor-theme/ui/TypeTool.tscn",
+  "addons/explore-editor-theme/utils/PluginUtils.gd",
+  "addons/explore-editor-theme/utils/PluginUtils.gd.uid",
+]
+
+[source]
+url = "https://github.com/Patou-todoG/BBCodeEdit.git"
+revision = "c9fe24f73f4ce686e4f0013da2bae2b6b9c9b020"
+
+[layout]
+source_subdirectory = "addons/explore-editor-theme"
+target_path = "addons/explore-editor-theme"

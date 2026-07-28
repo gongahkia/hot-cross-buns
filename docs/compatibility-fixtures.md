@@ -1,7 +1,7 @@
 # Compatibility fixtures
 
 Schema-one fixtures live in `fixtures/compatibility/v1/`. The current corpus
-contains 25 public addons. Every fixture pins a public HTTPS Git source to a
+contains 50 public addons. Every fixture pins a public HTTPS Git source to a
 full commit and records its explicit layout, complete expected installed file
 paths, canonical package-tree SHA-256, and Godot version requirement.
 
@@ -87,3 +87,17 @@ package script was executed.
 | Fixture | Source subdirectory | Target path | Descriptor |
 | --- | --- | --- | --- |
 | `quarkphysics` | `project/addons/quarkphysics` | `addons/quarkphysics` | `bin/quarkphysics.gdextension` |
+
+## W151 fifty-fixture validation record
+
+On 2026-07-29, 25 additional addon layouts from 22 public MIT-licensed
+sources passed opt-in source verification: prepared-tree verification, cold
+materialisation, warm reuse, and no-op sync. The expansion includes three
+explicit BBCodeEdit layouts and two YATI language layouts. It verifies only
+source-tree materialisation; neither Godot nor package scripts ran.
+
+| Source | Layout count |
+| --- | ---: |
+| `BBCodeEdit` | 3 |
+| `YATI` | 2 |
+| 20 other public MIT sources | 20 |

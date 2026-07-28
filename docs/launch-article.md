@@ -114,9 +114,9 @@ based on their workflow and threat model, not on an unverified feature matrix.
 ## Known limitations and next evidence
 
 Wukong remains pre-alpha and has no public release. Native macOS validation,
-public Git/HTTP integration tests, and the 20-fixture public corpus have been
+public Git/HTTP integration tests, and the 50-fixture public corpus have been
 exercised locally. Linux and Windows native validation, external onboarding,
-private-source validation, and 50/100-addon corpus goals still require their
+private-source validation, and the 100-addon corpus goal still require their
 respective environments or consented testers. GitHub Actions remains deferred
 until account billing or spending configuration is resolved.
 

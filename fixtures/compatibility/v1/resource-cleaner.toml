@@ -1,0 +1,27 @@
+schema = 1
+id = "resource-cleaner"
+godot = ">=4.0,<5.0"
+package_sha256 = "05f485b2d485aac1f792ba33c3bf21ac1eb5738569f0c249f92a28a6cd51733a"
+installed_paths = [
+  "addons/godotresourcecleaner/LICENSE",
+  "addons/godotresourcecleaner/file_utils.gd",
+  "addons/godotresourcecleaner/file_utils.gd.uid",
+  "addons/godotresourcecleaner/grid_container.gd",
+  "addons/godotresourcecleaner/grid_container.gd.uid",
+  "addons/godotresourcecleaner/icon.svg",
+  "addons/godotresourcecleaner/icon.svg.import",
+  "addons/godotresourcecleaner/plugin.cfg",
+  "addons/godotresourcecleaner/res_cleaner.gd",
+  "addons/godotresourcecleaner/res_cleaner.gd.uid",
+  "addons/godotresourcecleaner/window.gd",
+  "addons/godotresourcecleaner/window.gd.uid",
+  "addons/godotresourcecleaner/window.tscn",
+]
+
+[source]
+url = "https://github.com/ijoschek/GodotResourceCleaner.git"
+revision = "668fff7abc5d77f7cedd22ed10add5fdda733024"
+
+[layout]
+source_subdirectory = "addons/godotresourcecleaner"
+target_path = "addons/godotresourcecleaner"

@@ -1,12 +1,13 @@
 # Compatibility expansion status
 
 This record separates local capability coverage from verified public-addon
-evidence. The current public fixture corpus has 25 entries; it does not yet
-meet the 50- or 100-addon targets.
+evidence. The current public fixture corpus has 50 entries; it meets the
+50-addon target but not the 100-addon target.
 
 | Target | Evidence | Status |
 | --- | --- | --- |
 | Multi-addon repositories | Four pinned GDQuest addons from one source passed source verification with distinct explicit layouts. | public corpus coverage |
+| Fifty public addons | Fifty pinned MIT-licensed addon layouts passed source verification. | target met |
 | Native extensions | Pinned QuarkPhysics source passed fixture verification for a `.gdextension` descriptor layout. | package layout/materialisation covered; runtime and binary compatibility unverified |
 | Private Git sources | Credentials stay outside manifests and are delegated to the installed Git client. | requires a consented private test source |
 | Large projects | The benchmark suite contains a deterministic large graph. | benchmark coverage only; no public compatibility case |

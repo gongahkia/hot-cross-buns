@@ -974,7 +974,7 @@ Require:
 
 Targets:
 
-- [ ] 50 addons.
+- [x] 50 addons.
 - [ ] 100 addons.
 - [x] Multi-addon repositories.
 - [x] Native-extension packages.
