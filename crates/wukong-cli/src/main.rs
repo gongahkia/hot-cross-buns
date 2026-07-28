@@ -1,13 +1,14 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
 
-use std::{collections::BTreeSet, env, ffi::OsString, fs, path::PathBuf, process};
+use std::{collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf, process};
 use wukong_core::{
     cache::{CacheLayout, verify_cached_packages},
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
-    direct_lock::lock_direct_dependencies,
+    direct_lock::{lock_direct_dependencies, update_direct_dependencies},
     direct_sync::sync_direct_dependencies,
+    identity::PackageName,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
     manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
@@ -42,6 +43,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "remove" => match run_remove(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "update" => match run_update(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -369,6 +374,224 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         options.alias, summary.written, summary.unchanged, summary.removed
     );
     Ok(())
+}
+
+#[allow(clippy::too_many_lines)] // coordinates lock publication and project sync
+fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_update_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let manifest = read_manifest(&manifest_path)?;
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let existing = read_lockfile(&lock_path)?.ok_or_else(|| {
+        user_error(
+            "wukong.lock is required before updating",
+            "run wukong lock before updating dependencies",
+        )
+    })?;
+    let selected = options
+        .package
+        .as_deref()
+        .map(PackageName::parse)
+        .transpose()
+        .map_err(|error| {
+            boxed(
+                Diagnostic::new(
+                    ErrorCode::UserInput,
+                    format!("invalid package name: {error}"),
+                )
+                .with_recovery("use a lowercase package name"),
+            )
+        })?;
+    let cache = CacheLayout::from_environment()?;
+    let updated = update_direct_dependencies(
+        &manifest_path,
+        &manifest,
+        &existing,
+        selected.as_ref(),
+        &cache,
+        options.offline,
+    )?;
+    let changes = update_changes(&existing, &updated);
+    if options.dry_run {
+        print_update_changes("would update", &changes);
+        return Ok(());
+    }
+    if changes.is_empty() {
+        println!("update: no changes");
+        return Ok(());
+    }
+    if std::io::stdout().is_terminal() {
+        print_update_changes("updating", &changes);
+    }
+    let output = updated.to_toml().into_bytes();
+    let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    write_atomic(&lock_path, &output)?;
+    let summary = match sync_direct_dependencies(
+        project.path(),
+        &manifest_path,
+        &manifest,
+        &updated,
+        true,
+        &cache,
+        options.offline,
+    ) {
+        Ok(summary) => summary,
+        Err(error) => return Err(rollback_update(error, &lock_snapshot, &output)),
+    };
+    print_update_changes("updated", &changes);
+    println!(
+        "sync: {} written, {} unchanged, {} removed",
+        summary.written, summary.unchanged, summary.removed
+    );
+    Ok(())
+}
+
+fn rollback_update(
+    original: Box<Diagnostic>,
+    lock_snapshot: &FileSnapshot,
+    expected_lock: &[u8],
+) -> Box<Diagnostic> {
+    match lock_snapshot.restore_if_current(Some(expected_lock)) {
+        Ok(()) => original,
+        Err(error) => boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "dependency update failed and lockfile rollback was incomplete",
+            )
+            .with_cause(format!("operation: {original}; lockfile: {error}"))
+            .with_recovery("inspect wukong.lock and project files before retrying"),
+        ),
+    }
+}
+
+fn update_changes(existing: &Lockfile, updated: &Lockfile) -> Vec<String> {
+    let names = existing
+        .packages()
+        .keys()
+        .chain(updated.packages().keys())
+        .collect::<BTreeSet<_>>();
+    names
+        .into_iter()
+        .filter_map(
+            |name| match (existing.packages().get(name), updated.packages().get(name)) {
+                (Some(old), Some(new)) if old != new => Some(format!(
+                    "{}: {} -> {}",
+                    name.as_str(),
+                    update_value(old, new),
+                    update_value(new, old),
+                )),
+                (None, Some(new)) => Some(format!(
+                    "{}: added {}",
+                    name.as_str(),
+                    update_value(new, new)
+                )),
+                (Some(old), None) => Some(format!(
+                    "{}: removed {}",
+                    name.as_str(),
+                    update_value(old, old)
+                )),
+                _ => None,
+            },
+        )
+        .collect()
+}
+
+fn update_value(
+    package: &wukong_core::lockfile::LockedPackage,
+    other: &wukong_core::lockfile::LockedPackage,
+) -> String {
+    if package.version() != other.version() {
+        return package
+            .version()
+            .map_or_else(|| "no version".to_owned(), ToString::to_string);
+    }
+    package.source().immutable_id().as_str().to_owned()
+}
+
+fn print_update_changes(prefix: &str, changes: &[String]) {
+    if changes.is_empty() {
+        println!("{prefix}: no changes");
+        return;
+    }
+    for change in changes {
+        println!("{prefix} {change}");
+    }
+}
+
+struct UpdateOptions {
+    package: Option<String>,
+    dry_run: bool,
+    offline: bool,
+    project: Option<PathBuf>,
+}
+
+fn parse_update_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<UpdateOptions, Box<Diagnostic>> {
+    let mut options = UpdateOptions {
+        package: None,
+        dry_run: false,
+        offline: false,
+        project: None,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--dry-run" {
+            if std::mem::replace(&mut options.dry_run, true) {
+                return Err(user_error(
+                    "--dry-run may be supplied only once",
+                    "run wukong update [package] --dry-run",
+                ));
+            }
+            continue;
+        }
+        if argument == "--offline" {
+            if std::mem::replace(&mut options.offline, true) {
+                return Err(user_error(
+                    "--offline may be supplied only once",
+                    "run wukong update [package] --offline",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        if argument.to_string_lossy().starts_with('-') {
+            return Err(user_error(
+                format!("unsupported update argument {}", argument.to_string_lossy()),
+                "use --dry-run, --offline, or --project <path>",
+            ));
+        }
+        if options
+            .package
+            .replace(argument.to_string_lossy().into_owned())
+            .is_some()
+        {
+            return Err(user_error(
+                "update accepts at most one package alias",
+                "run wukong update [package]",
+            ));
+        }
+    }
+    Ok(options)
 }
 
 struct RemoveOptions {
@@ -1245,7 +1468,9 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 }
 
 fn print_usage() {
-    println!("usage: wukong <init|add|remove|lock|install|sync|tree|why|cache verify> [options]");
+    println!(
+        "usage: wukong <init|add|remove|update|lock|install|sync|tree|why|cache verify> [options]"
+    );
 }
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
@@ -1254,7 +1479,7 @@ fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AddOptions, parse_add_arguments};
+    use super::{AddOptions, parse_add_arguments, parse_update_arguments};
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
 
@@ -1323,5 +1548,31 @@ mod tests {
                 project: None,
             }
         );
+    }
+
+    #[test]
+    fn update_parser_accepts_selected_dry_run_offline_update() {
+        let options = parse_update_arguments(
+            ["addon", "--dry-run", "--offline", "--project", "game"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("update specification should parse");
+
+        assert_eq!(options.package.as_deref(), Some("addon"));
+        assert!(options.dry_run);
+        assert!(options.offline);
+        assert_eq!(options.project, Some(PathBuf::from("game")));
+    }
+
+    #[test]
+    fn update_parser_rejects_multiple_selected_packages() {
+        let result = parse_update_arguments(["alpha", "beta"].into_iter().map(OsString::from));
+        assert!(result.is_err());
+        let error = result
+            .err()
+            .expect("multiple selected packages should fail");
+
+        assert!(error.message().contains("at most one package"));
     }
 }

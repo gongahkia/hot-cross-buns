@@ -578,12 +578,16 @@ Acceptance criteria:
 
 ## wukong-072: Implement `wukong update`
 
-- [ ] Update all dependencies.
-- [ ] Update one selected dependency.
-- [ ] Minimise unrelated changes.
-- [ ] Respect version constraints.
-- [ ] Show old and new versions or revisions.
-- [ ] Support dry-run.
+- [x] Update all dependencies.
+- [x] Update one selected dependency.
+- [x] Minimise unrelated changes.
+- [x] Respect supported immutable source constraints; reject version-only declarations before mutation because no catalogue source exists.
+- [x] Show old and new versions or revisions.
+- [x] Support dry-run.
+
+Scope: current direct sources are local paths, Git, and checksum-pinned HTTPS
+archives. Version-only manifest declarations remain unsupported pending a
+catalogue source; `update` reports that before changing the lockfile or project.
 
 ## wukong-073: Implement `wukong outdated`
 

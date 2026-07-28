@@ -4,8 +4,11 @@ use std::{
 };
 use tempfile::TempDir;
 use wukong_core::{
-    cache::CacheLayout, direct_lock::lock_direct_dependencies,
-    direct_sync::sync_direct_dependencies, lockfile::LockedSource, manifest::Manifest,
+    cache::CacheLayout,
+    direct_lock::{lock_direct_dependencies, update_direct_dependencies},
+    direct_sync::sync_direct_dependencies,
+    lockfile::LockedSource,
+    manifest::Manifest,
 };
 
 #[test]
@@ -120,6 +123,41 @@ fn invariant_existing_matching_lock_reuses_without_source_access() {
     let reused = lock(&fixture, &manifest, Some(&existing));
 
     assert_eq!(reused, existing);
+}
+
+#[test]
+fn invariant_selected_update_changes_only_the_selected_direct_lock_entry() {
+    let fixture = Fixture::new();
+    let alpha = fixture.addon("alpha", "first");
+    let beta = fixture.addon("beta", "first");
+    let manifest = fixture
+        .manifest("[dependencies]\nalpha = { path = \"alpha\" }\nbeta = { path = \"beta\" }\n");
+    let existing = lock(&fixture, &manifest, None);
+    fs::write(alpha.join("plugin.gd"), "second").expect("selected source should change");
+    fs::write(beta.join("plugin.gd"), "second").expect("unselected source should change");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+    let selected = wukong_core::identity::PackageName::parse("alpha")
+        .expect("fixture package name should parse");
+
+    let updated = update_direct_dependencies(
+        fixture.manifest_path(),
+        &manifest,
+        &existing,
+        Some(&selected),
+        &cache,
+        true,
+    )
+    .expect("selected update should lock");
+
+    assert_ne!(
+        existing.packages().get("alpha"),
+        updated.packages().get("alpha")
+    );
+    assert_eq!(
+        existing.packages().get("beta"),
+        updated.packages().get("beta")
+    );
 }
 
 fn lock(

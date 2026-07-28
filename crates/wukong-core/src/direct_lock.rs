@@ -51,50 +51,79 @@ pub fn lock_direct_dependencies(
     let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for declaration in declarations.values() {
-        let (source_root, source) = match &declaration.source {
-            DeclaredSource::Local(path) => {
-                let resolution = local.resolve(
-                    &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
-                    &cancellation,
-                )?;
-                let source = LockedLocalSource::new(
-                    resolution.immutable_id().clone(),
-                    resolution.snapshot().sha256().to_owned(),
-                )?;
-                (resolution.root().path().to_path_buf(), source.into())
-            }
-            DeclaredSource::Git { url, reference } => {
-                let checkout = git.fetch(
-                    &GitSourceRequest::new(url.clone(), reference.clone()),
-                    offline,
-                )?;
-                let resolution = checkout.resolution();
-                let source = LockedGitSource::new(
-                    resolution.immutable_id().clone(),
-                    resolution.source().as_str(),
-                    resolution.commit().to_owned(),
-                )?;
-                (checkout.root().to_path_buf(), source.into())
-            }
-            DeclaredSource::Http { url, sha256 } => {
-                let archive = http.fetch(url, sha256, offline)?;
-                let extracted =
-                    extract_zip(archive.path(), staging.path(), ExtractionLimits::default())?;
-                let immutable_id = crate::source::ImmutableSourceId::new(format!(
-                    "sha256:{}",
-                    archive.sha256()
-                ))
-                .map_err(|error| internal("could not create HTTP immutable identity", error))?;
-                let source = LockedHttpSource::new(immutable_id, url, archive.sha256().to_owned())?;
-                (extracted.root().to_path_buf(), source.into())
-            }
-        };
-        packages.push(lock_package(
+        packages.push(lock_declaration(
+            manifest_path,
             declaration,
-            &source_root,
-            source,
+            local,
+            &git,
+            &http,
+            &cancellation,
             staging.path(),
+            offline,
         )?);
+    }
+    Lockfile::new(packages)
+}
+
+/// Re-locks all direct dependencies or one selected direct dependency.
+///
+/// A selected update retains every unrelated package entry only when the
+/// existing lockfile still exactly matches its manifest declaration. This
+/// prevents an update from silently retaining a stale unrelated entry.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the selected dependency is absent, the existing
+/// lockfile does not match the manifest, or source preparation fails.
+pub fn update_direct_dependencies(
+    manifest_path: &Path,
+    manifest: &Manifest,
+    existing: &Lockfile,
+    selected: Option<&PackageName>,
+    cache: &CacheLayout,
+    offline: bool,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    let declarations = direct_declarations(manifest)?;
+    validate_existing_lock(existing, &declarations)?;
+    if let Some(selected) = selected {
+        if !declarations.contains_key(selected) {
+            return Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::UserInput,
+                    format!("dependency {} is not declared", selected.as_str()),
+                )
+                .with_recovery("select a dependency from wukong.toml"),
+            ));
+        }
+    }
+    let staging = TempDir::new()
+        .map_err(|error| internal("could not create package-update staging directory", error))?;
+    let local = LocalPathAdapter;
+    let git = GitFetcher::new(cache.clone());
+    let http = HttpArchiveFetcher::new(cache.clone());
+    let cancellation = CancellationToken::new();
+    let mut packages = Vec::new();
+    for (name, declaration) in &declarations {
+        if selected.is_none_or(|selected| selected == name) {
+            packages.push(lock_declaration(
+                manifest_path,
+                declaration,
+                local,
+                &git,
+                &http,
+                &cancellation,
+                staging.path(),
+                offline,
+            )?);
+        } else {
+            let package = existing.packages().get(name).ok_or_else(|| {
+                internal(
+                    "validated lock entry disappeared during update",
+                    name.as_str(),
+                )
+            })?;
+            packages.push(package.clone());
+        }
     }
     Lockfile::new(packages)
 }
@@ -183,6 +212,55 @@ fn lock_package(
         }),
         declaration.development,
     )
+}
+
+#[allow(clippy::too_many_arguments)] // each source adapter remains explicit
+fn lock_declaration(
+    manifest_path: &Path,
+    declaration: &Declaration,
+    local: LocalPathAdapter,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+    cancellation: &CancellationToken,
+    staging: &Path,
+    offline: bool,
+) -> Result<LockedPackage, Box<Diagnostic>> {
+    let (source_root, source) = match &declaration.source {
+        DeclaredSource::Local(path) => {
+            let resolution = local.resolve(
+                &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
+                cancellation,
+            )?;
+            let source = LockedLocalSource::new(
+                resolution.immutable_id().clone(),
+                resolution.snapshot().sha256().to_owned(),
+            )?;
+            (resolution.root().path().to_path_buf(), source.into())
+        }
+        DeclaredSource::Git { url, reference } => {
+            let checkout = git.fetch(
+                &GitSourceRequest::new(url.clone(), reference.clone()),
+                offline,
+            )?;
+            let resolution = checkout.resolution();
+            let source = LockedGitSource::new(
+                resolution.immutable_id().clone(),
+                resolution.source().as_str(),
+                resolution.commit().to_owned(),
+            )?;
+            (checkout.root().to_path_buf(), source.into())
+        }
+        DeclaredSource::Http { url, sha256 } => {
+            let archive = http.fetch(url, sha256, offline)?;
+            let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
+            let immutable_id =
+                crate::source::ImmutableSourceId::new(format!("sha256:{}", archive.sha256()))
+                    .map_err(|error| internal("could not create HTTP immutable identity", error))?;
+            let source = LockedHttpSource::new(immutable_id, url, archive.sha256().to_owned())?;
+            (extracted.root().to_path_buf(), source.into())
+        }
+    };
+    lock_package(declaration, &source_root, source, staging)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -279,6 +357,22 @@ fn reusable(lock: &Lockfile, declarations: &BTreeMap<PackageName, Declaration>) 
                     && package.development() == declaration.development
             })
         })
+}
+
+fn validate_existing_lock(
+    lock: &Lockfile,
+    declarations: &BTreeMap<PackageName, Declaration>,
+) -> Result<(), Box<Diagnostic>> {
+    if reusable(lock, declarations) {
+        return Ok(());
+    }
+    Err(Box::new(
+        Diagnostic::new(
+            ErrorCode::UserInput,
+            "manifest and lockfile differ before update",
+        )
+        .with_recovery("run wukong lock before updating one selected dependency"),
+    ))
 }
 fn declaration_fingerprint(
     alias: &DependencyAlias,

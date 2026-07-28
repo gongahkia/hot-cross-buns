@@ -59,6 +59,9 @@ sources are not represented. See [ADR 0024](adr/0024-lockfile-schema-two-remote-
 writes `wukong.lock`; it does not materialise project files. `--offline` uses
 only verified cached Git checkouts and HTTP archives. `--locked` refuses a
 missing or changed lockfile with exit code 2. An unchanged valid lockfile is not
-rewritten. [`wukong install` and `wukong sync`](sync.md) currently apply
-local-path locks transactionally. [`wukong tree` and `wukong why`](dependency-views.md)
+rewritten. [`wukong install` and `wukong sync`](sync.md) apply supported direct
+source locks transactionally. [`wukong tree` and `wukong why`](dependency-views.md)
 read this lockfile without resolving, fetching, or modifying project files.
+[`wukong update`](update.md) re-locks all direct dependencies or one selected
+entry, prints immutable source or version changes, and synchronises the result
+transactionally.

@@ -14,8 +14,10 @@ implemented. HTTPS archive retrieval and immutable checksum-addressed caching
 are implemented in the core. `wukong lock` supports direct path, Git, and HTTP
 dependencies. `wukong add` resolves and synchronises direct path, Git, and
 HTTPS archive sources transactionally; `wukong tree`/`wukong why` inspect the
-resolved lock graph. The core dependency solver is available for source-adapter
-integration; official asset sources and package scripts are not implemented.
+resolved lock graph. `wukong update [package]` re-locks supported direct sources
+and synchronises changes transactionally, with a dry-run preview. The core
+dependency solver is available for source-adapter integration; official asset
+sources and package scripts are not implemented.
 
 ## Local-path workflow
 
@@ -56,6 +58,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Install and sync](docs/sync.md)
 - [Dependency views](docs/dependency-views.md)
 - [`wukong add`](docs/add.md)
+- [`wukong update`](docs/update.md)
 - [Materialisation](docs/materialization.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
