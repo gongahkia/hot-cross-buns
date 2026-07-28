@@ -7,8 +7,8 @@ lockfile, and source content should produce the same project addon state.
 
 ## Status
 
-Pre-alpha. The repository currently provides the Rust workspace foundation and
-validation baseline. No package-management command is implemented yet.
+Pre-alpha. The core library provides project discovery and manifest parsing;
+no package-management command is implemented yet.
 
 ## Project documents
 
@@ -19,6 +19,7 @@ validation baseline. No package-management command is implemented yet.
 - [Benchmark methodology](docs/benchmarks.md)
 - [Diagnostics](docs/diagnostics.md)
 - [Project discovery](docs/project-discovery.md)
+- [Manifest schema](docs/manifest.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

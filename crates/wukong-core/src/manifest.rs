@@ -1,0 +1,592 @@
+//! Typed parsing for the version-one `wukong.toml` schema.
+
+use crate::diagnostic::{Diagnostic, ErrorCode};
+use semver::VersionReq;
+use std::{
+    borrow::Borrow,
+    collections::BTreeMap,
+    path::{Component, Path, PathBuf},
+};
+use toml_edit::{Document, Item, TableLike};
+
+/// The project manifest file name.
+pub const MANIFEST_FILE_NAME: &str = "wukong.toml";
+
+/// The result type returned by manifest parsing.
+pub type ManifestResult<T> = std::result::Result<T, Box<Diagnostic>>;
+
+/// A validated project manifest.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Manifest {
+    project: Project,
+    dependencies: BTreeMap<DependencyAlias, Dependency>,
+    dev_dependencies: BTreeMap<DependencyAlias, Dependency>,
+}
+
+impl Manifest {
+    /// Parses a manifest located at `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user diagnostic for invalid TOML or unsupported schema fields.
+    pub fn parse(path: &Path, input: &str) -> ManifestResult<Self> {
+        let document = Document::parse(input.to_owned()).map_err(|error| {
+            boxed(
+                Diagnostic::new(ErrorCode::UserInput, "invalid wukong.toml syntax")
+                    .with_cause(error)
+                    .with_recovery("fix the TOML syntax and retry"),
+            )
+        })?;
+        let root = document.as_table();
+        reject_unknown_fields(
+            root,
+            &["project", "dependencies", "dev-dependencies"],
+            path,
+            input,
+            "root",
+        )?;
+        let project = parse_project(
+            require_table(root, "project", path, input, "root")?,
+            path,
+            input,
+        )?;
+        let manifest_directory = path.parent().unwrap_or_else(|| Path::new("."));
+        let dependencies = parse_dependencies(
+            root.get("dependencies"),
+            manifest_directory,
+            path,
+            input,
+            "dependencies",
+        )?;
+        let dev_dependencies = parse_dependencies(
+            root.get("dev-dependencies"),
+            manifest_directory,
+            path,
+            input,
+            "dev-dependencies",
+        )?;
+        Ok(Self {
+            project,
+            dependencies,
+            dev_dependencies,
+        })
+    }
+
+    /// Returns project metadata.
+    #[must_use]
+    pub const fn project(&self) -> &Project {
+        &self.project
+    }
+
+    /// Returns runtime dependencies in deterministic alias order.
+    #[must_use]
+    pub const fn dependencies(&self) -> &BTreeMap<DependencyAlias, Dependency> {
+        &self.dependencies
+    }
+
+    /// Returns development dependencies in deterministic alias order.
+    #[must_use]
+    pub const fn dev_dependencies(&self) -> &BTreeMap<DependencyAlias, Dependency> {
+        &self.dev_dependencies
+    }
+}
+
+/// Required metadata for the Godot project.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Project {
+    name: String,
+    godot: VersionReq,
+}
+
+impl Project {
+    /// Returns the manifest project name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    /// Returns the validated Godot version requirement.
+    #[must_use]
+    pub const fn godot(&self) -> &VersionReq {
+        &self.godot
+    }
+}
+
+/// A validated manifest dependency alias.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct DependencyAlias(String);
+
+impl DependencyAlias {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Borrow<str> for DependencyAlias {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+/// A dependency declaration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Dependency {
+    /// A future catalogue version requirement.
+    Version(VersionReq),
+    /// A local directory resolved relative to `wukong.toml`.
+    Path(PathBuf),
+    /// A Git source and optional revision selector.
+    Git {
+        url: String,
+        reference: Option<GitReference>,
+    },
+    /// A checksummed HTTP archive.
+    Url { url: String, sha256: String },
+}
+
+/// A Git manifest revision selector.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GitReference {
+    Rev(String),
+    Tag(String),
+    Branch(String),
+}
+
+fn parse_project(table: &dyn TableLike, path: &Path, input: &str) -> ManifestResult<Project> {
+    reject_unknown_fields(table, &["name", "godot"], path, input, "project")?;
+    let name = required_string(table, "name", path, input, "project")?;
+    if name.trim().is_empty() {
+        return Err(field_error(
+            path,
+            input,
+            "project.name",
+            table.get("name"),
+            "must not be empty",
+        ));
+    }
+    let godot_raw = required_string(table, "godot", path, input, "project")?;
+    let godot = VersionReq::parse(&godot_raw).map_err(|error| {
+        field_error(
+            path,
+            input,
+            "project.godot",
+            table.get("godot"),
+            &format!("invalid version requirement: {error}"),
+        )
+    })?;
+    Ok(Project { name, godot })
+}
+
+fn parse_dependencies(
+    item: Option<&Item>,
+    directory: &Path,
+    path: &Path,
+    input: &str,
+    table_name: &str,
+) -> ManifestResult<BTreeMap<DependencyAlias, Dependency>> {
+    let Some(item) = item else {
+        return Ok(BTreeMap::new());
+    };
+    let table = item
+        .as_table()
+        .ok_or_else(|| field_error(path, input, table_name, Some(item), "must be a table"))?;
+    let mut dependencies = BTreeMap::new();
+    for (key, item) in table {
+        let alias = DependencyAlias(key.to_owned());
+        validate_alias(&alias, path, input, item)?;
+        let field = format!("{table_name}.{}", alias.as_str());
+        let dependency = if let Some(requirement) = item.as_str() {
+            Dependency::Version(VersionReq::parse(requirement).map_err(|error| {
+                field_error(
+                    path,
+                    input,
+                    &field,
+                    Some(item),
+                    &format!("invalid version requirement: {error}"),
+                )
+            })?)
+        } else if let Some(source) = item.as_inline_table() {
+            parse_source(source, directory, path, input, &field, item)?
+        } else {
+            return Err(field_error(
+                path,
+                input,
+                &field,
+                Some(item),
+                "must be a version string or inline source table",
+            ));
+        };
+        dependencies.insert(alias, dependency);
+    }
+    Ok(dependencies)
+}
+
+fn parse_source(
+    table: &dyn TableLike,
+    directory: &Path,
+    path: &Path,
+    input: &str,
+    field: &str,
+    item: &Item,
+) -> ManifestResult<Dependency> {
+    reject_unknown_fields(
+        table,
+        &["path", "git", "url", "rev", "tag", "branch", "sha256"],
+        path,
+        input,
+        field,
+    )?;
+    let source_count = ["path", "git", "url"]
+        .into_iter()
+        .filter(|key| table.contains_key(key))
+        .count();
+    if source_count != 1 {
+        return Err(field_error(
+            path,
+            input,
+            field,
+            Some(item),
+            "must specify exactly one of path, git, or url",
+        ));
+    }
+    if table.contains_key("path") {
+        parse_path_source(table, directory, path, input, field)
+    } else if table.contains_key("git") {
+        parse_git_source(table, path, input, field, item)
+    } else {
+        parse_url_source(table, path, input, field)
+    }
+}
+
+fn parse_path_source(
+    table: &dyn TableLike,
+    directory: &Path,
+    path: &Path,
+    input: &str,
+    field: &str,
+) -> ManifestResult<Dependency> {
+    reject_present(
+        table,
+        &["git", "url", "rev", "tag", "branch", "sha256"],
+        path,
+        input,
+        field,
+    )?;
+    let raw = required_string(table, "path", path, input, field)?;
+    if raw.trim().is_empty() {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{field}.path"),
+            table.get("path"),
+            "must not be empty",
+        ));
+    }
+    if raw.contains('\0') {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{field}.path"),
+            table.get("path"),
+            "must not contain a null character",
+        ));
+    }
+    Ok(Dependency::Path(resolve_path(directory, Path::new(&raw))))
+}
+
+fn parse_git_source(
+    table: &dyn TableLike,
+    path: &Path,
+    input: &str,
+    field: &str,
+    item: &Item,
+) -> ManifestResult<Dependency> {
+    reject_present(table, &["path", "url", "sha256"], path, input, field)?;
+    let url = safe_url(
+        required_string(table, "git", path, input, field)?,
+        path,
+        input,
+        &format!("{field}.git"),
+        table.get("git"),
+    )?;
+    let reference_count = ["rev", "tag", "branch"]
+        .into_iter()
+        .filter(|key| table.contains_key(key))
+        .count();
+    if reference_count > 1 {
+        return Err(field_error(
+            path,
+            input,
+            field,
+            Some(item),
+            "may specify at most one of rev, tag, or branch",
+        ));
+    }
+    let reference = ["rev", "tag", "branch"]
+        .into_iter()
+        .find(|key| table.contains_key(key))
+        .map(|key| required_string(table, key, path, input, field).map(|value| (key, value)))
+        .transpose()?
+        .map(|(key, value)| match key {
+            "rev" => GitReference::Rev(value),
+            "tag" => GitReference::Tag(value),
+            _ => GitReference::Branch(value),
+        });
+    Ok(Dependency::Git { url, reference })
+}
+
+fn parse_url_source(
+    table: &dyn TableLike,
+    path: &Path,
+    input: &str,
+    field: &str,
+) -> ManifestResult<Dependency> {
+    reject_present(
+        table,
+        &["path", "git", "rev", "tag", "branch"],
+        path,
+        input,
+        field,
+    )?;
+    let url = safe_url(
+        required_string(table, "url", path, input, field)?,
+        path,
+        input,
+        &format!("{field}.url"),
+        table.get("url"),
+    )?;
+    let sha256 = required_string(table, "sha256", path, input, field)?;
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{field}.sha256"),
+            table.get("sha256"),
+            "must be a 64-character hexadecimal SHA-256",
+        ));
+    }
+    Ok(Dependency::Url { url, sha256 })
+}
+
+fn require_table<'a>(
+    table: &'a dyn TableLike,
+    key: &str,
+    path: &Path,
+    input: &str,
+    scope: &str,
+) -> ManifestResult<&'a dyn TableLike> {
+    let item = table
+        .get(key)
+        .ok_or_else(|| field_error(path, input, &format!("{scope}.{key}"), None, "is required"))?;
+    item.as_table_like().ok_or_else(|| {
+        field_error(
+            path,
+            input,
+            &format!("{scope}.{key}"),
+            Some(item),
+            "must be a table",
+        )
+    })
+}
+
+fn required_string(
+    table: &dyn TableLike,
+    key: &str,
+    path: &Path,
+    input: &str,
+    scope: &str,
+) -> ManifestResult<String> {
+    let item = table
+        .get(key)
+        .ok_or_else(|| field_error(path, input, &format!("{scope}.{key}"), None, "is required"))?;
+    item.as_str().map(str::to_owned).ok_or_else(|| {
+        field_error(
+            path,
+            input,
+            &format!("{scope}.{key}"),
+            Some(item),
+            "must be a string",
+        )
+    })
+}
+
+fn validate_alias(
+    alias: &DependencyAlias,
+    path: &Path,
+    input: &str,
+    item: &Item,
+) -> ManifestResult<()> {
+    let valid = !alias.0.is_empty()
+        && alias
+            .0
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && alias
+            .0
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphanumeric)
+        && alias
+            .0
+            .as_bytes()
+            .last()
+            .is_some_and(u8::is_ascii_alphanumeric);
+    if valid {
+        Ok(())
+    } else {
+        Err(field_error(
+            path,
+            input,
+            alias.as_str(),
+            Some(item),
+            "must use lowercase ASCII letters, digits, and internal hyphens",
+        ))
+    }
+}
+
+fn reject_unknown_fields(
+    table: &dyn TableLike,
+    allowed: &[&str],
+    path: &Path,
+    input: &str,
+    scope: &str,
+) -> ManifestResult<()> {
+    if let Some((key, item)) = table.iter().find(|(key, _)| !allowed.contains(key)) {
+        return Err(field_error(
+            path,
+            input,
+            &format!("{scope}.{key}"),
+            Some(item),
+            "is not supported",
+        ));
+    }
+    Ok(())
+}
+
+fn reject_present(
+    table: &dyn TableLike,
+    fields: &[&str],
+    path: &Path,
+    input: &str,
+    scope: &str,
+) -> ManifestResult<()> {
+    for field in fields {
+        if let Some(item) = table.get(field) {
+            return Err(field_error(
+                path,
+                input,
+                &format!("{scope}.{field}"),
+                Some(item),
+                "is incompatible with the selected source",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn safe_url(
+    value: String,
+    path: &Path,
+    input: &str,
+    field: &str,
+    item: Option<&Item>,
+) -> ManifestResult<String> {
+    if value.trim().is_empty() || value.chars().any(char::is_whitespace) {
+        return Err(field_error(
+            path,
+            input,
+            field,
+            item,
+            "must be a non-empty URL without whitespace",
+        ));
+    }
+    let has_user_info = value.find("://").is_some_and(|scheme_end| {
+        let authority = &value[scheme_end + 3..];
+        let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
+        authority[..authority_end].contains('@')
+    });
+    let has_secret_query = value.split_once('?').is_some_and(|(_, query)| {
+        query.split('#').next().is_some_and(|query| {
+            query.split('&').any(|pair| {
+                pair.split_once('=').is_some_and(|(key, _)| {
+                    let key = key.to_ascii_lowercase();
+                    key.contains("token")
+                        || key.contains("secret")
+                        || key.contains("password")
+                        || key.contains("credential")
+                        || key == "key"
+                        || key.contains("api_key")
+                        || key.contains("apikey")
+                })
+            })
+        })
+    });
+    if has_user_info || has_secret_query {
+        Err(field_error(
+            path,
+            input,
+            field,
+            item,
+            "must not contain credentials",
+        ))
+    } else {
+        Ok(value)
+    }
+}
+
+fn resolve_path(directory: &Path, source_path: &Path) -> PathBuf {
+    let mut resolved = if source_path.is_absolute() {
+        PathBuf::new()
+    } else {
+        directory.to_path_buf()
+    };
+    for component in source_path.components() {
+        match component {
+            Component::Prefix(prefix) => resolved.push(prefix.as_os_str()),
+            Component::RootDir => resolved.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !resolved.pop() && !resolved.has_root() {
+                    resolved.push(component.as_os_str());
+                }
+            }
+            Component::Normal(value) => resolved.push(value),
+        }
+    }
+    resolved
+}
+
+fn field_error(
+    path: &Path,
+    input: &str,
+    field: &str,
+    item: Option<&Item>,
+    detail: &str,
+) -> Box<Diagnostic> {
+    let location = item
+        .and_then(Item::span)
+        .map(|span| {
+            let prefix = &input[..span.start];
+            format!(
+                " at line {}, column {}",
+                prefix.bytes().filter(|byte| *byte == b'\n').count() + 1,
+                prefix
+                    .rsplit('\n')
+                    .next()
+                    .map_or(1, |line| line.chars().count() + 1)
+            )
+        })
+        .unwrap_or_default();
+    boxed(
+        Diagnostic::new(
+            ErrorCode::UserInput,
+            format!("manifest field {field}{location} {detail}"),
+        )
+        .with_source(path.display().to_string())
+        .with_recovery("fix the manifest field and retry"),
+    )
+}
+
+fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
+    Box::new(diagnostic)
+}

@@ -264,7 +264,7 @@ godot = ">=4.5,<5"
 [dependencies]
 dialogic = "^2.1"
 terrain3d = { git = "https://github.com/TokisanGames/Terrain3D", tag = "v1.0.0" }
-custom-ui = { url = "https://example.com/custom-ui-1.2.0.zip", sha256 = "..." }
+custom-ui = { url = "https://example.com/custom-ui-1.2.0.zip", sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
 shared-tools = { path = "../shared-tools" }
 
 [dev-dependencies]
