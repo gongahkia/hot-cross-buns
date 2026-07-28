@@ -9,7 +9,10 @@ use std::{
 };
 use tempfile::TempDir;
 use wukong_core::{
-    cache::{CACHE_SCHEMA, CacheLayout, publish_prepared_package},
+    cache::{
+        CACHE_SCHEMA, CacheLayout, publish_prepared_package, verify_cached_packages,
+        verify_package_object,
+    },
     diagnostic::ErrorCode,
     package_tree::{PreparedPackageTree, prepare_package_tree},
 };
@@ -151,6 +154,67 @@ fn invariant_corrupted_existing_object_is_rejected() {
         .expect_err("publication should reject a corrupt existing object");
 
     assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    assert!(!final_path.exists());
+}
+
+#[test]
+fn invariant_cache_reads_verify_hashes_and_remove_corrupt_objects() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let object = publish_prepared_package(&layout, &prepared).expect("publication should work");
+
+    assert_eq!(
+        verify_package_object(&layout, prepared.sha256())
+            .expect("verified cache read should succeed"),
+        object
+    );
+    write(
+        &object.path().join("plugin.cfg"),
+        "[plugin]\nname=\"Tampered\"\n",
+    );
+
+    let error = verify_package_object(&layout, prepared.sha256())
+        .expect_err("corrupted cache read should fail");
+
+    assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    assert!(!object.path().exists());
+}
+
+#[test]
+fn invariant_full_cache_verification_counts_valid_and_removed_objects() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let first = prepared_fixture(&fixture);
+    let second = prepared_fixture_named(&fixture, "second", "second-prepared", "Second");
+    let layout = cache_layout(&fixture);
+    let valid = publish_prepared_package(&layout, &first).expect("first publication should work");
+    let corrupt =
+        publish_prepared_package(&layout, &second).expect("second publication should work");
+    write(
+        &corrupt.path().join("plugin.cfg"),
+        "[plugin]\nname=\"Tampered\"\n",
+    );
+
+    let report = verify_cached_packages(&layout).expect("cache verification should complete");
+
+    assert_eq!(report.verified_packages(), 1);
+    assert_eq!(report.removed_corrupt_packages(), 1);
+    assert!(valid.path().exists());
+    assert!(!corrupt.path().exists());
+}
+
+#[test]
+fn invariant_full_cache_verification_never_deletes_unrecognized_entries() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let layout = cache_layout(&fixture);
+    let foreign = layout.packages().join("sha256").join("foreign");
+    write(&foreign.join("data"), "do not delete\n");
+
+    let error = verify_cached_packages(&layout)
+        .expect_err("unrecognized entries should be diagnosed without deletion");
+
+    assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    assert!(foreign.exists());
 }
 
 #[cfg(windows)]
@@ -173,10 +237,22 @@ fn cache_layout(fixture: &TempDir) -> CacheLayout {
 }
 
 fn prepared_fixture(fixture: &TempDir) -> PreparedPackageTree {
-    let source = fixture.path().join("source");
-    write(&source.join("plugin.cfg"), "[plugin]\nname=\"Example\"\n");
+    prepared_fixture_named(fixture, "source", "prepared", "Example")
+}
+
+fn prepared_fixture_named(
+    fixture: &TempDir,
+    source_name: &str,
+    staging_name: &str,
+    plugin_name: &str,
+) -> PreparedPackageTree {
+    let source = fixture.path().join(source_name);
+    write(
+        &source.join("plugin.cfg"),
+        &format!("[plugin]\nname=\"{plugin_name}\"\n"),
+    );
     write(&source.join("scripts/main.gd"), "extends Node\n");
-    prepare_package_tree(&source, &fixture.path().join("prepared"))
+    prepare_package_tree(&source, &fixture.path().join(staging_name))
         .expect("fixture tree should prepare")
 }
 

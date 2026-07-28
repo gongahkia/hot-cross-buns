@@ -7,9 +7,10 @@ lockfile, and source content should produce the same project addon state.
 
 ## Status
 
-Pre-alpha. `wukong init` creates a minimal manifest for a discovered Godot
-project. Project discovery and manifest parsing are available in the core
-library; package installation is not implemented yet.
+Pre-alpha. `wukong init` creates a minimal manifest and `wukong lock` resolves
+direct local-path dependencies without materialising packages. `wukong cache
+verify` verifies prepared-package cache objects. Package installation is not
+implemented yet.
 
 ## Project documents
 

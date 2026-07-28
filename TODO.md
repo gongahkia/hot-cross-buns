@@ -417,10 +417,10 @@ Tests:
 
 ## wukong-052: Implement cache integrity verification
 
-- [ ] Verify content hashes on read.
-- [ ] Quarantine or remove corrupted objects.
-- [ ] Provide actionable diagnostics.
-- [ ] Add an optional full cache verification command.
+- [x] Verify content hashes on read.
+- [x] Quarantine or remove corrupted objects.
+- [x] Provide actionable diagnostics.
+- [x] Add an optional full cache verification command.
 
 ## wukong-053: Define installed-state metadata
 
@@ -676,7 +676,6 @@ Simulate failure during:
 
 - [ ] `wukong cache dir`.
 - [ ] `wukong cache status`.
-- [ ] `wukong cache verify`.
 - [ ] `wukong cache clean`.
 - [ ] Safe garbage collection.
 - [ ] Dry-run.

@@ -18,6 +18,7 @@ Current records:
 - [0012: lockfile schema](0012-lockfile-schema.md)
 - [0013: cache layout](0013-cache-layout.md)
 - [0014: cache publication](0014-cache-publication.md)
+- [0015: cache integrity verification](0015-cache-integrity-verification.md)
 
 ## When to write an ADR
 

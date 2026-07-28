@@ -3,6 +3,7 @@ pub mod diagnostics;
 
 use std::{env, ffi::OsString, fs, path::PathBuf, process};
 use wukong_core::{
+    cache::{CacheLayout, verify_cached_packages},
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::lock_direct_local_dependencies,
     init::initialize_manifest,
@@ -36,11 +37,60 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
+        Some(command) if command == "cache" => match run_cache(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
         Some(command) => render_error(&user_error(
             format!("unsupported command {}", command.to_string_lossy()),
             "run wukong --help for supported commands",
         )),
         None => ProcessExit::Success,
+    }
+}
+
+fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let command = arguments.next().ok_or_else(|| {
+        user_error(
+            "cache requires a subcommand",
+            "run wukong cache verify to check prepared package objects",
+        )
+    })?;
+    if command != "verify" {
+        return Err(user_error(
+            format!("unsupported cache command {}", command.to_string_lossy()),
+            "run wukong cache verify to check prepared package objects",
+        ));
+    }
+    if let Some(argument) = arguments.next() {
+        return Err(user_error(
+            format!(
+                "unsupported cache verify argument {}",
+                argument.to_string_lossy()
+            ),
+            "run wukong cache verify without additional arguments",
+        ));
+    }
+    let layout = CacheLayout::from_environment()?;
+    let report = verify_cached_packages(&layout)?;
+    println!(
+        "cache verification: {} verified, {} corrupt removed",
+        report.verified_packages(),
+        report.removed_corrupt_packages()
+    );
+    if report.removed_corrupt_packages() == 0 {
+        Ok(())
+    } else {
+        Err(boxed(
+            Diagnostic::new(
+                ErrorCode::IntegrityFailure,
+                format!(
+                    "cache verification removed {} corrupt object(s)",
+                    report.removed_corrupt_packages()
+                ),
+            )
+            .with_recovery("run wukong lock or sync again to restore removed cache objects"),
+        ))
     }
 }
 
@@ -218,7 +268,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 }
 
 fn print_usage() {
-    println!("usage: wukong <init|lock> [options]");
+    println!("usage: wukong <init|lock|cache verify> [options]");
 }
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {

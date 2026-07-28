@@ -13,3 +13,10 @@ Publication stages a canonical tree in a unique sibling directory, flushes it,
 then atomically renames and re-verifies the final object. A concurrently
 published object is verified and reused; mismatched content returns an
 integrity error. See [ADR 0014](adr/0014-cache-publication.md).
+
+The prepared-package cache-read API re-hashes a canonical tree against the
+object's SHA-256 directory name. A mismatching object is cache-owned, removed,
+and reported as an integrity failure. `wukong cache verify` checks all prepared
+objects in deterministic order, reports verified and removed-corrupt counts,
+and exits with code 4 if it repaired corruption. Unrecognized entries are
+never deleted. See [ADR 0015](adr/0015-cache-integrity-verification.md).
