@@ -962,13 +962,13 @@ Release criteria:
 
 Require:
 
-- [ ] Operating system.
-- [ ] `wukong` version.
-- [ ] Godot version.
-- [ ] Minimal manifest.
-- [ ] Lockfile where safe.
-- [ ] Verbose diagnostic output with secrets removed.
-- [ ] Expected and actual behaviour.
+- [x] Operating system.
+- [x] `wukong` version.
+- [x] Godot version.
+- [x] Minimal manifest.
+- [x] Lockfile where safe.
+- [x] Verbose diagnostic output with secrets removed.
+- [x] Expected and actual behaviour.
 
 ## wukong-151: Expand the compatibility corpus
 

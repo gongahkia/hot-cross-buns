@@ -19,6 +19,12 @@ For a panic or unexpected internal error, rerun the smallest test with
 output. For archive, transaction, cache, credential, or path bugs, add a
 focused security regression fixture before changing implementation.
 
+Public bug reports use the repository's reproducibility form. It requires the
+operating system, Wukong and Godot versions, a minimal manifest, a safe
+lockfile response, redacted diagnostic output, and expected versus actual
+behaviour. Report security-sensitive information through `SECURITY.md`, not a
+public issue.
+
 Godot executable validation is opt-in. Use `wukong godot path` to identify an
 explicit executable; run the recorded headless compatibility procedure only on
 a machine with the pinned runtime.
