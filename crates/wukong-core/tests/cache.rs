@@ -10,8 +10,8 @@ use std::{
 use tempfile::TempDir;
 use wukong_core::{
     cache::{
-        CACHE_SCHEMA, CacheLayout, publish_prepared_package, verify_cached_packages,
-        verify_package_object,
+        CACHE_SCHEMA, CacheLayout, clean_cache, inspect_cache, publish_prepared_package,
+        verify_cached_packages, verify_package_object,
     },
     diagnostic::ErrorCode,
     operation_lock::AdvisoryLock,
@@ -267,6 +267,78 @@ fn invariant_full_cache_verification_never_deletes_unrecognized_entries() {
 
     assert_eq!(error.code(), ErrorCode::IntegrityFailure);
     assert!(foreign.exists());
+}
+
+#[test]
+fn invariant_cache_status_counts_recognized_objects_and_total_bytes() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let object = publish_prepared_package(&layout, &prepared).expect("publication should work");
+    let archive = layout.downloads().join("sha256").join("a".repeat(64));
+    write(&archive, "archive");
+    write(&layout.packages().join("sha256/foreign/data"), "preserve\n");
+
+    let status = inspect_cache(&layout).expect("cache status should work");
+
+    assert_eq!(status.prepared_packages(), 1);
+    assert!(status.prepared_package_bytes() > 0);
+    assert_eq!(status.archives(), 1);
+    assert_eq!(status.archive_bytes(), 7);
+    assert!(status.total_bytes() >= status.prepared_package_bytes() + status.archive_bytes());
+    assert!(object.path().exists());
+}
+
+#[test]
+fn invariant_cache_clean_dry_run_and_removal_preserve_unrecognized_entries() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let object = publish_prepared_package(&layout, &prepared).expect("publication should work");
+    let archive = layout.downloads().join("sha256").join("b".repeat(64));
+    write(&archive, "archive");
+    let foreign = layout.packages().join("sha256/foreign");
+    write(&foreign.join("data"), "preserve\n");
+
+    let preview = clean_cache(&layout, true).expect("dry run should work");
+
+    assert!(preview.dry_run());
+    assert_eq!(preview.prepared_packages(), 1);
+    assert_eq!(preview.archives(), 1);
+    assert!(preview.reclaimed_bytes() > 7);
+    assert!(object.path().exists());
+    assert!(archive.exists());
+
+    let cleaned = clean_cache(&layout, false).expect("clean should work");
+
+    assert!(!cleaned.dry_run());
+    assert_eq!(cleaned.prepared_packages(), preview.prepared_packages());
+    assert_eq!(cleaned.archives(), preview.archives());
+    assert_eq!(cleaned.reclaimed_bytes(), preview.reclaimed_bytes());
+    assert!(!object.path().exists());
+    assert!(!archive.exists());
+    assert!(foreign.exists());
+}
+
+#[test]
+fn invariant_cache_clean_refuses_to_delete_an_actively_locked_object() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let object = publish_prepared_package(&layout, &prepared).expect("publication should work");
+    let lock = AdvisoryLock::try_acquire(
+        &layout
+            .object_lock(prepared.sha256())
+            .expect("object lock should derive"),
+        "fixture cache object",
+    )
+    .expect("fixture lock should acquire");
+
+    let error = clean_cache(&layout, false).expect_err("active object lock should block clean");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert!(object.path().exists());
+    drop(lock);
 }
 
 #[cfg(windows)]

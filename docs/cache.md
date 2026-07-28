@@ -44,3 +44,16 @@ HTTP archives use `downloads/sha256/<checksum>`, keyed solely by their declared
 lowercase SHA-256. The source URL, redirect destinations, timestamps, and
 credentials are never persisted. Every cache reuse re-hashes the archive before
 it is returned. See [HTTP archives](http-archives.md).
+
+## Maintenance
+
+`wukong cache dir` prints the active schema root. `wukong cache status` reports
+recognized prepared-package/archive counts plus binary human-readable byte
+sizes; its recursive size scan does not follow symlinks.
+
+`wukong cache clean --dry-run` reports deterministic cleanup candidates without
+mutation. Without `--dry-run`, `wukong cache clean` acquires every candidate's
+lock before deleting recognized prepared-package objects and checksum-addressed
+HTTP archives. It preserves lock files, unrecognized entries, Git checkouts,
+and metadata because their matching lock identities cannot yet be proven. See
+[ADR 0031](adr/0031-conservative-cache-maintenance.md).

@@ -47,6 +47,81 @@ pub struct CacheVerification {
     verified_packages: usize,
     removed_corrupt_packages: usize,
 }
+
+/// A deterministic, read-only summary of the active cache schema root.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CacheStatus {
+    prepared_packages: usize,
+    prepared_package_bytes: u64,
+    archives: usize,
+    archive_bytes: u64,
+    total_bytes: u64,
+}
+impl CacheStatus {
+    /// Returns the count of recognized prepared-package objects.
+    #[must_use]
+    pub const fn prepared_packages(self) -> usize {
+        self.prepared_packages
+    }
+
+    /// Returns the bytes occupied by recognized prepared-package objects.
+    #[must_use]
+    pub const fn prepared_package_bytes(self) -> u64 {
+        self.prepared_package_bytes
+    }
+
+    /// Returns the count of recognized checksum-addressed archive objects.
+    #[must_use]
+    pub const fn archives(self) -> usize {
+        self.archives
+    }
+
+    /// Returns the bytes occupied by recognized checksum-addressed archives.
+    #[must_use]
+    pub const fn archive_bytes(self) -> u64 {
+        self.archive_bytes
+    }
+
+    /// Returns recursively counted cache bytes without following symlinks.
+    #[must_use]
+    pub const fn total_bytes(self) -> u64 {
+        self.total_bytes
+    }
+}
+
+/// A deterministic report of cache entries targeted by a maintenance run.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CacheCleanReport {
+    prepared_packages: usize,
+    archives: usize,
+    reclaimed_bytes: u64,
+    dry_run: bool,
+}
+impl CacheCleanReport {
+    /// Returns the number of prepared-package objects targeted.
+    #[must_use]
+    pub const fn prepared_packages(self) -> usize {
+        self.prepared_packages
+    }
+
+    /// Returns the number of checksum-addressed archives targeted.
+    #[must_use]
+    pub const fn archives(self) -> usize {
+        self.archives
+    }
+
+    /// Returns the bytes targeted for reclamation.
+    #[must_use]
+    pub const fn reclaimed_bytes(self) -> u64 {
+        self.reclaimed_bytes
+    }
+
+    /// Returns whether the report was calculated without deleting entries.
+    #[must_use]
+    pub const fn dry_run(self) -> bool {
+        self.dry_run
+    }
+}
 impl CacheVerification {
     /// Returns the number of verified prepared-package objects.
     #[must_use]
@@ -276,6 +351,216 @@ pub fn verify_cached_packages(layout: &CacheLayout) -> Result<CacheVerification,
         }
     }
     Ok(report)
+}
+
+/// Inspects recognized cache objects and recursively calculates active-cache size.
+///
+/// Symlinks are not followed. Missing cache directories report zero usage.
+///
+/// # Errors
+///
+/// Returns a diagnostic when cache content cannot be inspected.
+pub fn inspect_cache(layout: &CacheLayout) -> Result<CacheStatus, Box<Diagnostic>> {
+    let packages = collect_package_candidates(layout)?;
+    let archives = collect_archive_candidates(layout)?;
+    Ok(CacheStatus {
+        prepared_packages: packages.len(),
+        prepared_package_bytes: sum_bytes(&packages)?,
+        archives: archives.len(),
+        archive_bytes: sum_bytes(&archives)?,
+        total_bytes: path_size(&layout.schema_root())?,
+    })
+}
+
+/// Removes recognized cache-owned packages and archives, unless `dry_run` is set.
+///
+/// Git checkouts, metadata, lock files, and unrecognized cache entries are
+/// retained because this operation cannot prove their matching lock identity.
+///
+/// # Errors
+///
+/// Returns a diagnostic before deletion when any targeted object is actively locked.
+pub fn clean_cache(
+    layout: &CacheLayout,
+    dry_run: bool,
+) -> Result<CacheCleanReport, Box<Diagnostic>> {
+    let mut candidates = collect_package_candidates(layout)?;
+    candidates.extend(collect_archive_candidates(layout)?);
+    let report = CacheCleanReport {
+        prepared_packages: candidates
+            .iter()
+            .filter(|candidate| candidate.kind == CacheCandidateKind::Package)
+            .count(),
+        archives: candidates
+            .iter()
+            .filter(|candidate| candidate.kind == CacheCandidateKind::Archive)
+            .count(),
+        reclaimed_bytes: sum_bytes(&candidates)?,
+        dry_run,
+    };
+    if dry_run {
+        return Ok(report);
+    }
+    let _locks = candidates
+        .iter()
+        .map(|candidate| AdvisoryLock::try_acquire(&candidate.lock, &candidate.resource()))
+        .collect::<Result<Vec<_>, _>>()?;
+    for candidate in candidates {
+        remove_candidate(&candidate)?;
+    }
+    Ok(report)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CacheCandidateKind {
+    Package,
+    Archive,
+}
+
+struct CacheCandidate {
+    path: PathBuf,
+    lock: PathBuf,
+    bytes: u64,
+    kind: CacheCandidateKind,
+}
+impl CacheCandidate {
+    fn resource(&self) -> String {
+        let identity = self
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("unknown");
+        let kind = match self.kind {
+            CacheCandidateKind::Package => "cache object",
+            CacheCandidateKind::Archive => "HTTPS archive cache entry",
+        };
+        format!("{kind} {identity}")
+    }
+}
+
+fn collect_package_candidates(
+    layout: &CacheLayout,
+) -> Result<Vec<CacheCandidate>, Box<Diagnostic>> {
+    let parent = layout.packages().join("sha256");
+    collect_candidates(&parent, CacheCandidateKind::Package, |digest| {
+        layout.object_lock(digest)
+    })
+}
+
+fn collect_archive_candidates(
+    layout: &CacheLayout,
+) -> Result<Vec<CacheCandidate>, Box<Diagnostic>> {
+    let parent = layout.downloads().join("sha256");
+    collect_candidates(&parent, CacheCandidateKind::Archive, |digest| {
+        Ok(layout.locks().join("http").join(format!("{digest}.lock")))
+    })
+}
+
+fn collect_candidates(
+    parent: &Path,
+    kind: CacheCandidateKind,
+    lock_path: impl Fn(&str) -> Result<PathBuf, Box<Diagnostic>>,
+) -> Result<Vec<CacheCandidate>, Box<Diagnostic>> {
+    let entries = match fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(internal(
+                "could not inspect cache maintenance candidates",
+                error,
+            ));
+        }
+    };
+    let mut entries = entries
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| internal("could not enumerate cache maintenance candidates", error))?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+    let mut candidates = Vec::new();
+    for entry in entries {
+        let name = entry.file_name();
+        let Some(digest) = name.to_str().filter(|name| is_sha256(name)) else {
+            continue;
+        };
+        let file_type = entry
+            .file_type()
+            .map_err(|error| internal("could not inspect cache maintenance candidate", error))?;
+        let expected = match kind {
+            CacheCandidateKind::Package => file_type.is_dir(),
+            CacheCandidateKind::Archive => file_type.is_file(),
+        };
+        if !expected {
+            continue;
+        }
+        let path = entry.path();
+        candidates.push(CacheCandidate {
+            lock: lock_path(digest)?,
+            bytes: path_size(&path)?,
+            path,
+            kind,
+        });
+    }
+    Ok(candidates)
+}
+
+fn sum_bytes(candidates: &[CacheCandidate]) -> Result<u64, Box<Diagnostic>> {
+    candidates.iter().try_fold(0_u64, |total, candidate| {
+        total.checked_add(candidate.bytes).ok_or_else(|| {
+            internal(
+                "cache size exceeds supported range",
+                "byte count overflowed u64",
+            )
+        })
+    })
+}
+
+fn path_size(path: &Path) -> Result<u64, Box<Diagnostic>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(internal("could not inspect cache size", error)),
+    };
+    if metadata.file_type().is_symlink() {
+        return Ok(0);
+    }
+    if metadata.file_type().is_file() {
+        return Ok(metadata.len());
+    }
+    if !metadata.file_type().is_dir() {
+        return Ok(0);
+    }
+    let mut entries = fs::read_dir(path)
+        .map_err(|error| internal("could not inspect cache directory size", error))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| internal("could not enumerate cache directory size", error))?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+    entries.into_iter().try_fold(0_u64, |total, entry| {
+        total.checked_add(path_size(&entry.path())?).ok_or_else(|| {
+            internal(
+                "cache size exceeds supported range",
+                "byte count overflowed u64",
+            )
+        })
+    })
+}
+
+fn remove_candidate(candidate: &CacheCandidate) -> Result<(), Box<Diagnostic>> {
+    let metadata = fs::symlink_metadata(&candidate.path)
+        .map_err(|error| internal("could not recheck cache clean candidate", error))?;
+    let expected = match candidate.kind {
+        CacheCandidateKind::Package => metadata.file_type().is_dir(),
+        CacheCandidateKind::Archive => metadata.file_type().is_file(),
+    };
+    if !expected {
+        return Err(integrity(format!(
+            "cache clean candidate changed unexpectedly: {}",
+            candidate.path.display()
+        )));
+    }
+    let removal = match candidate.kind {
+        CacheCandidateKind::Package => fs::remove_dir_all(&candidate.path),
+        CacheCandidateKind::Archive => fs::remove_file(&candidate.path),
+    };
+    removal.map_err(|error| internal("could not remove cache clean candidate", error))
 }
 
 fn package_staging_prefix(sha256: &str) -> String {

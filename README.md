@@ -9,7 +9,8 @@ lockfile, and source content should produce the same project addon state.
 
 Pre-alpha. The local-path vertical slice provides `wukong init`, `wukong lock`,
 and transactional `wukong install`/`wukong sync`. `wukong cache verify` verifies
-prepared-package cache objects. Git canonicalisation and core fetching are
+prepared-package cache objects; `wukong cache dir`, `status`, and conservative
+`clean --dry-run`/`clean` provide cache maintenance. Git canonicalisation and core fetching are
 implemented. HTTPS archive retrieval and immutable checksum-addressed caching
 are implemented in the core. `wukong lock` supports direct path, Git, and HTTP
 dependencies. `wukong add` resolves and synchronises direct path, Git, and

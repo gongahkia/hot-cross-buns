@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 use wukong_core::{
-    cache::{CacheLayout, verify_cached_packages},
+    cache::{CacheLayout, clean_cache, inspect_cache, verify_cached_packages},
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::{lock_direct_dependencies, update_direct_dependencies},
@@ -1598,26 +1598,100 @@ fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
     let command = arguments.next().ok_or_else(|| {
         user_error(
             "cache requires a subcommand",
-            "run wukong cache verify to check prepared package objects",
+            "run wukong cache <dir|status|clean|verify>",
         )
     })?;
-    if command != "verify" {
-        return Err(user_error(
+    let layout = CacheLayout::from_environment()?;
+    match command.to_str() {
+        Some("dir") => {
+            cache_arguments_empty(&mut arguments, "dir")?;
+            println!("{}", layout.schema_root().display());
+            Ok(())
+        }
+        Some("status") => {
+            cache_arguments_empty(&mut arguments, "status")?;
+            let status = inspect_cache(&layout)?;
+            let recognized = status
+                .prepared_package_bytes()
+                .saturating_add(status.archive_bytes());
+            println!(
+                "cache status: {}\nprepared packages: {} ({})\narchives: {} ({})\nother cache data: {}\ntotal: {}",
+                layout.schema_root().display(),
+                status.prepared_packages(),
+                human_bytes(status.prepared_package_bytes()),
+                status.archives(),
+                human_bytes(status.archive_bytes()),
+                human_bytes(status.total_bytes().saturating_sub(recognized)),
+                human_bytes(status.total_bytes()),
+            );
+            Ok(())
+        }
+        Some("clean") => {
+            let dry_run = parse_cache_clean_arguments(&mut arguments)?;
+            let report = clean_cache(&layout, dry_run)?;
+            let action = if report.dry_run() {
+                "cache clean dry-run"
+            } else {
+                "cache clean"
+            };
+            println!(
+                "{action}: {} prepared package(s), {} archive(s), {}",
+                report.prepared_packages(),
+                report.archives(),
+                human_bytes(report.reclaimed_bytes()),
+            );
+            Ok(())
+        }
+        Some("verify") => run_cache_verify(&layout, &mut arguments),
+        _ => Err(user_error(
             format!("unsupported cache command {}", command.to_string_lossy()),
-            "run wukong cache verify to check prepared package objects",
-        ));
+            "run wukong cache <dir|status|clean|verify>",
+        )),
     }
+}
+
+fn cache_arguments_empty(
+    arguments: &mut impl Iterator<Item = OsString>,
+    command: &str,
+) -> Result<(), Box<Diagnostic>> {
     if let Some(argument) = arguments.next() {
         return Err(user_error(
             format!(
-                "unsupported cache verify argument {}",
+                "unsupported cache {command} argument {}",
                 argument.to_string_lossy()
             ),
-            "run wukong cache verify without additional arguments",
+            format!("run wukong cache {command} without additional arguments"),
         ));
     }
-    let layout = CacheLayout::from_environment()?;
-    let report = verify_cached_packages(&layout)?;
+    Ok(())
+}
+
+fn parse_cache_clean_arguments(
+    arguments: &mut impl Iterator<Item = OsString>,
+) -> Result<bool, Box<Diagnostic>> {
+    let mut dry_run = false;
+    for argument in arguments.by_ref() {
+        if argument == "--dry-run" && !dry_run {
+            dry_run = true;
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported cache clean argument {}",
+                argument.to_string_lossy()
+            ),
+            "run wukong cache clean [--dry-run]",
+        ));
+    }
+    Ok(dry_run)
+}
+
+fn run_cache_verify(
+    layout: &CacheLayout,
+    arguments: &mut impl Iterator<Item = OsString>,
+) -> Result<(), Box<Diagnostic>> {
+    cache_arguments_empty(arguments, "verify")?;
+    let report = verify_cached_packages(layout)?;
     println!(
         "cache verification: {} verified, {} corrupt removed",
         report.verified_packages(),
@@ -1637,6 +1711,22 @@ fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
             .with_recovery("run wukong lock or sync again to restore removed cache objects"),
         ))
     }
+}
+
+fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    let mut unit = 0_usize;
+    let mut divisor = 1_u64;
+    while unit + 1 < UNITS.len() && bytes / divisor >= 1024 {
+        divisor *= 1024;
+        unit += 1;
+    }
+    let whole = bytes / divisor;
+    let tenth = bytes % divisor * 10 / divisor;
+    format!("{whole}.{tenth} {}", UNITS[unit])
 }
 
 fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
@@ -1991,7 +2081,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|godot path|validate|lock|install|sync|tree|why|cache verify> [options]"
+        "usage: wukong <init|add|remove|update|outdated|godot path|validate|lock|install|sync|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

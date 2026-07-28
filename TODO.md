@@ -701,12 +701,12 @@ Simulate failure during:
 
 ## wukong-093: Add cache maintenance commands
 
-- [ ] `wukong cache dir`.
-- [ ] `wukong cache status`.
-- [ ] `wukong cache clean`.
-- [ ] Safe garbage collection.
-- [ ] Dry-run.
-- [ ] Human-readable size reporting.
+- [x] `wukong cache dir`.
+- [x] `wukong cache status`.
+- [x] `wukong cache clean`.
+- [x] Safe garbage collection.
+- [x] Dry-run.
+- [x] Human-readable size reporting.
 
 ## wukong-094: Implement `wukong doctor`
 
