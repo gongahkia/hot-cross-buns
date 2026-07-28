@@ -729,11 +729,11 @@ Check:
 
 ## wukong-100: Create a written threat model
 
-- [ ] Identify assets.
-- [ ] Identify trust boundaries.
-- [ ] Identify attacker-controlled inputs.
-- [ ] Define security assumptions.
-- [ ] Document residual risk.
+- [x] Identify assets.
+- [x] Identify trust boundaries.
+- [x] Identify attacker-controlled inputs.
+- [x] Define security assumptions.
+- [x] Document residual risk.
 
 ## wukong-101: Fuzz manifest and lockfile parsers
 

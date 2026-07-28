@@ -17,6 +17,9 @@ installed-file ownership.
 
 ## Current status
 
-The package-management features are not implemented. Planned controls are
-tracked in the PRD and TODO; they are not security guarantees until implemented
-and tested.
+Implemented controls include typed manifest/lock/state parsing, transactional
+project synchronisation, ZIP extraction limits, content-addressed cache
+verification, advisory operation locks, credential redaction, and no package
+script execution. They are covered by local tests but are not security
+guarantees. See the [threat model](docs/threat-model.md) for assumptions and
+residual risk.
