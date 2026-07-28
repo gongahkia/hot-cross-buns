@@ -8,6 +8,7 @@ Current records:
 - [0002: manifest initialisation transaction](0002-manifest-initialisation-transaction.md)
 - [0003: manifest edit transaction](0003-manifest-edit-transaction.md)
 - [0004: package identity](0004-package-identity.md)
+- [0005: source-adapter contract](0005-source-adapter-contract.md)
 
 ## When to write an ADR
 

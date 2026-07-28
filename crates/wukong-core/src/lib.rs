@@ -17,3 +17,6 @@ pub mod manifest_edit;
 
 /// Godot project-root discovery.
 pub mod project;
+
+/// Source-adapter contracts.
+pub mod source;

@@ -161,14 +161,14 @@ Acceptance criteria:
 
 The interface should support:
 
-- [ ] Canonical source identity.
-- [ ] Available version discovery where possible.
-- [ ] Resolution to an immutable source revision.
-- [ ] Fetching.
-- [ ] Integrity metadata.
-- [ ] Package layout metadata.
-- [ ] Human-readable diagnostics.
-- [ ] Offline availability checks.
+- [x] Canonical source identity.
+- [x] Available version discovery where possible.
+- [x] Resolution to an immutable source revision.
+- [x] Fetching.
+- [x] Integrity metadata.
+- [x] Package layout metadata.
+- [x] Human-readable diagnostics.
+- [x] Offline availability checks.
 
 Do not leak Git-specific assumptions into the resolver.
 
