@@ -16,7 +16,7 @@ use wukong_core::{
 };
 
 const PATH: &str = "fixture/compatibility.toml";
-const EXPECTED_CORPUS_SIZE: usize = 24;
+const EXPECTED_CORPUS_SIZE: usize = 25;
 
 #[test]
 fn invariant_fixture_parses_complete_immutable_metadata_without_execution() {
@@ -81,7 +81,7 @@ target_path = "addons/example"
 }
 
 #[test]
-fn invariant_public_corpus_has_twenty_four_unique_complete_fixtures() {
+fn invariant_public_corpus_has_twenty_five_unique_complete_fixtures() {
     let fixtures = fixture_paths()
         .into_iter()
         .map(|path| {
@@ -101,6 +101,25 @@ fn invariant_public_corpus_has_twenty_four_unique_complete_fixtures() {
             .iter()
             .all(|fixture| fixture.headless_validation().is_none())
     );
+}
+
+#[test]
+fn invariant_native_extension_fixture_records_gdextension_descriptor() {
+    let fixture_path = fixture_paths()
+        .into_iter()
+        .find(|path| path.file_stem().is_some_and(|stem| stem == "quarkphysics"))
+        .expect("quarkphysics fixture should exist");
+    let input = fs::read_to_string(&fixture_path).expect("fixture should read");
+    let fixture = CompatibilityFixture::parse(&fixture_path, &input).expect("fixture should parse");
+
+    assert_eq!(fixture.id().as_str(), "quarkphysics");
+    assert_eq!(
+        fixture.revision(),
+        "29ca59d2536662352dc9c07c6e727c77014fdb3f"
+    );
+    assert!(fixture.installed_paths().contains(&PathBuf::from(
+        "addons/quarkphysics/bin/quarkphysics.gdextension"
+    )));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 # Compatibility fixtures
 
 Schema-one fixtures live in `fixtures/compatibility/v1/`. The current corpus
-contains 24 public addons. Every fixture pins a public HTTPS Git source to a
+contains 25 public addons. Every fixture pins a public HTTPS Git source to a
 full commit and records its explicit layout, complete expected installed file
 paths, canonical package-tree SHA-256, and Godot version requirement.
 
@@ -73,3 +73,17 @@ executable is unavailable on this machine.
 | `gdquest-colorpicker-presets` | `addons/gdquest_colorpicker_presets` | `addons/gdquest_colorpicker_presets` |
 | `gdquest-prototype-material` | `addons/gdquest_prototype_material` | `addons/gdquest_prototype_material` |
 | `gdquest-sparkly-bag` | `addons/gdquest_sparkly_bag` | `addons/gdquest_sparkly_bag` |
+
+## W151 native-extension validation record
+
+On 2026-07-29, MIT-licensed QuarkPhysics source at commit
+`29ca59d2536662352dc9c07c6e727c77014fdb3f` passed opt-in source verification:
+prepared-tree verification, cold materialisation, warm reuse, and no-op sync.
+Its checked-out addon contains a `.gdextension` descriptor with a 4.1 minimum.
+It does not contain the descriptor's native libraries, so this is not runtime,
+ABI, architecture, or platform-binary compatibility evidence. No Godot or
+package script was executed.
+
+| Fixture | Source subdirectory | Target path | Descriptor |
+| --- | --- | --- | --- |
+| `quarkphysics` | `project/addons/quarkphysics` | `addons/quarkphysics` | `bin/quarkphysics.gdextension` |
