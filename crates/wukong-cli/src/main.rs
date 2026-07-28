@@ -6,12 +6,14 @@ use wukong_core::{
     cache::{CacheLayout, verify_cached_packages},
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
-    direct_lock::{lock_direct_dependencies, lock_direct_local_dependencies},
-    direct_sync::sync_direct_local_dependencies,
+    direct_lock::lock_direct_dependencies,
+    direct_sync::sync_direct_dependencies,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
-    manifest::{MANIFEST_FILE_NAME, Manifest},
+    manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
+    manifest_edit::{DependencyDeclaration, DependencySection, add_dependency},
     project::ProjectRoot,
+    transactional_file::{FileSnapshot, write_atomic},
 };
 
 use crate::diagnostics::{ProcessExit, render_human};
@@ -32,6 +34,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     }
     match command {
         Some(command) if command == "init" => match run_init(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "add" => match run_add(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -61,6 +67,282 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
         )),
         None => ProcessExit::Success,
     }
+}
+
+#[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
+fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_add_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let manifest_snapshot = FileSnapshot::capture(&manifest_path)?;
+    let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    let section = if options.development {
+        DependencySection::Development
+    } else {
+        DependencySection::Runtime
+    };
+    add_dependency(
+        &manifest_path,
+        section,
+        &options.alias,
+        &options.declaration,
+    )?;
+    let manifest_bytes = match fs::read(&manifest_path) {
+        Ok(content) => content,
+        Err(error) => {
+            return Err(rollback_add(
+                boxed(
+                    Diagnostic::new(
+                        ErrorCode::InternalFailure,
+                        format!(
+                            "could not read updated manifest {}",
+                            manifest_path.display()
+                        ),
+                    )
+                    .with_cause(error)
+                    .with_recovery("check filesystem permissions and retry"),
+                ),
+                &manifest_snapshot,
+                None,
+                None,
+            ));
+        }
+    };
+    let manifest_input = match std::str::from_utf8(&manifest_bytes) {
+        Ok(input) => input,
+        Err(error) => {
+            return Err(rollback_add(
+                boxed(
+                    Diagnostic::new(ErrorCode::InternalFailure, "updated manifest is not UTF-8")
+                        .with_cause(error)
+                        .with_recovery("restore a valid wukong.toml and retry"),
+                ),
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let manifest = match Manifest::parse(&manifest_path, manifest_input) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let cache = match CacheLayout::from_environment() {
+        Ok(cache) => cache,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let lock = match lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false) {
+        Ok(lock) => lock,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let lock_output = lock.to_toml().into_bytes();
+    if let Err(error) = write_atomic(&lock_path, &lock_output) {
+        return Err(rollback_add(
+            error,
+            &manifest_snapshot,
+            Some(&manifest_bytes),
+            None,
+        ));
+    }
+    let summary = match sync_direct_dependencies(
+        project.path(),
+        &manifest_path,
+        &manifest,
+        &lock,
+        options.development,
+        &cache,
+        false,
+    ) {
+        Ok(summary) => summary,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                Some((&lock_snapshot, lock_output.as_slice())),
+            ));
+        }
+    };
+    println!(
+        "added {}; sync: {} written, {} unchanged, {} removed",
+        options.alias, summary.written, summary.unchanged, summary.removed
+    );
+    Ok(())
+}
+
+fn rollback_add(
+    original: Box<Diagnostic>,
+    manifest_snapshot: &FileSnapshot,
+    manifest_expected: Option<&[u8]>,
+    lock: Option<(&FileSnapshot, &[u8])>,
+) -> Box<Diagnostic> {
+    let mut failures = Vec::new();
+    if let Some((lock_snapshot, expected)) = lock {
+        if let Err(error) = lock_snapshot.restore_if_current(Some(expected)) {
+            failures.push(format!("lockfile: {error}"));
+        }
+    }
+    if let Some(expected) = manifest_expected {
+        if let Err(error) = manifest_snapshot.restore_if_current(Some(expected)) {
+            failures.push(format!("manifest: {error}"));
+        }
+    }
+    if failures.is_empty() {
+        original
+    } else {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "dependency add failed and rollback was incomplete",
+            )
+            .with_cause(format!("operation: {original}; {}", failures.join("; ")))
+            .with_recovery("inspect manifest and lockfile state before retrying"),
+        )
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AddOptions {
+    alias: String,
+    declaration: DependencyDeclaration,
+    development: bool,
+    project: Option<PathBuf>,
+}
+
+fn parse_add_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<AddOptions, Box<Diagnostic>> {
+    let alias = arguments.next().ok_or_else(|| {
+        user_error(
+            "add requires a package alias",
+            "run wukong add <alias> --path <directory>, --git <url>, or --url <url> --sha256 <hash>",
+        )
+    })?;
+    let alias = alias.to_string_lossy().into_owned();
+    let mut path = None;
+    let mut git = None;
+    let mut git_revision = None;
+    let mut url = None;
+    let mut sha256 = None;
+    let mut development = false;
+    let mut project = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--dev" {
+            development = true;
+            continue;
+        }
+        if argument == "--path" {
+            path = Some(PathBuf::from(required_add_value(&mut arguments, "--path")?));
+            continue;
+        }
+        if argument == "--git" {
+            git = Some(required_add_value(&mut arguments, "--git")?);
+            continue;
+        }
+        if argument == "--rev" {
+            git_revision = Some(required_add_value(&mut arguments, "--rev")?);
+            continue;
+        }
+        if argument == "--url" {
+            url = Some(required_add_value(&mut arguments, "--url")?);
+            continue;
+        }
+        if argument == "--sha256" {
+            sha256 = Some(required_add_value(&mut arguments, "--sha256")?);
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported add argument {}", argument.to_string_lossy()),
+            "use --path, --git [--rev], or --url --sha256",
+        ));
+    }
+    let declaration = match (path, git, url) {
+        (Some(path), None, None) if git_revision.is_none() && sha256.is_none() => {
+            DependencyDeclaration::Path(path)
+        }
+        (None, Some(url), None) if sha256.is_none() => DependencyDeclaration::Git {
+            url,
+            reference: git_revision.map(GitReference::Rev),
+        },
+        (None, None, Some(url)) if git_revision.is_none() => {
+            let sha256 = sha256.ok_or_else(|| {
+                user_error(
+                    "--url requires --sha256",
+                    "provide the expected 64-character SHA-256 checksum",
+                )
+            })?;
+            DependencyDeclaration::Url { url, sha256 }
+        }
+        _ => {
+            return Err(user_error(
+                "add requires exactly one source declaration",
+                "use --path, --git [--rev], or --url --sha256",
+            ));
+        }
+    };
+    Ok(AddOptions {
+        alias,
+        declaration,
+        development,
+        project,
+    })
+}
+
+fn required_add_value(
+    arguments: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<String, Box<Diagnostic>> {
+    arguments
+        .next()
+        .map(|value| value.to_string_lossy().into_owned())
+        .ok_or_else(|| {
+            user_error(
+                format!("{option} requires a value"),
+                "provide the required option value",
+            )
+        })
 }
 
 fn run_tree(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
@@ -560,8 +842,10 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             "run wukong lock to resolve the current manifest",
         )
     })?;
+    let cache = CacheLayout::from_environment()?;
     if options.locked {
-        let expected = lock_direct_local_dependencies(&manifest_path, &manifest, None)?;
+        let expected =
+            lock_direct_dependencies(&manifest_path, &manifest, None, &cache, options.offline)?;
         if expected.to_toml() != lock.to_toml() {
             return Err(user_error(
                 "manifest and lockfile differ while --locked was supplied",
@@ -569,12 +853,14 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             ));
         }
     }
-    let summary = sync_direct_local_dependencies(
+    let summary = sync_direct_dependencies(
         project.path(),
         &manifest_path,
         &manifest,
         &lock,
         options.include_dev,
+        &cache,
+        options.offline,
     )?;
     println!(
         "sync: {} written, {} unchanged, {} removed",
@@ -632,6 +918,7 @@ struct SyncOptions {
     project: Option<PathBuf>,
     include_dev: bool,
     locked: bool,
+    offline: bool,
 }
 fn parse_sync_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -640,6 +927,7 @@ fn parse_sync_arguments(
         project: None,
         include_dev: false,
         locked: false,
+        offline: false,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
@@ -652,9 +940,11 @@ fn parse_sync_arguments(
         }
         if argument == "--frozen" {
             options.locked = true;
+            options.offline = true;
             continue;
         }
         if argument == "--offline" {
+            options.offline = true;
             continue;
         }
         if argument == "--project" {
@@ -768,9 +1058,83 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 }
 
 fn print_usage() {
-    println!("usage: wukong <init|lock|install|sync|tree|why|cache verify> [options]");
+    println!("usage: wukong <init|add|lock|install|sync|tree|why|cache verify> [options]");
 }
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
     Box::new(diagnostic)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AddOptions, parse_add_arguments};
+    use std::{ffi::OsString, path::PathBuf};
+    use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
+
+    #[test]
+    fn add_parser_accepts_git_url_and_exact_revision() {
+        let options = parse_add_arguments(
+            [
+                "addon",
+                "--git",
+                "https://example.test/addon.git",
+                "--rev",
+                "0123456789abcdef0123456789abcdef01234567",
+            ]
+            .into_iter()
+            .map(OsString::from),
+        )
+        .expect("Git add specification should parse");
+
+        assert_eq!(
+            options,
+            AddOptions {
+                alias: "addon".to_owned(),
+                declaration: DependencyDeclaration::Git {
+                    url: "https://example.test/addon.git".to_owned(),
+                    reference: Some(GitReference::Rev(
+                        "0123456789abcdef0123456789abcdef01234567".to_owned()
+                    )),
+                },
+                development: false,
+                project: None,
+            }
+        );
+    }
+
+    #[test]
+    fn add_parser_accepts_checksummed_url_and_local_development_path() {
+        let archive = parse_add_arguments(
+            [
+                "archive",
+                "--url",
+                "https://example.test/addon.zip",
+                "--sha256",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            ]
+            .into_iter()
+            .map(OsString::from),
+        )
+        .expect("archive add specification should parse");
+        let local = parse_add_arguments(
+            ["tool", "--path", "../tool", "--dev"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("local development add specification should parse");
+
+        assert!(matches!(
+            archive.declaration,
+            DependencyDeclaration::Url { .. }
+        ));
+        assert_eq!(
+            local,
+            AddOptions {
+                alias: "tool".to_owned(),
+                declaration: DependencyDeclaration::Path(PathBuf::from("../tool")),
+                development: true,
+                project: None,
+            }
+        );
+    }
 }

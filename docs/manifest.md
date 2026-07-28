@@ -47,6 +47,6 @@ preserves untouched TOML comments and fields, and sorts the changed dependency
 table lexicographically. New inline source fields use a fixed order.
 
 Edits are staged and committed transactionally; see
-[ADR 0003](adr/0003-manifest-edit-transaction.md). `wukong add` and
-`wukong remove` are not exposed yet because their PRD semantics also require
-resolution, lockfile updates, and package materialisation.
+[ADR 0003](adr/0003-manifest-edit-transaction.md). [`wukong add`](add.md)
+extends this with lockfile and project synchronisation through the composite
+transaction in [ADR 0027](adr/0027-dependency-mutation-transaction.md).

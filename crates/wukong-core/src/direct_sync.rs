@@ -1,11 +1,16 @@
-//! Local-path lockfile verification and transactional project synchronisation.
+//! Direct-source lockfile verification and transactional project synchronisation.
 
 use crate::{
+    archive::{ExtractionLimits, extract_zip},
+    cache::CacheLayout,
     diagnostic::{Diagnostic, ErrorCode},
+    git_fetch::GitFetcher,
+    git_source::{GitSourceRequest, canonicalize_git_url},
+    http_archive::{HttpArchiveFetcher, canonicalize_archive_url},
     installed_state::{DependencyGroup, InstalledPackage},
     local_source::{LocalPathAdapter, LocalPathRequest},
-    lockfile::Lockfile,
-    manifest::{Dependency, Manifest},
+    lockfile::{LockedSource, Lockfile},
+    manifest::{Dependency, GitReference, Manifest},
     ownership::{PackageMaterialization, build_desired_file_map},
     package_tree::prepare_package_tree,
     project_sync::{SyncSummary, sync_project},
@@ -17,22 +22,25 @@ use std::{
 };
 use tempfile::TempDir;
 
-/// Synchronises selected direct local dependencies exactly as locked.
+/// Synchronises selected direct dependencies exactly as locked.
 ///
 /// # Errors
 ///
-/// Returns a diagnostic when the manifest, lockfile, or current local content
+/// Returns a diagnostic when the manifest, lockfile, or source content
 /// disagrees before any project file is changed.
-pub fn sync_direct_local_dependencies(
+pub fn sync_direct_dependencies(
     project_root: &Path,
     manifest_path: &Path,
     manifest: &Manifest,
     lock: &Lockfile,
     include_dev: bool,
+    cache: &CacheLayout,
+    offline: bool,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
     let staging = TempDir::new()
-        .map_err(|error| internal("could not create local sync preparation directory", error))?;
-    let adapter = LocalPathAdapter;
+        .map_err(|error| internal("could not create sync preparation directory", error))?;
+    let git = GitFetcher::new(cache.clone());
+    let http = HttpArchiveFetcher::new(cache.clone());
     let cancellation = CancellationToken::new();
     let mut trees = BTreeMap::new();
     let mut packages = Vec::new();
@@ -41,36 +49,19 @@ pub fn sync_direct_local_dependencies(
             continue;
         }
         let dependency = dependency(manifest, locked.name().as_str(), locked.development())?;
-        let Dependency::Path(path) = dependency else {
-            return Err(Box::new(
-                Diagnostic::new(
-                    ErrorCode::UserInput,
-                    format!(
-                        "locked package {} is not a local path dependency",
-                        locked.name()
-                    ),
-                )
-                .with_recovery("regenerate wukong.lock with an implemented source adapter"),
-            ));
-        };
-        let resolution = adapter.resolve(
-            &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
+        let source_root = source_root(
+            locked.source(),
+            dependency,
+            manifest_path,
+            &git,
+            &http,
             &cancellation,
+            staging.path(),
+            offline,
+            locked.name().as_str(),
         )?;
-        if resolution.immutable_id() != locked.source().immutable_id() {
-            return Err(Box::new(
-                Diagnostic::new(
-                    ErrorCode::IntegrityFailure,
-                    format!(
-                        "local source content changed for locked package {}",
-                        locked.name()
-                    ),
-                )
-                .with_recovery("run wukong lock to update the immutable local source identity"),
-            ));
-        }
         let tree = prepare_package_tree(
-            &resolution.root().path().join(locked.source_subdirectory()),
+            &source_root.join(locked.source_subdirectory()),
             &staging.path().join(locked.name().as_str()),
         )?;
         if tree.sha256() != locked.package_sha256() {
@@ -119,6 +110,125 @@ pub fn sync_direct_local_dependencies(
         groups.insert(DependencyGroup::DevDependencies);
     }
     sync_project(project_root, groups, packages, &desired)
+}
+
+/// Synchronises selected direct local dependencies exactly as locked.
+///
+/// # Errors
+///
+/// Returns a diagnostic when a lockfile contains a non-local source or when
+/// local source content differs from its immutable lock identity.
+pub fn sync_direct_local_dependencies(
+    project_root: &Path,
+    manifest_path: &Path,
+    manifest: &Manifest,
+    lock: &Lockfile,
+    include_dev: bool,
+) -> Result<SyncSummary, Box<Diagnostic>> {
+    if lock
+        .packages()
+        .values()
+        .any(|package| !matches!(package.source(), LockedSource::Local(_)))
+    {
+        return Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::UserInput,
+                "synchronisation supports only local dependencies currently",
+            )
+            .with_recovery("use sync_direct_dependencies for locked Git or HTTPS sources"),
+        ));
+    }
+    let cache = CacheLayout::for_root(
+        manifest_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(".wukong-local-sync-cache"),
+    )?;
+    sync_direct_dependencies(
+        project_root,
+        manifest_path,
+        manifest,
+        lock,
+        include_dev,
+        &cache,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn source_root(
+    source: &LockedSource,
+    dependency: &Dependency,
+    manifest_path: &Path,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+    cancellation: &CancellationToken,
+    staging: &Path,
+    offline: bool,
+    package: &str,
+) -> Result<std::path::PathBuf, Box<Diagnostic>> {
+    match (source, dependency) {
+        (LockedSource::Local(locked), Dependency::Path(path)) => {
+            let resolution = LocalPathAdapter.resolve(
+                &LocalPathRequest::new(manifest_path.to_path_buf(), path.clone()),
+                cancellation,
+            )?;
+            if resolution.immutable_id() != locked.immutable_id() {
+                return Err(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::IntegrityFailure,
+                        format!("local source content changed for locked package {package}"),
+                    )
+                    .with_package(package)
+                    .with_recovery("run wukong lock to update the immutable local source identity"),
+                ));
+            }
+            Ok(resolution.root().path().to_path_buf())
+        }
+        (LockedSource::Git(locked), Dependency::Git { url, .. }) => {
+            if canonicalize_git_url(url)?.as_str() != locked.url() {
+                return Err(source_mismatch(package));
+            }
+            let checkout = git.fetch(
+                &GitSourceRequest::new(
+                    locked.url().to_owned(),
+                    Some(GitReference::Rev(locked.commit().to_owned())),
+                ),
+                offline,
+            )?;
+            if checkout.resolution().immutable_id() != source.immutable_id() {
+                return Err(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::IntegrityFailure,
+                        format!("Git source identity changed for locked package {package}"),
+                    )
+                    .with_package(package)
+                    .with_recovery("run wukong lock to update the immutable Git commit"),
+                ));
+            }
+            Ok(checkout.root().to_path_buf())
+        }
+        (LockedSource::Http(locked), Dependency::Url { url, sha256 }) => {
+            if canonicalize_archive_url(url)? != locked.url() || sha256 != locked.sha256() {
+                return Err(source_mismatch(package));
+            }
+            let archive = http.fetch(locked.url(), locked.sha256(), offline)?;
+            let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
+            Ok(extracted.root().to_path_buf())
+        }
+        _ => Err(source_mismatch(package)),
+    }
+}
+
+fn source_mismatch(package: &str) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(
+            ErrorCode::UserInput,
+            format!("manifest source differs from locked package {package}"),
+        )
+        .with_package(package)
+        .with_recovery("run wukong lock to reconcile the manifest and lockfile"),
+    )
 }
 
 fn dependency<'a>(

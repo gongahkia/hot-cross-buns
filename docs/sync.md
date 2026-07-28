@@ -1,9 +1,9 @@
 # Install and sync
 
-`wukong install` and `wukong sync` are aliases in the local-path vertical
-slice. Both require an existing `wukong.lock`, verify each selected local
-source and prepared package checksum, then transactionally reconcile the
-project with the lockfile. They never execute package scripts.
+`wukong install` and `wukong sync` are aliases. Both require an existing
+`wukong.lock`, verify each selected local, Git, or HTTPS archive source and
+prepared package checksum, then transactionally reconcile the project with the
+lockfile. They never execute package scripts.
 
 ```sh
 wukong lock
@@ -20,15 +20,14 @@ checksum still matches.
 - `--project <path>` selects a Godot project directory or `project.godot`.
 - `--dev` includes `[dev-dependencies]`; the default selects runtime dependencies
   only.
-- `--offline` is accepted for automation. Local-path sync performs no network
-  I/O.
-- `--locked` recomputes the current local lock resolution and refuses any
-  manifest, source, or lockfile mismatch before project mutation.
-- `--frozen` is an alias for `--locked` in this local-only slice: there is no
-  remote I/O to additionally prohibit.
+- `--offline` permits only verified cached Git checkouts and HTTP archives.
+  Local-path sync performs no network I/O.
+- `--locked` recomputes direct source resolution and refuses any manifest,
+  source, or lockfile mismatch before project mutation.
+- `--frozen` combines `--locked` and `--offline`.
 
 Without `--locked`, sync applies the existing lockfile but still verifies every
-locked local source and prepared package before it changes project files. Run
+locked source and prepared package before it changes project files. Run
 `wukong lock` after changing a manifest to update the selected dependency set.
 
 See [project transactions](project-sync.md) and the [lockfile schema](lockfile.md).

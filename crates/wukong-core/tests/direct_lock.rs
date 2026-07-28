@@ -4,8 +4,8 @@ use std::{
 };
 use tempfile::TempDir;
 use wukong_core::{
-    cache::CacheLayout, direct_lock::lock_direct_dependencies, lockfile::LockedSource,
-    manifest::Manifest,
+    cache::CacheLayout, direct_lock::lock_direct_dependencies,
+    direct_sync::sync_direct_dependencies, lockfile::LockedSource, manifest::Manifest,
 };
 
 #[test]
@@ -75,6 +75,25 @@ fn invariant_direct_remote_dependencies_lock_to_immutable_sources_and_reuse_offl
             .source(),
         LockedSource::Http(_)
     ));
+    let summary = sync_direct_dependencies(
+        fixture.directory.path(),
+        fixture.manifest_path(),
+        &manifest,
+        &first,
+        false,
+        &cache,
+        true,
+    )
+    .expect("cached remote dependencies should synchronise offline");
+
+    assert!(summary.written > 0);
+    assert!(
+        fixture
+            .directory
+            .path()
+            .join(".wukong/state.toml")
+            .is_file()
+    );
 }
 
 #[test]

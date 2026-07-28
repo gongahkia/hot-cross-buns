@@ -30,6 +30,7 @@ Current records:
 - [0024: lockfile schema two remote sources](0024-lockfile-schema-two-remote-sources.md)
 - [0025: dependency resolver strategy](0025-dependency-resolver-strategy.md)
 - [0026: Git version discovery](0026-git-version-discovery.md)
+- [0027: dependency mutation transaction](0027-dependency-mutation-transaction.md)
 
 ## When to write an ADR
 

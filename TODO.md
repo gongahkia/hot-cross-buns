@@ -557,15 +557,15 @@ Acceptance criteria:
 
 ## wukong-070: Implement `wukong add`
 
-- [ ] Parse package specifications.
-- [ ] Support Git URL.
-- [ ] Support exact Git revision.
-- [ ] Support URL plus checksum.
-- [ ] Support local path.
-- [ ] Support `--dev`.
-- [ ] Update manifest transactionally.
-- [ ] Resolve and sync.
-- [ ] Roll back manifest and lockfile after failure.
+- [x] Parse package specifications.
+- [x] Support Git URL.
+- [x] Support exact Git revision.
+- [x] Support URL plus checksum.
+- [x] Support local path.
+- [x] Support `--dev`.
+- [x] Update manifest transactionally.
+- [x] Resolve and sync.
+- [x] Roll back manifest and lockfile after failure.
 
 ## wukong-071: Implement `wukong remove`
 

@@ -80,3 +80,6 @@ pub mod resolver;
 
 /// Deterministic views over the locked dependency graph.
 pub mod dependency_graph;
+
+/// Atomic project-file snapshots and replacement for dependency mutations.
+pub mod transactional_file;
