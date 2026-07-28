@@ -240,7 +240,7 @@ TestCase {
         commands.append({ commandId: "navigation.tasks", commandLabel: "Tasks", commandShortcut: "Ctrl+1" })
         commands.append({ commandId: "create.quickCapture", commandLabel: "Quick Capture", commandShortcut: "Ctrl+Shift+N" })
         const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        calendars.append({ id: "calendar-primary", title: "Primary" })
+        calendars.append({ id: "calendar-primary", title: "Primary", accessRole: "owner" })
         const controller = {
             googleConnected: true,
             quickCaptureDefaultCalendarId: "calendar-primary",
@@ -375,7 +375,7 @@ TestCase {
 
         const created = []
         const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        calendars.append({ id: "calendar-primary", title: "Primary" })
+        calendars.append({ id: "calendar-primary", title: "Primary", accessRole: "owner" })
         const controller = {
             googleConnected: true,
             quickCaptureDefaultCalendarId: "calendar-primary",
@@ -421,7 +421,7 @@ TestCase {
 
         const created = []
         const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        calendars.append({ id: "calendar-primary", title: "Primary" })
+        calendars.append({ id: "calendar-primary", title: "Primary", accessRole: "owner" })
         const controller = {
             googleConnected: true,
             quickCaptureDefaultCalendarId: "calendar-primary",
@@ -754,8 +754,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        sourceModel.append({ id: "calendar-product", title: "Product", selected: true })
-        sourceModel.append({ id: "calendar-engineering", title: "Engineering", selected: false })
+        sourceModel.append({ id: "calendar-product", title: "Product", accessRole: "owner", selected: true })
+        sourceModel.append({ id: "calendar-engineering", title: "Engineering", accessRole: "reader", selected: false })
         const controls = component.createObject(null, {
             calendarSourceModel: sourceModel,
             width: 480,
@@ -814,7 +814,7 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        sourceModel.append({ id: "calendar-primary", title: "Primary" })
+        sourceModel.append({ id: "calendar-primary", title: "Primary", accessRole: "owner" })
         const dialog = component.createObject(null, {
             calendarSourceModel: sourceModel,
             width: 480,
@@ -854,7 +854,7 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const sourceModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        sourceModel.append({ id: "calendar-primary", title: "Primary" })
+        sourceModel.append({ id: "calendar-primary", title: "Primary", accessRole: "owner" })
         const dialog = component.createObject(null, { calendarSourceModel: sourceModel })
         verify(dialog !== null)
         dialog.openForEdit("event-1", "calendar-primary", "Release review",
