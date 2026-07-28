@@ -1,0 +1,15 @@
+[package]
+name = "wukong-cli"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "wukong"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+wukong-core = { path = "../wukong-core" }
