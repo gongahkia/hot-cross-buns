@@ -15,4 +15,6 @@ An advisory source lock serialises concurrent fetches. A retry removes only
 staging directories with its own source-derived prefix, recovering from an
 interrupted fetch without touching another source. Offline fetching accepts only
 a verified cached selector mapping and checkout. See
-[ADR 0021](adr/0021-system-git-fetching.md).
+[ADR 0021](adr/0021-system-git-fetching.md). `wukong lock` records the
+canonical URL and resolved complete commit in schema-two locks; project
+materialisation of Git sources remains later work.

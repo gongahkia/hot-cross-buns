@@ -5,7 +5,7 @@ use std::{env, ffi::OsString, fs, path::PathBuf, process};
 use wukong_core::{
     cache::{CacheLayout, verify_cached_packages},
     diagnostic::{Diagnostic, ErrorCode},
-    direct_lock::lock_direct_local_dependencies,
+    direct_lock::{lock_direct_dependencies, lock_direct_local_dependencies},
     direct_sync::sync_direct_local_dependencies,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
@@ -139,7 +139,14 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             ));
         }
     };
-    let locked = lock_direct_local_dependencies(&manifest_path, &manifest, existing.as_ref())?;
+    let cache = CacheLayout::from_environment()?;
+    let locked = lock_direct_dependencies(
+        &manifest_path,
+        &manifest,
+        existing.as_ref(),
+        &cache,
+        options.offline,
+    )?;
     let output = locked.to_toml();
     if options.locked
         && existing
@@ -220,6 +227,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
 struct LockOptions {
     project: Option<PathBuf>,
     locked: bool,
+    offline: bool,
 }
 fn parse_lock_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -227,6 +235,7 @@ fn parse_lock_arguments(
     let mut options = LockOptions {
         project: None,
         locked: false,
+        offline: false,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--locked" {
@@ -234,6 +243,7 @@ fn parse_lock_arguments(
             continue;
         }
         if argument == "--offline" {
+            options.offline = true;
             continue;
         }
         if argument == "--project" {

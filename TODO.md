@@ -368,12 +368,12 @@ Property tests:
 
 Before transitive resolution:
 
-- [ ] Resolve every direct Git dependency to an exact commit.
-- [ ] Verify every HTTP dependency checksum.
-- [ ] Hash every local dependency.
-- [ ] Produce a lockfile.
-- [ ] Reuse existing valid locks.
-- [ ] Avoid unnecessary source access.
+- [x] Resolve every direct Git dependency to an exact commit.
+- [x] Verify every HTTP dependency checksum.
+- [x] Hash every local dependency.
+- [x] Produce a lockfile.
+- [x] Reuse existing valid locks.
+- [x] Avoid unnecessary source access.
 
 Acceptance criteria:
 

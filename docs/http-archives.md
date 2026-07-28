@@ -1,8 +1,8 @@
 # HTTP archives
 
-The core HTTP archive fetcher accepts a credential-free HTTPS URL and an
-explicit lowercase SHA-256 checksum. It is not yet connected to manifest or
-lockfile dependency declarations.
+The HTTP archive fetcher accepts a credential-free HTTPS URL and an explicit
+lowercase SHA-256 checksum. `wukong lock` records verified direct HTTP archives
+in schema-two locks; project materialisation of HTTP sources remains later work.
 
 Downloads use Rustls certificate validation and follow at most five redirects.
 Every initial URL and redirect target must be HTTPS, have a host, and contain

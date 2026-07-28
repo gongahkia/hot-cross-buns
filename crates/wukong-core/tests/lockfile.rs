@@ -2,7 +2,10 @@ use proptest::{collection, prelude::*};
 use std::{collections::BTreeSet, path::Path};
 use wukong_core::{
     identity::PackageName,
-    lockfile::{GodotCompatibility, LockedLocalSource, LockedPackage, Lockfile},
+    lockfile::{
+        GodotCompatibility, LockedGitSource, LockedHttpSource, LockedLocalSource, LockedPackage,
+        LockedSource, Lockfile,
+    },
     source::ImmutableSourceId,
 };
 
@@ -39,20 +42,54 @@ proptest! {
     }
 
     #[test]
-    fn invariant_unknown_schema_versions_fail(schema in 2i64..1000) {
+    fn invariant_unknown_schema_versions_fail(schema in 3i64..1000) {
         let error = Lockfile::parse(Path::new(PATH), &format!("schema = {schema}\n")).expect_err("unknown schema should fail");
         prop_assert!(error.message().contains("schema"));
     }
 }
 
 #[test]
-fn invariant_schema_one_serializes_local_identity_layout_and_compatibility() {
+fn invariant_schema_two_serializes_local_identity_layout_and_compatibility() {
     let lock = lock(["example-addon", "other-addon"]);
     let output = lock.to_toml();
+    assert_eq!(lock.schema(), 2);
+    assert!(output.starts_with("schema = 2\n"));
     assert!(output.contains("immutable_id = \"sha256:"));
     assert!(output.contains("source_subdirectory = \".\""));
     assert!(output.contains("godot = \"unknown\""));
     assert!(output.contains("[[package]]"));
+}
+
+#[test]
+fn invariant_schema_two_round_trips_immutable_git_and_http_sources() {
+    let git_commit = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91";
+    let archive_checksum = "77c61f3a6ace3a2b9d1729f6d52af90e6c9b6671e1db798cd91dec1ad666e91b";
+    let git = LockedGitSource::new(
+        ImmutableSourceId::new(format!("git:{git_commit}")).expect("identity should parse"),
+        "https://github.com/Goutte/godot-addon-animated-shape-2d.git",
+        git_commit.to_owned(),
+    )
+    .expect("Git source should lock");
+    let http = LockedHttpSource::new(
+        ImmutableSourceId::new(format!("sha256:{archive_checksum}"))
+            .expect("identity should parse"),
+        "https://github.com/Goutte/godot-addon-animated-shape-2d/archive/4ab90a80b815bc1ad4a8d7eea92c785e654bfd91.zip",
+        archive_checksum.to_owned(),
+    )
+    .expect("HTTP source should lock");
+    let lock = Lockfile::new([
+        remote_package("git-addon", git.into(), 1),
+        remote_package("http-addon", http.into(), 2),
+    ])
+    .expect("lock should create");
+
+    let output = lock.to_toml();
+    let parsed = Lockfile::parse(Path::new(PATH), &output).expect("lock should parse");
+
+    assert_eq!(parsed, lock);
+    assert!(output.contains("kind = \"git\""));
+    assert!(output.contains("kind = \"http\""));
+    assert!(!output.contains("branch ="));
 }
 
 fn lock<'a>(names: impl IntoIterator<Item = &'a str>) -> Lockfile {
@@ -78,6 +115,22 @@ fn package(name: &str, index: usize) -> LockedPackage {
         source,
         checksum,
         format!("{index:064x}"),
+        BTreeSet::new(),
+        ".".into(),
+        format!("addons/{name}").into(),
+        GodotCompatibility::Unknown,
+        false,
+    )
+    .expect("package should lock")
+}
+
+fn remote_package(name: &str, source: LockedSource, index: usize) -> LockedPackage {
+    LockedPackage::new(
+        PackageName::parse(name).expect("name should parse"),
+        None,
+        source,
+        format!("{index:064x}"),
+        format!("{:064x}", index + 10),
         BTreeSet::new(),
         ".".into(),
         format!("addons/{name}").into(),

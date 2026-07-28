@@ -3,7 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
-use wukong_core::{direct_lock::lock_direct_local_dependencies, manifest::Manifest};
+use wukong_core::{
+    cache::CacheLayout, direct_lock::lock_direct_dependencies, lockfile::LockedSource,
+    manifest::Manifest,
+};
 
 #[test]
 fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
@@ -32,6 +35,46 @@ fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
             .as_str()
             .starts_with("sha256:")
     }));
+}
+
+#[test]
+#[ignore = "requires network access to pinned public Git and HTTPS archive sources"]
+fn invariant_direct_remote_dependencies_lock_to_immutable_sources_and_reuse_offline() {
+    let fixture = Fixture::new();
+    let manifest = fixture.manifest(
+        "[dependencies]\ngit-addon = { git = \"https://github.com/Goutte/godot-addon-animated-shape-2d.git\", rev = \"4ab90a80b815bc1ad4a8d7eea92c785e654bfd91\" }\nhttp-addon = { url = \"https://github.com/Goutte/godot-addon-animated-shape-2d/archive/4ab90a80b815bc1ad4a8d7eea92c785e654bfd91.zip\", sha256 = \"77c61f3a6ace3a2b9d1729f6d52af90e6c9b6671e1db798cd91dec1ad666e91b\" }\n",
+    );
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let first = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, false)
+        .expect("remote dependencies should lock");
+    let second = lock_direct_dependencies(
+        fixture.manifest_path(),
+        &manifest,
+        Some(&first),
+        &cache,
+        true,
+    )
+    .expect("unchanged lock should reuse without source access");
+
+    assert_eq!(first, second);
+    assert!(matches!(
+        first
+            .packages()
+            .get("git-addon")
+            .expect("Git package should lock")
+            .source(),
+        LockedSource::Git(_)
+    ));
+    assert!(matches!(
+        first
+            .packages()
+            .get("http-addon")
+            .expect("HTTP package should lock")
+            .source(),
+        LockedSource::Http(_)
+    ));
 }
 
 #[test]
@@ -65,7 +108,9 @@ fn lock(
     manifest: &Manifest,
     existing: Option<&wukong_core::lockfile::Lockfile>,
 ) -> wukong_core::lockfile::Lockfile {
-    lock_direct_local_dependencies(fixture.manifest_path(), manifest, existing)
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+    lock_direct_dependencies(fixture.manifest_path(), manifest, existing, &cache, true)
         .expect("local dependencies should lock")
 }
 

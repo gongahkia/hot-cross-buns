@@ -1,8 +1,11 @@
-//! Deterministic schema-one `wukong.lock` parsing and serialization.
+//! Deterministic schema-one and schema-two `wukong.lock` parsing and serialization.
 
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
+    git_source::canonicalize_git_url,
+    http_archive::canonicalize_archive_url,
     identity::PackageName,
+    manifest::GitReference,
     source::ImmutableSourceId,
 };
 use semver::{Version, VersionReq};
@@ -14,8 +17,9 @@ use toml_edit::{Document, Item, TableLike};
 
 /// The lockfile filename.
 pub const LOCKFILE_FILE_NAME: &str = "wukong.lock";
-/// The only supported lockfile schema.
-pub const LOCKFILE_SCHEMA: i64 = 1;
+/// The schema written for new lockfiles.
+pub const LOCKFILE_SCHEMA: i64 = 2;
+const LEGACY_LOCKFILE_SCHEMA: i64 = 1;
 
 /// A package's declared Godot compatibility.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,12 +68,166 @@ impl LockedLocalSource {
     }
 }
 
+/// A Git source resolved to one complete immutable commit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LockedGitSource {
+    immutable_id: ImmutableSourceId,
+    url: String,
+    commit: String,
+    extensions: BTreeMap<String, String>,
+}
+impl LockedGitSource {
+    /// Creates a canonical Git source record pinned to an exact commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the URL, commit, or immutable identity is invalid.
+    pub fn new(
+        immutable_id: ImmutableSourceId,
+        url: &str,
+        commit: String,
+    ) -> Result<Self, Box<Diagnostic>> {
+        GitReference::Rev(commit.clone())
+            .validate()
+            .map_err(|error| {
+                user(
+                    Path::new(LOCKFILE_FILE_NAME),
+                    format!("source.commit {error}"),
+                    "use a complete Git commit ID",
+                )
+            })?;
+        if immutable_id.as_str() != format!("git:{commit}") {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "source.immutable_id must match source.commit",
+                "use git:<complete commit>",
+            ));
+        }
+        let url = canonicalize_git_url(url)
+            .map_err(|error| {
+                user(
+                    Path::new(LOCKFILE_FILE_NAME),
+                    error.message(),
+                    "use a safe Git URL",
+                )
+            })?
+            .as_str()
+            .to_owned();
+        Ok(Self {
+            immutable_id,
+            url,
+            commit,
+            extensions: BTreeMap::new(),
+        })
+    }
+    /// Returns the canonical credential-free repository URL.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+    /// Returns the complete resolved Git commit ID.
+    #[must_use]
+    pub fn commit(&self) -> &str {
+        &self.commit
+    }
+}
+
+/// An HTTPS archive source pinned by checksum.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LockedHttpSource {
+    immutable_id: ImmutableSourceId,
+    url: String,
+    sha256: String,
+    extensions: BTreeMap<String, String>,
+}
+impl LockedHttpSource {
+    /// Creates a canonical HTTPS archive source record.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the URL, checksum, or immutable identity is invalid.
+    pub fn new(
+        immutable_id: ImmutableSourceId,
+        url: &str,
+        sha256: String,
+    ) -> Result<Self, Box<Diagnostic>> {
+        valid_hex(&sha256, 64, Path::new(LOCKFILE_FILE_NAME), "source.sha256")?;
+        if immutable_id.as_str() != format!("sha256:{sha256}") {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "source.immutable_id must match source.sha256",
+                "use sha256:<source checksum>",
+            ));
+        }
+        let url = canonicalize_archive_url(url).map_err(|error| {
+            user(
+                Path::new(LOCKFILE_FILE_NAME),
+                error.message(),
+                "use a safe HTTPS archive URL",
+            )
+        })?;
+        Ok(Self {
+            immutable_id,
+            url,
+            sha256,
+            extensions: BTreeMap::new(),
+        })
+    }
+    /// Returns the canonical credential-free HTTPS archive URL.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+    /// Returns the required archive SHA-256 checksum.
+    #[must_use]
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+}
+
+/// An immutable source representation supported by the lockfile schema.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LockedSource {
+    /// A local content snapshot.
+    Local(LockedLocalSource),
+    /// A Git checkout pinned to one complete commit.
+    Git(LockedGitSource),
+    /// A checksum-verified HTTPS archive.
+    Http(LockedHttpSource),
+}
+impl LockedSource {
+    /// Returns the immutable identity shared by every source kind.
+    #[must_use]
+    pub fn immutable_id(&self) -> &ImmutableSourceId {
+        match self {
+            Self::Local(source) => source.immutable_id(),
+            Self::Git(source) => &source.immutable_id,
+            Self::Http(source) => &source.immutable_id,
+        }
+    }
+}
+impl From<LockedLocalSource> for LockedSource {
+    fn from(source: LockedLocalSource) -> Self {
+        Self::Local(source)
+    }
+}
+impl From<LockedGitSource> for LockedSource {
+    fn from(source: LockedGitSource) -> Self {
+        Self::Git(source)
+    }
+}
+impl From<LockedHttpSource> for LockedSource {
+    fn from(source: LockedHttpSource) -> Self {
+        Self::Http(source)
+    }
+}
+
 /// A resolved package entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LockedPackage {
     name: PackageName,
     version: Option<Version>,
-    source: LockedLocalSource,
+    source: LockedSource,
     package_sha256: String,
     declaration_sha256: String,
     dependencies: BTreeSet<PackageName>,
@@ -80,7 +238,7 @@ pub struct LockedPackage {
     extensions: BTreeMap<String, String>,
 }
 impl LockedPackage {
-    /// Creates a schema-one local package entry.
+    /// Creates a package entry with an immutable source.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::needless_pass_by_value)]
     ///
@@ -90,7 +248,7 @@ impl LockedPackage {
     pub fn new(
         name: PackageName,
         version: Option<Version>,
-        source: LockedLocalSource,
+        source: impl Into<LockedSource>,
         package_sha256: String,
         declaration_sha256: String,
         dependencies: BTreeSet<PackageName>,
@@ -108,7 +266,7 @@ impl LockedPackage {
         Ok(Self {
             name,
             version,
-            source,
+            source: source.into(),
             package_sha256,
             declaration_sha256,
             dependencies,
@@ -128,7 +286,7 @@ impl LockedPackage {
         self.version.as_ref()
     }
     #[must_use]
-    pub fn source(&self) -> &LockedLocalSource {
+    pub fn source(&self) -> &LockedSource {
         &self.source
     }
     #[must_use]
@@ -165,6 +323,7 @@ impl LockedPackage {
 /// A complete deterministic lockfile.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Lockfile {
+    schema: i64,
     packages: BTreeMap<PackageName, LockedPackage>,
     extensions: BTreeMap<String, String>,
 }
@@ -186,11 +345,12 @@ impl Lockfile {
             }
         }
         Ok(Self {
+            schema: LOCKFILE_SCHEMA,
             packages: entries,
             extensions: BTreeMap::new(),
         })
     }
-    /// Parses a schema-one lockfile.
+    /// Parses a supported lockfile schema.
     ///
     /// # Errors
     ///
@@ -199,10 +359,11 @@ impl Lockfile {
         let doc = Document::parse(input.to_owned()).map_err(|e| syntax(path, e))?;
         let root = doc.as_table();
         let extensions = extensions(root, &["schema", "package"], path, "root")?;
-        if integer(root, "schema", path, "root")? != LOCKFILE_SCHEMA {
+        let schema = integer(root, "schema", path, "root")?;
+        if !matches!(schema, LEGACY_LOCKFILE_SCHEMA | LOCKFILE_SCHEMA) {
             return Err(user(
                 path,
-                "lockfile.schema must be 1",
+                "lockfile.schema is not supported",
                 "regenerate with a supported wukong version",
             ));
         }
@@ -221,24 +382,30 @@ impl Lockfile {
             .map(|tables| {
                 tables
                     .iter()
-                    .map(|table| parse_package(table, path))
+                    .map(|table| parse_package(table, path, schema))
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?
             .unwrap_or_default();
         let mut lock = Self::new(packages)?;
+        lock.schema = schema;
         lock.extensions = extensions;
         Ok(lock)
+    }
+    /// Returns the parsed or generated lockfile schema.
+    #[must_use]
+    pub const fn schema(&self) -> i64 {
+        self.schema
     }
     /// Returns packages in canonical name order.
     #[must_use]
     pub fn packages(&self) -> &BTreeMap<PackageName, LockedPackage> {
         &self.packages
     }
-    /// Serializes canonical schema-one TOML.
+    /// Serializes canonical TOML for the lockfile's schema.
     #[must_use]
     pub fn to_toml(&self) -> String {
-        let mut out = String::from("schema = 1\n");
+        let mut out = format!("schema = {}\n", self.schema);
         for (key, value) in &self.extensions {
             line(&mut out, key, value);
         }
@@ -278,15 +445,33 @@ impl Lockfile {
                 line(&mut out, key, value);
             }
             out.push_str("\n[package.source]\n");
-            line(&mut out, "kind", "local");
-            line(
-                &mut out,
-                "immutable_id",
-                package.source.immutable_id.as_str(),
-            );
-            line(&mut out, "sha256", &package.source.sha256);
-            for (key, value) in &package.source.extensions {
-                line(&mut out, key, value);
+            match &package.source {
+                LockedSource::Local(source) => {
+                    line(&mut out, "kind", "local");
+                    line(&mut out, "immutable_id", source.immutable_id.as_str());
+                    line(&mut out, "sha256", &source.sha256);
+                    for (key, value) in &source.extensions {
+                        line(&mut out, key, value);
+                    }
+                }
+                LockedSource::Git(source) => {
+                    line(&mut out, "kind", "git");
+                    line(&mut out, "immutable_id", source.immutable_id.as_str());
+                    line(&mut out, "url", &source.url);
+                    line(&mut out, "commit", &source.commit);
+                    for (key, value) in &source.extensions {
+                        line(&mut out, key, value);
+                    }
+                }
+                LockedSource::Http(source) => {
+                    line(&mut out, "kind", "http");
+                    line(&mut out, "immutable_id", source.immutable_id.as_str());
+                    line(&mut out, "url", &source.url);
+                    line(&mut out, "sha256", &source.sha256);
+                    for (key, value) in &source.extensions {
+                        line(&mut out, key, value);
+                    }
+                }
             }
         }
         out
@@ -297,6 +482,7 @@ impl Lockfile {
 fn parse_package(
     package_table: &dyn TableLike,
     path: &Path,
+    schema: i64,
 ) -> Result<LockedPackage, Box<Diagnostic>> {
     let package_extensions = extensions(
         package_table,
@@ -387,29 +573,7 @@ fn parse_package(
     let declaration_sha256 = string(package_table, "declaration_sha256", path, "package")?;
     valid_hex(&declaration_sha256, 64, path, "package.declaration_sha256")?;
     let source_table = table(package_table, "source", path, "package")?;
-    let source_extensions = extensions(
-        source_table,
-        &["kind", "immutable_id", "sha256"],
-        path,
-        "package.source",
-    )?;
-    if string(source_table, "kind", path, "package.source")? != "local" {
-        return Err(user(
-            path,
-            "package.source.kind must be local in schema one",
-            "use the implemented local source form",
-        ));
-    }
-    let checksum = string(source_table, "sha256", path, "package.source")?;
-    let immutable = ImmutableSourceId::new(string(
-        source_table,
-        "immutable_id",
-        path,
-        "package.source",
-    )?)
-    .map_err(|e| user(path, e.to_string(), "use sha256:<source checksum>"))?;
-    let mut source = LockedLocalSource::new(immutable, checksum)?;
-    source.extensions = source_extensions;
+    let source = parse_source(source_table, path, schema)?;
     let mut package = LockedPackage::new(
         name,
         version,
@@ -424,6 +588,84 @@ fn parse_package(
     )?;
     package.extensions = package_extensions;
     Ok(package)
+}
+fn parse_source(
+    table: &dyn TableLike,
+    path: &Path,
+    schema: i64,
+) -> Result<LockedSource, Box<Diagnostic>> {
+    let kind = string(table, "kind", path, "package.source")?;
+    if schema == LEGACY_LOCKFILE_SCHEMA && kind != "local" {
+        return Err(user(
+            path,
+            "package.source.kind must be local in schema one",
+            "regenerate this lockfile with schema two",
+        ));
+    }
+    match kind.as_str() {
+        "local" => {
+            let extensions = extensions(
+                table,
+                &["kind", "immutable_id", "sha256"],
+                path,
+                "package.source",
+            )?;
+            let immutable = source_immutable(table, path, "use sha256:<source checksum>")?;
+            let mut source = LockedLocalSource::new(
+                immutable,
+                string(table, "sha256", path, "package.source")?,
+            )?;
+            source.extensions = extensions;
+            Ok(source.into())
+        }
+        "git" => {
+            let extensions = extensions(
+                table,
+                &["kind", "immutable_id", "url", "commit"],
+                path,
+                "package.source",
+            )?;
+            let immutable = source_immutable(table, path, "use git:<complete commit>")?;
+            let url = string(table, "url", path, "package.source")?;
+            let mut source = LockedGitSource::new(
+                immutable,
+                &url,
+                string(table, "commit", path, "package.source")?,
+            )?;
+            source.extensions = extensions;
+            Ok(source.into())
+        }
+        "http" => {
+            let extensions = extensions(
+                table,
+                &["kind", "immutable_id", "url", "sha256"],
+                path,
+                "package.source",
+            )?;
+            let immutable = source_immutable(table, path, "use sha256:<source checksum>")?;
+            let url = string(table, "url", path, "package.source")?;
+            let mut source = LockedHttpSource::new(
+                immutable,
+                &url,
+                string(table, "sha256", path, "package.source")?,
+            )?;
+            source.extensions = extensions;
+            Ok(source.into())
+        }
+        _ => Err(user(
+            path,
+            "package.source.kind is not supported",
+            "use local, git, or http in schema two",
+        )),
+    }
+}
+fn source_immutable(
+    table: &dyn TableLike,
+    path: &Path,
+    recovery: &str,
+) -> Result<ImmutableSourceId, Box<Diagnostic>> {
+    ImmutableSourceId::new(string(table, "immutable_id", path, "package.source")?)
+        .map_err(|error| user(path, error.to_string(), recovery))
 }
 fn dependencies(
     item: Option<&Item>,

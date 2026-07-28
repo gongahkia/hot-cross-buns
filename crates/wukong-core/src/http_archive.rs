@@ -98,8 +98,10 @@ impl HttpArchiveFetcher {
         sha256: &str,
         offline: bool,
     ) -> Result<CachedArchive, Box<Diagnostic>> {
-        self.fetch_with(url, sha256, offline, |staged| {
-            download(url, staged, sha256, self.limits)
+        let canonical_url = canonicalize_archive_url(url)?;
+        validate_checksum(sha256)?;
+        self.fetch_with(&canonical_url, sha256, offline, |staged| {
+            download(&canonical_url, staged, sha256, self.limits)
         })
     }
 
@@ -316,7 +318,18 @@ fn verify(path: &Path, expected: &str) -> Result<CachedArchive, Box<Diagnostic>>
     })
 }
 fn validate(url: &str, sha256: &str) -> Result<(), Box<Diagnostic>> {
-    safe_url(url)?;
+    canonicalize_archive_url(url)?;
+    validate_checksum(sha256)
+}
+/// Canonicalises a credential-free HTTPS archive URL.
+///
+/// # Errors
+///
+/// Returns a redacted diagnostic when the URL is unsafe or malformed.
+pub fn canonicalize_archive_url(url: &str) -> Result<String, Box<Diagnostic>> {
+    Ok(safe_url(url)?.into())
+}
+fn validate_checksum(sha256: &str) -> Result<(), Box<Diagnostic>> {
     if sha256.len() != 64
         || !sha256
             .bytes()

@@ -27,6 +27,7 @@ Current records:
 - [0021: system Git fetching](0021-system-git-fetching.md)
 - [0022: HTTP archive transport](0022-http-archive-transport.md)
 - [0023: source-adapter cancellation](0023-source-adapter-cancellation.md)
+- [0024: lockfile schema two remote sources](0024-lockfile-schema-two-remote-sources.md)
 
 ## When to write an ADR
 

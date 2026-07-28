@@ -11,9 +11,9 @@ Pre-alpha. The local-path vertical slice provides `wukong init`, `wukong lock`,
 and transactional `wukong install`/`wukong sync`. `wukong cache verify` verifies
 prepared-package cache objects. Git canonicalisation and core fetching are
 implemented. HTTPS archive retrieval and immutable checksum-addressed caching
-are implemented in the core, but Git and HTTP dependency locking, official
-asset sources, package scripts, and a dependency solver are not implemented
-yet.
+are implemented in the core. `wukong lock` supports direct path, Git, and HTTP
+dependencies, but project installation remains local-path only; official asset
+sources, package scripts, and a dependency solver are not implemented yet.
 
 ## Local-path workflow
 
