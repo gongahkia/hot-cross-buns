@@ -20,3 +20,8 @@ and reported as an integrity failure. `wukong cache verify` checks all prepared
 objects in deterministic order, reports verified and removed-corrupt counts,
 and exits with code 4 if it repaired corruption. Unrecognized entries are
 never deleted. See [ADR 0015](adr/0015-cache-integrity-verification.md).
+
+Git checkouts use `checkouts/git/sha256/<digest>`, where the digest derives from
+a canonical source identity and immutable commit. Selector-to-commit metadata
+uses hashed names below `metadata/git/sha256`; Git source URLs and credentials
+are never persisted. See [Git fetching](git-fetching.md).

@@ -204,26 +204,26 @@ Acceptance criteria:
 
 ## wukong-024: Implement Git fetching
 
-- [ ] Decide between invoking system Git and using a Rust Git implementation.
-- [ ] Record the decision in an ADR.
-- [ ] Delegate SSH authentication to the user's Git configuration.
-- [ ] Fetch into a temporary cache location.
-- [ ] Verify the resolved commit.
-- [ ] Resolve every floating reference to an exact commit.
-- [ ] Avoid Git submodule initialisation by default.
-- [ ] Handle interrupted fetches.
-- [ ] Deduplicate concurrent fetches.
+- [x] Decide between invoking system Git and using a Rust Git implementation.
+- [x] Record the decision in an ADR.
+- [x] Delegate SSH authentication to the user's Git configuration.
+- [x] Fetch into a temporary cache location.
+- [x] Verify the resolved commit.
+- [x] Resolve every floating reference to an exact commit.
+- [x] Avoid Git submodule initialisation by default.
+- [x] Handle interrupted fetches.
+- [x] Deduplicate concurrent fetches.
 
 Tests:
 
-- [ ] Public repository.
-- [ ] Tag.
-- [ ] Branch resolved to commit.
-- [ ] Exact commit.
-- [ ] Missing revision.
-- [ ] Interrupted fetch.
-- [ ] Existing warm cache.
-- [ ] Concurrent fetch.
+- [x] Public repository (ignored network integration test).
+- [x] Tag.
+- [x] Branch resolved to commit.
+- [x] Exact commit.
+- [x] Missing revision.
+- [x] Interrupted fetch.
+- [x] Existing warm cache.
+- [x] Concurrent fetch.
 
 ## wukong-025: Implement HTTP archive sources
 

@@ -24,6 +24,7 @@ Current records:
 - [0018: shared installed-file ownership](0018-shared-file-ownership.md)
 - [0019: materialisation strategies](0019-materialisation-strategies.md)
 - [0020: Git source canonicalisation](0020-git-source-canonicalisation.md)
+- [0021: system Git fetching](0021-system-git-fetching.md)
 
 ## When to write an ADR
 

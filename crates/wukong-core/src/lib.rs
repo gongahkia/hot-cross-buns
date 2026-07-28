@@ -39,6 +39,9 @@ pub mod direct_sync;
 /// Git source URL and revision canonicalisation.
 pub mod git_source;
 
+/// Git fetching through the user-installed Git executable.
+pub mod git_fetch;
+
 /// Versioned content-addressed cache layout.
 pub mod cache;
 
