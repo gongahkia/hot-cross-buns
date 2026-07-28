@@ -72,6 +72,8 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Headless project validation](docs/validation.md)
 - [Canonical package trees](docs/canonical-package-trees.md)
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
+- [Native extensions](docs/native-extensions.md)
+- [Compatibility expansion status](docs/compatibility-expansion.md)
 - [Lockfile schema](docs/lockfile.md)
 - [Cache layout](docs/cache.md)
 - [Installed state](docs/installed-state.md)

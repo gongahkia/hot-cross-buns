@@ -10,6 +10,10 @@ fn invariant_contributor_guides_cover_maintainer_workflows() {
         ("docs/release-process.md", "Release process"),
         ("docs/debugging.md", "RUST_BACKTRACE=1"),
         ("docs/external-testing.md", "## Onboarding ledger"),
+        (
+            "docs/compatibility-expansion.md",
+            "Compatibility expansion status",
+        ),
         ("docs/adr/README.md", "## When to write an ADR"),
     ] {
         let content = fs::read_to_string(root.join(path)).expect("contributor guide should exist");

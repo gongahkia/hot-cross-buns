@@ -22,7 +22,9 @@ a second fresh project, then checks a no-op repeat synchronisation. See
 Contributor selection, review, and update rules are in the
 [fixture guide](fixture-guide.md). The separate
 [external-testing ledger](external-testing.md) distinguishes fixture evidence
-from feedback supplied by external testers.
+from feedback supplied by external testers. See [compatibility expansion
+status](compatibility-expansion.md) for coverage that is not yet public-corpus
+evidence.
 
 ## W084 validation record
 

@@ -14,6 +14,7 @@ fn invariant_user_guides_cover_the_supported_workflows() {
         ("docs/ci.md", "wukong sync --frozen"),
         ("docs/security.md", "package scripts"),
         ("docs/troubleshooting.md", "wukong doctor"),
+        ("docs/native-extensions.md", "opaque"),
     ] {
         let content = fs::read_to_string(root.join(path)).expect("user guide should exist");
         assert!(

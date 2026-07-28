@@ -84,6 +84,40 @@ fn invariant_multi_addon_source_layout_overrides_lock_and_sync_each_selected_tre
 }
 
 #[test]
+fn invariant_native_extension_files_materialise_as_opaque_package_content() {
+    let fixture = Fixture::new();
+    let native = fixture.addon("native", "extends Node\n");
+    fs::create_dir_all(native.join("bin")).expect("native binary directory should create");
+    fs::write(
+        native.join("native.gdextension"),
+        "[configuration]\nentry_symbol = \"native_library_init\"\n",
+    )
+    .expect("native extension descriptor should write");
+    fs::write(native.join("bin/native.macos.debug"), [0_u8, 1, 2, 3])
+        .expect("native binary fixture should write");
+    let manifest = fixture.manifest("[dependencies]\nnative = { path = \"native\" }\n");
+    let lock = lock(&fixture, &manifest);
+
+    sync(&fixture, &manifest, &lock, false).expect("native package should sync");
+
+    assert!(
+        fixture
+            .project()
+            .join("addons/native/native.gdextension")
+            .is_file()
+    );
+    assert_eq!(
+        fs::read(
+            fixture
+                .project()
+                .join("addons/native/bin/native.macos.debug")
+        )
+        .expect("native binary should materialise"),
+        [0_u8, 1, 2, 3]
+    );
+}
+
+#[test]
 fn invariant_direct_sync_rejects_changed_locked_content_before_project_mutation() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
