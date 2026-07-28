@@ -1,6 +1,9 @@
 //! Typed parsing for the version-one `wukong.toml` schema.
 
-use crate::diagnostic::{Diagnostic, ErrorCode};
+use crate::{
+    diagnostic::{Diagnostic, ErrorCode},
+    identity::PackageName,
+};
 use semver::VersionReq;
 use std::{
     borrow::Borrow,
@@ -113,12 +116,12 @@ impl Project {
 
 /// A validated manifest dependency alias.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct DependencyAlias(String);
+pub struct DependencyAlias(PackageName);
 
 impl DependencyAlias {
     #[must_use]
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.0.as_str()
     }
 }
 
@@ -192,8 +195,10 @@ fn parse_dependencies(
         .ok_or_else(|| field_error(path, input, table_name, Some(item), "must be a table"))?;
     let mut dependencies = BTreeMap::new();
     for (key, item) in table {
-        let alias = DependencyAlias(key.to_owned());
-        validate_alias(&alias, path, input, item)?;
+        let alias = DependencyAlias(
+            PackageName::parse(key)
+                .map_err(|error| field_error(path, input, key, Some(item), &error.to_string()))?,
+        );
         let field = format!("{table_name}.{}", alias.as_str());
         let dependency = if let Some(requirement) = item.as_str() {
             Dependency::Version(VersionReq::parse(requirement).map_err(|error| {
@@ -408,40 +413,6 @@ fn required_string(
             "must be a string",
         )
     })
-}
-
-fn validate_alias(
-    alias: &DependencyAlias,
-    path: &Path,
-    input: &str,
-    item: &Item,
-) -> ManifestResult<()> {
-    let valid = !alias.0.is_empty()
-        && alias
-            .0
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        && alias
-            .0
-            .as_bytes()
-            .first()
-            .is_some_and(u8::is_ascii_alphanumeric)
-        && alias
-            .0
-            .as_bytes()
-            .last()
-            .is_some_and(u8::is_ascii_alphanumeric);
-    if valid {
-        Ok(())
-    } else {
-        Err(field_error(
-            path,
-            input,
-            alias.as_str(),
-            Some(item),
-            "must use lowercase ASCII letters, digits, and internal hyphens",
-        ))
-    }
 }
 
 fn reject_unknown_fields(

@@ -21,6 +21,7 @@ library; package installation is not implemented yet.
 - [Diagnostics](docs/diagnostics.md)
 - [Project discovery](docs/project-discovery.md)
 - [Manifest schema](docs/manifest.md)
+- [Package identity](docs/package-identity.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

@@ -6,6 +6,9 @@ pub mod diagnostic;
 /// Atomic creation of a minimal project manifest.
 pub mod init;
 
+/// Canonical package and source identities.
+pub mod identity;
+
 /// Project-manifest parsing and validation.
 pub mod manifest;
 

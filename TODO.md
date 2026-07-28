@@ -145,12 +145,12 @@ Acceptance criteria:
 
 Resolve through an ADR:
 
-- [ ] Package naming rules.
-- [ ] Source-qualified identity rules.
-- [ ] Handling of the same name from different sources.
-- [ ] Case-sensitivity policy.
-- [ ] Unicode normalisation policy.
-- [ ] Development versus runtime identity.
+- [x] Package naming rules.
+- [x] Source-qualified identity rules.
+- [x] Handling of the same name from different sources.
+- [x] Case-sensitivity policy.
+- [x] Unicode normalisation policy.
+- [x] Development versus runtime identity.
 
 Acceptance criteria:
 
