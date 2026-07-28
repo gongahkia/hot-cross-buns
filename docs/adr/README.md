@@ -9,6 +9,7 @@ Current records:
 - [0003: manifest edit transaction](0003-manifest-edit-transaction.md)
 - [0004: package identity](0004-package-identity.md)
 - [0005: source-adapter contract](0005-source-adapter-contract.md)
+- [0006: local-path snapshot](0006-local-path-snapshot.md)
 
 ## When to write an ADR
 

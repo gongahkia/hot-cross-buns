@@ -9,6 +9,9 @@ pub mod init;
 /// Canonical package and source identities.
 pub mod identity;
 
+/// Local-path source adapter and content snapshots.
+pub mod local_source;
+
 /// Project-manifest parsing and validation.
 pub mod manifest;
 
