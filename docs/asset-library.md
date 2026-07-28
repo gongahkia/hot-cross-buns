@@ -18,3 +18,5 @@ At lock time Wukong retrieves read-only asset metadata, requires `type = addon`,
 `wukong sync --locked` and offline sync use the locked archive only and do not contact AssetLib. Metadata is retained only for the active lock operation; verified artifacts use the normal checksum-addressed cache. The client sends no credentials and does not call AssetLib write or authentication endpoints.
 
 An unavailable ID, non-addon asset, missing download URL, unsafe URL, malformed metadata, or unverified artifact stops before lockfile publication. See [AssetLib research](asset-library-research.md) and [ADR 0034](adr/0034-official-asset-library-boundary.md).
+
+The AssetLib boundary reuses the same checksum-locked HTTP artifact contract as direct URL dependencies. Generic resolver, lockfile, provenance, cache, and transaction types contain no AssetLib field. The feature remains disabled by default.

@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     collections::BTreeSet,
     fs,
@@ -134,6 +136,19 @@ fn invariant_offline_sync_reports_every_missing_remote_cache_object_before_mutat
     )));
     assert!(!fixture.project().join("addons").exists());
     assert!(!fixture.project().join(".wukong/state.toml").exists());
+}
+
+#[test]
+fn invariant_direct_http_source_satisfies_the_shared_checksum_artifact_contract() {
+    let checksum = "2".repeat(64);
+    let source = LockedHttpSource::new(
+        ImmutableSourceId::new(format!("sha256:{checksum}")).expect("identity should be valid"),
+        "https://fixture.test/http-addon.zip",
+        checksum,
+    )
+    .expect("HTTP source should be valid");
+
+    support::http_artifact_contract::assert_checksum_locked_http_contract(&source);
 }
 
 fn locked_package(name: &str, source: wukong_core::lockfile::LockedSource) -> LockedPackage {

@@ -856,10 +856,10 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-122: Keep official integration replaceable
 
-- [ ] No official-source types inside the generic resolver.
-- [ ] No assumptions about one registry in lockfile core types.
-- [ ] Contract tests shared with other source adapters.
-- [ ] Feature flag if upstream stability requires it.
+- [x] No official-source types inside the generic resolver.
+- [x] No assumptions about one registry in lockfile core types.
+- [x] Contract tests shared with other source adapters.
+- [x] Feature flag if upstream stability requires it.
 
 ---
 

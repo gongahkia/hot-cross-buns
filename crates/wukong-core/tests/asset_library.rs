@@ -1,5 +1,7 @@
 #![cfg(feature = "asset-library")]
 
+mod support;
+
 use sha2::Digest;
 use std::{collections::BTreeSet, fs, io::Write, path::PathBuf};
 use tempfile::TempDir;
@@ -7,7 +9,7 @@ use wukong_core::{
     cache::CacheLayout,
     direct_sync::sync_direct_dependencies,
     identity::PackageName,
-    lockfile::{GodotCompatibility, LockedHttpSource, LockedPackage, Lockfile},
+    lockfile::{GodotCompatibility, LockedHttpSource, LockedPackage, LockedSource, Lockfile},
     manifest::Manifest,
     package_tree::prepare_package_tree,
     source::ImmutableSourceId,
@@ -58,6 +60,15 @@ fn invariant_locked_asset_library_dependency_syncs_offline_without_metadata_acce
     )
     .expect("package should lock")])
     .expect("lockfile should create");
+    let LockedSource::Http(source) = lock
+        .packages()
+        .get("example")
+        .expect("package should lock")
+        .source()
+    else {
+        panic!("AssetLib locks must use the generic HTTP source");
+    };
+    support::http_artifact_contract::assert_checksum_locked_http_contract(source);
 
     sync_direct_dependencies(
         &project,
