@@ -619,10 +619,15 @@ option, no installed engine version is inferred.
 
 ## wukong-081: Enforce package Godot constraints
 
-- [ ] Read constraints from package metadata.
-- [ ] Include Godot version in resolution.
-- [ ] Report incompatible packages before installation.
-- [ ] Support packages with unknown compatibility explicitly.
+- [x] Read constraints from package metadata.
+- [x] Include Godot compatibility in direct-source locking and synchronisation validation.
+- [x] Report incompatible packages before installation.
+- [x] Support packages with unknown compatibility explicitly.
+
+Known requirements must match `--godot` when supplied; otherwise Wukong proves
+stable SemVer-range overlap with `[project].godot`. Missing metadata and
+pre-release-only comparisons remain explicit non-fatal states rather than
+guessed compatibility.
 
 ## wukong-082: Add optional Godot executable discovery
 

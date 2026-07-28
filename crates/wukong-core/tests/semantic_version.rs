@@ -99,3 +99,16 @@ archive = { url = "https://example.test/addon.zip", sha256 = "0123456789abcdef01
         Some(Dependency::Url { .. })
     ));
 }
+
+#[test]
+fn invariant_stable_requirement_overlap_is_exact_for_godot_compatibility() {
+    let project = VersionRequirement::parse(">=4.4,<5").expect("project requirement should parse");
+    let compatible = VersionRequirement::parse("^4.5").expect("package requirement should parse");
+    let incompatible = VersionRequirement::parse("<4").expect("package requirement should parse");
+    let prerelease =
+        VersionRequirement::parse(">=4.5.0-beta").expect("package requirement should parse");
+
+    assert_eq!(project.stable_overlap(&compatible), Some(true));
+    assert_eq!(project.stable_overlap(&incompatible), Some(false));
+    assert_eq!(project.stable_overlap(&prerelease), None);
+}

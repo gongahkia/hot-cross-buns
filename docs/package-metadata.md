@@ -21,4 +21,6 @@ other-addon = "^2"
 
 `root` and `target` must be safe relative paths. Dependencies use canonical
 names and the [versioning policy](versioning.md). Metadata cannot declare sources or
-scripts. See [ADR 0009](adr/0009-package-metadata-schema.md).
+scripts. See [ADR 0009](adr/0009-package-metadata-schema.md). Known package
+Godot requirements are validated before lockfile or project mutation; see
+[Godot compatibility enforcement](godot-compatibility-enforcement.md).

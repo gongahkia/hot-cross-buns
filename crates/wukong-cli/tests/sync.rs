@@ -127,6 +127,37 @@ fn invariant_explicit_godot_version_is_validated_before_lockfile_or_project_muta
     assert!(String::from_utf8_lossy(&incompatible_sync.stderr).contains("does not satisfy"));
 }
 
+#[test]
+fn invariant_incompatible_package_godot_metadata_blocks_lock_publication_and_installation() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.addon_metadata("addon", "<4");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+
+    let output = command("lock", fixture.root())
+        .output()
+        .expect("lock should run");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(!fixture.root().join("wukong.lock").exists());
+    assert!(!fixture.root().join("addons").exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("incompatible with project"));
+}
+
+#[test]
+fn invariant_unknown_package_godot_metadata_is_reported_without_blocking_lock() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+
+    let output = command("lock", fixture.root())
+        .output()
+        .expect("lock should run");
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("unknown for addon"));
+}
+
 fn command(subcommand: &str, current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg(subcommand).current_dir(current_directory);
@@ -166,5 +197,13 @@ impl Fixture {
         let addon = self.root.join(name);
         fs::create_dir(&addon).expect("addon should create");
         fs::write(addon.join("plugin.gd"), contents).expect("addon should write");
+    }
+
+    fn addon_metadata(&self, name: &str, godot: &str) {
+        fs::write(
+            self.root.join(name).join("wukong-package.toml"),
+            format!("[package]\nschema=1\nname=\"{name}\"\nversion=\"1.0.0\"\ngodot=\"{godot}\"\n"),
+        )
+        .expect("addon metadata should write");
     }
 }

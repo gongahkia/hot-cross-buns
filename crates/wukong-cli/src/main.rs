@@ -8,7 +8,10 @@ use wukong_core::{
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::{lock_direct_dependencies, update_direct_dependencies},
     direct_sync::sync_direct_dependencies,
-    godot_compatibility::resolve_project_godot_compatibility,
+    godot_compatibility::{
+        PackageGodotCompatibilityReport, resolve_project_godot_compatibility,
+        validate_locked_package_godot_compatibility,
+    },
     identity::PackageName,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
@@ -182,6 +185,28 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             ));
         }
     };
+    let compatibility = match resolve_project_godot_compatibility(&manifest, None) {
+        Ok(compatibility) => compatibility,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let godot_report = match validate_locked_package_godot_compatibility(&lock, &compatibility) {
+        Ok(report) => report,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
     let lock_output = lock.to_toml().into_bytes();
     if let Err(error) = write_atomic(&lock_path, &lock_output) {
         return Err(rollback_add(
@@ -214,6 +239,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         "added {}; sync: {} written, {} unchanged, {} removed",
         options.alias, summary.written, summary.unchanged, summary.removed
     );
+    print_godot_compatibility_report(&godot_report);
     Ok(())
 }
 
@@ -347,6 +373,28 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             ));
         }
     };
+    let compatibility = match resolve_project_godot_compatibility(&manifest, None) {
+        Ok(compatibility) => compatibility,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let godot_report = match validate_locked_package_godot_compatibility(&lock, &compatibility) {
+        Ok(report) => report,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
     let lock_output = lock.to_toml().into_bytes();
     if let Err(error) = write_atomic(&lock_path, &lock_output) {
         return Err(rollback_add(
@@ -379,6 +427,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         "removed {}; sync: {} written, {} unchanged, {} removed",
         options.alias, summary.written, summary.unchanged, summary.removed
     );
+    print_godot_compatibility_report(&godot_report);
     Ok(())
 }
 
@@ -428,6 +477,8 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         &cache,
         options.offline,
     )?;
+    let compatibility = resolve_project_godot_compatibility(&manifest, None)?;
+    let godot_report = validate_locked_package_godot_compatibility(&updated, &compatibility)?;
     let changes = update_changes(&existing, &updated);
     if options.dry_run {
         print_update_changes("would update", &changes);
@@ -460,6 +511,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         "sync: {} written, {} unchanged, {} removed",
         summary.written, summary.unchanged, summary.removed
     );
+    print_godot_compatibility_report(&godot_report);
     Ok(())
 }
 
@@ -532,6 +584,31 @@ fn print_update_changes(prefix: &str, changes: &[String]) {
     }
     for change in changes {
         println!("{prefix} {change}");
+    }
+}
+
+fn print_godot_compatibility_report(report: &PackageGodotCompatibilityReport) {
+    if !report.unknown().is_empty() {
+        println!(
+            "godot compatibility: unknown for {}",
+            report
+                .unknown()
+                .iter()
+                .map(PackageName::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    if !report.indeterminate().is_empty() {
+        println!(
+            "godot compatibility: exact engine version required for {}",
+            report
+                .indeterminate()
+                .iter()
+                .map(PackageName::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     }
 }
 
@@ -1344,7 +1421,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         )
     })?;
     let manifest = Manifest::parse(&manifest_path, &input)?;
-    let _compatibility =
+    let compatibility =
         resolve_project_godot_compatibility(&manifest, options.godot_version.as_deref())?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let existing = match fs::read_to_string(&lock_path) {
@@ -1369,6 +1446,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         &cache,
         options.offline,
     )?;
+    let godot_report = validate_locked_package_godot_compatibility(&locked, &compatibility)?;
     let output = locked.to_toml();
     if options.locked
         && existing
@@ -1384,6 +1462,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         .as_ref()
         .is_some_and(|existing| existing.to_toml() == output)
     {
+        print_godot_compatibility_report(&godot_report);
         println!("lockfile unchanged");
         return Ok(());
     }
@@ -1397,6 +1476,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             .with_recovery("check project permissions and retry"),
         )
     })?;
+    print_godot_compatibility_report(&godot_report);
     println!("locked {}", lock_path.display());
     Ok(())
 }
@@ -1416,7 +1496,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let manifest = read_manifest(&manifest_path)?;
-    let _compatibility =
+    let compatibility =
         resolve_project_godot_compatibility(&manifest, options.godot_version.as_deref())?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
@@ -1425,6 +1505,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             "run wukong lock to resolve the current manifest",
         )
     })?;
+    let godot_report = validate_locked_package_godot_compatibility(&lock, &compatibility)?;
     let cache = CacheLayout::from_environment()?;
     if options.locked {
         let expected =
@@ -1449,6 +1530,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         "sync: {} written, {} unchanged, {} removed",
         summary.written, summary.unchanged, summary.removed
     );
+    print_godot_compatibility_report(&godot_report);
     Ok(())
 }
 
