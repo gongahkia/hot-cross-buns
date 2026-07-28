@@ -394,11 +394,11 @@ Acceptance criteria:
 
 ## wukong-050: Define cache directory layout
 
-- [ ] Follow platform conventions for cache directories.
-- [ ] Separate downloads, source checkouts, prepared packages and metadata.
-- [ ] Use content-addressed object names.
-- [ ] Add cache schema versioning.
-- [ ] Add process-safe lock files.
+- [x] Follow platform conventions for cache directories.
+- [x] Separate downloads, source checkouts, prepared packages and metadata.
+- [x] Use content-addressed object names.
+- [x] Add cache schema versioning.
+- [x] Add process-safe lock files.
 
 ## wukong-051: Implement atomic cache object publication
 

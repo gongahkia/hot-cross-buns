@@ -30,6 +30,9 @@ pub mod lockfile;
 /// Direct local-dependency lock construction.
 pub mod direct_lock;
 
+/// Versioned content-addressed cache layout.
+pub mod cache;
+
 /// Optional package-owned metadata parsing.
 pub mod package_metadata;
 

@@ -30,6 +30,7 @@ library; package installation is not implemented yet.
 - [Canonical package trees](docs/canonical-package-trees.md)
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
 - [Lockfile schema](docs/lockfile.md)
+- [Cache layout](docs/cache.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

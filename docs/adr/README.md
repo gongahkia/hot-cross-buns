@@ -16,6 +16,7 @@ Current records:
 - [0010: canonical package trees](0010-canonical-package-trees.md)
 - [0011: compatibility-fixture schema](0011-compatibility-fixture-schema.md)
 - [0012: lockfile schema](0012-lockfile-schema.md)
+- [0013: cache layout](0013-cache-layout.md)
 
 ## When to write an ADR
 
