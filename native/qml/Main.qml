@@ -332,7 +332,7 @@ ApplicationWindow {
         if (command.commandId === "create.quickCapture") {
             openQuickCapture()
         } else if (command.commandId === "import.items") {
-            controllerCall("chooseImportFile", [])
+            importDialog.open()
         } else if (command.commandId === "create.task") {
             taskCreateDialog.openForCreate("", "")
         } else if (command.commandId === "create.event") {
@@ -915,7 +915,10 @@ ApplicationWindow {
         parent: Overlay.overlay
         anchors.centerIn: parent
         title: "Import Tasks and events"
-        primaryText: "Import ready rows"
+        primaryText: window.appController !== null && window.appController.importReadyToCommit
+                     ? "Confirm atomic import" : "Validate rows"
+        closeOnPrimaryAction: window.appController !== null &&
+                              window.appController.importReadyToCommit
         primaryEnabled: window.appController !== null && !window.appController.busy &&
                         window.appController.importPreviewRows !== undefined &&
                         window.appController.importPreviewRows.some(function(row) { return row.accepted })
@@ -925,9 +928,27 @@ ApplicationWindow {
             text: window.appController !== null && window.appController.importSourceName !== undefined &&
                   window.appController.importSourceName.length > 0
                   ? "Previewing “" + window.appController.importSourceName + "”. Destination names in the file must match exactly and unambiguously; blank destinations use the defaults below."
-                  : "Choose a UTF-8 delimited file or version-1 CSV file to preview it."
+                  : "Paste delimited lines, or choose a UTF-8 delimited/version-1 CSV file."
             wrapMode: Text.WordWrap
             color: Theme.textSecondary
+        }
+
+        TextArea {
+            id: importPastedText
+            Layout.fillWidth: true
+            Layout.preferredHeight: 120
+            placeholderText: "task title=\"Buy milk\" list=\"Inbox\" due=\"2026-07-29\"\nevent title=\"Planning\" calendar=\"Work\" start=\"2026-07-29T09:00:00+08:00\" end=\"2026-07-29T10:00:00+08:00\" time_zone=\"Asia/Singapore\""
+            Accessible.name: "Delimited Tasks and events to import"
+            selectByMouse: true
+            wrapMode: TextEdit.Wrap
+        }
+
+        Button {
+            text: "Preview pasted text"
+            enabled: window.appController !== null && !window.appController.busy &&
+                     importPastedText.text.trim().length > 0
+            Accessible.name: text
+            onClicked: window.controllerCall("previewDelimitedImport", [importPastedText.text])
         }
 
         Button {
@@ -951,6 +972,7 @@ ApplicationWindow {
             valueRole: "id"
             displayText: currentIndex >= 0 ? "Default Task list: " + currentText : "Default Task list required"
             Accessible.name: "Default Task list for import rows without list"
+            onActivated: window.controllerCall("invalidateImportValidation", [])
         }
 
         ComboBox {
@@ -963,6 +985,7 @@ ApplicationWindow {
             valueRole: "id"
             displayText: currentIndex >= 0 ? "Default calendar: " + currentText : "Default calendar required"
             Accessible.name: "Default calendar for import rows without calendar"
+            onActivated: window.controllerCall("invalidateImportValidation", [])
         }
 
         Repeater {
@@ -982,6 +1005,7 @@ ApplicationWindow {
 
         onPrimaryAction: window.controllerCall("runImport", [importDefaultTaskList.currentValue || "",
                                                                 importDefaultCalendar.currentValue || ""])
+        onSecondaryAction: window.controllerCall("cancelImport", [])
     }
 
     Connections {

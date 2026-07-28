@@ -8,6 +8,7 @@ Dialog {
     property string primaryText: "Save"
     property string secondaryText: "Cancel"
     property bool primaryDestructive: false
+    property bool closeOnPrimaryAction: true
     property alias primaryButton: primaryButton
     property alias primaryEnabled: primaryButton.enabled
     property alias secondaryButton: secondaryButton
@@ -73,8 +74,9 @@ Dialog {
             Accessible.description: root.primaryDestructive ? "Destructive action" : "Primary action"
             palette.button: root.primaryDestructive ? Theme.destructive : Theme.accent
             onClicked: {
+                const shouldClose = root.closeOnPrimaryAction
                 root.primaryAction()
-                root.accept()
+                if (shouldClose) root.accept()
             }
         }
     }

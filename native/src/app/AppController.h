@@ -17,6 +17,7 @@
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
 #include "core/ImportService.h"
+#include "core/ImportMutationService.h"
 #include "core/GoogleSyncRecoveryService.h"
 #include "core/GoogleSyncConflictResolver.h"
 #include "core/GoogleTaskListPullClient.h"
@@ -145,6 +146,7 @@ class AppController final : public QObject {
                  calendarManagementRowsChanged)
   Q_PROPERTY(QVariantList importPreviewRows READ importPreviewRows NOTIFY importPreviewRowsChanged)
   Q_PROPERTY(QString importSourceName READ importSourceName NOTIFY importSourceNameChanged)
+  Q_PROPERTY(bool importReadyToCommit READ importReadyToCommit NOTIFY importReadyToCommitChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
@@ -218,6 +220,7 @@ public:
   [[nodiscard]] QVariantList calendarManagementRows() const;
   [[nodiscard]] QVariantList importPreviewRows() const;
   [[nodiscard]] QString importSourceName() const;
+  [[nodiscard]] bool importReadyToCommit() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
@@ -279,6 +282,9 @@ public:
                                                  QString colorId);
   Q_INVOKABLE void unsubscribeGoogleCalendar(QString calendarId);
   Q_INVOKABLE void chooseImportFile();
+  Q_INVOKABLE void previewDelimitedImport(QString text);
+  Q_INVOKABLE void invalidateImportValidation();
+  Q_INVOKABLE void cancelImport();
   Q_INVOKABLE void runImport(QString defaultTaskListId, QString defaultCalendarId);
   Q_INVOKABLE void queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt);
   Q_INVOKABLE void searchGoogleDriveAttachments(QString query);
@@ -483,6 +489,7 @@ signals:
   void calendarManagementRowsChanged();
   void importPreviewRowsChanged();
   void importSourceNameChanged();
+  void importReadyToCommitChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
   void freeBusyIntervalsChanged();
@@ -590,6 +597,8 @@ private:
   void setCalendarManagementRows(QVariantList rows);
   void setImportPreviewRows(QVariantList rows);
   void setImportSourceName(QString sourceName);
+  void setImportReadyToCommit(bool ready);
+  void setParsedImport(ImportParseResult parsed, QString sourceName);
   void setBusy(bool busy);
   [[nodiscard]] QuickCaptureAliases quickCaptureAliasesConfiguration() const;
   [[nodiscard]] QuickCaptureParseResult quickCaptureParse(QString text,
@@ -631,6 +640,7 @@ private:
   TaskBulkMutationService taskBulkMutationService_;
   TaskListMutationService taskListMutationService_;
   CalendarMutationService calendarMutationService_;
+  ImportMutationService importMutationService_;
   CalendarEventBulkMutationService calendarEventBulkMutationService_;
   GoogleSyncRecoveryService googleSyncRecoveryService_;
   GoogleTaskMutationPushService googleTaskMutationPushService_;
@@ -694,8 +704,13 @@ private:
   bool calendarVisibilityConfigured_{false};
   QVariantList calendarManagementRows_;
   QList<ImportItem> importItems_;
+  QList<TaskCreateInput> importTasks_;
+  QList<CalendarEventCreateInput> importEvents_;
   QVariantList importPreviewRows_;
   QString importSourceName_;
+  QString importDefaultTaskListId_;
+  QString importDefaultCalendarId_;
+  bool importReadyToCommit_{false};
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
   QVariantList freeBusyIntervals_;

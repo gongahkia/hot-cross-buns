@@ -682,6 +682,7 @@ AppController::AppController(FilePath databasePath,
           optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
       taskMutationService_(databasePath, clock), taskBulkMutationService_(taskMutationService_),
       taskListMutationService_(databasePath, clock), calendarMutationService_(databasePath, clock),
+      importMutationService_(databasePath, clock),
       calendarEventBulkMutationService_(calendarMutationService_),
       googleSyncRecoveryService_(syncCheckpointStore_),
       googleTaskMutationPushService_(optimisticMutationCoordinator_,
@@ -857,6 +858,8 @@ QVariantList AppController::calendarManagementRows() const { return calendarMana
 QVariantList AppController::importPreviewRows() const { return importPreviewRows_; }
 
 QString AppController::importSourceName() const { return importSourceName_; }
+
+bool AppController::importReadyToCommit() const { return importReadyToCommit_; }
 
 bool AppController::notesEnabled() const { return notesEnabled_; }
 
@@ -2258,19 +2261,72 @@ void AppController::chooseImportFile() {
     setStatus(QStringLiteral("Import file could not be read"));
     return;
   }
-  const ImportParseResult parsed =
-      ImportService::parse(ImportService::detectFormat(path), file.readAll());
+  setParsedImport(ImportService::parse(ImportService::detectFormat(path), file.readAll()),
+                  QFileInfo(path).fileName());
+}
+
+void AppController::previewDelimitedImport(QString text) {
+  setParsedImport(ImportService::parse(ImportFormat::Delimited, text.toUtf8()),
+                  QStringLiteral("Pasted delimited text"));
+}
+
+void AppController::invalidateImportValidation() {
+  setImportReadyToCommit(false);
+  importTasks_.clear();
+  importEvents_.clear();
+}
+
+void AppController::cancelImport() {
+  importItems_.clear();
+  importTasks_.clear();
+  importEvents_.clear();
+  setImportPreviewRows({});
+  setImportSourceName({});
+  setImportReadyToCommit(false);
+  importDefaultTaskListId_.clear();
+  importDefaultCalendarId_.clear();
+  setStatus(QStringLiteral("Import cancelled"));
+}
+
+void AppController::setParsedImport(ImportParseResult parsed, QString sourceName) {
   importItems_ = parsed.items;
+  importTasks_.clear();
+  importEvents_.clear();
+  setImportReadyToCommit(false);
   setImportPreviewRows(importPreviewRowVariants(parsed));
-  setImportSourceName(QFileInfo(path).fileName());
+  setImportSourceName(std::move(sourceName));
   const qsizetype accepted = static_cast<qsizetype>(parsed.items.size());
   const qsizetype skipped = parsed.rows.size() - accepted;
-  setStatus(QStringLiteral("Import preview: %1 ready, %2 skipped").arg(accepted).arg(skipped));
+  setStatus(QStringLiteral("Import parsed: %1 rows need destination validation, %2 skipped")
+                .arg(accepted)
+                .arg(skipped));
 }
 
 void AppController::runImport(QString defaultTaskListId, QString defaultCalendarId) {
   if (importItems_.isEmpty()) {
-    setStatus(QStringLiteral("Choose an import file with at least one valid row"));
+    setStatus(QStringLiteral("Paste or choose an import with at least one valid row"));
+    return;
+  }
+  if (importReadyToCommit_ && defaultTaskListId == importDefaultTaskListId_ &&
+      defaultCalendarId == importDefaultCalendarId_) {
+    setImportReadyToCommit(false);
+    watch(importMutationService_.create(std::move(importTasks_), std::move(importEvents_)),
+          [this](ImportMutationResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(std::move(result))));
+              return;
+            }
+            const ImportMutationReceipt receipt = std::get<ImportMutationReceipt>(result);
+            refreshTasks();
+            refreshCalendar();
+            setStatus(
+                QStringLiteral("Imported %1 task(s) and %2 calendar event(s); remote sync is queued")
+                    .arg(receipt.taskCount)
+                    .arg(receipt.eventCount));
+            importItems_.clear();
+            importDefaultTaskListId_.clear();
+            importDefaultCalendarId_.clear();
+          });
     return;
   }
   loadImportTaskLists(std::move(defaultTaskListId), std::move(defaultCalendarId), 0, {});
@@ -2341,17 +2397,23 @@ void AppController::executeImport(QString defaultTaskListId,
                                   const QList<TaskListSummary>& taskLists,
                                   const QList<CalendarSummary>& calendars) {
   QVariantList rows = importPreviewRows_;
-  const auto reject = [&rows](const ImportItem& item, QString message) {
+  const auto update = [&rows](const ImportItem& item, bool accepted, QString message) {
     for (QVariant& value : rows) {
       QVariantMap row = value.toMap();
       if (row.value(QStringLiteral("line")).toInt() != item.sourceLine) {
         continue;
       }
-      row.insert(QStringLiteral("accepted"), false);
+      row.insert(QStringLiteral("accepted"), accepted);
       row.insert(QStringLiteral("message"), std::move(message));
       value = std::move(row);
       return;
     }
+  };
+  const auto reject = [&update](const ImportItem& item, QString message) {
+    update(item, false, std::move(message));
+  };
+  const auto accept = [&update](const ImportItem& item, QString message) {
+    update(item, true, std::move(message));
   };
   QList<TaskCreateInput> tasks;
   QList<CalendarEventCreateInput> events;
@@ -2363,6 +2425,14 @@ void AppController::executeImport(QString defaultTaskListId,
           resolveImportTarget(item.taskList, defaultTaskListId, taskLists);
       if (!taskListId.has_value()) {
         reject(item, QStringLiteral("task list is missing or ambiguous"));
+        continue;
+      }
+      const auto taskList =
+          std::find_if(taskLists.cbegin(), taskLists.cend(), [&taskListId](const TaskListSummary& value) {
+            return value.id == *taskListId;
+          });
+      if (taskList == taskLists.cend()) {
+        reject(item, QStringLiteral("task list is unavailable"));
         continue;
       }
       const std::optional<TaskPriority> priority = importPriority(item.taskPriority);
@@ -2427,7 +2497,20 @@ void AppController::executeImport(QString defaultTaskListId,
         input.notes = serialized.notes;
         input.due = TaskDue{.at = due, .timeZone = timeZone};
       }
-      tasks.append(std::move(input));
+      std::variant<TaskCreateInput, AppError> validated =
+          TaskMutationService::validateCreate(std::move(input));
+      if (std::holds_alternative<AppError>(validated)) {
+        reject(item, QStringLiteral("task fields exceed supported limits"));
+        continue;
+      }
+      const TaskCreateInput& ready = std::get<TaskCreateInput>(validated);
+      accept(item,
+             QStringLiteral("ready → Task list “%1”%2")
+                 .arg(taskList->title,
+                      ready.due.has_value() && ready.due->at.has_value()
+                          ? QStringLiteral(" · due %1").arg(*ready.due->at)
+                          : QString()));
+      tasks.append(std::get<TaskCreateInput>(std::move(validated)));
       continue;
     }
     const std::optional<QString> calendarId =
@@ -2443,66 +2526,47 @@ void AppController::executeImport(QString defaultTaskListId,
       reject(item, QStringLiteral("calendar is missing, ambiguous, or read-only"));
       continue;
     }
-    events.append({.calendarId = *calendarId,
-                   .title = item.title,
-                   .startAt = item.eventStart,
-                   .endAt = item.eventEnd,
-                   .allDay = item.eventAllDay,
-                   .description = item.eventDescription,
-                   .location = item.eventLocation,
-                   .startTimeZone = item.eventTimeZone,
-                   .endTimeZone = item.eventTimeZone,
-                   .recurrenceRule = item.eventRecurrence});
+    std::variant<CalendarEventCreateInput, AppError> validated =
+        CalendarMutationService::validateCreate(
+            {.calendarId = *calendarId,
+             .title = item.title,
+             .startAt = item.eventStart,
+             .endAt = item.eventEnd,
+             .allDay = item.eventAllDay,
+             .description = item.eventDescription,
+             .location = item.eventLocation,
+             .startTimeZone = item.eventTimeZone,
+             .endTimeZone = item.eventTimeZone,
+             .recurrenceRule = item.eventRecurrence});
+    if (std::holds_alternative<AppError>(validated)) {
+      reject(item, QStringLiteral("event dates, time zone, recurrence, or field limits are invalid"));
+      continue;
+    }
+    const CalendarEventCreateInput& ready = std::get<CalendarEventCreateInput>(validated);
+    accept(item,
+           QStringLiteral("ready → Calendar “%1” · %2 → %3%4")
+               .arg(calendar->title,
+                    ready.startAt,
+                    ready.endAt,
+                    ready.recurrenceRule.has_value() ? QStringLiteral(" · recurring") : QString()));
+    events.append(std::get<CalendarEventCreateInput>(std::move(validated)));
   }
   setImportPreviewRows(std::move(rows));
   if (tasks.isEmpty() && events.isEmpty()) {
+    importTasks_.clear();
+    importEvents_.clear();
+    setImportReadyToCommit(false);
     setStatus(QStringLiteral("No import rows are eligible after destination validation"));
     return;
   }
-  const auto completeEvents = [this](CalendarEventBatchMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(std::move(result))));
-      return;
-    }
-    const qsizetype eventCount = std::get<QList<CalendarEventMutationReceipt>>(result).size();
-    refreshTasks();
-    refreshCalendar();
-    setStatus(QStringLiteral("Imported %1 calendar event(s); remote sync is queued").arg(eventCount));
-  };
-  if (tasks.isEmpty()) {
-    watch(calendarMutationService_.createBatch(std::move(events)), completeEvents);
-    return;
-  }
-  watch(taskMutationService_.createBatch(std::move(tasks)),
-        [this, events = std::move(events)](TaskBatchMutationResult result) mutable {
-          if (std::holds_alternative<AppError>(result)) {
-            setStatus(errorMessage(std::get<AppError>(std::move(result))));
-            return;
-          }
-          const qsizetype taskCount = std::get<QList<TaskMutationReceipt>>(result).size();
-          if (events.isEmpty()) {
-            refreshTasks();
-            setStatus(QStringLiteral("Imported %1 task(s); remote sync is queued").arg(taskCount));
-            return;
-          }
-          watch(calendarMutationService_.createBatch(std::move(events)),
-                [this, taskCount](CalendarEventBatchMutationResult eventResult) {
-                  if (std::holds_alternative<AppError>(eventResult)) {
-                    setStatus(QStringLiteral("Imported %1 task(s), but calendar events failed: %2")
-                                  .arg(taskCount)
-                                  .arg(errorMessage(std::get<AppError>(std::move(eventResult)))));
-                    refreshTasks();
-                    return;
-                  }
-                  const qsizetype eventCount =
-                      std::get<QList<CalendarEventMutationReceipt>>(eventResult).size();
-                  refreshTasks();
-                  refreshCalendar();
-                  setStatus(QStringLiteral("Imported %1 task(s) and %2 calendar event(s); remote sync is queued")
-                                .arg(taskCount)
-                                .arg(eventCount));
-                });
-        });
+  importTasks_ = std::move(tasks);
+  importEvents_ = std::move(events);
+  importDefaultTaskListId_ = std::move(defaultTaskListId);
+  importDefaultCalendarId_ = std::move(defaultCalendarId);
+  setImportReadyToCommit(true);
+  setStatus(QStringLiteral("Import validated: %1 task(s), %2 event(s) ready; confirm to create")
+                .arg(importTasks_.size())
+                .arg(importEvents_.size()));
 }
 
 void AppController::queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt) {
@@ -4702,6 +4766,14 @@ void AppController::setImportSourceName(QString sourceName) {
   }
   importSourceName_ = std::move(sourceName);
   emit importSourceNameChanged();
+}
+
+void AppController::setImportReadyToCommit(bool ready) {
+  if (importReadyToCommit_ == ready) {
+    return;
+  }
+  importReadyToCommit_ = ready;
+  emit importReadyToCommitChanged();
 }
 
 void AppController::setBusy(bool busy) {

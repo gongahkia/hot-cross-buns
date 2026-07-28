@@ -97,6 +97,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleHttpClient.h
   src/core/ImportService.cpp
   src/core/ImportService.h
+  src/core/ImportMutationService.cpp
+  src/core/ImportMutationService.h
   src/core/GoogleMirrorStore.cpp
   src/core/GoogleMirrorStore.h
   src/core/GoogleTaskMirrorSyncService.cpp
@@ -917,6 +919,40 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_import_service_tests)
   hcb_enable_sanitizers(hcb_import_service_tests)
   add_test(NAME hcb_import_service_tests COMMAND hcb_import_service_tests)
+
+  qt_add_executable(hcb_import_mutation_service_tests
+    tests/ImportMutationServiceTest.cpp
+    src/core/AppError.h
+    src/core/CalendarMutationService.cpp
+    src/core/CalendarMutationService.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/ImportMutationService.cpp
+    src/core/ImportMutationService.h
+    src/core/RecurrenceExpansionWorker.cpp
+    src/core/RecurrenceExpansionWorker.h
+    src/core/TaskMutationService.cpp
+    src/core/TaskMutationService.h
+    src/core/TaskRecurrenceMarker.cpp
+    src/core/TaskRecurrenceMarker.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_import_mutation_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_import_mutation_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_import_mutation_service_tests)
+  hcb_enable_sanitizers(hcb_import_mutation_service_tests)
+  add_test(NAME hcb_import_mutation_service_tests COMMAND hcb_import_mutation_service_tests)
 
   qt_add_executable(hcb_settings_registry_tests
     tests/SettingsRegistryTest.cpp
