@@ -20,7 +20,9 @@ a second fresh project, then checks a no-op repeat synchronisation. See
 [ADR 0011](adr/0011-compatibility-fixture-schema.md).
 
 Contributor selection, review, and update rules are in the
-[fixture guide](fixture-guide.md).
+[fixture guide](fixture-guide.md). The separate
+[external-testing ledger](external-testing.md) distinguishes fixture evidence
+from feedback supplied by external testers.
 
 ## W084 validation record
 

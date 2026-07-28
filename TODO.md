@@ -932,8 +932,8 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-143: Recruit external testers
 
-- [ ] Identify at least three unrelated Godot repositories.
-- [ ] Add their reproducible cases to the fixture corpus where permitted.
+- [x] Identify at least three unrelated Godot repositories.
+- [x] Add their reproducible cases to the fixture corpus where permitted.
 - [ ] Record onboarding friction.
 - [ ] Resolve critical installation failures.
 - [ ] Collect launch testimonials only when genuinely provided.
