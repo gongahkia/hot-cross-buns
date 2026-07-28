@@ -11,12 +11,13 @@ HcbDialog {
     property var recordIds: []
     property int defaultRecurrenceScope: 2
     property string previewMessage: "Enter find text, select fields, then preview."
-    property int previewRevision: 0
-    property int requestedPreviewRevision: -1
+    property int previewRequestToken: 0
+    property int previewResultRequestToken: -1
     property bool previewed: false
     property alias findTextField: findField
     property alias replacementTextField: replacementField
-    signal previewRequested(var recordIds, string findText, int fields, int recurrenceScope)
+    signal previewRequested(var recordIds, string findText, int fields, int recurrenceScope,
+                            int requestToken)
     signal replaceRequested(var recordIds, string findText, string replaceText, int fields,
                            int recurrenceScope)
 
@@ -36,17 +37,18 @@ HcbDialog {
         descriptionField.checked = true
         locationField.checked = true
         recurrenceScopePicker.currentIndex = scope
-        requestedPreviewRevision = previewRevision
-        previewed = false
+        clearPreview()
         open()
     }
 
-    function clearPreview() { previewed = false }
+    function clearPreview() {
+        previewed = false
+        ++previewRequestToken
+    }
 
-    onPreviewRevisionChanged: {
-        if (previewRevision > requestedPreviewRevision) {
-            previewed = previewMessage.startsWith("Preview:")
-        }
+    onPreviewResultRequestTokenChanged: {
+        previewed = previewResultRequestToken === previewRequestToken &&
+                    previewMessage.startsWith("Preview:")
     }
 
     onPrimaryAction: replaceRequested(recordIds, findField.text, replacementField.text,
@@ -136,9 +138,9 @@ HcbDialog {
         Accessible.name: text
         onClicked: {
             root.previewed = false
-            root.requestedPreviewRevision = root.previewRevision
+            ++root.previewRequestToken
             root.previewRequested(root.recordIds, findField.text, root.selectedFields(),
-                                  recurrenceScopePicker.currentIndex)
+                                  recurrenceScopePicker.currentIndex, root.previewRequestToken)
         }
     }
 

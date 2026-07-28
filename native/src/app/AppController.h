@@ -99,10 +99,10 @@ class AppController final : public QObject {
                  bulkTaskPreviewMessageChanged)
   Q_PROPERTY(QString bulkEventPreviewMessage READ bulkEventPreviewMessage NOTIFY
                  bulkEventPreviewMessageChanged)
-  Q_PROPERTY(int bulkTaskPreviewRevision READ bulkTaskPreviewRevision NOTIFY
-                 bulkTaskPreviewRevisionChanged)
-  Q_PROPERTY(int bulkEventPreviewRevision READ bulkEventPreviewRevision NOTIFY
-                 bulkEventPreviewRevisionChanged)
+  Q_PROPERTY(int bulkTaskPreviewRequestToken READ bulkTaskPreviewRequestToken NOTIFY
+                 bulkTaskPreviewRequestTokenChanged)
+  Q_PROPERTY(int bulkEventPreviewRequestToken READ bulkEventPreviewRequestToken NOTIFY
+                 bulkEventPreviewRequestTokenChanged)
   Q_PROPERTY(int bulkTextRecurrenceScope READ bulkTextRecurrenceScope NOTIFY
                  bulkTextRecurrenceScopeChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
@@ -182,8 +182,8 @@ public:
   [[nodiscard]] QString bulkEventStatusMessage() const;
   [[nodiscard]] QString bulkTaskPreviewMessage() const;
   [[nodiscard]] QString bulkEventPreviewMessage() const;
-  [[nodiscard]] int bulkTaskPreviewRevision() const;
-  [[nodiscard]] int bulkEventPreviewRevision() const;
+  [[nodiscard]] int bulkTaskPreviewRequestToken() const;
+  [[nodiscard]] int bulkEventPreviewRequestToken() const;
   [[nodiscard]] int bulkTextRecurrenceScope() const;
   [[nodiscard]] QString calendarDate() const;
   [[nodiscard]] int appearanceMode() const;
@@ -339,7 +339,8 @@ public:
   Q_INVOKABLE void previewBulkTaskText(QVariantList taskIds,
                                        QString findText,
                                        int fields,
-                                       int recurrenceScope);
+                                       int recurrenceScope,
+                                       int requestToken);
   Q_INVOKABLE void createEvent(QString calendarId,
                                QString title,
                                QString startAt,
@@ -416,7 +417,8 @@ public:
   Q_INVOKABLE void previewBulkEventText(QVariantList eventIds,
                                         QString findText,
                                         int fields,
-                                        int recurrenceScope);
+                                        int recurrenceScope,
+                                        int requestToken);
 
 signals:
   void clientIdChanged();
@@ -436,8 +438,8 @@ signals:
   void bulkEventStatusMessageChanged();
   void bulkTaskPreviewMessageChanged();
   void bulkEventPreviewMessageChanged();
-  void bulkTaskPreviewRevisionChanged();
-  void bulkEventPreviewRevisionChanged();
+  void bulkTaskPreviewRequestTokenChanged();
+  void bulkEventPreviewRequestTokenChanged();
   void bulkTextRecurrenceScopeChanged();
   void calendarDateChanged();
   void appearanceModeChanged();
@@ -523,8 +525,8 @@ private:
   void loadSavedSearches();
   void runBulkTaskMutation(TaskBulkMutationInput input);
   void runBulkEventMutation(CalendarEventBulkMutationInput input);
-  void previewBulkTaskMutation(TaskBulkMutationInput input);
-  void previewBulkEventMutation(CalendarEventBulkMutationInput input);
+  void previewBulkTaskMutation(TaskBulkMutationInput input, int requestToken);
+  void previewBulkEventMutation(CalendarEventBulkMutationInput input, int requestToken);
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
   void requestGoogleSync(SyncScheduleTrigger trigger);
@@ -542,8 +544,8 @@ private:
   void setSearchLoading(bool loading);
   void setBulkTaskStatusMessage(QString message);
   void setBulkEventStatusMessage(QString message);
-  void setBulkTaskPreviewMessage(QString message);
-  void setBulkEventPreviewMessage(QString message);
+  void setBulkTaskPreviewMessage(QString message, int requestToken);
+  void setBulkEventPreviewMessage(QString message, int requestToken);
   void setReminderStatusMessage(QString message);
   void setInvitations(QVariantList invitations);
   void setBusy(bool busy);
@@ -620,8 +622,10 @@ private:
   QString bulkEventStatusMessage_;
   QString bulkTaskPreviewMessage_;
   QString bulkEventPreviewMessage_;
-  int bulkTaskPreviewRevision_{0};
-  int bulkEventPreviewRevision_{0};
+  int bulkTaskPreviewRequestToken_{-1};
+  int bulkEventPreviewRequestToken_{-1};
+  int latestTaskPreviewRequestToken_{-1};
+  int latestEventPreviewRequestToken_{-1};
   int bulkTextRecurrenceScope_{2};
   QDate calendarDate_{QDate::currentDate()};
   int appearanceMode_{0};

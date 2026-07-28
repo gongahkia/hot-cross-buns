@@ -42,12 +42,12 @@ ApplicationWindow {
     property int bulkTextRecurrenceScope: appController !== null &&
                                           typeof appController.bulkTextRecurrenceScope === "number"
                                           ? appController.bulkTextRecurrenceScope : 2
-    property int bulkTaskPreviewRevision: appController !== null &&
-                                          typeof appController.bulkTaskPreviewRevision === "number"
-                                          ? appController.bulkTaskPreviewRevision : 0
-    property int bulkEventPreviewRevision: appController !== null &&
-                                           typeof appController.bulkEventPreviewRevision === "number"
-                                           ? appController.bulkEventPreviewRevision : 0
+    property int bulkTaskPreviewRequestToken: appController !== null &&
+                                              typeof appController.bulkTaskPreviewRequestToken === "number"
+                                              ? appController.bulkTaskPreviewRequestToken : -1
+    property int bulkEventPreviewRequestToken: appController !== null &&
+                                               typeof appController.bulkEventPreviewRequestToken === "number"
+                                               ? appController.bulkEventPreviewRequestToken : -1
     property string quickCaptureDefaultTaskListId: appController !== null &&
                                                    typeof appController.quickCaptureDefaultTaskListId === "string"
                                                    ? appController.quickCaptureDefaultTaskListId : ""
@@ -831,7 +831,7 @@ ApplicationWindow {
                                        typeof window.appController.bulkTaskStatusMessage === "string"
                                        ? window.appController.bulkTaskStatusMessage : ""
                 bulkTaskPreviewMessage: window.controllerString("bulkTaskPreviewMessage", "")
-                bulkTaskPreviewRevision: window.bulkTaskPreviewRevision
+                bulkTaskPreviewRequestToken: window.bulkTaskPreviewRequestToken
                 bulkTextRecurrenceScope: window.bulkTextRecurrenceScope
                 onTaskListCreateRequested: taskListEditorDialog.openForCreate()
                 onTaskListRenameRequested: function(taskListId, title) {
@@ -897,9 +897,9 @@ ApplicationWindow {
                 onBulkTaskReparentRequested: function(taskIds, parentTaskId) {
                     window.controllerCall("bulkReparentTasks", [taskIds, parentTaskId])
                 }
-                onBulkTaskTextPreviewRequested: function(taskIds, findText, fields, recurrenceScope) {
+                onBulkTaskTextPreviewRequested: function(taskIds, findText, fields, recurrenceScope, requestToken) {
                     window.controllerCall("previewBulkTaskText",
-                                          [taskIds, findText, fields, recurrenceScope])
+                                          [taskIds, findText, fields, recurrenceScope, requestToken])
                 }
                 onBulkTaskTextReplaceRequested: function(taskIds, findText, replaceText, fields, recurrenceScope) {
                     window.controllerCall("bulkReplaceTaskText",
@@ -1026,7 +1026,7 @@ ApplicationWindow {
                     calendarSourceModel: window.calendarSourceModel
                     statusMessage: window.controllerString("bulkEventStatusMessage", "")
                     previewMessage: window.controllerString("bulkEventPreviewMessage", "")
-                    previewRevision: window.bulkEventPreviewRevision
+                    previewRequestToken: window.bulkEventPreviewRequestToken
                     bulkTextRecurrenceScope: window.bulkTextRecurrenceScope
                     onClearSelectionRequested: window.clearCalendarEventSelection()
                     onBulkDeleteRequested: function(eventIds) {
@@ -1053,9 +1053,9 @@ ApplicationWindow {
                         window.controllerCall("bulkShiftEventTimes", [eventIds, shiftMinutes])
                         window.clearCalendarEventSelection()
                     }
-                    onBulkTextPreviewRequested: function(eventIds, findText, fields, recurrenceScope) {
+                    onBulkTextPreviewRequested: function(eventIds, findText, fields, recurrenceScope, requestToken) {
                         window.controllerCall("previewBulkEventText",
-                                              [eventIds, findText, fields, recurrenceScope])
+                                              [eventIds, findText, fields, recurrenceScope, requestToken])
                     }
                     onBulkTextReplaceRequested: function(eventIds, findText, replaceText, fields, recurrenceScope) {
                         window.controllerCall("bulkReplaceEventText",

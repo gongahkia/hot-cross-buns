@@ -10,7 +10,7 @@ Pane {
     property string taskListErrorMessage: ""
     property string bulkTaskStatusMessage: ""
     property string bulkTaskPreviewMessage: ""
-    property int bulkTaskPreviewRevision: 0
+    property int bulkTaskPreviewRequestToken: -1
     property int bulkTextRecurrenceScope: 2
     property var selectedTaskIds: []
     property alias taskRows: taskRows
@@ -48,7 +48,8 @@ Pane {
     signal bulkTaskClearDueRequested(var taskIds)
     signal bulkTaskPriorityRequested(var taskIds, int priority)
     signal bulkTaskReparentRequested(var taskIds, string parentTaskId)
-    signal bulkTaskTextPreviewRequested(var taskIds, string findText, int fields, int recurrenceScope)
+    signal bulkTaskTextPreviewRequested(var taskIds, string findText, int fields, int recurrenceScope,
+                                        int requestToken)
     signal bulkTaskTextReplaceRequested(var taskIds, string findText, string replaceText, int fields,
                                         int recurrenceScope)
 
@@ -511,9 +512,9 @@ Pane {
         parent: Overlay.overlay
         kind: "task"
         previewMessage: root.bulkTaskPreviewMessage
-        previewRevision: root.bulkTaskPreviewRevision
-        onPreviewRequested: function(taskIds, findText, fields, recurrenceScope) {
-            root.bulkTaskTextPreviewRequested(taskIds, findText, fields, recurrenceScope)
+        previewResultRequestToken: root.bulkTaskPreviewRequestToken
+        onPreviewRequested: function(taskIds, findText, fields, recurrenceScope, requestToken) {
+            root.bulkTaskTextPreviewRequested(taskIds, findText, fields, recurrenceScope, requestToken)
         }
         onReplaceRequested: function(taskIds, findText, replaceText, fields, recurrenceScope) {
             root.bulkTaskTextReplaceRequested(taskIds, findText, replaceText, fields, recurrenceScope)

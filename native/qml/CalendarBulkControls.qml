@@ -8,7 +8,7 @@ Pane {
     property var calendarSourceModel: null
     property string statusMessage: ""
     property string previewMessage: ""
-    property int previewRevision: 0
+    property int previewRequestToken: -1
     property int bulkTextRecurrenceScope: 2
     signal clearSelectionRequested()
     signal bulkDeleteRequested(var eventIds)
@@ -17,7 +17,8 @@ Pane {
     signal bulkAvailabilityRequested(var eventIds, bool available)
     signal bulkVisibilityRequested(var eventIds, string visibility)
     signal bulkShiftRequested(var eventIds, int shiftMinutes)
-    signal bulkTextPreviewRequested(var eventIds, string findText, int fields, int recurrenceScope)
+    signal bulkTextPreviewRequested(var eventIds, string findText, int fields, int recurrenceScope,
+                                    int requestToken)
     signal bulkTextReplaceRequested(var eventIds, string findText, string replaceText, int fields,
                                    int recurrenceScope)
 
@@ -134,9 +135,9 @@ Pane {
         parent: Overlay.overlay
         kind: "event"
         previewMessage: root.previewMessage
-        previewRevision: root.previewRevision
-        onPreviewRequested: function(eventIds, findText, fields, recurrenceScope) {
-            root.bulkTextPreviewRequested(eventIds, findText, fields, recurrenceScope)
+        previewResultRequestToken: root.previewRequestToken
+        onPreviewRequested: function(eventIds, findText, fields, recurrenceScope, requestToken) {
+            root.bulkTextPreviewRequested(eventIds, findText, fields, recurrenceScope, requestToken)
         }
         onReplaceRequested: function(eventIds, findText, replaceText, fields, recurrenceScope) {
             root.bulkTextReplaceRequested(eventIds, findText, replaceText, fields, recurrenceScope)

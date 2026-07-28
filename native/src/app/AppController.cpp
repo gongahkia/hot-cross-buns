@@ -713,9 +713,9 @@ QString AppController::bulkTaskPreviewMessage() const { return bulkTaskPreviewMe
 
 QString AppController::bulkEventPreviewMessage() const { return bulkEventPreviewMessage_; }
 
-int AppController::bulkTaskPreviewRevision() const { return bulkTaskPreviewRevision_; }
+int AppController::bulkTaskPreviewRequestToken() const { return bulkTaskPreviewRequestToken_; }
 
-int AppController::bulkEventPreviewRevision() const { return bulkEventPreviewRevision_; }
+int AppController::bulkEventPreviewRequestToken() const { return bulkEventPreviewRequestToken_; }
 
 int AppController::bulkTextRecurrenceScope() const { return bulkTextRecurrenceScope_; }
 
@@ -3142,11 +3142,13 @@ void AppController::bulkReplaceTaskText(QVariantList taskIds,
 void AppController::previewBulkTaskText(QVariantList taskIds,
                                         QString findText,
                                         int fields,
-                                        int recurrenceScope) {
+                                        int recurrenceScope,
+                                        int requestToken) {
   const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
   if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 3 ||
       !isValidBulkTextRecurrenceScope(recurrenceScope)) {
-    setBulkTaskPreviewMessage(QStringLiteral("Enter find text and at least one field"));
+    setBulkTaskPreviewMessage(QStringLiteral("Enter find text and at least one field"),
+                              requestToken);
     return;
   }
   previewBulkTaskMutation({.action = TaskBulkAction::ReplaceText,
@@ -3154,7 +3156,8 @@ void AppController::previewBulkTaskText(QVariantList taskIds,
                             .findText = std::move(findText),
                             .textFields = static_cast<std::uint8_t>(fields),
                             .recurrenceScope = recurrenceScope,
-                            .previewOnly = true});
+                            .previewOnly = true},
+                          requestToken);
 }
 
 void AppController::createEvent(QString calendarId,
@@ -3506,11 +3509,13 @@ void AppController::bulkReplaceEventText(QVariantList eventIds,
 void AppController::previewBulkEventText(QVariantList eventIds,
                                          QString findText,
                                          int fields,
-                                         int recurrenceScope) {
+                                         int recurrenceScope,
+                                         int requestToken) {
   const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
   if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 7 ||
       !isValidBulkTextRecurrenceScope(recurrenceScope)) {
-    setBulkEventPreviewMessage(QStringLiteral("Enter find text and at least one field"));
+    setBulkEventPreviewMessage(QStringLiteral("Enter find text and at least one field"),
+                               requestToken);
     return;
   }
   previewBulkEventMutation({.action = CalendarEventBulkAction::ReplaceText,
@@ -3518,7 +3523,8 @@ void AppController::previewBulkEventText(QVariantList eventIds,
                              .findText = std::move(findText),
                              .textFields = static_cast<std::uint8_t>(fields),
                              .recurrenceScope = recurrenceScope,
-                             .previewOnly = true});
+                             .previewOnly = true},
+                           requestToken);
 }
 
 void AppController::runSearch() {
@@ -3607,25 +3613,35 @@ void AppController::runBulkEventMutation(CalendarEventBulkMutationInput input) {
         });
 }
 
-void AppController::previewBulkTaskMutation(TaskBulkMutationInput input) {
-  watch(taskBulkMutationService_.execute(std::move(input)), [this](TaskBulkMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setBulkTaskPreviewMessage(errorMessage(std::get<AppError>(result)));
-      return;
-    }
-    const TaskBulkMutationSummary& summary = std::get<TaskBulkMutationSummary>(result);
-    setBulkTaskPreviewMessage(
-        QStringLiteral("Preview: %1 records will change; %2 skipped.")
-            .arg(summary.eligible)
-            .arg(summary.skipped));
-  });
+void AppController::previewBulkTaskMutation(TaskBulkMutationInput input, int requestToken) {
+  latestTaskPreviewRequestToken_ = requestToken;
+  watch(taskBulkMutationService_.execute(std::move(input)),
+        [this, requestToken](TaskBulkMutationResult result) {
+          if (requestToken != latestTaskPreviewRequestToken_) {
+            return;
+          }
+          if (std::holds_alternative<AppError>(result)) {
+            setBulkTaskPreviewMessage(errorMessage(std::get<AppError>(result)), requestToken);
+            return;
+          }
+          const TaskBulkMutationSummary& summary = std::get<TaskBulkMutationSummary>(result);
+          setBulkTaskPreviewMessage(
+              QStringLiteral("Preview: %1 records will change; %2 skipped.")
+                  .arg(summary.eligible)
+                  .arg(summary.skipped),
+              requestToken);
+        });
 }
 
-void AppController::previewBulkEventMutation(CalendarEventBulkMutationInput input) {
+void AppController::previewBulkEventMutation(CalendarEventBulkMutationInput input, int requestToken) {
+  latestEventPreviewRequestToken_ = requestToken;
   watch(calendarEventBulkMutationService_.execute(std::move(input)),
-        [this](CalendarEventBulkMutationResult result) {
+        [this, requestToken](CalendarEventBulkMutationResult result) {
+          if (requestToken != latestEventPreviewRequestToken_) {
+            return;
+          }
           if (std::holds_alternative<AppError>(result)) {
-            setBulkEventPreviewMessage(errorMessage(std::get<AppError>(result)));
+            setBulkEventPreviewMessage(errorMessage(std::get<AppError>(result)), requestToken);
             return;
           }
           const CalendarEventBulkMutationSummary& summary =
@@ -3633,7 +3649,8 @@ void AppController::previewBulkEventMutation(CalendarEventBulkMutationInput inpu
           setBulkEventPreviewMessage(
               QStringLiteral("Preview: %1 records will change; %2 skipped.")
                   .arg(summary.eligible)
-                  .arg(summary.skipped));
+                  .arg(summary.skipped),
+              requestToken);
         });
 }
 
@@ -4033,22 +4050,26 @@ void AppController::setBulkEventStatusMessage(QString message) {
   emit bulkEventStatusMessageChanged();
 }
 
-void AppController::setBulkTaskPreviewMessage(QString message) {
+void AppController::setBulkTaskPreviewMessage(QString message, int requestToken) {
   if (bulkTaskPreviewMessage_ != message) {
     bulkTaskPreviewMessage_ = std::move(message);
     emit bulkTaskPreviewMessageChanged();
   }
-  ++bulkTaskPreviewRevision_;
-  emit bulkTaskPreviewRevisionChanged();
+  if (bulkTaskPreviewRequestToken_ != requestToken) {
+    bulkTaskPreviewRequestToken_ = requestToken;
+    emit bulkTaskPreviewRequestTokenChanged();
+  }
 }
 
-void AppController::setBulkEventPreviewMessage(QString message) {
+void AppController::setBulkEventPreviewMessage(QString message, int requestToken) {
   if (bulkEventPreviewMessage_ != message) {
     bulkEventPreviewMessage_ = std::move(message);
     emit bulkEventPreviewMessageChanged();
   }
-  ++bulkEventPreviewRevision_;
-  emit bulkEventPreviewRevisionChanged();
+  if (bulkEventPreviewRequestToken_ != requestToken) {
+    bulkEventPreviewRequestToken_ = requestToken;
+    emit bulkEventPreviewRequestTokenChanged();
+  }
 }
 
 void AppController::setReminderStatusMessage(QString message) {

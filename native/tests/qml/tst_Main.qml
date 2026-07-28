@@ -717,8 +717,9 @@ TestCase {
         verify(dialog !== null)
         let preview = null
         let replacement = null
-        dialog.previewRequested.connect(function(ids, findText, fields, recurrenceScope) {
-            preview = { ids: ids, findText: findText, fields: fields, recurrenceScope: recurrenceScope }
+        dialog.previewRequested.connect(function(ids, findText, fields, recurrenceScope, requestToken) {
+            preview = { ids: ids, findText: findText, fields: fields, recurrenceScope: recurrenceScope,
+                        requestToken: requestToken }
         })
         dialog.replaceRequested.connect(function(ids, findText, replaceText, fields, recurrenceScope) {
             replacement = { ids: ids, findText: findText, replaceText: replaceText,
@@ -728,14 +729,20 @@ TestCase {
         dialog.findTextField.text = "Alpha"
         dialog.replacementTextField.text = "Beta"
         verify(!dialog.primaryEnabled)
-        dialog.previewRequested(["task-a", "task-b"], "Alpha", 3, 2)
+        dialog.previewRequestToken = 1
+        dialog.previewRequested(["task-a", "task-b"], "Alpha", 3, 2, 1)
         verify(preview !== null)
+        dialog.findTextField.text = "Gamma"
         dialog.previewMessage = "Preview: 2 records will change; 0 skipped."
-        dialog.previewRevision = 1
+        dialog.previewResultRequestToken = 1
+        verify(!dialog.primaryEnabled)
+        dialog.previewRequestToken = 3
+        dialog.previewRequested(["task-a", "task-b"], "Gamma", 3, 2, 3)
+        dialog.previewResultRequestToken = 3
         verify(dialog.primaryEnabled)
         dialog.primaryButton.click()
         verify(replacement !== null)
-        compare(replacement.findText, "Alpha")
+        compare(replacement.findText, "Gamma")
         compare(replacement.replaceText, "Beta")
         compare(replacement.fields, 3)
         compare(replacement.recurrenceScope, 2)
