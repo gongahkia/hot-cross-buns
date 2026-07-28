@@ -35,4 +35,5 @@ their adapters exist. See [ADR 0012](adr/0012-lockfile-schema.md).
 `wukong lock` resolves direct local dependencies and writes `wukong.lock`; it
 does not materialise package files. `--offline` is valid for local paths.
 `--locked` refuses a missing or changed lockfile with exit code 2. An unchanged
-valid lockfile is not rewritten.
+valid lockfile is not rewritten. [`wukong install` and `wukong sync`](sync.md)
+apply an existing lockfile transactionally.

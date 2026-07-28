@@ -7,10 +7,20 @@ lockfile, and source content should produce the same project addon state.
 
 ## Status
 
-Pre-alpha. `wukong init` creates a minimal manifest and `wukong lock` resolves
-direct local-path dependencies without materialising packages. `wukong cache
-verify` verifies prepared-package cache objects. Package installation is not
-implemented yet.
+Pre-alpha. The local-path vertical slice provides `wukong init`, `wukong lock`,
+and transactional `wukong install`/`wukong sync`. `wukong cache verify` verifies
+prepared-package cache objects. Git, HTTP archives, official asset sources,
+package scripts, and a dependency solver are not implemented yet.
+
+## Local-path workflow
+
+```sh
+wukong lock
+wukong install
+```
+
+`install`/`sync` reconcile the existing lockfile through a rollback transaction
+and never execute package scripts. See [local sync behaviour](docs/sync.md).
 
 ## Project documents
 
@@ -35,6 +45,7 @@ implemented yet.
 - [Installed state](docs/installed-state.md)
 - [Ownership maps](docs/ownership.md)
 - [Project synchronisation](docs/project-sync.md)
+- [Install and sync](docs/sync.md)
 - [Materialisation](docs/materialization.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)

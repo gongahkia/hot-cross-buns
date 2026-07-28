@@ -33,6 +33,9 @@ pub mod lockfile;
 /// Direct local-dependency lock construction.
 pub mod direct_lock;
 
+/// Direct local-path lockfile verification and synchronisation.
+pub mod direct_sync;
+
 /// Versioned content-addressed cache layout.
 pub mod cache;
 

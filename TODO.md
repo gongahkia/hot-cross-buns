@@ -471,12 +471,12 @@ Do not default to symlinks.
 
 ## wukong-057: Implement `wukong install` and `wukong sync`
 
-- [ ] `install` follows the lockfile.
-- [ ] `sync` reconciles the filesystem to the lockfile and selected dependency groups.
-- [ ] Add `--offline`.
-- [ ] Add `--locked`.
-- [ ] Add `--frozen` semantics if useful.
-- [ ] Add concise operation summaries.
+- [x] `install` follows the lockfile.
+- [x] `sync` reconciles the filesystem to the lockfile and selected dependency groups.
+- [x] Add `--offline`.
+- [x] Add `--locked`.
+- [x] Add `--frozen` semantics as a local-only `--locked` alias.
+- [x] Add concise operation summaries.
 
 ---
 
