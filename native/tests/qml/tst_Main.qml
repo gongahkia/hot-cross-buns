@@ -477,7 +477,17 @@ TestCase {
             endAt: "2026-07-26T11:00:00.000Z",
             description: "Verify the native package",
             location: "Studio",
-            allDay: false
+            allDay: false,
+            startTimeZone: "UTC",
+            colorId: "",
+            transparency: "opaque",
+            visibility: "default",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
+            recurrenceRule: "",
+            recurringRemoteId: "",
+            originalStartAt: ""
         })
         agendaModel.append({
             id: "event-2",
@@ -487,7 +497,17 @@ TestCase {
             endAt: "2026-07-28",
             description: "",
             location: "",
-            allDay: true
+            allDay: true,
+            startTimeZone: "UTC",
+            colorId: "",
+            transparency: "opaque",
+            visibility: "default",
+            attendeeEmailsJson: "[]",
+            remindersJson: "[]",
+            remindersUseDefault: true,
+            recurrenceRule: "",
+            recurringRemoteId: "",
+            originalStartAt: ""
         })
         const agenda = component.createObject(null, {
             agendaModel: agendaModel,
@@ -904,7 +924,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
         const taskModel = Qt.createQmlObject(
-            'import QtQml; QtObject { function taskIds() { return ["task-a", "task-b"] } '
+            'import QtQml.Models; ListModel { function taskIds() { return ["task-a", "task-b"] } '
             + 'function topLevelTasks() { return [{ id: "task-parent", title: "Parent" }] } }', testCase)
         const calls = []
         const controller = {
@@ -1580,7 +1600,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        taskLists.append({ id: "list-inbox", title: "Inbox", selected: true, taskCount: 0,
+                           taskTitles: [] })
         const editor = component.createObject(null, { taskListModel: taskLists })
         verify(editor !== null)
         editor.openForEdit("note-1", "list-inbox", "Release notes", "Verify the package artifacts")
@@ -1605,7 +1626,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        taskLists.append({ id: "list-inbox", title: "Inbox", selected: true, taskCount: 0,
+                           taskTitles: [] })
         const calls = []
         const controller = {
             googleConnected: true,
@@ -1829,7 +1851,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskLists = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskLists.append({ id: "list-inbox", title: "Inbox" })
+        taskLists.append({ id: "list-inbox", title: "Inbox", selected: true, taskCount: 0,
+                           taskTitles: [] })
         const calls = []
         const controller = {
             googleConnected: true,

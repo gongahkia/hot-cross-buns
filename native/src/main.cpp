@@ -1,6 +1,8 @@
 #include <QApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QQmlApplicationEngine>
@@ -15,7 +17,6 @@
 
 #include "app/AppPaths.h"
 #include "app/AppController.h"
-#include "app/AppServices.h"
 #include "app/DeepLinkAdapter.h"
 #include "app/NativeReminderNotifier.h"
 #include "app/SystemTrayAdapter.h"
@@ -28,7 +29,6 @@
 #include "core/NotesModel.h"
 #include "core/ReminderService.h"
 #include "core/SearchResultsModel.h"
-#include "core/SettingsRegistry.h"
 #include "core/StartupTimingTracker.h"
 #include "core/StructuredLogger.h"
 #include "core/TaskListModel.h"
@@ -40,6 +40,48 @@ namespace {
 
 constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
 constexpr int kCommandPaletteBenchmarkTimeoutMilliseconds = 5'000;
+constexpr int kMaximumTimelineProfileEventCount = 100'000;
+
+[[nodiscard]] std::optional<int> timelineProfileEventCount(const QStringList& arguments) {
+  constexpr QStringView prefix = u"--timeline-profile-events=";
+  for (const QString& argument : arguments) {
+    if (!argument.startsWith(prefix)) {
+      continue;
+    }
+    bool valid = false;
+    const int count = argument.sliced(prefix.size()).toInt(&valid);
+    if (valid && count > 0 && count <= kMaximumTimelineProfileEventCount) {
+      return count;
+    }
+    return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] QDate timelineProfileWeekStart(QDate date) {
+  return date.addDays(-(date.dayOfWeek() % 7));
+}
+
+[[nodiscard]] QList<hcb::CalendarEventSummary>
+timelineProfileEvents(int count, const QDate& weekStart, const QTimeZone& timeZone) {
+  QList<hcb::CalendarEventSummary> events;
+  events.reserve(count);
+  for (int index = 0; index < count; ++index) {
+    const int dayIndex = index % 7;
+    const int startMinute = index / 7 % (24 * 60);
+    const QDateTime startAt(weekStart.addDays(dayIndex),
+                            QTime(startMinute / 60, startMinute % 60),
+                            timeZone);
+    events.append({.id = QStringLiteral("profile-event-%1").arg(index),
+                   .calendarId = QStringLiteral("profile-calendar"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Profile event %1").arg(index),
+                   .startAt = startAt.toUTC().toString(Qt::ISODateWithMs),
+                   .endAt = startAt.addSecs(60).toUTC().toString(Qt::ISODateWithMs),
+                   .allDay = false});
+  }
+  return events;
+}
 
 void scheduleCommandPaletteBenchmark(QApplication& application, QObject* rootObject) {
   QTimer::singleShot(0, &application, [&application, rootObject] {
@@ -99,21 +141,26 @@ int runApplication(int argc, char* argv[]) {
   QCoreApplication::setApplicationName("Hot Cross Buns");
   startupTimings.mark(u"application.initialized");
 
-  std::optional<hcb::AppPaths> paths = hcb::AppPaths::discover();
-  if (!paths.has_value()) {
-    startupTimings.mark(u"paths.unavailable");
-    return 1;
+  const std::optional<int> profileEventCount = timelineProfileEventCount(application.arguments());
+  const bool timelineProfile = profileEventCount.has_value();
+  std::optional<hcb::FilePath> databasePath;
+  if (timelineProfile) {
+    databasePath = hcb::FilePath::fromAbsolute(QStringLiteral("/dev/null"));
+  } else {
+    std::optional<hcb::AppPaths> paths = hcb::AppPaths::discover();
+    if (!paths.has_value()) {
+      startupTimings.mark(u"paths.unavailable");
+      return 1;
+    }
+    startupTimings.mark(u"paths.discovered");
+    databasePath = paths->dataDirectory().child(QStringLiteral("hot-cross-buns.sqlite"));
   }
-  startupTimings.mark(u"paths.discovered");
-  hcb::SettingsRegistry settings;
-  const hcb::AppServices services(std::move(*paths), clock, settings);
-  const std::optional<hcb::FilePath> databasePath =
-      services.paths().dataDirectory().child(QStringLiteral("hot-cross-buns.sqlite"));
   if (!databasePath.has_value()) {
     startupTimings.mark(u"database.path.unavailable");
     return 1;
   }
-  if (!QDir().mkpath(services.paths().dataDirectory().nativePath())) {
+  if (!timelineProfile &&
+      !QDir().mkpath(QFileInfo(databasePath->nativePath()).absolutePath())) {
     startupTimings.mark(u"database.directory.unavailable");
     return 1;
   }
@@ -140,20 +187,34 @@ int runApplication(int argc, char* argv[]) {
                                    timelineModel,
                                    &application);
   appController.setReminderService(&reminderService);
+  const QDate profileWeekStart = timelineProfileWeekStart(QDate::currentDate());
+  if (timelineProfile) {
+    timelineModel.setRange(profileWeekStart,
+                           7,
+                           timelineProfileEvents(*profileEventCount,
+                                                 profileWeekStart,
+                                                 QTimeZone::systemTimeZone()),
+                           QTimeZone::systemTimeZone(),
+                           2);
+  }
   QQmlApplicationEngine engine;
-  engine.setInitialProperties(
-      {{QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
-       {QStringLiteral("calendarSourceModel"), QVariant::fromValue(&calendarSourceModel)},
-       {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
-       {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
-       {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
-       {QStringLiteral("searchResultsModel"),
-        QVariant::fromValue(&appController.searchResultsModel())},
-       {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
-       {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
-       {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
-       {QStringLiteral("appController"), QVariant::fromValue(&appController)},
-       {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}});
+  QVariantMap initialProperties{
+      {QStringLiteral("agendaModel"), QVariant::fromValue(&agendaModel)},
+      {QStringLiteral("calendarSourceModel"), QVariant::fromValue(&calendarSourceModel)},
+      {QStringLiteral("navigationCommands"), QVariant::fromValue(&navigationCommands)},
+      {QStringLiteral("monthGridModel"), QVariant::fromValue(&monthGridModel)},
+      {QStringLiteral("notesModel"), QVariant::fromValue(&notesModel)},
+      {QStringLiteral("searchResultsModel"), QVariant::fromValue(&appController.searchResultsModel())},
+      {QStringLiteral("taskListModel"), QVariant::fromValue(&taskListModel)},
+      {QStringLiteral("taskModel"), QVariant::fromValue(&taskModel)},
+      {QStringLiteral("timelineModel"), QVariant::fromValue(&timelineModel)},
+      {QStringLiteral("appController"), QVariant::fromValue(&appController)},
+      {QStringLiteral("transitionTimings"), QVariant::fromValue(&transitionTimings)}};
+  if (timelineProfile) {
+    initialProperties.insert(QStringLiteral("timelineProfile"), true);
+    initialProperties.insert(QStringLiteral("calendarDate"), profileWeekStart.toString(Qt::ISODate));
+  }
+  engine.setInitialProperties(initialProperties);
 
   QObject::connect(
       &engine,
@@ -169,8 +230,10 @@ int runApplication(int argc, char* argv[]) {
   }
   startupTimings.mark(u"qml.loaded");
 
-  appController.initialize();
-  QTimer::singleShot(0, &reminderService, &hcb::ReminderService::start);
+  if (!timelineProfile) {
+    appController.initialize();
+    QTimer::singleShot(0, &reminderService, &hcb::ReminderService::start);
+  }
 
   QObject* rootObject = engine.rootObjects().constFirst();
   auto showMainWindow = [rootObject] {
@@ -238,7 +301,6 @@ int runApplication(int argc, char* argv[]) {
     QTimer::singleShot(0, &application, &QCoreApplication::quit);
   }
 
-  Q_UNUSED(services);
   return application.exec();
 }
 

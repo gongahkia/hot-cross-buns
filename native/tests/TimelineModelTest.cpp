@@ -1,6 +1,7 @@
 #include <QtTest/QTest>
 
 #include "core/TimelineModel.h"
+#include "core/TimelineViewportModel.h"
 
 class TimelineModelTest final : public QObject {
   Q_OBJECT
@@ -10,7 +11,7 @@ private slots:
   void buildsMoveInputInDisplayTimeZone();
   void buildsResizeInputInDisplayTimeZone();
   void movesAndResizesAllDayEventsWithoutTimezoneShift();
-  void exposesOnlyBufferedVisibleTimedRows();
+  void virtualizesDenseTimedRowsByViewportAndCalendar();
   void clearsInvalidRanges();
 };
 
@@ -173,46 +174,49 @@ void TimelineModelTest::movesAndResizesAllDayEventsWithoutTimezoneShift() {
            QStringLiteral("2026-08-02T00:00:00.000Z"));
 }
 
-void TimelineModelTest::exposesOnlyBufferedVisibleTimedRows() {
+void TimelineModelTest::virtualizesDenseTimedRowsByViewportAndCalendar() {
   hcb::TimelineModel model;
-  model.setRange(QDate(2026, 8, 1),
-                 1,
-                 {{.id = QStringLiteral("all-day"),
+  const QDate startDate(2026, 8, 2);
+  QList<hcb::CalendarEventSummary> events;
+  events.reserve(25'000);
+  for (int index = 0; index < 25'000; ++index) {
+    const int dayIndex = index % 7;
+    const int startMinute = index / 7 % (24 * 60);
+    const QDateTime startsAt(startDate.addDays(dayIndex),
+                             QTime(startMinute / 60, startMinute % 60),
+                             QTimeZone::utc());
+    events.append({.id = QStringLiteral("event-%1").arg(index),
                    .calendarId = QStringLiteral("calendar-a"),
                    .status = QStringLiteral("confirmed"),
-                   .title = QStringLiteral("All day"),
-                   .startAt = QStringLiteral("2026-08-01T00:00:00.000Z"),
-                   .endAt = QStringLiteral("2026-08-02T00:00:00.000Z"),
-                   .allDay = true},
-                  {.id = QStringLiteral("morning"),
-                   .calendarId = QStringLiteral("calendar-a"),
-                   .status = QStringLiteral("confirmed"),
-                   .title = QStringLiteral("Morning"),
-                   .startAt = QStringLiteral("2026-08-01T08:00:00.000Z"),
-                   .endAt = QStringLiteral("2026-08-01T09:00:00.000Z"),
-                   .allDay = false},
-                  {.id = QStringLiteral("afternoon"),
-                   .calendarId = QStringLiteral("calendar-a"),
-                   .status = QStringLiteral("confirmed"),
-                   .title = QStringLiteral("Afternoon"),
-                   .startAt = QStringLiteral("2026-08-01T15:00:00.000Z"),
-                   .endAt = QStringLiteral("2026-08-01T16:00:00.000Z"),
-                   .allDay = false}},
-                 QTimeZone::utc(),
-                 1);
+                   .title = QStringLiteral("Event %1").arg(index),
+                   .startAt = startsAt.toString(Qt::ISODateWithMs),
+                   .endAt = startsAt.addSecs(60).toString(Qt::ISODateWithMs),
+                   .allDay = false});
+  }
+  model.setRange(startDate, 7, events, QTimeZone::utc(), 2);
+  QCOMPARE(model.totalItemCount(), 25'000);
+  QCOMPARE(model.rowCount(), 25'000);
 
-  QCOMPARE(model.totalItemCount(), 3);
-  model.setVisibleMinuteRange(14 * 60, 17 * 60);
-  QCOMPARE(model.rowCount(), 2);
-  QCOMPARE(model.data(model.index(0, 0), hcb::TimelineModel::IdRole).toString(),
-           QStringLiteral("all-day"));
-  QCOMPARE(model.data(model.index(1, 0), hcb::TimelineModel::IdRole).toString(),
-           QStringLiteral("afternoon"));
-  const QVariantMap hiddenMove = model.moveInput(QStringLiteral("morning"), 0, 10 * 60);
-  QCOMPARE(hiddenMove.value(QStringLiteral("startAt")).toString(),
-           QStringLiteral("2026-08-01T10:00:00.000Z"));
-  model.setVisibleMinuteRange(17 * 60, 14 * 60);
-  QCOMPARE(model.rowCount(), 2);
+  hcb::TimelineViewportModel dayViewport;
+  dayViewport.setSourceModel(&model);
+  dayViewport.setFirstDayIndex(0);
+  dayViewport.setDayCount(1);
+  dayViewport.setVisibleStartMinute(9 * 60);
+  dayViewport.setVisibleEndMinute(10 * 60);
+  QCOMPARE(dayViewport.rowCount(), 192);
+
+  hcb::TimelineViewportModel weekViewport;
+  weekViewport.setSourceModel(&model);
+  weekViewport.setFirstDayIndex(0);
+  weekViewport.setDayCount(7);
+  weekViewport.setVisibleStartMinute(9 * 60);
+  weekViewport.setVisibleEndMinute(10 * 60);
+  QCOMPARE(weekViewport.rowCount(), 1'344);
+
+  dayViewport.setFilterCalendarVisibility(true);
+  QCOMPARE(dayViewport.rowCount(), 0);
+  dayViewport.setVisibleCalendarIds({QStringLiteral("calendar-a")});
+  QCOMPARE(dayViewport.rowCount(), 192);
 }
 
 void TimelineModelTest::clearsInvalidRanges() {

@@ -4,6 +4,7 @@
 
 #include <QAbstractListModel>
 #include <QDate>
+#include <QObject>
 #include <QTimeZone>
 #include <QVariantMap>
 
@@ -61,7 +62,7 @@ public:
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
   [[nodiscard]] int totalItemCount() const;
 
-  Q_INVOKABLE void setVisibleMinuteRange(int startMinute, int endMinute);
+  Q_INVOKABLE QObject* createViewport();
 
   Q_INVOKABLE QVariantMap moveInput(const QString& eventId,
                                     int targetDayIndex,
@@ -110,14 +111,9 @@ signals:
 
 private:
   QList<Item> items_;
-  QList<Item> visibleItems_;
   QDate rangeStartDate_;
   int dayCount_{0};
   QTimeZone displayTimeZone_;
-  int visibleStartMinute_{0};
-  int visibleEndMinute_{24 * 60};
-
-  void rebuildVisibleItems();
 };
 
 } // namespace hcb

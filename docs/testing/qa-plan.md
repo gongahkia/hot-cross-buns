@@ -25,7 +25,7 @@ ctest --preset macos-debug --output-on-failure
 - Notes projection settings and Google Task round trip.
 - Search filters/ranking/pagination with source sets larger than one candidate page.
 - Timeout/cancellation and shutdown behavior for Google workers.
-- Dense Day/Week physical-display profiling before release; offscreen QML results alone are insufficient.
+- Dense Day/Week [physical-display profiling](physical-display-calendar-profile.md) before release; offscreen QML results alone are insufficient.
 
 ## Manual macOS acceptance
 

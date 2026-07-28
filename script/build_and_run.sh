@@ -36,8 +36,11 @@ case "$mode" in
     sleep 1
     pgrep -x "$app_name" >/dev/null
     ;;
+  --profile-timeline|profile-timeline)
+    /usr/bin/open -n "$app_bundle" --args --timeline-profile-events=25000
+    ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify|--profile-timeline]" >&2
     exit 2
     ;;
 esac

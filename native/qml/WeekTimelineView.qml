@@ -14,6 +14,11 @@ Pane {
     property int workdayStartHour: 9
     property int timeColumnWidth: 64
     property int allDayLaneHeight: 28
+    property bool timelineActive: true
+    property bool bypassCalendarVisibility: false
+    property var allDayEventRows: null
+    property var timedEventRows: null
+    property var viewportSource: null
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -123,14 +128,69 @@ Pane {
     }
 
     function isCalendarVisible(calendarId) {
-        return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
+        return bypassCalendarVisibility || calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
 
     function isEventSelected(eventId) {
         return selectedEventIds.indexOf(eventId) >= 0
     }
 
-    onTimelineModelChanged: Qt.callLater(timelineViewport.updateVisibleMinuteRange)
+    function configureViewportModels() {
+        if (viewportSource === timelineModel) {
+            updateViewportFilters()
+            return
+        }
+        viewportSource = timelineModel
+        if (timelineModel !== null && typeof timelineModel.createViewport === "function") {
+            allDayEventRows = timelineModel.createViewport()
+            timedEventRows = timelineModel.createViewport()
+        } else {
+            allDayEventRows = timelineModel
+            timedEventRows = timelineModel
+        }
+        updateViewportFilters()
+    }
+
+    function updateViewportFilters() {
+        if (allDayEventRows !== null && typeof allDayEventRows.firstDayIndex === "number") {
+            allDayEventRows.firstDayIndex = 0
+            allDayEventRows.dayCount = dayCount
+            allDayEventRows.allDay = true
+            allDayEventRows.active = timelineActive
+            allDayEventRows.filterCalendarVisibility = !bypassCalendarVisibility &&
+                                                       calendarVisibility !== null
+            allDayEventRows.visibleCalendarIds = calendarVisibility !== null
+                                                 ? calendarVisibility.visibleCalendarIds : []
+        }
+        if (timedEventRows !== null && typeof timedEventRows.firstDayIndex === "number") {
+            timedEventRows.firstDayIndex = 0
+            timedEventRows.dayCount = dayCount
+            timedEventRows.allDay = false
+            timedEventRows.active = timelineActive
+            timedEventRows.filterCalendarVisibility = !bypassCalendarVisibility &&
+                                                     calendarVisibility !== null
+            timedEventRows.visibleCalendarIds = calendarVisibility !== null
+                                               ? calendarVisibility.visibleCalendarIds : []
+        }
+    }
+
+    Component.onCompleted: configureViewportModels()
+    onTimelineModelChanged: {
+        configureViewportModels()
+        Qt.callLater(timelineViewport.updateVisibleMinuteRange)
+    }
+    onDayCountChanged: updateViewportFilters()
+    onCalendarVisibilityChanged: updateViewportFilters()
+    onBypassCalendarVisibilityChanged: updateViewportFilters()
+    onTimelineActiveChanged: {
+        updateViewportFilters()
+        if (timelineActive) Qt.callLater(timelineViewport.updateVisibleMinuteRange)
+    }
+
+    Connections {
+        target: root.calendarVisibility
+        function onVisibleCalendarIdsChanged() { root.updateViewportFilters() }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -163,7 +223,7 @@ Pane {
             }
 
             Repeater {
-                model: root.timelineModel
+                model: allDayEventRows
 
                 delegate: AccessibleButton {
                     required property string id
@@ -194,7 +254,7 @@ Pane {
                     property string attachmentsJson: "[]"
                     property string guestPermissionsJson: "{}"
                     property string statusPropertiesJson: "{}"
-                    visible: allDay && root.isCalendarVisible(calendarId)
+                    visible: root.isCalendarVisible(calendarId)
                     x: root.dayPosition(dayIndex, dayHeader.width)
                     y: root.allDayLaneHeight + laneIndex * root.allDayLaneHeight
                     width: daySpan * root.dayColumnWidth(dayHeader.width)
@@ -284,8 +344,8 @@ Pane {
             }
 
             function updateVisibleMinuteRange() {
-                if (root.timelineModel === null ||
-                        typeof root.timelineModel.setVisibleMinuteRange !== "function" ||
+                if (!root.timelineActive || timedEventRows === null ||
+                        typeof timedEventRows.visibleStartMinute !== "number" ||
                         root.hourHeight <= 0 || height <= 0) {
                     return
                 }
@@ -294,7 +354,8 @@ Pane {
                 const endMinute = Math.min(24 * 60, Math.ceil(
                                              ((contentY + height) * 60 / root.hourHeight + 60) / 30) * 30)
                 if (endMinute > startMinute) {
-                    root.timelineModel.setVisibleMinuteRange(startMinute, endMinute)
+                    timedEventRows.visibleStartMinute = startMinute
+                    timedEventRows.visibleEndMinute = endMinute
                 }
             }
 
@@ -347,7 +408,7 @@ Pane {
 
                 Repeater {
                     id: eventRows
-                    model: root.timelineModel
+                    model: timedEventRows
 
                     delegate: AccessibleButton {
                         required property string id
@@ -378,7 +439,7 @@ Pane {
                         property string attachmentsJson: "[]"
                         property string guestPermissionsJson: "{}"
                         property string statusPropertiesJson: "{}"
-                        visible: !allDay && root.isCalendarVisible(calendarId)
+                        visible: root.isCalendarVisible(calendarId)
                         x: root.dayPosition(dayIndex, timelineCanvas.width) + laneIndex *
                            root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
                         y: root.timePosition(startMinute)

@@ -209,6 +209,8 @@ set(HCB_NATIVE_SOURCES
   src/core/TaskReadService.h
   src/core/TimelineModel.cpp
   src/core/TimelineModel.h
+  src/core/TimelineViewportModel.cpp
+  src/core/TimelineViewportModel.h
   src/core/UndoRecoveryPolicy.cpp
   src/core/UndoRecoveryPolicy.h
   src/core/StartupTimingTracker.cpp
@@ -1004,9 +1006,11 @@ if(BUILD_TESTING)
     src/core/FilePath.h
     src/core/TimelineModel.cpp
     src/core/TimelineModel.h
+    src/core/TimelineViewportModel.cpp
+    src/core/TimelineViewportModel.h
     src/data/SqliteWriterQueue.h
   )
-  target_link_libraries(hcb_timeline_model_tests PRIVATE Qt6::Core Qt6::Test)
+  target_link_libraries(hcb_timeline_model_tests PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
   target_include_directories(hcb_timeline_model_tests PRIVATE src tests)
   hcb_enable_warnings(hcb_timeline_model_tests)
   hcb_enable_sanitizers(hcb_timeline_model_tests)
@@ -2619,10 +2623,14 @@ if(BUILD_TESTING)
   target_compile_definitions(hcb_qml_tests PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
   )
-  target_link_libraries(hcb_qml_tests PRIVATE Qt6::Qml Qt6::QuickTest)
+  target_link_libraries(hcb_qml_tests PRIVATE Qt6::Qml Qt6::QuickControls2 Qt6::QuickTest)
+  target_include_directories(hcb_qml_tests PRIVATE src)
   hcb_enable_warnings(hcb_qml_tests)
   hcb_enable_sanitizers(hcb_qml_tests)
   add_test(NAME hcb_qml_tests COMMAND hcb_qml_tests -platform offscreen)
+  set_tests_properties(hcb_qml_tests PROPERTIES
+    ENVIRONMENT "QT_LOGGING_RULES=qt.qpa.fonts.warning=false"
+  )
 
   qt_add_executable(hcb_native_qml_shell_smoke tests/NativeQmlShellSmokeTest.cpp)
   add_dependencies(hcb_native_qml_shell_smoke hcb_native)

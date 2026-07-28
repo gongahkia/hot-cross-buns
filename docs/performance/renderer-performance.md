@@ -8,7 +8,7 @@ Qt Quick must remain responsive with dense local cache data. QML owns visible pr
 - Do not bind account-wide event instances through `Repeater` or create a delegate for every cached row.
 - Keep search debounce/model replacement bounded; filtering and ranking stay in C++.
 - Keep dialog creation lazy and do not mount hidden dense views unnecessarily.
-- Profile Day and Week on a physical display; offscreen QML tests cannot prove scroll smoothness.
+- Profile Day and Week on a physical display with the [reproducible fixture](../testing/physical-display-calendar-profile.md); offscreen QML tests cannot prove scroll smoothness.
 
 ## Current evidence
 

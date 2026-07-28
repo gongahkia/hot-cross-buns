@@ -1,6 +1,7 @@
 #include "core/TimelineModel.h"
 
 #include "core/CalendarLayoutEngine.h"
+#include "core/TimelineViewportModel.h"
 
 #include <QDateTime>
 #include <QHash>
@@ -78,14 +79,14 @@ struct EventRange final {
 TimelineModel::TimelineModel(QObject* parent) : QAbstractListModel(parent) {}
 
 int TimelineModel::rowCount(const QModelIndex& parent) const {
-  return parent.isValid() ? 0 : static_cast<int>(visibleItems_.size());
+  return parent.isValid() ? 0 : static_cast<int>(items_.size());
 }
 
 QVariant TimelineModel::data(const QModelIndex& index, int role) const {
-  if (!index.isValid() || index.row() < 0 || index.row() >= static_cast<int>(visibleItems_.size())) {
+  if (!index.isValid() || index.row() < 0 || index.row() >= static_cast<int>(items_.size())) {
     return {};
   }
-  const Item& item = visibleItems_.at(index.row());
+  const Item& item = items_.at(index.row());
   switch (role) {
   case Qt::DisplayRole:
   case TitleRole:
@@ -163,16 +164,10 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const {
 
 int TimelineModel::totalItemCount() const { return static_cast<int>(items_.size()); }
 
-void TimelineModel::setVisibleMinuteRange(int startMinute, int endMinute) {
-  if (startMinute < 0 || endMinute > kMinutesPerDay || endMinute <= startMinute ||
-      (visibleStartMinute_ == startMinute && visibleEndMinute_ == endMinute)) {
-    return;
-  }
-  beginResetModel();
-  visibleStartMinute_ = startMinute;
-  visibleEndMinute_ = endMinute;
-  rebuildVisibleItems();
-  endResetModel();
+QObject* TimelineModel::createViewport() {
+  auto* viewport = new TimelineViewportModel(this);
+  viewport->setSourceModel(this);
+  return viewport;
 }
 
 QHash<int, QByteArray> TimelineModel::roleNames() const {
@@ -428,7 +423,6 @@ void TimelineModel::applyLayout(Layout layout) {
   rangeStartDate_ = layout.rangeStartDate;
   dayCount_ = layout.dayCount;
   displayTimeZone_ = std::move(layout.displayTimeZone);
-  rebuildVisibleItems();
   endResetModel();
   if (totalItemCount() != previousTotalItemCount) {
     emit totalItemCountChanged();
@@ -441,18 +435,6 @@ void TimelineModel::setRange(QDate startDate,
                              const QTimeZone& displayTimeZone,
                              int visibleAllDayLaneCount) {
   applyLayout(buildLayout(startDate, dayCount, events, displayTimeZone, visibleAllDayLaneCount));
-}
-
-void TimelineModel::rebuildVisibleItems() {
-  visibleItems_.clear();
-  visibleItems_.reserve(items_.size());
-  for (const Item& item : items_) {
-    if (item.allDay ||
-        (item.startMinute < visibleEndMinute_ &&
-         item.startMinute + item.durationMinutes > visibleStartMinute_)) {
-      visibleItems_.append(item);
-    }
-  }
 }
 
 } // namespace hcb

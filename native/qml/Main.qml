@@ -11,7 +11,8 @@ ApplicationWindow {
     minimumHeight: 600
     visible: true
     title: "Hot Cross Buns"
-    property string currentPage: "Tasks"
+    property bool timelineProfile: false
+    property string currentPage: timelineProfile ? "Calendar" : "Tasks"
     required property var navigationCommands
     property var agendaModel: null
     property var appController: null
@@ -182,6 +183,11 @@ ApplicationWindow {
         controllerCall("setCalendarDate", [fallbackCalendarDate()])
     }
 
+    function controllerString(propertyName, fallback) {
+        return appController !== null && typeof appController[propertyName] === "string"
+               ? appController[propertyName] : fallback
+    }
+
     function hasNavigationPage(pageName) {
         if (pageName === "Notes" && !notesEnabled) {
             return false
@@ -201,7 +207,8 @@ ApplicationWindow {
         if (!hasNavigationPage(pageName) || pageName === currentPage) {
             return
         }
-        if (appController !== null && !appController.googleConnected && pageName !== "Settings") {
+        if (!timelineProfile && appController !== null && !appController.googleConnected &&
+                pageName !== "Settings") {
             return
         }
         const spanName = "navigation." + pageName.toLowerCase()
@@ -905,8 +912,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     selectedEventIds: window.selectedCalendarEventIds
                     calendarSourceModel: window.calendarSourceModel
-                    statusMessage: window.appController !== null
-                                   ? window.appController.bulkEventStatusMessage : ""
+                    statusMessage: window.controllerString("bulkEventStatusMessage", "")
                     onClearSelectionRequested: window.clearCalendarEventSelection()
                     onBulkDeleteRequested: function(eventIds) {
                         window.controllerCall("bulkDeleteEvents", [eventIds])
@@ -969,6 +975,8 @@ ApplicationWindow {
                         selectedEventIds: window.selectedCalendarEventIds
                         dayIndex: window.calendarWeekDayIndex()
                         dateLabel: window.calendarDate
+                        timelineActive: calendarViews.currentIndex === 1
+                        bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
                         workdayStartHour: window.workdayStartHour
                         hourHeight: Theme.timelineHourHeight
@@ -1005,6 +1013,8 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
                         dayLabels: window.calendarWeekLabels()
+                        timelineActive: calendarViews.currentIndex === 2
+                        bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
                         workdayStartHour: window.workdayStartHour
                         hourHeight: Theme.timelineHourHeight
@@ -1087,7 +1097,7 @@ ApplicationWindow {
                 TextField {
                     id: googleClientIdField
                     Layout.fillWidth: true
-                    text: window.appController !== null ? window.appController.clientId : ""
+                    text: window.controllerString("clientId", "")
                     placeholderText: "Desktop OAuth client ID"
                     Accessible.name: placeholderText
                 }
@@ -1103,7 +1113,7 @@ ApplicationWindow {
                 Button {
                     text: window.appController !== null && window.appController.googleConnected ? "Reconnect Google" : "Connect Google"
                     enabled: window.appController !== null &&
-                             window.appController.clientId.length > 0 &&
+                             window.controllerString("clientId", "").length > 0 &&
                              !window.appController.busy
                     Accessible.name: text
                     onClicked: window.controllerCall("connectGoogle", [])
@@ -1182,7 +1192,7 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    text: window.appController ? window.appController.reminderStatusMessage : "Calendar reminders are unavailable"
+                    text: window.controllerString("reminderStatusMessage", "Calendar reminders are unavailable")
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }
@@ -1391,8 +1401,8 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    visible: window.appController !== null && window.appController.statusMessage.length > 0
-                    text: window.appController !== null ? window.appController.statusMessage : ""
+                    visible: window.controllerString("statusMessage", "").length > 0
+                    text: window.controllerString("statusMessage", "")
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }
@@ -1439,7 +1449,8 @@ ApplicationWindow {
 
     Rectangle {
         anchors.fill: parent
-        visible: appController !== null && !appController.googleConnected && currentPage !== "Settings"
+        visible: !timelineProfile && appController !== null && !appController.googleConnected &&
+                 currentPage !== "Settings"
         z: 1
         color: Theme.background
 
