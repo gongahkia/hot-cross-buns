@@ -18,6 +18,7 @@ validation baseline. No package-management command is implemented yet.
 - [Architecture decision records](docs/adr/README.md)
 - [Benchmark methodology](docs/benchmarks.md)
 - [Diagnostics](docs/diagnostics.md)
+- [Project discovery](docs/project-discovery.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

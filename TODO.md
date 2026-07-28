@@ -69,18 +69,18 @@ Acceptance criteria:
 
 ## wukong-010: Detect a Godot project
 
-- [ ] Walk upward from the working directory to locate `project.godot`.
-- [ ] Stop at filesystem boundaries where appropriate.
-- [ ] Support an explicit `--project` path.
-- [ ] Reject ambiguous or missing projects clearly.
+- [x] Walk upward from the working directory to locate `project.godot`.
+- [x] Stop at filesystem boundaries where appropriate.
+- [x] Support an explicit `--project` path.
+- [x] Reject ambiguous or missing projects clearly.
 
 Tests:
 
-- [ ] Current directory is project root.
-- [ ] Nested working directory.
-- [ ] Explicit project path.
-- [ ] Missing `project.godot`.
-- [ ] Multiple nested project roots.
+- [x] Current directory is project root.
+- [x] Nested working directory.
+- [x] Explicit project path.
+- [x] Missing `project.godot`.
+- [x] Multiple nested project roots.
 
 ## wukong-011: Define the manifest schema
 
