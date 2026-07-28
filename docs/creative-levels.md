@@ -6,9 +6,9 @@ Drafts are local and ignored by Git in `levels/_drafts/`. Save/publish only afte
 
 ## Reference workflow
 
-Import screenshots or blueprints through **Import reference**. They are non-colliding overlays and begin with `estimated` scale confidence. For top-down/orthographic plans, enter a real distance, click its two endpoints with **Calibrate plan**, then use **Trace wall** or **Trace route**. Traced modules retain reference provenance and calibrated/estimated confidence. Perspective screenshots remain estimated overlays.
+Import screenshots or blueprints through **Import reference**. They are non-colliding overlays and begin with `estimated` scale confidence. Use the reference selector and transform controls to pan, rotate, and crop a plan; enable grid snap before tracing. For top-down/orthographic plans, enter a real distance, click its two endpoints with **Calibrate plan**, then use **Trace wall** or **Trace route**. Traced modules retain reference-local source points plus calibrated/estimated confidence. Perspective screenshots remain estimated overlays.
 
-Creative playtests persist local run evidence: path samples, movement/trigger events, speed, resets, style, and checkpoints. Return to the editor after a run, then approve only when the evidence is for the current revision and reaches every authored checkpoint. Approval is an editor-only manual action.
+Creative playtests persist local run evidence: path samples, movement/trigger events, speed, resets, style, checkpoint order/timing, missed checkpoints, and a sampled heatmap. Return to the editor after a run to inspect evidence, replay the ghost, or show the heatmap; approve only when the evidence is for the current revision and reaches every authored checkpoint. Approval is an editor-only manual action.
 
 ## MCP workflow
 
@@ -18,7 +18,7 @@ Copy [`mcp.json`](../mcp.json) into an MCP-capable agent configuration or run:
 uv --directory tools/level_mcp run a-slow-walk-level-mcp
 ```
 
-The server exposes module catalog, draft read/create, revision-checked transactions, durable revision list/diff/rollback, validation, SVG preview, reference import, playtest-report read, and explicit publish tools. Every MCP mutation requires `expected_revision`; stale edits are rejected without auto-merge. It only edits `levels/_drafts/` until `publish_draft` is called.
+The server exposes module catalog, draft read/create, revision-checked transactions, durable revision list/diff/rollback, validation, SVG preview, reference import, playtest-report read, and explicit publish tools. Godot and MCP share a local lock directory for draft mutations; every MCP mutation requires `expected_revision`, and stale/busy edits are rejected without auto-merge. Compact changes are retained with periodic snapshots. It only edits `levels/_drafts/` until `publish_draft` is called.
 
 Use this prompt pattern:
 

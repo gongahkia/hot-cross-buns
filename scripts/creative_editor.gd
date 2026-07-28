@@ -31,6 +31,10 @@ var authoring_mode := ""
 var trace_points: Array[Vector3] = []
 var selected_reference_id := ""
 var calibration_distance: SpinBox
+var snap_toggle: CheckBox
+var snap_step: SpinBox
+var reference_picker: OptionButton
+var reference_fields: Dictionary = {}
 var history_label: Label
 var evidence_label: Label
 var latest_playtest_report: Dictionary = {}
@@ -124,6 +128,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var point: Variant = _mouse_plane_point()
 		if point != null:
+			point = _snap_point(point)
 			if authoring_mode == "calibrate":
 				_trace_calibration(point)
 			elif authoring_mode == "wall":
@@ -178,17 +183,58 @@ func _ensure_ui() -> void:
 	left.mouse_filter = Control.MOUSE_FILTER_STOP
 	left.add_theme_stylebox_override("panel", _panel_style())
 	root.add_child(left)
+	var left_scroll := ScrollContainer.new()
+	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left.add_child(left_scroll)
 	var left_box := VBoxContainer.new()
+	left_box.custom_minimum_size = Vector2(218.0, 0.0)
 	left_box.add_theme_constant_override("separation", 5)
-	left.add_child(left_box)
+	left_scroll.add_child(left_box)
 	left_box.add_child(_label("CREATIVE MODULES", 20, Color("#edf3d5")))
 	left_box.add_child(_label("Click a module, then click the map/space to place it.", 12, Color("#9db197")))
+	var module_scroll := ScrollContainer.new()
+	module_scroll.custom_minimum_size = Vector2(0.0, 188.0)
+	module_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left_box.add_child(module_scroll)
 	module_list = VBoxContainer.new()
+	module_list.custom_minimum_size.x = 205.0
 	module_list.add_theme_constant_override("separation", 2)
-	left_box.add_child(module_list)
+	module_scroll.add_child(module_list)
 	var reference := _button("IMPORT REFERENCE", 14)
 	reference.pressed.connect(_import_reference)
 	left_box.add_child(reference)
+	reference_picker = OptionButton.new()
+	reference_picker.tooltip_text = "Active reference for calibration and tracing"
+	reference_picker.item_selected.connect(_select_reference)
+	left_box.add_child(reference_picker)
+	var snap_row := HBoxContainer.new()
+	snap_toggle = CheckBox.new()
+	snap_toggle.text = "Snap"
+	snap_toggle.button_pressed = true
+	snap_row.add_child(snap_toggle)
+	snap_step = SpinBox.new()
+	snap_step.min_value = 0.1
+	snap_step.max_value = 20.0
+	snap_step.step = 0.1
+	snap_step.value = 1.0
+	snap_step.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snap_row.add_child(snap_step)
+	left_box.add_child(snap_row)
+	left_box.add_child(_label("REFERENCE TRANSFORM", 14, Color("#edf3d5")))
+	for item in [["x", "PAN X", -200.0, 200.0, 0.1], ["z", "PAN Z", -200.0, 200.0, 0.1], ["rotation_y", "ROTATE", -180.0, 180.0, 1.0], ["crop_x", "CROP X", 0.0, 1.0, 0.01], ["crop_y", "CROP Y", 0.0, 1.0, 0.01], ["crop_w", "CROP W", 0.01, 1.0, 0.01], ["crop_h", "CROP H", 0.01, 1.0, 0.01]]:
+		var row := HBoxContainer.new()
+		row.add_child(_label(str(item[1]), 11, Color("#9db197")))
+		var field := SpinBox.new()
+		field.min_value = float(item[2])
+		field.max_value = float(item[3])
+		field.step = float(item[4])
+		field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(field)
+		reference_fields[str(item[0])] = field
+		left_box.add_child(row)
+	var apply_reference := _button("APPLY REFERENCE", 13)
+	apply_reference.pressed.connect(_apply_reference_transform)
+	left_box.add_child(apply_reference)
 	calibration_distance = SpinBox.new()
 	calibration_distance.min_value = 0.1
 	calibration_distance.max_value = 500.0
@@ -260,6 +306,12 @@ func _ensure_ui() -> void:
 	var approve := _button("APPROVE ROUTE", 14)
 	approve.pressed.connect(_approve_route)
 	right_box.add_child(approve)
+	var ghost := _button("GHOST REPLAY", 14)
+	ghost.pressed.connect(_toggle_ghost)
+	right_box.add_child(ghost)
+	var heatmap := _button("SHOW HEATMAP", 14)
+	heatmap.pressed.connect(_toggle_heatmap)
+	right_box.add_child(heatmap)
 	root.visible = false
 
 func _refresh_ui() -> void:
@@ -285,6 +337,7 @@ func _refresh_ui() -> void:
 		(inspector["y"] as SpinBox).value = position.y
 		(inspector["z"] as SpinBox).value = position.z
 	_validate(false)
+	_refresh_references()
 	_refresh_history()
 	_refresh_evidence()
 
@@ -444,8 +497,9 @@ func _copy_reference(source_path: String) -> void:
 		return
 	destination_file.store_buffer(source.get_buffer(source.get_length()))
 	var reference_id := "reference-" + str((document.data.get("references", []) as Array).size() + 1)
-	_apply({"action": "add_reference", "reference": {"id": reference_id, "path": destination, "estimated": true, "position": [0.0, 0.04, -35.0], "size": [20.0, 20.0], "scale_confidence": "estimated"}})
+	_apply({"action": "add_reference", "reference": {"id": reference_id, "path": destination, "estimated": true, "position": [0.0, 0.04, -35.0], "size": [20.0, 20.0], "rotation_y": 0.0, "crop": [0.0, 0.0, 1.0, 1.0], "scale_confidence": "estimated"}})
 	selected_reference_id = reference_id
+	_refresh_references()
 	var assumptions: Array = document.data.get("assumptions", [])
 	if not assumptions.has("Reference image scale is estimated; confirm a known dimension before publishing."):
 		assumptions.append("Reference image scale is estimated; confirm a known dimension before publishing.")
@@ -511,7 +565,7 @@ func _trace_calibration(point: Vector3) -> void:
 	var size: Variant = reference.get("size", [20.0, 20.0])
 	var width := float(size[0]) if size is Array and size.size() >= 2 else 20.0
 	var height := float(size[1]) if size is Array and size.size() >= 2 else 20.0
-	var calibration := {"points": [[trace_points[0].x, trace_points[0].z], [trace_points[1].x, trace_points[1].z]], "distance": float(calibration_distance.value), "world_units_per_reference_unit": factor}
+	var calibration := {"points": [_reference_local(trace_points[0], reference), _reference_local(trace_points[1], reference)], "distance": float(calibration_distance.value), "world_units_per_reference_unit": factor}
 	_apply({"action": "set_metadata", "patch": {"references": _patched_reference(str(reference.get("id", "")), {"size": [width * factor, height * factor], "estimated": false, "scale_confidence": "calibrated", "calibration": calibration}), "assumptions": _without_scale_assumption()}})
 	authoring_mode = ""
 	trace_points.clear()
@@ -529,7 +583,7 @@ func _trace_wall(point: Vector3) -> void:
 	if length >= 0.2:
 		var reference := _active_reference()
 		var confidence := "calibrated" if str(reference.get("scale_confidence", "estimated")) == "calibrated" else "estimated"
-		_apply({"action": "add_module", "module": {"kind": "wall", "route": "Traced Architecture", "position": LEVEL_DOCUMENT.vector_data((start + end) * 0.5 + Vector3(0.0, 3.0, 0.0)), "size": [0.8, 6.0, length], "rotation_y": atan2(direction.x, direction.z), "confidence": confidence, "estimated": confidence != "calibrated", "provenance": {"reference_id": reference.get("id", ""), "trace": "wall"}}})
+		_apply({"action": "add_module", "module": {"kind": "wall", "route": "Traced Architecture", "position": LEVEL_DOCUMENT.vector_data((start + end) * 0.5 + Vector3(0.0, 3.0, 0.0)), "size": [0.8, 6.0, length], "rotation_y": atan2(direction.x, direction.z), "confidence": confidence, "estimated": confidence != "calibrated", "provenance": {"reference_id": reference.get("id", ""), "trace": "wall", "reference_local_points": [_reference_local(start, reference), _reference_local(end, reference)]}}})
 	authoring_mode = ""
 	trace_points.clear()
 	_set_status("TRACED WALL")
@@ -549,7 +603,7 @@ func _finish_route_trace() -> void:
 	var route_name := "Traced Route"
 	var module_ids: Array = []
 	for point in trace_points:
-		var module := {"kind": "route_marker", "route": route_name, "position": LEVEL_DOCUMENT.vector_data(point + Vector3(0.0, 0.2, 0.0)), "label": "FLOW", "confidence": confidence, "estimated": confidence != "calibrated", "provenance": {"reference_id": reference.get("id", ""), "trace": "route"}}
+		var module := {"kind": "route_marker", "route": route_name, "position": LEVEL_DOCUMENT.vector_data(point + Vector3(0.0, 0.2, 0.0)), "label": "FLOW", "confidence": confidence, "estimated": confidence != "calibrated", "provenance": {"reference_id": reference.get("id", ""), "trace": "route", "reference_local_points": [_reference_local(point, reference)]}}
 		module["id"] = "route-marker-" + str(int(document.data.get("revision", 0)) + module_ids.size() + 1)
 		_apply({"action": "add_module", "module": module})
 		module_ids.append(str(module["id"]))
@@ -567,6 +621,64 @@ func _active_reference() -> Dictionary:
 	for reference in references:
 		if reference is Dictionary and str(reference.get("id", "")) == selected_reference_id: return reference
 	return references[references.size() - 1] if references[references.size() - 1] is Dictionary else {}
+
+func _refresh_references() -> void:
+	if reference_picker == null or document == null: return
+	reference_picker.clear()
+	var references: Array = document.data.get("references", [])
+	for index in range(references.size()):
+		var reference: Dictionary = references[index] if references[index] is Dictionary else {}
+		var reference_id := str(reference.get("id", "reference-" + str(index + 1)))
+		reference_picker.add_item(reference_id)
+		if reference_id == selected_reference_id: reference_picker.select(index)
+	if selected_reference_id.is_empty() and not references.is_empty(): selected_reference_id = str((references[0] as Dictionary).get("id", ""))
+	_refresh_reference_fields()
+
+func _select_reference(index: int) -> void:
+	if document == null: return
+	var references: Array = document.data.get("references", [])
+	if index >= 0 and index < references.size() and references[index] is Dictionary:
+		selected_reference_id = str((references[index] as Dictionary).get("id", ""))
+		_refresh_reference_fields()
+
+func _refresh_reference_fields() -> void:
+	if reference_fields.is_empty(): return
+	var reference := _active_reference()
+	var position: Variant = LEVEL_DOCUMENT.vector_from(reference.get("position", [0.0, 0.0, 0.0]))
+	var crop: Variant = reference.get("crop", [0.0, 0.0, 1.0, 1.0])
+	var values := {"x": position.x if position != null else 0.0, "z": position.z if position != null else 0.0, "rotation_y": rad_to_deg(float(reference.get("rotation_y", 0.0))), "crop_x": float(crop[0]) if crop is Array and crop.size() == 4 else 0.0, "crop_y": float(crop[1]) if crop is Array and crop.size() == 4 else 0.0, "crop_w": float(crop[2]) if crop is Array and crop.size() == 4 else 1.0, "crop_h": float(crop[3]) if crop is Array and crop.size() == 4 else 1.0}
+	for key in reference_fields:
+		(reference_fields[key] as SpinBox).value = float(values.get(key, 0.0))
+
+func _apply_reference_transform() -> void:
+	var reference := _active_reference()
+	if reference.is_empty():
+		_set_status("SELECT A REFERENCE")
+		return
+	var crop_x := clampf(float((reference_fields["crop_x"] as SpinBox).value), 0.0, 0.99)
+	var crop_y := clampf(float((reference_fields["crop_y"] as SpinBox).value), 0.0, 0.99)
+	var crop_w := clampf(float((reference_fields["crop_w"] as SpinBox).value), 0.01, 1.0 - crop_x)
+	var crop_h := clampf(float((reference_fields["crop_h"] as SpinBox).value), 0.01, 1.0 - crop_y)
+	var previous: Variant = LEVEL_DOCUMENT.vector_from(reference.get("position", [0.0, 0.04, 0.0]))
+	var position: Vector3 = previous if previous != null else Vector3(0.0, 0.04, 0.0)
+	position.x = float((reference_fields["x"] as SpinBox).value)
+	position.z = float((reference_fields["z"] as SpinBox).value)
+	_apply({"action": "set_metadata", "patch": {"references": _patched_reference(str(reference.get("id", "")), {"position": LEVEL_DOCUMENT.vector_data(position), "rotation_y": deg_to_rad(float((reference_fields["rotation_y"] as SpinBox).value)), "crop": [crop_x, crop_y, crop_w, crop_h]})}})
+	_set_status("REFERENCE TRANSFORMED")
+
+func _snap_point(point: Vector3) -> Vector3:
+	if snap_toggle == null or not snap_toggle.button_pressed: return point
+	var step := maxf(float(snap_step.value), 0.01)
+	return Vector3(snappedf(point.x, step), point.y, snappedf(point.z, step))
+
+func _reference_local(point: Vector3, reference: Dictionary) -> Array:
+	var position: Variant = LEVEL_DOCUMENT.vector_from(reference.get("position", [0.0, 0.0, 0.0]))
+	var local: Vector3 = point - (position if position != null else Vector3.ZERO)
+	local = local.rotated(Vector3.UP, -float(reference.get("rotation_y", 0.0)))
+	var size: Variant = reference.get("size", [20.0, 20.0])
+	var width := float(size[0]) if size is Array and size.size() >= 2 else 20.0
+	var height := float(size[1]) if size is Array and size.size() >= 2 else 20.0
+	return [local.x / width + 0.5, -local.z / height + 0.5]
 
 func _patched_reference(reference_id: String, patch: Dictionary) -> Array:
 	var references: Array = document.data.get("references", [])
@@ -624,7 +736,12 @@ func _refresh_evidence() -> void:
 	for module in document.modules():
 		if module is Dictionary and str(module.get("kind", "")) == "checkpoint": required += 1
 	var reached: Array = latest_playtest_report.get("checkpoints", [])
-	evidence_label.text = "r%d  %.1fs  %.1f max\nCHECKPOINTS %d/%d\n%s" % [int(latest_playtest_report.get("revision", -1)), float(latest_playtest_report.get("elapsed", 0.0)), float(latest_playtest_report.get("max_speed", 0.0)), reached.size(), required, "READY TO APPROVE" if int(latest_playtest_report.get("revision", -1)) == int(document.data.get("revision", 0)) and reached.size() >= required else "CURRENT RUN + ALL CHECKPOINTS REQUIRED"]
+	var times: Dictionary = latest_playtest_report.get("checkpoint_times", {})
+	var timing: Array[String] = []
+	for checkpoint_id in reached:
+		timing.append(str(checkpoint_id) + " %.1fs" % float(times.get(str(checkpoint_id), 0.0)))
+	var missed: Array = latest_playtest_report.get("missed_checkpoints", [])
+	evidence_label.text = "r%d  %.1fs  %.1f max\nCHECKPOINTS %d/%d\n%s\nMISSED %s\n%s" % [int(latest_playtest_report.get("revision", -1)), float(latest_playtest_report.get("elapsed", 0.0)), float(latest_playtest_report.get("max_speed", 0.0)), reached.size(), required, " > ".join(timing), ", ".join(missed) if not missed.is_empty() else "NONE", "READY TO APPROVE" if int(latest_playtest_report.get("revision", -1)) == int(document.data.get("revision", 0)) and reached.size() >= required else "CURRENT RUN + ALL CHECKPOINTS REQUIRED"]
 
 func _approve_route() -> void:
 	var result: Dictionary = document.approve_with_evidence(latest_playtest_report)
@@ -632,6 +749,12 @@ func _approve_route() -> void:
 	if bool(result.get("ok", false)):
 		document_changed.emit(result)
 		_refresh_ui()
+
+func _toggle_ghost() -> void:
+	if host and not latest_playtest_report.is_empty(): host.call("toggle_playtest_ghost", latest_playtest_report)
+
+func _toggle_heatmap() -> void:
+	if host and not latest_playtest_report.is_empty(): host.call("toggle_playtest_heatmap", latest_playtest_report)
 
 func _mouse_plane_point() -> Variant:
 	var viewport := get_viewport()

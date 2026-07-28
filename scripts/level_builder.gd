@@ -167,8 +167,8 @@ static func _build_reference(target: Node3D, reference: Dictionary) -> Node3D:
 	var size: Variant = reference.get("size", [20.0, 20.0])
 	var base_size := Vector2(float(size[0]), float(size[1])) if size is Array and size.size() >= 2 else Vector2(20.0, 20.0)
 	var crop: Variant = reference.get("crop", [0.0, 0.0, 1.0, 1.0])
-	var crop_data := crop if crop is Array and crop.size() == 4 else [0.0, 0.0, 1.0, 1.0]
-	var crop_rect := Rect2(float(crop_data[0]), float(crop_data[1]), clampf(float(crop_data[2]), 0.01, 1.0), clampf(float(crop_data[3]), 0.01, 1.0))
+	var crop_data: Array = crop if crop is Array and crop.size() == 4 else [0.0, 0.0, 1.0, 1.0]
+	var crop_rect: Rect2 = Rect2(float(crop_data[0]), float(crop_data[1]), clampf(float(crop_data[2]), 0.01, 1.0), clampf(float(crop_data[3]), 0.01, 1.0))
 	quad.size = Vector2(base_size.x * crop_rect.size.x, base_size.y * crop_rect.size.y)
 	var material := StandardMaterial3D.new()
 	material.albedo_texture = texture

@@ -75,6 +75,10 @@ var creative_build_index: Dictionary = {}
 var creative_session := false
 var creative_playtest: Dictionary = {}
 var creative_sample_timer := 0.0
+var creative_ghost: MeshInstance3D
+var creative_ghost_path: Array = []
+var creative_ghost_elapsed := 0.0
+var creative_heatmap_root: Node3D
 
 func _ready() -> void:
 	geometry_export_mode = OS.get_cmdline_user_args().has("--generate-sandbox-geometry")
@@ -219,6 +223,7 @@ func _build_ui() -> void:
 
 func _process(delta: float) -> void:
 	frame_time = delta
+	_advance_playtest_ghost(delta)
 	if not rebinding_action.is_empty():
 		return
 	if get_tree().paused:
@@ -382,6 +387,7 @@ func _open_creative_mode() -> void:
 	creative_editor.open()
 
 func _build_creative_course() -> void:
+	_clear_playtest_visuals()
 	if course:
 		course.queue_free()
 	course = Node3D.new()
@@ -447,7 +453,8 @@ func _playtest_creative_draft() -> void:
 		return
 	current_level = {"id": str(creative_document.data.get("id", "creative-draft")), "title": str(creative_document.data.get("title", "Creative Draft")), "briefing": "Creative draft playtest."}
 	RunData.begin_run(str(current_level.get("id", "creative-draft")))
-	creative_playtest = {"started_at": Time.get_datetime_string_from_system(true), "events": [], "path": [], "checkpoints": [], "max_speed": 0.0, "resets": 0}
+	_clear_playtest_visuals()
+	creative_playtest = {"started_at": Time.get_datetime_string_from_system(true), "events": [], "path": [], "checkpoints": [], "checkpoint_times": {}, "heatmap": {}, "max_speed": 0.0, "resets": 0}
 	creative_sample_timer = 0.0
 	player.reset_for_bail(player_spawn)
 	player.movement_enabled = true
@@ -479,6 +486,14 @@ func _record_creative_sample(delta: float) -> void:
 	var path: Array = creative_playtest.get("path", [])
 	path.append([player.global_position.x, player.global_position.y, player.global_position.z, RunData.elapsed])
 	creative_playtest["path"] = path
+	var cells: Dictionary = creative_playtest.get("heatmap", {})
+	var cell_x := int(floor(player.global_position.x / 4.0))
+	var cell_z := int(floor(player.global_position.z / 4.0))
+	var key := str(cell_x) + ":" + str(cell_z)
+	var cell: Dictionary = cells.get(key, {"cell": [cell_x, cell_z], "samples": 0})
+	cell["samples"] = int(cell.get("samples", 0)) + 1
+	cells[key] = cell
+	creative_playtest["heatmap"] = cells
 
 func _record_creative_event(kind: String, detail := "") -> void:
 	if not creative_session or creative_playtest.is_empty():
@@ -493,10 +508,91 @@ func _finalize_creative_playtest() -> void:
 	creative_playtest["elapsed"] = RunData.elapsed
 	creative_playtest["style"] = RunData.style_snapshot()
 	creative_playtest["collected"] = RunData.collected
+	var heatmap: Array = []
+	for cell in creative_playtest.get("heatmap", {}): heatmap.append(creative_playtest.get("heatmap", {})[cell])
+	creative_playtest["heatmap"] = heatmap
+	var missed: Array = []
+	var reached: Array = creative_playtest.get("checkpoints", [])
+	for module in creative_document.modules():
+		if module is Dictionary and str(module.get("kind", "")) == "checkpoint" and not reached.has(str(module.get("id", ""))): missed.append(str(module.get("id", "")))
+	creative_playtest["missed_checkpoints"] = missed
 	var saved: Dictionary = creative_document.save_playtest_report(creative_playtest)
 	if bool(saved.get("ok", false)):
 		creative_editor.set_playtest_reports(creative_document.playtest_reports())
 	creative_playtest.clear()
+
+func toggle_playtest_ghost(report: Dictionary) -> void:
+	if creative_ghost and is_instance_valid(creative_ghost):
+		creative_ghost.queue_free()
+		creative_ghost = null
+		creative_ghost_path.clear()
+		return
+	if course == null or not report.get("path", []) is Array or (report.get("path", []) as Array).size() < 2: return
+	creative_ghost_path = report.get("path", [])
+	creative_ghost_elapsed = 0.0
+	creative_ghost = MeshInstance3D.new()
+	creative_ghost.name = "PlaytestGhost"
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.36
+	mesh.height = 0.72
+	creative_ghost.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.48, 0.88, 1.0, 0.46)
+	material.emission_enabled = true
+	material.emission = Color(0.24, 0.72, 1.0)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	creative_ghost.material_override = material
+	course.add_child(creative_ghost)
+
+func toggle_playtest_heatmap(report: Dictionary) -> void:
+	if creative_heatmap_root and is_instance_valid(creative_heatmap_root):
+		creative_heatmap_root.queue_free()
+		creative_heatmap_root = null
+		return
+	if course == null or not report.get("heatmap", []) is Array: return
+	creative_heatmap_root = Node3D.new()
+	creative_heatmap_root.name = "PlaytestHeatmap"
+	for entry in report.get("heatmap", []):
+		if not entry is Dictionary: continue
+		var cell: Variant = entry.get("cell", [])
+		if not cell is Array or cell.size() != 2: continue
+		var samples := int(entry.get("samples", 0))
+		var marker := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(3.7, 0.05 + minf(float(samples) * 0.07, 1.4), 3.7)
+		marker.mesh = box
+		marker.position = Vector3((float(cell[0]) + 0.5) * 4.0, box.size.y * 0.5 + 0.03, (float(cell[1]) + 0.5) * 4.0)
+		var material := StandardMaterial3D.new()
+		var intensity := clampf(float(samples) / 12.0, 0.12, 1.0)
+		material.albedo_color = Color(1.0, 0.44 + intensity * 0.4, 0.18, 0.18 + intensity * 0.46)
+		material.emission_enabled = true
+		material.emission = Color(0.9 * intensity, 0.3 * intensity, 0.06)
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		marker.material_override = material
+		creative_heatmap_root.add_child(marker)
+	course.add_child(creative_heatmap_root)
+
+func _advance_playtest_ghost(delta: float) -> void:
+	if creative_ghost == null or not is_instance_valid(creative_ghost) or creative_ghost_path.size() < 2: return
+	var last: Variant = creative_ghost_path[creative_ghost_path.size() - 1]
+	if not last is Array or last.size() < 4: return
+	creative_ghost_elapsed = fmod(creative_ghost_elapsed + delta, maxf(float(last[3]), 0.1))
+	for index in range(creative_ghost_path.size() - 1):
+		var first: Variant = creative_ghost_path[index]
+		var second: Variant = creative_ghost_path[index + 1]
+		if not first is Array or not second is Array or first.size() < 4 or second.size() < 4: continue
+		if creative_ghost_elapsed <= float(second[3]):
+			var interval := maxf(float(second[3]) - float(first[3]), 0.001)
+			var blend := clampf((creative_ghost_elapsed - float(first[3])) / interval, 0.0, 1.0)
+			creative_ghost.position = Vector3(float(first[0]), float(first[1]), float(first[2])).lerp(Vector3(float(second[0]), float(second[1]), float(second[2])), blend)
+			return
+
+func _clear_playtest_visuals() -> void:
+	if creative_ghost and is_instance_valid(creative_ghost): creative_ghost.queue_free()
+	if creative_heatmap_root and is_instance_valid(creative_heatmap_root): creative_heatmap_root.queue_free()
+	creative_ghost = null
+	creative_heatmap_root = null
+	creative_ghost_path.clear()
 
 func _recount_creative_content() -> void:
 	if not creative_session or creative_geometry_root == null:
@@ -505,6 +601,7 @@ func _recount_creative_content() -> void:
 	grapple_anchor_count = creative_geometry_root.get_tree().get_nodes_in_group("grapple_anchor").filter(func(node): return creative_geometry_root.is_ancestor_of(node)).size()
 
 func _exit_creative_mode() -> void:
+	_clear_playtest_visuals()
 	creative_session = false
 	RunData.running = false
 	if player:
@@ -1119,7 +1216,11 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 			var checkpoint_id := str(checkpoint.get("id", "checkpoint"))
 			if creative_session:
 				var reached: Array = creative_playtest.get("checkpoints", [])
-				if not reached.has(checkpoint_id): reached.append(checkpoint_id)
+				if not reached.has(checkpoint_id):
+					reached.append(checkpoint_id)
+					var checkpoint_times: Dictionary = creative_playtest.get("checkpoint_times", {})
+					checkpoint_times[checkpoint_id] = RunData.elapsed
+					creative_playtest["checkpoint_times"] = checkpoint_times
 				creative_playtest["checkpoints"] = reached
 				_record_creative_event("checkpoint", checkpoint_id)
 			last_sandbox_event = "CHECKPOINT " + checkpoint_id.to_upper()
