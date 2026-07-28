@@ -6,6 +6,7 @@ Current records:
 
 - [0001: manifest v1 schema](0001-manifest-schema.md)
 - [0002: manifest initialisation transaction](0002-manifest-initialisation-transaction.md)
+- [0003: manifest edit transaction](0003-manifest-edit-transaction.md)
 
 ## When to write an ADR
 
