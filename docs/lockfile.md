@@ -25,5 +25,6 @@ sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 Package entries and their dependency lists are sorted. No timestamps, host
 paths, credentials, mutable references, or executable commands are permitted.
 `x-` fields are reserved for preserved extensions; unknown unprefixed fields
-are errors. Git, HTTP, and official sources are not represented until their
-adapters exist. See [ADR 0012](adr/0012-lockfile-schema.md).
+are errors. Parsing and re-serializing a valid schema-one lock produces stable
+canonical bytes. Git, HTTP, and official sources are not represented until
+their adapters exist. See [ADR 0012](adr/0012-lockfile-schema.md).

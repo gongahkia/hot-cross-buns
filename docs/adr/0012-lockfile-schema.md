@@ -30,6 +30,10 @@ Unknown mandatory schema versions fail. The W041 parser must reject unknown
 unprefixed fields and accept-and-preserve `x-` extension fields without giving
 them package-manager semantics.
 
+Use test-only `proptest` 1.11.0 (MIT OR Apache-2.0, Rust 1.85) for generated
+serialization invariants. The standard library has no shrinking property-test
+framework; this maintained pure-Rust crate matches the workspace MSRV.
+
 ## Consequences
 
 Schema-one locks are portable across machines when their local source contents

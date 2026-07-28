@@ -350,19 +350,19 @@ Completed with five public addons before implementing resolution.
 
 ## wukong-041: Implement deterministic lockfile serialisation
 
-- [ ] Stable package ordering.
-- [ ] Stable dependency ordering.
-- [ ] Stable source formatting.
-- [ ] Byte-identical output for identical graphs.
-- [ ] Forward-compatible unknown-field policy.
+- [x] Stable package ordering.
+- [x] Stable dependency ordering.
+- [x] Stable source formatting.
+- [x] Byte-identical output for identical graphs.
+- [x] Forward-compatible unknown-field policy.
 
 Property tests:
 
-- [ ] Parse/serialise round-trip.
-- [ ] Deterministic repeated writes.
-- [ ] Entry-order independence.
-- [ ] Unknown optional fields.
-- [ ] Unknown mandatory schema version.
+- [x] Parse/serialise round-trip.
+- [x] Deterministic repeated writes.
+- [x] Entry-order independence.
+- [x] Unknown optional fields.
+- [x] Unknown mandatory schema version.
 
 ## wukong-042: Implement direct dependency locking
 

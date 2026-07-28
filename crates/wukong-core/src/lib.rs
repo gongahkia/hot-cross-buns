@@ -24,6 +24,9 @@ pub mod package_tree;
 /// Versioned compatibility-corpus fixture parsing and verification.
 pub mod compatibility_fixture;
 
+/// Deterministic lockfile parsing and serialization.
+pub mod lockfile;
+
 /// Optional package-owned metadata parsing.
 pub mod package_metadata;
 
