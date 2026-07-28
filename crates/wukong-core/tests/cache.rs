@@ -10,8 +10,8 @@ use std::{
 use tempfile::TempDir;
 use wukong_core::{
     cache::{
-        CACHE_SCHEMA, CacheLayout, clean_cache, inspect_cache, publish_prepared_package,
-        verify_cached_packages, verify_package_object,
+        CACHE_SCHEMA, CacheLayout, audit_cached_packages, check_cache_permissions, clean_cache,
+        inspect_cache, publish_prepared_package, verify_cached_packages, verify_package_object,
     },
     diagnostic::ErrorCode,
     operation_lock::AdvisoryLock,
@@ -339,6 +339,45 @@ fn invariant_cache_clean_refuses_to_delete_an_actively_locked_object() {
     assert_eq!(error.code(), ErrorCode::SourceAccess);
     assert!(object.path().exists());
     drop(lock);
+}
+
+#[test]
+fn invariant_cache_audit_reports_corruption_without_deleting_the_object() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let object = publish_prepared_package(&layout, &prepared).expect("publication should work");
+    write(
+        &object.path().join("plugin.cfg"),
+        "[plugin]\nname=\"Tampered\"\n",
+    );
+    write(&layout.packages().join("sha256/foreign/data"), "preserve\n");
+
+    let audit = audit_cached_packages(&layout).expect("cache audit should work");
+
+    assert_eq!(audit.verified_packages(), 0);
+    assert_eq!(audit.corrupt_packages(), 1);
+    assert_eq!(audit.unrecognized_entries(), 1);
+    assert!(object.path().exists());
+}
+
+#[test]
+fn invariant_cache_permission_probe_creates_no_persistent_probe_directory() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let layout = cache_layout(&fixture);
+
+    check_cache_permissions(&layout).expect("cache permission probe should work");
+
+    assert!(layout.schema_root().is_dir());
+    assert!(
+        fs::read_dir(layout.schema_root())
+            .expect("cache root should be readable")
+            .all(|entry| !entry
+                .expect("cache entry should read")
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".wukong-doctor-"))
+    );
 }
 
 #[cfg(windows)]

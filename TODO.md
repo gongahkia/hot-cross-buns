@@ -712,16 +712,16 @@ Simulate failure during:
 
 Check:
 
-- [ ] Project discovery.
-- [ ] Manifest validity.
-- [ ] Lockfile validity.
-- [ ] State-file consistency.
-- [ ] Cache permissions.
-- [ ] Cache corruption.
-- [ ] Filesystem capability.
-- [ ] Godot executable availability.
-- [ ] Network configuration when not offline.
-- [ ] Concurrent operation locks.
+- [x] Project discovery.
+- [x] Manifest validity.
+- [x] Lockfile validity.
+- [x] State-file consistency.
+- [x] Cache permissions.
+- [x] Cache corruption.
+- [x] Filesystem capability.
+- [x] Godot executable availability.
+- [x] Network configuration when not offline.
+- [x] Concurrent operation locks.
 
 ---
 

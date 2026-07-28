@@ -6,7 +6,10 @@ use std::{
     time::Duration,
 };
 use wukong_core::{
-    cache::{CacheLayout, clean_cache, inspect_cache, verify_cached_packages},
+    cache::{
+        CacheLayout, audit_cached_packages, check_cache_permissions, clean_cache, inspect_cache,
+        verify_cached_packages,
+    },
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::{lock_direct_dependencies, update_direct_dependencies},
@@ -19,9 +22,11 @@ use wukong_core::{
     godot_validation::{HeadlessValidationOutcome, run_headless_project_check},
     identity::PackageName,
     init::initialize_manifest,
+    installed_state::{InstalledState, create_state_directory, state_path, verify_installed_state},
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
     manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
     manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
+    operation_lock::AdvisoryLock,
     outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
     project::ProjectRoot,
     transactional_file::{FileSnapshot, write_atomic},
@@ -69,6 +74,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "validate" => match run_validate(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "doctor" => match run_doctor(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -905,6 +914,317 @@ fn parse_validate_arguments(
         ));
     }
     Ok(options)
+}
+
+struct DoctorOptions {
+    project: Option<PathBuf>,
+    executable: Option<PathBuf>,
+    offline: bool,
+}
+
+struct DoctorCheck {
+    name: &'static str,
+    detail: String,
+    passed: bool,
+}
+
+#[allow(clippy::too_many_lines)] // aggregates independent diagnostic checks
+fn run_doctor(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_doctor_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let mut checks = Vec::new();
+    let mut failure = None;
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "project discovery",
+        Ok("project.godot found".to_owned()),
+    );
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "manifest validity",
+        read_manifest(&manifest_path).map(|_| "wukong.toml parsed".to_owned()),
+    );
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "lockfile validity",
+        match read_lockfile(&lock_path) {
+            Ok(Some(_)) => Ok("wukong.lock parsed".to_owned()),
+            Ok(None) => Err(user_error(
+                "wukong.lock is missing",
+                "run wukong lock to create it",
+            )),
+            Err(error) => Err(error),
+        },
+    );
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "state-file consistency",
+        doctor_state_check(project.path()),
+    );
+    match CacheLayout::from_environment() {
+        Ok(cache) => {
+            record_doctor_check(
+                &mut checks,
+                &mut failure,
+                "cache permissions",
+                check_cache_permissions(&cache)
+                    .map(|()| "temporary cache probe succeeded".to_owned()),
+            );
+            record_doctor_check(
+                &mut checks,
+                &mut failure,
+                "cache corruption",
+                doctor_cache_check(&cache),
+            );
+        }
+        Err(error) => {
+            let detail = error.message().to_owned();
+            record_doctor_check(&mut checks, &mut failure, "cache permissions", Err(error));
+            record_doctor_check(
+                &mut checks,
+                &mut failure,
+                "cache corruption",
+                Err(user_error(
+                    format!("cache audit skipped: {detail}"),
+                    "configure a usable cache directory and rerun wukong doctor",
+                )),
+            );
+        }
+    }
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "filesystem capability",
+        fs::read_dir(project.path())
+            .map(|_| "project root is readable".to_owned())
+            .map_err(|error| {
+                boxed(
+                    Diagnostic::new(
+                        ErrorCode::InternalFailure,
+                        "could not read the project filesystem",
+                    )
+                    .with_cause(error)
+                    .with_recovery("check project permissions and retry"),
+                )
+            }),
+    );
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "Godot executable availability",
+        match discover_godot_executable(options.executable.as_deref()) {
+            Ok(Some(executable)) => Ok(format!("found from {}", executable.source().as_str())),
+            Ok(None) => Err(user_error(
+                "could not locate a Godot executable",
+                "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+            )),
+            Err(error) => Err(error),
+        },
+    );
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "network configuration",
+        doctor_network_check(options.offline),
+    );
+    record_doctor_check(
+        &mut checks,
+        &mut failure,
+        "concurrent operation locks",
+        doctor_lock_check(project.path()),
+    );
+    println!("doctor:");
+    for check in checks {
+        let status = if check.passed { "ok" } else { "fail" };
+        println!("{status} {}: {}", check.name, check.detail);
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+fn parse_doctor_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<DoctorOptions, Box<Diagnostic>> {
+    let mut options = DoctorOptions {
+        project: None,
+        executable: None,
+        offline: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--project" {
+            let project = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(project).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        if argument == "--godot-executable" {
+            let executable =
+                PathBuf::from(required_add_value(&mut arguments, "--godot-executable")?);
+            if options.executable.replace(executable).is_some() {
+                return Err(user_error(
+                    "--godot-executable may be supplied only once",
+                    "provide one executable path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--offline" {
+            if std::mem::replace(&mut options.offline, true) {
+                return Err(user_error(
+                    "--offline may be supplied only once",
+                    "run wukong doctor --offline",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported doctor argument {}", argument.to_string_lossy()),
+            "use --project <path>, --godot-executable <path>, or --offline",
+        ));
+    }
+    Ok(options)
+}
+
+fn record_doctor_check(
+    checks: &mut Vec<DoctorCheck>,
+    failure: &mut Option<Box<Diagnostic>>,
+    name: &'static str,
+    result: Result<String, Box<Diagnostic>>,
+) {
+    match result {
+        Ok(detail) => checks.push(DoctorCheck {
+            name,
+            detail,
+            passed: true,
+        }),
+        Err(error) => {
+            checks.push(DoctorCheck {
+                name,
+                detail: error.message().to_owned(),
+                passed: false,
+            });
+            if failure.is_none() {
+                *failure = Some(error);
+            }
+        }
+    }
+}
+
+fn doctor_state_check(project_root: &std::path::Path) -> Result<String, Box<Diagnostic>> {
+    let path = state_path(project_root);
+    let input = match fs::read_to_string(&path) {
+        Ok(input) => input,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok("no installed state".to_owned());
+        }
+        Err(error) => {
+            return Err(boxed(
+                Diagnostic::new(ErrorCode::InternalFailure, "could not read installed state")
+                    .with_cause(error)
+                    .with_recovery("check .wukong/state.toml permissions and retry"),
+            ));
+        }
+    };
+    let state = InstalledState::parse(&path, &input)?;
+    let verification = verify_installed_state(project_root, &state)?;
+    if verification.missing_files() == 0 && verification.modified_files() == 0 {
+        return Ok(format!(
+            "{} owned file(s) verified",
+            verification.verified_files()
+        ));
+    }
+    Err(boxed(
+        Diagnostic::new(
+            ErrorCode::IntegrityFailure,
+            format!(
+                "installed state has {} missing and {} modified file(s)",
+                verification.missing_files(),
+                verification.modified_files()
+            ),
+        )
+        .with_recovery("run wukong sync after restoring or preserving intended project edits"),
+    ))
+}
+
+fn doctor_cache_check(cache: &CacheLayout) -> Result<String, Box<Diagnostic>> {
+    let audit = audit_cached_packages(cache)?;
+    if audit.corrupt_packages() == 0 && audit.unrecognized_entries() == 0 {
+        return Ok(format!(
+            "{} prepared package object(s) verified",
+            audit.verified_packages()
+        ));
+    }
+    Err(boxed(
+        Diagnostic::new(
+            ErrorCode::IntegrityFailure,
+            format!(
+                "cache has {} corrupt and {} unrecognized package entry(s)",
+                audit.corrupt_packages(),
+                audit.unrecognized_entries()
+            ),
+        )
+        .with_recovery("run wukong cache verify and inspect any unrecognized cache entries"),
+    ))
+}
+
+fn doctor_network_check(offline: bool) -> Result<String, Box<Diagnostic>> {
+    if offline {
+        return Ok("skipped (--offline)".to_owned());
+    }
+    let configured = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]
+        .iter()
+        .filter_map(env::var_os)
+        .collect::<Vec<_>>();
+    if configured.is_empty() {
+        return Ok("no proxy configured".to_owned());
+    }
+    if configured.iter().all(|value| valid_proxy_url(value)) {
+        Ok("proxy configuration is URL-like".to_owned())
+    } else {
+        Err(user_error(
+            "proxy configuration is not an HTTP(S) URL-like value",
+            "set HTTP_PROXY or HTTPS_PROXY to an HTTP(S) value without whitespace",
+        ))
+    }
+}
+
+fn valid_proxy_url(value: &std::ffi::OsStr) -> bool {
+    let Some(value) = value.to_str() else {
+        return false;
+    };
+    let Some(authority) = value
+        .strip_prefix("http://")
+        .or_else(|| value.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    !authority.is_empty() && !authority.chars().any(char::is_whitespace)
+}
+
+fn doctor_lock_check(project_root: &std::path::Path) -> Result<String, Box<Diagnostic>> {
+    let state = create_state_directory(project_root)?;
+    let lock = AdvisoryLock::try_acquire(&state.join("mutation.lock"), "this project")?;
+    drop(lock);
+    Ok("project mutation lock acquired".to_owned())
 }
 
 struct GodotPathOptions {

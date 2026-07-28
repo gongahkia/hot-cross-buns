@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
@@ -5,6 +6,7 @@ use wukong_core::{
     installed_state::{
         DependencyGroup, InstalledPackage, InstalledState, MaterializationStrategy, OwnedFile,
         STATE_DIRECTORY_NAME, STATE_FILE_NAME, create_state_directory, state_path,
+        verify_installed_state,
     },
     source::ImmutableSourceId,
 };
@@ -103,6 +105,58 @@ fn invariant_state_directory_creation_never_overwrites_a_non_directory() {
     assert!(create_state_directory(conflict.path()).is_err());
 }
 
+#[test]
+fn invariant_state_verification_reports_matching_missing_and_modified_files() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let path = fixture.path().join("addons/alpha/plugin.gd");
+    fs::create_dir_all(path.parent().expect("file should have a parent"))
+        .expect("file parent should create");
+    fs::write(&path, "first").expect("file should write");
+    let state = InstalledState::new(
+        BTreeSet::new(),
+        [package("alpha", 0)],
+        [OwnedFile::new(
+            "addons/alpha/plugin.gd",
+            BTreeSet::from([PackageName::parse("alpha").expect("name should parse")]),
+            sha256("first"),
+            MaterializationStrategy::Copy,
+        )
+        .expect("owned file should parse")],
+    )
+    .expect("state should parse");
+
+    let matching = verify_installed_state(fixture.path(), &state).expect("state should verify");
+    fs::write(&path, "modified").expect("file should modify");
+    let modified = verify_installed_state(fixture.path(), &state).expect("state should verify");
+    fs::remove_file(&path).expect("file should remove");
+    let missing = verify_installed_state(fixture.path(), &state).expect("state should verify");
+
+    assert_eq!(
+        (
+            matching.verified_files(),
+            matching.missing_files(),
+            matching.modified_files()
+        ),
+        (1, 0, 0)
+    );
+    assert_eq!(
+        (
+            modified.verified_files(),
+            modified.missing_files(),
+            modified.modified_files()
+        ),
+        (0, 0, 1)
+    );
+    assert_eq!(
+        (
+            missing.verified_files(),
+            missing.missing_files(),
+            missing.modified_files()
+        ),
+        (0, 1, 0)
+    );
+}
+
 fn state(names: impl IntoIterator<Item = &'static str>) -> InstalledState {
     let packages = names
         .into_iter()
@@ -138,4 +192,8 @@ fn package(name: &str, index: usize) -> InstalledPackage {
 
 fn hash(index: usize) -> String {
     format!("{index:064x}")
+}
+
+fn sha256(value: &str) -> String {
+    format!("{:x}", Sha256::digest(value.as_bytes()))
 }

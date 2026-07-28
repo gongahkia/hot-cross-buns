@@ -5,9 +5,11 @@ use crate::{
     identity::PackageName,
     source::ImmutableSourceId,
 };
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::Read,
     path::{Component, Path, PathBuf},
 };
 use toml_edit::{Document, Item, TableLike};
@@ -183,6 +185,33 @@ pub struct InstalledState {
     packages: BTreeMap<PackageName, InstalledPackage>,
     files: BTreeMap<PathBuf, OwnedFile>,
 }
+
+/// A non-mutating verification summary for installed state files.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct InstalledStateVerification {
+    verified_files: usize,
+    missing_files: usize,
+    modified_files: usize,
+}
+impl InstalledStateVerification {
+    /// Returns the number of owned files matching their recorded hashes.
+    #[must_use]
+    pub const fn verified_files(self) -> usize {
+        self.verified_files
+    }
+
+    /// Returns the number of owned files that are missing.
+    #[must_use]
+    pub const fn missing_files(self) -> usize {
+        self.missing_files
+    }
+
+    /// Returns the number of owned files whose hash no longer matches state.
+    #[must_use]
+    pub const fn modified_files(self) -> usize {
+        self.modified_files
+    }
+}
 impl InstalledState {
     /// Creates installed state with validated ownership references.
     ///
@@ -330,6 +359,42 @@ pub fn state_directory(project_root: &Path) -> PathBuf {
 #[must_use]
 pub fn state_path(project_root: &Path) -> PathBuf {
     state_directory(project_root).join(STATE_FILE_NAME)
+}
+
+/// Verifies that installed files still match their recorded ownership hashes.
+///
+/// Missing and modified files are reported in the returned summary without
+/// mutating the project.
+///
+/// # Errors
+///
+/// Returns a diagnostic when a recorded path cannot be read for a reason other
+/// than it being absent.
+pub fn verify_installed_state(
+    project_root: &Path,
+    state: &InstalledState,
+) -> Result<InstalledStateVerification, Box<Diagnostic>> {
+    let mut report = InstalledStateVerification::default();
+    for file in state.files().values() {
+        match file_sha256(&project_root.join(file.path())) {
+            Ok(hash) if hash == file.sha256() => report.verified_files += 1,
+            Ok(_) => report.modified_files += 1,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                report.missing_files += 1;
+            }
+            Err(error) => {
+                return Err(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::InternalFailure,
+                        "could not verify an installed package file",
+                    )
+                    .with_cause(error)
+                    .with_recovery("check project permissions and retry"),
+                ));
+            }
+        }
+    }
+    Ok(report)
 }
 
 /// Creates `.wukong` if it does not already exist.
@@ -594,6 +659,20 @@ fn valid_sha256(value: &str, field: &str) -> Result<(), Box<Diagnostic>> {
             "use a 64-character lowercase hexadecimal digest",
         ))
     }
+}
+
+fn file_sha256(path: &Path) -> Result<String, std::io::Error> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn path_string(path: &Path) -> String {

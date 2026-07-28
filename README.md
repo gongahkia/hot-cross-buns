@@ -19,7 +19,8 @@ resolved lock graph. `wukong update [package]` re-locks supported direct sources
 and synchronises changes transactionally, with a dry-run preview. The core
 dependency solver is available for source-adapter integration; official asset
 sources and package scripts are not implemented. `wukong outdated` reports
-Git tag updates without changing the project.
+Git tag updates without changing the project. `wukong doctor` checks local
+project, cache, executable, network-configuration, and lock health.
 
 ## Local-path workflow
 
@@ -39,6 +40,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Architecture decision records](docs/adr/README.md)
 - [Benchmark methodology](docs/benchmarks.md)
 - [Diagnostics](docs/diagnostics.md)
+- [`wukong doctor`](docs/doctor.md)
 - [Project discovery](docs/project-discovery.md)
 - [Manifest schema](docs/manifest.md)
 - [Package identity](docs/package-identity.md)

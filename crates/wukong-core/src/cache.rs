@@ -97,6 +97,33 @@ pub struct CacheCleanReport {
     reclaimed_bytes: u64,
     dry_run: bool,
 }
+
+/// A non-mutating integrity audit of prepared-package cache objects.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CacheAudit {
+    verified_packages: usize,
+    corrupt_packages: usize,
+    unrecognized_entries: usize,
+}
+impl CacheAudit {
+    /// Returns the number of verified prepared-package objects.
+    #[must_use]
+    pub const fn verified_packages(self) -> usize {
+        self.verified_packages
+    }
+
+    /// Returns the number of recognized but invalid package objects.
+    #[must_use]
+    pub const fn corrupt_packages(self) -> usize {
+        self.corrupt_packages
+    }
+
+    /// Returns the number of entries not recognized as package objects.
+    #[must_use]
+    pub const fn unrecognized_entries(self) -> usize {
+        self.unrecognized_entries
+    }
+}
 impl CacheCleanReport {
     /// Returns the number of prepared-package objects targeted.
     #[must_use]
@@ -353,6 +380,69 @@ pub fn verify_cached_packages(layout: &CacheLayout) -> Result<CacheVerification,
     Ok(report)
 }
 
+/// Audits every prepared cache object without deleting corrupt entries.
+///
+/// # Errors
+///
+/// Returns a diagnostic when cache entries cannot be inspected or are actively locked.
+pub fn audit_cached_packages(layout: &CacheLayout) -> Result<CacheAudit, Box<Diagnostic>> {
+    let objects = layout.packages().join("sha256");
+    let entries = match fs::read_dir(&objects) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(CacheAudit::default());
+        }
+        Err(error) => return Err(internal("could not read cache package directory", error)),
+    };
+    let mut entries = entries
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| internal("could not enumerate cache package objects", error))?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+    let mut report = CacheAudit::default();
+    for entry in entries {
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let Some(digest) = name.to_str().filter(|name| is_sha256(name)) else {
+            report.unrecognized_entries += 1;
+            continue;
+        };
+        let _lock = AdvisoryLock::try_acquire(
+            &layout.object_lock(digest)?,
+            &format!("cache object {digest}"),
+        )?;
+        if package_object_matches(&entry.path(), digest, &objects)? {
+            report.verified_packages += 1;
+        } else {
+            report.corrupt_packages += 1;
+        }
+    }
+    Ok(report)
+}
+
+/// Checks that the managed cache root permits temporary file creation.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the cache root cannot be created or written.
+pub fn check_cache_permissions(layout: &CacheLayout) -> Result<(), Box<Diagnostic>> {
+    let root = layout.schema_root();
+    fs::create_dir_all(&root).map_err(|error| {
+        internal(
+            "could not create cache directory for permission check",
+            error,
+        )
+    })?;
+    let probe = Builder::new()
+        .prefix(".wukong-doctor-")
+        .tempdir_in(&root)
+        .map_err(|error| internal("could not create cache permission probe", error))?;
+    fs::File::create(probe.path().join("write-probe"))
+        .map_err(|error| internal("could not write cache permission probe", error))?;
+    Ok(())
+}
+
 /// Inspects recognized cache objects and recursively calculates active-cache size.
 ///
 /// Symlinks are not followed. Missing cache directories report zero usage.
@@ -599,6 +689,27 @@ fn verify_existing(
         ObjectVerification::Valid(object) => Ok(object),
         ObjectVerification::CorruptRemoved => Err(corrupt_removed(expected)),
     }
+}
+
+fn package_object_matches(
+    path: &Path,
+    expected: &str,
+    parent: &Path,
+) -> Result<bool, Box<Diagnostic>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(internal("could not inspect cache object", error)),
+    };
+    if !metadata.file_type().is_dir() {
+        return Ok(false);
+    }
+    let temporary = Builder::new()
+        .prefix(".wukong-audit-")
+        .tempdir_in(parent)
+        .map_err(|error| internal("could not create cache audit directory", error))?;
+    Ok(prepare_package_tree(path, &temporary.path().join("object"))
+        .is_ok_and(|prepared| prepared.sha256() == expected))
 }
 
 fn inspect_package_object(
