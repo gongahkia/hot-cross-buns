@@ -1,6 +1,6 @@
 # TODO: Godot Package Manager
 
-> Working name: `gpm`
+> Working name: `wukong`
 >
 > This checklist is ordered to produce a usable, testable vertical slice early.
 >
@@ -21,11 +21,11 @@
 
 # Phase 0 — Repository foundation
 
-## GPM-001: Create the Rust workspace
+## wukong-001: Create the Rust workspace
 
 - [ ] Create a Cargo workspace.
-- [ ] Add a reusable core crate, provisionally `gpm-core`.
-- [ ] Add a CLI crate, provisionally `gpm-cli`.
+- [ ] Add a reusable core crate, provisionally `wukong-core`.
+- [ ] Add a CLI crate, provisionally `wukong-cli`.
 - [ ] Add a test-support crate only when shared fixtures justify it.
 - [ ] Set a supported minimum Rust version.
 - [ ] Enable strict linting.
@@ -39,7 +39,7 @@ Acceptance criteria:
 - `cargo fmt --check` succeeds.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` succeeds.
 
-## GPM-002: Establish CI
+## wukong-002: Establish CI
 
 - [ ] Add GitHub Actions for macOS, Linux and Windows.
 - [ ] Run formatting, linting and tests.
@@ -52,7 +52,7 @@ Acceptance criteria:
 - A pull request cannot merge with failing required checks.
 - All three operating systems execute at least one integration test.
 
-## GPM-003: Add repository documentation skeleton
+## wukong-003: Add repository documentation skeleton
 
 - [ ] Add `README.md`.
 - [ ] Add `CONTRIBUTING.md`.
@@ -62,7 +62,7 @@ Acceptance criteria:
 - [ ] Add `docs/benchmarks.md`.
 - [ ] Link the PRD and roadmap from the README.
 
-## GPM-004: Define error and diagnostic conventions
+## wukong-004: Define error and diagnostic conventions
 
 - [ ] Create structured internal error types.
 - [ ] Separate user errors, source errors, integrity errors and internal errors.
@@ -80,7 +80,7 @@ Acceptance criteria:
 
 # Phase 1 — Project discovery and manifest
 
-## GPM-010: Detect a Godot project
+## wukong-010: Detect a Godot project
 
 - [ ] Walk upward from the working directory to locate `project.godot`.
 - [ ] Stop at filesystem boundaries where appropriate.
@@ -95,9 +95,9 @@ Tests:
 - [ ] Missing `project.godot`.
 - [ ] Multiple nested project roots.
 
-## GPM-011: Define the manifest schema
+## wukong-011: Define the manifest schema
 
-- [ ] Adopt `gpm.toml`.
+- [ ] Adopt `wukong.toml`.
 - [ ] Define `[project]`.
 - [ ] Define `[dependencies]`.
 - [ ] Define `[dev-dependencies]`.
@@ -111,7 +111,7 @@ Acceptance criteria:
 - The example manifest in the PRD parses successfully.
 - Invalid combinations produce field-specific errors.
 
-## GPM-012: Implement manifest parsing
+## wukong-012: Implement manifest parsing
 
 - [ ] Parse TOML into typed domain structures.
 - [ ] Validate package names.
@@ -131,7 +131,7 @@ Tests:
 - [ ] Invalid relative paths.
 - [ ] Unicode package names policy.
 
-## GPM-013: Implement `gpm init`
+## wukong-013: Implement `wukong init`
 
 - [ ] Detect the project.
 - [ ] Refuse to overwrite an existing manifest.
@@ -141,10 +141,10 @@ Tests:
 
 Acceptance criteria:
 
-- Running `gpm init` twice does not corrupt or overwrite the manifest.
+- Running `wukong init` twice does not corrupt or overwrite the manifest.
 - The generated manifest parses successfully.
 
-## GPM-014: Add manifest editing support
+## wukong-014: Add manifest editing support
 
 - [ ] Add a dependency without destroying unrelated fields.
 - [ ] Remove a dependency.
@@ -156,7 +156,7 @@ Acceptance criteria:
 
 # Phase 2 — Package identity and source adapters
 
-## GPM-020: Define canonical package identity
+## wukong-020: Define canonical package identity
 
 Resolve through an ADR:
 
@@ -172,7 +172,7 @@ Acceptance criteria:
 - Equivalent references canonicalise identically.
 - Conflicting identities fail before download.
 
-## GPM-021: Define the source-adapter interface
+## wukong-021: Define the source-adapter interface
 
 The interface should support:
 
@@ -187,10 +187,10 @@ The interface should support:
 
 Do not leak Git-specific assumptions into the resolver.
 
-## GPM-022: Implement local path dependencies
+## wukong-022: Implement local path dependencies
 
 - [ ] Support relative and absolute paths.
-- [ ] Resolve paths relative to `gpm.toml`.
+- [ ] Resolve paths relative to `wukong.toml`.
 - [ ] Snapshot or hash package contents.
 - [ ] Detect missing paths.
 - [ ] Define handling for paths outside the project.
@@ -205,7 +205,7 @@ Tests:
 - [ ] Symlink inside local package.
 - [ ] Path outside project.
 
-## GPM-023: Implement Git source canonicalisation
+## wukong-023: Implement Git source canonicalisation
 
 - [ ] Support HTTPS URLs.
 - [ ] Delegate SSH authentication to the user's Git configuration.
@@ -219,7 +219,7 @@ Acceptance criteria:
 - The lockfile never stores a branch as the immutable identity.
 - Private repository credentials never appear in normal logs.
 
-## GPM-024: Implement Git fetching
+## wukong-024: Implement Git fetching
 
 - [ ] Decide between invoking system Git and using a Rust Git implementation.
 - [ ] Record the decision in an ADR.
@@ -240,7 +240,7 @@ Tests:
 - [ ] Existing warm cache.
 - [ ] Concurrent fetch.
 
-## GPM-025: Implement HTTP archive sources
+## wukong-025: Implement HTTP archive sources
 
 - [ ] Support HTTPS.
 - [ ] Require or derive a checksum.
@@ -260,7 +260,7 @@ Tests:
 - [ ] Warm cache.
 - [ ] Invalid TLS or URL.
 
-## GPM-026: Define source adapter contract tests
+## wukong-026: Define source adapter contract tests
 
 - [ ] Create a reusable adapter test suite.
 - [ ] Verify immutable resolution.
@@ -273,7 +273,7 @@ Tests:
 
 # Phase 3 — Safe package preparation
 
-## GPM-030: Implement secure archive extraction
+## wukong-030: Implement secure archive extraction
 
 - [ ] Support ZIP initially.
 - [ ] Consider tar formats only after ZIP is robust.
@@ -291,7 +291,7 @@ Acceptance criteria:
 
 - Every malicious archive fixture fails without writing outside the staging directory.
 
-## GPM-031: Detect package layout
+## wukong-031: Detect package layout
 
 Support explicit configuration and conservative inference for:
 
@@ -307,9 +307,9 @@ Acceptance criteria:
 - Ambiguous layouts fail with candidate paths listed.
 - No silent selection among multiple addons.
 
-## GPM-032: Define optional package metadata
+## wukong-032: Define optional package metadata
 
-- [ ] Define `gpm-package.toml`.
+- [ ] Define `wukong-package.toml`.
 - [ ] Add package name and version.
 - [ ] Add Godot compatibility.
 - [ ] Add dependency declarations.
@@ -317,7 +317,7 @@ Acceptance criteria:
 - [ ] Add schema-version handling.
 - [ ] Document that metadata is optional for direct installation.
 
-## GPM-033: Prepare canonical package trees
+## wukong-033: Prepare canonical package trees
 
 - [ ] Copy or transform fetched sources into a canonical staging tree.
 - [ ] Exclude source-control metadata.
@@ -334,7 +334,7 @@ Tests:
 - [ ] Unicode-normalisation collision fixture.
 - [ ] Executable-bit behaviour across platforms.
 
-## GPM-034: Build the first compatibility-fixture format
+## wukong-034: Build the first compatibility-fixture format
 
 Each fixture should declare:
 
@@ -352,7 +352,7 @@ Start with at least five public addons before implementing resolution.
 
 # Phase 4 — Lockfile and direct dependency installation
 
-## GPM-040: Define the lockfile schema
+## wukong-040: Define the lockfile schema
 
 - [ ] Select TOML or another reviewable deterministic format.
 - [ ] Add lockfile schema version.
@@ -363,7 +363,7 @@ Start with at least five public addons before implementing resolution.
 - [ ] Record Godot compatibility.
 - [ ] Avoid timestamps.
 
-## GPM-041: Implement deterministic lockfile serialisation
+## wukong-041: Implement deterministic lockfile serialisation
 
 - [ ] Stable package ordering.
 - [ ] Stable dependency ordering.
@@ -379,7 +379,7 @@ Property tests:
 - [ ] Unknown optional fields.
 - [ ] Unknown mandatory schema version.
 
-## GPM-042: Implement direct dependency locking
+## wukong-042: Implement direct dependency locking
 
 Before transitive resolution:
 
@@ -395,7 +395,7 @@ Acceptance criteria:
 - A project with multiple direct dependencies produces a deterministic lockfile.
 - Re-running lock without changes performs no writes.
 
-## GPM-043: Implement `gpm lock`
+## wukong-043: Implement `wukong lock`
 
 - [ ] Lock without materialising packages.
 - [ ] Support `--locked`.
@@ -407,7 +407,7 @@ Acceptance criteria:
 
 # Phase 5 — Cache and atomic materialisation
 
-## GPM-050: Define cache directory layout
+## wukong-050: Define cache directory layout
 
 - [ ] Follow platform conventions for cache directories.
 - [ ] Separate downloads, source checkouts, prepared packages and metadata.
@@ -415,7 +415,7 @@ Acceptance criteria:
 - [ ] Add cache schema versioning.
 - [ ] Add process-safe lock files.
 
-## GPM-051: Implement atomic cache object publication
+## wukong-051: Implement atomic cache object publication
 
 - [ ] Write to a unique temporary path.
 - [ ] Verify final content hash.
@@ -432,16 +432,16 @@ Tests:
 - [ ] Read during publication.
 - [ ] Windows rename behaviour.
 
-## GPM-052: Implement cache integrity verification
+## wukong-052: Implement cache integrity verification
 
 - [ ] Verify content hashes on read.
 - [ ] Quarantine or remove corrupted objects.
 - [ ] Provide actionable diagnostics.
 - [ ] Add an optional full cache verification command.
 
-## GPM-053: Define installed-state metadata
+## wukong-053: Define installed-state metadata
 
-- [ ] Create `.gpm/`.
+- [ ] Create `.wukong/`.
 - [ ] Record installed package identities.
 - [ ] Record owned files.
 - [ ] Record file hashes.
@@ -449,7 +449,7 @@ Tests:
 - [ ] Record materialisation strategy.
 - [ ] Version the state schema.
 
-## GPM-054: Build desired file ownership maps
+## wukong-054: Build desired file ownership maps
 
 - [ ] Combine package file trees.
 - [ ] Detect exact-path conflicts.
@@ -458,7 +458,7 @@ Tests:
 - [ ] Distinguish identical shared content from incompatible collisions.
 - [ ] Produce a clear conflict report.
 
-## GPM-055: Implement transactional project synchronisation
+## wukong-055: Implement transactional project synchronisation
 
 - [ ] Calculate differences before writing.
 - [ ] Stage new files.
@@ -474,7 +474,7 @@ Acceptance criteria:
 - A repeated sync makes no changes.
 - Removing a package never deletes an unrelated user file.
 
-## GPM-056: Implement materialisation strategies
+## wukong-056: Implement materialisation strategies
 
 Evaluate and implement:
 
@@ -486,7 +486,7 @@ Evaluate and implement:
 
 Do not default to symlinks.
 
-## GPM-057: Implement `gpm install` and `gpm sync`
+## wukong-057: Implement `wukong install` and `wukong sync`
 
 - [ ] `install` follows the lockfile.
 - [ ] `sync` reconciles the filesystem to the lockfile and selected dependency groups.
@@ -499,7 +499,7 @@ Do not default to symlinks.
 
 # Phase 6 — Dependency resolution
 
-## GPM-060: Evaluate resolver implementations
+## wukong-060: Evaluate resolver implementations
 
 - [ ] Define required constraint semantics.
 - [ ] Evaluate PubGrub-compatible Rust libraries.
@@ -507,7 +507,7 @@ Do not default to symlinks.
 - [ ] Record the decision in an ADR.
 - [ ] Build resolver benchmarks before custom implementation.
 
-## GPM-061: Implement semantic version handling
+## wukong-061: Implement semantic version handling
 
 - [ ] Exact versions.
 - [ ] Ranges.
@@ -519,7 +519,7 @@ Do not default to symlinks.
 
 Document deviations from conventional SemVer.
 
-## GPM-062: Discover package versions
+## wukong-062: Discover package versions
 
 For Git sources:
 
@@ -534,7 +534,7 @@ For other sources:
 - [ ] Define whether version discovery is possible.
 - [ ] Require exact versions or metadata where it is not.
 
-## GPM-063: Resolve transitive dependencies
+## wukong-063: Resolve transitive dependencies
 
 - [ ] Read package-owned metadata.
 - [ ] Build the package universe lazily.
@@ -550,7 +550,7 @@ Acceptance criteria:
 - Resolver output is deterministic.
 - Conflict errors identify the incompatible requirements.
 
-## GPM-064: Add resolver property tests
+## wukong-064: Add resolver property tests
 
 - [ ] Generated solvable graphs.
 - [ ] Generated unsatisfiable graphs.
@@ -560,7 +560,7 @@ Acceptance criteria:
 - [ ] Pre-release cases.
 - [ ] Duplicate source identities.
 
-## GPM-065: Implement `gpm tree` and `gpm why`
+## wukong-065: Implement `wukong tree` and `wukong why`
 
 - [ ] Human-readable tree.
 - [ ] JSON output.
@@ -572,7 +572,7 @@ Acceptance criteria:
 
 # Phase 7 — Dependency mutation commands
 
-## GPM-070: Implement `gpm add`
+## wukong-070: Implement `wukong add`
 
 - [ ] Parse package specifications.
 - [ ] Support Git URL.
@@ -584,7 +584,7 @@ Acceptance criteria:
 - [ ] Resolve and sync.
 - [ ] Roll back manifest and lockfile after failure.
 
-## GPM-071: Implement `gpm remove`
+## wukong-071: Implement `wukong remove`
 
 - [ ] Remove direct dependency.
 - [ ] Re-resolve graph.
@@ -593,7 +593,7 @@ Acceptance criteria:
 - [ ] Preserve unrelated files.
 - [ ] Present a removal summary.
 
-## GPM-072: Implement `gpm update`
+## wukong-072: Implement `wukong update`
 
 - [ ] Update all dependencies.
 - [ ] Update one selected dependency.
@@ -602,7 +602,7 @@ Acceptance criteria:
 - [ ] Show old and new versions or revisions.
 - [ ] Support dry-run.
 
-## GPM-073: Implement `gpm outdated`
+## wukong-073: Implement `wukong outdated`
 
 - [ ] Detect newer compatible versions.
 - [ ] Distinguish compatible and breaking updates.
@@ -613,28 +613,28 @@ Acceptance criteria:
 
 # Phase 8 — Godot compatibility and validation
 
-## GPM-080: Parse project Godot compatibility
+## wukong-080: Parse project Godot compatibility
 
 - [ ] Define manifest-based Godot requirement.
 - [ ] Optionally inspect `project.godot` for useful version metadata.
 - [ ] Allow an explicit CLI override.
 - [ ] Avoid unreliable inference.
 
-## GPM-081: Enforce package Godot constraints
+## wukong-081: Enforce package Godot constraints
 
 - [ ] Read constraints from package metadata.
 - [ ] Include Godot version in resolution.
 - [ ] Report incompatible packages before installation.
 - [ ] Support packages with unknown compatibility explicitly.
 
-## GPM-082: Add optional Godot executable discovery
+## wukong-082: Add optional Godot executable discovery
 
 - [ ] Support explicit executable path.
 - [ ] Search common platform locations.
 - [ ] Support environment-variable configuration.
 - [ ] Print the selected executable in verbose mode.
 
-## GPM-083: Add headless validation
+## wukong-083: Add headless validation
 
 - [ ] Run a safe Godot headless import or project check.
 - [ ] Capture structured diagnostics where possible.
@@ -642,7 +642,7 @@ Acceptance criteria:
 - [ ] Add a timeout.
 - [ ] Redact project paths where necessary in shared reports.
 
-## GPM-084: Expand compatibility corpus to 20 addons
+## wukong-084: Expand compatibility corpus to 20 addons
 
 For each addon:
 
@@ -660,14 +660,14 @@ Version `0.1.0` must not be released before this task is complete.
 
 # Phase 9 — Offline, concurrency and resilience
 
-## GPM-090: Implement strict offline mode
+## wukong-090: Implement strict offline mode
 
 - [ ] Prevent all network access.
 - [ ] Explain every missing cache object.
 - [ ] Install successfully from a complete cache.
 - [ ] Add tests that fail if a network socket is opened.
 
-## GPM-091: Implement cross-process locking
+## wukong-091: Implement cross-process locking
 
 - [ ] Cache object locks.
 - [ ] Repository fetch locks.
@@ -675,7 +675,7 @@ Version `0.1.0` must not be released before this task is complete.
 - [ ] Stale-lock recovery.
 - [ ] Clear diagnostics when another operation is active.
 
-## GPM-092: Add interruption and crash tests
+## wukong-092: Add interruption and crash tests
 
 Simulate failure during:
 
@@ -688,17 +688,17 @@ Simulate failure during:
 - [ ] State-file write.
 - [ ] Stale-file removal.
 
-## GPM-093: Add cache maintenance commands
+## wukong-093: Add cache maintenance commands
 
-- [ ] `gpm cache dir`.
-- [ ] `gpm cache status`.
-- [ ] `gpm cache verify`.
-- [ ] `gpm cache clean`.
+- [ ] `wukong cache dir`.
+- [ ] `wukong cache status`.
+- [ ] `wukong cache verify`.
+- [ ] `wukong cache clean`.
 - [ ] Safe garbage collection.
 - [ ] Dry-run.
 - [ ] Human-readable size reporting.
 
-## GPM-094: Implement `gpm doctor`
+## wukong-094: Implement `wukong doctor`
 
 Check:
 
@@ -717,7 +717,7 @@ Check:
 
 # Phase 10 — Security hardening
 
-## GPM-100: Create a written threat model
+## wukong-100: Create a written threat model
 
 - [ ] Identify assets.
 - [ ] Identify trust boundaries.
@@ -725,14 +725,14 @@ Check:
 - [ ] Define security assumptions.
 - [ ] Document residual risk.
 
-## GPM-101: Fuzz manifest and lockfile parsers
+## wukong-101: Fuzz manifest and lockfile parsers
 
 - [ ] Add fuzz targets.
 - [ ] Seed with valid and invalid fixtures.
 - [ ] Run bounded fuzzing in CI or scheduled workflows.
 - [ ] Convert crashes into regression tests.
 
-## GPM-102: Fuzz archive extraction
+## wukong-102: Fuzz archive extraction
 
 - [ ] Malformed ZIP structures.
 - [ ] Path traversal.
@@ -741,7 +741,7 @@ Check:
 - [ ] Compression bombs within bounded harness limits.
 - [ ] Symlink and special-file entries.
 
-## GPM-103: Harden credential handling
+## wukong-103: Harden credential handling
 
 - [ ] Redact embedded URL credentials.
 - [ ] Avoid logging authentication headers.
@@ -749,15 +749,15 @@ Check:
 - [ ] Delegate Git authentication safely.
 - [ ] Review crash reports for secret exposure.
 
-## GPM-104: Add dependency provenance
+## wukong-104: Add dependency provenance
 
 - [ ] Display canonical source.
 - [ ] Display immutable revision.
 - [ ] Display checksum.
-- [ ] Add `gpm audit` baseline output.
+- [ ] Add `wukong audit` baseline output.
 - [ ] Reserve signature-verification design for a later milestone.
 
-## GPM-105: Commission or perform a security review before `1.0`
+## wukong-105: Commission or perform a security review before `1.0`
 
 - [ ] Review archive handling.
 - [ ] Review filesystem transactions.
@@ -769,7 +769,7 @@ Check:
 
 # Phase 11 — Performance and benchmarks
 
-## GPM-110: Build benchmark harness
+## wukong-110: Build benchmark harness
 
 Measure separately:
 
@@ -784,7 +784,7 @@ Measure separately:
 - [ ] Materialisation.
 - [ ] No-op sync.
 
-## GPM-111: Define benchmark fixtures
+## wukong-111: Define benchmark fixtures
 
 - [ ] Small project.
 - [ ] Medium dependency graph.
@@ -796,7 +796,7 @@ Measure separately:
 - [ ] Offline cache hit.
 - [ ] Concurrent project installs.
 
-## GPM-112: Publish honest benchmark methodology
+## wukong-112: Publish honest benchmark methodology
 
 - [ ] Hardware.
 - [ ] Operating system.
@@ -807,7 +807,7 @@ Measure separately:
 - [ ] Variance.
 - [ ] Raw result data.
 
-## GPM-113: Optimise only measured bottlenecks
+## wukong-113: Optimise only measured bottlenecks
 
 Potential areas:
 
@@ -827,7 +827,7 @@ Do not optimise parser microbenchmarks while downloads or filesystem work domina
 
 Start only after Git, URL and local sources are stable.
 
-## GPM-120: Research official integration boundaries
+## wukong-120: Research official integration boundaries
 
 - [ ] Document public APIs or supported metadata sources.
 - [ ] Review authentication and rate limits.
@@ -835,7 +835,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Identify stable identifiers and version metadata.
 - [ ] Record findings in an ADR.
 
-## GPM-121: Implement the asset-source adapter
+## wukong-121: Implement the asset-source adapter
 
 - [ ] Search or resolve assets by stable identifier.
 - [ ] Retrieve version metadata.
@@ -844,7 +844,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Cache metadata responsibly.
 - [ ] Produce clear errors when upstream data is incomplete.
 
-## GPM-122: Keep official integration replaceable
+## wukong-122: Keep official integration replaceable
 
 - [ ] No official-source types inside the generic resolver.
 - [ ] No assumptions about one registry in lockfile core types.
@@ -855,7 +855,7 @@ Start only after Git, URL and local sources are stable.
 
 # Phase 13 — Editor integration
 
-## GPM-130: Define a machine-readable CLI protocol
+## wukong-130: Define a machine-readable CLI protocol
 
 - [ ] Stable JSON output.
 - [ ] Progress events.
@@ -864,7 +864,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Exit-status conventions.
 - [ ] Protocol versioning.
 
-## GPM-131: Build a minimal Godot editor plugin
+## wukong-131: Build a minimal Godot editor plugin
 
 - [ ] Detect CLI.
 - [ ] Display installed packages.
@@ -874,7 +874,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Open manifest and lockfile.
 - [ ] Avoid duplicating package-management logic.
 
-## GPM-132: Add editor dependency views
+## wukong-132: Add editor dependency views
 
 - [ ] Dependency tree.
 - [ ] Outdated packages.
@@ -886,7 +886,7 @@ Start only after Git, URL and local sources are stable.
 
 # Phase 14 — Release readiness
 
-## GPM-140: Prepare installation channels
+## wukong-140: Prepare installation channels
 
 - [ ] GitHub release binaries.
 - [ ] macOS universal or architecture-specific binaries.
@@ -897,7 +897,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Cargo installation where appropriate.
 - [ ] Artifact checksums.
 
-## GPM-141: Complete user documentation
+## wukong-141: Complete user documentation
 
 - [ ] 60-second quick start.
 - [ ] Command reference.
@@ -910,7 +910,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Security guide.
 - [ ] Troubleshooting.
 
-## GPM-142: Complete contributor documentation
+## wukong-142: Complete contributor documentation
 
 - [ ] Architecture overview.
 - [ ] Source adapter guide.
@@ -920,7 +920,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Compatibility corpus process.
 - [ ] ADR process.
 
-## GPM-143: Recruit external testers
+## wukong-143: Recruit external testers
 
 - [ ] Identify at least three unrelated Godot repositories.
 - [ ] Add their reproducible cases to the fixture corpus where permitted.
@@ -928,7 +928,7 @@ Start only after Git, URL and local sources are stable.
 - [ ] Resolve critical installation failures.
 - [ ] Collect launch testimonials only when genuinely provided.
 
-## GPM-144: Release `0.1.0`
+## wukong-144: Release `0.1.0`
 
 Release criteria:
 
@@ -948,19 +948,19 @@ Release criteria:
 
 # Phase 15 — Post-launch
 
-## GPM-150: Triage using reproducibility-first issue templates
+## wukong-150: Triage using reproducibility-first issue templates
 
 Require:
 
 - [ ] Operating system.
-- [ ] `gpm` version.
+- [ ] `wukong` version.
 - [ ] Godot version.
 - [ ] Minimal manifest.
 - [ ] Lockfile where safe.
 - [ ] Verbose diagnostic output with secrets removed.
 - [ ] Expected and actual behaviour.
 
-## GPM-151: Expand the compatibility corpus
+## wukong-151: Expand the compatibility corpus
 
 Targets:
 
@@ -972,7 +972,7 @@ Targets:
 - [ ] Large projects.
 - [ ] Windows-specific cases.
 
-## GPM-152: Publish a technical launch article
+## wukong-152: Publish a technical launch article
 
 Cover:
 
@@ -987,7 +987,7 @@ Cover:
 - [ ] Known limitations.
 - [ ] Comparison with existing managers.
 
-## GPM-153: Decide whether to pursue `1.0`
+## wukong-153: Decide whether to pursue `1.0`
 
 Require evidence of:
 
@@ -1006,17 +1006,17 @@ Codex should begin with this exact vertical slice:
 
 1. Create the Rust workspace and CI.
 2. Detect a Godot project.
-3. Parse a minimal `gpm.toml`.
+3. Parse a minimal `wukong.toml`.
 4. Support one local path dependency.
 5. Prepare it into a canonical package tree.
 6. Produce a deterministic one-package lockfile.
 7. Copy it into `addons/` transactionally.
-8. Record file ownership in `.gpm/state.toml`.
-9. Make repeated `gpm sync` a no-op.
+8. Record file ownership in `.wukong/state.toml`.
+9. Make repeated `wukong sync` a no-op.
 10. Add tests for installation, idempotence, conflict refusal and safe removal.
 
 Do not start with GitHub APIs, official asset integration, an editor plugin or a custom dependency solver.
 
 The first milestone should prove the core invariant:
 
-> Given the same manifest, lockfile and source content, `gpm sync` produces the same project addon state without modifying unrelated files.
+> Given the same manifest, lockfile and source content, `wukong sync` produces the same project addon state without modifying unrelated files.

@@ -1,6 +1,6 @@
 # Product Requirements Document: Godot Package Manager
 
-> Working name: `gpm`
+> Working name: `wukong`
 >
 > Status: Draft for implementation
 >
@@ -12,7 +12,7 @@
 
 ## 1. Product summary
 
-`gpm` is a fast, reproducible package and dependency manager for Godot 4 addons.
+`wukong` is a fast, reproducible package and dependency manager for Godot 4 addons.
 
 It gives Godot projects a single declarative manifest and deterministic lockfile for installing addons from:
 
@@ -60,14 +60,14 @@ These approaches make it difficult to:
 - Detect conflicting files
 - Work offline after dependencies have already been fetched
 
-`gpm` should convert this workflow into a deterministic dependency graph.
+`wukong` should convert this workflow into a deterministic dependency graph.
 
 ## 3. Product vision
 
 A Godot developer should be able to clone a project and run:
 
 ```bash
-gpm sync
+wukong sync
 ```
 
 The project should then receive exactly the addon versions recorded in its lockfile, regardless of which supported operating system performs the installation.
@@ -141,7 +141,7 @@ The first stable release will not:
 
 ### 7.1 Compatibility before novelty
 
-Use existing Godot project and addon conventions where possible. Do not require addon authors to adopt `gpm` before users can install their packages.
+Use existing Godot project and addon conventions where possible. Do not require addon authors to adopt `wukong` before users can install their packages.
 
 ### 7.2 Reproducibility before convenience
 
@@ -173,37 +173,37 @@ Benchmarks must distinguish:
 
 ## 8. Proposed command-line interface
 
-The executable name is provisionally `gpm`.
+The executable name is provisionally `wukong`.
 
 ```text
-gpm init
-gpm add <package>
-gpm add <package> --dev
-gpm remove <package>
-gpm install
-gpm sync
-gpm update [package]
-gpm lock
-gpm tree
-gpm why <package>
-gpm outdated
-gpm audit
-gpm cache dir
-gpm cache status
-gpm cache clean
-gpm doctor
+wukong init
+wukong add <package>
+wukong add <package> --dev
+wukong remove <package>
+wukong install
+wukong sync
+wukong update [package]
+wukong lock
+wukong tree
+wukong why <package>
+wukong outdated
+wukong audit
+wukong cache dir
+wukong cache status
+wukong cache clean
+wukong doctor
 ```
 
 ### 8.1 Command semantics
 
-#### `gpm init`
+#### `wukong init`
 
 - Detect a Godot project.
-- Create `gpm.toml`.
+- Create `wukong.toml`.
 - Add sensible ignore rules if requested.
 - Never overwrite an existing manifest.
 
-#### `gpm add`
+#### `wukong add`
 
 - Add or update a dependency declaration.
 - Resolve the complete graph.
@@ -211,42 +211,42 @@ gpm doctor
 - Materialise changed packages.
 - Roll back manifest and lockfile changes if installation fails.
 
-#### `gpm remove`
+#### `wukong remove`
 
 - Remove a dependency declaration.
 - Re-resolve the graph.
 - Remove files no longer owned by any package.
 - Preserve shared transitive dependencies still required elsewhere.
 
-#### `gpm install`
+#### `wukong install`
 
 - Install according to the existing lockfile.
 - Fail when the manifest and lockfile are incompatible unless an explicit update flag is supplied.
 
-#### `gpm sync`
+#### `wukong sync`
 
 - Make the project filesystem match the lockfile exactly.
 - Remove stale package-owned files.
 - Preserve unrelated project files.
 - Be idempotent.
 
-#### `gpm update`
+#### `wukong update`
 
 - Re-resolve permitted versions.
 - Update all packages or a selected package and its affected dependency closure.
 - Present a change summary before modifying project files when running interactively.
 
-#### `gpm tree`
+#### `wukong tree`
 
 - Show the resolved dependency graph.
 - Indicate direct, transitive and development dependencies.
 - Support machine-readable JSON output.
 
-#### `gpm why`
+#### `wukong why`
 
 - Explain every path from a root dependency to the selected package.
 
-#### `gpm doctor`
+#### `wukong doctor`
 
 - Diagnose malformed manifests, stale lockfiles, cache corruption, filesystem limitations and unsupported Godot versions.
 
@@ -288,7 +288,7 @@ gut = { git = "https://github.com/bitwes/Gut", tag = "v9.4.0" }
 
 The lockfile should be deterministic and machine-generated.
 
-Provisionally use `gpm.lock`.
+Provisionally use `wukong.lock`.
 
 Each package entry should include:
 
@@ -330,7 +330,7 @@ A package may be sourced from:
 
 ### 11.1 Package metadata
 
-`gpm` should support an optional package-owned manifest, provisionally `gpm-package.toml`.
+`wukong` should support an optional package-owned manifest, provisionally `wukong-package.toml`.
 
 Possible fields:
 
@@ -396,7 +396,7 @@ The global cache should store immutable fetched and prepared package artifacts.
 Example conceptual layout:
 
 ```text
-~/.cache/gpm/
+~/.cache/wukong/
 ├── objects/
 │   └── sha256/
 ├── git/
@@ -460,7 +460,7 @@ The lockfile records desired dependency resolution, but an additional project-lo
 - Installation strategy used
 - Selected dependency groups
 
-This state file should be machine-generated and may be placed under a tool-specific directory such as `.gpm/`.
+This state file should be machine-generated and may be placed under a tool-specific directory such as `.wukong/`.
 
 The installer must not delete a file merely because it is absent from the new package version unless it can prove that the file was previously package-owned.
 
@@ -666,7 +666,7 @@ Support:
 - `--json`
 - Structured error codes
 - Optional trace logging
-- A `gpm doctor` command
+- A `wukong doctor` command
 - Clear distinction between warnings and fatal errors
 
 Diagnostics should include:
@@ -728,7 +728,7 @@ The repository should include:
 
 ### Product metrics
 
-- Number of external projects using `gpm`
+- Number of external projects using `wukong`
 - Number of external contributors
 - Number of addon authors publishing package metadata
 - Percentage of compatibility corpus installed successfully

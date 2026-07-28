@@ -6,7 +6,7 @@ This file defines how coding agents should work in this repository.
 
 Build a fast, reproducible package and dependency manager for Godot 4 addons.
 
-The working executable name is `gpm`.
+The working executable name is `wukong`.
 
 The primary product value is:
 
@@ -90,7 +90,7 @@ Prefer a reusable core library and a thin CLI.
 Suggested boundaries:
 
 ```text
-gpm-core
+wukong-core
 ├── project discovery
 ├── manifest
 ├── lockfile
@@ -104,7 +104,7 @@ gpm-core
 ├── transactions
 └── diagnostics
 
-gpm-cli
+wukong-cli
 ├── argument parsing
 ├── human output
 ├── JSON output
@@ -186,7 +186,7 @@ Never remove a security fixture merely to simplify implementation.
 The following invariants must remain true:
 
 1. The same manifest, lockfile and source content produce the same desired package state.
-2. Repeated `gpm sync` is idempotent.
+2. Repeated `wukong sync` is idempotent.
 3. A failed operation does not leave a partially valid installed state.
 4. Unrelated project files are never deleted.
 5. Package file conflicts are detected before destructive mutation.
