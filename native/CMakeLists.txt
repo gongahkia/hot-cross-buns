@@ -266,6 +266,7 @@ qt_add_qml_module(hcb_native
     qml/AgendaView.qml
     qml/CalendarBulkControls.qml
     qml/CalendarSourceControls.qml
+    qml/BulkTextReplaceDialog.qml
     qml/DayTimelineView.qml
     qml/DateEditor.qml
     qml/DateTimeEditor.qml

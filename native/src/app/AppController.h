@@ -95,6 +95,16 @@ class AppController final : public QObject {
       QString bulkTaskStatusMessage READ bulkTaskStatusMessage NOTIFY bulkTaskStatusMessageChanged)
   Q_PROPERTY(QString bulkEventStatusMessage READ bulkEventStatusMessage NOTIFY
                  bulkEventStatusMessageChanged)
+  Q_PROPERTY(QString bulkTaskPreviewMessage READ bulkTaskPreviewMessage NOTIFY
+                 bulkTaskPreviewMessageChanged)
+  Q_PROPERTY(QString bulkEventPreviewMessage READ bulkEventPreviewMessage NOTIFY
+                 bulkEventPreviewMessageChanged)
+  Q_PROPERTY(int bulkTaskPreviewRevision READ bulkTaskPreviewRevision NOTIFY
+                 bulkTaskPreviewRevisionChanged)
+  Q_PROPERTY(int bulkEventPreviewRevision READ bulkEventPreviewRevision NOTIFY
+                 bulkEventPreviewRevisionChanged)
+  Q_PROPERTY(int bulkTextRecurrenceScope READ bulkTextRecurrenceScope NOTIFY
+                 bulkTextRecurrenceScopeChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
   Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
   Q_PROPERTY(int visualDensity READ visualDensity NOTIFY visualDensityChanged)
@@ -170,6 +180,11 @@ public:
   [[nodiscard]] bool searchLoading() const;
   [[nodiscard]] QString bulkTaskStatusMessage() const;
   [[nodiscard]] QString bulkEventStatusMessage() const;
+  [[nodiscard]] QString bulkTaskPreviewMessage() const;
+  [[nodiscard]] QString bulkEventPreviewMessage() const;
+  [[nodiscard]] int bulkTaskPreviewRevision() const;
+  [[nodiscard]] int bulkEventPreviewRevision() const;
+  [[nodiscard]] int bulkTextRecurrenceScope() const;
   [[nodiscard]] QString calendarDate() const;
   [[nodiscard]] int appearanceMode() const;
   [[nodiscard]] int visualDensity() const;
@@ -215,6 +230,7 @@ public:
   Q_INVOKABLE void saveAccentColor(QString color);
   Q_INVOKABLE void saveFontFamily(QString family);
   Q_INVOKABLE void saveFontScale(int scale);
+  Q_INVOKABLE void saveBulkTextRecurrenceScope(int scope);
   Q_INVOKABLE void resetVisualPreferences();
   Q_INVOKABLE QVariantMap previewQuickCapture(QString text, int kind, QVariantList disabledRecognitionIds) const;
   Q_INVOKABLE void createQuickCapture(QString text,
@@ -315,6 +331,15 @@ public:
   Q_INVOKABLE void bulkClearTaskDue(QVariantList taskIds);
   Q_INVOKABLE void bulkSetTaskPriority(QVariantList taskIds, int priority);
   Q_INVOKABLE void bulkReparentTasks(QVariantList taskIds, QString parentTaskId);
+  Q_INVOKABLE void bulkReplaceTaskText(QVariantList taskIds,
+                                       QString findText,
+                                       QString replaceText,
+                                       int fields,
+                                       int recurrenceScope);
+  Q_INVOKABLE void previewBulkTaskText(QVariantList taskIds,
+                                       QString findText,
+                                       int fields,
+                                       int recurrenceScope);
   Q_INVOKABLE void createEvent(QString calendarId,
                                QString title,
                                QString startAt,
@@ -383,6 +408,15 @@ public:
   Q_INVOKABLE void bulkSetEventAvailability(QVariantList eventIds, bool available);
   Q_INVOKABLE void bulkSetEventVisibility(QVariantList eventIds, QString visibility);
   Q_INVOKABLE void bulkShiftEventTimes(QVariantList eventIds, int shiftMinutes);
+  Q_INVOKABLE void bulkReplaceEventText(QVariantList eventIds,
+                                        QString findText,
+                                        QString replaceText,
+                                        int fields,
+                                        int recurrenceScope);
+  Q_INVOKABLE void previewBulkEventText(QVariantList eventIds,
+                                        QString findText,
+                                        int fields,
+                                        int recurrenceScope);
 
 signals:
   void clientIdChanged();
@@ -400,6 +434,11 @@ signals:
   void searchLoadingChanged();
   void bulkTaskStatusMessageChanged();
   void bulkEventStatusMessageChanged();
+  void bulkTaskPreviewMessageChanged();
+  void bulkEventPreviewMessageChanged();
+  void bulkTaskPreviewRevisionChanged();
+  void bulkEventPreviewRevisionChanged();
+  void bulkTextRecurrenceScopeChanged();
   void calendarDateChanged();
   void appearanceModeChanged();
   void visualDensityChanged();
@@ -484,6 +523,8 @@ private:
   void loadSavedSearches();
   void runBulkTaskMutation(TaskBulkMutationInput input);
   void runBulkEventMutation(CalendarEventBulkMutationInput input);
+  void previewBulkTaskMutation(TaskBulkMutationInput input);
+  void previewBulkEventMutation(CalendarEventBulkMutationInput input);
   void handleOAuthCallback(OAuthLoopbackCallback callback);
   void finishOAuthConnection(std::uint64_t requestId, OAuthTokenSet tokenSet);
   void requestGoogleSync(SyncScheduleTrigger trigger);
@@ -501,6 +542,8 @@ private:
   void setSearchLoading(bool loading);
   void setBulkTaskStatusMessage(QString message);
   void setBulkEventStatusMessage(QString message);
+  void setBulkTaskPreviewMessage(QString message);
+  void setBulkEventPreviewMessage(QString message);
   void setReminderStatusMessage(QString message);
   void setInvitations(QVariantList invitations);
   void setBusy(bool busy);
@@ -575,6 +618,11 @@ private:
   bool searchLoading_{false};
   QString bulkTaskStatusMessage_;
   QString bulkEventStatusMessage_;
+  QString bulkTaskPreviewMessage_;
+  QString bulkEventPreviewMessage_;
+  int bulkTaskPreviewRevision_{0};
+  int bulkEventPreviewRevision_{0};
+  int bulkTextRecurrenceScope_{2};
   QDate calendarDate_{QDate::currentDate()};
   int appearanceMode_{0};
   int visualDensity_{1};

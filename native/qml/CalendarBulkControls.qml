@@ -7,6 +7,9 @@ Pane {
     property var selectedEventIds: []
     property var calendarSourceModel: null
     property string statusMessage: ""
+    property string previewMessage: ""
+    property int previewRevision: 0
+    property int bulkTextRecurrenceScope: 2
     signal clearSelectionRequested()
     signal bulkDeleteRequested(var eventIds)
     signal bulkMoveRequested(var eventIds, string calendarId)
@@ -14,6 +17,9 @@ Pane {
     signal bulkAvailabilityRequested(var eventIds, bool available)
     signal bulkVisibilityRequested(var eventIds, string visibility)
     signal bulkShiftRequested(var eventIds, int shiftMinutes)
+    signal bulkTextPreviewRequested(var eventIds, string findText, int fields, int recurrenceScope)
+    signal bulkTextReplaceRequested(var eventIds, string findText, string replaceText, int fields,
+                                   int recurrenceScope)
 
     visible: selectedEventIds.length > 0 || statusMessage.length > 0
     padding: Theme.spacingMedium
@@ -74,6 +80,13 @@ Pane {
                 Accessible.name: text + " " + root.selectedEventIds.length + " events"
                 onClicked: editDialog.openForShift(root.selectedEventIds)
             }
+
+            Button {
+                text: "Find and replace"
+                Accessible.name: text + " " + root.selectedEventIds.length + " events"
+                onClicked: bulkTextReplaceDialog.openFor(root.selectedEventIds,
+                                                         root.bulkTextRecurrenceScope)
+            }
         }
 
         Label {
@@ -113,6 +126,20 @@ Pane {
         }
         onBulkShiftRequested: function(eventIds, shiftMinutes) {
             root.bulkShiftRequested(eventIds, shiftMinutes)
+        }
+    }
+
+    BulkTextReplaceDialog {
+        id: bulkTextReplaceDialog
+        parent: Overlay.overlay
+        kind: "event"
+        previewMessage: root.previewMessage
+        previewRevision: root.previewRevision
+        onPreviewRequested: function(eventIds, findText, fields, recurrenceScope) {
+            root.bulkTextPreviewRequested(eventIds, findText, fields, recurrenceScope)
+        }
+        onReplaceRequested: function(eventIds, findText, replaceText, fields, recurrenceScope) {
+            root.bulkTextReplaceRequested(eventIds, findText, replaceText, fields, recurrenceScope)
         }
     }
 }

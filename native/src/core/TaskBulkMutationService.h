@@ -47,6 +47,7 @@ struct TaskBulkMutationInput final {
   QString replaceText;
   std::uint8_t textFields{0};
   int recurrenceScope{0}; // 0 skip, 1 current, 2 current+future, 3 full series
+  bool previewOnly{false};
 };
 
 struct TaskBulkMutationItem final {

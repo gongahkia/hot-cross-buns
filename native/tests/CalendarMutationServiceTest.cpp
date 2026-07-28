@@ -217,6 +217,7 @@ private slots:
   void rejectsInvalidAndUnavailableMutations();
   void scopesRecurringSeriesWithoutUnsafeLegacyMutations();
   void bulkClassifiesAndQueuesEligibleEvents();
+  void bulkReplacesLiteralEventTextWithPreviewAndScope();
 };
 
 void CalendarMutationServiceTest::createsUpdatesMovesAndDeletesEvents() {
@@ -955,6 +956,84 @@ void CalendarMutationServiceTest::bulkClassifiesAndQueuesEligibleEvents() {
   }
   QCOMPARE(shifted->startAt, QStringLiteral("2026-07-26T02:00:00.000Z"));
   QCOMPARE(shifted->endAt, QStringLiteral("2026-07-26T03:00:00.000Z"));
+}
+
+void CalendarMutationServiceTest::bulkReplacesLiteralEventTextWithPreviewAndScope() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  const FixedClock clock(hcb::WallTimePoint{std::chrono::milliseconds{1'753'408'000'123}});
+  hcb::CalendarMutationService service(*databasePath, clock);
+  verifyReady(service);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  execute(handle,
+          "UPDATE local_calendars SET access_role = 'owner' WHERE id = 'calendar-work'; "
+          "INSERT INTO local_calendar_events (id, calendar_id, remote_id, status, title, description, "
+          "location, start_at, end_at, is_all_day, recurrence_rule, etag, updated_at) VALUES "
+          "('event-replace', 'calendar-work', 'remote-replace', 'confirmed', 'Alpha Alpha', "
+          "'Alpha description', 'Alpha room', '2026-07-26T01:00:00.000Z', "
+          "'2026-07-26T02:00:00.000Z', 0, NULL, 'etag-replace', '2026-07-25T00:00:00Z'), "
+          "('event-replace-recurring', 'calendar-work', 'remote-replace-recurring', 'confirmed', "
+          "'Alpha recurring', NULL, NULL, '2026-07-27T01:00:00.000Z', "
+          "'2026-07-27T02:00:00.000Z', 0, 'RRULE:FREQ=DAILY', 'etag-recurring', "
+          "'2026-07-25T00:00:00Z')");
+
+  hcb::CalendarEventBulkMutationService bulk(service);
+  std::future<hcb::CalendarEventBulkMutationResult> preview = bulk.execute(
+      {.action = hcb::CalendarEventBulkAction::ReplaceText,
+       .eventIds = {QStringLiteral("event-replace"), QStringLiteral("event-replace-recurring")},
+       .findText = QStringLiteral("Alpha"),
+       .replaceText = QStringLiteral("Beta"),
+       .textFields = static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Title) |
+                     static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Description) |
+                     static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Location),
+       .recurrenceScope = 0,
+       .previewOnly = true});
+  const hcb::CalendarEventBulkMutationResult previewResult = awaitResult(preview);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(previewResult));
+  if (!std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(previewResult)) {
+    return;
+  }
+  QCOMPARE(std::get<hcb::CalendarEventBulkMutationSummary>(previewResult).eligible, 1);
+  QCOMPARE(std::get<hcb::CalendarEventBulkMutationSummary>(previewResult).queued, 0);
+  QCOMPARE(std::get<hcb::CalendarEventBulkMutationSummary>(previewResult).skipped, 1);
+
+  std::future<hcb::CalendarEventBulkMutationResult> replace = bulk.execute(
+      {.action = hcb::CalendarEventBulkAction::ReplaceText,
+       .eventIds = {QStringLiteral("event-replace")},
+       .findText = QStringLiteral("Alpha"),
+       .replaceText = QStringLiteral("Beta"),
+       .textFields = static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Title) |
+                     static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Description) |
+                     static_cast<std::uint8_t>(hcb::CalendarEventBulkTextField::Location),
+       .recurrenceScope = 0});
+  const hcb::CalendarEventBulkMutationResult replaceResult = awaitResult(replace);
+  QVERIFY(std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(replaceResult));
+  if (!std::holds_alternative<hcb::CalendarEventBulkMutationSummary>(replaceResult)) {
+    return;
+  }
+  QCOMPARE(std::get<hcb::CalendarEventBulkMutationSummary>(replaceResult).queued, 1);
+  const std::optional<EventSnapshot> event = readEvent(handle, QStringLiteral("event-replace"));
+  QVERIFY(event.has_value());
+  if (!event.has_value()) {
+    return;
+  }
+  QCOMPARE(event->title, QStringLiteral("Beta Beta"));
+  QCOMPARE(event->description, std::optional<QString>(QStringLiteral("Beta description")));
+  QCOMPARE(event->location, std::optional<QString>(QStringLiteral("Beta room")));
 }
 
 QTEST_GUILESS_MAIN(CalendarMutationServiceTest)

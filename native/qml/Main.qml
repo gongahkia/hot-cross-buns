@@ -39,6 +39,15 @@ ApplicationWindow {
                                 ? appController.fontFamily : ""
     property int fontScale: appController !== null && typeof appController.fontScale === "number"
                             ? appController.fontScale : 1
+    property int bulkTextRecurrenceScope: appController !== null &&
+                                          typeof appController.bulkTextRecurrenceScope === "number"
+                                          ? appController.bulkTextRecurrenceScope : 2
+    property int bulkTaskPreviewRevision: appController !== null &&
+                                          typeof appController.bulkTaskPreviewRevision === "number"
+                                          ? appController.bulkTaskPreviewRevision : 0
+    property int bulkEventPreviewRevision: appController !== null &&
+                                           typeof appController.bulkEventPreviewRevision === "number"
+                                           ? appController.bulkEventPreviewRevision : 0
     property string quickCaptureDefaultTaskListId: appController !== null &&
                                                    typeof appController.quickCaptureDefaultTaskListId === "string"
                                                    ? appController.quickCaptureDefaultTaskListId : ""
@@ -821,6 +830,9 @@ ApplicationWindow {
                 bulkTaskStatusMessage: window.appController !== null &&
                                        typeof window.appController.bulkTaskStatusMessage === "string"
                                        ? window.appController.bulkTaskStatusMessage : ""
+                bulkTaskPreviewMessage: window.controllerString("bulkTaskPreviewMessage", "")
+                bulkTaskPreviewRevision: window.bulkTaskPreviewRevision
+                bulkTextRecurrenceScope: window.bulkTextRecurrenceScope
                 onTaskListCreateRequested: taskListEditorDialog.openForCreate()
                 onTaskListRenameRequested: function(taskListId, title) {
                     taskListEditorDialog.openForRename(taskListId, title)
@@ -884,6 +896,14 @@ ApplicationWindow {
                 }
                 onBulkTaskReparentRequested: function(taskIds, parentTaskId) {
                     window.controllerCall("bulkReparentTasks", [taskIds, parentTaskId])
+                }
+                onBulkTaskTextPreviewRequested: function(taskIds, findText, fields, recurrenceScope) {
+                    window.controllerCall("previewBulkTaskText",
+                                          [taskIds, findText, fields, recurrenceScope])
+                }
+                onBulkTaskTextReplaceRequested: function(taskIds, findText, replaceText, fields, recurrenceScope) {
+                    window.controllerCall("bulkReplaceTaskText",
+                                          [taskIds, findText, replaceText, fields, recurrenceScope])
                 }
             }
 
@@ -1005,6 +1025,9 @@ ApplicationWindow {
                     selectedEventIds: window.selectedCalendarEventIds
                     calendarSourceModel: window.calendarSourceModel
                     statusMessage: window.controllerString("bulkEventStatusMessage", "")
+                    previewMessage: window.controllerString("bulkEventPreviewMessage", "")
+                    previewRevision: window.bulkEventPreviewRevision
+                    bulkTextRecurrenceScope: window.bulkTextRecurrenceScope
                     onClearSelectionRequested: window.clearCalendarEventSelection()
                     onBulkDeleteRequested: function(eventIds) {
                         window.controllerCall("bulkDeleteEvents", [eventIds])
@@ -1029,6 +1052,14 @@ ApplicationWindow {
                     onBulkShiftRequested: function(eventIds, shiftMinutes) {
                         window.controllerCall("bulkShiftEventTimes", [eventIds, shiftMinutes])
                         window.clearCalendarEventSelection()
+                    }
+                    onBulkTextPreviewRequested: function(eventIds, findText, fields, recurrenceScope) {
+                        window.controllerCall("previewBulkEventText",
+                                              [eventIds, findText, fields, recurrenceScope])
+                    }
+                    onBulkTextReplaceRequested: function(eventIds, findText, replaceText, fields, recurrenceScope) {
+                        window.controllerCall("bulkReplaceEventText",
+                                              [eventIds, findText, replaceText, fields, recurrenceScope])
                     }
                 }
 
@@ -1410,6 +1441,30 @@ ApplicationWindow {
                     Accessible.name: text
                     Accessible.description: "Restores system palette, default font, standard text size, and standard density"
                     onClicked: window.controllerCall("resetVisualPreferences", [])
+                }
+
+                Label {
+                    text: "Bulk rewriting"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                ComboBox {
+                    Layout.fillWidth: true
+                    model: ["Skip recurring by default", "Current occurrence by default",
+                            "Current + future by default", "Full series by default"]
+                    currentIndex: window.bulkTextRecurrenceScope
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Default bulk rewrite recurrence scope"
+                    onActivated: index => window.controllerCall("saveBulkTextRecurrenceScope", [index])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Each find-and-replace run can override this default. Google Calendar full-series edits retain explicit instance overrides."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
                 }
 
                 Label {

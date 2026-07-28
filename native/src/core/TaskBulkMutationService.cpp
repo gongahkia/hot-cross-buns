@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QSet>
 
+#include <algorithm>
 #include <deque>
 #include <future>
 #include <optional>
@@ -79,32 +80,72 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
       (!isValidIdentifier(*input.parentTaskId) || uniqueIds.contains(*input.parentTaskId))) {
     return validationError(QStringLiteral("Bulk task parent is invalid"));
   }
+  if (input.action == TaskBulkAction::ReplaceText &&
+      (input.findText.isEmpty() || input.textFields == 0 ||
+       (input.textFields & ~static_cast<std::uint8_t>(TaskBulkTextField::Title) &
+            ~static_cast<std::uint8_t>(TaskBulkTextField::Notes)) != 0 ||
+       input.recurrenceScope < 0 || input.recurrenceScope > 3)) {
+    return validationError(QStringLiteral("Bulk task text replacement is invalid"));
+  }
   return std::nullopt;
 }
 
+[[nodiscard]] bool replacesField(const TaskBulkMutationInput& input, TaskBulkTextField field) {
+  return (input.textFields & static_cast<std::uint8_t>(field)) != 0;
+}
+
+[[nodiscard]] QString taskUserNotes(const TaskMutationSnapshot& task) {
+  const TaskRecurrenceNotes recurrence = parseTaskRecurrenceNotes(task.notes.value_or(QString()));
+  return recurrence.state == TaskRecurrenceNotesState::Managed ? recurrence.userNotes
+                                                                : task.notes.value_or(QString());
+}
+
+[[nodiscard]] bool hasReplacement(const TaskBulkMutationInput& input,
+                                  const TaskMutationSnapshot& task) {
+  return (replacesField(input, TaskBulkTextField::Title) && task.title.contains(input.findText)) ||
+         (replacesField(input, TaskBulkTextField::Notes) &&
+          taskUserNotes(task).contains(input.findText));
+}
+
 [[nodiscard]] std::future<TaskMutationResult>
-submit(TaskMutationService& service, const TaskBulkMutationInput& input, const QString& taskId) {
+submit(TaskMutationService& service,
+       const TaskBulkMutationInput& input,
+       const TaskMutationSnapshot& task) {
   switch (input.action) {
   case TaskBulkAction::Complete:
-    return service.setCompleted(taskId, true);
+    return service.setCompleted(task.taskId, true);
   case TaskBulkAction::Reopen:
-    return service.setCompleted(taskId, false);
+    return service.setCompleted(task.taskId, false);
   case TaskBulkAction::Delete:
-    return service.remove(taskId);
+    return service.remove(task.taskId);
   case TaskBulkAction::MoveToList:
-    return service.moveToTaskList(taskId, *input.taskListId);
+    return service.moveToTaskList(task.taskId, *input.taskListId);
   case TaskBulkAction::SetDue:
-    return service.update({.taskId = taskId, .due = input.due});
+    return service.update({.taskId = task.taskId, .due = input.due});
   case TaskBulkAction::ClearDue:
-    return service.update({.taskId = taskId, .due = TaskDue{}});
+    return service.update({.taskId = task.taskId, .due = TaskDue{}});
   case TaskBulkAction::SetPriority:
-    return service.update({.taskId = taskId, .priority = input.priority});
+    return service.update({.taskId = task.taskId, .priority = input.priority});
   case TaskBulkAction::Reparent: {
     const std::optional<std::optional<QString>> parent =
         input.parentTaskId.has_value()
             ? std::optional<std::optional<QString>>(input.parentTaskId)
             : std::optional<std::optional<QString>>(std::optional<QString>{});
-    return service.update({.taskId = taskId, .parentTaskId = parent});
+    return service.update({.taskId = task.taskId, .parentTaskId = parent});
+  }
+  case TaskBulkAction::ReplaceText: {
+    TaskUpdateInput update{.taskId = task.taskId,
+                           .updateManagedRecurrenceTemplate = input.recurrenceScope != 1};
+    if (replacesField(input, TaskBulkTextField::Title) && task.title.contains(input.findText)) {
+      update.title = task.title;
+      update.title->replace(input.findText, input.replaceText, Qt::CaseSensitive);
+    }
+    const QString notes = taskUserNotes(task);
+    if (replacesField(input, TaskBulkTextField::Notes) && notes.contains(input.findText)) {
+      update.notes = notes;
+      update.notes->replace(input.findText, input.replaceText, Qt::CaseSensitive);
+    }
+    return service.update(std::move(update));
   }
   }
   return readyFuture(TaskMutationResult(validationError(QStringLiteral("Bulk task action is invalid"))));
@@ -148,7 +189,7 @@ ineligibility(const TaskBulkMutationInput& input,
     return task.priority == *input.priority
                ? std::optional<QString>(QStringLiteral("Task already has that priority"))
                : std::nullopt;
-  case TaskBulkAction::Reparent:
+  case TaskBulkAction::Reparent: {
     if (task.hasActiveChildren) {
       return QStringLiteral("Task with subtasks cannot be reparented");
     }
@@ -167,6 +208,14 @@ ineligibility(const TaskBulkMutationInput& input,
     return task.parentTaskId == *input.parentTaskId
                ? std::optional<QString>(QStringLiteral("Task already has that parent"))
                : std::nullopt;
+  }
+  case TaskBulkAction::ReplaceText:
+    if (task.managedRecurrenceSeriesId.has_value() && input.recurrenceScope == 0) {
+      return QStringLiteral("Recurring Task skipped by rewrite scope");
+    }
+    return hasReplacement(input, task)
+               ? std::nullopt
+               : std::optional<QString>(QStringLiteral("No selected field matches the find text"));
   }
   return QStringLiteral("Bulk task action is invalid");
 }
@@ -218,8 +267,53 @@ std::future<TaskBulkMutationResult> TaskBulkMutationService::execute(TaskBulkMut
                              std::get<QList<TaskMutationSnapshot>>(inspected)) {
                           snapshots.insert(task.taskId, std::move(task));
                         }
+                        QList<TaskMutationSnapshot> managedSeries;
+                        if (input.action == TaskBulkAction::ReplaceText &&
+                            input.recurrenceScope >= 2) {
+                          TaskMutationSnapshotResult managed =
+                              taskMutationService_.inspectManagedSeries(input.taskIds).get();
+                          if (std::holds_alternative<AppError>(managed)) {
+                            return std::get<AppError>(std::move(managed));
+                          }
+                          managedSeries = std::get<QList<TaskMutationSnapshot>>(std::move(managed));
+                          for (const TaskMutationSnapshot& task : managedSeries) {
+                            snapshots.insert(task.taskId, task);
+                          }
+                        }
                         QSet<QString> selectedIds;
-                        for (const QString& taskId : input.taskIds) {
+                        QList<QString> targetIds = input.taskIds;
+                        if (input.action == TaskBulkAction::ReplaceText && input.recurrenceScope >= 2) {
+                          QSet<QString> targetSet(targetIds.cbegin(), targetIds.cend());
+                          if (input.recurrenceScope == 3) {
+                            for (const TaskMutationSnapshot& candidate : managedSeries) {
+                              targetSet.insert(candidate.taskId);
+                            }
+                          } else {
+                            for (const QString& selectedId : input.taskIds) {
+                              const auto selected = snapshots.constFind(selectedId);
+                              if (selected == snapshots.cend() ||
+                                  !selected->managedRecurrenceSeriesId.has_value()) {
+                                continue;
+                              }
+                              for (const TaskMutationSnapshot& candidate : managedSeries) {
+                                if (candidate.managedRecurrenceSeriesId != selected->managedRecurrenceSeriesId) {
+                                  continue;
+                                }
+                                const bool include = candidate.managedRecurrenceOrdinal.has_value() &&
+                                                     selected->managedRecurrenceOrdinal.has_value() &&
+                                                     *candidate.managedRecurrenceOrdinal >=
+                                                         *selected->managedRecurrenceOrdinal &&
+                                                     (!candidate.completed || candidate.taskId == selectedId);
+                                if (include) {
+                                  targetSet.insert(candidate.taskId);
+                                }
+                              }
+                            }
+                          }
+                          targetIds = targetSet.values();
+                          std::sort(targetIds.begin(), targetIds.end());
+                        }
+                        for (const QString& taskId : targetIds) {
                           selectedIds.insert(taskId);
                         }
                         TaskBulkMutationSummary summary{
@@ -235,7 +329,7 @@ std::future<TaskBulkMutationResult> TaskBulkMutationService::execute(TaskBulkMut
                           pending.pop_front();
                           recordResult(summary, summary.items[write.itemIndex], write.future.get());
                         };
-                        for (const QString& taskId : input.taskIds) {
+                        for (const QString& taskId : targetIds) {
                           TaskBulkMutationItem item{.taskId = taskId};
                           const auto task = snapshots.constFind(taskId);
                           if (task == snapshots.cend()) {
@@ -255,8 +349,12 @@ std::future<TaskBulkMutationResult> TaskBulkMutationService::execute(TaskBulkMut
                           const qsizetype itemIndex = summary.items.size();
                           summary.items.append(std::move(item));
                           ++summary.eligible;
+                          if (input.previewOnly) {
+                            summary.items[itemIndex].message = QStringLiteral("Matches find text");
+                            continue;
+                          }
                           pending.push_back({.itemIndex = itemIndex,
-                                             .future = submit(taskMutationService_, input, taskId)});
+                                             .future = submit(taskMutationService_, input, *task)});
                           if (pending.size() >= static_cast<std::size_t>(kMaximumInFlightWrites)) {
                             collectFirst();
                           }

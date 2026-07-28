@@ -710,6 +710,38 @@ TestCase {
         calendars.destroy()
     }
 
+    function test_bulkTextReplaceDialogPreviewsBeforeApply() {
+        const component = Qt.createComponent("../../qml/BulkTextReplaceDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const dialog = component.createObject(null, { kind: "task" })
+        verify(dialog !== null)
+        let preview = null
+        let replacement = null
+        dialog.previewRequested.connect(function(ids, findText, fields, recurrenceScope) {
+            preview = { ids: ids, findText: findText, fields: fields, recurrenceScope: recurrenceScope }
+        })
+        dialog.replaceRequested.connect(function(ids, findText, replaceText, fields, recurrenceScope) {
+            replacement = { ids: ids, findText: findText, replaceText: replaceText,
+                            fields: fields, recurrenceScope: recurrenceScope }
+        })
+        dialog.openFor(["task-a", "task-b"], 2)
+        dialog.findTextField.text = "Alpha"
+        dialog.replacementTextField.text = "Beta"
+        verify(!dialog.primaryEnabled)
+        dialog.previewRequested(["task-a", "task-b"], "Alpha", 3, 2)
+        verify(preview !== null)
+        dialog.previewMessage = "Preview: 2 records will change; 0 skipped."
+        dialog.previewRevision = 1
+        verify(dialog.primaryEnabled)
+        dialog.primaryButton.click()
+        verify(replacement !== null)
+        compare(replacement.findText, "Alpha")
+        compare(replacement.replaceText, "Beta")
+        compare(replacement.fields, 3)
+        compare(replacement.recurrenceScope, 2)
+        dialog.destroy()
+    }
+
     function test_calendarSourceControlsFilterVisibleCalendars() {
         const component = Qt.createComponent("../../qml/CalendarSourceControls.qml")
         compare(component.status, Component.Ready, component.errorString())

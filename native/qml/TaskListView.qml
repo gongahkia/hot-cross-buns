@@ -9,6 +9,9 @@ Pane {
     property bool taskListLoading: false
     property string taskListErrorMessage: ""
     property string bulkTaskStatusMessage: ""
+    property string bulkTaskPreviewMessage: ""
+    property int bulkTaskPreviewRevision: 0
+    property int bulkTextRecurrenceScope: 2
     property var selectedTaskIds: []
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
@@ -45,6 +48,9 @@ Pane {
     signal bulkTaskClearDueRequested(var taskIds)
     signal bulkTaskPriorityRequested(var taskIds, int priority)
     signal bulkTaskReparentRequested(var taskIds, string parentTaskId)
+    signal bulkTaskTextPreviewRequested(var taskIds, string findText, int fields, int recurrenceScope)
+    signal bulkTaskTextReplaceRequested(var taskIds, string findText, string replaceText, int fields,
+                                        int recurrenceScope)
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -207,7 +213,7 @@ Pane {
             Button {
                 id: bulkCompleteButton
                 text: "Complete"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                Accessible.name: text + " " + root.selectedTaskIds.length + " tasks"
                 enabled: !root.taskListLoading
                 onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, true)
             }
@@ -260,6 +266,14 @@ Pane {
                 Accessible.name: text + " " + selectedTaskIds.length + " tasks"
                 enabled: !root.taskListLoading
                 onClicked: bulkEditDialog.openForReparent(selectedTaskIds)
+            }
+
+            Button {
+                text: "Find and replace"
+                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
+                enabled: !root.taskListLoading
+                onClicked: bulkTextReplaceDialog.openFor(root.selectedTaskIds,
+                                                         root.bulkTextRecurrenceScope)
             }
         }
 
@@ -489,6 +503,20 @@ Pane {
         }
         onBulkReparentRequested: function(taskIds, parentTaskId) {
             root.bulkTaskReparentRequested(taskIds, parentTaskId)
+        }
+    }
+
+    BulkTextReplaceDialog {
+        id: bulkTextReplaceDialog
+        parent: Overlay.overlay
+        kind: "task"
+        previewMessage: root.bulkTaskPreviewMessage
+        previewRevision: root.bulkTaskPreviewRevision
+        onPreviewRequested: function(taskIds, findText, fields, recurrenceScope) {
+            root.bulkTaskTextPreviewRequested(taskIds, findText, fields, recurrenceScope)
+        }
+        onReplaceRequested: function(taskIds, findText, replaceText, fields, recurrenceScope) {
+            root.bulkTaskTextReplaceRequested(taskIds, findText, replaceText, fields, recurrenceScope)
         }
     }
 }

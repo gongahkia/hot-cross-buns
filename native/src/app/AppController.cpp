@@ -56,6 +56,7 @@ constexpr char kPaletteModeSettingsKey[] = "palette_mode";
 constexpr char kAccentColorSettingsKey[] = "accent_color";
 constexpr char kFontFamilySettingsKey[] = "font_family";
 constexpr char kFontScaleSettingsKey[] = "font_scale";
+constexpr char kBulkTextRecurrenceScopeSettingsKey[] = "bulk_text_recurrence_scope";
 constexpr char kQuickCaptureDefaultTaskListSettingsKey[] = "quick_capture_default_task_list";
 constexpr char kQuickCaptureDefaultCalendarSettingsKey[] = "quick_capture_default_calendar";
 constexpr char kQuickCaptureEventDurationSettingsKey[] = "quick_capture_event_duration_minutes";
@@ -110,6 +111,8 @@ constexpr int kSearchDebounceMilliseconds = 180;
 [[nodiscard]] bool isValidPaletteMode(int value) { return value >= 0 && value <= 5; }
 
 [[nodiscard]] bool isValidFontScale(int value) { return value >= 0 && value <= 3; }
+
+[[nodiscard]] bool isValidBulkTextRecurrenceScope(int value) { return value >= 0 && value <= 3; }
 
 [[nodiscard]] bool isValidQuickCaptureKind(int value) {
   return value == static_cast<int>(QuickCaptureKind::Task) ||
@@ -706,6 +709,16 @@ QString AppController::bulkTaskStatusMessage() const { return bulkTaskStatusMess
 
 QString AppController::bulkEventStatusMessage() const { return bulkEventStatusMessage_; }
 
+QString AppController::bulkTaskPreviewMessage() const { return bulkTaskPreviewMessage_; }
+
+QString AppController::bulkEventPreviewMessage() const { return bulkEventPreviewMessage_; }
+
+int AppController::bulkTaskPreviewRevision() const { return bulkTaskPreviewRevision_; }
+
+int AppController::bulkEventPreviewRevision() const { return bulkEventPreviewRevision_; }
+
+int AppController::bulkTextRecurrenceScope() const { return bulkTextRecurrenceScope_; }
+
 QString AppController::calendarDate() const { return calendarDate_.toString(Qt::ISODate); }
 
 int AppController::appearanceMode() const { return appearanceMode_; }
@@ -939,6 +952,15 @@ void AppController::initialize() {
                         }
                       },
                       QStringLiteral("Stored font scale is invalid"));
+  loadPresentationInt(kBulkTextRecurrenceScopeSettingsKey,
+                      isValidBulkTextRecurrenceScope,
+                      [this](int value) {
+                        if (bulkTextRecurrenceScope_ != value) {
+                          bulkTextRecurrenceScope_ = value;
+                          emit bulkTextRecurrenceScopeChanged();
+                        }
+                      },
+                      QStringLiteral("Stored bulk text recurrence scope is invalid"));
   watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
                                   QString::fromLatin1(kAccentColorSettingsKey)),
         [this](SettingsJsonReadResult result) {
@@ -1406,6 +1428,24 @@ void AppController::saveFontScale(int scale) {
           } else if (fontScale_ != scale) {
             fontScale_ = scale;
             emit fontScaleChanged();
+          }
+        });
+}
+
+void AppController::saveBulkTextRecurrenceScope(int scope) {
+  if (!isValidBulkTextRecurrenceScope(scope)) {
+    setStatus(QStringLiteral("Bulk text recurrence scope is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kBulkTextRecurrenceScopeSettingsKey),
+                                   QString::number(scope)),
+        [this, scope](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (bulkTextRecurrenceScope_ != scope) {
+            bulkTextRecurrenceScope_ = scope;
+            emit bulkTextRecurrenceScopeChanged();
           }
         });
 }
@@ -3080,6 +3120,43 @@ void AppController::bulkReparentTasks(QVariantList taskIds, QString parentTaskId
                                            : std::optional<QString>(std::move(parentTaskId))});
 }
 
+void AppController::bulkReplaceTaskText(QVariantList taskIds,
+                                        QString findText,
+                                        QString replaceText,
+                                        int fields,
+                                        int recurrenceScope) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 3 ||
+      !isValidBulkTextRecurrenceScope(recurrenceScope)) {
+    setStatus(QStringLiteral("Bulk task text replacement is invalid"));
+    return;
+  }
+  runBulkTaskMutation({.action = TaskBulkAction::ReplaceText,
+                       .taskIds = *ids,
+                       .findText = std::move(findText),
+                       .replaceText = std::move(replaceText),
+                       .textFields = static_cast<std::uint8_t>(fields),
+                       .recurrenceScope = recurrenceScope});
+}
+
+void AppController::previewBulkTaskText(QVariantList taskIds,
+                                        QString findText,
+                                        int fields,
+                                        int recurrenceScope) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(taskIds);
+  if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 3 ||
+      !isValidBulkTextRecurrenceScope(recurrenceScope)) {
+    setBulkTaskPreviewMessage(QStringLiteral("Enter find text and at least one field"));
+    return;
+  }
+  previewBulkTaskMutation({.action = TaskBulkAction::ReplaceText,
+                            .taskIds = *ids,
+                            .findText = std::move(findText),
+                            .textFields = static_cast<std::uint8_t>(fields),
+                            .recurrenceScope = recurrenceScope,
+                            .previewOnly = true});
+}
+
 void AppController::createEvent(QString calendarId,
                                 QString title,
                                 QString startAt,
@@ -3407,6 +3484,43 @@ void AppController::bulkShiftEventTimes(QVariantList eventIds, int shiftMinutes)
                         .shiftMinutes = shiftMinutes});
 }
 
+void AppController::bulkReplaceEventText(QVariantList eventIds,
+                                         QString findText,
+                                         QString replaceText,
+                                         int fields,
+                                         int recurrenceScope) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 7 ||
+      !isValidBulkTextRecurrenceScope(recurrenceScope)) {
+    setStatus(QStringLiteral("Bulk event text replacement is invalid"));
+    return;
+  }
+  runBulkEventMutation({.action = CalendarEventBulkAction::ReplaceText,
+                        .eventIds = *ids,
+                        .findText = std::move(findText),
+                        .replaceText = std::move(replaceText),
+                        .textFields = static_cast<std::uint8_t>(fields),
+                        .recurrenceScope = recurrenceScope});
+}
+
+void AppController::previewBulkEventText(QVariantList eventIds,
+                                         QString findText,
+                                         int fields,
+                                         int recurrenceScope) {
+  const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
+  if (!ids.has_value() || findText.isEmpty() || fields <= 0 || fields > 7 ||
+      !isValidBulkTextRecurrenceScope(recurrenceScope)) {
+    setBulkEventPreviewMessage(QStringLiteral("Enter find text and at least one field"));
+    return;
+  }
+  previewBulkEventMutation({.action = CalendarEventBulkAction::ReplaceText,
+                             .eventIds = *ids,
+                             .findText = std::move(findText),
+                             .textFields = static_cast<std::uint8_t>(fields),
+                             .recurrenceScope = recurrenceScope,
+                             .previewOnly = true});
+}
+
 void AppController::runSearch() {
   const LocalSearchQueryResult parsed = LocalSearchQuery::parse(searchQuery_);
   if (std::holds_alternative<AppError>(parsed)) {
@@ -3490,6 +3604,36 @@ void AppController::runBulkEventMutation(CalendarEventBulkMutationInput input) {
           if (summary.queued > 0) {
             refreshCalendar();
           }
+        });
+}
+
+void AppController::previewBulkTaskMutation(TaskBulkMutationInput input) {
+  watch(taskBulkMutationService_.execute(std::move(input)), [this](TaskBulkMutationResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setBulkTaskPreviewMessage(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    const TaskBulkMutationSummary& summary = std::get<TaskBulkMutationSummary>(result);
+    setBulkTaskPreviewMessage(
+        QStringLiteral("Preview: %1 records will change; %2 skipped.")
+            .arg(summary.eligible)
+            .arg(summary.skipped));
+  });
+}
+
+void AppController::previewBulkEventMutation(CalendarEventBulkMutationInput input) {
+  watch(calendarEventBulkMutationService_.execute(std::move(input)),
+        [this](CalendarEventBulkMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setBulkEventPreviewMessage(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const CalendarEventBulkMutationSummary& summary =
+              std::get<CalendarEventBulkMutationSummary>(result);
+          setBulkEventPreviewMessage(
+              QStringLiteral("Preview: %1 records will change; %2 skipped.")
+                  .arg(summary.eligible)
+                  .arg(summary.skipped));
         });
 }
 
@@ -3887,6 +4031,24 @@ void AppController::setBulkEventStatusMessage(QString message) {
   }
   bulkEventStatusMessage_ = std::move(message);
   emit bulkEventStatusMessageChanged();
+}
+
+void AppController::setBulkTaskPreviewMessage(QString message) {
+  if (bulkTaskPreviewMessage_ != message) {
+    bulkTaskPreviewMessage_ = std::move(message);
+    emit bulkTaskPreviewMessageChanged();
+  }
+  ++bulkTaskPreviewRevision_;
+  emit bulkTaskPreviewRevisionChanged();
+}
+
+void AppController::setBulkEventPreviewMessage(QString message) {
+  if (bulkEventPreviewMessage_ != message) {
+    bulkEventPreviewMessage_ = std::move(message);
+    emit bulkEventPreviewMessageChanged();
+  }
+  ++bulkEventPreviewRevision_;
+  emit bulkEventPreviewRevisionChanged();
 }
 
 void AppController::setReminderStatusMessage(QString message) {

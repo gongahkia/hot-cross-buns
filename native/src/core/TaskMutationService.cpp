@@ -2773,16 +2773,22 @@ TaskMutationService::inspectManagedSeries(QList<QString> taskIds) {
     QSet<QString> emitted;
     for (auto account = seriesByAccount.cbegin(); account != seriesByAccount.cend(); ++account) {
       sqlite3_stmt* statement = nullptr;
-      constexpr char sql[] = "SELECT id FROM local_tasks WHERE account_id = ?1 ORDER BY id";
+      constexpr char sql[] = R"(
+SELECT tasks.id
+FROM local_tasks AS tasks
+JOIN local_task_lists AS lists ON lists.id = tasks.task_list_id
+WHERE lists.account_id = ?1
+ORDER BY tasks.id
+)";
       const int prepareResult = sqlite3_prepare_v2(handle, sql, -1, &statement, nullptr);
       if (prepareResult != SQLITE_OK || statement == nullptr) {
         return TaskMutationSnapshotResult(databaseError(
             QStringLiteral("SQLite managed recurrence scan preparation failed (%1)"), prepareResult));
       }
-      if (!bindText(statement, 1, account.key())) {
+      if (const std::optional<AppError> error = bindText(statement, 1, account.key());
+          error.has_value()) {
         sqlite3_finalize(statement);
-        return TaskMutationSnapshotResult(
-            AppError(AppErrorCode::Database, QStringLiteral("SQLite managed recurrence scan binding failed")));
+        return TaskMutationSnapshotResult(*error);
       }
       for (;;) {
         const int stepResult = sqlite3_step(statement);

@@ -84,7 +84,7 @@ void verifyReady(hcb::TaskMutationService& service) {
   std::future<hcb::TaskBulkMutationResult> future = service.execute(std::move(input));
   const hcb::TaskBulkMutationResult result = await(future);
   if (!std::holds_alternative<hcb::TaskBulkMutationSummary>(result)) {
-    qFatal("bulk task mutation failed");
+    qFatal("%s", qPrintable(std::get<hcb::AppError>(result).message()));
   }
   return std::get<hcb::TaskBulkMutationSummary>(result);
 }
@@ -99,6 +99,7 @@ private slots:
   void avoidsOrderDependentHierarchyMoves();
   void handlesLargeSelectionsWithIndependentMutations();
   void reparentsMaximumSelectionWithCompatibleParent();
+  void replacesLiteralTaskTextWithPreview();
 };
 
 void TaskBulkMutationServiceTest::queuesEligibleItemsAndSeparatesSkips() {
@@ -296,6 +297,140 @@ void TaskBulkMutationServiceTest::reparentsMaximumSelectionWithCompatibleParent(
   QCOMPARE(summary.queued, taskCount);
   QCOMPARE(summary.failed, 0);
   QCOMPARE(summary.skipped, 0);
+}
+
+void TaskBulkMutationServiceTest::replacesLiteralTaskTextWithPreview() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(directory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  FixedClock clock;
+  hcb::TaskMutationService taskMutations(*databasePath, clock);
+  verifyReady(taskMutations);
+  hcb::SqliteConnectionResult connectionResult =
+      hcb::SqliteConnectionFactory::open(*databasePath, hcb::SqliteOpenMode::ReadWriteCreate);
+  QVERIFY(std::holds_alternative<hcb::SqliteConnection>(connectionResult));
+  if (!std::holds_alternative<hcb::SqliteConnection>(connectionResult)) {
+    return;
+  }
+  hcb::SqliteConnection connection = std::move(std::get<hcb::SqliteConnection>(connectionResult));
+  seed(connection);
+  sqlite3* const handle = connection.nativeHandle();
+  QVERIFY(handle != nullptr);
+  const QString matching = create(taskMutations, QStringLiteral("list-active"), QStringLiteral("Alpha task"));
+  const QString unmatched = create(taskMutations, QStringLiteral("list-active"), QStringLiteral("Other task"));
+  std::future<hcb::TaskMutationResult> setNotes = taskMutations.update(
+      {.taskId = matching, .notes = QStringLiteral("Alpha notes")});
+  QVERIFY(std::holds_alternative<hcb::TaskMutationReceipt>(await(setNotes)));
+
+  hcb::TaskBulkMutationService bulk(taskMutations);
+  const hcb::TaskBulkMutationSummary preview = execute(
+      bulk,
+      {.action = hcb::TaskBulkAction::ReplaceText,
+       .taskIds = {matching, unmatched},
+       .findText = QStringLiteral("Alpha"),
+       .replaceText = QStringLiteral("Beta"),
+       .textFields = static_cast<std::uint8_t>(hcb::TaskBulkTextField::Title) |
+                     static_cast<std::uint8_t>(hcb::TaskBulkTextField::Notes),
+       .recurrenceScope = 0,
+       .previewOnly = true});
+  QCOMPARE(preview.eligible, 1);
+  QCOMPARE(preview.queued, 0);
+  QCOMPARE(preview.skipped, 1);
+
+  const hcb::TaskBulkMutationSummary replaced = execute(
+      bulk,
+      {.action = hcb::TaskBulkAction::ReplaceText,
+       .taskIds = {matching, unmatched},
+       .findText = QStringLiteral("Alpha"),
+       .replaceText = QStringLiteral("Beta"),
+       .textFields = static_cast<std::uint8_t>(hcb::TaskBulkTextField::Title) |
+                     static_cast<std::uint8_t>(hcb::TaskBulkTextField::Notes),
+       .recurrenceScope = 0});
+  QCOMPARE(replaced.queued, 1);
+  QCOMPARE(replaced.skipped, 1);
+  std::future<hcb::TaskMutationSnapshotResult> inspected = taskMutations.inspect({matching});
+  const hcb::TaskMutationSnapshotResult snapshots = await(inspected);
+  QVERIFY(std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(snapshots));
+  if (!std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(snapshots)) {
+    return;
+  }
+  const hcb::TaskMutationSnapshot& task =
+      std::get<QList<hcb::TaskMutationSnapshot>>(snapshots).constFirst();
+  QCOMPARE(task.title, QStringLiteral("Beta task"));
+  QCOMPARE(task.notes, std::optional<QString>(QStringLiteral("Beta notes")));
+
+  const auto createManaged = [&taskMutations, handle](const QString& title,
+                                                       const QString& seriesId,
+                                                       std::int32_t ordinal) {
+    std::future<hcb::TaskMutationResult> future = taskMutations.create(
+        {.taskListId = QStringLiteral("list-active"),
+         .title = title,
+         .notes = QStringLiteral("Alpha recurrence"),
+         .due = hcb::TaskDue{.at = QStringLiteral("2026-08-01T00:00:00.000Z"),
+                              .timeZone = QStringLiteral("UTC")}});
+    const hcb::TaskMutationResult result = await(future);
+    if (!std::holds_alternative<hcb::TaskMutationReceipt>(result)) {
+      qFatal("managed task create failed");
+    }
+    const QString taskId = std::get<hcb::TaskMutationReceipt>(result).taskId;
+    hcb::TaskRecurrenceMarker marker{.seriesId = seriesId,
+                                     .occurrenceId = seriesId + QStringLiteral(":%1").arg(ordinal),
+                                     .ordinal = ordinal,
+                                     .anchorDate = QStringLiteral("2026-08-01"),
+                                     .timeZone = QStringLiteral("UTC"),
+                                     .templateTitle = title,
+                                     .templateDueDate = QStringLiteral("2026-08-01"),
+                                     .templatePriority = QStringLiteral("none")};
+    const hcb::TaskRecurrenceSerializationResult serialized =
+        hcb::serializeTaskRecurrenceNotes(QStringLiteral("Alpha recurrence"), marker);
+    if (serialized.error.has_value()) {
+      qFatal("managed recurrence serialization failed");
+    }
+    QByteArray escapedNotes = serialized.notes.toUtf8();
+    escapedNotes.replace("'", "''");
+    const QByteArray sql = "UPDATE local_tasks SET notes = '" + escapedNotes + "' WHERE id = '" +
+                           taskId.toUtf8() + "'";
+    execute(handle, sql.constData());
+    return taskId;
+  };
+  const QString seriesId = QStringLiteral("bf3c1fea-ae9d-4ed6-85e6-3de20b790002");
+  const QString recurrenceCurrent = createManaged(QStringLiteral("Alpha current"), seriesId, 0);
+  const QString recurrenceFuture = createManaged(QStringLiteral("Alpha future"), seriesId, 1);
+  std::future<hcb::TaskMutationSnapshotResult> managedInspection =
+      taskMutations.inspectManagedSeries({recurrenceCurrent});
+  const hcb::TaskMutationSnapshotResult managedSnapshots = await(managedInspection);
+  QVERIFY(std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(managedSnapshots));
+  if (!std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(managedSnapshots)) {
+    return;
+  }
+  QCOMPARE(std::get<QList<hcb::TaskMutationSnapshot>>(managedSnapshots).size(), 2);
+  const hcb::TaskBulkMutationSummary fullSeries = execute(
+      bulk,
+      {.action = hcb::TaskBulkAction::ReplaceText,
+       .taskIds = {recurrenceCurrent},
+       .findText = QStringLiteral("Alpha"),
+       .replaceText = QStringLiteral("Beta"),
+       .textFields = static_cast<std::uint8_t>(hcb::TaskBulkTextField::Title) |
+                     static_cast<std::uint8_t>(hcb::TaskBulkTextField::Notes),
+       .recurrenceScope = 3});
+  QCOMPARE(fullSeries.items.size(), 2);
+  QCOMPARE(fullSeries.eligible, 2);
+  QCOMPARE(fullSeries.queued, 2);
+  std::future<hcb::TaskMutationSnapshotResult> recurringInspection =
+      taskMutations.inspect({recurrenceCurrent, recurrenceFuture});
+  const hcb::TaskMutationSnapshotResult recurringSnapshots = await(recurringInspection);
+  QVERIFY(std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(recurringSnapshots));
+  if (!std::holds_alternative<QList<hcb::TaskMutationSnapshot>>(recurringSnapshots)) {
+    return;
+  }
+  const QList<hcb::TaskMutationSnapshot>& recurringRows =
+      std::get<QList<hcb::TaskMutationSnapshot>>(recurringSnapshots);
+  QCOMPARE(recurringRows.at(0).title, QStringLiteral("Beta current"));
+  QCOMPARE(recurringRows.at(1).title, QStringLiteral("Beta future"));
 }
 
 QTEST_GUILESS_MAIN(TaskBulkMutationServiceTest)
