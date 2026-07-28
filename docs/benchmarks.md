@@ -53,9 +53,25 @@ and raw timings.
 
 ## Fixtures
 
-Use pinned fixtures representing a small project, a medium graph, a large graph,
-many small files, and one large addon. Measure cold, warm, offline cache-hit,
-and concurrent-install scenarios separately.
+`crates/wukong-core/benches/fixtures.rs` defines revision `wukong-111-v1`.
+Fixtures are generated from deterministic bytes at runtime, so they need no
+network access or mutable fixture download.
+
+| Fixture | Shape |
+| --- | --- |
+| Small project | 4 files × 4 KiB |
+| Medium dependency graph | 64-package chain |
+| Large graph | 1,024-package chain |
+| Many small files | 512 files × 1 KiB |
+| One large addon | 1 file × 8 MiB |
+| Cold cache | empty cache before the operation |
+| Warm cache | populated, verified cache before the operation |
+| Offline cache hit | populated cache with networking disabled |
+| Concurrent project installs | 2 independent project roots sharing the cache |
+
+The component harness uses the small-project and medium-graph fixtures; the
+resolver baseline uses the large graph. Run each cache and concurrency scenario
+as a distinct workload; do not merge their timings.
 
 ## Reporting
 

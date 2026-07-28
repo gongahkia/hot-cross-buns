@@ -1,10 +1,12 @@
 #![allow(dead_code)] // imported by benchmark fixture tests
 
+mod fixtures;
+
+use fixtures::{MEDIUM_GRAPH, SMALL_PROJECT, SourceFixture};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
     hint::black_box,
-    io::Write,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -29,14 +31,13 @@ use wukong_core::{
     semantic_version::{SemanticVersion, VersionRequirement},
     source::{CancellationToken, ImmutableSourceId, SourceAdapter},
 };
-use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 const ITERATIONS: usize = 20;
 const NETWORK_COLD_ITERATIONS: usize = 3;
 const NETWORK_WARM_ITERATIONS: usize = 20;
 
 fn main() {
-    let fixture = LocalFixture::new();
+    let fixture = LocalFixture::new(SMALL_PROJECT);
     benchmark_manifest_parsing();
     benchmark_lockfile_parsing();
     benchmark_resolution();
@@ -70,9 +71,9 @@ fn benchmark_lockfile_parsing() {
 }
 
 fn benchmark_resolution() {
-    let (universe, request) = resolution_fixture(64);
+    let (universe, request) = resolution_fixture(MEDIUM_GRAPH.package_count);
     let cancellation = CancellationToken::new();
-    benchmark("resolution", "chain-64", ITERATIONS, || {
+    benchmark("resolution", MEDIUM_GRAPH.id, ITERATIONS, || {
         black_box(
             resolve_dependencies(&universe, &request, &cancellation)
                 .expect("benchmark graph should resolve"),
@@ -81,7 +82,7 @@ fn benchmark_resolution() {
 }
 
 fn benchmark_extraction(fixture: &LocalFixture) {
-    benchmark("extraction", "zip-64-kib", ITERATIONS, || {
+    benchmark("extraction", fixture.definition.id, ITERATIONS, || {
         let extracted = extract_zip(
             &fixture.archive,
             &fixture.extract_parent,
@@ -96,7 +97,7 @@ fn benchmark_hashing(fixture: &LocalFixture) {
     let request =
         LocalPathRequest::new(fixture.project.join("wukong.toml"), PathBuf::from("source"));
     let cancellation = CancellationToken::new();
-    benchmark("hashing", "local-tree-64-kib", ITERATIONS, || {
+    benchmark("hashing", fixture.definition.id, ITERATIONS, || {
         black_box(
             LocalPathAdapter
                 .resolve(&request, &cancellation)
@@ -110,7 +111,7 @@ fn benchmark_cache_lookup(fixture: &LocalFixture) {
         .expect("benchmark cache should configure");
     let object = publish_prepared_package(&cache, &fixture.prepared)
         .expect("benchmark cache object should publish");
-    benchmark("cache-lookup", "prepared-tree-warm", ITERATIONS, || {
+    benchmark("cache-lookup", fixture.definition.id, ITERATIONS, || {
         black_box(
             verify_package_object(&cache, object.sha256())
                 .expect("benchmark cache object should verify"),
@@ -121,8 +122,10 @@ fn benchmark_cache_lookup(fixture: &LocalFixture) {
 fn benchmark_materialization(fixture: &LocalFixture) {
     let destination_root = fixture.root().join("materialized");
     fs::create_dir(&destination_root).expect("benchmark destination should create");
-    let source = fixture.source.join("plugin.gd");
-    benchmark("materialization", "copy-64-kib", ITERATIONS, || {
+    let source = fixture
+        .source
+        .join(fixtures::source_relative_path(fixture.definition, 0));
+    benchmark("materialization", fixture.definition.id, ITERATIONS, || {
         let destination = destination_root.join("plugin.gd");
         black_box(
             materialize_file(&source, &destination, MaterializationPreference::Copy)
@@ -331,10 +334,11 @@ struct LocalFixture {
     prepared: PreparedPackageTree,
     archive: PathBuf,
     extract_parent: PathBuf,
+    definition: SourceFixture,
 }
 
 impl LocalFixture {
-    fn new() -> Self {
+    fn new(definition: SourceFixture) -> Self {
         let directory = TempDir::new().expect("benchmark fixture should create");
         let project = directory.path().join("project");
         let source = project.join("source");
@@ -344,12 +348,11 @@ impl LocalFixture {
             "[project]\nname=\"benchmark\"\ngodot=\"4\"\n",
         )
         .expect("benchmark manifest should write");
-        fs::write(source.join("plugin.gd"), vec![b'x'; 64 * 1024])
-            .expect("benchmark source should write");
+        fixtures::write_source_tree(&source, definition);
         let prepared = prepare_package_tree(&source, &directory.path().join("prepared"))
             .expect("benchmark package should prepare");
         let archive = directory.path().join("fixture.zip");
-        write_zip(&archive);
+        fixtures::write_archive(&archive, definition);
         let extract_parent = directory.path().join("extracted");
         fs::create_dir(&extract_parent).expect("benchmark extraction parent should create");
         Self {
@@ -359,25 +362,11 @@ impl LocalFixture {
             prepared,
             archive,
             extract_parent,
+            definition,
         }
     }
 
     fn root(&self) -> &Path {
         self.directory.path()
     }
-}
-
-fn write_zip(path: &Path) {
-    let file = fs::File::create(path).expect("benchmark ZIP should create");
-    let mut writer = ZipWriter::new(file);
-    writer
-        .start_file(
-            "addons/benchmark-addon/plugin.gd",
-            SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
-        )
-        .expect("benchmark ZIP entry should start");
-    writer
-        .write_all(&vec![b'x'; 64 * 1024])
-        .expect("benchmark ZIP entry should write");
-    writer.finish().expect("benchmark ZIP should finish");
 }

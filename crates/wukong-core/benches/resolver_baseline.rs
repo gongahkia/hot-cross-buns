@@ -1,7 +1,8 @@
+mod fixtures;
+
+use fixtures::LARGE_GRAPH;
 use std::hint::black_box;
 use std::time::Instant;
-
-const PACKAGE_COUNT: usize = 1_024;
 const ITERATIONS: usize = 1_000;
 
 pub(crate) struct SourcePinnedGraph {
@@ -36,8 +37,9 @@ impl SourcePinnedGraph {
 
 #[allow(dead_code)]
 fn main() {
-    let graph = SourcePinnedGraph::chain(PACKAGE_COUNT);
-    assert_eq!(graph.traverse_from_root(), PACKAGE_COUNT);
+    let package_count = LARGE_GRAPH.package_count;
+    let graph = SourcePinnedGraph::chain(package_count);
+    assert_eq!(graph.traverse_from_root(), package_count);
 
     let started = Instant::now();
     for _ in 0..ITERATIONS {
@@ -45,7 +47,8 @@ fn main() {
     }
     let elapsed = started.elapsed();
     println!(
-        "benchmark=source-pinned-graph-traversal fixture=chain-{PACKAGE_COUNT} packages={PACKAGE_COUNT} iterations={ITERATIONS} elapsed_ns={}",
+        "benchmark=source-pinned-graph-traversal fixture={} packages={package_count} iterations={ITERATIONS} elapsed_ns={}",
+        LARGE_GRAPH.id,
         elapsed.as_nanos()
     );
 }

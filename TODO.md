@@ -796,15 +796,15 @@ Measure separately:
 
 ## wukong-111: Define benchmark fixtures
 
-- [ ] Small project.
-- [ ] Medium dependency graph.
-- [ ] Large graph.
-- [ ] Many small files.
-- [ ] One large addon.
-- [ ] Cold cache.
-- [ ] Warm cache.
-- [ ] Offline cache hit.
-- [ ] Concurrent project installs.
+- [x] Small project.
+- [x] Medium dependency graph.
+- [x] Large graph.
+- [x] Many small files.
+- [x] One large addon.
+- [x] Cold cache.
+- [x] Warm cache.
+- [x] Offline cache hit.
+- [x] Concurrent project installs.
 
 ## wukong-112: Publish honest benchmark methodology
 
