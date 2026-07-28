@@ -25,6 +25,7 @@ fn invariant_identical_package_claims_share_one_deterministic_owner_entry() {
         .get(Path::new("addons/shared/plugin.gd"))
         .expect("shared file should exist");
     assert_eq!(file.owners(), &BTreeSet::from([alpha, beta]));
+    assert_eq!(file.sha256(), first.files()[0].sha256());
 }
 
 #[test]

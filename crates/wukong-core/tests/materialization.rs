@@ -31,10 +31,25 @@ fn invariant_explicit_copy_and_auto_materialisation_preserve_content() {
     );
     assert!(matches!(
         strategy,
-        MaterializationStrategy::Copy
-            | MaterializationStrategy::Hardlink
-            | MaterializationStrategy::Reflink
+        MaterializationStrategy::Copy | MaterializationStrategy::Reflink
     ));
+}
+
+#[test]
+fn invariant_auto_materialisation_does_not_alias_the_source_file() {
+    let fixture = TempDir::new().expect("fixture should exist");
+    let source = fixture.path().join("source");
+    let target = fixture.path().join("target");
+    write(&source, "source\n");
+
+    materialize_file(&source, &target, MaterializationPreference::Auto)
+        .expect("auto should materialize");
+    write(&target, "project edit\n");
+
+    assert_eq!(
+        fs::read_to_string(source).expect("source should read"),
+        "source\n"
+    );
 }
 
 #[test]

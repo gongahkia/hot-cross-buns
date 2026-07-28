@@ -2,7 +2,7 @@
 
 mod fixtures;
 
-use fixtures::{MEDIUM_GRAPH, SMALL_PROJECT, SourceFixture};
+use fixtures::{MEDIUM_GRAPH, ONE_LARGE_ADDON, SMALL_PROJECT, SourceFixture};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
@@ -45,6 +45,7 @@ fn main() {
     benchmark_hashing(&fixture);
     benchmark_cache_lookup(&fixture);
     benchmark_materialization(&fixture);
+    benchmark_ownership_map();
     benchmark_noop_sync(&fixture);
     benchmark_git_fetch_from_environment();
     benchmark_http_fetch_from_environment();
@@ -125,13 +126,34 @@ fn benchmark_materialization(fixture: &LocalFixture) {
     let source = fixture
         .source
         .join(fixtures::source_relative_path(fixture.definition, 0));
-    benchmark("materialization", fixture.definition.id, ITERATIONS, || {
-        let destination = destination_root.join("plugin.gd");
+    for (name, preference) in [
+        ("materialization-copy", MaterializationPreference::Copy),
+        ("materialization-auto", MaterializationPreference::Auto),
+    ] {
+        benchmark(name, fixture.definition.id, ITERATIONS, || {
+            let destination = destination_root.join("plugin.gd");
+            black_box(
+                materialize_file(&source, &destination, preference)
+                    .expect("benchmark file should materialize"),
+            );
+            fs::remove_file(destination).expect("benchmark destination should remove");
+        });
+    }
+}
+
+fn benchmark_ownership_map() {
+    let fixture = LocalFixture::new(ONE_LARGE_ADDON);
+    let package =
+        PackageName::parse("benchmark-addon").expect("benchmark package name should parse");
+    benchmark("ownership-map", fixture.definition.id, ITERATIONS, || {
         black_box(
-            materialize_file(&source, &destination, MaterializationPreference::Copy)
-                .expect("benchmark file should materialize"),
+            build_desired_file_map([PackageMaterialization::new(
+                &package,
+                &fixture.prepared,
+                Path::new("addons/benchmark-addon"),
+            )])
+            .expect("benchmark ownership map should build"),
         );
-        fs::remove_file(destination).expect("benchmark destination should remove");
     });
 }
 

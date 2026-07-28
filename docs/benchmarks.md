@@ -22,8 +22,30 @@ cargo +1.85.0 bench -p wukong-core --bench component_harness
 ```
 
 It reports manifest/lockfile parsing, resolver work, ZIP extraction, local-tree
-hashing, cache lookup, copy materialisation, and no-op sync as separate rows.
+hashing, cache lookup, ownership-map construction, copy and automatic
+materialisation, and no-op sync as separate rows.
 It does not make performance claims or compare runs.
+
+## Measured design decisions
+
+The component harness is used to choose implementation work, not to publish
+speed claims. It covers the following current decisions:
+
+- Independent direct-source preparation is scheduled on at most four workers;
+  package ordering and the first reported failure remain deterministic.
+- Package preparation streams each file once while calculating its tree and
+  file checksums. Ownership-map construction reuses those verified file
+  checksums instead of reading prepared files again.
+- Automatic materialisation attempts copy-on-write reflinks, then uses a copy.
+  It never uses hardlinks because an editable project file must not alias a
+  local source or cache object.
+- ZIP extraction streams each entry directly into its transaction staging root.
+- A sync with no writes, removals, or state changes returns before staging a
+  transaction.
+
+Git checkout reuse remains content-addressed by canonical source and immutable
+commit. The harness does not schedule configured network measurements unless
+the public immutable inputs described below are supplied.
 
 Git and HTTPS fetch rows require immutable public inputs supplied through
 `WUKONG_BENCH_GIT_URL` plus `WUKONG_BENCH_GIT_REV`, and

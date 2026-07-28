@@ -5,11 +5,9 @@ use crate::{
     identity::PackageName,
     package_tree::PreparedPackageTree,
 };
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    io::Read,
     path::{Component, Path, PathBuf},
 };
 use unicode_normalization::UnicodeNormalization;
@@ -115,12 +113,11 @@ pub fn build_desired_file_map<'a>(
                 }
             }
             let source_path = package.tree.root().join(file.path());
-            let sha256 = file_sha256(&source_path)?;
             let candidate = DesiredFile {
                 path: path.clone(),
                 source_path,
                 owners: BTreeSet::from([package.name.clone()]),
-                sha256,
+                sha256: file.sha256().to_owned(),
                 executable: file.executable(),
             };
             match files.get_mut(&path) {
@@ -246,22 +243,6 @@ fn portable_path_key(path: &Path) -> Result<String, Box<Diagnostic>> {
     Ok(value.nfc().flat_map(char::to_lowercase).collect())
 }
 
-fn file_sha256(path: &Path) -> Result<String, Box<Diagnostic>> {
-    let mut file = fs::File::open(path).map_err(|error| source_error(path, error))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 8192];
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|error| source_error(path, error))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
-}
-
 fn conflict(message: &str, first: &Path, second: &Path) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(
@@ -269,17 +250,6 @@ fn conflict(message: &str, first: &Path, second: &Path) -> Box<Diagnostic> {
             format!("{message}: {} and {}", first.display(), second.display()),
         )
         .with_recovery("configure distinct target paths or remove one conflicting package"),
-    )
-}
-
-fn source_error(path: &Path, error: std::io::Error) -> Box<Diagnostic> {
-    Box::new(
-        Diagnostic::new(
-            ErrorCode::SourceAccess,
-            format!("could not read prepared package file {}", path.display()),
-        )
-        .with_cause(error)
-        .with_recovery("restore the prepared package and retry"),
     )
 }
 

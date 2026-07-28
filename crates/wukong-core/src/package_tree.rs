@@ -16,6 +16,7 @@ use unicode_normalization::UnicodeNormalization;
 pub struct PreparedPackageFile {
     path: PathBuf,
     executable: bool,
+    sha256: String,
 }
 
 impl PreparedPackageFile {
@@ -29,6 +30,12 @@ impl PreparedPackageFile {
     #[must_use]
     pub const fn executable(&self) -> bool {
         self.executable
+    }
+
+    /// Returns the lowercase hexadecimal SHA-256 of the copied file content.
+    #[must_use]
+    pub fn sha256(&self) -> &str {
+        &self.sha256
     }
 }
 
@@ -248,11 +255,17 @@ fn copy_and_hash(
                 hash_directory(&mut hasher, &entry.relative);
             }
             EntryKind::File { executable } => {
-                copy_file(&entry.source, &destination, executable)?;
-                hash_file(&mut hasher, &entry.relative, executable, &destination)?;
+                let sha256 = copy_file_and_hash(
+                    &entry.source,
+                    &destination,
+                    executable,
+                    &mut hasher,
+                    &entry.relative,
+                )?;
                 files.push(PreparedPackageFile {
                     path: PathBuf::from(&entry.relative),
                     executable,
+                    sha256,
                 });
             }
         }
@@ -260,7 +273,13 @@ fn copy_and_hash(
     Ok((format!("{:x}", hasher.finalize()), files))
 }
 
-fn copy_file(source: &Path, destination: &Path, executable: bool) -> Result<(), Box<Diagnostic>> {
+fn copy_file_and_hash(
+    source: &Path,
+    destination: &Path,
+    executable: bool,
+    tree_hasher: &mut Sha256,
+    relative: &str,
+) -> Result<String, Box<Diagnostic>> {
     let metadata = fs::symlink_metadata(source).map_err(|error| source_error(source, error))?;
     if !metadata.file_type().is_file() {
         return Err(Box::new(
@@ -277,7 +296,47 @@ fn copy_file(source: &Path, destination: &Path, executable: bool) -> Result<(), 
     let mut input = fs::File::open(source).map_err(|error| source_error(source, error))?;
     let mut output =
         fs::File::create(destination).map_err(|error| staging_error(destination, error))?;
-    io::copy(&mut input, &mut output).map_err(|error| staging_error(destination, error))?;
+    tree_hasher.update([b'f']);
+    update_length_prefixed(tree_hasher, relative.as_bytes());
+    tree_hasher.update([u8::from(executable)]);
+    tree_hasher.update(metadata.len().to_be_bytes());
+    let mut file_hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 64 * 1024];
+    let mut copied = 0_u64;
+    loop {
+        let read = input
+            .read(&mut buffer)
+            .map_err(|error| source_error(source, error))?;
+        if read == 0 {
+            break;
+        }
+        output
+            .write_all(&buffer[..read])
+            .map_err(|error| staging_error(destination, error))?;
+        tree_hasher.update(&buffer[..read]);
+        file_hasher.update(&buffer[..read]);
+        let read = u64::try_from(read).map_err(|_| {
+            staging_error(
+                destination,
+                io::Error::other("buffer length should fit u64"),
+            )
+        })?;
+        copied = copied.checked_add(read).ok_or_else(|| {
+            staging_error(destination, io::Error::other("copied byte count overflow"))
+        })?;
+    }
+    if copied != metadata.len() {
+        return Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                format!(
+                    "package source file changed while preparing {}",
+                    source.display()
+                ),
+            )
+            .with_recovery("retry after source changes have finished"),
+        ));
+    }
     output
         .flush()
         .map_err(|error| staging_error(destination, error))?;
@@ -285,25 +344,11 @@ fn copy_file(source: &Path, destination: &Path, executable: bool) -> Result<(), 
     set_canonical_permissions(destination, executable)?;
     #[cfg(not(unix))]
     let _ = executable;
-    Ok(())
+    Ok(format!("{:x}", file_hasher.finalize()))
 }
 
 fn hash_directory(hasher: &mut Sha256, relative: &str) {
     hash_record(hasher, b'd', relative, None, None);
-}
-
-fn hash_file(
-    hasher: &mut Sha256,
-    relative: &str,
-    executable: bool,
-    path: &Path,
-) -> Result<(), Box<Diagnostic>> {
-    let mut file = fs::File::open(path).map_err(|error| staging_error(path, error))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|error| staging_error(path, error))?;
-    hash_record(hasher, b'f', relative, Some(executable), Some(&bytes));
-    Ok(())
 }
 
 fn hash_record(

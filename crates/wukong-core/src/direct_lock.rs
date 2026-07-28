@@ -25,8 +25,11 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
+    thread,
 };
 use tempfile::TempDir;
+
+const MAX_PARALLEL_PREPARATIONS: usize = 4;
 
 /// Locks direct local, Git, and HTTPS archive dependencies without project mutation.
 ///
@@ -71,7 +74,6 @@ pub fn lock_direct_dependencies_with_cancellation(
     if let Some(lock) = existing.filter(|lock| reusable(lock, &declarations)) {
         return Ok(lock.clone());
     }
-    let local = LocalPathAdapter;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
     if offline {
@@ -79,20 +81,15 @@ pub fn lock_direct_dependencies_with_cancellation(
     }
     let staging = TempDir::new()
         .map_err(|error| internal("could not create package-lock staging directory", error))?;
-    let mut packages = Vec::new();
-    for declaration in declarations.values() {
-        cancellation.check()?;
-        packages.push(lock_declaration(
-            manifest_path,
-            declaration,
-            local,
-            &git,
-            &http,
-            cancellation,
-            staging.path(),
-            offline,
-        )?);
-    }
+    let packages = lock_declarations_parallel(
+        manifest_path,
+        declarations.values(),
+        &git,
+        &http,
+        cancellation,
+        staging.path(),
+        offline,
+    )?;
     Lockfile::new(packages)
 }
 
@@ -156,7 +153,6 @@ pub fn update_direct_dependencies_with_cancellation(
             ));
         }
     }
-    let local = LocalPathAdapter;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
     if offline {
@@ -169,22 +165,33 @@ pub fn update_direct_dependencies_with_cancellation(
             &http,
         )?;
     }
+    let mut refreshed = BTreeMap::new();
+    let selected_declarations = declarations
+        .iter()
+        .filter(|(name, _)| selected.is_none_or(|selected| selected == *name))
+        .map(|(_, declaration)| declaration);
     let staging = TempDir::new()
         .map_err(|error| internal("could not create package-update staging directory", error))?;
+    for package in lock_declarations_parallel(
+        manifest_path,
+        selected_declarations,
+        &git,
+        &http,
+        cancellation,
+        staging.path(),
+        offline,
+    )? {
+        refreshed.insert(package.name().clone(), package);
+    }
     let mut packages = Vec::new();
-    for (name, declaration) in &declarations {
-        cancellation.check()?;
+    for name in declarations.keys() {
         if selected.is_none_or(|selected| selected == name) {
-            packages.push(lock_declaration(
-                manifest_path,
-                declaration,
-                local,
-                &git,
-                &http,
-                cancellation,
-                staging.path(),
-                offline,
-            )?);
+            packages.push(refreshed.remove(name).ok_or_else(|| {
+                internal(
+                    "selected package disappeared during parallel locking",
+                    name.as_str(),
+                )
+            })?);
         } else {
             let package = existing.packages().get(name).ok_or_else(|| {
                 internal(
@@ -196,6 +203,104 @@ pub fn update_direct_dependencies_with_cancellation(
         }
     }
     Lockfile::new(packages)
+}
+
+#[allow(clippy::too_many_arguments)] // source adapters remain explicit at the scheduler boundary
+fn lock_declarations_parallel<'a>(
+    manifest_path: &Path,
+    declarations: impl IntoIterator<Item = &'a Declaration>,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+    cancellation: &CancellationToken,
+    staging: &Path,
+    offline: bool,
+) -> Result<Vec<LockedPackage>, Box<Diagnostic>> {
+    let declarations = declarations.into_iter().cloned().collect::<Vec<_>>();
+    if declarations.is_empty() {
+        return Ok(Vec::new());
+    }
+    let groups = preparation_groups(declarations);
+    let workers = thread::available_parallelism()
+        .map_or(1, std::num::NonZeroUsize::get)
+        .min(MAX_PARALLEL_PREPARATIONS)
+        .min(groups.len());
+    let mut batches = vec![Vec::new(); workers];
+    for (index, group) in groups.into_values().enumerate() {
+        batches[index % workers].extend(group);
+    }
+    let manifest_path = manifest_path.to_path_buf();
+    let staging = staging.to_path_buf();
+    let git = git.clone();
+    let http = http.clone();
+    let cancellation = cancellation.clone();
+    let mut outcomes = BTreeMap::new();
+    thread::scope(|scope| {
+        let handles = batches
+            .into_iter()
+            .map(|batch| {
+                let manifest_path = manifest_path.clone();
+                let staging = staging.clone();
+                let git = git.clone();
+                let http = http.clone();
+                let cancellation = cancellation.clone();
+                scope.spawn(move || {
+                    batch
+                        .into_iter()
+                        .map(|declaration| {
+                            let name = declaration.name.clone();
+                            let result = cancellation.check().and_then(|()| {
+                                lock_declaration(
+                                    &manifest_path,
+                                    &declaration,
+                                    LocalPathAdapter,
+                                    &git,
+                                    &http,
+                                    &cancellation,
+                                    &staging,
+                                    offline,
+                                )
+                            });
+                            (name, result)
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        for handle in handles {
+            let entries = handle.join().map_err(|_| {
+                internal(
+                    "parallel package preparation worker panicked",
+                    "report this as a wukong bug",
+                )
+            })?;
+            outcomes.extend(entries);
+        }
+        Ok::<(), Box<Diagnostic>>(())
+    })?;
+    outcomes
+        .into_values()
+        .collect::<Result<Vec<_>, Box<Diagnostic>>>()
+}
+
+fn preparation_groups(declarations: Vec<Declaration>) -> BTreeMap<String, Vec<Declaration>> {
+    let mut groups = BTreeMap::new();
+    for declaration in declarations {
+        groups
+            .entry(preparation_key(&declaration))
+            .or_insert_with(Vec::new)
+            .push(declaration);
+    }
+    groups
+}
+
+fn preparation_key(declaration: &Declaration) -> String {
+    match &declaration.source {
+        DeclaredSource::Local(_) => format!("local:{}", declaration.name.as_str()),
+        DeclaredSource::Git { url, .. } => format!("git:{url}"),
+        DeclaredSource::Http { sha256, .. } => format!("http:{sha256}"),
+        #[cfg(feature = "asset-library")]
+        DeclaredSource::Asset(_) => "asset-library".to_owned(),
+    }
 }
 
 /// Locks direct local dependencies for the local-only sync path.
@@ -581,4 +686,44 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
             .with_cause(error)
             .with_recovery("retry and report this as a wukong bug if it persists"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Declaration, DeclaredSource, preparation_groups};
+    use crate::{identity::PackageName, manifest::GitReference};
+
+    #[test]
+    fn invariant_parallel_preparation_serializes_shared_cache_resources() {
+        let declarations = vec![
+            declaration(
+                "alpha",
+                DeclaredSource::Git {
+                    url: "https://example.test/shared.git".to_owned(),
+                    reference: Some(GitReference::Rev("1".repeat(40))),
+                },
+            ),
+            declaration(
+                "zebra",
+                DeclaredSource::Git {
+                    url: "https://example.test/shared.git".to_owned(),
+                    reference: Some(GitReference::Rev("2".repeat(40))),
+                },
+            ),
+        ];
+
+        let groups = preparation_groups(declarations);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups.values().next().expect("group should exist").len(), 2);
+    }
+
+    fn declaration(name: &str, source: DeclaredSource) -> Declaration {
+        Declaration {
+            name: PackageName::parse(name).expect("fixture package name should parse"),
+            source,
+            development: false,
+            fingerprint: String::new(),
+        }
+    }
 }

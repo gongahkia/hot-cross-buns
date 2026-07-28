@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
@@ -22,6 +23,33 @@ fn invariant_identical_selected_content_has_a_deterministic_tree_hash() {
         paths(&first),
         [Path::new("plugin.cfg"), Path::new("scripts/main.gd")]
     );
+}
+
+#[test]
+fn invariant_prepared_file_checksum_matches_the_copied_content() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let source = fixture.path().join("source");
+    write(&source.join("plugin.gd"), "extends Node\n");
+
+    let tree =
+        prepare_package_tree(&source, &fixture.path().join("stage")).expect("tree should prepare");
+    let file = tree.files().first().expect("prepared file should exist");
+    let contents = b"extends Node\n";
+    let expected = format!("{:x}", Sha256::digest(contents));
+    let mut tree_hasher = Sha256::new();
+    tree_hasher.update(b"f");
+    tree_hasher.update(9_u64.to_be_bytes());
+    tree_hasher.update(b"plugin.gd");
+    tree_hasher.update(b"\0");
+    tree_hasher.update(
+        u64::try_from(contents.len())
+            .expect("fixture length should fit u64")
+            .to_be_bytes(),
+    );
+    tree_hasher.update(contents);
+
+    assert_eq!(file.sha256(), expected);
+    assert_eq!(tree.sha256(), format!("{:x}", tree_hasher.finalize()));
 }
 
 #[test]

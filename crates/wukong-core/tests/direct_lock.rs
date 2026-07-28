@@ -143,6 +143,21 @@ fn invariant_changed_local_content_changes_the_direct_lock() {
 }
 
 #[test]
+fn invariant_parallel_lock_failures_are_reported_in_package_order() {
+    let fixture = Fixture::new();
+    let manifest = fixture.manifest(
+        "[dependencies]\nzebra = { path = \"missing-zebra\" }\nalpha = { path = \"missing-alpha\" }\n",
+    );
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let error = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect_err("missing local dependencies should fail");
+
+    assert!(error.message().contains("missing-alpha"));
+}
+
+#[test]
 fn invariant_cancelled_lock_reads_no_source_content() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");

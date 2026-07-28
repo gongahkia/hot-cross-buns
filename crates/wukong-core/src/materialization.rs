@@ -23,7 +23,7 @@ pub enum MaterializationPreference {
 /// Materialises one regular file at a path that does not already exist.
 ///
 /// Auto policy probes the destination filesystem at the staging path; an
-/// unsupported optimisation falls back to the next safe strategy.
+/// unsupported copy-on-write optimisation falls back to a standalone copy.
 ///
 /// # Errors
 ///
@@ -40,10 +40,6 @@ pub fn materialize_file(
         MaterializationPreference::Reflink => reflink(source, destination),
         MaterializationPreference::Auto => {
             if let Ok(strategy) = reflink(source, destination) {
-                return Ok(strategy);
-            }
-            remove_partial(destination);
-            if let Ok(strategy) = hardlink(source, destination) {
                 return Ok(strategy);
             }
             remove_partial(destination);

@@ -821,13 +821,13 @@ Measure separately:
 
 Potential areas:
 
-- [ ] Parallel fetch scheduling.
-- [ ] Hashing concurrency.
-- [ ] Git object reuse.
-- [ ] Archive streaming.
-- [ ] Incremental ownership-map calculation.
-- [ ] No-op sync fast path.
-- [ ] Reflink or hardlink materialisation.
+- [x] Parallel fetch scheduling.
+- [x] Hashing concurrency.
+- [x] Git object reuse.
+- [x] Archive streaming.
+- [x] Incremental ownership-map calculation.
+- [x] No-op sync fast path.
+- [x] Reflink or hardlink materialisation.
 
 Do not optimise parser microbenchmarks while downloads or filesystem work dominate.
 

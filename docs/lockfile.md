@@ -56,7 +56,9 @@ sources are not represented. See [ADR 0024](adr/0024-lockfile-schema-two-remote-
 ## Command
 
 `wukong lock` resolves direct local, Git, and HTTPS archive dependencies and
-writes `wukong.lock`; it does not materialise project files. `--offline` uses
+writes `wukong.lock`; it does not materialise project files. Independent source
+preparation uses up to four workers, while lockfile ordering and the first
+reported package error remain deterministic. `--offline` uses
 only verified cached Git checkouts and HTTP archives; an exact Git revision can
 reuse its checkout without selector metadata. When re-resolution is required,
 it lists every unavailable remote artifact. `--locked` refuses a
