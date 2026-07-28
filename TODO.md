@@ -591,10 +591,16 @@ catalogue source; `update` reports that before changing the lockfile or project.
 
 ## wukong-073: Implement `wukong outdated`
 
-- [ ] Detect newer compatible versions.
-- [ ] Distinguish compatible and breaking updates.
-- [ ] Handle Git dependencies without version tags.
-- [ ] Support JSON output.
+- [x] Detect newer compatible versions.
+- [x] Distinguish compatible and breaking updates.
+- [x] Handle Git dependencies without version tags.
+- [x] Support JSON output.
+
+Scope: Git checks unprefixed semantic-version tags, then `v`-prefixed tags when
+no exact tags exist. Compatibility is inferred from the locked tag using caret
+SemVer rules because current source-pinned Git declarations have no version
+range. Local paths and checksum-pinned archives report unavailable rather than
+guessing a newer version.
 
 ---
 

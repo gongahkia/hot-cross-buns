@@ -17,7 +17,8 @@ HTTPS archive sources transactionally; `wukong tree`/`wukong why` inspect the
 resolved lock graph. `wukong update [package]` re-locks supported direct sources
 and synchronises changes transactionally, with a dry-run preview. The core
 dependency solver is available for source-adapter integration; official asset
-sources and package scripts are not implemented.
+sources and package scripts are not implemented. `wukong outdated` reports
+Git tag updates without changing the project.
 
 ## Local-path workflow
 
@@ -59,6 +60,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Dependency views](docs/dependency-views.md)
 - [`wukong add`](docs/add.md)
 - [`wukong update`](docs/update.md)
+- [`wukong outdated`](docs/outdated.md)
 - [Materialisation](docs/materialization.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)

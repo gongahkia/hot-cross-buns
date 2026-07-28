@@ -13,6 +13,7 @@ use wukong_core::{
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
     manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
     manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
+    outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
     project::ProjectRoot,
     transactional_file::{FileSnapshot, write_atomic},
 };
@@ -47,6 +48,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "update" => match run_update(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "outdated" => match run_outdated(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -592,6 +597,169 @@ fn parse_update_arguments(
         }
     }
     Ok(options)
+}
+
+fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_outdated_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
+        user_error(
+            "wukong.lock is required to inspect outdated dependencies",
+            "run wukong lock before wukong outdated",
+        )
+    })?;
+    let cache = CacheLayout::from_environment()?;
+    let report = report_outdated(&lock, &cache, options.offline);
+    if options.json {
+        println!("{}", render_outdated_json(&report));
+    } else {
+        println!("{}", render_outdated(&report));
+    }
+    Ok(())
+}
+
+struct OutdatedOptions {
+    json: bool,
+    offline: bool,
+    project: Option<PathBuf>,
+}
+
+fn parse_outdated_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<OutdatedOptions, Box<Diagnostic>> {
+    let mut options = OutdatedOptions {
+        json: false,
+        offline: false,
+        project: None,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong outdated --json",
+                ));
+            }
+            continue;
+        }
+        if argument == "--offline" {
+            if std::mem::replace(&mut options.offline, true) {
+                return Err(user_error(
+                    "--offline may be supplied only once",
+                    "run wukong outdated --offline",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported outdated argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --json, --offline, or --project <path>",
+        ));
+    }
+    Ok(options)
+}
+
+fn render_outdated(report: &[OutdatedPackage]) -> String {
+    if report.is_empty() {
+        return "outdated: no locked packages".to_owned();
+    }
+    report
+        .iter()
+        .map(|package| match package.status() {
+            OutdatedStatus::UpToDate { current } => {
+                format!("{} {current}: up to date", package.name())
+            }
+            OutdatedStatus::Updates {
+                current,
+                compatible,
+                breaking,
+            } => {
+                let compatible = compatible
+                    .as_ref()
+                    .map_or_else(|| "none".to_owned(), ToString::to_string);
+                let breaking = breaking
+                    .as_ref()
+                    .map_or_else(|| "none".to_owned(), ToString::to_string);
+                format!(
+                    "{} {current}: compatible {compatible}; breaking {breaking}",
+                    package.name()
+                )
+            }
+            OutdatedStatus::Unavailable { reason } => {
+                format!("{}: unavailable ({reason})", package.name())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn render_outdated_json(report: &[OutdatedPackage]) -> String {
+    let packages = report
+        .iter()
+        .map(|package| {
+            let (status, current, compatible, breaking, reason) = match package.status() {
+                OutdatedStatus::UpToDate { current } => (
+                    "up_to_date",
+                    Some(current),
+                    None,
+                    None,
+                    None,
+                ),
+                OutdatedStatus::Updates {
+                    current,
+                    compatible,
+                    breaking,
+                } => (
+                    "outdated",
+                    Some(current),
+                    compatible.as_ref(),
+                    breaking.as_ref(),
+                    None,
+                ),
+                OutdatedStatus::Unavailable { reason } => {
+                    ("unavailable", None, None, None, Some(reason.as_str()))
+                }
+            };
+            let version = |value: Option<&wukong_core::semantic_version::SemanticVersion>| {
+                value.map_or_else(|| "null".to_owned(), |value| json_string(&value.to_string()))
+            };
+            let reason = reason.map_or_else(|| "null".to_owned(), json_string);
+            format!(
+                "{{\"name\":{},\"status\":{},\"current\":{},\"compatible\":{},\"breaking\":{},\"reason\":{reason}}}",
+                json_string(&package.name().to_string()),
+                json_string(status),
+                version(current),
+                version(compatible),
+                version(breaking),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{\"schema\":1,\"packages\":[{packages}]}}")
 }
 
 struct RemoveOptions {
@@ -1469,7 +1637,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|lock|install|sync|tree|why|cache verify> [options]"
+        "usage: wukong <init|add|remove|update|outdated|lock|install|sync|tree|why|cache verify> [options]"
     );
 }
 
@@ -1479,7 +1647,9 @@ fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AddOptions, parse_add_arguments, parse_update_arguments};
+    use super::{
+        AddOptions, parse_add_arguments, parse_outdated_arguments, parse_update_arguments,
+    };
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
 
@@ -1574,5 +1744,19 @@ mod tests {
             .expect("multiple selected packages should fail");
 
         assert!(error.message().contains("at most one package"));
+    }
+
+    #[test]
+    fn outdated_parser_accepts_json_offline_and_project() {
+        let options = parse_outdated_arguments(
+            ["--json", "--offline", "--project", "game"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("outdated specification should parse");
+
+        assert!(options.json);
+        assert!(options.offline);
+        assert_eq!(options.project, Some(PathBuf::from("game")));
     }
 }

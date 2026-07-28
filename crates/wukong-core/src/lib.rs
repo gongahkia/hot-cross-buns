@@ -57,6 +57,9 @@ pub mod manifest;
 /// Transactional manifest editing.
 pub mod manifest_edit;
 
+/// Read-only direct-source version availability reporting.
+pub mod outdated;
+
 /// Copy, hardlink, and reflink package-file materialisation.
 pub mod materialization;
 
