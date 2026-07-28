@@ -41,13 +41,13 @@ Acceptance criteria:
 
 ## wukong-003: Add repository documentation skeleton
 
-- [ ] Add `README.md`.
-- [ ] Add `CONTRIBUTING.md`.
-- [ ] Add `SECURITY.md`.
-- [ ] Add `docs/architecture.md`.
-- [ ] Add `docs/adr/README.md`.
-- [ ] Add `docs/benchmarks.md`.
-- [ ] Link the PRD and roadmap from the README.
+- [x] Add `README.md`.
+- [x] Add `CONTRIBUTING.md`.
+- [x] Add `SECURITY.md`.
+- [x] Add `docs/architecture.md`.
+- [x] Add `docs/adr/README.md`.
+- [x] Add `docs/benchmarks.md`.
+- [x] Link the PRD and roadmap from the README.
 
 ## wukong-004: Define error and diagnostic conventions
 
