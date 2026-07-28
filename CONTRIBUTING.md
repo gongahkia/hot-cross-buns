@@ -1,27 +1,30 @@
 # Contributing
 
-Hot Cross Buns is a Python 3.12 local-first TUI and CLI. Install the locked
-development environment with:
+## Scope
+
+Work on one `TODO.md` issue per change. Do not begin later phases before their
+listed acceptance criteria are satisfied. Preserve unrelated files.
+
+## Requirements
+
+- Use supported Rust, currently 1.85 or newer.
+- Add tests for user-visible behaviour and regression fixtures for bugs.
+- Update documentation with externally visible changes.
+- Do not execute package scripts or add unsupported source adapters.
+- Keep persisted output deterministic and filesystem mutation transactional.
+
+## Validation
+
+Run these commands before proposing a change:
 
 ```sh
-uv sync --extra dev
+cargo fmt --all -- --check
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
-Before submitting a change, run:
+## Licensing
 
-```sh
-make format
-make check
-make build
-```
-
-Use `make benchmark` for changes that affect storage, search, rendering, or
-sync throughput. Keep the CLI and TUI on the shared application layer, add
-numbered and tested SQLite migrations, and preserve stable machine-readable
-output and exit codes.
-
-Google integration tests must use fakes unless a live test is explicitly
-requested. Never commit OAuth client JSON, tokens, keyring data, local
-databases, exports, raw Google payloads, or unredacted diagnostics. The ignored
-`khal/` and `gcalcli/` directories are local references only and must not become
-dependencies.
+Contributions must be compatible with the project's MIT license. See
+[`LICENSE`](LICENSE).

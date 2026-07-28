@@ -26,11 +26,11 @@
 - [x] Create a Cargo workspace.
 - [x] Add a reusable core crate, provisionally `wukong-core`.
 - [x] Add a CLI crate, provisionally `wukong-cli`.
-- [ ] Add a test-support crate only when shared fixtures justify it.
+- [x] Add a test-support crate only when shared fixtures justify it.
 - [x] Set a supported minimum Rust version.
 - [x] Enable strict linting.
 - [x] Configure formatting.
-- [ ] Add licence and contribution files.
+- [x] Add licence and contribution files.
 
 Acceptance criteria:
 
