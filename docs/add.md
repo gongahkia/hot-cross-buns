@@ -19,3 +19,11 @@ If resolution, source retrieval, ownership validation, or sync fails, it
 restores the exact prior manifest and lockfile bytes; project sync restores its
 own transaction. If a concurrent edit prevents safe restoration, Wukong stops
 and reports that rollback is incomplete instead of overwriting that edit.
+
+## Removal
+
+`wukong remove <alias>` removes a runtime dependency, rebuilds the direct
+lockfile, and synchronises the project. If the alias is only in
+`[dev-dependencies]`, it is selected automatically; use `--dev` to require the
+development table. Required packages remain installed. Formerly package-owned
+files modified by the user are retained, as are all unrelated project files.

@@ -569,12 +569,12 @@ Acceptance criteria:
 
 ## wukong-071: Implement `wukong remove`
 
-- [ ] Remove direct dependency.
-- [ ] Re-resolve graph.
-- [ ] Remove unneeded transitive packages.
-- [ ] Preserve still-required packages.
-- [ ] Preserve unrelated files.
-- [ ] Present a removal summary.
+- [x] Remove direct dependency.
+- [x] Re-resolve graph.
+- [x] Remove unneeded transitive packages.
+- [x] Preserve still-required packages.
+- [x] Preserve unrelated files.
+- [x] Present a removal summary.
 
 ## wukong-072: Implement `wukong update`
 

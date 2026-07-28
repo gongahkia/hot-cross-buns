@@ -11,7 +11,7 @@ use wukong_core::{
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
     manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
-    manifest_edit::{DependencyDeclaration, DependencySection, add_dependency},
+    manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
     project::ProjectRoot,
     transactional_file::{FileSnapshot, write_atomic},
 };
@@ -38,6 +38,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "add" => match run_add(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "remove" => match run_remove(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -231,6 +235,189 @@ fn rollback_add(
             .with_recovery("inspect manifest and lockfile state before retrying"),
         )
     }
+}
+
+#[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
+fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_remove_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let current_manifest = read_manifest(&manifest_path)?;
+    let section = options.section.unwrap_or_else(|| {
+        if current_manifest
+            .dependencies()
+            .contains_key(options.alias.as_str())
+        {
+            DependencySection::Runtime
+        } else {
+            DependencySection::Development
+        }
+    });
+    let manifest_snapshot = FileSnapshot::capture(&manifest_path)?;
+    let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    remove_dependency(&manifest_path, section, &options.alias)?;
+    let manifest_bytes = match fs::read(&manifest_path) {
+        Ok(content) => content,
+        Err(error) => {
+            return Err(rollback_add(
+                boxed(
+                    Diagnostic::new(
+                        ErrorCode::InternalFailure,
+                        format!(
+                            "could not read updated manifest {}",
+                            manifest_path.display()
+                        ),
+                    )
+                    .with_cause(error)
+                    .with_recovery("check filesystem permissions and retry"),
+                ),
+                &manifest_snapshot,
+                None,
+                None,
+            ));
+        }
+    };
+    let manifest_input = match std::str::from_utf8(&manifest_bytes) {
+        Ok(input) => input,
+        Err(error) => {
+            return Err(rollback_add(
+                boxed(
+                    Diagnostic::new(ErrorCode::InternalFailure, "updated manifest is not UTF-8")
+                        .with_cause(error)
+                        .with_recovery("restore a valid wukong.toml and retry"),
+                ),
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let manifest = match Manifest::parse(&manifest_path, manifest_input) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let cache = match CacheLayout::from_environment() {
+        Ok(cache) => cache,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let lock = match lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false) {
+        Ok(lock) => lock,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                None,
+            ));
+        }
+    };
+    let lock_output = lock.to_toml().into_bytes();
+    if let Err(error) = write_atomic(&lock_path, &lock_output) {
+        return Err(rollback_add(
+            error,
+            &manifest_snapshot,
+            Some(&manifest_bytes),
+            None,
+        ));
+    }
+    let summary = match sync_direct_dependencies(
+        project.path(),
+        &manifest_path,
+        &manifest,
+        &lock,
+        true,
+        &cache,
+        false,
+    ) {
+        Ok(summary) => summary,
+        Err(error) => {
+            return Err(rollback_add(
+                error,
+                &manifest_snapshot,
+                Some(&manifest_bytes),
+                Some((&lock_snapshot, lock_output.as_slice())),
+            ));
+        }
+    };
+    println!(
+        "removed {}; sync: {} written, {} unchanged, {} removed",
+        options.alias, summary.written, summary.unchanged, summary.removed
+    );
+    Ok(())
+}
+
+struct RemoveOptions {
+    alias: String,
+    section: Option<DependencySection>,
+    project: Option<PathBuf>,
+}
+
+fn parse_remove_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<RemoveOptions, Box<Diagnostic>> {
+    let alias = arguments.next().ok_or_else(|| {
+        user_error(
+            "remove requires a package alias",
+            "run wukong remove <alias> [--dev] [--project <path>]",
+        )
+    })?;
+    let mut section = None;
+    let mut project = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--dev" {
+            if section.replace(DependencySection::Development).is_some() {
+                return Err(user_error(
+                    "--dev may be supplied only once",
+                    "remove --dev once",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported remove argument {}", argument.to_string_lossy()),
+            "use --dev or --project <path>",
+        ));
+    }
+    Ok(RemoveOptions {
+        alias: alias.to_string_lossy().into_owned(),
+        section,
+        project,
+    })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1058,7 +1245,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 }
 
 fn print_usage() {
-    println!("usage: wukong <init|add|lock|install|sync|tree|why|cache verify> [options]");
+    println!("usage: wukong <init|add|remove|lock|install|sync|tree|why|cache verify> [options]");
 }
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
