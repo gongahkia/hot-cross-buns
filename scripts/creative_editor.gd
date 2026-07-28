@@ -44,6 +44,8 @@ var selection_box: Panel
 var right_drag_start := Vector2.ZERO
 var right_drag_current := Vector2.ZERO
 var right_dragging := false
+var right_drag_additive := false
+var right_drag_subtractive := false
 
 const CAMERA_ZOOM_STEP := 4.0
 const SELECTION_DRAG_THRESHOLD := 6.0
@@ -88,10 +90,10 @@ func _process(delta: float) -> void:
 	var move := Vector3.ZERO
 	if Input.is_key_pressed(KEY_W): move.z -= 1.0
 	if Input.is_key_pressed(KEY_S): move.z += 1.0
-	if Input.is_key_pressed(KEY_A): move.x -= 1.0
+	if Input.is_key_pressed(KEY_A) and not (Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_META)): move.x -= 1.0
 	if Input.is_key_pressed(KEY_D): move.x += 1.0
 	if Input.is_key_pressed(KEY_SPACE): move.y += 1.0
-	if Input.is_key_pressed(KEY_SHIFT): move.y -= 1.0
+	if Input.is_key_pressed(KEY_SHIFT) and not (top_down and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)): move.y -= 1.0
 	if move.length() > 0.0:
 		var speed := fly_speed * (2.0 if Input.is_key_pressed(KEY_CTRL) else 1.0)
 		if top_down:
@@ -121,6 +123,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			_refresh_ui()
 			get_viewport().set_input_as_handled()
 			return
+		if event.physical_keycode == KEY_A and (event.ctrl_pressed or event.meta_pressed):
+			_set_selected_modules(_all_module_ids())
+			_set_status("SELECTED %d MODULES" % selected_module_ids.size())
+			_refresh_ui()
+			get_viewport().set_input_as_handled()
+			return
+		if event.physical_keycode == KEY_F and not selected_module_ids.is_empty():
+			_focus_selection()
+			get_viewport().set_input_as_handled()
+			return
 		if event.physical_keycode == KEY_DELETE and not selected_module_ids.is_empty():
 			_remove()
 			get_viewport().set_input_as_handled()
@@ -134,21 +146,30 @@ func _unhandled_input(event: InputEvent) -> void:
 		creative_camera.fov = clampf(creative_camera.fov + zoom_direction * CAMERA_ZOOM_STEP * maxf(event.factor, 1.0), 30.0, 100.0)
 		get_viewport().set_input_as_handled()
 		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE and top_down:
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed:
 			right_drag_start = event.position
 			right_drag_current = event.position
 			right_dragging = false
+			right_drag_additive = event.shift_pressed
+			right_drag_subtractive = event.ctrl_pressed or event.meta_pressed
 			get_viewport().set_input_as_handled()
 			return
 		else:
 			if top_down and right_dragging:
-				_select_in_viewport_rect(_drag_rect())
+				_select_in_viewport_rect(_drag_rect(), right_drag_additive, right_drag_subtractive)
 			elif not right_dragging:
-				_select_at_viewport(event.position)
+				_select_at_viewport(event.position, right_drag_additive, right_drag_subtractive)
 			_hide_selection_box()
 			get_viewport().set_input_as_handled()
 			return
+	if event is InputEventMouseMotion and top_down and Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		_pan_top_down(event.relative)
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		right_drag_current = event.position
 		if top_down:
@@ -238,6 +259,7 @@ func _ensure_ui() -> void:
 	left_scroll.add_child(left_box)
 	left_box.add_child(_label("CREATIVE MODULES", 20, Color("#edf3d5")))
 	left_box.add_child(_label("Click a module, then click the map/space to place it.", 12, Color("#9db197")))
+	left_box.add_child(_label("Fly: WASD Space/Shift • Ctrl fast • wheel zoom\nMap: MMB pan • RMB drag select • Shift add • Cmd/Ctrl remove • F frame", 11, Color("#9db197")))
 	var module_scroll := ScrollContainer.new()
 	module_scroll.custom_minimum_size = Vector2(0.0, 188.0)
 	module_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -450,7 +472,7 @@ func _select_at(point: Vector3) -> void:
 	_set_status("SELECTED " + nearest.to_upper() if not nearest.is_empty() else "NO MODULE SELECTED")
 	_refresh_ui()
 
-func _select_at_viewport(viewport_position: Vector2) -> void:
+func _select_at_viewport(viewport_position: Vector2, additive := false, subtractive := false) -> void:
 	var nearest := ""
 	var nearest_distance := 28.0
 	var positions := _module_viewport_positions()
@@ -460,18 +482,18 @@ func _select_at_viewport(viewport_position: Vector2) -> void:
 		if distance < nearest_distance:
 			nearest = module_id
 			nearest_distance = distance
-	_set_selected_modules([nearest])
+	_apply_viewport_selection([nearest], additive, subtractive)
 	_set_status("SELECTED " + nearest.to_upper() if not nearest.is_empty() else "NO MODULE SELECTED")
 	_refresh_ui()
 
-func _select_in_viewport_rect(viewport_rect: Rect2) -> void:
+func _select_in_viewport_rect(viewport_rect: Rect2, additive := false, subtractive := false) -> void:
 	var module_ids: Array[String] = []
 	var positions := _module_viewport_positions()
 	for module_id in positions:
 		var module_position: Vector2 = positions[module_id]
 		if viewport_rect.has_point(module_position): module_ids.append(module_id)
-	_set_selected_modules(module_ids)
-	_set_status("SELECTED %d MODULES" % module_ids.size() if not module_ids.is_empty() else "NO MODULE SELECTED")
+	_apply_viewport_selection(module_ids, additive, subtractive)
+	_set_status("SELECTED %d MODULES" % selected_module_ids.size() if not selected_module_ids.is_empty() else "NO MODULE SELECTED")
 	_refresh_ui()
 
 func _module_viewport_positions() -> Dictionary:
@@ -493,6 +515,58 @@ func _set_selected_modules(module_ids: Array[String]) -> void:
 			continue
 		selected_module_ids.append(module_id)
 	selected_module_id = selected_module_ids[0] if not selected_module_ids.is_empty() else ""
+
+func _apply_viewport_selection(module_ids: Array[String], additive: bool, subtractive: bool) -> void:
+	if not additive and not subtractive:
+		_set_selected_modules(module_ids)
+		return
+	var next := selected_module_ids.duplicate()
+	for module_id in module_ids:
+		if subtractive:
+			next.erase(module_id)
+		elif not next.has(module_id):
+			next.append(module_id)
+	_set_selected_modules(next)
+
+func _all_module_ids() -> Array[String]:
+	var module_ids: Array[String] = []
+	for module in document.modules():
+		if module is Dictionary:
+			var module_id := str(module.get("id", ""))
+			if not module_id.is_empty(): module_ids.append(module_id)
+	return module_ids
+
+func _focus_selection() -> void:
+	var positions: Array[Vector3] = []
+	for node in geometry_root.find_children("*", "Node3D", true, false):
+		var module_node := node as Node3D
+		if selected_module_ids.has(str(module_node.get_meta("level_module_id", ""))): positions.append(module_node.global_position)
+	if positions.is_empty():
+		return
+	var focus := Vector3.ZERO
+	for position in positions: focus += position
+	focus /= positions.size()
+	if top_down:
+		top_focus.x = focus.x
+		top_focus.z = focus.z
+	else:
+		var forward := -creative_camera.global_transform.basis.z
+		creative_rig.global_position = focus - forward * 18.0
+		var direction := (focus - creative_rig.global_position).normalized()
+		yaw = atan2(-direction.x, -direction.z)
+		pitch = asin(clampf(direction.y, -1.0, 1.0))
+	_update_camera(true)
+	_set_status("FRAMED %d MODULES" % selected_module_ids.size())
+
+func _pan_top_down(relative: Vector2) -> void:
+	var viewport_height := get_viewport().get_visible_rect().size.y
+	if viewport_height <= 0.0:
+		return
+	var units_per_pixel := 2.0 * top_camera_altitude * tan(deg_to_rad(creative_camera.fov) * 0.5) / viewport_height
+	var shift := -creative_camera.global_transform.basis.x * relative.x + creative_camera.global_transform.basis.y * relative.y
+	shift.y = 0.0
+	top_focus += shift * units_per_pixel
+	_update_camera(false)
 
 func _clear_selection() -> void:
 	selected_module_ids.clear()

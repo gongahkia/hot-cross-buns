@@ -341,6 +341,27 @@ func _initialize() -> void:
 	assert(main.creative_editor.selected_module_id == selectable_module_id, "editor right-click did not select projected module")
 	main.creative_editor._select_in_viewport_rect(viewport_rect)
 	assert(main.creative_editor.selected_module_ids.size() == expected_selected, "top-down marquee did not select projected modules")
+	var all_module_ids: Array[String] = main.creative_editor._all_module_ids()
+	assert(all_module_ids.size() > 1, "creative editor needs multiple modules for selection tests")
+	var first_selection: Array[String] = [all_module_ids[0]]
+	var second_selection: Array[String] = [all_module_ids[1]]
+	main.creative_editor._set_selected_modules(first_selection)
+	main.creative_editor._apply_viewport_selection(second_selection, true, false)
+	assert(main.creative_editor.selected_module_ids.size() == 2, "additive viewport selection failed")
+	main.creative_editor._apply_viewport_selection(first_selection, false, true)
+	assert(main.creative_editor.selected_module_ids.size() == 1, "subtractive viewport selection failed")
+	var select_all := InputEventKey.new()
+	select_all.pressed = true
+	select_all.physical_keycode = KEY_A
+	select_all.ctrl_pressed = true
+	main.creative_editor._unhandled_input(select_all)
+	assert(main.creative_editor.selected_module_ids.size() == all_module_ids.size(), "editor select-all failed")
+	main.creative_editor.top_focus = Vector3(250.0, 0.0, 250.0)
+	main.creative_editor._focus_selection()
+	assert(not main.creative_editor.top_focus.is_equal_approx(Vector3(250.0, 0.0, 250.0)), "editor frame selection failed")
+	var pan_start: Vector3 = main.creative_editor.top_focus
+	main.creative_editor._pan_top_down(Vector2(20.0, 0.0))
+	assert(not main.creative_editor.top_focus.is_equal_approx(pan_start), "editor map pan failed")
 	var fov_before: float = main.creative_editor.creative_camera.fov
 	var wheel_up := InputEventMouseButton.new()
 	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
