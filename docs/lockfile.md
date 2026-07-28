@@ -29,3 +29,10 @@ paths, credentials, mutable references, or executable commands are permitted.
 are errors. Parsing and re-serializing a valid schema-one lock produces stable
 canonical bytes. Git, HTTP, and official sources are not represented until
 their adapters exist. See [ADR 0012](adr/0012-lockfile-schema.md).
+
+## Command
+
+`wukong lock` resolves direct local dependencies and writes `wukong.lock`; it
+does not materialise package files. `--offline` is valid for local paths.
+`--locked` refuses a missing or changed lockfile with exit code 2. An unchanged
+valid lockfile is not rewritten.

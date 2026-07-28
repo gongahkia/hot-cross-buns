@@ -1,10 +1,13 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
 
-use std::{env, ffi::OsString, path::PathBuf, process};
+use std::{env, ffi::OsString, fs, path::PathBuf, process};
 use wukong_core::{
     diagnostic::{Diagnostic, ErrorCode},
+    direct_lock::lock_direct_local_dependencies,
     init::initialize_manifest,
+    lockfile::{LOCKFILE_FILE_NAME, Lockfile},
+    manifest::{MANIFEST_FILE_NAME, Manifest},
     project::ProjectRoot,
 };
 
@@ -29,12 +32,131 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
+        Some(command) if command == "lock" => match run_lock(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
         Some(command) => render_error(&user_error(
             format!("unsupported command {}", command.to_string_lossy()),
             "run wukong --help for supported commands",
         )),
         None => ProcessExit::Success,
     }
+}
+
+fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_lock_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let input = fs::read_to_string(&manifest_path).map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::UserInput,
+                format!("could not read manifest {}", manifest_path.display()),
+            )
+            .with_cause(error)
+            .with_recovery("run wukong init or provide a readable wukong.toml"),
+        )
+    })?;
+    let manifest = Manifest::parse(&manifest_path, &input)?;
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let existing = match fs::read_to_string(&lock_path) {
+        Ok(input) => Some(Lockfile::parse(&lock_path, &input)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(boxed(
+                Diagnostic::new(
+                    ErrorCode::InternalFailure,
+                    format!("could not read lockfile {}", lock_path.display()),
+                )
+                .with_cause(error)
+                .with_recovery("check lockfile permissions and retry"),
+            ));
+        }
+    };
+    let locked = lock_direct_local_dependencies(&manifest_path, &manifest, existing.as_ref())?;
+    let output = locked.to_toml();
+    if options.locked
+        && existing
+            .as_ref()
+            .is_none_or(|existing| existing.to_toml() != output)
+    {
+        return Err(user_error(
+            "manifest and lockfile differ while --locked was supplied",
+            "run wukong lock without --locked to update wukong.lock",
+        ));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|existing| existing.to_toml() == output)
+    {
+        println!("lockfile unchanged");
+        return Ok(());
+    }
+    fs::write(&lock_path, output).map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                format!("could not write lockfile {}", lock_path.display()),
+            )
+            .with_cause(error)
+            .with_recovery("check project permissions and retry"),
+        )
+    })?;
+    println!("locked {}", lock_path.display());
+    Ok(())
+}
+
+struct LockOptions {
+    project: Option<PathBuf>,
+    locked: bool,
+}
+fn parse_lock_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<LockOptions, Box<Diagnostic>> {
+    let mut options = LockOptions {
+        project: None,
+        locked: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--locked" {
+            options.locked = true;
+            continue;
+        }
+        if argument == "--offline" {
+            continue;
+        }
+        if argument == "--project" {
+            let path = arguments.next().ok_or_else(|| {
+                user_error(
+                    "--project requires a path",
+                    "provide a project directory or project.godot file",
+                )
+            })?;
+            if options.project.replace(PathBuf::from(path)).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported lock argument {}", argument.to_string_lossy()),
+            "run wukong lock --help for supported options",
+        ));
+    }
+    Ok(options)
 }
 
 fn run_init(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
@@ -96,7 +218,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 }
 
 fn print_usage() {
-    println!("usage: wukong init [--project <path>] [--non-interactive]");
+    println!("usage: wukong <init|lock> [options]");
 }
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {

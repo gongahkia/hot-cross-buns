@@ -382,11 +382,11 @@ Acceptance criteria:
 
 ## wukong-043: Implement `wukong lock`
 
-- [ ] Lock without materialising packages.
-- [ ] Support `--locked`.
-- [ ] Support `--offline`.
-- [ ] Explain manifest-lock mismatches.
-- [ ] Return a non-zero exit code when lock changes are forbidden.
+- [x] Lock without materialising packages.
+- [x] Support `--locked`.
+- [x] Support `--offline`.
+- [x] Explain manifest-lock mismatches.
+- [x] Return a non-zero exit code when lock changes are forbidden.
 
 ---
 
