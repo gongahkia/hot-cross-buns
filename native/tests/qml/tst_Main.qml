@@ -2128,12 +2128,17 @@ TestCase {
     function test_calendarManagementRestrictsOwnedAndPrimaryOperations() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
+        const calls = []
         const controller = {
             googleConnected: true,
             busy: false,
             calendarManagementRows: [],
             importPreviewRows: [],
-            importReadyToCommit: false
+            importReadyToCommit: false,
+            saveGoogleCalendarSettings: function(calendarId, title, description, timeZone,
+                                                 selected, hidden, colorId) {
+                calls.push([calendarId, title, selected, hidden])
+            }
         }
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
@@ -2144,7 +2149,8 @@ TestCase {
             id: "owned", title: "Owned", accessRole: "owner", primary: false
         })
         verify(mainWindow.calendarManagerDialog.ownedSecondary)
-        mainWindow.calendarManagerDialog.close()
+        mainWindow.calendarManagerDialog.primaryButton.click()
+        compare(calls, [["owned", "Owned", true, false]])
         mainWindow.calendarManagerDialog.openForCalendar({
             id: "primary", title: "Primary", accessRole: "owner", primary: true
         })
@@ -2168,7 +2174,8 @@ TestCase {
             importPreviewRows: [],
             importSourceName: "",
             importReadyToCommit: false,
-            previewDelimitedImport: function(text) { calls.push(text) }
+            previewDelimitedImport: function(text) { calls.push(text) },
+            cancelImport: function() { calls.push("cancel") }
         }
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
@@ -2181,6 +2188,8 @@ TestCase {
         mainWindow.importPastedText.text = "task title=\"Buy milk\""
         mainWindow.importPreviewPasteButton.click()
         compare(calls, ["task title=\"Buy milk\""])
+        mainWindow.importDialog.secondaryButton.click()
+        compare(calls, ["task title=\"Buy milk\"", "cancel"])
         mainWindow.destroy()
     }
 }

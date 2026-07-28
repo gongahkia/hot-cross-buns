@@ -37,6 +37,7 @@ class GoogleTaskMutationPushServiceTest final : public QObject {
 private slots:
   void pushesCreateUpdateAndDeleteMutations();
   void batchesIndependentTaskCreatesUpdatesMovesAndDeletes();
+  void keepsPartialTaskBatchFailuresRetryable();
   void pushesTaskReorderMove();
   void recreatesThenDeletesCrossListTaskMove();
   void reconcilesCreatedTaskRemoteIdentity();
@@ -384,6 +385,63 @@ void GoogleTaskMutationPushServiceTest::batchesIndependentTaskCreatesUpdatesMove
   QCOMPARE(find(coordinator, updated.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, moved.id).status, hcb::PendingMutationStatus::Applied);
   QCOMPARE(find(coordinator, removed.id).status, hcb::PendingMutationStatus::Applied);
+}
+
+void GoogleTaskMutationPushServiceTest::keepsPartialTaskBatchFailuresRetryable() {
+  std::unique_ptr<hcb::test::TemporarySqliteDatabase> database = createDatabase();
+  QVERIFY(database != nullptr);
+  if (database == nullptr) return;
+  FixedClock clock;
+  hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
+  verifyReady(coordinator);
+  const hcb::PendingMutation first = enqueue(
+      coordinator,
+      QStringLiteral("task.update"),
+      {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+       {QStringLiteral("remoteTaskId"), QStringLiteral("remote-one")},
+       {QStringLiteral("task"), QJsonObject{{QStringLiteral("title"), QStringLiteral("One")}}}},
+      QStringLiteral("task-one"));
+  const hcb::PendingMutation second = enqueue(
+      coordinator,
+      QStringLiteral("task.update"),
+      {{QStringLiteral("taskListId"), QStringLiteral("list-1")},
+       {QStringLiteral("remoteTaskId"), QStringLiteral("remote-two")},
+       {QStringLiteral("task"), QJsonObject{{QStringLiteral("title"), QStringLiteral("Two")}}}},
+      QStringLiteral("task-two"));
+  const QByteArray batchResponse =
+      QByteArrayLiteral("--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-1>\r\n\r\n"
+                        "HTTP/1.1 503 Service Unavailable\r\n"
+                        "Content-Type: application/json\r\n"
+                        "Retry-After: 3\r\n\r\n"
+                        "{\"error\":{\"message\":\"busy\"}}\r\n"
+                        "--batch_response\r\n"
+                        "Content-Type: application/http\r\n"
+                        "Content-ID: <response-item-0>\r\n\r\n"
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: application/json\r\n\r\n"
+                        "{}\r\n"
+                        "--batch_response--\r\n");
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = batchResponse});
+  hcb::GoogleHttpClient httpClient(nullptr, &manager);
+  hcb::GoogleTaskMutationPushService service(
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+
+  const hcb::GoogleTaskMutationPushResult result = push(service);
+  QCOMPARE(result.applied, 1);
+  QCOMPARE(result.failed, 1);
+  const hcb::PendingMutation firstResult = find(coordinator, first.id);
+  const hcb::PendingMutation secondResult = find(coordinator, second.id);
+  const hcb::PendingMutation& retriable =
+      firstResult.status == hcb::PendingMutationStatus::Failed ? firstResult : secondResult;
+  const hcb::PendingMutation& applied =
+      firstResult.status == hcb::PendingMutationStatus::Applied ? firstResult : secondResult;
+  QCOMPARE(applied.status, hcb::PendingMutationStatus::Applied);
+  QCOMPARE(retriable.status, hcb::PendingMutationStatus::Failed);
+  QCOMPARE(retriable.lastErrorCode, std::optional<QString>(QStringLiteral("server")));
+  QVERIFY(retriable.nextRetryAt.has_value());
 }
 
 void GoogleTaskMutationPushServiceTest::pushesTaskReorderMove() {

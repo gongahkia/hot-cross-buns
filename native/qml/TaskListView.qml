@@ -15,6 +15,7 @@ Pane {
     property var selectedTaskIds: []
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
+    property alias importButton: importButton
     property alias taskListControls: taskListControls
     property alias bulkSelectAllButton: bulkSelectAllButton
     property alias bulkCompleteButton: bulkCompleteButton
@@ -25,6 +26,7 @@ Pane {
     property alias bulkEditDialog: bulkEditDialog
     signal taskSelected(string taskId)
     signal taskCreateRequested()
+    signal importRequested()
     signal taskSubtaskCreateRequested(string parentTaskId, string taskListId)
     signal taskEditRequested(string taskId, string title, string notes, string dueAt,
                              string dueTimeZone, int priority, bool managedRecurrence,
@@ -156,6 +158,14 @@ Pane {
                 Accessible.name: text
                 Accessible.description: "Create a task in an active task list"
                 onClicked: root.requestTaskCreate()
+            }
+
+            Button {
+                id: importButton
+                text: "Import"
+                Accessible.name: "Import Tasks and events"
+                enabled: !root.taskListLoading
+                onClicked: root.importRequested()
             }
 
             Button {

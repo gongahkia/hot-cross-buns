@@ -10,6 +10,7 @@ private slots:
   void rejectsInvalidDelimitedLinesIndependently();
   void parsesVersionedCsvWithQuotedFields();
   void rejectsCsvSchemaAndUtf8Errors();
+  void enforcesRecordAndCsvQuotingLimits();
 };
 
 void ImportServiceTest::parsesDelimitedTasksAndEvents() {
@@ -67,6 +68,27 @@ void ImportServiceTest::rejectsCsvSchemaAndUtf8Errors() {
   QCOMPARE(utf8.items.size(), 0);
   QCOMPARE(utf8.rows.size(), 1);
   QVERIFY(!utf8.rows.front().accepted);
+}
+
+void ImportServiceTest::enforcesRecordAndCsvQuotingLimits() {
+  QByteArray records;
+  for (int index = 0; index < 1'001; ++index) {
+    records.append("task title=item\n");
+  }
+  const hcb::ImportParseResult oversized =
+      hcb::ImportService::parse(hcb::ImportFormat::Delimited, records);
+  QCOMPARE(oversized.items.size(), 0);
+  QCOMPARE(oversized.rows.size(), 1);
+  QVERIFY(oversized.rows.front().message.contains(QStringLiteral("1,000")));
+
+  const hcb::ImportParseResult malformed = hcb::ImportService::parse(
+      hcb::ImportFormat::Csv,
+      QByteArray(
+          "schema_version,kind,title,list,calendar,due,notes,priority,rrule,until,count,exclude,include,start,end,all_day,time_zone,description,location,recurrence\n"
+          "1,task,\"title\"suffix,,,,,,,,,,,,,,,,,\n"));
+  QCOMPARE(malformed.items.size(), 0);
+  QCOMPARE(malformed.rows.size(), 1);
+  QVERIFY(malformed.rows.front().message.contains(QStringLiteral("closing quote")));
 }
 
 QTEST_GUILESS_MAIN(ImportServiceTest)

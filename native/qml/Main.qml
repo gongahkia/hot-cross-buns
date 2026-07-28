@@ -876,15 +876,11 @@ ApplicationWindow {
         }
 
         onPrimaryAction: {
-            if (ownedSecondary) {
-                window.controllerCall("updateGoogleCalendar", [calendarId, calendarManagerTitle.text,
-                                                                 calendarManagerDescription.text,
-                                                                 calendarManagerTimeZone.text])
-            }
-            window.controllerCall("updateGoogleCalendarListEntry", [calendarId,
-                                                                       calendarManagerSelected.checked,
-                                                                       calendarManagerHidden.checked,
-                                                                       calendarManagerColorId.text])
+            window.controllerCall("saveGoogleCalendarSettings",
+                                  [calendarId, calendarManagerTitle.text,
+                                   calendarManagerDescription.text, calendarManagerTimeZone.text,
+                                   calendarManagerSelected.checked, calendarManagerHidden.checked,
+                                   calendarManagerColorId.text])
         }
     }
 
@@ -1089,6 +1085,7 @@ ApplicationWindow {
                     window.controllerCall("setTaskListSelected", [taskListId, selected])
                 }
                 onTaskCreateRequested: taskCreateDialog.openForCreate("", "")
+                onImportRequested: importDialog.open()
                 onTaskSubtaskCreateRequested: function(parentTaskId, taskListId) {
                     taskCreateDialog.openForCreate(taskListId, parentTaskId)
                 }
@@ -1251,6 +1248,13 @@ ApplicationWindow {
                         enabled: calendarVisibility.calendarIds().length > 0
                         Accessible.name: text + " on " + window.calendarDate
                         onClicked: window.openEventCreate(window.calendarDate)
+                    }
+
+                    Button {
+                        text: "Import"
+                        Accessible.name: "Import Tasks and events"
+                        enabled: window.appController === null || !window.appController.busy
+                        onClicked: importDialog.open()
                     }
                 }
 

@@ -154,6 +154,7 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
                              {{.id = QStringLiteral("primary"),
                                .title = QStringLiteral("Primary"),
                                .timeZone = QStringLiteral("UTC"),
+                               .colorId = QStringLiteral("7"),
                                .accessRole = hcb::GoogleCalendarAccessRole::Owner,
                                .selected = true,
                                .hidden = false,
@@ -198,6 +199,11 @@ void GoogleMirrorStoreTest::atomicallyReplacesTaskAndCalendarSnapshots() {
   const hcb::GoogleMirrorWriteResult calendarResult = awaitResult(calendarWrite);
   QVERIFY(std::holds_alternative<std::monostate>(calendarResult));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL"), 1);
+  QCOMPARE(text(handle, "SELECT color_id FROM local_calendars"), QStringLiteral("7"));
+  QCOMPARE(count(handle,
+                 "SELECT COUNT(*) FROM local_calendars "
+                 "WHERE is_selected = 1 AND is_hidden = 0"),
+           1);
   QCOMPARE(text(handle, "SELECT default_reminders_json FROM local_calendars"),
            QStringLiteral("[{\"method\":\"popup\",\"minutes\":30}]"));
   QCOMPARE(count(handle, "SELECT COUNT(*) FROM local_calendar_events WHERE deleted_at IS NULL"), 1);

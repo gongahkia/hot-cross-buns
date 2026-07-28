@@ -280,6 +280,13 @@ public:
                                                  bool selected,
                                                  bool hidden,
                                                  QString colorId);
+  Q_INVOKABLE void saveGoogleCalendarSettings(QString calendarId,
+                                              QString title,
+                                              QString description,
+                                              QString timeZone,
+                                              bool selected,
+                                              bool hidden,
+                                              QString colorId);
   Q_INVOKABLE void unsubscribeGoogleCalendar(QString calendarId);
   Q_INVOKABLE void chooseImportFile();
   Q_INVOKABLE void previewDelimitedImport(QString text);
