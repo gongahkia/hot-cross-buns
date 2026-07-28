@@ -4,6 +4,9 @@ const LEVELS := preload("res://scripts/level_library.gd")
 const GRAPPLE_RETICLE := preload("res://scripts/grapple_reticle.gd")
 const STYLE_AWARD_FEED := preload("res://scripts/style_award_feed.gd")
 const SANDBOX_GEOMETRY_EXPORTER := preload("res://scripts/generate_sandbox_geometry.gd")
+const LEVEL_DOCUMENT := preload("res://scripts/level_document.gd")
+const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
+const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
 const SANDBOX_STATION_CENTERS := {
@@ -65,6 +68,13 @@ var foliage_shader: Shader
 var pulse_shader: Shader
 var ui_theme: Theme
 var geometry_export_mode := false
+var creative_editor: Variant
+var creative_document: Variant
+var creative_geometry_root: Node3D
+var creative_build_index: Dictionary = {}
+var creative_session := false
+var creative_playtest: Dictionary = {}
+var creative_sample_timer := 0.0
 
 func _ready() -> void:
 	geometry_export_mode = OS.get_cmdline_user_args().has("--generate-sandbox-geometry")
@@ -73,6 +83,11 @@ func _ready() -> void:
 	foliage_shader = _make_foliage_shader()
 	pulse_shader = _make_pulse_shader()
 	_build_ui()
+	creative_editor = CREATIVE_EDITOR.new()
+	creative_editor.document_changed.connect(_rebuild_creative_geometry)
+	creative_editor.playtest_requested.connect(_playtest_creative_draft)
+	creative_editor.close_requested.connect(_exit_creative_mode)
+	add_child(creative_editor)
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
 	if geometry_export_mode:
@@ -217,10 +232,18 @@ func _process(delta: float) -> void:
 		_refresh_grapple_reticle()
 		_refresh_sandbox_context()
 		_refresh_debug_hud()
+		_record_creative_sample(delta)
 		if Input.is_action_just_pressed("pause"):
 			show_pause()
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F2 and rebinding_action.is_empty():
+		if creative_session and not creative_editor.is_open():
+			_return_to_creative_editor()
+		else:
+			_open_creative_mode()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F3 and rebinding_action.is_empty():
 		debug_visible = not debug_visible
 		debug_panel.visible = debug_visible and hud.visible
@@ -264,6 +287,9 @@ func show_title() -> void:
 	var start := _button("Choose a space", 22)
 	start.pressed.connect(show_level_select)
 	box.add_child(start)
+	var creative := _button("Creative mode", 22)
+	creative.pressed.connect(_open_creative_mode)
+	box.add_child(creative)
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
@@ -310,6 +336,9 @@ func show_level_select() -> void:
 	bottom.add_child(settings)
 
 func start_level(level_id: String) -> void:
+	if creative_editor and creative_editor.is_open():
+		creative_editor.close()
+	creative_session = false
 	get_tree().paused = false
 	_clear_menu()
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -329,9 +358,165 @@ func start_level(level_id: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_refresh_hud()
 
+func _open_creative_mode() -> void:
+	get_tree().paused = false
+	_clear_menu()
+	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	RunData.running = false
+	hud.visible = false
+	debug_panel.visible = false
+	_clear_style_flash()
+	if creative_document == null:
+		var draft_path := "res://levels/_drafts/creative-draft.level.json"
+		if FileAccess.file_exists(draft_path):
+			creative_document = LEVEL_DOCUMENT.load_from_path(draft_path)
+		else:
+			creative_document = LEVEL_DOCUMENT.load_from_path("res://levels/sandbox.level.json").duplicate_document()
+			creative_document.data["id"] = "creative-draft"
+			creative_document.data["title"] = "Creative Draft"
+			creative_document.data["status"] = "draft"
+			creative_document.save_to_path(draft_path)
+	creative_session = true
+	_build_creative_course()
+	creative_editor.configure(self, creative_document, creative_geometry_root)
+	creative_editor.open()
+
+func _build_creative_course() -> void:
+	if course:
+		course.queue_free()
+	course = Node3D.new()
+	course.name = "CreativeCourse"
+	course.set_meta("layout_id", str(creative_document.data.get("id", "creative-draft")))
+	add_child(course)
+	total_collectibles_in_level = 0
+	traversal_ramp_count = 0
+	climbable_trunk_count = 0
+	grapple_anchor_count = 0
+	combo_gap_count = 0
+	recharge_gate_count = 0
+	trigger_count = 0
+	sandbox_stations.clear()
+	current_station = "Creative"
+	last_sandbox_event = "CREATIVE DRAFT"
+	_add_creative_lighting()
+	creative_geometry_root = Node3D.new()
+	creative_geometry_root.name = "AuthoringGeometry"
+	course.add_child(creative_geometry_root)
+	creative_build_index = LEVEL_BUILDER.build_index(self, creative_document, creative_geometry_root)
+	var spawn: Variant = LEVEL_DOCUMENT.vector_from(creative_document.data.get("spawn", [0.0, 1.1, 3.0]))
+	player_spawn = spawn if spawn != null else Vector3(0.0, 1.1, 3.0)
+	player = SpeedPlayer.new()
+	player.position = player_spawn
+	player.movement_enabled = false
+	player.reset_requested.connect(_bail_to_start)
+	player.traversal_action.connect(_on_traversal_action)
+	player.combo_landed.connect(_on_combo_landed)
+	course.add_child(player)
+
+func _rebuild_creative_geometry(change: Dictionary = {}) -> void:
+	if not creative_session or course == null or creative_document == null:
+		return
+	if creative_geometry_root == null:
+		creative_geometry_root = Node3D.new()
+		creative_geometry_root.name = "AuthoringGeometry"
+		course.add_child(creative_geometry_root)
+		creative_build_index = LEVEL_BUILDER.build_index(self, creative_document, creative_geometry_root)
+	else:
+		creative_build_index = LEVEL_BUILDER.apply_changes(self, creative_document, creative_geometry_root, creative_build_index, change.get("changed_module_ids", ["*"]), bool(change.get("full_rebuild", false)), bool(change.get("references_changed", false)))
+	_recount_creative_content()
+	creative_editor.set_geometry_root(creative_geometry_root)
+
+func _add_creative_lighting() -> void:
+	var environment := WorldEnvironment.new()
+	var settings := Environment.new()
+	settings.background_mode = Environment.BG_COLOR
+	settings.background_color = Color("#17231d")
+	settings.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	settings.ambient_light_color = Color("#92a87d")
+	settings.ambient_light_energy = 0.75
+	environment.environment = settings
+	course.add_child(environment)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-52.0, -36.0, 0.0)
+	sun.light_color = Color("#d4d7ac")
+	sun.light_energy = 1.25
+	course.add_child(sun)
+
+func _playtest_creative_draft() -> void:
+	if player == null:
+		return
+	current_level = {"id": str(creative_document.data.get("id", "creative-draft")), "title": str(creative_document.data.get("title", "Creative Draft")), "briefing": "Creative draft playtest."}
+	RunData.begin_run(str(current_level.get("id", "creative-draft")))
+	creative_playtest = {"started_at": Time.get_datetime_string_from_system(true), "events": [], "path": [], "checkpoints": [], "max_speed": 0.0, "resets": 0}
+	creative_sample_timer = 0.0
+	player.reset_for_bail(player_spawn)
+	player.movement_enabled = true
+	hud.visible = true
+	debug_panel.visible = debug_visible
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	last_sandbox_event = "CREATIVE PLAYTEST"
+	_refresh_hud()
+
+func _return_to_creative_editor() -> void:
+	if not creative_session or player == null:
+		return
+	_finalize_creative_playtest()
+	RunData.running = false
+	player.movement_enabled = false
+	hud.visible = false
+	debug_panel.visible = false
+	creative_editor.open()
+
+func _record_creative_sample(delta: float) -> void:
+	if not creative_session or creative_playtest.is_empty() or player == null:
+		return
+	var speed := Vector2(player.velocity.x, player.velocity.z).length()
+	creative_playtest["max_speed"] = maxf(float(creative_playtest.get("max_speed", 0.0)), speed)
+	creative_sample_timer -= delta
+	if creative_sample_timer > 0.0:
+		return
+	creative_sample_timer = 0.25
+	var path: Array = creative_playtest.get("path", [])
+	path.append([player.global_position.x, player.global_position.y, player.global_position.z, RunData.elapsed])
+	creative_playtest["path"] = path
+
+func _record_creative_event(kind: String, detail := "") -> void:
+	if not creative_session or creative_playtest.is_empty():
+		return
+	var events: Array = creative_playtest.get("events", [])
+	events.append({"time": RunData.elapsed, "kind": kind, "detail": detail})
+	creative_playtest["events"] = events
+
+func _finalize_creative_playtest() -> void:
+	if creative_playtest.is_empty() or creative_document == null:
+		return
+	creative_playtest["elapsed"] = RunData.elapsed
+	creative_playtest["style"] = RunData.style_snapshot()
+	creative_playtest["collected"] = RunData.collected
+	var saved: Dictionary = creative_document.save_playtest_report(creative_playtest)
+	if bool(saved.get("ok", false)):
+		creative_editor.set_playtest_reports(creative_document.playtest_reports())
+	creative_playtest.clear()
+
+func _recount_creative_content() -> void:
+	if not creative_session or creative_geometry_root == null:
+		return
+	trigger_count = creative_geometry_root.find_children("*", "CourseTrigger", true, false).size()
+	grapple_anchor_count = creative_geometry_root.get_tree().get_nodes_in_group("grapple_anchor").filter(func(node): return creative_geometry_root.is_ancestor_of(node)).size()
+
+func _exit_creative_mode() -> void:
+	creative_session = false
+	RunData.running = false
+	if player:
+		player.movement_enabled = false
+	show_title()
+
 func _build_course(level: Dictionary) -> void:
 	if course:
 		course.queue_free()
+	if level.has("document_path"):
+		_load_document_level(level)
+		return
 	if not geometry_export_mode:
 		_load_baked_sandbox(level)
 		return
@@ -371,6 +556,37 @@ func _build_course(level: Dictionary) -> void:
 	course.add_child(player)
 	_build_open_terrain(world_length, world_width, str(level.terrain_style))
 	_build_sandbox(palette)
+
+func _load_document_level(level: Dictionary) -> void:
+	var document: Variant = LEVEL_DOCUMENT.load_from_path(str(level.get("document_path", "")))
+	course = Node3D.new()
+	course.name = "Course"
+	course.set_meta("layout_id", str(document.data.get("id", level.get("id", "creative-level"))))
+	course.set_meta("focus", str(document.data.get("focus", level.get("focus", "full style kit"))))
+	add_child(course)
+	total_collectibles_in_level = 0
+	traversal_ramp_count = 0
+	climbable_trunk_count = 0
+	grapple_anchor_count = 0
+	combo_gap_count = 0
+	recharge_gate_count = 0
+	trigger_count = 0
+	sandbox_stations.clear()
+	current_station = "Creative"
+	last_sandbox_event = "PUBLISHED LEVEL"
+	_add_creative_lighting()
+	var geometry := Node3D.new()
+	geometry.name = "LevelGeometry"
+	course.add_child(geometry)
+	LEVEL_BUILDER.build(self, document, geometry)
+	var spawn: Variant = LEVEL_DOCUMENT.vector_from(document.data.get("spawn", [0.0, 1.1, 3.0]))
+	player_spawn = spawn if spawn != null else Vector3(0.0, 1.1, 3.0)
+	player = SpeedPlayer.new()
+	player.position = player_spawn
+	player.reset_requested.connect(_bail_to_start)
+	player.traversal_action.connect(_on_traversal_action)
+	player.combo_landed.connect(_on_combo_landed)
+	course.add_child(player)
 
 func _load_baked_sandbox(level: Dictionary) -> void:
 	course = SANDBOX_GEOMETRY.instantiate()
@@ -826,6 +1042,31 @@ func _make_reset_pad(position: Vector3, spawn: Vector3, station: String, restart
 	pad.add_child(label)
 	return pad
 
+func _make_checkpoint(position: Vector3, checkpoint_id: String) -> CourseTrigger:
+	var checkpoint := _trigger(CourseTrigger.TriggerType.CHECKPOINT, Vector3(2.8, 3.0, 1.4), {"id": checkpoint_id})
+	checkpoint.name = "Checkpoint_" + checkpoint_id
+	checkpoint.position = position
+	checkpoint.set_meta("checkpoint_id", checkpoint_id)
+	var ring := MeshInstance3D.new()
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.78
+	ring_mesh.outer_radius = 0.96
+	ring.mesh = ring_mesh
+	ring.rotation.x = deg_to_rad(90.0)
+	ring.material_override = _material(Color("#d1a4ff"), true)
+	checkpoint.add_child(ring)
+	var label := Label3D.new()
+	label.text = "CHECKPOINT"
+	label.font = ui_theme.default_font
+	label.font_size = 20
+	label.outline_size = 3
+	label.modulate = Color("#ecdfff")
+	label.position = Vector3(0.0, 1.3, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.008
+	checkpoint.add_child(label)
+	return checkpoint
+
 func _trigger(type: CourseTrigger.TriggerType, size: Vector3, payload: Variant) -> CourseTrigger:
 	trigger_count += 1
 	var trigger := CourseTrigger.new()
@@ -873,9 +1114,20 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 			player.recharge_air_tool(str(recharge.get("tool", "dash")))
 			Audio.play_sfx("pickup")
 			last_sandbox_event = "REFILL " + str(recharge.get("tool", "dash")).to_upper()
+		CourseTrigger.TriggerType.CHECKPOINT:
+			var checkpoint: Dictionary = payload if payload is Dictionary else {}
+			var checkpoint_id := str(checkpoint.get("id", "checkpoint"))
+			if creative_session:
+				var reached: Array = creative_playtest.get("checkpoints", [])
+				if not reached.has(checkpoint_id): reached.append(checkpoint_id)
+				creative_playtest["checkpoints"] = reached
+				_record_creative_event("checkpoint", checkpoint_id)
+			last_sandbox_event = "CHECKPOINT " + checkpoint_id.to_upper()
+	_record_creative_event("trigger", str(type))
 
 func _on_traversal_action(action: String, override_points: int) -> void:
 	last_sandbox_event = action.replace("_", " ").to_upper()
+	_record_creative_event("traversal", action)
 	_present_style_result(RunData.add_style_action(action, override_points))
 
 func _on_combo_landed() -> void:
@@ -889,6 +1141,9 @@ func _reset_to_station(reset: Dictionary) -> void:
 		return
 	player.reset_for_bail(spawn)
 	current_station = str(reset.get("station", current_station))
+	if creative_session and not creative_playtest.is_empty():
+		creative_playtest["resets"] = int(creative_playtest.get("resets", 0)) + 1
+		_record_creative_event("reset", current_station)
 	last_sandbox_event = "RESET " + current_station.to_upper()
 
 func _refresh_sandbox_context() -> void:
@@ -1252,6 +1507,13 @@ func show_pause() -> void:
 	var resume := _button("Resume", 19)
 	resume.pressed.connect(resume_run)
 	box.add_child(resume)
+	if creative_session:
+		var creative := _button("Return to creative", 19)
+		creative.pressed.connect(func():
+			get_tree().paused = false
+			_return_to_creative_editor()
+		)
+		box.add_child(creative)
 	var restart := _button("Reset session", 19)
 	restart.pressed.connect(func():
 		get_tree().paused = false

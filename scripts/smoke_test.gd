@@ -1,5 +1,7 @@
 extends SceneTree
 
+const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
+
 func _initialize() -> void:
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	var main := scene.instantiate()
@@ -248,6 +250,61 @@ func _initialize() -> void:
 	Input.action_release("glide")
 	sandbox_player._update_glide_state(false)
 	assert(not sandbox_player.is_gliding, "glide did not release")
+	var level_document_script := load("res://scripts/level_document.gd")
+	var level_document: Variant = level_document_script.create_blank("smoke-creative-" + str(OS.get_process_id()) + "-" + str(Time.get_ticks_msec()), "Smoke Creative")
+	var module_result: Dictionary = level_document.apply_transaction({"action": "add_module", "module": {"id": "smoke-platform", "kind": "platform", "position": [0.0, 0.0, 0.0], "size": [6.0, 0.8, 6.0]}})
+	assert(bool(module_result.get("ok", false)), "creative module transaction failed")
+	assert(level_document.validation_report().get("errors", []).is_empty(), "creative document validation failed")
+	assert(bool(level_document.undo().get("ok", false)), "creative undo failed")
+	assert(bool(level_document.redo().get("ok", false)), "creative redo failed")
+	var authored_document: Variant = level_document_script.load_from_path("res://levels/sandbox.level.json")
+	assert(authored_document.validation_report().get("errors", []).is_empty(), "sandbox level document validation failed")
+	main.creative_document = authored_document
+	main._open_creative_mode()
+	await process_frame
+	assert(main.creative_editor.is_open(), "creative editor did not open")
+	var built_module := false
+	for node in main.creative_geometry_root.find_children("*", "Node3D", true, false):
+		if str(node.get_meta("level_module_id", "")) == "aerial-anchor":
+			built_module = true
+	assert(built_module, "creative builder did not instantiate module")
+	main._playtest_creative_draft()
+	assert(main.player.movement_enabled and runs.running, "creative playtest did not start")
+	main._return_to_creative_editor()
+	assert(main.creative_editor.is_open() and not runs.running, "creative editor did not resume after playtest")
+	var fixture_file := FileAccess.open("res://levels/validation-fixtures.v1.json", FileAccess.READ)
+	var fixtures: Dictionary = JSON.parse_string(fixture_file.get_as_text())
+	for fixture in fixtures.get("cases", []):
+		var fixture_document: Variant = level_document_script.from_data(fixture.get("document", {}))
+		var fixture_report: Dictionary = fixture_document.validation_report()
+		assert(fixture_report.get("error_codes", []) == fixture.get("error_codes", []), "shared validation error fixture drift: " + str(fixture.get("id", "")))
+		assert(fixture_report.get("warning_codes", []) == fixture.get("warning_codes", []), "shared validation warning fixture drift: " + str(fixture.get("id", "")))
+	var smoke_id := str(OS.get_process_id()) + "-" + str(Time.get_ticks_msec())
+	var durable_document: Variant = level_document_script.create_blank("smoke-durable-" + smoke_id, "Smoke Durable")
+	var durable_first: Dictionary = durable_document.apply_transaction({"action": "add_module", "expected_revision": 0, "module": {"id": "durable-reset", "kind": "reset", "position": [0.0, 0.0, 0.0], "spawn": [0.0, 1.0, 0.0]}})
+	assert(bool(durable_first.get("ok", false)) and int(durable_first.get("revision", -1)) == 1, "durable revision commit failed")
+	var stale: Dictionary = durable_document.apply_transaction({"action": "add_module", "expected_revision": 0, "module": {"id": "stale", "kind": "platform", "position": [2.0, 0.0, 0.0]}})
+	assert(bool(stale.get("conflict", false)), "stale creative edit was not rejected")
+	assert(not durable_document.revision_diff(1).is_empty(), "durable revision diff missing")
+	var rolled_back: Dictionary = durable_document.rollback_to_revision(0, 1)
+	assert(bool(rolled_back.get("ok", false)) and int(rolled_back.get("revision", -1)) == 2, "durable rollback did not create a new revision")
+	var checkpoint_document: Variant = level_document_script.create_blank("smoke-checkpoint-" + smoke_id, "Smoke Checkpoint")
+	checkpoint_document.apply_transaction({"action": "add_module", "expected_revision": 0, "module": {"id": "checkpoint", "kind": "checkpoint", "position": [0.0, 1.0, -3.0]}})
+	var checkpoint_target := Node3D.new()
+	main.add_child(checkpoint_target)
+	var checkpoint_index: Dictionary = LEVEL_BUILDER.build_index(main, checkpoint_document, checkpoint_target)
+	assert(checkpoint_index.get("modules", {}).has("checkpoint"), "checkpoint module did not build")
+	var checkpoint_report: Dictionary = checkpoint_document.save_playtest_report({"elapsed": 2.0, "max_speed": 15.0, "checkpoints": ["checkpoint"], "events": [], "path": []})
+	assert(bool(checkpoint_report.get("ok", false)), "playtest report did not persist")
+	var approved: Dictionary = checkpoint_document.approve_with_evidence(checkpoint_report.get("report", {}))
+	assert(bool(approved.get("ok", false)) and str(checkpoint_document.data.get("status", "")) == "approved", "manual evidence approval failed")
+	var incremental_document: Variant = level_document_script.create_blank("smoke-incremental-" + smoke_id, "Smoke Incremental")
+	var incremental_target := Node3D.new()
+	main.add_child(incremental_target)
+	var incremental_index: Dictionary = LEVEL_BUILDER.build_index(main, incremental_document, incremental_target)
+	var incremental_add: Dictionary = incremental_document.apply_transaction({"action": "add_module", "expected_revision": 0, "module": {"id": "incremental-platform", "kind": "platform", "position": [3.0, 0.0, 0.0], "size": [3.0, 0.8, 3.0]}})
+	incremental_index = LEVEL_BUILDER.apply_changes(main, incremental_document, incremental_target, incremental_index, incremental_add.get("changed_module_ids", []))
+	assert(incremental_index.get("modules", {}).has("incremental-platform"), "incremental module update failed")
 
 	main.queue_free()
 	await process_frame
