@@ -744,12 +744,12 @@ Check:
 
 ## wukong-102: Fuzz archive extraction
 
-- [ ] Malformed ZIP structures.
-- [ ] Path traversal.
-- [ ] Duplicate paths.
-- [ ] Unicode paths.
-- [ ] Compression bombs within bounded harness limits.
-- [ ] Symlink and special-file entries.
+- [x] Malformed ZIP structures.
+- [x] Path traversal.
+- [x] Duplicate paths.
+- [x] Unicode paths.
+- [x] Compression bombs within bounded harness limits.
+- [x] Symlink and special-file entries.
 
 ## wukong-103: Harden credential handling
 

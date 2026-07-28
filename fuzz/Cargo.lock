@@ -1117,7 +1117,9 @@ name = "wukong-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "tempfile",
  "wukong-core",
+ "zip",
 ]
 
 [[package]]

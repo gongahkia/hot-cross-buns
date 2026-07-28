@@ -11,7 +11,16 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4.12"
+tempfile = "3.27.0"
 wukong-core = { path = "../crates/wukong-core" }
+zip = { version = "7.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[[bin]]
+name = "archive"
+path = "fuzz_targets/archive.rs"
+test = false
+doc = false
+bench = false
 
 [workspace]
 members = ["."]

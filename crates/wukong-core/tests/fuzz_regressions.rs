@@ -2,7 +2,12 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wukong_core::{lockfile::Lockfile, manifest::Manifest};
+use tempfile::TempDir;
+use wukong_core::{
+    archive::{ExtractionLimits, extract_zip},
+    lockfile::Lockfile,
+    manifest::Manifest,
+};
 
 #[test]
 fn invariant_manifest_fuzz_regression_corpus_never_panics() {
@@ -21,6 +26,23 @@ fn invariant_lockfile_fuzz_regression_corpus_never_panics() {
         if let Ok(input) = std::str::from_utf8(&input) {
             let _ = Lockfile::parse(Path::new("wukong.lock"), input);
         }
+    }
+}
+
+#[test]
+fn invariant_archive_fuzz_regression_corpus_never_panics() {
+    for path in corpus("archive") {
+        let fixture = TempDir::new().expect("fixture should create");
+        let archive = fixture.path().join("input.zip");
+        let staging = fixture.path().join("staging");
+        fs::copy(&path, &archive).expect("archive corpus input should copy");
+        fs::create_dir(&staging).expect("staging directory should create");
+
+        let _ = extract_zip(
+            &archive,
+            &staging,
+            ExtractionLimits::tightened(32, 16 * 1024, 8),
+        );
     }
 }
 
