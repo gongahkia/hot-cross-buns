@@ -10,6 +10,7 @@ Current records:
 - [0004: package identity](0004-package-identity.md)
 - [0005: source-adapter contract](0005-source-adapter-contract.md)
 - [0006: local-path snapshot](0006-local-path-snapshot.md)
+- [0007: ZIP extraction security](0007-zip-extraction-security.md)
 
 ## When to write an ADR
 
