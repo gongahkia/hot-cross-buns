@@ -24,3 +24,5 @@ verification, advisory operation locks, credential rejection/redaction, and no
 package script execution. Wukong has no telemetry or crash-report upload path.
 These controls are covered by local tests but are not security guarantees. See
 the [threat model](docs/threat-model.md) for assumptions and residual risk.
+The latest internal review is recorded in
+[docs/security-review-2026-07.md](docs/security-review-2026-07.md).

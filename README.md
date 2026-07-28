@@ -39,6 +39,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Architecture](docs/architecture.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Threat model](docs/threat-model.md)
+- [Internal security review](docs/security-review-2026-07.md)
 - [Fuzzing](docs/fuzzing.md)
 - [Benchmark methodology](docs/benchmarks.md)
 - [Diagnostics](docs/diagnostics.md)

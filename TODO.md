@@ -769,11 +769,11 @@ Check:
 
 ## wukong-105: Commission or perform a security review before `1.0`
 
-- [ ] Review archive handling.
-- [ ] Review filesystem transactions.
-- [ ] Review cache race conditions.
-- [ ] Review credential handling.
-- [ ] Review update and rollback paths.
+- [x] Review archive handling.
+- [x] Review filesystem transactions.
+- [x] Review cache race conditions.
+- [x] Review credential handling.
+- [x] Review update and rollback paths.
 
 ---
 

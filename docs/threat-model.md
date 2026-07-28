@@ -78,9 +78,11 @@ residual risks; it is not a security guarantee or a substitute for a review.
   repositories and permitted source trees can still consume disk, CPU, or time.
 - Cross-platform filesystem behavior is tested on native macOS and a Windows
   compile target in this environment; Linux execution remains unverified here.
-- An independent security review and release artifact signing remain outstanding
-  roadmap work. Parser and archive fuzzing are bounded and scheduled; they do
-  not establish parser or extractor correctness.
+- An internal static review is recorded in
+  [security-review-2026-07.md](security-review-2026-07.md). No independent
+  external review is recorded in this repository, and release artifact signing
+  remains outstanding. Parser and archive fuzzing are bounded and scheduled;
+  they do not establish parser or extractor correctness.
 
 ## Security response
 

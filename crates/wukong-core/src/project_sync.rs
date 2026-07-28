@@ -257,14 +257,14 @@ fn commit(project_root: &Path, staging: &Path, plan: &SyncPlan) -> Result<(), Bo
             move_to_rollback(project_root, &rollback, path)?;
         }
     }
-    for path in plan.writes.keys() {
+    for (path, file) in &plan.writes {
         let destination = project_root.join(path);
         let parent = destination
             .parent()
             .ok_or_else(|| internal("destination has no parent", "invalid path"))?;
         fs::create_dir_all(parent)
             .map_err(|error| internal("could not create project directory", error))?;
-        journal.record_written(path)?;
+        journal.record_written(path, file.sha256())?;
         fs::rename(staging.join("files").join(path), &destination)
             .map_err(|error| internal("could not publish staged project file", error))?;
     }
@@ -275,7 +275,9 @@ fn commit(project_root: &Path, staging: &Path, plan: &SyncPlan) -> Result<(), Bo
         journal.record_moved(&state)?;
         move_to_rollback(project_root, &rollback, &state)?;
     }
-    journal.record_written(&state)?;
+    let state_sha256 = file_hash(&staging.join(STATE_FILE_NAME))
+        .map_err(|error| internal("could not hash staged installed state", error))?;
+    journal.record_written(&state, &state_sha256)?;
     fs::rename(staging.join(STATE_FILE_NAME), state_path(project_root))
         .map_err(|error| internal("could not publish installed state", error))?;
     journal.complete()?;
@@ -320,11 +322,8 @@ fn recover_transaction(project_root: &Path) -> Result<(), Box<Diagnostic>> {
             .map_err(|error| internal("could not clean completed transaction", error))?;
         return Ok(());
     }
-    for path in journal.written.iter().rev() {
-        let destination = project_root.join(path);
-        if fs::symlink_metadata(&destination).is_ok() {
-            remove_path(&destination)?;
-        }
+    for written in journal.written.iter().rev() {
+        remove_written_output(project_root, written)?;
     }
     for path in journal.moved.iter().rev() {
         let source = transaction.join("rollback").join(path);
@@ -342,29 +341,70 @@ fn recover_transaction(project_root: &Path) -> Result<(), Box<Diagnostic>> {
         .map_err(|error| internal("could not clean recovered transaction", error))
 }
 
-fn remove_path(path: &Path) -> Result<(), Box<Diagnostic>> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| internal("could not inspect transaction file", error))?;
-    let result = if metadata.file_type().is_dir() {
-        fs::remove_dir_all(path)
-    } else {
-        fs::remove_file(path)
+fn remove_written_output(
+    project_root: &Path,
+    written: &WrittenPath,
+) -> Result<(), Box<Diagnostic>> {
+    let destination = project_root.join(&written.path);
+    let metadata = match fs::symlink_metadata(&destination) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(internal("could not inspect transaction file", error)),
     };
-    result.map_err(|error| internal("could not remove transaction file", error))
+    if !metadata.file_type().is_file() {
+        return Err(recovery_refusal(
+            &written.path,
+            "the transaction output is no longer a regular file",
+        ));
+    }
+    let expected = written.expected_sha256.as_deref().ok_or_else(|| {
+        recovery_refusal(
+            &written.path,
+            "the interrupted transaction uses a legacy journal without output hashes",
+        )
+    })?;
+    let current = file_hash(&destination)
+        .map_err(|error| internal("could not verify transaction output", error))?;
+    if current != expected {
+        return Err(recovery_refusal(
+            &written.path,
+            "the transaction output changed after the interrupted operation",
+        ));
+    }
+    fs::remove_file(&destination)
+        .map_err(|error| internal("could not remove verified transaction output", error))
+}
+
+fn recovery_refusal(path: &Path, reason: &str) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(
+            ErrorCode::UserInput,
+            format!("refusing transaction recovery for {}: {reason}", path.display()),
+        )
+        .with_recovery(
+            "preserve the current file, inspect .wukong/.transaction, then restore or remove it manually",
+        ),
+    )
 }
 
 #[derive(Default)]
 struct Journal {
     moved: Vec<PathBuf>,
-    written: Vec<PathBuf>,
+    written: Vec<WrittenPath>,
     complete: bool,
     path: PathBuf,
 }
+
+struct WrittenPath {
+    path: PathBuf,
+    expected_sha256: Option<String>,
+}
+
 impl Journal {
     fn create(staging: &Path) -> Result<(), Box<Diagnostic>> {
         let path = staging.join("journal");
         fs::File::create(&path)
-            .and_then(|mut file| file.write_all(b"v1\n").and_then(|()| file.sync_all()))
+            .and_then(|mut file| file.write_all(b"v2\n").and_then(|()| file.sync_all()))
             .map_err(|error| internal("could not create transaction journal", error))
     }
     fn open(staging: &Path) -> Result<Self, Box<Diagnostic>> {
@@ -377,7 +417,8 @@ impl Journal {
     }
     fn parse(input: &str) -> Result<Self, Box<Diagnostic>> {
         let mut lines = input.lines();
-        if lines.next() != Some("v1") {
+        let version = lines.next();
+        if !matches!(version, Some("v1" | "v2")) {
             return Err(Box::new(
                 Diagnostic::new(ErrorCode::InternalFailure, "transaction journal is invalid")
                     .with_recovery("restore the project from backup before retrying"),
@@ -391,7 +432,44 @@ impl Journal {
             let path = safe_journal_path(value)?;
             match kind {
                 "moved" => journal.moved.push(path),
-                "written" => journal.written.push(path),
+                "written" => {
+                    let written = match version {
+                        Some("v1") => WrittenPath {
+                            path,
+                            expected_sha256: None,
+                        },
+                        Some("v2") => {
+                            let (sha256, path) = value.split_once(' ').ok_or_else(|| {
+                                Box::new(
+                                    Diagnostic::new(
+                                        ErrorCode::InternalFailure,
+                                        "transaction journal is invalid",
+                                    )
+                                    .with_recovery(
+                                        "restore the project from backup before retrying",
+                                    ),
+                                )
+                            })?;
+                            if !valid_sha256(sha256) {
+                                return Err(Box::new(
+                                    Diagnostic::new(
+                                        ErrorCode::InternalFailure,
+                                        "transaction journal is invalid",
+                                    )
+                                    .with_recovery(
+                                        "restore the project from backup before retrying",
+                                    ),
+                                ));
+                            }
+                            WrittenPath {
+                                path: safe_journal_path(path)?,
+                                expected_sha256: Some(sha256.to_owned()),
+                            }
+                        }
+                        _ => unreachable!("transaction version was validated"),
+                    };
+                    journal.written.push(written);
+                }
                 "complete" if value.is_empty() => journal.complete = true,
                 _ => {
                     return Err(Box::new(
@@ -409,8 +487,9 @@ impl Journal {
     fn record_moved(&self, path: &Path) -> Result<(), Box<Diagnostic>> {
         self.append("moved", path)
     }
-    fn record_written(&self, path: &Path) -> Result<(), Box<Diagnostic>> {
-        self.append("written", path)
+    fn record_written(&self, path: &Path, sha256: &str) -> Result<(), Box<Diagnostic>> {
+        let path = path.to_string_lossy().replace('\\', "/");
+        self.append_line(&format!("written {sha256} {path}\n"))
     }
     fn complete(&self) -> Result<(), Box<Diagnostic>> {
         self.append("complete", Path::new(""))
@@ -422,6 +501,10 @@ impl Journal {
         } else {
             format!("{kind} {value}\n")
         };
+        self.append_line(&line)
+    }
+
+    fn append_line(&self, line: &str) -> Result<(), Box<Diagnostic>> {
         fs::OpenOptions::new()
             .append(true)
             .open(&self.path)
@@ -452,6 +535,10 @@ fn safe_journal_path(value: &str) -> Result<PathBuf, Box<Diagnostic>> {
         ));
     }
     Ok(path.to_path_buf())
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn file_hash(path: &Path) -> Result<String, std::io::Error> {
@@ -524,7 +611,9 @@ fn interrupt_if_requested(point: InterruptionPoint) -> Result<(), Box<Diagnostic
 
 #[cfg(test)]
 mod tests {
-    use super::{INTERRUPTION_POINT, InterruptionPoint, recover_transaction, sync_project};
+    use super::{
+        INTERRUPTION_POINT, InterruptionPoint, file_hash, recover_transaction, sync_project,
+    };
     use crate::{
         identity::PackageName,
         installed_state::{DependencyGroup, InstalledPackage, state_path},
@@ -536,15 +625,17 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn invariant_interrupted_transaction_recovers_the_previous_file() {
+    fn invariant_hashed_interrupted_transaction_recovers_the_previous_file() {
         let fixture = TempDir::new().expect("fixture should exist");
         let project = fixture.path().join("project");
         let transaction = project.join(".wukong/.transaction");
         write(&project.join("addons/alpha/plugin.gd"), "new");
+        let hash = file_hash(&project.join("addons/alpha/plugin.gd"))
+            .expect("transaction output should hash");
         write(&transaction.join("rollback/addons/alpha/plugin.gd"), "old");
         write(
             &transaction.join("journal"),
-            "v1\nmoved addons/alpha/plugin.gd\nwritten addons/alpha/plugin.gd\n",
+            &format!("v2\nmoved addons/alpha/plugin.gd\nwritten {hash} addons/alpha/plugin.gd\n"),
         );
 
         recover_transaction(&project).expect("recovery should work");
@@ -555,6 +646,63 @@ mod tests {
             "old"
         );
         assert!(!transaction.exists());
+    }
+
+    #[test]
+    fn invariant_recovery_preserves_a_file_changed_after_interruption() {
+        let fixture = TempDir::new().expect("fixture should exist");
+        let project = fixture.path().join("project");
+        let transaction = project.join(".wukong/.transaction");
+        write(&project.join("addons/alpha/plugin.gd"), "user edit");
+        write(&transaction.join("rollback/addons/alpha/plugin.gd"), "old");
+        let expected = "new";
+        let expected_path = fixture.path().join("expected");
+        write(&expected_path, expected);
+        let hash = file_hash(&expected_path).expect("expected content should hash");
+        write(
+            &transaction.join("journal"),
+            &format!("v2\nmoved addons/alpha/plugin.gd\nwritten {hash} addons/alpha/plugin.gd\n"),
+        );
+
+        let error = recover_transaction(&project)
+            .expect_err("recovery must not remove a concurrent user edit");
+
+        assert_eq!(error.code(), crate::diagnostic::ErrorCode::UserInput);
+        assert_eq!(
+            fs::read_to_string(project.join("addons/alpha/plugin.gd"))
+                .expect("user file should remain"),
+            "user edit"
+        );
+        assert!(transaction.exists());
+        assert_eq!(
+            fs::read_to_string(transaction.join("rollback/addons/alpha/plugin.gd"))
+                .expect("rollback file should remain"),
+            "old"
+        );
+    }
+
+    #[test]
+    fn invariant_legacy_transaction_recovery_refuses_unverified_removal() {
+        let fixture = TempDir::new().expect("fixture should exist");
+        let project = fixture.path().join("project");
+        let transaction = project.join(".wukong/.transaction");
+        write(&project.join("addons/alpha/plugin.gd"), "new");
+        write(&transaction.join("rollback/addons/alpha/plugin.gd"), "old");
+        write(
+            &transaction.join("journal"),
+            "v1\nmoved addons/alpha/plugin.gd\nwritten addons/alpha/plugin.gd\n",
+        );
+
+        let error = recover_transaction(&project)
+            .expect_err("legacy recovery must not remove an unverified file");
+
+        assert!(error.message().contains("legacy journal"));
+        assert_eq!(
+            fs::read_to_string(project.join("addons/alpha/plugin.gd"))
+                .expect("current file should remain"),
+            "new"
+        );
+        assert!(transaction.exists());
     }
 
     #[test]
