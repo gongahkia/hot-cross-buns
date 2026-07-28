@@ -60,6 +60,16 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     let command = arguments.next();
     let arguments = arguments.collect::<Vec<_>>();
     JSON_MODE.with(|mode| mode.set(arguments.iter().any(|argument| argument == "--json")));
+    if matches!(command.as_deref(), Some(command) if command == "--version" || command == "-V") {
+        if !arguments.is_empty() {
+            return render_error(&user_error(
+                "--version does not accept arguments",
+                "run wukong --version without additional arguments",
+            ));
+        }
+        println!("wukong {}", env!("CARGO_PKG_VERSION"));
+        return ProcessExit::Success;
+    }
     let arguments = arguments.into_iter();
     if command.is_none()
         || matches!(command.as_deref(), Some(command) if command == "--help" || command == "-h")
@@ -2792,7 +2802,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

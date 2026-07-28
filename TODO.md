@@ -898,14 +898,14 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-140: Prepare installation channels
 
-- [ ] GitHub release binaries.
-- [ ] macOS universal or architecture-specific binaries.
-- [ ] Linux binaries.
-- [ ] Windows binaries.
-- [ ] Homebrew formula.
-- [ ] Scoop manifest.
-- [ ] Cargo installation where appropriate.
-- [ ] Artifact checksums.
+- [x] GitHub release binaries.
+- [x] macOS universal or architecture-specific binaries.
+- [x] Linux binaries.
+- [x] Windows binaries.
+- [x] Homebrew formula.
+- [x] Scoop manifest.
+- [x] Cargo installation where appropriate.
+- [x] Artifact checksums.
 
 ## wukong-141: Complete user documentation
 

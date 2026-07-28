@@ -43,6 +43,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Internal security review](docs/security-review-2026-07.md)
 - [Fuzzing](docs/fuzzing.md)
 - [Benchmark methodology](docs/benchmarks.md)
+- [Installation](docs/installation.md)
 - [Official Asset Library research](docs/asset-library-research.md)
 - [Official AssetLib adapter](docs/asset-library.md)
 - [Diagnostics](docs/diagnostics.md)

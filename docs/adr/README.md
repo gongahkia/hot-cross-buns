@@ -40,6 +40,7 @@ Current records:
 - [0034: official Asset Library boundary](0034-official-asset-library-boundary.md)
 - [0035: JSON metadata decoding](0035-json-metadata-decoding.md)
 - [0036: CLI machine protocol](0036-cli-machine-protocol.md)
+- [0037: release artifact layout](0037-release-artifact-layout.md)
 
 ## When to write an ADR
 

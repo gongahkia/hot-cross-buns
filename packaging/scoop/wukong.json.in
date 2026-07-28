@@ -1,0 +1,13 @@
+{
+  "version": "@VERSION@",
+  "description": "Reproducible package manager for Godot 4 addons",
+  "homepage": "https://github.com/gongahkia/wukong",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/gongahkia/wukong/releases/download/v@VERSION@/wukong-@VERSION@-x86_64-pc-windows-gnu.zip",
+      "hash": "@WINDOWS_SHA256@"
+    }
+  },
+  "bin": "wukong.exe"
+}
