@@ -339,14 +339,14 @@ Completed with five public addons before implementing resolution.
 
 ## wukong-040: Define the lockfile schema
 
-- [ ] Select TOML or another reviewable deterministic format.
-- [ ] Add lockfile schema version.
-- [ ] Record exact source identities.
-- [ ] Record checksums.
-- [ ] Record dependencies.
-- [ ] Record package layout.
-- [ ] Record Godot compatibility.
-- [ ] Avoid timestamps.
+- [x] Select TOML or another reviewable deterministic format.
+- [x] Add lockfile schema version.
+- [x] Record exact source identities.
+- [x] Record checksums.
+- [x] Record dependencies.
+- [x] Record package layout.
+- [x] Record Godot compatibility.
+- [x] Avoid timestamps.
 
 ## wukong-041: Implement deterministic lockfile serialisation
 
