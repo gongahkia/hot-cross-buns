@@ -29,6 +29,7 @@ Current records:
 - [0023: source-adapter cancellation](0023-source-adapter-cancellation.md)
 - [0024: lockfile schema two remote sources](0024-lockfile-schema-two-remote-sources.md)
 - [0025: dependency resolver strategy](0025-dependency-resolver-strategy.md)
+- [0026: Git version discovery](0026-git-version-discovery.md)
 
 ## When to write an ADR
 

@@ -26,6 +26,13 @@ a canonical source identity and immutable commit. Selector-to-commit metadata
 uses hashed names below `metadata/git/sha256`; Git source URLs and credentials
 are never persisted. See [Git fetching](git-fetching.md).
 
+Git version discovery caches only a fixed schema header plus sorted
+`version -> commit` rows below `metadata/git-versions/sha256/<digest>`. The
+digest includes the canonical source and configured tag prefix. Online
+discovery refreshes this metadata; offline discovery rejects missing or invalid
+metadata rather than selecting an unverified version. See
+[ADR 0026](adr/0026-git-version-discovery.md).
+
 HTTP archives use `downloads/sha256/<checksum>`, keyed solely by their declared
 lowercase SHA-256. The source URL, redirect destinations, timestamps, and
 credentials are never persisted. Every cache reuse re-hashes the archive before

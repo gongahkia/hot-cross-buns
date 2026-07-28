@@ -16,10 +16,18 @@ explicit lowercase SHA-256, then publishes verified immutable downloads and
 direct locking records the verified archive source. Resolution and fetching
 accept a source-neutral cancellation token;
 adapters clean any adapter-owned staging state before returning cancellation.
+
+Git version discovery is available through its Git-specific core boundary: it
+returns sorted SemVer versions mapped to complete commits and accepts an exact
+tag-prefix configuration. Local paths and checksummed HTTP archives report no
+version catalogue, so they require an immutable source declaration or package
+metadata rather than a version-only declaration. The generic resolver provider
+is added in W063.
 See
 [ADR 0005](adr/0005-source-adapter-contract.md) and
 [ADR 0020](adr/0020-git-source-canonicalisation.md), plus
 [ADR 0021](adr/0021-system-git-fetching.md) and
 [ADR 0022](adr/0022-http-archive-transport.md), plus
 [ADR 0023](adr/0023-source-adapter-cancellation.md) and
-[ADR 0024](adr/0024-lockfile-schema-two-remote-sources.md).
+[ADR 0024](adr/0024-lockfile-schema-two-remote-sources.md), plus
+[ADR 0026](adr/0026-git-version-discovery.md).

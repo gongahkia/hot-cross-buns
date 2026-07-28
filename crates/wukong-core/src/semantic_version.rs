@@ -31,6 +31,16 @@ impl SemanticVersion {
     pub fn is_prerelease(&self) -> bool {
         !self.0.pre.is_empty()
     }
+
+    /// Returns this version with build metadata removed.
+    ///
+    /// Build metadata does not affect `SemVer` precedence or resolution identity.
+    #[must_use]
+    pub fn without_build_metadata(&self) -> Self {
+        let mut version = self.0.clone();
+        version.build = semver::BuildMetadata::EMPTY;
+        Self(version)
+    }
 }
 
 impl Display for SemanticVersion {

@@ -506,16 +506,16 @@ Document deviations from conventional SemVer.
 
 For Git sources:
 
-- [ ] Enumerate version-like tags.
-- [ ] Apply configurable tag-prefix handling.
-- [ ] Map tags to immutable commits.
-- [ ] Reject duplicate semantic versions mapping ambiguously.
-- [ ] Cache metadata safely.
+- [x] Enumerate version-like tags.
+- [x] Apply configurable tag-prefix handling.
+- [x] Map tags to immutable commits.
+- [x] Reject duplicate semantic versions mapping ambiguously.
+- [x] Cache metadata safely.
 
 For other sources:
 
-- [ ] Define whether version discovery is possible.
-- [ ] Require exact versions or metadata where it is not.
+- [x] Define whether version discovery is possible.
+- [x] Require exact versions or metadata where it is not.
 
 ## wukong-063: Resolve transitive dependencies
 

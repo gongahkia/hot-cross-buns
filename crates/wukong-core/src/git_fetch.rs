@@ -6,11 +6,13 @@ use crate::{
     git_source::{GitSourceRequest, canonicalize_git_source},
     identity::GitSourceIdentity,
     manifest::GitReference,
+    semantic_version::SemanticVersion,
     source::{ImmutableSourceId, ResolvedSource, SourceResult},
 };
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeMap,
     fs,
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
@@ -48,6 +50,67 @@ impl ResolvedSource for GitResolution {
 pub struct GitCheckout {
     root: PathBuf,
     resolution: GitResolution,
+}
+
+/// A validated prefix stripped from Git tags before semantic-version parsing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitTagPrefix(String);
+
+impl GitTagPrefix {
+    /// Validates a non-empty Git tag prefix.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GitTagPrefixError`] when the prefix cannot begin a safe Git tag.
+    pub fn parse(value: impl Into<String>) -> Result<Self, GitTagPrefixError> {
+        let value = value.into();
+        if value.is_empty()
+            || GitReference::Tag(format!("{value}0.0.0"))
+                .validate()
+                .is_err()
+        {
+            return Err(GitTagPrefixError);
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the configured tag prefix.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// An invalid Git tag prefix.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GitTagPrefixError;
+
+impl std::fmt::Display for GitTagPrefixError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Git tag prefix must be non-empty and form a safe Git tag prefix")
+    }
+}
+
+impl std::error::Error for GitTagPrefixError {}
+
+/// Deterministic semantic versions discovered from one Git repository.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitVersionCatalog {
+    versions: BTreeMap<SemanticVersion, String>,
+}
+
+impl GitVersionCatalog {
+    /// Returns version-to-immutable-commit mappings in version order.
+    #[must_use]
+    pub const fn versions(&self) -> &BTreeMap<SemanticVersion, String> {
+        &self.versions
+    }
+
+    /// Returns the immutable commit selected for `version`.
+    #[must_use]
+    pub fn commit(&self, version: &SemanticVersion) -> Option<&str> {
+        self.versions.get(version).map(String::as_str)
+    }
 }
 impl GitCheckout {
     /// Returns the checkout root.
@@ -89,6 +152,39 @@ impl GitFetcher {
     pub fn fetch(&self, request: &GitSourceRequest, offline: bool) -> SourceResult<GitCheckout> {
         let source = canonicalize_git_source(request)?;
         self.fetch_remote(&source, request.reference(), source.as_str(), offline)
+    }
+
+    /// Discovers semantic-version Git tags and their immutable commits.
+    ///
+    /// A configured prefix is stripped exactly before parsing a tag as `SemVer`.
+    /// Online discovery always refreshes metadata; offline discovery accepts only
+    /// a verified cached catalog for the same canonical source and prefix.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when Git cannot enumerate or peel tags, a version
+    /// maps to conflicting commits, or offline metadata is unavailable or invalid.
+    pub fn discover_versions(
+        &self,
+        request: &GitSourceRequest,
+        tag_prefix: Option<&GitTagPrefix>,
+        offline: bool,
+    ) -> SourceResult<GitVersionCatalog> {
+        let source = canonicalize_git_source(request)?;
+        let _lock = CacheLock::acquire(&self.lock_path(&source))?;
+        if offline {
+            return self.cached_versions(&source, tag_prefix)?.ok_or_else(|| {
+                source_error(
+                    source.as_str(),
+                    "Git version metadata is unavailable in the local cache",
+                    "run without --offline to discover version tags",
+                )
+            });
+        }
+
+        let catalog = self.discover_remote_versions(&source, source.as_str(), tag_prefix)?;
+        self.write_cached_versions(&source, tag_prefix, &catalog)?;
+        Ok(catalog)
     }
 
     fn fetch_remote(
@@ -165,6 +261,89 @@ impl GitFetcher {
         let published = self.publish_checkout(&checkout, &final_path, &resolution)?;
         self.write_cached_commit(source, &selector, resolution.commit())?;
         Ok(published)
+    }
+
+    fn discover_remote_versions(
+        &self,
+        source: &GitSourceIdentity,
+        remote: &str,
+        tag_prefix: Option<&GitTagPrefix>,
+    ) -> SourceResult<GitVersionCatalog> {
+        let parent = self.checkout_parent();
+        fs::create_dir_all(&parent)
+            .map_err(|error| internal("could not create Git cache directory", error))?;
+        let prefix = version_staging_prefix(source);
+        clean_abandoned_staging(&parent, &prefix)?;
+        let staging = Builder::new()
+            .prefix(&prefix)
+            .tempdir_in(&parent)
+            .map_err(|error| internal("could not create Git version staging directory", error))?;
+        let repository = staging.path().join("repository.git");
+        self.run(
+            &[
+                "init",
+                "--bare",
+                "--quiet",
+                repository.to_string_lossy().as_ref(),
+            ],
+            source,
+        )?;
+        self.run_in(
+            &repository,
+            [
+                "-c",
+                "fetch.recurseSubmodules=false",
+                "-c",
+                "submodule.recurse=false",
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                remote,
+                "+refs/tags/*:refs/tags/*",
+            ],
+            source,
+        )?;
+        let mut tags = self
+            .output_in(&repository, ["tag", "--list"], source)?
+            .lines()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        tags.sort_unstable();
+        let mut versions = BTreeMap::new();
+        for tag in tags {
+            let Some(version) = version_from_tag(&tag, tag_prefix) else {
+                continue;
+            };
+            GitReference::Tag(tag.clone()).validate().map_err(|_| {
+                source_error(
+                    source.as_str(),
+                    "Git returned an unsafe version tag",
+                    "remove the unsafe tag from the repository and retry",
+                )
+            })?;
+            let reference = format!("refs/tags/{tag}^{{commit}}");
+            let commit = self
+                .output_in(&repository, ["rev-parse", "--verify", &reference], source)
+                .map_err(|_| {
+                    source_error(
+                        source.as_str(),
+                        "a semantic-version Git tag does not resolve to a commit",
+                        "retag the version at a commit and retry",
+                    )
+                })?;
+            let commit = commit.trim();
+            GitReference::Rev(commit.to_owned())
+                .validate()
+                .map_err(|_| {
+                    source_error(
+                        source.as_str(),
+                        "Git version tag did not resolve to a complete commit",
+                        "retag the version at a complete commit and retry",
+                    )
+                })?;
+            insert_version(&mut versions, version, commit, source)?;
+        }
+        Ok(GitVersionCatalog { versions })
     }
 
     fn publish_checkout(
@@ -268,6 +447,91 @@ impl GitFetcher {
             .map_err(|error| internal("could not publish Git cache metadata", error))
     }
 
+    fn cached_versions(
+        &self,
+        source: &GitSourceIdentity,
+        tag_prefix: Option<&GitTagPrefix>,
+    ) -> SourceResult<Option<GitVersionCatalog>> {
+        let path = self.version_catalog_path(source, tag_prefix);
+        let input = match fs::read_to_string(&path) {
+            Ok(input) => input,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(internal("could not read Git version cache metadata", error)),
+        };
+        let input = input
+            .strip_suffix('\n')
+            .ok_or_else(|| metadata_error(source, "Git version cache metadata is invalid"))?;
+        let mut lines = input.lines();
+        if lines.next() != Some("wukong-git-versions-v1") {
+            return Err(metadata_error(
+                source,
+                "Git version cache metadata has an unsupported schema",
+            ));
+        }
+        let mut versions = BTreeMap::new();
+        for line in lines {
+            let (version, commit) = line
+                .split_once(' ')
+                .ok_or_else(|| metadata_error(source, "Git version cache metadata is invalid"))?;
+            if version.is_empty() || commit.is_empty() || commit.contains(' ') {
+                return Err(metadata_error(
+                    source,
+                    "Git version cache metadata is invalid",
+                ));
+            }
+            let version = SemanticVersion::parse(version)
+                .map_err(|_| metadata_error(source, "Git version cache metadata is invalid"))?
+                .without_build_metadata();
+            GitReference::Rev(commit.to_owned())
+                .validate()
+                .map_err(|_| metadata_error(source, "Git version cache metadata is invalid"))?;
+            if versions.insert(version, commit.to_owned()).is_some() {
+                return Err(metadata_error(
+                    source,
+                    "Git version cache metadata is ambiguous",
+                ));
+            }
+        }
+        Ok(Some(GitVersionCatalog { versions }))
+    }
+
+    fn write_cached_versions(
+        &self,
+        source: &GitSourceIdentity,
+        tag_prefix: Option<&GitTagPrefix>,
+        catalog: &GitVersionCatalog,
+    ) -> SourceResult<()> {
+        let path = self.version_catalog_path(source, tag_prefix);
+        let parent = path.parent().ok_or_else(|| {
+            internal(
+                "Git version metadata path has no parent",
+                "invalid cache layout",
+            )
+        })?;
+        fs::create_dir_all(parent).map_err(|error| {
+            internal(
+                "could not create Git version cache metadata directory",
+                error,
+            )
+        })?;
+        let mut output = String::from("wukong-git-versions-v1\n");
+        for (version, commit) in catalog.versions() {
+            output.push_str(&format!("{version} {commit}\n"));
+        }
+        let temporary = parent.join(format!(
+            ".{}.tmp",
+            digest(&[source.as_str(), tag_prefix.map_or("", GitTagPrefix::as_str)])
+        ));
+        fs::write(&temporary, output)
+            .map_err(|error| internal("could not stage Git version cache metadata", error))?;
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|error| internal("could not replace Git version cache metadata", error))?;
+        }
+        fs::rename(&temporary, path)
+            .map_err(|error| internal("could not publish Git version cache metadata", error))
+    }
+
     fn checkout_parent(&self) -> PathBuf {
         self.cache.checkouts().join("git").join("sha256")
     }
@@ -281,6 +545,20 @@ impl GitFetcher {
             .join("git")
             .join("sha256")
             .join(digest(&[source.as_str(), selector]))
+    }
+    fn version_catalog_path(
+        &self,
+        source: &GitSourceIdentity,
+        tag_prefix: Option<&GitTagPrefix>,
+    ) -> PathBuf {
+        self.cache
+            .metadata()
+            .join("git-versions")
+            .join("sha256")
+            .join(digest(&[
+                source.as_str(),
+                tag_prefix.map_or("", GitTagPrefix::as_str),
+            ]))
     }
     fn lock_path(&self, source: &GitSourceIdentity) -> PathBuf {
         self.cache
@@ -398,6 +676,34 @@ fn resolution(source: GitSourceIdentity, commit: &str) -> SourceResult<GitResolu
             .map_err(|error| internal("could not create Git immutable identity", error))?,
     })
 }
+fn version_from_tag(tag: &str, tag_prefix: Option<&GitTagPrefix>) -> Option<SemanticVersion> {
+    let version = match tag_prefix {
+        Some(prefix) => tag.strip_prefix(prefix.as_str())?,
+        None => tag,
+    };
+    SemanticVersion::parse(version)
+        .ok()
+        .map(|version| version.without_build_metadata())
+}
+fn insert_version(
+    versions: &mut BTreeMap<SemanticVersion, String>,
+    version: SemanticVersion,
+    commit: &str,
+    source: &GitSourceIdentity,
+) -> SourceResult<()> {
+    match versions.get(&version) {
+        Some(existing) if existing != commit => Err(source_error(
+            source.as_str(),
+            "Git tags map one semantic version to different commits",
+            "remove or retag the conflicting version tags and retry",
+        )),
+        Some(_) => Ok(()),
+        None => {
+            versions.insert(version, commit.to_owned());
+            Ok(())
+        }
+    }
+}
 fn digest(parts: &[&str]) -> String {
     let mut hasher = Sha256::new();
     for part in parts {
@@ -408,6 +714,9 @@ fn digest(parts: &[&str]) -> String {
 }
 fn staging_prefix(source: &GitSourceIdentity) -> String {
     format!(".wukong-git-{}-", digest(&[source.as_str()]))
+}
+fn version_staging_prefix(source: &GitSourceIdentity) -> String {
+    format!(".wukong-git-versions-{}-", digest(&[source.as_str()]))
 }
 fn clean_abandoned_staging(parent: &Path, prefix: &str) -> SourceResult<()> {
     let entries = fs::read_dir(parent)
@@ -440,6 +749,13 @@ fn source_error(
             .with_recovery(recovery.to_string()),
     )
 }
+fn metadata_error(source: &GitSourceIdentity, message: &str) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(ErrorCode::IntegrityFailure, message)
+            .with_source(source.as_str())
+            .with_recovery("remove the Git version metadata cache and retry"),
+    )
+}
 fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(ErrorCode::InternalFailure, message)
@@ -450,9 +766,12 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::{GitFetcher, GitSourceIdentity};
-    use crate::{cache::CacheLayout, git_source::GitSourceRequest, manifest::GitReference};
-    use std::{fs, path::Path, process::Command, thread};
+    use super::{GitFetcher, GitSourceIdentity, GitTagPrefix};
+    use crate::{
+        cache::CacheLayout, diagnostic::ErrorCode, git_source::GitSourceRequest,
+        manifest::GitReference, semantic_version::SemanticVersion,
+    };
+    use std::{collections::BTreeMap, fs, path::Path, process::Command, thread};
     use tempfile::TempDir;
 
     #[test]
@@ -545,6 +864,133 @@ mod tests {
     }
 
     #[test]
+    fn invariant_git_version_tags_map_to_commits_and_reuse_verified_metadata_offline() {
+        let fixture = Fixture::new();
+        let first = fixture.commit();
+        fixture.commit_change("second");
+        let second = fixture.commit();
+        fixture.annotated_tag("v1.1.0");
+        fixture.lightweight_tag("not-a-version");
+        fixture.push();
+
+        let source = GitSourceIdentity::new("https://fixture.test/versioned.git".to_owned());
+        let prefix = GitTagPrefix::parse("v").expect("prefix should parse");
+        let fetcher = fixture.fetcher();
+        let catalog = fetcher
+            .discover_remote_versions(&source, fixture.remote(), Some(&prefix))
+            .expect("version tags should resolve");
+        assert_eq!(
+            catalog.versions(),
+            &BTreeMap::from([
+                (
+                    SemanticVersion::parse("1.0.0").expect("version should parse"),
+                    first
+                ),
+                (
+                    SemanticVersion::parse("1.1.0").expect("version should parse"),
+                    second
+                ),
+            ])
+        );
+
+        fetcher
+            .write_cached_versions(&source, Some(&prefix), &catalog)
+            .expect("catalog should cache");
+        let metadata = fetcher.version_catalog_path(&source, Some(&prefix));
+        let persisted = fs::read_to_string(&metadata).expect("metadata should read");
+        assert!(!persisted.contains(fixture.remote()));
+        assert!(!persisted.contains(source.as_str()));
+        fs::remove_dir_all(fixture.remote()).expect("remote should remove");
+        assert_eq!(
+            fetcher
+                .cached_versions(&source, Some(&prefix))
+                .expect("offline catalog should verify"),
+            Some(catalog)
+        );
+    }
+
+    #[test]
+    fn invariant_git_version_discovery_applies_the_configured_prefix_exactly() {
+        let fixture = Fixture::new();
+        fixture.commit_change("plain");
+        let plain = fixture.commit();
+        fixture.lightweight_tag("1.1.0");
+        fixture.push();
+
+        let source = GitSourceIdentity::new("https://fixture.test/prefix.git".to_owned());
+        let fetcher = fixture.fetcher();
+        let prefixed = fetcher
+            .discover_remote_versions(
+                &source,
+                fixture.remote(),
+                Some(&GitTagPrefix::parse("v").expect("prefix should parse")),
+            )
+            .expect("prefixed discovery should work");
+        assert_eq!(prefixed.versions().len(), 1);
+        assert!(
+            prefixed
+                .commit(&SemanticVersion::parse("1.0.0").expect("version should parse"))
+                .is_some()
+        );
+
+        let plain_catalog = fetcher
+            .discover_remote_versions(&source, fixture.remote(), None)
+            .expect("plain discovery should work");
+        assert_eq!(
+            plain_catalog.versions(),
+            &BTreeMap::from([(
+                SemanticVersion::parse("1.1.0").expect("version should parse"),
+                plain,
+            )])
+        );
+        assert!(GitTagPrefix::parse("").is_err());
+    }
+
+    #[test]
+    fn invariant_conflicting_git_tags_for_one_semantic_version_fail_before_caching() {
+        let fixture = Fixture::new();
+        fixture.commit_change("conflicting");
+        fixture.annotated_tag("v1.0.0+build");
+        fixture.push();
+
+        let source = GitSourceIdentity::new("https://fixture.test/conflict.git".to_owned());
+        let fetcher = fixture.fetcher();
+        let error = fetcher
+            .discover_remote_versions(
+                &source,
+                fixture.remote(),
+                Some(&GitTagPrefix::parse("v").expect("prefix should parse")),
+            )
+            .expect_err("different commits for one version should fail");
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        assert!(error.message().contains("different commits"));
+        assert!(
+            !fetcher
+                .version_catalog_path(
+                    &source,
+                    Some(&GitTagPrefix::parse("v").expect("prefix should parse")),
+                )
+                .exists()
+        );
+    }
+
+    #[test]
+    fn invariant_corrupt_git_version_metadata_is_rejected_offline() {
+        let fixture = Fixture::new();
+        let source = GitSourceIdentity::new("https://fixture.test/corrupt.git".to_owned());
+        let fetcher = fixture.fetcher();
+        let path = fetcher.version_catalog_path(&source, None);
+        fs::create_dir_all(path.parent().expect("metadata parent should exist"))
+            .expect("metadata parent should create");
+        fs::write(path, "wukong-git-versions-v1\n1.0.0 invalid\n").expect("metadata should write");
+
+        let error = fetcher
+            .cached_versions(&source, None)
+            .expect_err("corrupt metadata should not be used");
+        assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    }
+
+    #[test]
     fn invariant_interrupted_git_fetch_staging_is_removed_before_retry() {
         let fixture = Fixture::new();
         let source = GitSourceIdentity::new("https://fixture.test/interrupted.git".to_owned());
@@ -589,6 +1035,7 @@ mod tests {
     struct Fixture {
         directory: TempDir,
         remote: std::path::PathBuf,
+        work: std::path::PathBuf,
     }
     impl Fixture {
         fn new() -> Self {
@@ -620,7 +1067,11 @@ mod tests {
                 ["remote", "add", "origin", remote.to_string_lossy().as_ref()],
             );
             git(&work, ["push", "--quiet", "origin", "main", "--tags"]);
-            Self { directory, remote }
+            Self {
+                directory,
+                remote,
+                work,
+            }
         }
         fn path(&self) -> &Path {
             self.directory.path()
@@ -633,8 +1084,30 @@ mod tests {
                 CacheLayout::for_root(self.path().join("cache")).expect("cache should work"),
             )
         }
+        fn commit(&self) -> String {
+            git_output(&self.work, &["rev-parse", "--verify", "HEAD^{commit}"])
+                .trim()
+                .to_owned()
+        }
+        fn commit_change(&self, content: &str) {
+            fs::write(self.work.join("plugin.gd"), content).expect("file should write");
+            git(&self.work, ["add", "plugin.gd"]);
+            git(&self.work, ["commit", "--quiet", "-m", content]);
+        }
+        fn lightweight_tag(&self, tag: &str) {
+            git_dynamic(&self.work, &["tag", tag]);
+        }
+        fn annotated_tag(&self, tag: &str) {
+            git_dynamic(&self.work, &["tag", "--annotate", tag, "--message", tag]);
+        }
+        fn push(&self) {
+            git(&self.work, ["push", "--quiet", "origin", "main", "--tags"]);
+        }
     }
     fn git<const N: usize>(directory: &Path, arguments: [&str; N]) {
+        git_dynamic(directory, &arguments);
+    }
+    fn git_dynamic(directory: &Path, arguments: &[&str]) {
         assert!(
             Command::new("git")
                 .current_dir(directory)
@@ -643,5 +1116,14 @@ mod tests {
                 .expect("git should start")
                 .success()
         );
+    }
+    fn git_output(directory: &Path, arguments: &[&str]) -> String {
+        let output = Command::new("git")
+            .current_dir(directory)
+            .args(arguments)
+            .output()
+            .expect("git should start");
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).expect("Git output should be UTF-8")
     }
 }

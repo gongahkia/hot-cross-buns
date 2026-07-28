@@ -14,8 +14,9 @@ package dependency metadata.
 Unprefixed `1.2.3` follows Cargo semantics and is a caret requirement, not an
 exact pin. Use `=1.2.3` when exact selection is required. Pre-release versions
 match only requirements that explicitly name a pre-release for the same
-major/minor/patch release. Build metadata is ignored for version precedence. Unsupported syntax, an empty
-requirement, and a missing package metadata version are user errors.
+major/minor/patch release. Build metadata is ignored for version precedence.
+Unsupported syntax, an empty requirement, and a missing package metadata
+version are user errors.
 
 Path, Git, and checksum-verified HTTP dependencies are source-pinned and have
 no version catalogue. Their immutable local snapshot, Git commit, or archive
@@ -25,5 +26,5 @@ declaration.
 
 This intentionally follows Cargo-compatible SemVer rather than npm-style
 version grammar; for example, alternatives separated by `||` are not accepted.
-Version discovery and transitive version selection are deferred to W062 and
-W063.
+Git tag discovery is implemented in W062; transitive version selection remains
+deferred to W063.
