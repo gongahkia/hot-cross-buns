@@ -1,7 +1,7 @@
 # Compatibility fixtures
 
 Schema-one fixtures live in `fixtures/compatibility/v1/`. The current corpus
-contains 20 public addons. Every fixture pins a public HTTPS Git source to a
+contains 24 public addons. Every fixture pins a public HTTPS Git source to a
 full commit and records its explicit layout, complete expected installed file
 paths, canonical package-tree SHA-256, and Godot version requirement.
 
@@ -57,3 +57,19 @@ plugins or execute package scripts.
 | `threaded-resource-save-load` | `addons/ThreadedResourceSaveLoadPlugin` | passed |
 | `vision-cone` | `addons/vision_cone_2d` | passed |
 | `wigglebone` | `addons/wigglebone` | passed |
+
+## W151 multi-addon validation record
+
+On 2026-07-29, four addons from the same public MIT-licensed GDQuest source at
+commit `74cb5e8c1eab4fa442b37ba39c69fb9d0b8f5162` passed opt-in source
+verification: prepared-tree verification, cold materialisation, warm reuse,
+and no-op sync. The verifier did not execute the repository's documented
+`gd-plug` scripts or Godot. Headless validation is not recorded because a Godot
+executable is unavailable on this machine.
+
+| Fixture | Source subdirectory | Target path |
+| --- | --- | --- |
+| `gdquest-3d-math-visualizer` | `addons/gdquest_3d_math_visualizer` | `addons/gdquest_3d_math_visualizer` |
+| `gdquest-colorpicker-presets` | `addons/gdquest_colorpicker_presets` | `addons/gdquest_colorpicker_presets` |
+| `gdquest-prototype-material` | `addons/gdquest_prototype_material` | `addons/gdquest_prototype_material` |
+| `gdquest-sparkly-bag` | `addons/gdquest_sparkly_bag` | `addons/gdquest_sparkly_bag` |

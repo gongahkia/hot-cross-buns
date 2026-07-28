@@ -976,7 +976,7 @@ Targets:
 
 - [ ] 50 addons.
 - [ ] 100 addons.
-- [ ] Multi-addon repositories.
+- [x] Multi-addon repositories.
 - [ ] Native-extension packages.
 - [ ] Private Git sources.
 - [ ] Large projects.

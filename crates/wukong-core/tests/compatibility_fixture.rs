@@ -16,7 +16,7 @@ use wukong_core::{
 };
 
 const PATH: &str = "fixture/compatibility.toml";
-const EXPECTED_CORPUS_SIZE: usize = 20;
+const EXPECTED_CORPUS_SIZE: usize = 24;
 
 #[test]
 fn invariant_fixture_parses_complete_immutable_metadata_without_execution() {
@@ -81,7 +81,7 @@ target_path = "addons/example"
 }
 
 #[test]
-fn invariant_public_corpus_has_twenty_unique_complete_fixtures() {
+fn invariant_public_corpus_has_twenty_four_unique_complete_fixtures() {
     let fixtures = fixture_paths()
         .into_iter()
         .map(|path| {
@@ -100,6 +100,42 @@ fn invariant_public_corpus_has_twenty_unique_complete_fixtures() {
         fixtures
             .iter()
             .all(|fixture| fixture.headless_validation().is_none())
+    );
+}
+
+#[test]
+fn invariant_multi_addon_repository_fixtures_select_distinct_explicit_layouts() {
+    let fixtures = fixture_paths()
+        .into_iter()
+        .map(|path| {
+            let input = fs::read_to_string(&path).expect("fixture should read");
+            CompatibilityFixture::parse(&path, &input).expect("fixture should parse")
+        })
+        .filter(|fixture| fixture.source_url() == "https://github.com/GDQuest/godot-addons.git")
+        .collect::<Vec<_>>();
+
+    assert_eq!(fixtures.len(), 4);
+    assert_eq!(
+        fixtures
+            .iter()
+            .map(|fixture| fixture.id().as_str())
+            .collect::<Vec<_>>(),
+        [
+            "gdquest-3d-math-visualizer",
+            "gdquest-colorpicker-presets",
+            "gdquest-prototype-material",
+            "gdquest-sparkly-bag",
+        ]
+    );
+    assert!(
+        fixtures
+            .windows(2)
+            .all(|pair| pair[0].source_subdirectory() != pair[1].source_subdirectory())
+    );
+    assert!(
+        fixtures
+            .iter()
+            .all(|fixture| fixture.revision() == "74cb5e8c1eab4fa442b37ba39c69fb9d0b8f5162")
     );
 }
 

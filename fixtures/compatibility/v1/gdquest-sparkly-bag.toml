@@ -1,0 +1,25 @@
+schema = 1
+id = "gdquest-sparkly-bag"
+godot = ">=4.0"
+package_sha256 = "babd16e001bbdd6950122fac3dd6876ce4c8826c610d773331c2259d2929af7c"
+installed_paths = [
+  "addons/gdquest_sparkly_bag/README.md",
+  "addons/gdquest_sparkly_bag/autoloads/reset_net_injector.gd",
+  "addons/gdquest_sparkly_bag/autoloads/reset_net_injector.gd.uid",
+  "addons/gdquest_sparkly_bag/check.gd",
+  "addons/gdquest_sparkly_bag/check.gd.uid",
+  "addons/gdquest_sparkly_bag/scene_post_import.gd",
+  "addons/gdquest_sparkly_bag/scene_post_import.gd.uid",
+  "addons/gdquest_sparkly_bag/sparkly_bag_coroutine.gd",
+  "addons/gdquest_sparkly_bag/sparkly_bag_coroutine.gd.uid",
+  "addons/gdquest_sparkly_bag/sparkly_bag_utils.gd",
+  "addons/gdquest_sparkly_bag/sparkly_bag_utils.gd.uid",
+]
+
+[source]
+url = "https://github.com/GDQuest/godot-addons.git"
+revision = "74cb5e8c1eab4fa442b37ba39c69fb9d0b8f5162"
+
+[layout]
+source_subdirectory = "addons/gdquest_sparkly_bag"
+target_path = "addons/gdquest_sparkly_bag"
