@@ -75,6 +75,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Native extensions](docs/native-extensions.md)
 - [Compatibility expansion status](docs/compatibility-expansion.md)
 - [Technical launch article draft](docs/launch-article.md)
+- [1.0 readiness decision](docs/one-point-zero-readiness.md)
 - [Lockfile schema](docs/lockfile.md)
 - [Cache layout](docs/cache.md)
 - [Installed state](docs/installed-state.md)

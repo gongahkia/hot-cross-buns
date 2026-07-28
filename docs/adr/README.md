@@ -42,6 +42,7 @@ Current records:
 - [0036: CLI machine protocol](0036-cli-machine-protocol.md)
 - [0037: release artifact layout](0037-release-artifact-layout.md)
 - [0038: direct-dependency layout overrides](0038-direct-dependency-layout-overrides.md)
+- [0039: 1.0 compatibility policy](0039-one-point-zero-compatibility-policy.md)
 
 ## When to write an ADR
 

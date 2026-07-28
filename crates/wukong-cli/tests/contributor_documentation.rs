@@ -14,6 +14,14 @@ fn invariant_contributor_guides_cover_maintainer_workflows() {
             "docs/compatibility-expansion.md",
             "Compatibility expansion status",
         ),
+        (
+            "docs/one-point-zero-readiness.md",
+            "## Reconsideration gate",
+        ),
+        (
+            "docs/adr/0039-one-point-zero-compatibility-policy.md",
+            "format migration",
+        ),
         ("docs/adr/README.md", "## When to write an ADR"),
     ] {
         let content = fs::read_to_string(root.join(path)).expect("contributor guide should exist");

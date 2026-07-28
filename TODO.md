@@ -999,6 +999,9 @@ Cover:
 
 ## wukong-153: Decide whether to pursue `1.0`
 
+Decision: do not pursue `1.0` yet; see
+[`docs/one-point-zero-readiness.md`](docs/one-point-zero-readiness.md).
+
 Require evidence of:
 
 - [ ] External recurring users.
@@ -1006,7 +1009,7 @@ Require evidence of:
 - [ ] Manageable support burden.
 - [ ] Strong compatibility-corpus results.
 - [ ] No unresolved architectural blockers.
-- [ ] A credible migration policy.
+- [x] A credible migration policy.
 
 ---
 
