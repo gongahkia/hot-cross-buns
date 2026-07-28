@@ -276,6 +276,12 @@ fn source_root(
             let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
             Ok(extracted.root().to_path_buf())
         }
+        #[cfg(feature = "asset-library")]
+        (LockedSource::Http(locked), Dependency::Asset(_)) => {
+            let archive = http.fetch(locked.url(), locked.sha256(), offline)?;
+            let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
+            Ok(extracted.root().to_path_buf())
+        }
         _ => Err(source_mismatch(package)),
     }
 }

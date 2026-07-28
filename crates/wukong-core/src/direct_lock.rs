@@ -1,5 +1,7 @@
 //! Direct dependency locking without project materialisation.
 
+#[cfg(feature = "asset-library")]
+use crate::asset_library::{AssetId, AssetLibraryClient};
 use crate::{
     archive::{ExtractionLimits, extract_zip},
     cache::CacheLayout,
@@ -272,6 +274,23 @@ fn lock_declaration(
             let source = LockedHttpSource::new(immutable_id, url, archive.sha256().to_owned())?;
             (extracted.root().to_path_buf(), source.into())
         }
+        #[cfg(feature = "asset-library")]
+        DeclaredSource::Asset(id) => {
+            let resolution = AssetLibraryClient::official().resolve(id, http, offline)?;
+            let archive = resolution.archive();
+            let extracted = extract_zip(archive.path(), staging, ExtractionLimits::default())?;
+            let immutable_id =
+                crate::source::ImmutableSourceId::new(format!("sha256:{}", archive.sha256()))
+                    .map_err(|error| {
+                        internal("could not create AssetLib immutable identity", error)
+                    })?;
+            let source = LockedHttpSource::new(
+                immutable_id,
+                resolution.metadata().download_url(),
+                archive.sha256().to_owned(),
+            )?;
+            (extracted.root().to_path_buf(), source.into())
+        }
     };
     lock_package(declaration, &source_root, source, staging)
 }
@@ -287,6 +306,8 @@ enum DeclaredSource {
         url: String,
         sha256: String,
     },
+    #[cfg(feature = "asset-library")]
+    Asset(AssetId),
 }
 #[derive(Clone)]
 struct Declaration {
@@ -353,6 +374,8 @@ fn declaration_source(dependency: &Dependency) -> Result<DeclaredSource, Box<Dia
             url: canonicalize_archive_url(url)?,
             sha256: sha256.clone(),
         }),
+        #[cfg(feature = "asset-library")]
+        Dependency::Asset(id) => Ok(DeclaredSource::Asset(id.clone())),
         Dependency::Version(_) => Err(Box::new(
             Diagnostic::new(
                 ErrorCode::UserInput,
@@ -396,6 +419,12 @@ fn verify_offline_declarations<'a>(
                     ));
                 }
             }
+            #[cfg(feature = "asset-library")]
+            DeclaredSource::Asset(id) => unavailable.push(format!(
+                "{} (AssetLib metadata for asset {})",
+                declaration.name,
+                id.as_str()
+            )),
         }
     }
     if unavailable.is_empty() {
@@ -477,6 +506,11 @@ fn declaration_fingerprint(
             update_fingerprint(&mut hasher, "http");
             update_fingerprint(&mut hasher, url);
             update_fingerprint(&mut hasher, sha256);
+        }
+        #[cfg(feature = "asset-library")]
+        DeclaredSource::Asset(id) => {
+            update_fingerprint(&mut hasher, "asset-library");
+            update_fingerprint(&mut hasher, id.as_str());
         }
     }
     hasher.update([u8::from(development)]);

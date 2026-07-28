@@ -9,6 +9,10 @@ pub(crate) mod credentials;
 /// Secure staging extraction for ZIP archives.
 pub mod archive;
 
+/// Feature-gated official Godot Asset Library metadata client.
+#[cfg(feature = "asset-library")]
+pub mod asset_library;
+
 /// Atomic creation of a minimal project manifest.
 pub mod init;
 

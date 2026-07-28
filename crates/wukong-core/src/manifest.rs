@@ -1,5 +1,7 @@
 //! Typed parsing for the version-one `wukong.toml` schema.
 
+#[cfg(feature = "asset-library")]
+use crate::asset_library::AssetId;
 use crate::{
     credentials::has_sensitive_url_query,
     diagnostic::{Diagnostic, ErrorCode},
@@ -148,6 +150,9 @@ pub enum Dependency {
     },
     /// A checksummed HTTP archive.
     Url { url: String, sha256: String },
+    /// A feature-gated official `AssetLib` addon ID.
+    #[cfg(feature = "asset-library")]
+    Asset(AssetId),
 }
 
 /// A Git manifest revision selector.
@@ -275,32 +280,38 @@ fn parse_source(
     field: &str,
     item: &Item,
 ) -> ManifestResult<Dependency> {
-    reject_unknown_fields(
-        table,
-        &["path", "git", "url", "rev", "tag", "branch", "sha256"],
-        path,
-        input,
-        field,
-    )?;
-    let source_count = ["path", "git", "url"]
+    let mut allowed = vec!["path", "git", "url", "rev", "tag", "branch", "sha256"];
+    #[cfg(feature = "asset-library")]
+    allowed.push("asset");
+    reject_unknown_fields(table, &allowed, path, input, field)?;
+    let mut source_count = ["path", "git", "url"]
         .into_iter()
         .filter(|key| table.contains_key(key))
         .count();
+    #[cfg(feature = "asset-library")]
+    if table.contains_key("asset") {
+        source_count += 1;
+    }
     if source_count != 1 {
         return Err(field_error(
             path,
             input,
             field,
             Some(item),
-            "must specify exactly one of path, git, or url",
+            "must specify exactly one supported source",
         ));
     }
     if table.contains_key("path") {
         parse_path_source(table, directory, path, input, field)
     } else if table.contains_key("git") {
         parse_git_source(table, path, input, field, item)
-    } else {
+    } else if table.contains_key("url") {
         parse_url_source(table, path, input, field)
+    } else {
+        #[cfg(feature = "asset-library")]
+        return parse_asset_source(table, path, input, field);
+        #[cfg(not(feature = "asset-library"))]
+        unreachable!("unsupported sources are rejected before selection")
     }
 }
 
@@ -425,6 +436,33 @@ fn parse_url_source(
         ));
     }
     Ok(Dependency::Url { url, sha256 })
+}
+
+#[cfg(feature = "asset-library")]
+fn parse_asset_source(
+    table: &dyn TableLike,
+    path: &Path,
+    input: &str,
+    field: &str,
+) -> ManifestResult<Dependency> {
+    reject_present(
+        table,
+        &["path", "git", "url", "rev", "tag", "branch", "sha256"],
+        path,
+        input,
+        field,
+    )?;
+    let asset = required_string(table, "asset", path, input, field)?;
+    let asset = AssetId::parse(asset).map_err(|error| {
+        field_error(
+            path,
+            input,
+            &format!("{field}.asset"),
+            table.get("asset"),
+            &error.to_string(),
+        )
+    })?;
+    Ok(Dependency::Asset(asset))
 }
 
 fn require_table<'a>(

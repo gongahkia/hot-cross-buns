@@ -38,6 +38,7 @@ Current records:
 - [0032: credential handling](0032-credential-handling.md)
 - [0033: hashed transaction recovery](0033-hashed-transaction-recovery.md)
 - [0034: official Asset Library boundary](0034-official-asset-library-boundary.md)
+- [0035: JSON metadata decoding](0035-json-metadata-decoding.md)
 
 ## When to write an ADR
 

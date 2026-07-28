@@ -8,10 +8,14 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+asset-library = ["dep:serde_json"]
+
 [dependencies]
 fs2 = "0.4.3"
 pubgrub = "=0.3.0"
 reflink-copy = "0.1.30"
+serde_json = { version = "1.0.149", optional = true }
 semver = "1.0.28"
 sha2 = "0.10.9"
 toml_edit = "0.25.13"

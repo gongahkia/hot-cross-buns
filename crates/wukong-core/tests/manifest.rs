@@ -163,7 +163,7 @@ example = { path = "../example", git = "https://example.test/repository" }
 
     assert_eq!(error.code(), ErrorCode::UserInput);
     assert!(error.message().contains("dependencies.example"));
-    assert!(error.message().contains("exactly one of path, git, or url"));
+    assert!(error.message().contains("exactly one supported source"));
 }
 
 #[test]
@@ -273,6 +273,40 @@ example = { git = "https://example.test/addon.git", rev = "deadbeef" }
     ));
     assert_eq!(error.code(), ErrorCode::UserInput);
     assert!(error.message().contains("dependencies.example.rev"));
+}
+
+#[cfg(feature = "asset-library")]
+#[test]
+fn invariant_feature_gated_asset_source_requires_a_positive_stable_id() {
+    let manifest = parse(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+example = { asset = "42" }
+"#,
+    );
+    let error = parse_error(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+example = { asset = "0" }
+"#,
+    );
+
+    assert!(
+        matches!(manifest.dependencies().get("example"), Some(Dependency::Asset(id)) if id.as_str() == "42")
+    );
+    assert!(
+        error
+            .message()
+            .contains("positive decimal AssetLib asset ID")
+    );
 }
 
 fn parse(input: &str) -> Manifest {

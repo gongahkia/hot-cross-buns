@@ -106,6 +106,57 @@ impl HttpArchiveFetcher {
         })
     }
 
+    /// Downloads an HTTPS archive and derives its immutable checksum while staging.
+    ///
+    /// This is crate-private because generic archive declarations must provide a
+    /// checksum before network access. `AssetLib` uses it only when upstream omits
+    /// its optional checksum field.
+    #[cfg(feature = "asset-library")]
+    pub(crate) fn fetch_computing_sha256(
+        &self,
+        url: &str,
+        offline: bool,
+    ) -> Result<CachedArchive, Box<Diagnostic>> {
+        let canonical_url = canonicalize_archive_url(url)?;
+        if offline {
+            return Err(source(
+                &canonical_url,
+                "archive checksum must be resolved online before locking",
+                "run without --offline to resolve the immutable archive checksum",
+            ));
+        }
+        let url_key = format!("{:x}", Sha256::digest(canonical_url.as_bytes()));
+        let _lock = AdvisoryLock::try_acquire(
+            &self
+                .cache
+                .locks()
+                .join("http")
+                .join(format!("url-{url_key}.lock")),
+            "this HTTPS archive source",
+        )?;
+        let parent = self.cache.downloads().join("sha256");
+        fs::create_dir_all(&parent)
+            .map_err(|error| internal("could not create archive cache directory", error))?;
+        let prefix = staging_prefix(&url_key);
+        clean_abandoned_staging(&parent, &prefix)?;
+        let staging = Builder::new()
+            .prefix(&prefix)
+            .tempdir_in(&parent)
+            .map_err(|error| internal("could not create archive download staging", error))?;
+        let staged = staging.path().join("archive");
+        let sha256 = download_computing_sha256(&canonical_url, &staged, self.limits)?;
+        let final_path = parent.join(&sha256);
+        match fs::rename(&staged, &final_path) {
+            Ok(()) => {
+                #[cfg(unix)]
+                sync_directory(&parent)?;
+                verify(&final_path, &sha256)
+            }
+            Err(_) if final_path.is_file() => verify(&final_path, &sha256),
+            Err(error) => Err(internal("could not publish archive cache entry", error)),
+        }
+    }
+
     fn fetch_with(
         &self,
         url: &str,
@@ -164,6 +215,22 @@ fn download(
     expected: &str,
     limits: DownloadLimits,
 ) -> Result<(), Box<Diagnostic>> {
+    let actual = download_computing_sha256(url, staged, limits)?;
+    if actual != expected {
+        return Err(integrity(
+            url,
+            "archive checksum did not match the declared SHA-256",
+            "correct the checksum or archive URL",
+        ));
+    }
+    Ok(())
+}
+
+fn download_computing_sha256(
+    url: &str,
+    staged: &Path,
+    limits: DownloadLimits,
+) -> Result<String, Box<Diagnostic>> {
     let agent: Agent = Agent::config_builder()
         .https_only(true)
         .max_redirects(0)
@@ -222,9 +289,10 @@ fn download(
         ));
     }
     let mut input = response.into_body().into_reader();
-    stream_download(&mut input, staged, expected, limits, url)
+    stream_download_computing_sha256(&mut input, staged, limits, url)
 }
 
+#[cfg(test)]
 fn stream_download(
     input: &mut impl Read,
     staged: &Path,
@@ -232,6 +300,23 @@ fn stream_download(
     limits: DownloadLimits,
     url: &str,
 ) -> Result<(), Box<Diagnostic>> {
+    let actual = stream_download_computing_sha256(input, staged, limits, url)?;
+    if actual != expected {
+        return Err(integrity(
+            url,
+            "archive checksum did not match the declared SHA-256",
+            "correct the checksum or archive URL",
+        ));
+    }
+    Ok(())
+}
+
+fn stream_download_computing_sha256(
+    input: &mut impl Read,
+    staged: &Path,
+    limits: DownloadLimits,
+    url: &str,
+) -> Result<String, Box<Diagnostic>> {
     let mut output = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -269,14 +354,7 @@ fn stream_download(
     output
         .sync_all()
         .map_err(|error| internal("could not flush archive download", error))?;
-    if format!("{:x}", hash.finalize()) != expected {
-        return Err(integrity(
-            url,
-            "archive checksum did not match the declared SHA-256",
-            "correct the checksum or archive URL",
-        ));
-    }
-    Ok(())
+    Ok(format!("{:x}", hash.finalize()))
 }
 fn verify(path: &Path, expected: &str) -> Result<CachedArchive, Box<Diagnostic>> {
     if !path

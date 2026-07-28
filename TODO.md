@@ -847,12 +847,12 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-121: Implement the asset-source adapter
 
-- [ ] Search or resolve assets by stable identifier.
-- [ ] Retrieve version metadata.
-- [ ] Resolve to immutable downloadable artifacts.
-- [ ] Verify checksums where available.
-- [ ] Cache metadata responsibly.
-- [ ] Produce clear errors when upstream data is incomplete.
+- [x] Search or resolve assets by stable identifier.
+- [x] Retrieve version metadata.
+- [x] Resolve to immutable downloadable artifacts.
+- [x] Verify checksums where available.
+- [x] Cache metadata responsibly.
+- [x] Produce clear errors when upstream data is incomplete.
 
 ## wukong-122: Keep official integration replaceable
 
