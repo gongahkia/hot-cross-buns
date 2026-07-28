@@ -6,6 +6,7 @@ use crate::{
         DependencyGroup, InstalledPackage, InstalledState, MaterializationStrategy, OwnedFile,
         STATE_FILE_NAME, create_state_directory, state_directory, state_path,
     },
+    materialization::{MaterializationPreference, materialize_file},
     ownership::{DesiredFile, DesiredFileMap, validate_project_file_conflicts},
 };
 use sha2::{Digest, Sha256};
@@ -38,24 +39,61 @@ pub fn sync_project(
     packages: impl IntoIterator<Item = InstalledPackage>,
     desired: &DesiredFileMap,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
+    sync_project_with_preference(
+        project_root,
+        groups,
+        packages,
+        desired,
+        MaterializationPreference::Auto,
+    )
+}
+
+/// Reconciles a desired map with an explicit materialisation preference.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the requested strategy cannot be used safely.
+pub fn sync_project_with_preference(
+    project_root: &Path,
+    groups: BTreeSet<DependencyGroup>,
+    packages: impl IntoIterator<Item = InstalledPackage>,
+    desired: &DesiredFileMap,
+    preference: MaterializationPreference,
+) -> Result<SyncSummary, Box<Diagnostic>> {
     recover_transaction(project_root)?;
     let packages = packages.into_iter().collect::<Vec<_>>();
     let previous = read_state(project_root)?;
     let prior_paths = previous.files().keys().cloned().collect::<BTreeSet<_>>();
     validate_project_file_conflicts(project_root, desired, &prior_paths)?;
-    let next = next_state(groups, packages, desired)?;
     let plan = plan(project_root, &previous, desired)?;
-    if plan.writes.is_empty() && plan.removals.is_empty() && previous == next {
-        return Ok(SyncSummary {
-            unchanged: desired.files().len(),
-            ..SyncSummary::default()
-        });
+    if plan.writes.is_empty() {
+        let next = next_state(
+            groups.clone(),
+            packages.clone(),
+            desired,
+            &previous,
+            &BTreeMap::new(),
+        )?;
+        if plan.removals.is_empty() && previous == next {
+            return Ok(SyncSummary {
+                unchanged: desired.files().len(),
+                ..SyncSummary::default()
+            });
+        }
     }
     let state_directory = create_state_directory(project_root)?;
     let staging = state_directory.join(".transaction");
     fs::create_dir(&staging)
         .map_err(|error| internal("could not create project transaction staging", error))?;
-    if let Err(error) = stage(&staging, desired, &plan, &next) {
+    let strategies = match stage_files(&staging, &plan, preference) {
+        Ok(strategies) => strategies,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(error);
+        }
+    };
+    let next = next_state(groups, packages, desired, &previous, &strategies)?;
+    if let Err(error) = stage_state(&staging, &next) {
         let _ = fs::remove_dir_all(&staging);
         return Err(error);
     }
@@ -95,16 +133,28 @@ fn next_state(
     groups: BTreeSet<DependencyGroup>,
     packages: Vec<InstalledPackage>,
     desired: &DesiredFileMap,
+    previous: &InstalledState,
+    strategies: &BTreeMap<PathBuf, MaterializationStrategy>,
 ) -> Result<InstalledState, Box<Diagnostic>> {
     let files = desired
         .files()
         .values()
         .map(|file| {
+            let strategy = strategies
+                .get(file.path())
+                .copied()
+                .or_else(|| {
+                    previous
+                        .files()
+                        .get(file.path())
+                        .map(OwnedFile::materialization)
+                })
+                .unwrap_or(MaterializationStrategy::Copy);
             OwnedFile::new(
                 file.path(),
                 file.owners().clone(),
                 file.sha256().to_owned(),
-                MaterializationStrategy::Copy,
+                strategy,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -153,13 +203,13 @@ fn plan(
     Ok(plan)
 }
 
-fn stage(
+fn stage_files(
     staging: &Path,
-    desired: &DesiredFileMap,
     plan: &SyncPlan,
-    next: &InstalledState,
-) -> Result<(), Box<Diagnostic>> {
+    preference: MaterializationPreference,
+) -> Result<BTreeMap<PathBuf, MaterializationStrategy>, Box<Diagnostic>> {
     Journal::create(staging)?;
+    let mut strategies = BTreeMap::new();
     for (path, file) in &plan.writes {
         let staged = staging.join("files").join(path);
         let parent = staged
@@ -167,10 +217,15 @@ fn stage(
             .ok_or_else(|| internal("staged file has no parent", "invalid path"))?;
         fs::create_dir_all(parent)
             .map_err(|error| internal("could not create staged directory", error))?;
-        copy_and_sync(file.source_path(), &staged)?;
+        let strategy = materialize_file(file.source_path(), &staged, preference)?;
         #[cfg(unix)]
         set_executable(&staged, file.executable())?;
+        strategies.insert(path.clone(), strategy);
     }
+    Ok(strategies)
+}
+
+fn stage_state(staging: &Path, next: &InstalledState) -> Result<(), Box<Diagnostic>> {
     let state = staging.join(STATE_FILE_NAME);
     fs::File::create(&state)
         .and_then(|mut file| {
@@ -178,7 +233,6 @@ fn stage(
                 .and_then(|()| file.sync_all())
         })
         .map_err(|error| internal("could not stage installed state", error))?;
-    let _ = desired;
     Ok(())
 }
 
@@ -382,18 +436,6 @@ fn safe_journal_path(value: &str) -> Result<PathBuf, Box<Diagnostic>> {
         ));
     }
     Ok(path.to_path_buf())
-}
-
-fn copy_and_sync(source: &Path, destination: &Path) -> Result<(), Box<Diagnostic>> {
-    let mut input =
-        fs::File::open(source).map_err(|error| internal("could not read prepared file", error))?;
-    let mut output = fs::File::create(destination)
-        .map_err(|error| internal("could not stage package file", error))?;
-    std::io::copy(&mut input, &mut output)
-        .map_err(|error| internal("could not stage package file", error))?;
-    output
-        .sync_all()
-        .map_err(|error| internal("could not flush staged package file", error))
 }
 
 fn file_hash(path: &Path) -> Result<String, std::io::Error> {

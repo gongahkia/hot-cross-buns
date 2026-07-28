@@ -22,6 +22,7 @@ Current records:
 - [0016: installed-state schema](0016-installed-state-schema.md)
 - [0017: desired ownership maps](0017-ownership-maps.md)
 - [0018: shared installed-file ownership](0018-shared-file-ownership.md)
+- [0019: materialisation strategies](0019-materialisation-strategies.md)
 
 ## When to write an ADR
 

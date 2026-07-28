@@ -35,6 +35,7 @@ implemented yet.
 - [Installed state](docs/installed-state.md)
 - [Ownership maps](docs/ownership.md)
 - [Project synchronisation](docs/project-sync.md)
+- [Materialisation](docs/materialization.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

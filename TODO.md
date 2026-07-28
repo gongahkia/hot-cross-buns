@@ -461,11 +461,11 @@ Acceptance criteria:
 
 Evaluate and implement:
 
-- [ ] File copy fallback.
-- [ ] Hardlinks where safe.
-- [ ] Reflinks where available.
-- [ ] Per-platform capability detection.
-- [ ] Explicit strategy override for testing.
+- [x] File copy fallback.
+- [x] Hardlinks where safe.
+- [x] Reflinks where available.
+- [x] Per-platform capability detection.
+- [x] Explicit strategy override for testing.
 
 Do not default to symlinks.
 

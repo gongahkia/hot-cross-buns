@@ -45,6 +45,9 @@ pub mod manifest;
 /// Transactional manifest editing.
 pub mod manifest_edit;
 
+/// Copy, hardlink, and reflink package-file materialisation.
+pub mod materialization;
+
 /// Desired package-file ownership maps and conflict checks.
 pub mod ownership;
 

@@ -5,9 +5,10 @@ use wukong_core::{
     installed_state::{
         DependencyGroup, InstalledPackage, InstalledState, STATE_DIRECTORY_NAME, state_path,
     },
+    materialization::MaterializationPreference,
     ownership::{PackageMaterialization, build_desired_file_map},
     package_tree::prepare_package_tree,
-    project_sync::sync_project,
+    project_sync::{sync_project, sync_project_with_preference},
     source::ImmutableSourceId,
 };
 
@@ -129,6 +130,31 @@ fn invariant_commit_failure_rolls_back_staged_project_files() {
             .expect("conflict should remain"),
         "conflict"
     );
+}
+
+#[test]
+fn invariant_sync_records_an_explicit_materialisation_override() {
+    let fixture = Fixture::new();
+    let input = fixture.package("first");
+    let desired = input.desired();
+
+    sync_project_with_preference(
+        fixture.project(),
+        groups(),
+        [input.package],
+        &desired,
+        MaterializationPreference::Copy,
+    )
+    .expect("copy override should sync");
+    let state = InstalledState::parse(
+        &state_path(fixture.project()),
+        &fs::read_to_string(state_path(fixture.project())).expect("state should read"),
+    )
+    .expect("state should parse");
+
+    assert!(state.files().values().all(|file| {
+        file.materialization() == wukong_core::installed_state::MaterializationStrategy::Copy
+    }));
 }
 
 fn groups() -> BTreeSet<DependencyGroup> {

@@ -9,6 +9,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+reflink-copy = "0.1.30"
 semver = "1.0.28"
 sha2 = "0.10.9"
 toml_edit = "0.25.13"
