@@ -24,6 +24,7 @@ library; package installation is not implemented yet.
 - [Package identity](docs/package-identity.md)
 - [Source adapters](docs/source-adapters.md)
 - [Local paths](docs/local-paths.md)
+- [Archive extraction](docs/archive-extraction.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

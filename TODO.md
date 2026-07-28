@@ -260,17 +260,17 @@ Tests:
 
 ## wukong-030: Implement secure archive extraction
 
-- [ ] Support ZIP initially.
-- [ ] Consider tar formats only after ZIP is robust.
-- [ ] Reject `../` traversal.
-- [ ] Reject absolute paths.
-- [ ] Reject Windows drive-prefix escapes.
-- [ ] Define symlink policy.
-- [ ] Define hardlink policy.
-- [ ] Enforce file-count limits.
-- [ ] Enforce total expanded-size limits.
-- [ ] Enforce expansion-ratio limits.
-- [ ] Clean temporary output after failure.
+- [x] Support ZIP initially.
+- [x] Consider tar formats only after ZIP is robust.
+- [x] Reject `../` traversal.
+- [x] Reject absolute paths.
+- [x] Reject Windows drive-prefix escapes.
+- [x] Define symlink policy.
+- [x] Define hardlink policy.
+- [x] Enforce file-count limits.
+- [x] Enforce total expanded-size limits.
+- [x] Enforce expansion-ratio limits.
+- [x] Clean temporary output after failure.
 
 Acceptance criteria:
 
