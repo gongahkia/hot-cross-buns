@@ -1,0 +1,23 @@
+schema = 1
+id = "frame-limit-controls"
+godot = ">=4.0,<5.0"
+package_sha256 = "ab42a0dbddf672de7048b0b58aa9c1ea7cf3b4d43ebf100d69b14824dbeefb8f"
+installed_paths = [
+  "addons/frame_limit_controls/fps_h_slider.gd",
+  "addons/frame_limit_controls/fps_h_slider.gd.uid",
+  "addons/frame_limit_controls/fps_v_slider.gd",
+  "addons/frame_limit_controls/fps_v_slider.gd.uid",
+  "addons/frame_limit_controls/plugin.cfg",
+  "addons/frame_limit_controls/plugin.gd",
+  "addons/frame_limit_controls/plugin.gd.uid",
+  "addons/frame_limit_controls/set_fps_button.gd",
+  "addons/frame_limit_controls/set_fps_button.gd.uid",
+]
+
+[source]
+url = "https://github.com/NovaDC/Godot-FrameLimitControls.git"
+revision = "3f65c4583fe568b788dfa16f2b02ac34541f8a4a"
+
+[layout]
+source_subdirectory = "addons/frame_limit_controls"
+target_path = "addons/frame_limit_controls"

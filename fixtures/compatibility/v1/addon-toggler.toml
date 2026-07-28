@@ -1,0 +1,30 @@
+schema = 1
+id = "addon-toggler"
+godot = ">=4.0,<5.0"
+package_sha256 = "7c46b02294e5cb5d69a7731baa10b246130234d2a0c8e86742c2deb085963181"
+installed_paths = [
+  "addons/addon_toggler/LICENSE",
+  "addons/addon_toggler/addon_toggler.gd",
+  "addons/addon_toggler/addon_toggler.gd.uid",
+  "addons/addon_toggler/docs/.gdignore",
+  "addons/addon_toggler/docs/addon_example.jpg",
+  "addons/addon_toggler/docs/icon.png",
+  "addons/addon_toggler/plugin.cfg",
+  "addons/addon_toggler/scenes/addon_toggler_panel.tscn",
+  "addons/addon_toggler/scenes/one_addon_active_toggler.tscn",
+  "addons/addon_toggler/scenes/one_addon_monitor_toggler.tscn",
+  "addons/addon_toggler/scripts/addon_toggler_panel.gd",
+  "addons/addon_toggler/scripts/addon_toggler_panel.gd.uid",
+  "addons/addon_toggler/scripts/one_addon_active_toggler.gd",
+  "addons/addon_toggler/scripts/one_addon_active_toggler.gd.uid",
+  "addons/addon_toggler/scripts/one_addon_monitor_toggler.gd",
+  "addons/addon_toggler/scripts/one_addon_monitor_toggler.gd.uid",
+]
+
+[source]
+url = "https://github.com/etherealxx/godot-addon-toggler.git"
+revision = "e4c1fe80748f286c088d78b98194e8217e7d5678"
+
+[layout]
+source_subdirectory = "addons/addon_toggler"
+target_path = "addons/addon_toggler"

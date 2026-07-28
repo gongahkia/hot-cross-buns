@@ -1,0 +1,22 @@
+schema = 1
+id = "actuator3d"
+godot = ">=4.0,<5.0"
+package_sha256 = "7f4a88b61dded22331809c2c315cde1e150b3c3c6106f2e81d87a4145a371bd4"
+installed_paths = [
+  "addons/actuator3d/actuator3d_plugin.gd",
+  "addons/actuator3d/controllers/controller.gd",
+  "addons/actuator3d/controllers/pid_control.gd",
+  "addons/actuator3d/nodes/rotation_actuator.gd",
+  "addons/actuator3d/nodes/rotation_actuator_3d.svg",
+  "addons/actuator3d/nodes/translation_actuator.gd",
+  "addons/actuator3d/nodes/translation_actuator_3d.svg",
+  "addons/actuator3d/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/Boyquotes/godot4-actuator3d.git"
+revision = "29f181b30bd2d3a1c74d71eb66380ab6924f693b"
+
+[layout]
+source_subdirectory = "addons/actuator3d"
+target_path = "addons/actuator3d"

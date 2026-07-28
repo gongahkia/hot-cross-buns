@@ -1,0 +1,24 @@
+schema = 1
+id = "minos-damage"
+godot = ">=4.0,<5.0"
+package_sha256 = "5d30957bb029f4fe8645c623a097048307dd879b4f4d34cc3ebdfceb067d4fd8"
+installed_paths = [
+  "addons/minos_damage_numbers/DamageNumbersLabel2D.tscn",
+  "addons/minos_damage_numbers/DamageNumbersLabel3D.tscn",
+  "addons/minos_damage_numbers/Example2D.gd",
+  "addons/minos_damage_numbers/Example3D.gd",
+  "addons/minos_damage_numbers/MinosDamageNumbers2D.gd",
+  "addons/minos_damage_numbers/MinosDamageNumbers3D.gd",
+  "addons/minos_damage_numbers/MinosDamageNumbersPlugin.gd",
+  "addons/minos_damage_numbers/example_2d.tscn",
+  "addons/minos_damage_numbers/example_3d.tscn",
+  "addons/minos_damage_numbers/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/Minoqi/minos-damage-numbers-for-godot.git"
+revision = "048417444cfe785031be0e602af829dea9739985"
+
+[layout]
+source_subdirectory = "Minos Damage Numbers for Godot/addons/minos_damage_numbers"
+target_path = "addons/minos_damage_numbers"

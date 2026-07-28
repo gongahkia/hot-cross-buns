@@ -1,0 +1,25 @@
+schema = 1
+id = "party-manager"
+godot = ">=4.0,<5.0"
+package_sha256 = "14d1c1574c83792d7a3a1462840a505cce7e2d59e059948858cb318f08c2b854"
+installed_paths = [
+  "addons/PartyManagerFramework/character.gd",
+  "addons/PartyManagerFramework/character.gd.uid",
+  "addons/PartyManagerFramework/icon.svg",
+  "addons/PartyManagerFramework/icon.svg.import",
+  "addons/PartyManagerFramework/partymanager.gd",
+  "addons/PartyManagerFramework/partymanager.gd.uid",
+  "addons/PartyManagerFramework/partymanager_helper.gd",
+  "addons/PartyManagerFramework/partymanager_helper.gd.uid",
+  "addons/PartyManagerFramework/plugin.cfg",
+  "addons/PartyManagerFramework/plugin.gd",
+  "addons/PartyManagerFramework/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/GabrielOlivierDEV/PartyManagerFramework.git"
+revision = "1c8097ff01e8ccb0c71865609b27256518b5dc74"
+
+[layout]
+source_subdirectory = "addons/PartyManagerFramework"
+target_path = "addons/PartyManagerFramework"

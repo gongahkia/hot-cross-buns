@@ -1,0 +1,19 @@
+schema = 1
+id = "binary-radian"
+godot = ">=4.0,<5.0"
+package_sha256 = "2ab05172b1ef44d9a4b2a4d8be8cd12bbc4ec14062582115e5b856d0b667daa0"
+installed_paths = [
+  "addons/binaryradian/Brad.gd",
+  "addons/binaryradian/BradLut.gd",
+  "addons/binaryradian/LICENSE",
+  "addons/binaryradian/binaryradian.gd",
+  "addons/binaryradian/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/pokeparadox/Godot4_X_BinaryRadian.git"
+revision = "2910c6544099bd7c6f6995f8ea309a500f4eb812"
+
+[layout]
+source_subdirectory = "addons/binaryradian"
+target_path = "addons/binaryradian"

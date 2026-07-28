@@ -1,0 +1,22 @@
+schema = 1
+id = "butler-export"
+godot = ">=4.0,<5.0"
+package_sha256 = "42c7f2377658a7fc8c302c3fda8d518f9f8ce357c9a34aecb5286c7d453bb47e"
+installed_paths = [
+  "addons/butler_export_plugin/butler_export_plugin.gd",
+  "addons/butler_export_plugin/butler_export_plugin.gd.uid",
+  "addons/butler_export_plugin/icon.svg",
+  "addons/butler_export_plugin/icon.svg.import",
+  "addons/butler_export_plugin/plugin.cfg",
+  "addons/butler_export_plugin/plugin.cfg.uid",
+  "addons/butler_export_plugin/plugin.gd",
+  "addons/butler_export_plugin/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/NovaDC/Godot-ButlerExportPlugin.git"
+revision = "c361c5645be1c9bff6954ede5e2b873390917f2f"
+
+[layout]
+source_subdirectory = "addons/butler_export_plugin"
+target_path = "addons/butler_export_plugin"

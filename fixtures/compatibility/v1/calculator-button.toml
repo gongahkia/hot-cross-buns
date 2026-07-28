@@ -1,0 +1,32 @@
+schema = 1
+id = "calculator-button"
+godot = ">=4.4,<5.0"
+package_sha256 = "8f22fc68cf447e77f0930b4d2947934f0005570da403b1a47be1a69c4d2d4788"
+installed_paths = [
+  "addons/calculator_button/assets/calculator.gd",
+  "addons/calculator_button/assets/calculator.gd.uid",
+  "addons/calculator_button/assets/calculator.png",
+  "addons/calculator_button/assets/calculator.png.import",
+  "addons/calculator_button/assets/calculator.tscn",
+  "addons/calculator_button/assets/calculator_button.gd",
+  "addons/calculator_button/assets/calculator_button.gd.uid",
+  "addons/calculator_button/assets/calculator_green.svg",
+  "addons/calculator_button/assets/calculator_green.svg.import",
+  "addons/calculator_button/assets/input_display.gd",
+  "addons/calculator_button/assets/input_display.gd.uid",
+  "addons/calculator_button/calculator.png",
+  "addons/calculator_button/calculator.png.import",
+  "addons/calculator_button/calculator.svg",
+  "addons/calculator_button/calculator.svg.import",
+  "addons/calculator_button/plugin.cfg",
+  "addons/calculator_button/plugin.gd",
+  "addons/calculator_button/plugin.gd.uid",
+]
+
+[source]
+url = "https://github.com/untamedlabs/Godot4xCalculatorButton.git"
+revision = "1faed34922ab2811e406f8dee1aa457a07a5fffc"
+
+[layout]
+source_subdirectory = "addons/calculator_button"
+target_path = "addons/calculator_button"

@@ -1,0 +1,24 @@
+schema = 1
+id = "mixabridge"
+godot = ">=4.4,<5.0"
+package_sha256 = "38c3c1086766e1717d9bb7b3437cb0deb295e066b9fcde6fc2d922d8957089c7"
+installed_paths = [
+  "addons/mixabridge/animation_extractor.gd",
+  "addons/mixabridge/bone_mapper.gd",
+  "addons/mixabridge/icon.png",
+  "addons/mixabridge/icon.svg",
+  "addons/mixabridge/import_configurator.gd",
+  "addons/mixabridge/mixabridge_panel.gd",
+  "addons/mixabridge/mixabridge_panel.tscn",
+  "addons/mixabridge/mixamo_bone_table.gd",
+  "addons/mixabridge/plugin.cfg",
+  "addons/mixabridge/plugin.gd",
+]
+
+[source]
+url = "https://github.com/uzairdeveloper223/mixabridge.git"
+revision = "dd513b339ba77ffae055653e06a52a9bb893f9bb"
+
+[layout]
+source_subdirectory = "addons/mixabridge"
+target_path = "addons/mixabridge"

@@ -1,0 +1,38 @@
+schema = 1
+id = "basic-menu"
+godot = ">=4.0,<5.0"
+package_sha256 = "c269d5999eadccc0fc33842b772d6751ccb42c8b163d5b32ffae5144a574ad9f"
+installed_paths = [
+  "addons/basic_menu/LICENSE.md",
+  "addons/basic_menu/README.md",
+  "addons/basic_menu/basic_menu.gd",
+  "addons/basic_menu/example/autoloads/scene_switcher.gd",
+  "addons/basic_menu/example/images/general_intro_v00.png",
+  "addons/basic_menu/example/images/icon.svg",
+  "addons/basic_menu/example/images/main_game_v00.png",
+  "addons/basic_menu/example/images/ui_menu_v00.png",
+  "addons/basic_menu/example/intro.gd",
+  "addons/basic_menu/example/intro.tscn",
+  "addons/basic_menu/example/main/game.gd",
+  "addons/basic_menu/example/main/game.tscn",
+  "addons/basic_menu/example/ui/menu.gd",
+  "addons/basic_menu/example/ui/menu.tscn",
+  "addons/basic_menu/example/ui/outro.gd",
+  "addons/basic_menu/example/ui/outro.tscn",
+  "addons/basic_menu/icon.png",
+  "addons/basic_menu/icon.png.import",
+  "addons/basic_menu/icon_256x256.png",
+  "addons/basic_menu/menu_card.gd",
+  "addons/basic_menu/menu_card.tscn",
+  "addons/basic_menu/overlay_menu.gd",
+  "addons/basic_menu/overlay_menu.tscn",
+  "addons/basic_menu/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/kraasch/godot4_addon_basic-menu.git"
+revision = "60fe9971ab8a47ea6fac7829acb212dc123155a5"
+
+[layout]
+source_subdirectory = "addons/basic_menu"
+target_path = "addons/basic_menu"

@@ -1,0 +1,20 @@
+schema = 1
+id = "split-screen"
+godot = ">=4.0,<5.0"
+package_sha256 = "177f05c7600f47888e6416e418d7da64ced8365897f1c6e124193e5314fb7fc4"
+installed_paths = [
+  "addons/split_screen_2d/LICENSE",
+  "addons/split_screen_2d/README.md",
+  "addons/split_screen_2d/plugin.cfg",
+  "addons/split_screen_2d/plugin.gd",
+  "addons/split_screen_2d/split_screen_2d.gd",
+  "addons/split_screen_2d/split_screen_2d_config.gd",
+]
+
+[source]
+url = "https://github.com/sscovil/godot-split-screen-2d-addon.git"
+revision = "977c4edb6e1fd111092c9084c707b19e43851fff"
+
+[layout]
+source_subdirectory = "addons/split_screen_2d"
+target_path = "addons/split_screen_2d"

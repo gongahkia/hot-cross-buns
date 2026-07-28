@@ -16,7 +16,7 @@ use wukong_core::{
 };
 
 const PATH: &str = "fixture/compatibility.toml";
-const EXPECTED_CORPUS_SIZE: usize = 50;
+const EXPECTED_CORPUS_SIZE: usize = 100;
 
 #[test]
 fn invariant_fixture_parses_complete_immutable_metadata_without_execution() {
@@ -81,7 +81,7 @@ target_path = "addons/example"
 }
 
 #[test]
-fn invariant_public_corpus_has_fifty_unique_complete_fixtures() {
+fn invariant_public_corpus_has_one_hundred_unique_complete_fixtures() {
     let fixtures = fixture_paths()
         .into_iter()
         .map(|path| {
@@ -100,6 +100,28 @@ fn invariant_public_corpus_has_fifty_unique_complete_fixtures() {
         fixtures
             .iter()
             .all(|fixture| fixture.headless_validation().is_none())
+    );
+}
+
+#[test]
+fn invariant_ready_to_go_fixtures_select_explicit_independent_layouts() {
+    let fixtures = fixture_paths()
+        .into_iter()
+        .map(|path| {
+            let input = fs::read_to_string(&path).expect("fixture should read");
+            CompatibilityFixture::parse(&path, &input).expect("fixture should parse")
+        })
+        .filter(|fixture| {
+            fixture.source_url()
+                == "https://github.com/wdjacobo/ready_to_go_godot_4.4_project_public.git"
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(fixtures.len(), 2);
+    assert!(
+        fixtures
+            .windows(2)
+            .all(|pair| pair[0].source_subdirectory() != pair[1].source_subdirectory())
     );
 }
 

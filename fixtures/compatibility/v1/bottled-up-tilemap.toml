@@ -1,0 +1,37 @@
+schema = 1
+id = "bottled-up-tilemap"
+godot = ">=4.0,<5.0"
+package_sha256 = "5f9a2b27691bc19dad1b345c6177e29ce0eafe17788d846726e9ef5263062325"
+installed_paths = [
+  "addons/BottledTileMap/BottledTilemap.gd",
+  "addons/BottledTileMap/Test.tscn",
+  "addons/BottledTileMap/TileCellManager/TileCellManager.gd",
+  "addons/BottledTileMap/TileCellManager/TileCells.gd",
+  "addons/BottledTileMap/TileCellManager/TileCells.tscn",
+  "addons/BottledTileMap/TilePalette/Preview.gd",
+  "addons/BottledTileMap/TilePalette/TilePalette.gd",
+  "addons/BottledTileMap/TilePalette/TilePalette.tscn",
+  "addons/BottledTileMap/TilePalette/icon.png",
+  "addons/BottledTileMap/TilePalette/icon.png.import",
+  "addons/BottledTileMap/TilePalette/palette_manager.gd",
+  "addons/BottledTileMap/TilePalette/reset_scaling.svg",
+  "addons/BottledTileMap/TilePalette/reset_scaling.svg.import",
+  "addons/BottledTileMap/TilePalette/tilemap_inspector_plugin.gd",
+  "addons/BottledTileMap/TilePalette/transform_indicator.svg",
+  "addons/BottledTileMap/TilePalette/transform_indicator.svg.import",
+  "addons/BottledTileMap/icon.png",
+  "addons/BottledTileMap/icon.png.import",
+  "addons/BottledTileMap/plugin.cfg",
+  "addons/BottledTileMap/plugin.gd",
+  "addons/BottledTileMap/resources/Placeholder_tiles.png",
+  "addons/BottledTileMap/resources/Placeholder_tiles.png.import",
+  "addons/BottledTileMap/save",
+]
+
+[source]
+url = "https://github.com/Dark-Peace/bottled-up-tilemap.git"
+revision = "7a9338631c26572ae4466a0f4b7069e2f96bcb91"
+
+[layout]
+source_subdirectory = "BottledTileMap"
+target_path = "addons/BottledTileMap"

@@ -1,0 +1,33 @@
+schema = 1
+id = "skeleton2d-helper"
+godot = ">=4.3,<5.0"
+package_sha256 = "329bc966e2a6186248c795e91cbb97b8c4f8d2fd202f9913184892a4c0fbcc32"
+installed_paths = [
+  "addons/godot-skeleton2d-helper/bottom_dock.gd",
+  "addons/godot-skeleton2d-helper/bottom_dock.gd.uid",
+  "addons/godot-skeleton2d-helper/bottom_dock.tscn",
+  "addons/godot-skeleton2d-helper/drop_button.gd",
+  "addons/godot-skeleton2d-helper/drop_button.gd.uid",
+  "addons/godot-skeleton2d-helper/file_drop_tree.gd",
+  "addons/godot-skeleton2d-helper/file_drop_tree.gd.uid",
+  "addons/godot-skeleton2d-helper/folta_agm_helper.gd.uid",
+  "addons/godot-skeleton2d-helper/image_rect_drop_tree.gd",
+  "addons/godot-skeleton2d-helper/image_rect_drop_tree.gd.uid",
+  "addons/godot-skeleton2d-helper/plugin.cfg",
+  "addons/godot-skeleton2d-helper/plugin.gd",
+  "addons/godot-skeleton2d-helper/polygon_points.gd",
+  "addons/godot-skeleton2d-helper/polygon_points.gd.uid",
+  "addons/godot-skeleton2d-helper/polygon_viewer.gd",
+  "addons/godot-skeleton2d-helper/polygon_viewer.gd.uid",
+  "addons/godot-skeleton2d-helper/tree.gd",
+  "addons/godot-skeleton2d-helper/tree.gd.uid",
+  "addons/godot-skeleton2d-helper/tree.tscn",
+]
+
+[source]
+url = "https://github.com/folt-a/godot-skeleton2d-helper.git"
+revision = "5b9203776863795163e6119031e91ef7f5273198"
+
+[layout]
+source_subdirectory = "addons/godot-skeleton2d-helper"
+target_path = "addons/godot-skeleton2d-helper"

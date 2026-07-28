@@ -1,0 +1,23 @@
+schema = 1
+id = "texture-array-tools"
+godot = ">=4.4,<5.0"
+package_sha256 = "2228d82e0e1c6eaa98de6779b397265f56e476c425d51e1a054d540d46f9e5ad"
+installed_paths = [
+  "addons/texture_array_tools/plugin.cfg",
+  "addons/texture_array_tools/plugin.gd",
+  "addons/texture_array_tools/plugin.gd.uid",
+  "addons/texture_array_tools/plugin_system_theme_ui_applier.gd",
+  "addons/texture_array_tools/plugin_system_theme_ui_applier.gd.uid",
+  "addons/texture_array_tools/plugin_system_theme_ui_applier.tres",
+  "addons/texture_array_tools/t2da_dock.gd",
+  "addons/texture_array_tools/t2da_dock.gd.uid",
+  "addons/texture_array_tools/t2da_dock.tscn",
+]
+
+[source]
+url = "https://github.com/Rakadeja/godot-texture-array-tools.git"
+revision = "872de25bb215f3bed127604f92ac0249e7917ba2"
+
+[layout]
+source_subdirectory = "addons/texture_array_tools"
+target_path = "addons/texture_array_tools"

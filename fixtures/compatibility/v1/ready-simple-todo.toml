@@ -1,0 +1,30 @@
+schema = 1
+id = "ready-simple-todo"
+godot = ">=4.4,<5.0"
+package_sha256 = "99bfc161bf15da8be5aa504f4a27c8d87a0c4000f093bc6758ebcb714b224e5f"
+installed_paths = [
+  "addons/SimpleTODO/ColumnHeader.gd",
+  "addons/SimpleTODO/ColumnHeader.gd.uid",
+  "addons/SimpleTODO/ColumnHeader.tscn",
+  "addons/SimpleTODO/ItemPlacementHolder.tscn",
+  "addons/SimpleTODO/SimpleTODO.gd",
+  "addons/SimpleTODO/SimpleTODO.gd.uid",
+  "addons/SimpleTODO/TODO.gd",
+  "addons/SimpleTODO/TODO.gd.uid",
+  "addons/SimpleTODO/TODO.tscn",
+  "addons/SimpleTODO/TODOColumn.gd",
+  "addons/SimpleTODO/TODOColumn.gd.uid",
+  "addons/SimpleTODO/TODOColumn.tscn",
+  "addons/SimpleTODO/TODOItem.gd",
+  "addons/SimpleTODO/TODOItem.gd.uid",
+  "addons/SimpleTODO/TODOItem.tscn",
+  "addons/SimpleTODO/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/wdjacobo/ready_to_go_godot_4.4_project_public.git"
+revision = "2863be4c67872d00df5f1ebe77b407d5b3c329e3"
+
+[layout]
+source_subdirectory = "addons/SimpleTODO"
+target_path = "addons/SimpleTODO"

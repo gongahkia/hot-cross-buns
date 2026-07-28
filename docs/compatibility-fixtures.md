@@ -1,7 +1,7 @@
 # Compatibility fixtures
 
 Schema-one fixtures live in `fixtures/compatibility/v1/`. The current corpus
-contains 50 public addons. Every fixture pins a public HTTPS Git source to a
+contains 100 public addons. Every fixture pins a public HTTPS Git source to a
 full commit and records its explicit layout, complete expected installed file
 paths, canonical package-tree SHA-256, and Godot version requirement.
 
@@ -101,3 +101,10 @@ source-tree materialisation; neither Godot nor package scripts ran.
 | `BBCodeEdit` | 3 |
 | `YATI` | 2 |
 | 20 other public MIT sources | 20 |
+
+## W151 one-hundred-fixture validation record
+
+On 2026-07-29, 50 further addon layouts from 49 public MIT-licensed sources
+passed the same opt-in source verification. This completes the 100-addon
+corpus target. The two Ready-to-Go layouts use distinct explicit source and
+target paths. No Godot executable or package script ran.
