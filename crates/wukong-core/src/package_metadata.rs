@@ -3,8 +3,8 @@
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
+    semantic_version::{SemanticVersion, VersionRequirement},
 };
-use semver::{Version, VersionReq};
 use std::{
     collections::BTreeMap,
     fs,
@@ -20,11 +20,11 @@ pub const PACKAGE_METADATA_FILE_NAME: &str = "wukong-package.toml";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageMetadata {
     name: PackageName,
-    version: Version,
-    godot: VersionReq,
+    version: SemanticVersion,
+    godot: VersionRequirement,
     root: Option<PathBuf>,
     target: Option<PathBuf>,
-    dependencies: BTreeMap<PackageName, VersionReq>,
+    dependencies: BTreeMap<PackageName, VersionRequirement>,
 }
 
 impl PackageMetadata {
@@ -85,16 +85,16 @@ impl PackageMetadata {
                 "use a canonical package name",
             )
         })?;
-        let version =
-            Version::parse(&string(package, "version", path, "package")?).map_err(|error| {
+        let version = SemanticVersion::parse(&string(package, "version", path, "package")?)
+            .map_err(|error| {
                 user(
                     path,
                     format!("package.version is invalid: {error}"),
                     "use a semantic version",
                 )
             })?;
-        let godot =
-            VersionReq::parse(&string(package, "godot", path, "package")?).map_err(|error| {
+        let godot = VersionRequirement::parse(&string(package, "godot", path, "package")?)
+            .map_err(|error| {
                 user(
                     path,
                     format!("package.godot is invalid: {error}"),
@@ -118,11 +118,11 @@ impl PackageMetadata {
         &self.name
     }
     #[must_use]
-    pub const fn version(&self) -> &Version {
+    pub const fn version(&self) -> &SemanticVersion {
         &self.version
     }
     #[must_use]
-    pub const fn godot(&self) -> &VersionReq {
+    pub const fn godot(&self) -> &VersionRequirement {
         &self.godot
     }
     #[must_use]
@@ -134,7 +134,7 @@ impl PackageMetadata {
         self.target.as_deref()
     }
     #[must_use]
-    pub const fn dependencies(&self) -> &BTreeMap<PackageName, VersionReq> {
+    pub const fn dependencies(&self) -> &BTreeMap<PackageName, VersionRequirement> {
         &self.dependencies
     }
 }
@@ -142,7 +142,7 @@ impl PackageMetadata {
 fn dependencies(
     item: Option<&Item>,
     path: &Path,
-) -> Result<BTreeMap<PackageName, VersionReq>, Box<Diagnostic>> {
+) -> Result<BTreeMap<PackageName, VersionRequirement>, Box<Diagnostic>> {
     let Some(item) = item else {
         return Ok(BTreeMap::new());
     };
@@ -165,7 +165,7 @@ fn dependencies(
                 "use a semantic version requirement",
             )
         })?;
-        let requirement = VersionReq::parse(value).map_err(|error| {
+        let requirement = VersionRequirement::parse(value).map_err(|error| {
             user(
                 path,
                 format!("dependency {} is invalid: {error}", name.as_str()),

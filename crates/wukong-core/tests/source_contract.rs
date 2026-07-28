@@ -1,11 +1,11 @@
 mod support;
 
-use semver::Version;
 use std::{collections::BTreeSet, fs, path::PathBuf};
 use support::source_adapter_contract::{SourceAdapterFixture, assert_source_adapter_contract};
 use tempfile::TempDir;
 use wukong_core::{
     identity::{LocalSourceIdentity, SourceIdentity},
+    semantic_version::SemanticVersion,
     source::{
         CancellationToken, ImmutableSourceId, OfflineAvailability, ResolvedSource, SourceAdapter,
         SourceResult, VersionAvailability,
@@ -49,7 +49,9 @@ impl SourceAdapterFixture for Fixture {
     fn assert_versions(&self, versions: &VersionAvailability) {
         assert_eq!(
             versions,
-            &VersionAvailability::Available(BTreeSet::from([Version::new(1, 0, 0)]))
+            &VersionAvailability::Available(BTreeSet::from([
+                SemanticVersion::parse("1.0.0").expect("version should parse")
+            ]))
         );
     }
     fn assert_integrity(&self, integrity: &&'static str) {
@@ -94,7 +96,7 @@ impl SourceAdapter for TestAdapter {
     }
     fn available_versions(&self, _request: &Self::Request) -> SourceResult<VersionAvailability> {
         Ok(VersionAvailability::Available(BTreeSet::from([
-            Version::new(1, 0, 0),
+            SemanticVersion::parse("1.0.0").expect("version should parse"),
         ])))
     }
     fn resolve(

@@ -3,8 +3,8 @@
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
+    semantic_version::VersionRequirement,
 };
-use semver::VersionReq;
 use std::{
     borrow::Borrow,
     collections::BTreeMap,
@@ -100,7 +100,7 @@ impl Manifest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Project {
     name: String,
-    godot: VersionReq,
+    godot: VersionRequirement,
 }
 
 impl Project {
@@ -111,7 +111,7 @@ impl Project {
     }
     /// Returns the validated Godot version requirement.
     #[must_use]
-    pub const fn godot(&self) -> &VersionReq {
+    pub const fn godot(&self) -> &VersionRequirement {
         &self.godot
     }
 }
@@ -137,7 +137,7 @@ impl Borrow<str> for DependencyAlias {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Dependency {
     /// A future catalogue version requirement.
-    Version(VersionReq),
+    Version(VersionRequirement),
     /// A local directory resolved relative to `wukong.toml`.
     Path(PathBuf),
     /// A Git source and optional revision selector.
@@ -208,7 +208,7 @@ fn parse_project(table: &dyn TableLike, path: &Path, input: &str) -> ManifestRes
         ));
     }
     let godot_raw = required_string(table, "godot", path, input, "project")?;
-    let godot = VersionReq::parse(&godot_raw).map_err(|error| {
+    let godot = VersionRequirement::parse(&godot_raw).map_err(|error| {
         field_error(
             path,
             input,
@@ -241,7 +241,7 @@ fn parse_dependencies(
         );
         let field = format!("{table_name}.{}", alias.as_str());
         let dependency = if let Some(requirement) = item.as_str() {
-            Dependency::Version(VersionReq::parse(requirement).map_err(|error| {
+            Dependency::Version(VersionRequirement::parse(requirement).map_err(|error| {
                 field_error(
                     path,
                     input,

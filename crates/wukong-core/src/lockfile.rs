@@ -6,9 +6,9 @@ use crate::{
     http_archive::canonicalize_archive_url,
     identity::PackageName,
     manifest::GitReference,
+    semantic_version::{SemanticVersion, VersionRequirement},
     source::ImmutableSourceId,
 };
-use semver::{Version, VersionReq};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Component, Path, PathBuf},
@@ -25,7 +25,7 @@ const LEGACY_LOCKFILE_SCHEMA: i64 = 1;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GodotCompatibility {
     Unknown,
-    Requirement(VersionReq),
+    Requirement(VersionRequirement),
 }
 
 /// A local source resolved to immutable content.
@@ -226,7 +226,7 @@ impl From<LockedHttpSource> for LockedSource {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LockedPackage {
     name: PackageName,
-    version: Option<Version>,
+    version: Option<SemanticVersion>,
     source: LockedSource,
     package_sha256: String,
     declaration_sha256: String,
@@ -247,7 +247,7 @@ impl LockedPackage {
     /// Returns a diagnostic when checksums or paths are invalid.
     pub fn new(
         name: PackageName,
-        version: Option<Version>,
+        version: Option<SemanticVersion>,
         source: impl Into<LockedSource>,
         package_sha256: String,
         declaration_sha256: String,
@@ -282,7 +282,7 @@ impl LockedPackage {
         &self.name
     }
     #[must_use]
-    pub fn version(&self) -> Option<&Version> {
+    pub fn version(&self) -> Option<&SemanticVersion> {
         self.version.as_ref()
     }
     #[must_use]
@@ -512,7 +512,7 @@ fn parse_package(
     let version = package_table
         .get("version")
         .map(|item| {
-            Version::parse(item.as_str().ok_or_else(|| {
+            SemanticVersion::parse(item.as_str().ok_or_else(|| {
                 user(
                     path,
                     "package.version must be a string",
@@ -550,7 +550,7 @@ fn parse_package(
     let godot = if godot_raw == "unknown" {
         GodotCompatibility::Unknown
     } else {
-        GodotCompatibility::Requirement(VersionReq::parse(&godot_raw).map_err(|e| {
+        GodotCompatibility::Requirement(VersionRequirement::parse(&godot_raw).map_err(|e| {
             user(
                 path,
                 format!("package.godot is invalid: {e}"),

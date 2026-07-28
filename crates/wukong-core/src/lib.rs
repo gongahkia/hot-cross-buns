@@ -71,3 +71,6 @@ pub mod project_sync;
 
 /// Source-adapter contracts.
 pub mod source;
+
+/// Canonical semantic-version values and requirements.
+pub mod semantic_version;

@@ -3,8 +3,8 @@
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     identity::SourceIdentity,
+    semantic_version::SemanticVersion,
 };
-use semver::Version;
 use std::{
     collections::BTreeSet,
     error::Error,
@@ -113,7 +113,7 @@ pub enum VersionAvailability {
     /// The source has no meaningful version catalogue.
     Unsupported,
     /// Versions known to the source, in deterministic order.
-    Available(BTreeSet<Version>),
+    Available(BTreeSet<SemanticVersion>),
 }
 
 /// Whether a resolved source can be used with networking disabled.

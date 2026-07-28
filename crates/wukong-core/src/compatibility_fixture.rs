@@ -5,8 +5,8 @@ use crate::{
     identity::PackageName,
     layout::{LayoutOptions, detect_package_layout},
     package_tree::prepare_package_tree,
+    semantic_version::VersionRequirement,
 };
-use semver::VersionReq;
 use std::{
     collections::BTreeSet,
     path::{Component, Path, PathBuf},
@@ -26,7 +26,7 @@ pub struct CompatibilityFixture {
     target_path: PathBuf,
     installed_paths: Vec<PathBuf>,
     package_sha256: String,
-    godot: VersionReq,
+    godot: VersionRequirement,
     headless_validation: Option<Vec<String>>,
 }
 
@@ -70,13 +70,14 @@ impl CompatibilityFixture {
                 "use a canonical package identifier",
             )
         })?;
-        let godot = VersionReq::parse(&string(root, "godot", path, "root")?).map_err(|error| {
-            user(
-                path,
-                format!("fixture.godot is invalid: {error}"),
-                "use a semantic-version requirement",
-            )
-        })?;
+        let godot =
+            VersionRequirement::parse(&string(root, "godot", path, "root")?).map_err(|error| {
+                user(
+                    path,
+                    format!("fixture.godot is invalid: {error}"),
+                    "use a semantic-version requirement",
+                )
+            })?;
         let package_sha256 = sha256(&string(root, "package_sha256", path, "root")?, path)?;
         let installed_paths = installed_paths(root.get("installed_paths"), path)?;
         let headless_validation = headless_validation(root.get("headless_validation"), path)?;
@@ -168,7 +169,7 @@ impl CompatibilityFixture {
 
     /// Returns the declared Godot semantic-version requirement.
     #[must_use]
-    pub const fn godot(&self) -> &VersionReq {
+    pub const fn godot(&self) -> &VersionRequirement {
         &self.godot
     }
 

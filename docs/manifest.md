@@ -13,7 +13,7 @@ example = { path = "../example-addon" }
 ```
 
 `project.name` is a non-empty string. `project.godot` and version-only
-dependencies use SemVer requirements. Dependency aliases are lowercase ASCII
+dependencies use the [versioning policy](versioning.md). Dependency aliases are lowercase ASCII
 letters, digits, and internal hyphens; they must begin and end with an
 alphanumeric character.
 

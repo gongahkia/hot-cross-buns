@@ -492,13 +492,13 @@ Do not default to symlinks.
 
 ## wukong-061: Implement semantic version handling
 
-- [ ] Exact versions.
-- [ ] Ranges.
-- [ ] Caret requirements.
-- [ ] Tilde requirements if supported.
-- [ ] Pre-release policy.
-- [ ] Invalid or missing versions.
-- [ ] Source-pinned packages without version catalogues.
+- [x] Exact versions.
+- [x] Ranges.
+- [x] Caret requirements.
+- [x] Tilde requirements if supported.
+- [x] Pre-release policy.
+- [x] Invalid or missing versions.
+- [x] Source-pinned packages without version catalogues.
 
 Document deviations from conventional SemVer.
 
