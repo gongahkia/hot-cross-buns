@@ -45,11 +45,54 @@ the traversal reaches every package. Its single output row records the fixture,
 iteration count, and elapsed nanoseconds. It is a fixture baseline, not a
 published performance result or a version-solver benchmark.
 
-## Required context
+## Collection procedure
 
-Each result must record hardware, operating system, Rust version, filesystem,
-network conditions, cache state, fixture revision, command, repetition count,
-and raw timings.
+1. Record the checked-out commit, fixture revision, Rust version, hardware,
+   operating-system version, and filesystem before the first run.
+2. Select one fixture and one cache state. Prepare that state before every
+   repetition; do not retain accidental state from an earlier run.
+3. For network workloads, record target host, region, connection type, whether
+   a proxy or VPN was active, and whether the network was otherwise idle. Do
+   not place credentials in the record or command environment.
+4. Run the exact command 15 independent times. Save the complete stdout,
+   stderr, exit status, and elapsed wall time of each invocation.
+5. Keep raw output immutable. Produce median, minimum, maximum, and standard deviation only as derived data; never replace the raw observations.
+
+Use a unique result directory such as
+`benchmarks/results/2026-07-29-component-harness/` containing:
+
+```text
+metadata.toml
+raw/01.stdout
+raw/01.stderr
+raw/01.status
+...
+raw/15.stdout
+raw/15.stderr
+raw/15.status
+summary.md
+```
+
+`metadata.toml` must include this schema, with actual values substituted:
+
+```toml
+schema = 1
+wukong_revision = "<git commit>"
+fixture_revision = "wukong-111-v1"
+fixture = "small-project"
+cache_state = "cold-cache"
+command = "cargo +1.85.0 bench -p wukong-core --bench component_harness"
+repetitions = 15
+rustc = "<rustc -Vv output or path to it>"
+hardware = "<CPU, core count, memory, storage>"
+operating_system = "<name and version>"
+filesystem = "<filesystem type and mount details>"
+network_conditions = "<not-applicable or target, region, connection, proxy/VPN>"
+```
+
+For macOS, `system_profiler SPHardwareDataType SPSoftwareDataType`, `rustc
+-Vv`, and `mount` provide the required local context. Use equivalent native
+commands on Linux and Windows.
 
 ## Fixtures
 
@@ -75,6 +118,13 @@ as a distinct workload; do not merge their timings.
 
 ## Reporting
 
-Report median and spread, retain raw result data, and distinguish
-package-manager-controlled work from network time. Do not compare results with
-different fixture, cache, network, or hardware conditions as equivalent.
+State the fixture, cache state, hardware, operating system, filesystem,
+network conditions, Rust version, command, repetition count, and raw-result
+directory beside every reported number. Distinguish package-manager-controlled
+work from network time.
+
+Competitor comparisons must record the competitor name and version, exact
+command, fixture preparation, cache state, network conditions, and each raw
+run. Do not call different dependency sources, cache states, fixtures, or
+hardware equivalent; report them separately instead. No benchmark result is a
+speed claim until this metadata and raw data are available for review.

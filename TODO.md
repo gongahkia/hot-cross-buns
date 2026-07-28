@@ -808,14 +808,14 @@ Measure separately:
 
 ## wukong-112: Publish honest benchmark methodology
 
-- [ ] Hardware.
-- [ ] Operating system.
-- [ ] Network conditions.
-- [ ] Cache state.
-- [ ] Competitor commands.
-- [ ] Repetition count.
-- [ ] Variance.
-- [ ] Raw result data.
+- [x] Hardware.
+- [x] Operating system.
+- [x] Network conditions.
+- [x] Cache state.
+- [x] Competitor commands.
+- [x] Repetition count.
+- [x] Variance.
+- [x] Raw result data.
 
 ## wukong-113: Optimise only measured bottlenecks
 
