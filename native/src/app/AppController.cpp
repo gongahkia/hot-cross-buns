@@ -18,9 +18,12 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QColor>
+#include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaType>
+#include <QRegularExpression>
 #include <QSet>
 #include <QTimeZone>
 #include <QTimer>
@@ -49,6 +52,19 @@ constexpr char kNotesEnabledSettingsKey[] = "notes_enabled";
 constexpr char kNotesProjectionSettingsKey[] = "notes_projection";
 constexpr char kAppearanceModeSettingsKey[] = "appearance_mode";
 constexpr char kVisualDensitySettingsKey[] = "visual_density";
+constexpr char kPaletteModeSettingsKey[] = "palette_mode";
+constexpr char kAccentColorSettingsKey[] = "accent_color";
+constexpr char kFontFamilySettingsKey[] = "font_family";
+constexpr char kFontScaleSettingsKey[] = "font_scale";
+constexpr char kQuickCaptureDefaultTaskListSettingsKey[] = "quick_capture_default_task_list";
+constexpr char kQuickCaptureDefaultCalendarSettingsKey[] = "quick_capture_default_calendar";
+constexpr char kQuickCaptureEventDurationSettingsKey[] = "quick_capture_event_duration_minutes";
+constexpr char kQuickCaptureRemoveParsedTextSettingsKey[] = "quick_capture_remove_parsed_text";
+constexpr char kQuickCaptureTaskAliasesSettingsKey[] = "quick_capture_task_aliases";
+constexpr char kQuickCaptureEventAliasesSettingsKey[] = "quick_capture_event_aliases";
+constexpr char kQuickCaptureHighPriorityAliasesSettingsKey[] = "quick_capture_high_priority_aliases";
+constexpr char kQuickCaptureMediumPriorityAliasesSettingsKey[] = "quick_capture_medium_priority_aliases";
+constexpr char kQuickCaptureLowPriorityAliasesSettingsKey[] = "quick_capture_low_priority_aliases";
 constexpr char kWeekStartDaySettingsKey[] = "week_start_day";
 constexpr char kUse24HourTimeSettingsKey[] = "use_24_hour_time";
 constexpr char kDisplayTimeZoneSettingsKey[] = "display_time_zone";
@@ -91,6 +107,84 @@ constexpr int kSearchDebounceMilliseconds = 180;
 
 [[nodiscard]] bool isValidVisualDensity(int value) { return value >= 0 && value <= 2; }
 
+[[nodiscard]] bool isValidPaletteMode(int value) { return value >= 0 && value <= 5; }
+
+[[nodiscard]] bool isValidFontScale(int value) { return value >= 0 && value <= 3; }
+
+[[nodiscard]] bool isValidQuickCaptureKind(int value) {
+  return value == static_cast<int>(QuickCaptureKind::Task) ||
+         value == static_cast<int>(QuickCaptureKind::Event);
+}
+
+[[nodiscard]] bool isValidQuickCaptureDuration(int value) { return value >= 1 && value <= 1'440; }
+
+[[nodiscard]] bool isValidQuickCaptureDestination(const QString& value) {
+  return value.isEmpty() || (value == value.trimmed() && value.size() <= 256 &&
+                             !value.contains(QChar::Null));
+}
+
+[[nodiscard]] bool isValidQuickCaptureAlias(const QString& value) {
+  static const QRegularExpression expression(QStringLiteral("^[A-Za-z][A-Za-z0-9_-]{0,31}$"));
+  return expression.match(value).hasMatch();
+}
+
+[[nodiscard]] std::optional<QStringList> quickCaptureAliasesFromText(const QString& text) {
+  QStringList aliases;
+  QSet<QString> seen;
+  const QStringList parts = text.split(',', Qt::SkipEmptyParts);
+  for (const QString& part : parts) {
+    const QString alias = part.trimmed();
+    if (!isValidQuickCaptureAlias(alias) || seen.contains(alias.toCaseFolded())) {
+      return std::nullopt;
+    }
+    seen.insert(alias.toCaseFolded());
+    aliases.append(alias);
+  }
+  return aliases.isEmpty() ? std::nullopt : std::optional<QStringList>(aliases);
+}
+
+[[nodiscard]] bool quickCaptureAliasesAreDistinct(const QStringList& task,
+                                                   const QStringList& event,
+                                                   const QStringList& high,
+                                                   const QStringList& medium,
+                                                   const QStringList& low) {
+  QSet<QString> seen;
+  for (const QStringList* values : {&task, &event, &high, &medium, &low}) {
+    for (const QString& value : *values) {
+      const QString normalized = value.toCaseFolded();
+      if (seen.contains(normalized)) {
+        return false;
+      }
+      seen.insert(normalized);
+    }
+  }
+  return true;
+}
+
+[[nodiscard]] QString quickCaptureAliasesToText(const QStringList& aliases) {
+  return aliases.join(QStringLiteral(", "));
+}
+
+[[nodiscard]] bool isValidAccentColor(const QString& value) {
+  if (value.isEmpty()) {
+    return true;
+  }
+  if (value.size() != 7 || value.front() != u'#') {
+    return false;
+  }
+  const QColor color(value);
+  return color.isValid() && color.name(QColor::HexRgb).compare(value, Qt::CaseInsensitive) == 0;
+}
+
+[[nodiscard]] QStringList installedFontFamilies() {
+  QStringList families = QFontDatabase::families();
+  families.removeDuplicates();
+  std::sort(families.begin(), families.end(), [](const QString& left, const QString& right) {
+    return left.compare(right, Qt::CaseInsensitive) < 0;
+  });
+  return families;
+}
+
 [[nodiscard]] bool isValidWeekStartDay(int value) { return value == 0 || value == 1; }
 
 [[nodiscard]] bool isValidWorkdayHours(int startHour, int endHour) {
@@ -114,6 +208,32 @@ constexpr int kSearchDebounceMilliseconds = 180;
 
 [[nodiscard]] QString jsonStringArray(const QString& value) {
   return QString::fromUtf8(QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact));
+}
+
+[[nodiscard]] std::optional<QStringList> jsonStringList(const QString& value) {
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray() || document.array().isEmpty() ||
+      document.array().size() > 32) {
+    return std::nullopt;
+  }
+  QStringList values;
+  values.reserve(document.array().size());
+  for (const QJsonValue& item : document.array()) {
+    if (!item.isString()) {
+      return std::nullopt;
+    }
+    values.append(item.toString());
+  }
+  return values;
+}
+
+[[nodiscard]] QString jsonStringList(const QStringList& values) {
+  QJsonArray array;
+  for (const QString& value : values) {
+    array.append(value);
+  }
+  return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
 }
 
 [[nodiscard]] std::optional<TaskPriority> priorityForValue(int value) {
@@ -592,6 +712,54 @@ int AppController::appearanceMode() const { return appearanceMode_; }
 
 int AppController::visualDensity() const { return visualDensity_; }
 
+int AppController::paletteMode() const { return paletteMode_; }
+
+QString AppController::accentColor() const { return accentColor_; }
+
+QString AppController::fontFamily() const { return fontFamily_; }
+
+QVariantList AppController::availableFontFamilies() const {
+  QVariantList families;
+  const QStringList installed = installedFontFamilies();
+  families.reserve(installed.size());
+  for (const QString& family : installed) {
+    families.append(family);
+  }
+  return families;
+}
+
+int AppController::fontScale() const { return fontScale_; }
+
+QString AppController::quickCaptureDefaultTaskListId() const { return quickCaptureDefaultTaskListId_; }
+
+QString AppController::quickCaptureDefaultCalendarId() const { return quickCaptureDefaultCalendarId_; }
+
+int AppController::quickCaptureEventDurationMinutes() const {
+  return quickCaptureEventDurationMinutes_;
+}
+
+bool AppController::quickCaptureRemoveParsedText() const { return quickCaptureRemoveParsedText_; }
+
+QString AppController::quickCaptureTaskAliases() const {
+  return quickCaptureAliasesToText(quickCaptureTaskAliases_);
+}
+
+QString AppController::quickCaptureEventAliases() const {
+  return quickCaptureAliasesToText(quickCaptureEventAliases_);
+}
+
+QString AppController::quickCaptureHighPriorityAliases() const {
+  return quickCaptureAliasesToText(quickCaptureHighPriorityAliases_);
+}
+
+QString AppController::quickCaptureMediumPriorityAliases() const {
+  return quickCaptureAliasesToText(quickCaptureMediumPriorityAliases_);
+}
+
+QString AppController::quickCaptureLowPriorityAliases() const {
+  return quickCaptureAliasesToText(quickCaptureLowPriorityAliases_);
+}
+
 int AppController::weekStartDay() const { return weekStartDay_; }
 
 bool AppController::use24HourTime() const { return use24HourTime_; }
@@ -753,6 +921,189 @@ void AppController::initialize() {
                         }
                       },
                       QStringLiteral("Stored visual density is invalid"));
+  loadPresentationInt(kPaletteModeSettingsKey,
+                      isValidPaletteMode,
+                      [this](int value) {
+                        if (paletteMode_ != value) {
+                          paletteMode_ = value;
+                          emit paletteModeChanged();
+                        }
+                      },
+                      QStringLiteral("Stored palette is invalid"));
+  loadPresentationInt(kFontScaleSettingsKey,
+                      isValidFontScale,
+                      [this](int value) {
+                        if (fontScale_ != value) {
+                          fontScale_ = value;
+                          emit fontScaleChanged();
+                        }
+                      },
+                      QStringLiteral("Stored font scale is invalid"));
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kAccentColorSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<QString> value = jsonArrayString(*stored);
+          if (!value.has_value() || !isValidAccentColor(*value)) {
+            setStatus(QStringLiteral("Stored accent color is invalid"));
+            return;
+          }
+          const QString normalized = value->toUpper();
+          if (accentColor_ != normalized) {
+            accentColor_ = normalized;
+            emit accentColorChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kFontFamilySettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<QString> value = jsonArrayString(*stored);
+          if (!value.has_value() || (!value->isEmpty() && !installedFontFamilies().contains(*value))) {
+            setStatus(QStringLiteral("Stored font family is unavailable"));
+            return;
+          }
+          if (fontFamily_ != *value) {
+            fontFamily_ = *value;
+            emit fontFamilyChanged();
+          }
+        });
+  const auto loadQuickCaptureString = [this](const char* key, auto valid, auto apply, QString message) {
+    watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                    QString::fromLatin1(key)),
+          [this, valid, apply, message = std::move(message)](SettingsJsonReadResult result) mutable {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+            if (!stored.has_value()) {
+              return;
+            }
+            const std::optional<QString> value = jsonArrayString(*stored);
+            if (!value.has_value() || !valid(*value)) {
+              setStatus(std::move(message));
+              return;
+            }
+            apply(*value);
+          });
+  };
+  loadQuickCaptureString(kQuickCaptureDefaultTaskListSettingsKey,
+                         isValidQuickCaptureDestination,
+                         [this](const QString& value) {
+                           if (quickCaptureDefaultTaskListId_ != value) {
+                             quickCaptureDefaultTaskListId_ = value;
+                             emit quickCaptureDefaultTaskListIdChanged();
+                           }
+                         },
+                         QStringLiteral("Stored quick capture task list is invalid"));
+  loadQuickCaptureString(kQuickCaptureDefaultCalendarSettingsKey,
+                         isValidQuickCaptureDestination,
+                         [this](const QString& value) {
+                           if (quickCaptureDefaultCalendarId_ != value) {
+                             quickCaptureDefaultCalendarId_ = value;
+                             emit quickCaptureDefaultCalendarIdChanged();
+                           }
+                         },
+                         QStringLiteral("Stored quick capture calendar is invalid"));
+  loadPresentationInt(kQuickCaptureEventDurationSettingsKey,
+                      isValidQuickCaptureDuration,
+                      [this](int value) {
+                        if (quickCaptureEventDurationMinutes_ != value) {
+                          quickCaptureEventDurationMinutes_ = value;
+                          emit quickCaptureEventDurationMinutesChanged();
+                        }
+                      },
+                      QStringLiteral("Stored quick capture event duration is invalid"));
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kQuickCaptureRemoveParsedTextSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<bool> value = *stored == QStringLiteral("true") ? std::optional<bool>(true)
+                                            : *stored == QStringLiteral("false") ? std::optional<bool>(false)
+                                                                                     : std::nullopt;
+          if (!value.has_value()) {
+            setStatus(QStringLiteral("Stored quick capture parsed-text preference is invalid"));
+          } else if (quickCaptureRemoveParsedText_ != *value) {
+            quickCaptureRemoveParsedText_ = *value;
+            emit quickCaptureRemoveParsedTextChanged();
+          }
+        });
+  const auto loadQuickCaptureAliases = [this](const char* key, auto apply, QString message) {
+    watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                    QString::fromLatin1(key)),
+          [this, apply, message = std::move(message)](SettingsJsonReadResult result) mutable {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+            if (!stored.has_value()) {
+              return;
+            }
+            const std::optional<QStringList> values = jsonStringList(*stored);
+            if (!values.has_value() ||
+                std::any_of(values->cbegin(), values->cend(), [](const QString& value) {
+                  return !isValidQuickCaptureAlias(value);
+                })) {
+              setStatus(std::move(message));
+              return;
+            }
+            apply(*values);
+          });
+  };
+  const auto aliasesChanged = [this](QStringList values, QStringList& destination) {
+    if (destination != values) {
+      destination = std::move(values);
+      emit quickCaptureAliasesChanged();
+    }
+  };
+  loadQuickCaptureAliases(kQuickCaptureTaskAliasesSettingsKey,
+                          [this, aliasesChanged](const QStringList& values) mutable {
+                            aliasesChanged(values, quickCaptureTaskAliases_);
+                          },
+                          QStringLiteral("Stored quick capture task aliases are invalid"));
+  loadQuickCaptureAliases(kQuickCaptureEventAliasesSettingsKey,
+                          [this, aliasesChanged](const QStringList& values) mutable {
+                            aliasesChanged(values, quickCaptureEventAliases_);
+                          },
+                          QStringLiteral("Stored quick capture event aliases are invalid"));
+  loadQuickCaptureAliases(kQuickCaptureHighPriorityAliasesSettingsKey,
+                          [this, aliasesChanged](const QStringList& values) mutable {
+                            aliasesChanged(values, quickCaptureHighPriorityAliases_);
+                          },
+                          QStringLiteral("Stored quick capture high-priority aliases are invalid"));
+  loadQuickCaptureAliases(kQuickCaptureMediumPriorityAliasesSettingsKey,
+                          [this, aliasesChanged](const QStringList& values) mutable {
+                            aliasesChanged(values, quickCaptureMediumPriorityAliases_);
+                          },
+                          QStringLiteral("Stored quick capture medium-priority aliases are invalid"));
+  loadQuickCaptureAliases(kQuickCaptureLowPriorityAliasesSettingsKey,
+                          [this, aliasesChanged](const QStringList& values) mutable {
+                            aliasesChanged(values, quickCaptureLowPriorityAliases_);
+                          },
+                          QStringLiteral("Stored quick capture low-priority aliases are invalid"));
   loadPresentationInt(kWeekStartDaySettingsKey,
                       isValidWeekStartDay,
                       [this](int value) {
@@ -983,6 +1334,353 @@ void AppController::saveVisualDensity(int density) {
             emit visualDensityChanged();
           }
         });
+}
+
+void AppController::savePaletteMode(int mode) {
+  if (!isValidPaletteMode(mode)) {
+    setStatus(QStringLiteral("Palette is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kPaletteModeSettingsKey),
+                                   QString::number(mode)),
+        [this, mode](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (paletteMode_ != mode) {
+            paletteMode_ = mode;
+            emit paletteModeChanged();
+          }
+        });
+}
+
+void AppController::saveAccentColor(QString color) {
+  color = color.trimmed().toUpper();
+  if (!isValidAccentColor(color)) {
+    setStatus(QStringLiteral("Accent color must be #RRGGBB"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kAccentColorSettingsKey),
+                                   jsonStringArray(color)),
+        [this, color = std::move(color)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (accentColor_ != color) {
+            accentColor_ = color;
+            emit accentColorChanged();
+          }
+        });
+}
+
+void AppController::saveFontFamily(QString family) {
+  family = family.trimmed();
+  if (!family.isEmpty() && !installedFontFamilies().contains(family)) {
+    setStatus(QStringLiteral("Font family is unavailable"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kFontFamilySettingsKey),
+                                   jsonStringArray(family)),
+        [this, family = std::move(family)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (fontFamily_ != family) {
+            fontFamily_ = family;
+            emit fontFamilyChanged();
+          }
+        });
+}
+
+void AppController::saveFontScale(int scale) {
+  if (!isValidFontScale(scale)) {
+    setStatus(QStringLiteral("Font scale is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kFontScaleSettingsKey),
+                                   QString::number(scale)),
+        [this, scale](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (fontScale_ != scale) {
+            fontScale_ = scale;
+            emit fontScaleChanged();
+          }
+        });
+}
+
+void AppController::resetVisualPreferences() {
+  saveAppearanceMode(0);
+  saveVisualDensity(1);
+  savePaletteMode(0);
+  saveAccentColor({});
+  saveFontFamily({});
+  saveFontScale(1);
+}
+
+QuickCaptureAliases AppController::quickCaptureAliasesConfiguration() const {
+  return {.task = quickCaptureTaskAliases_,
+          .event = quickCaptureEventAliases_,
+          .highPriority = quickCaptureHighPriorityAliases_,
+          .mediumPriority = quickCaptureMediumPriorityAliases_,
+          .lowPriority = quickCaptureLowPriorityAliases_};
+}
+
+QuickCaptureParseResult AppController::quickCaptureParse(QString text,
+                                                         int kind,
+                                                         QVariantList disabledRecognitionIds) const {
+  QStringList disabled;
+  disabled.reserve(disabledRecognitionIds.size());
+  for (const QVariant& value : disabledRecognitionIds) {
+    const QString id = value.toString();
+    if (!id.isEmpty() && id.size() <= 128) {
+      disabled.append(id);
+    }
+  }
+  const auto milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(clock_.wallNow().time_since_epoch());
+  return QuickCaptureParser::parse(
+      {.text = std::move(text),
+       .kind = isValidQuickCaptureKind(kind) ? static_cast<QuickCaptureKind>(kind)
+                                             : QuickCaptureKind::Event,
+       .now = QDateTime::fromMSecsSinceEpoch(milliseconds.count(), QTimeZone::UTC),
+       .timeZone = resolvedTimeZone(displayTimeZone_),
+       .defaultEventDurationMinutes = quickCaptureEventDurationMinutes_,
+       .aliases = quickCaptureAliasesConfiguration(),
+       .disabledRecognitionIds = std::move(disabled)});
+}
+
+QVariantMap AppController::previewQuickCapture(QString text,
+                                               int kind,
+                                               QVariantList disabledRecognitionIds) const {
+  QVariantMap preview;
+  if (!isValidQuickCaptureKind(kind)) {
+    preview.insert(QStringLiteral("error"), QStringLiteral("Quick capture type is invalid"));
+    return preview;
+  }
+  const QuickCaptureParseResult parsed =
+      quickCaptureParse(std::move(text), kind, std::move(disabledRecognitionIds));
+  QVariantList recognitions;
+  recognitions.reserve(parsed.recognitions.size());
+  for (const QuickCaptureRecognition& recognition : parsed.recognitions) {
+    recognitions.append(QVariantMap{{QStringLiteral("id"), recognition.id},
+                                    {QStringLiteral("label"), recognition.label},
+                                    {QStringLiteral("removable"), recognition.removable}});
+  }
+  preview.insert(QStringLiteral("kind"), static_cast<int>(parsed.kind));
+  preview.insert(QStringLiteral("rawTitle"), parsed.rawTitle);
+  preview.insert(QStringLiteral("parsedTitle"), parsed.parsedTitle);
+  preview.insert(QStringLiteral("savedTitle"),
+                 quickCaptureRemoveParsedText_ ? parsed.parsedTitle : parsed.rawTitle);
+  preview.insert(QStringLiteral("date"), parsed.date.has_value() ? parsed.date->toString(Qt::ISODate)
+                                                                    : QString());
+  preview.insert(QStringLiteral("time"), parsed.time.has_value() ? parsed.time->toString(QStringLiteral("HH:mm"))
+                                                                    : QString());
+  preview.insert(QStringLiteral("allDay"), parsed.allDay);
+  preview.insert(QStringLiteral("eventDurationMinutes"), parsed.eventDurationMinutes);
+  preview.insert(QStringLiteral("taskPriority"), parsed.taskPriority);
+  preview.insert(QStringLiteral("recurrenceEnabled"), parsed.recurrence.enabled);
+  preview.insert(QStringLiteral("recurrenceFrequency"), parsed.recurrence.frequency);
+  preview.insert(QStringLiteral("recurrenceInterval"), parsed.recurrence.interval);
+  preview.insert(QStringLiteral("recurrenceRule"), parsed.recurrence.rrule);
+  preview.insert(QStringLiteral("eventReady"), parsed.eventReady);
+  preview.insert(QStringLiteral("recognitions"), std::move(recognitions));
+  return preview;
+}
+
+void AppController::createQuickCapture(QString text,
+                                       int kind,
+                                       QString destinationId,
+                                       QVariantList disabledRecognitionIds) {
+  if (!isValidQuickCaptureKind(kind)) {
+    setStatus(QStringLiteral("Quick capture type is invalid"));
+    return;
+  }
+  destinationId = destinationId.trimmed();
+  if (destinationId.isEmpty()) {
+    setStatus(QStringLiteral("Quick capture needs a destination"));
+    return;
+  }
+  const QuickCaptureParseResult parsed =
+      quickCaptureParse(std::move(text), kind, std::move(disabledRecognitionIds));
+  const QString title = (quickCaptureRemoveParsedText_ ? parsed.parsedTitle : parsed.rawTitle).trimmed();
+  if (title.isEmpty()) {
+    setStatus(QStringLiteral("Quick capture needs a title after parsing"));
+    return;
+  }
+  if (parsed.kind == QuickCaptureKind::Task) {
+    const QVariantList selectedLists = taskListModel_.selectedTaskLists();
+    const bool exists = std::any_of(selectedLists.cbegin(), selectedLists.cend(), [&destinationId](const QVariant& row) {
+      return row.toMap().value(QStringLiteral("id")).toString() == destinationId;
+    });
+    if (!exists) {
+      setStatus(QStringLiteral("Choose an active Google Task list for Quick Capture"));
+      return;
+    }
+    createTaskDetailed(destinationId,
+                       {},
+                       title,
+                       {},
+                       parsed.date.has_value() ? parsed.date->toString(Qt::ISODate) : QString(),
+                       displayTimeZone_,
+                       parsed.taskPriority,
+                       parsed.recurrence.enabled,
+                       parsed.recurrence.frequency,
+                       parsed.recurrence.interval,
+                       0,
+                       {},
+                       1,
+                       parsed.recurrence.rrule,
+                       {},
+                       {});
+    return;
+  }
+
+  if (!calendarSourceModel_.calendarIds().contains(destinationId)) {
+    setStatus(QStringLiteral("Choose an available Google Calendar for Quick Capture"));
+    return;
+  }
+  if (!parsed.eventReady || !parsed.date.has_value()) {
+    setStatus(QStringLiteral("Events need a date or time; switch to Task for an unscheduled item"));
+    return;
+  }
+  const QTimeZone timeZone = resolvedTimeZone(displayTimeZone_);
+  const QDateTime start = QDateTime(*parsed.date,
+                                    parsed.allDay ? QTime(0, 0) : parsed.time.value_or(QTime(0, 0)),
+                                    timeZone);
+  const QDateTime end = parsed.allDay ? start.addDays(1)
+                                      : start.addSecs(parsed.eventDurationMinutes * 60);
+  if (!start.isValid() || !end.isValid() || end <= start) {
+    setStatus(QStringLiteral("Quick capture event time is invalid in the selected time zone"));
+    return;
+  }
+  createEventDetailed(destinationId,
+                      title,
+                      start.toUTC().toString(Qt::ISODateWithMs),
+                      end.toUTC().toString(Qt::ISODateWithMs),
+                      parsed.allDay,
+                      {},
+                      {},
+                      QString::fromUtf8(timeZone.id()),
+                      {},
+                      false,
+                      QStringLiteral("default"),
+                      {},
+                      true,
+                      {},
+                      parsed.recurrence.enabled ? parsed.recurrence.rrule : QString(),
+                      false,
+                      QStringLiteral("[]"),
+                      QStringLiteral("{}"),
+                      QStringLiteral("default"),
+                      QStringLiteral("{}"),
+                      QStringLiteral("all"));
+}
+
+void AppController::saveQuickCaptureDefaultTaskListId(QString taskListId) {
+  taskListId = taskListId.trimmed();
+  if (!isValidQuickCaptureDestination(taskListId)) {
+    setStatus(QStringLiteral("Quick capture task list is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kQuickCaptureDefaultTaskListSettingsKey),
+                                   jsonStringArray(taskListId)),
+        [this, taskListId = std::move(taskListId)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (quickCaptureDefaultTaskListId_ != taskListId) {
+            quickCaptureDefaultTaskListId_ = taskListId;
+            emit quickCaptureDefaultTaskListIdChanged();
+          }
+        });
+}
+
+void AppController::saveQuickCaptureDefaultCalendarId(QString calendarId) {
+  calendarId = calendarId.trimmed();
+  if (!isValidQuickCaptureDestination(calendarId)) {
+    setStatus(QStringLiteral("Quick capture calendar is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kQuickCaptureDefaultCalendarSettingsKey),
+                                   jsonStringArray(calendarId)),
+        [this, calendarId = std::move(calendarId)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (quickCaptureDefaultCalendarId_ != calendarId) {
+            quickCaptureDefaultCalendarId_ = calendarId;
+            emit quickCaptureDefaultCalendarIdChanged();
+          }
+        });
+}
+
+void AppController::saveQuickCaptureEventDurationMinutes(int minutes) {
+  if (!isValidQuickCaptureDuration(minutes)) {
+    setStatus(QStringLiteral("Quick capture event duration must be between 1 and 1440 minutes"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kQuickCaptureEventDurationSettingsKey),
+                                   QString::number(minutes)),
+        [this, minutes](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (quickCaptureEventDurationMinutes_ != minutes) {
+            quickCaptureEventDurationMinutes_ = minutes;
+            emit quickCaptureEventDurationMinutesChanged();
+          }
+        });
+}
+
+void AppController::saveQuickCaptureRemoveParsedText(bool enabled) {
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kQuickCaptureRemoveParsedTextSettingsKey),
+                                   enabled ? QStringLiteral("true") : QStringLiteral("false")),
+        [this, enabled](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (quickCaptureRemoveParsedText_ != enabled) {
+            quickCaptureRemoveParsedText_ = enabled;
+            emit quickCaptureRemoveParsedTextChanged();
+          }
+        });
+}
+
+void AppController::saveQuickCaptureAliases(QString taskAliases,
+                                             QString eventAliases,
+                                             QString highPriorityAliases,
+                                             QString mediumPriorityAliases,
+                                             QString lowPriorityAliases) {
+  const std::optional<QStringList> task = quickCaptureAliasesFromText(taskAliases);
+  const std::optional<QStringList> event = quickCaptureAliasesFromText(eventAliases);
+  const std::optional<QStringList> high = quickCaptureAliasesFromText(highPriorityAliases);
+  const std::optional<QStringList> medium = quickCaptureAliasesFromText(mediumPriorityAliases);
+  const std::optional<QStringList> low = quickCaptureAliasesFromText(lowPriorityAliases);
+  if (!task.has_value() || !event.has_value() || !high.has_value() || !medium.has_value() ||
+      !low.has_value() || !quickCaptureAliasesAreDistinct(*task, *event, *high, *medium, *low)) {
+    setStatus(QStringLiteral("Quick capture aliases must be unique words of up to 32 characters"));
+    return;
+  }
+  const auto save = [this](const char* key, QStringList values, QStringList AppController::*property) {
+    watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                     QString::fromLatin1(key),
+                                     jsonStringList(values)),
+          [this, values = std::move(values), property](SettingsMutationResultOrError result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+            } else if ((this->*property) != values) {
+              (this->*property) = values;
+              emit quickCaptureAliasesChanged();
+            }
+          });
+  };
+  save(kQuickCaptureTaskAliasesSettingsKey, *task, &AppController::quickCaptureTaskAliases_);
+  save(kQuickCaptureEventAliasesSettingsKey, *event, &AppController::quickCaptureEventAliases_);
+  save(kQuickCaptureHighPriorityAliasesSettingsKey, *high, &AppController::quickCaptureHighPriorityAliases_);
+  save(kQuickCaptureMediumPriorityAliasesSettingsKey, *medium, &AppController::quickCaptureMediumPriorityAliases_);
+  save(kQuickCaptureLowPriorityAliasesSettingsKey, *low, &AppController::quickCaptureLowPriorityAliases_);
 }
 
 void AppController::saveWeekStartDay(int day) {

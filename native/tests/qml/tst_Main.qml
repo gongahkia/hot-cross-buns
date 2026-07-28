@@ -233,6 +233,39 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_commandPaletteLaunchesQuickCaptureAction() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const commands = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        commands.append({ commandId: "navigation.tasks", commandLabel: "Tasks", commandShortcut: "Ctrl+1" })
+        commands.append({ commandId: "create.quickCapture", commandLabel: "Quick Capture", commandShortcut: "Ctrl+Shift+N" })
+        const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        calendars.append({ id: "calendar-primary", title: "Primary" })
+        const controller = {
+            googleConnected: true,
+            quickCaptureDefaultCalendarId: "calendar-primary",
+            previewQuickCapture: function(text, kind) {
+                return { kind: kind, rawTitle: text, parsedTitle: text, savedTitle: text,
+                         date: "", time: "", allDay: false, eventReady: false, recognitions: [] }
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: commands,
+            calendarSourceModel: calendars,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        mainWindow.openCommandPalette()
+        mainWindow.commandPaletteQuery.text = "capture"
+        tryCompare(mainWindow.commandPaletteResults, "count", 1)
+        mainWindow.commandPalette.activateCurrentCommand()
+        tryVerify(function() { return mainWindow.quickCapture.opened })
+        compare(mainWindow.quickCapture.captureKind, 1)
+        mainWindow.destroy()
+        calendars.destroy()
+        commands.destroy()
+    }
+
     function test_notesAreHiddenByDefault() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
@@ -241,7 +274,7 @@ TestCase {
         verify(mainWindow !== null)
         mainWindow.selectPage("Notes")
         compare(mainWindow.currentPage, "Tasks")
-        compare(mainWindow.matchingNavigationCommands("").length, 3)
+        compare(mainWindow.matchingCommands("").length, 3)
         mainWindow.destroy()
     }
 
@@ -340,7 +373,26 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        const created = []
+        const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        calendars.append({ id: "calendar-primary", title: "Primary" })
+        const controller = {
+            googleConnected: true,
+            quickCaptureDefaultCalendarId: "calendar-primary",
+            previewQuickCapture: function(text, kind) {
+                return { kind: kind, rawTitle: text, parsedTitle: text, savedTitle: text,
+                         date: "2026-08-01", time: "", allDay: true, eventReady: true,
+                         recognitions: [] }
+            },
+            createQuickCapture: function(title, kind, destinationId, disabledRecognitionIds) {
+                created.push([title, kind, destinationId, disabledRecognitionIds])
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            calendarSourceModel: calendars,
+            appController: controller
+        })
         verify(mainWindow !== null)
         let capturedTitle = ""
         mainWindow.quickCaptureRequested.connect(function(title) { capturedTitle = title })
@@ -352,17 +404,41 @@ TestCase {
         verify(mainWindow.quickCapture.primaryEnabled)
         mainWindow.quickCapture.primaryButton.click()
         compare(capturedTitle, "Ship native quick capture")
+        compare(created.length, 1)
+        compare(created[0][0], "Ship native quick capture")
+        compare(created[0][1], 1)
+        compare(created[0][2], "calendar-primary")
         tryVerify(function() {
             return !mainWindow.quickCapture.opened
         })
         mainWindow.destroy()
+        calendars.destroy()
     }
 
     function test_keyboardQuickCaptureSubmitsTaskRequest() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const mainWindow = component.createObject(null, { navigationCommands: navigationCommands })
+        const created = []
+        const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        calendars.append({ id: "calendar-primary", title: "Primary" })
+        const controller = {
+            googleConnected: true,
+            quickCaptureDefaultCalendarId: "calendar-primary",
+            previewQuickCapture: function(text, kind) {
+                return { kind: kind, rawTitle: text, parsedTitle: text, savedTitle: text,
+                         date: "2026-08-01", time: "", allDay: true, eventReady: true,
+                         recognitions: [] }
+            },
+            createQuickCapture: function(title, kind, destinationId, disabledRecognitionIds) {
+                created.push([title, kind, destinationId, disabledRecognitionIds])
+            }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            calendarSourceModel: calendars,
+            appController: controller
+        })
         verify(mainWindow !== null)
         let capturedTitle = ""
         mainWindow.quickCaptureRequested.connect(function(title) { capturedTitle = title })
@@ -375,10 +451,14 @@ TestCase {
         mainWindow.quickCapture.taskTitle = "Ship native quick capture"
         keyClick(Qt.Key_Return)
         compare(capturedTitle, "Ship native quick capture")
+        compare(created.length, 1)
+        compare(created[0][1], 1)
+        compare(created[0][2], "calendar-primary")
         tryVerify(function() {
             return !mainWindow.quickCapture.opened
         })
         mainWindow.destroy()
+        calendars.destroy()
     }
 
     function test_taskListPresentsAndSelectsTasks() {
@@ -1897,6 +1977,48 @@ TestCase {
         compare(mainWindow.palette.window.toString(), systemPalette.window.toString())
         compare(mainWindow.palette.base.toString(), systemPalette.base.toString())
         compare(mainWindow.palette.highlight.toString(), systemPalette.highlight.toString())
+        mainWindow.destroy()
+    }
+
+    function test_visualSettingsRouteValidatedChoicesToController() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const calls = []
+        const controller = {
+            googleConnected: true,
+            appearanceMode: 1,
+            paletteMode: 2,
+            accentColor: "#0A84FF",
+            fontFamily: "Helvetica",
+            availableFontFamilies: ["Helvetica"],
+            fontScale: 2,
+            displayTimeZone: "",
+            availableTimeZones: ["", "Asia/Singapore"],
+            savePaletteMode: function(mode) { calls.push(["palette", mode]) },
+            saveAccentColor: function(color) { calls.push(["accent", color]) },
+            saveFontFamily: function(family) { calls.push(["font", family]) },
+            saveFontScale: function(scale) { calls.push(["scale", scale]) },
+            saveDisplayTimeZone: function(timeZone) { calls.push(["timeZone", timeZone]) },
+            resetVisualPreferences: function() { calls.push(["reset"]) }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        compare(mainWindow.color.toString(), "#f8faff")
+        compare(mainWindow.palette.highlight.toString(), "#0a84ff")
+        compare(mainWindow.font.family, "Helvetica")
+        compare(mainWindow.font.pixelSize, 16)
+        mainWindow.paletteModeSelector.activated(2)
+        mainWindow.accentColorField.text = "#0A84FF"
+        mainWindow.accentColorField.editingFinished()
+        mainWindow.fontFamilySelector.activated(1)
+        mainWindow.fontScaleSelector.activated(3)
+        mainWindow.displayTimeZoneSelector.activated(1)
+        mainWindow.resetVisualPreferencesButton.click()
+        compare(calls, [["palette", 2], ["accent", "#0A84FF"], ["font", "Helvetica"],
+                        ["scale", 3], ["timeZone", "Asia/Singapore"], ["reset"]])
         mainWindow.destroy()
     }
 

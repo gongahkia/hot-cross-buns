@@ -13,6 +13,11 @@ Pane {
     SplitView.preferredWidth: Theme.navigationWidth
 
     function hasNavigationPage(pageName) {
+        if (Array.isArray(commandRegistry)) {
+            return commandRegistry.some(function(command) {
+                return command.commandId.startsWith("navigation.") && command.commandLabel === pageName
+            })
+        }
         if (typeof commandRegistry.containsLabel === "function") {
             return commandRegistry.containsLabel(pageName)
         }
@@ -38,13 +43,15 @@ Pane {
             model: root.commandRegistry
 
             delegate: AccessibleNavigationButton {
+                required property string commandId
                 required property string commandLabel
                 Layout.fillWidth: true
                 pageName: commandLabel
                 badgeText: commandLabel === "Invitations" && root.pendingInvitationCount > 0
                            ? String(root.pendingInvitationCount) : ""
                 currentPage: root.currentPage === commandLabel
-                visible: commandLabel !== "Notes" || root.notesEnabled
+                visible: commandId.startsWith("navigation.") &&
+                         (commandLabel !== "Notes" || root.notesEnabled)
                 onPageSelected: pageName => root.selectPage(pageName)
             }
         }

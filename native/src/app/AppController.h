@@ -32,6 +32,7 @@
 #include "core/OAuthTokenRefreshClient.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/PkceAuthorization.h"
+#include "core/QuickCaptureParser.h"
 #include "core/SyncCheckpointStore.h"
 #include "core/SyncConflictStore.h"
 #include "core/SettingsService.h"
@@ -46,6 +47,7 @@
 #include <QObject>
 #include <QDate>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -96,6 +98,29 @@ class AppController final : public QObject {
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
   Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
   Q_PROPERTY(int visualDensity READ visualDensity NOTIFY visualDensityChanged)
+  Q_PROPERTY(int paletteMode READ paletteMode NOTIFY paletteModeChanged)
+  Q_PROPERTY(QString accentColor READ accentColor NOTIFY accentColorChanged)
+  Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
+  Q_PROPERTY(QVariantList availableFontFamilies READ availableFontFamilies CONSTANT)
+  Q_PROPERTY(int fontScale READ fontScale NOTIFY fontScaleChanged)
+  Q_PROPERTY(QString quickCaptureDefaultTaskListId READ quickCaptureDefaultTaskListId NOTIFY
+                 quickCaptureDefaultTaskListIdChanged)
+  Q_PROPERTY(QString quickCaptureDefaultCalendarId READ quickCaptureDefaultCalendarId NOTIFY
+                 quickCaptureDefaultCalendarIdChanged)
+  Q_PROPERTY(int quickCaptureEventDurationMinutes READ quickCaptureEventDurationMinutes NOTIFY
+                 quickCaptureEventDurationMinutesChanged)
+  Q_PROPERTY(bool quickCaptureRemoveParsedText READ quickCaptureRemoveParsedText NOTIFY
+                 quickCaptureRemoveParsedTextChanged)
+  Q_PROPERTY(QString quickCaptureTaskAliases READ quickCaptureTaskAliases NOTIFY
+                 quickCaptureAliasesChanged)
+  Q_PROPERTY(QString quickCaptureEventAliases READ quickCaptureEventAliases NOTIFY
+                 quickCaptureAliasesChanged)
+  Q_PROPERTY(QString quickCaptureHighPriorityAliases READ quickCaptureHighPriorityAliases NOTIFY
+                 quickCaptureAliasesChanged)
+  Q_PROPERTY(QString quickCaptureMediumPriorityAliases READ quickCaptureMediumPriorityAliases NOTIFY
+                 quickCaptureAliasesChanged)
+  Q_PROPERTY(QString quickCaptureLowPriorityAliases READ quickCaptureLowPriorityAliases NOTIFY
+                 quickCaptureAliasesChanged)
   Q_PROPERTY(int weekStartDay READ weekStartDay NOTIFY weekStartDayChanged)
   Q_PROPERTY(bool use24HourTime READ use24HourTime NOTIFY use24HourTimeChanged)
   Q_PROPERTY(QString displayTimeZone READ displayTimeZone NOTIFY displayTimeZoneChanged)
@@ -148,6 +173,20 @@ public:
   [[nodiscard]] QString calendarDate() const;
   [[nodiscard]] int appearanceMode() const;
   [[nodiscard]] int visualDensity() const;
+  [[nodiscard]] int paletteMode() const;
+  [[nodiscard]] QString accentColor() const;
+  [[nodiscard]] QString fontFamily() const;
+  [[nodiscard]] QVariantList availableFontFamilies() const;
+  [[nodiscard]] int fontScale() const;
+  [[nodiscard]] QString quickCaptureDefaultTaskListId() const;
+  [[nodiscard]] QString quickCaptureDefaultCalendarId() const;
+  [[nodiscard]] int quickCaptureEventDurationMinutes() const;
+  [[nodiscard]] bool quickCaptureRemoveParsedText() const;
+  [[nodiscard]] QString quickCaptureTaskAliases() const;
+  [[nodiscard]] QString quickCaptureEventAliases() const;
+  [[nodiscard]] QString quickCaptureHighPriorityAliases() const;
+  [[nodiscard]] QString quickCaptureMediumPriorityAliases() const;
+  [[nodiscard]] QString quickCaptureLowPriorityAliases() const;
   [[nodiscard]] int weekStartDay() const;
   [[nodiscard]] bool use24HourTime() const;
   [[nodiscard]] QString displayTimeZone() const;
@@ -172,6 +211,25 @@ public:
   Q_INVOKABLE void setCalendarDate(QString date);
   Q_INVOKABLE void saveAppearanceMode(int mode);
   Q_INVOKABLE void saveVisualDensity(int density);
+  Q_INVOKABLE void savePaletteMode(int mode);
+  Q_INVOKABLE void saveAccentColor(QString color);
+  Q_INVOKABLE void saveFontFamily(QString family);
+  Q_INVOKABLE void saveFontScale(int scale);
+  Q_INVOKABLE void resetVisualPreferences();
+  Q_INVOKABLE QVariantMap previewQuickCapture(QString text, int kind, QVariantList disabledRecognitionIds) const;
+  Q_INVOKABLE void createQuickCapture(QString text,
+                                      int kind,
+                                      QString destinationId,
+                                      QVariantList disabledRecognitionIds);
+  Q_INVOKABLE void saveQuickCaptureDefaultTaskListId(QString taskListId);
+  Q_INVOKABLE void saveQuickCaptureDefaultCalendarId(QString calendarId);
+  Q_INVOKABLE void saveQuickCaptureEventDurationMinutes(int minutes);
+  Q_INVOKABLE void saveQuickCaptureRemoveParsedText(bool enabled);
+  Q_INVOKABLE void saveQuickCaptureAliases(QString taskAliases,
+                                           QString eventAliases,
+                                           QString highPriorityAliases,
+                                           QString mediumPriorityAliases,
+                                           QString lowPriorityAliases);
   Q_INVOKABLE void saveWeekStartDay(int day);
   Q_INVOKABLE void saveUse24HourTime(bool enabled);
   Q_INVOKABLE void saveDisplayTimeZone(QString timeZone);
@@ -345,6 +403,15 @@ signals:
   void calendarDateChanged();
   void appearanceModeChanged();
   void visualDensityChanged();
+  void paletteModeChanged();
+  void accentColorChanged();
+  void fontFamilyChanged();
+  void fontScaleChanged();
+  void quickCaptureDefaultTaskListIdChanged();
+  void quickCaptureDefaultCalendarIdChanged();
+  void quickCaptureEventDurationMinutesChanged();
+  void quickCaptureRemoveParsedTextChanged();
+  void quickCaptureAliasesChanged();
   void weekStartDayChanged();
   void use24HourTimeChanged();
   void displayTimeZoneChanged();
@@ -437,6 +504,10 @@ private:
   void setReminderStatusMessage(QString message);
   void setInvitations(QVariantList invitations);
   void setBusy(bool busy);
+  [[nodiscard]] QuickCaptureAliases quickCaptureAliasesConfiguration() const;
+  [[nodiscard]] QuickCaptureParseResult quickCaptureParse(QString text,
+                                                           int kind,
+                                                           QVariantList disabledRecognitionIds) const;
 
   Clock& clock_;
   AgendaModel& agendaModel_;
@@ -507,6 +578,19 @@ private:
   QDate calendarDate_{QDate::currentDate()};
   int appearanceMode_{0};
   int visualDensity_{1};
+  int paletteMode_{0};
+  QString accentColor_;
+  QString fontFamily_;
+  int fontScale_{1};
+  QString quickCaptureDefaultTaskListId_;
+  QString quickCaptureDefaultCalendarId_;
+  int quickCaptureEventDurationMinutes_{30};
+  bool quickCaptureRemoveParsedText_{false};
+  QStringList quickCaptureTaskAliases_{QuickCaptureParser::defaultAliases().task};
+  QStringList quickCaptureEventAliases_{QuickCaptureParser::defaultAliases().event};
+  QStringList quickCaptureHighPriorityAliases_{QuickCaptureParser::defaultAliases().highPriority};
+  QStringList quickCaptureMediumPriorityAliases_{QuickCaptureParser::defaultAliases().mediumPriority};
+  QStringList quickCaptureLowPriorityAliases_{QuickCaptureParser::defaultAliases().lowPriority};
   int weekStartDay_{0};
   bool use24HourTime_{true};
   QString displayTimeZone_{QString::fromUtf8(QTimeZone::systemTimeZoneId())};

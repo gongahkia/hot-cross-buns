@@ -19,7 +19,12 @@ CommandRegistryModel::CommandRegistryModel(QObject* parent)
           {QStringLiteral("navigation.notes"), QStringLiteral("Notes"), QStringLiteral("Ctrl+3")},
           {QStringLiteral("navigation.settings"),
            QStringLiteral("Settings"),
-           QStringLiteral("Ctrl+,")}} {}
+           QStringLiteral("Ctrl+,")},
+          {QStringLiteral("create.quickCapture"),
+           QStringLiteral("Quick Capture"),
+           QStringLiteral("Ctrl+Shift+N")},
+          {QStringLiteral("create.task"), QStringLiteral("New Task"), QString()},
+          {QStringLiteral("create.event"), QStringLiteral("New Event"), QString()}} {}
 
 int CommandRegistryModel::rowCount(const QModelIndex& parent) const {
   return parent.isValid() ? 0 : static_cast<int>(commands_.size());

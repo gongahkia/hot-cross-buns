@@ -31,6 +31,20 @@ ApplicationWindow {
                                  ? appController.appearanceMode : 0
     property int visualDensity: appController !== null && typeof appController.visualDensity === "number"
                                 ? appController.visualDensity : 1
+    property int paletteMode: appController !== null && typeof appController.paletteMode === "number"
+                              ? appController.paletteMode : 0
+    property string accentColor: appController !== null && typeof appController.accentColor === "string"
+                                 ? appController.accentColor : ""
+    property string fontFamily: appController !== null && typeof appController.fontFamily === "string"
+                                ? appController.fontFamily : ""
+    property int fontScale: appController !== null && typeof appController.fontScale === "number"
+                            ? appController.fontScale : 1
+    property string quickCaptureDefaultTaskListId: appController !== null &&
+                                                   typeof appController.quickCaptureDefaultTaskListId === "string"
+                                                   ? appController.quickCaptureDefaultTaskListId : ""
+    property string quickCaptureDefaultCalendarId: appController !== null &&
+                                                   typeof appController.quickCaptureDefaultCalendarId === "string"
+                                                   ? appController.quickCaptureDefaultCalendarId : ""
     property int weekStartDay: appController !== null && typeof appController.weekStartDay === "number"
                                ? appController.weekStartDay : 0
     property bool use24HourTime: appController === null || appController.use24HourTime !== false
@@ -61,6 +75,10 @@ ApplicationWindow {
     property alias monthGrid: monthGrid
     property alias quickCapture: quickCapture
     property alias quickCaptureShortcut: quickCaptureShortcut
+    property alias quickCaptureTaskDefaultSelector: quickCaptureTaskDefaultSelector
+    property alias quickCaptureCalendarDefaultSelector: quickCaptureCalendarDefaultSelector
+    property alias quickCaptureDurationSelector: quickCaptureDurationSelector
+    property alias quickCaptureRemoveParsedTextSwitch: quickCaptureRemoveParsedTextSwitch
     property alias searchPopup: searchPopup
     property alias searchQuery: searchPopup.queryField
     property alias searchResults: searchPopup.resultRows
@@ -75,6 +93,12 @@ ApplicationWindow {
     property alias taskListEditorDialog: taskListEditorDialog
     property alias taskListDeleteDialog: taskListDeleteDialog
     property alias taskMoveDialog: taskMoveDialog
+    property alias paletteModeSelector: paletteModeSelector
+    property alias accentColorField: accentColorField
+    property alias fontFamilySelector: fontFamilySelector
+    property alias fontScaleSelector: fontScaleSelector
+    property alias displayTimeZoneSelector: displayTimeZoneField
+    property alias resetVisualPreferencesButton: resetVisualPreferencesButton
     signal quickCaptureRequested(string title)
     signal taskCreateRequested(string taskListId, string parentTaskId, string title)
     signal taskDeleteRequested(string taskId)
@@ -103,10 +127,40 @@ ApplicationWindow {
         value: window.visualDensity
     }
 
+    Binding {
+        target: Theme
+        property: "paletteMode"
+        value: window.paletteMode
+    }
+
+    Binding {
+        target: Theme
+        property: "accentColor"
+        value: window.accentColor
+    }
+
+    Binding {
+        target: Theme
+        property: "fontFamily"
+        value: window.fontFamily
+    }
+
+    Binding {
+        target: Theme
+        property: "fontScale"
+        value: window.fontScale
+    }
+
     function controllerCall(method, args) {
         if (appController !== null && typeof appController[method] === "function") {
             appController[method].apply(appController, args)
         }
+    }
+
+    function fontFamilyOptions() {
+        const available = appController !== null && appController.availableFontFamilies !== undefined
+                          ? appController.availableFontFamilies : []
+        return ["System default"].concat(available)
     }
 
     function isCalendarEventSelected(eventId) {
@@ -192,11 +246,9 @@ ApplicationWindow {
         if (pageName === "Notes" && !notesEnabled) {
             return false
         }
-        if (typeof navigationCommands.containsLabel === "function") {
-            return navigationCommands.containsLabel(pageName)
-        }
-        for (let row = 0; row < navigationCommands.count; ++row) {
-            if (navigationCommands.get(row).commandLabel === pageName) {
+        const commands = navigationOnlyCommands()
+        for (let row = 0; row < commands.length; ++row) {
+            if (commands[row].commandLabel === pageName) {
                 return true
             }
         }
@@ -221,7 +273,7 @@ ApplicationWindow {
         }
     }
 
-    function matchingNavigationCommands(query) {
+    function matchingCommands(query) {
         let commands = []
         if (typeof navigationCommands.matchingCommands === "function") {
             commands = navigationCommands.matchingCommands(query)
@@ -239,11 +291,17 @@ ApplicationWindow {
         const matches = []
         for (let row = 0; row < commands.length; ++row) {
             const command = commands[row]
-            if (command.commandLabel !== "Notes" || notesEnabled) {
+            if (!command.commandId.startsWith("navigation.") || command.commandLabel !== "Notes" || notesEnabled) {
                 matches.push(command)
             }
         }
         return matches
+    }
+
+    function navigationOnlyCommands() {
+        return matchingCommands("").filter(function(command) {
+            return command.commandId.startsWith("navigation.")
+        })
     }
 
     function openCommandPalette() {
@@ -256,6 +314,21 @@ ApplicationWindow {
 
     function openQuickCapture() {
         quickCapture.open()
+    }
+
+    function activateCommand(command) {
+        if (command === undefined || command.commandId === undefined) {
+            return
+        }
+        if (command.commandId === "create.quickCapture") {
+            openQuickCapture()
+        } else if (command.commandId === "create.task") {
+            taskCreateDialog.openForCreate("", "")
+        } else if (command.commandId === "create.event") {
+            openEventCreate(calendarDate)
+        } else if (command.commandId.startsWith("navigation.")) {
+            selectPage(command.commandLabel)
+        }
     }
 
     function openSearch() {
@@ -297,11 +370,17 @@ ApplicationWindow {
     }
 
     color: Theme.background
+    font.family: Theme.fontFamily
+    font.pixelSize: Theme.bodyFontSize
     palette.window: Theme.background
     palette.windowText: Theme.textPrimary
     palette.base: Theme.surface
     palette.text: Theme.textPrimary
     palette.highlight: Theme.accent
+    palette.highlightedText: Theme.onAccent
+    palette.button: Theme.surface
+    palette.buttonText: Theme.textPrimary
+    palette.placeholderText: Theme.textSecondary
 
     Shortcut {
         id: commandPaletteShortcut
@@ -342,15 +421,19 @@ ApplicationWindow {
 
     Instantiator {
         id: navigationShortcuts
-        model: window.navigationCommands
+        model: window.navigationOnlyCommands()
 
         delegate: Shortcut {
+            required property string commandId
             required property string commandLabel
             required property string commandShortcut
             sequence: commandShortcut
             autoRepeat: false
-            enabled: commandLabel !== "Notes" || window.notesEnabled
-            onActivated: window.selectPage(commandLabel)
+            enabled: commandId.startsWith("navigation.") &&
+                     (commandLabel !== "Notes" || window.notesEnabled)
+            onActivated: {
+                if (commandId.startsWith("navigation.")) window.selectPage(commandLabel)
+            }
         }
     }
 
@@ -364,7 +447,7 @@ ApplicationWindow {
         focus: true
         padding: Theme.spacingLarge
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        property var matchingCommands: window.matchingNavigationCommands(commandPaletteQuery.text)
+        property var matchingCommands: window.matchingCommands(commandPaletteQuery.text)
         property var previousFocusItem: null
 
         function activateCurrentCommand() {
@@ -372,7 +455,7 @@ ApplicationWindow {
             if (command === undefined) {
                 return
             }
-            window.selectPage(command.commandLabel)
+            window.activateCommand(command)
             close()
         }
 
@@ -444,12 +527,15 @@ ApplicationWindow {
                 delegate: AccessibleButton {
                     required property var modelData
                     width: ListView.view.width
-                    text: modelData.commandLabel + "    " + modelData.commandShortcut
+                    text: modelData.commandShortcut.length > 0
+                          ? modelData.commandLabel + "    " + modelData.commandShortcut : modelData.commandLabel
                     accessibleName: modelData.commandLabel
-                    accessibleDescription: "Navigate to " + modelData.commandLabel + " using " + modelData.commandShortcut
+                    accessibleDescription: modelData.commandId.startsWith("navigation.")
+                                           ? "Navigate to " + modelData.commandLabel
+                                           : "Run " + modelData.commandLabel
                     highlighted: ListView.isCurrentItem
                     onClicked: {
-                        window.selectPage(modelData.commandLabel)
+                        window.activateCommand(modelData)
                         commandPalette.close()
                     }
                 }
@@ -469,8 +555,14 @@ ApplicationWindow {
         id: quickCapture
         parent: Overlay.overlay
         anchors.centerIn: parent
-        onTaskRequested: function(title) {
+        appController: window.appController
+        taskListModel: window.taskListModel
+        calendarSourceModel: window.calendarSourceModel
+        defaultTaskListId: window.quickCaptureDefaultTaskListId
+        defaultCalendarId: window.quickCaptureDefaultCalendarId
+        onCaptureRequested: function(title, kind, destinationId, disabledRecognitionIds) {
             window.quickCaptureRequested(title)
+            window.controllerCall("createQuickCapture", [title, kind, destinationId, disabledRecognitionIds])
         }
     }
 
@@ -706,7 +798,7 @@ ApplicationWindow {
 
         NavigationSidebar {
             id: navigationSidebar
-            commandRegistry: window.navigationCommands
+            commandRegistry: window.navigationOnlyCommands()
             currentPage: window.currentPage
             notesEnabled: window.notesEnabled
             pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
@@ -1260,6 +1352,242 @@ ApplicationWindow {
                 }
 
                 ComboBox {
+                    id: paletteModeSelector
+                    objectName: "paletteModeSelector"
+                    Layout.fillWidth: true
+                    model: ["System palette", "Violet", "Blue", "Green", "Rose", "Amber"]
+                    currentIndex: window.paletteMode
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Color palette"
+                    onActivated: index => window.controllerCall("savePaletteMode", [index])
+                }
+
+                TextField {
+                    id: accentColorField
+                    objectName: "accentColorField"
+                    Layout.fillWidth: true
+                    text: window.accentColor
+                    placeholderText: "Custom accent #RRGGBB (optional)"
+                    maximumLength: 7
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Custom accent color"
+                    selectByMouse: true
+                    onEditingFinished: window.controllerCall("saveAccentColor", [text])
+                }
+
+                ComboBox {
+                    id: fontFamilySelector
+                    objectName: "fontFamilySelector"
+                    Layout.fillWidth: true
+                    model: window.fontFamilyOptions()
+                    currentIndex: Math.max(0, window.fontFamilyOptions().indexOf(window.fontFamily))
+                    editable: true
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Font family"
+                    onActivated: index => window.controllerCall("saveFontFamily",
+                                                                 [index === 0 ? "" : window.fontFamilyOptions()[index]])
+                    onAccepted: window.controllerCall("saveFontFamily",
+                                                       [editText === "System default" ? "" : editText])
+                }
+
+                ComboBox {
+                    id: fontScaleSelector
+                    objectName: "fontScaleSelector"
+                    Layout.fillWidth: true
+                    model: ["Small text (90%)", "Standard text (100%)", "Large text (112%)", "Extra-large text (125%)"]
+                    currentIndex: window.fontScale
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Font size"
+                    onActivated: index => window.controllerCall("saveFontScale", [index])
+                }
+
+                Button {
+                    id: resetVisualPreferencesButton
+                    objectName: "resetVisualPreferencesButton"
+                    Layout.fillWidth: true
+                    text: "Reset visual settings"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    Accessible.description: "Restores system palette, default font, standard text size, and standard density"
+                    onClicked: window.controllerCall("resetVisualPreferences", [])
+                }
+
+                Label {
+                    text: "Quick Capture"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Ctrl+Shift+N opens an event by default. Choose default destinations and how recognized text is saved."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                ComboBox {
+                    id: quickCaptureTaskDefaultSelector
+                    Layout.fillWidth: true
+                    property int taskListRevision: window.taskListModel !== null && window.taskListModel.revision !== undefined
+                                                   ? window.taskListModel.revision : 0
+                    model: {
+                        const revision = taskListRevision
+                        return window.taskListModel !== null && typeof window.taskListModel.selectedTaskLists === "function"
+                               ? window.taskListModel.selectedTaskLists() : []
+                    }
+                    textRole: "title"
+                    valueRole: "id"
+                    currentIndex: indexOfValue(window.quickCaptureDefaultTaskListId)
+                    displayText: currentIndex >= 0 ? currentText : "Quick Capture default Google Task list"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture default Google Task list"
+                    onActivated: window.controllerCall("saveQuickCaptureDefaultTaskListId", [currentValue])
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "Clear Quick Capture Task default"
+                    enabled: window.appController !== null && !window.appController.busy &&
+                             window.quickCaptureDefaultTaskListId.length > 0
+                    Accessible.name: text
+                    onClicked: window.controllerCall("saveQuickCaptureDefaultTaskListId", [""])
+                }
+
+                ComboBox {
+                    id: quickCaptureCalendarDefaultSelector
+                    Layout.fillWidth: true
+                    property int calendarSourceRevision: window.calendarSourceModel !== null &&
+                                                         window.calendarSourceModel.revision !== undefined
+                                                         ? window.calendarSourceModel.revision : 0
+                    model: window.calendarSourceModel
+                    textRole: "title"
+                    valueRole: "id"
+                    currentIndex: {
+                        const revision = calendarSourceRevision
+                        return indexOfValue(window.quickCaptureDefaultCalendarId)
+                    }
+                    displayText: currentIndex >= 0 ? currentText : "Quick Capture default Google Calendar"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture default Google Calendar"
+                    onActivated: window.controllerCall("saveQuickCaptureDefaultCalendarId", [currentValue])
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "Clear Quick Capture Calendar default"
+                    enabled: window.appController !== null && !window.appController.busy &&
+                             window.quickCaptureDefaultCalendarId.length > 0
+                    Accessible.name: text
+                    onClicked: window.controllerCall("saveQuickCaptureDefaultCalendarId", [""])
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    SpinBox {
+                        id: quickCaptureDurationSelector
+                        from: 1
+                        to: 1440
+                        value: window.appController !== null &&
+                               typeof window.appController.quickCaptureEventDurationMinutes === "number"
+                               ? window.appController.quickCaptureEventDurationMinutes : 30
+                        editable: true
+                        enabled: window.appController !== null && !window.appController.busy
+                        Accessible.name: "Quick Capture default event duration in minutes"
+                    }
+
+                    Label { text: "minutes for events without an end time" }
+
+                    Button {
+                        text: "Save duration"
+                        enabled: window.appController !== null && !window.appController.busy
+                        Accessible.name: text
+                        onClicked: window.controllerCall("saveQuickCaptureEventDurationMinutes",
+                                                         [quickCaptureDurationSelector.value])
+                    }
+                }
+
+                Switch {
+                    id: quickCaptureRemoveParsedTextSwitch
+                    text: "Remove recognized text from Quick Capture titles"
+                    checked: window.appController !== null && window.appController.quickCaptureRemoveParsedText === true
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    onToggled: window.controllerCall("saveQuickCaptureRemoveParsedText", [checked])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Type and priority aliases are comma-separated English words. They cannot overlap."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                TextField {
+                    id: quickCaptureTaskAliasesField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.quickCaptureTaskAliases || "task" : "task"
+                    placeholderText: "Task aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture Task aliases"
+                    selectByMouse: true
+                }
+
+                TextField {
+                    id: quickCaptureEventAliasesField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.quickCaptureEventAliases || "event" : "event"
+                    placeholderText: "Event aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture Event aliases"
+                    selectByMouse: true
+                }
+
+                TextField {
+                    id: quickCaptureHighPriorityAliasesField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.quickCaptureHighPriorityAliases || "p1" : "p1"
+                    placeholderText: "High priority aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture high-priority aliases"
+                    selectByMouse: true
+                }
+
+                TextField {
+                    id: quickCaptureMediumPriorityAliasesField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.quickCaptureMediumPriorityAliases || "p2" : "p2"
+                    placeholderText: "Medium priority aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture medium-priority aliases"
+                    selectByMouse: true
+                }
+
+                TextField {
+                    id: quickCaptureLowPriorityAliasesField
+                    Layout.fillWidth: true
+                    text: window.appController !== null ? window.appController.quickCaptureLowPriorityAliases || "p3" : "p3"
+                    placeholderText: "Low priority aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Quick Capture low-priority aliases"
+                    selectByMouse: true
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "Save Quick Capture aliases"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("saveQuickCaptureAliases",
+                                                     [quickCaptureTaskAliasesField.text,
+                                                      quickCaptureEventAliasesField.text,
+                                                      quickCaptureHighPriorityAliasesField.text,
+                                                      quickCaptureMediumPriorityAliasesField.text,
+                                                      quickCaptureLowPriorityAliasesField.text])
+                }
+
+                ComboBox {
                     Layout.fillWidth: true
                     model: ["Sunday first", "Monday first"]
                     currentIndex: window.weekStartDay
@@ -1276,15 +1604,20 @@ ApplicationWindow {
                     onToggled: window.controllerCall("saveUse24HourTime", [checked])
                 }
 
-                TextField {
+                ComboBox {
                     id: displayTimeZoneField
                     Layout.fillWidth: true
-                    text: window.appController !== null && typeof window.appController.displayTimeZone === "string"
-                          ? window.appController.displayTimeZone : ""
-                    placeholderText: "Display time zone (IANA), e.g. Asia/Singapore"
+                    model: window.appController !== null && window.appController.availableTimeZones !== undefined
+                           ? window.appController.availableTimeZones : []
+                    currentIndex: Math.max(0, model.indexOf(window.appController !== null &&
+                                                            typeof window.appController.displayTimeZone === "string"
+                                                            ? window.appController.displayTimeZone : ""))
+                    editable: true
+                    displayText: currentIndex > 0 ? currentText : "Display time zone (IANA)"
+                    enabled: window.appController !== null && !window.appController.busy
                     Accessible.name: "Display time zone"
-                    selectByMouse: true
-                    onEditingFinished: window.controllerCall("saveDisplayTimeZone", [text])
+                    onActivated: index => window.controllerCall("saveDisplayTimeZone", [model[index]])
+                    onAccepted: window.controllerCall("saveDisplayTimeZone", [editText])
                 }
 
                 RowLayout {

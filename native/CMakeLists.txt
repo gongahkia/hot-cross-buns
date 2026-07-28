@@ -164,6 +164,8 @@ set(HCB_NATIVE_SOURCES
   src/core/NativeCapabilityReport.h
   src/core/PkceAuthorization.cpp
   src/core/PkceAuthorization.h
+  src/core/QuickCaptureParser.cpp
+  src/core/QuickCaptureParser.h
   src/core/RecurrenceExpansionWorker.cpp
   src/core/RecurrenceExpansionWorker.h
   src/core/RecurrenceResultCache.cpp
@@ -890,6 +892,17 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_command_registry_model_tests)
   hcb_enable_sanitizers(hcb_command_registry_model_tests)
   add_test(NAME hcb_command_registry_model_tests COMMAND hcb_command_registry_model_tests)
+
+  qt_add_executable(hcb_quick_capture_parser_tests
+    tests/QuickCaptureParserTest.cpp
+    src/core/QuickCaptureParser.cpp
+    src/core/QuickCaptureParser.h
+  )
+  target_link_libraries(hcb_quick_capture_parser_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_quick_capture_parser_tests PRIVATE src)
+  hcb_enable_warnings(hcb_quick_capture_parser_tests)
+  hcb_enable_sanitizers(hcb_quick_capture_parser_tests)
+  add_test(NAME hcb_quick_capture_parser_tests COMMAND hcb_quick_capture_parser_tests)
 
   qt_add_executable(hcb_settings_registry_tests
     tests/SettingsRegistryTest.cpp
