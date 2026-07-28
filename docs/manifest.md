@@ -37,5 +37,14 @@ hexadecimal SHA-256 value.
 Credentials in URL user information or sensitive query parameters are rejected.
 Manifests declare inputs only: `wukong` does not execute package scripts.
 
-Manifest rewriting, including comment preservation and deterministic output, is
-deferred to `wukong-014`.
+## Editing
+
+The core manifest-edit API can add or remove runtime and development
+dependencies. It validates the complete result before publishing it,
+preserves untouched TOML comments and fields, and sorts the changed dependency
+table lexicographically. New inline source fields use a fixed order.
+
+Edits are staged and committed transactionally; see
+[ADR 0003](adr/0003-manifest-edit-transaction.md). `wukong add` and
+`wukong remove` are not exposed yet because their PRD semantics also require
+resolution, lockfile updates, and package materialisation.

@@ -9,5 +9,8 @@ pub mod init;
 /// Project-manifest parsing and validation.
 pub mod manifest;
 
+/// Transactional manifest editing.
+pub mod manifest_edit;
+
 /// Godot project-root discovery.
 pub mod project;

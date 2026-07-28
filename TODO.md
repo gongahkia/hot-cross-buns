@@ -133,11 +133,11 @@ Acceptance criteria:
 
 ## wukong-014: Add manifest editing support
 
-- [ ] Add a dependency without destroying unrelated fields.
-- [ ] Remove a dependency.
-- [ ] Preserve comments where practical.
-- [ ] Maintain deterministic formatting.
-- [ ] Back up or transactionally update the file.
+- [x] Add a dependency without destroying unrelated fields.
+- [x] Remove a dependency.
+- [x] Preserve comments where practical.
+- [x] Maintain deterministic formatting.
+- [x] Back up or transactionally update the file.
 
 # Phase 2 — Package identity and source adapters
 
