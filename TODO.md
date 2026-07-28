@@ -545,11 +545,11 @@ Acceptance criteria:
 
 ## wukong-065: Implement `wukong tree` and `wukong why`
 
-- [ ] Human-readable tree.
-- [ ] JSON output.
-- [ ] Indicate direct, transitive and dev dependencies.
-- [ ] Explain all root-to-package paths.
-- [ ] Detect and display repeated subgraphs compactly.
+- [x] Human-readable tree.
+- [x] JSON output.
+- [x] Indicate direct, transitive and dev dependencies.
+- [x] Explain all root-to-package paths.
+- [x] Detect and display repeated subgraphs compactly.
 
 ---
 

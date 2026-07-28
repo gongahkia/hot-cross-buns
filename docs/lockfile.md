@@ -60,4 +60,5 @@ writes `wukong.lock`; it does not materialise project files. `--offline` uses
 only verified cached Git checkouts and HTTP archives. `--locked` refuses a
 missing or changed lockfile with exit code 2. An unchanged valid lockfile is not
 rewritten. [`wukong install` and `wukong sync`](sync.md) currently apply
-local-path locks transactionally.
+local-path locks transactionally. [`wukong tree` and `wukong why`](dependency-views.md)
+read this lockfile without resolving, fetching, or modifying project files.

@@ -77,3 +77,6 @@ pub mod semantic_version;
 
 /// Lazy, deterministic transitive dependency resolution.
 pub mod resolver;
+
+/// Deterministic views over the locked dependency graph.
+pub mod dependency_graph;
