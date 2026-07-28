@@ -839,11 +839,11 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-120: Research official integration boundaries
 
-- [ ] Document public APIs or supported metadata sources.
-- [ ] Review authentication and rate limits.
-- [ ] Review download licences and redistribution constraints.
-- [ ] Identify stable identifiers and version metadata.
-- [ ] Record findings in an ADR.
+- [x] Document public APIs or supported metadata sources.
+- [x] Review authentication and rate limits.
+- [x] Review download licences and redistribution constraints.
+- [x] Identify stable identifiers and version metadata.
+- [x] Record findings in an ADR.
 
 ## wukong-121: Implement the asset-source adapter
 

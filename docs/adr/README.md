@@ -37,6 +37,7 @@ Current records:
 - [0031: conservative cache maintenance](0031-conservative-cache-maintenance.md)
 - [0032: credential handling](0032-credential-handling.md)
 - [0033: hashed transaction recovery](0033-hashed-transaction-recovery.md)
+- [0034: official Asset Library boundary](0034-official-asset-library-boundary.md)
 
 ## When to write an ADR
 

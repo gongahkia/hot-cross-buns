@@ -42,6 +42,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Internal security review](docs/security-review-2026-07.md)
 - [Fuzzing](docs/fuzzing.md)
 - [Benchmark methodology](docs/benchmarks.md)
+- [Official Asset Library research](docs/asset-library-research.md)
 - [Diagnostics](docs/diagnostics.md)
 - [Credential handling](docs/credentials.md)
 - [`wukong doctor`](docs/doctor.md)
