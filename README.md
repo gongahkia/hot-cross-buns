@@ -23,6 +23,7 @@ library; package installation is not implemented yet.
 - [Manifest schema](docs/manifest.md)
 - [Package identity](docs/package-identity.md)
 - [Source adapters](docs/source-adapters.md)
+- [Local paths](docs/local-paths.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

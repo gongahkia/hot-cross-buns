@@ -174,21 +174,21 @@ Do not leak Git-specific assumptions into the resolver.
 
 ## wukong-022: Implement local path dependencies
 
-- [ ] Support relative and absolute paths.
-- [ ] Resolve paths relative to `wukong.toml`.
-- [ ] Snapshot or hash package contents.
-- [ ] Detect missing paths.
-- [ ] Define handling for paths outside the project.
-- [ ] Ignore `.git` and configurable irrelevant files when hashing.
+- [x] Support relative and absolute paths.
+- [x] Resolve paths relative to `wukong.toml`.
+- [x] Snapshot or hash package contents.
+- [x] Detect missing paths.
+- [x] Define handling for paths outside the project.
+- [x] Ignore `.git` and configurable irrelevant files when hashing.
 
 Tests:
 
-- [ ] Local addon root.
-- [ ] Repository containing `addons/<name>`.
-- [ ] Missing path.
-- [ ] Changed local contents.
-- [ ] Symlink inside local package.
-- [ ] Path outside project.
+- [x] Local addon root.
+- [x] Repository containing `addons/<name>`.
+- [x] Missing path.
+- [x] Changed local contents.
+- [x] Symlink inside local package.
+- [x] Path outside project.
 
 ## wukong-023: Implement Git source canonicalisation
 
