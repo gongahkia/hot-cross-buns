@@ -110,12 +110,16 @@ struct CalendarEventMutationSnapshot final {
   QString eventId;
   QString accountId;
   QString calendarId;
+  QString remoteId;
   std::optional<QString> calendarAccessRole;
   QString status;
   std::optional<QString> recurringRemoteId;
   std::optional<QString> originalStartAt;
   std::optional<QString> recurrenceRule;
   std::optional<QString> eventType;
+  QString title;
+  std::optional<QString> description;
+  std::optional<QString> location;
   QString startAt;
   QString endAt;
   bool allDay{false};

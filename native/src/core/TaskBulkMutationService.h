@@ -21,7 +21,13 @@ enum class TaskBulkAction : std::uint8_t {
   SetDue,
   ClearDue,
   SetPriority,
-  Reparent
+  Reparent,
+  ReplaceText
+};
+
+enum class TaskBulkTextField : std::uint8_t {
+  Title = 1,
+  Notes = 2
 };
 
 enum class TaskBulkItemOutcome : std::uint8_t {
@@ -37,6 +43,10 @@ struct TaskBulkMutationInput final {
   std::optional<TaskDue> due;
   std::optional<TaskPriority> priority;
   std::optional<QString> parentTaskId;
+  QString findText;
+  QString replaceText;
+  std::uint8_t textFields{0};
+  int recurrenceScope{0}; // 0 skip, 1 current, 2 current+future, 3 full series
 };
 
 struct TaskBulkMutationItem final {

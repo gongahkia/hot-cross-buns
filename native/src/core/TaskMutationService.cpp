@@ -812,8 +812,10 @@ preserveManagedRecurrence(const StoredTaskContext& before, TaskUpdateInput input
     return input;
   }
   TaskRecurrenceMarker marker = *parsed.marker;
-  marker.templateTitle = input.title.value_or(before.title);
-  if (input.due.has_value()) {
+  if (input.updateManagedRecurrenceTemplate) {
+    marker.templateTitle = input.title.value_or(before.title);
+  }
+  if (input.updateManagedRecurrenceTemplate && input.due.has_value()) {
     if (!input.due->at.has_value()) {
       return validationError(QStringLiteral("Managed recurring task requires a due date"));
     }
@@ -823,7 +825,7 @@ preserveManagedRecurrence(const StoredTaskContext& before, TaskUpdateInput input
     }
     marker.templateDueDate = *date;
   }
-  if (input.priority.has_value()) {
+  if (input.updateManagedRecurrenceTemplate && input.priority.has_value()) {
     marker.templatePriority = priorityText(*input.priority);
   }
   const TaskRecurrenceSerializationResult serialized =
@@ -2699,12 +2701,151 @@ std::future<TaskMutationSnapshotResult> TaskMutationService::inspect(QList<QStri
       }
       snapshots.append({.taskId = context->taskId,
                         .taskListId = context->taskListId,
+                        .title = context->title,
+                        .notes = context->notes,
                         .parentTaskId = context->parentTaskId,
                         .dueAt = context->dueAt,
                         .dueTimeZone = context->dueTimeZone,
                         .priority = *priority,
                         .completed = context->state == QStringLiteral("completed"),
-                        .hasActiveChildren = std::get<bool>(childResult)});
+                        .hasActiveChildren = std::get<bool>(childResult),
+                        .managedRecurrenceSeriesId = [&context]() -> std::optional<QString> {
+                          const TaskRecurrenceNotes parsed =
+                              parseTaskRecurrenceNotes(context->notes.value_or(QString()));
+                          return parsed.state == TaskRecurrenceNotesState::Managed &&
+                                         parsed.marker.has_value()
+                                     ? std::optional<QString>(parsed.marker->seriesId)
+                                     : std::nullopt;
+                        }(),
+                        .managedRecurrenceOrdinal = [&context]() -> std::optional<std::int64_t> {
+                          const TaskRecurrenceNotes parsed =
+                              parseTaskRecurrenceNotes(context->notes.value_or(QString()));
+                          return parsed.state == TaskRecurrenceNotesState::Managed &&
+                                         parsed.marker.has_value()
+                                     ? std::optional<std::int64_t>(parsed.marker->ordinal)
+                                     : std::nullopt;
+                        }()});
+    }
+    return TaskMutationSnapshotResult(std::move(snapshots));
+  });
+}
+
+std::future<TaskMutationSnapshotResult>
+TaskMutationService::inspectManagedSeries(QList<QString> taskIds) {
+  constexpr qsizetype kMaximumInspectionSize = 500;
+  if (taskIds.isEmpty() || taskIds.size() > kMaximumInspectionSize) {
+    return readyFuture(TaskMutationSnapshotResult(
+        validationError(QStringLiteral("Managed recurrence inspection input is invalid"))));
+  }
+  QSet<QString> uniqueIds;
+  for (const QString& taskId : taskIds) {
+    if (!isValidRequiredText(taskId, kMaximumIdentifierLength) || uniqueIds.contains(taskId)) {
+      return readyFuture(TaskMutationSnapshotResult(
+          validationError(QStringLiteral("Managed recurrence inspection input is invalid"))));
+    }
+    uniqueIds.insert(taskId);
+  }
+  return writerQueue_.enqueueResult([taskIds = std::move(taskIds)](SqliteConnection& connection) {
+    sqlite3* const handle = connection.nativeHandle();
+    if (handle == nullptr) {
+      return TaskMutationSnapshotResult(
+          AppError(AppErrorCode::Database, QStringLiteral("SQLite task connection is unavailable")));
+    }
+    QHash<QString, QSet<QString>> seriesByAccount;
+    for (const QString& taskId : taskIds) {
+      const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+          readTaskContext(connection, taskId);
+      if (std::holds_alternative<AppError>(contextResult)) {
+        return TaskMutationSnapshotResult(std::get<AppError>(contextResult));
+      }
+      const std::optional<StoredTaskContext>& context =
+          std::get<std::optional<StoredTaskContext>>(contextResult);
+      if (!context.has_value()) {
+        continue;
+      }
+      const TaskRecurrenceNotes recurrence =
+          parseTaskRecurrenceNotes(context->notes.value_or(QString()));
+      if (recurrence.state == TaskRecurrenceNotesState::Managed && recurrence.marker.has_value()) {
+        seriesByAccount[context->accountId].insert(recurrence.marker->seriesId);
+      }
+    }
+    QList<TaskMutationSnapshot> snapshots;
+    QSet<QString> emitted;
+    for (auto account = seriesByAccount.cbegin(); account != seriesByAccount.cend(); ++account) {
+      sqlite3_stmt* statement = nullptr;
+      constexpr char sql[] = "SELECT id FROM local_tasks WHERE account_id = ?1 ORDER BY id";
+      const int prepareResult = sqlite3_prepare_v2(handle, sql, -1, &statement, nullptr);
+      if (prepareResult != SQLITE_OK || statement == nullptr) {
+        return TaskMutationSnapshotResult(databaseError(
+            QStringLiteral("SQLite managed recurrence scan preparation failed (%1)"), prepareResult));
+      }
+      if (!bindText(statement, 1, account.key())) {
+        sqlite3_finalize(statement);
+        return TaskMutationSnapshotResult(
+            AppError(AppErrorCode::Database, QStringLiteral("SQLite managed recurrence scan binding failed")));
+      }
+      for (;;) {
+        const int stepResult = sqlite3_step(statement);
+        if (stepResult == SQLITE_DONE) {
+          break;
+        }
+        if (stepResult != SQLITE_ROW) {
+          sqlite3_finalize(statement);
+          return TaskMutationSnapshotResult(databaseError(
+              QStringLiteral("SQLite managed recurrence scan failed (%1)"), stepResult));
+        }
+        const std::optional<QString> id = optionalText(statement, 0);
+        if (!id.has_value()) {
+          sqlite3_finalize(statement);
+          return TaskMutationSnapshotResult(
+              AppError(AppErrorCode::Database, QStringLiteral("Stored recurrence task is invalid")));
+        }
+        const std::variant<std::optional<StoredTaskContext>, AppError> contextResult =
+            readTaskContext(connection, *id);
+        if (std::holds_alternative<AppError>(contextResult)) {
+          sqlite3_finalize(statement);
+          return TaskMutationSnapshotResult(std::get<AppError>(contextResult));
+        }
+        const std::optional<StoredTaskContext>& context =
+            std::get<std::optional<StoredTaskContext>>(contextResult);
+        if (!context.has_value()) {
+          continue;
+        }
+        const TaskRecurrenceNotes recurrence =
+            parseTaskRecurrenceNotes(context->notes.value_or(QString()));
+        if (recurrence.state != TaskRecurrenceNotesState::Managed || !recurrence.marker.has_value() ||
+            !account.value().contains(recurrence.marker->seriesId) || emitted.contains(context->taskId)) {
+          continue;
+        }
+        const std::optional<TaskPriority> priority = priorityFromText(context->priority);
+        const std::variant<bool, AppError> childResult =
+            hasActiveTaskChild(connection, context->taskId);
+        if (!priority.has_value() || std::holds_alternative<AppError>(childResult)) {
+          sqlite3_finalize(statement);
+          return TaskMutationSnapshotResult(priority.has_value()
+                                                ? std::get<AppError>(childResult)
+                                                : AppError(AppErrorCode::Database,
+                                                           QStringLiteral("Stored task is invalid")));
+        }
+        emitted.insert(context->taskId);
+        snapshots.append({.taskId = context->taskId,
+                          .taskListId = context->taskListId,
+                          .title = context->title,
+                          .notes = context->notes,
+                          .parentTaskId = context->parentTaskId,
+                          .dueAt = context->dueAt,
+                          .dueTimeZone = context->dueTimeZone,
+                          .priority = *priority,
+                          .completed = context->state == QStringLiteral("completed"),
+                          .hasActiveChildren = std::get<bool>(childResult),
+                          .managedRecurrenceSeriesId = recurrence.marker->seriesId,
+                          .managedRecurrenceOrdinal = recurrence.marker->ordinal});
+      }
+      const int finalizeResult = sqlite3_finalize(statement);
+      if (finalizeResult != SQLITE_OK) {
+        return TaskMutationSnapshotResult(databaseError(
+            QStringLiteral("SQLite managed recurrence scan finalization failed (%1)"), finalizeResult));
+      }
     }
     return TaskMutationSnapshotResult(std::move(snapshots));
   });

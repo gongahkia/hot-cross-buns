@@ -55,6 +55,7 @@ struct TaskUpdateInput final {
   std::optional<QString> notes;
   std::optional<TaskDue> due;
   std::optional<TaskPriority> priority;
+  bool updateManagedRecurrenceTemplate{true};
 };
 
 struct TaskMutationReceipt final {
@@ -71,12 +72,16 @@ struct TaskRemoteReconciliationInput final {
 struct TaskMutationSnapshot final {
   QString taskId;
   QString taskListId;
+  QString title;
+  std::optional<QString> notes;
   std::optional<QString> parentTaskId;
   std::optional<QString> dueAt;
   std::optional<QString> dueTimeZone;
   TaskPriority priority{TaskPriority::None};
   bool completed{false};
   bool hasActiveChildren{false};
+  std::optional<QString> managedRecurrenceSeriesId;
+  std::optional<std::int64_t> managedRecurrenceOrdinal;
 };
 
 struct TaskRecurrenceReconciliation final {
@@ -116,6 +121,8 @@ public:
   [[nodiscard]] std::future<TaskMutationResult> splitManagedRecurrence(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
   [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);
+  [[nodiscard]] std::future<TaskMutationSnapshotResult>
+  inspectManagedSeries(QList<QString> taskIds);
   [[nodiscard]] std::future<TaskMutationResult>
   reconcileGoogleTask(TaskRemoteReconciliationInput input);
   [[nodiscard]] std::future<TaskRecurrenceReconciliationResult>

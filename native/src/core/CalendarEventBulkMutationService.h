@@ -19,7 +19,14 @@ enum class CalendarEventBulkAction : std::uint8_t {
   SetColor,
   SetAvailability,
   SetVisibility,
-  ShiftTime
+  ShiftTime,
+  ReplaceText
+};
+
+enum class CalendarEventBulkTextField : std::uint8_t {
+  Title = 1,
+  Description = 2,
+  Location = 4
 };
 
 enum class CalendarEventBulkItemOutcome : std::uint8_t {
@@ -36,6 +43,10 @@ struct CalendarEventBulkMutationInput final {
   std::optional<bool> available;
   std::optional<QString> visibility;
   std::optional<int> shiftMinutes;
+  QString findText;
+  QString replaceText;
+  std::uint8_t textFields{0};
+  int recurrenceScope{0}; // 0 skip, 1 current, 2 current+future, 3 full series
 };
 
 struct CalendarEventBulkMutationItem final {
