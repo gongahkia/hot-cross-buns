@@ -21,6 +21,9 @@ pub mod layout;
 /// Canonical package-tree preparation.
 pub mod package_tree;
 
+/// Versioned compatibility-corpus fixture parsing and verification.
+pub mod compatibility_fixture;
+
 /// Optional package-owned metadata parsing.
 pub mod package_metadata;
 

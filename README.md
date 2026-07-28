@@ -28,6 +28,7 @@ library; package installation is not implemented yet.
 - [Package layout](docs/package-layout.md)
 - [Package metadata](docs/package-metadata.md)
 - [Canonical package trees](docs/canonical-package-trees.md)
+- [Compatibility fixtures](docs/compatibility-fixtures.md)
 - [`wukong init`](docs/init.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

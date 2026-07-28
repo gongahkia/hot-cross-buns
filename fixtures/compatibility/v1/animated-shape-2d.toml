@@ -1,0 +1,54 @@
+schema = 1
+id = "animated-shape-2d"
+godot = ">=4.0,<5.0"
+package_sha256 = "c61b1fedf8431814afaf640d80d8d56c134273cc0150ed7df6d4fb79f1ee935e"
+installed_paths = [
+  "addons/goutte.animated_shape_2d/README.md",
+  "addons/goutte.animated_shape_2d/animated_shape_2d.gd",
+  "addons/goutte.animated_shape_2d/animated_shape_2d.svg",
+  "addons/goutte.animated_shape_2d/animated_shape_2d.svg.import",
+  "addons/goutte.animated_shape_2d/editor/icons/copy.png",
+  "addons/goutte.animated_shape_2d/editor/icons/copy.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/edit.png",
+  "addons/goutte.animated_shape_2d/editor/icons/edit.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/link.png",
+  "addons/goutte.animated_shape_2d/editor/icons/link.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/new.png",
+  "addons/goutte.animated_shape_2d/editor/icons/new.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/paste.png",
+  "addons/goutte.animated_shape_2d/editor/icons/paste.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/remove.png",
+  "addons/goutte.animated_shape_2d/editor/icons/remove.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/shift_left.png",
+  "addons/goutte.animated_shape_2d/editor/icons/shift_left.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/shift_right.png",
+  "addons/goutte.animated_shape_2d/editor/icons/shift_right.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_less.png",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_less.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_more.png",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_more.png.import",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_reset.png",
+  "addons/goutte.animated_shape_2d/editor/icons/zoom_reset.png.import",
+  "addons/goutte.animated_shape_2d/editor/linked_frames_feedback.gd",
+  "addons/goutte.animated_shape_2d/editor/shape_frame_editor.gd",
+  "addons/goutte.animated_shape_2d/editor/shape_frame_editor.tscn",
+  "addons/goutte.animated_shape_2d/editor/shape_frames_bottom_panel_control.gd",
+  "addons/goutte.animated_shape_2d/editor/shape_frames_bottom_panel_control.tscn",
+  "addons/goutte.animated_shape_2d/editor/shape_preview.gd",
+  "addons/goutte.animated_shape_2d/extras/animated_shape_2d.png",
+  "addons/goutte.animated_shape_2d/extras/screenshot_01.png",
+  "addons/goutte.animated_shape_2d/extras/screenshot_02.png",
+  "addons/goutte.animated_shape_2d/extras/screenshot_03.png",
+  "addons/goutte.animated_shape_2d/plugin.cfg",
+  "addons/goutte.animated_shape_2d/plugin.gd",
+  "addons/goutte.animated_shape_2d/shape_frame_2d.gd",
+  "addons/goutte.animated_shape_2d/shape_frames_2d.gd",
+]
+
+[source]
+url = "https://github.com/Goutte/godot-addon-animated-shape-2d.git"
+revision = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91"
+
+[layout]
+source_subdirectory = "addons/goutte.animated_shape_2d"
+target_path = "addons/goutte.animated_shape_2d"

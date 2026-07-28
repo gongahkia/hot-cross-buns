@@ -14,6 +14,7 @@ Current records:
 - [0008: package layout detection](0008-package-layout-detection.md)
 - [0009: package metadata schema](0009-package-metadata-schema.md)
 - [0010: canonical package trees](0010-canonical-package-trees.md)
+- [0011: compatibility-fixture schema](0011-compatibility-fixture-schema.md)
 
 ## When to write an ADR
 

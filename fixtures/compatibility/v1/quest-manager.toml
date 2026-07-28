@@ -1,0 +1,23 @@
+schema = 1
+id = "quest-manager"
+godot = ">=4.2.1,<5.0"
+package_sha256 = "c440a765c0d300fac55d5c6bf2e400c6d62851c4e2182cf96d2269377c1f7cab"
+installed_paths = [
+  "addons/rubonnek.quest_manager/LICENSE.md",
+  "addons/rubonnek.quest_manager/debugger/editor_debugger_plugin.gd",
+  "addons/rubonnek.quest_manager/debugger/quest_manager_viewer.gd",
+  "addons/rubonnek.quest_manager/debugger/quest_manager_viewer.tscn",
+  "addons/rubonnek.quest_manager/debugger/tree_panel_style_box_flat.tres",
+  "addons/rubonnek.quest_manager/plugin.cfg",
+  "addons/rubonnek.quest_manager/plugin.gd",
+  "addons/rubonnek.quest_manager/runtime/quest_entry.gd",
+  "addons/rubonnek.quest_manager/runtime/quest_manager.gd",
+]
+
+[source]
+url = "https://github.com/Rubonnek/quest-manager.git"
+revision = "8fe88bc8a415d0b57e32a11b6114518e6d62ff6d"
+
+[layout]
+source_subdirectory = "addons/rubonnek.quest_manager"
+target_path = "addons/rubonnek.quest_manager"

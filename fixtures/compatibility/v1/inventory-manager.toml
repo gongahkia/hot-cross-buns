@@ -1,0 +1,24 @@
+schema = 1
+id = "inventory-manager"
+godot = ">=4.2.1,<5.0"
+package_sha256 = "2db794cfea2a3bdcf5ba07f3cbbc8e1beef2cbddece443fe36cd1b18ae805ea2"
+installed_paths = [
+  "addons/rubonnek.inventory_manager/LICENSE.md",
+  "addons/rubonnek.inventory_manager/debugger/editor_debugger_plugin.gd",
+  "addons/rubonnek.inventory_manager/debugger/inventory_manager_viewer.gd",
+  "addons/rubonnek.inventory_manager/debugger/inventory_manager_viewer.tscn",
+  "addons/rubonnek.inventory_manager/debugger/tree_panel_style_box_flat.tres",
+  "addons/rubonnek.inventory_manager/plugin.cfg",
+  "addons/rubonnek.inventory_manager/plugin.gd",
+  "addons/rubonnek.inventory_manager/runtime/excess_items.gd",
+  "addons/rubonnek.inventory_manager/runtime/inventory_manager.gd",
+  "addons/rubonnek.inventory_manager/runtime/item_registry.gd",
+]
+
+[source]
+url = "https://github.com/Rubonnek/inventory-manager.git"
+revision = "693d89f6caca96c7f357485674f54dcfb89ec6d5"
+
+[layout]
+source_subdirectory = "addons/rubonnek.inventory_manager"
+target_path = "addons/rubonnek.inventory_manager"

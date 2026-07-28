@@ -323,15 +323,15 @@ Tests:
 
 Each fixture should declare:
 
-- [ ] Package source.
-- [ ] Immutable revision.
-- [ ] Package layout.
-- [ ] Expected installed paths.
-- [ ] Expected package hash.
-- [ ] Supported Godot version.
-- [ ] Optional headless validation command.
+- [x] Package source.
+- [x] Immutable revision.
+- [x] Package layout.
+- [x] Expected installed paths.
+- [x] Expected package hash.
+- [x] Supported Godot version.
+- [x] Optional headless validation command.
 
-Start with at least five public addons before implementing resolution.
+Completed with five public addons before implementing resolution.
 
 ---
 

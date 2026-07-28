@@ -1,0 +1,28 @@
+schema = 1
+id = "godot-4-aseprite-importers"
+godot = ">=4.0,<5.0"
+package_sha256 = "94db02e4349bb267e84e27f95ff6db8cd30c61ab3b86947153766ed2a147c11c"
+installed_paths = [
+  "addons/nklbdev.aseprite_importers/aseprite_image_format_loader_extension.gd",
+  "addons/nklbdev.aseprite_importers/common.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/_animation_importer_base.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/_importer_base.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/animated_sprite_2d.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/animated_sprite_3d.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/sprite_2d.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/sprite_3d.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/sprite_frames.gd",
+  "addons/nklbdev.aseprite_importers/editor_import_plugins/texture_rect.gd",
+  "addons/nklbdev.aseprite_importers/editor_plugin.gd",
+  "addons/nklbdev.aseprite_importers/icon.png",
+  "addons/nklbdev.aseprite_importers/icon.png.import",
+  "addons/nklbdev.aseprite_importers/plugin.cfg",
+]
+
+[source]
+url = "https://github.com/nklbdev/godot-4-aseprite-importers.git"
+revision = "3ed41a8b8cbc5e7ce7a3e39c42c463e9d86f4ff8"
+
+[layout]
+source_subdirectory = "addons/nklbdev.aseprite_importers"
+target_path = "addons/nklbdev.aseprite_importers"
