@@ -1,9 +1,10 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
 
+use serde_json::json;
 use std::{
-    collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf, process,
-    time::Duration,
+    cell::Cell, collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf,
+    process, sync::OnceLock, time::Duration,
 };
 use wukong_core::{
     cache::{
@@ -12,8 +13,10 @@ use wukong_core::{
     },
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
-    direct_lock::{lock_direct_dependencies, update_direct_dependencies},
-    direct_sync::sync_direct_dependencies,
+    direct_lock::{
+        lock_direct_dependencies_with_cancellation, update_direct_dependencies_with_cancellation,
+    },
+    direct_sync::sync_direct_dependencies_with_cancellation,
     godot_compatibility::{
         PackageGodotCompatibilityReport, resolve_project_godot_compatibility,
         validate_locked_package_godot_compatibility,
@@ -30,10 +33,14 @@ use wukong_core::{
     outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
     project::ProjectRoot,
     provenance::ProvenanceReport,
+    source::CancellationToken,
     transactional_file::{FileSnapshot, write_atomic},
 };
 
-use crate::diagnostics::{ProcessExit, render_human};
+use crate::diagnostics::{PROTOCOL_VERSION, ProcessExit, render_human, render_json};
+
+thread_local! { static JSON_MODE: Cell<bool> = const { Cell::new(false) }; }
+static CLI_CANCELLATION: OnceLock<CancellationToken> = OnceLock::new();
 
 fn main() {
     process::exit(i32::from(run(env::args_os()).code()));
@@ -43,6 +50,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     let mut arguments = arguments.into_iter();
     let _program = arguments.next();
     let command = arguments.next();
+    let arguments = arguments.collect::<Vec<_>>();
+    JSON_MODE.with(|mode| mode.set(arguments.iter().any(|argument| argument == "--json")));
+    let arguments = arguments.into_iter();
     if command.is_none()
         || matches!(command.as_deref(), Some(command) if command == "--help" || command == "-h")
     {
@@ -117,6 +127,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
 fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_add_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -201,7 +212,14 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             ));
         }
     };
-    let lock = match lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false) {
+    let lock = match lock_direct_dependencies_with_cancellation(
+        &manifest_path,
+        &manifest,
+        None,
+        &cache,
+        false,
+        &cancellation,
+    ) {
         Ok(lock) => lock,
         Err(error) => {
             return Err(rollback_add(
@@ -243,7 +261,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             None,
         ));
     }
-    let summary = match sync_direct_dependencies(
+    let summary = match sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -251,6 +269,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         options.development,
         &cache,
         false,
+        &cancellation,
     ) {
         Ok(summary) => summary,
         Err(error) => {
@@ -304,6 +323,7 @@ fn rollback_add(
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
 fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_remove_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -389,7 +409,14 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             ));
         }
     };
-    let lock = match lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false) {
+    let lock = match lock_direct_dependencies_with_cancellation(
+        &manifest_path,
+        &manifest,
+        None,
+        &cache,
+        false,
+        &cancellation,
+    ) {
         Ok(lock) => lock,
         Err(error) => {
             return Err(rollback_add(
@@ -431,7 +458,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             None,
         ));
     }
-    let summary = match sync_direct_dependencies(
+    let summary = match sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -439,6 +466,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         true,
         &cache,
         false,
+        &cancellation,
     ) {
         Ok(summary) => summary,
         Err(error) => {
@@ -461,6 +489,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
 #[allow(clippy::too_many_lines)] // coordinates lock publication and project sync
 fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_update_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -496,13 +525,14 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             )
         })?;
     let cache = CacheLayout::from_environment()?;
-    let updated = update_direct_dependencies(
+    let updated = update_direct_dependencies_with_cancellation(
         &manifest_path,
         &manifest,
         &existing,
         selected.as_ref(),
         &cache,
         options.offline,
+        &cancellation,
     )?;
     let compatibility = resolve_project_godot_compatibility(&manifest, None)?;
     let godot_report = validate_locked_package_godot_compatibility(&updated, &compatibility)?;
@@ -521,7 +551,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     let output = updated.to_toml().into_bytes();
     let lock_snapshot = FileSnapshot::capture(&lock_path)?;
     write_atomic(&lock_path, &output)?;
-    let summary = match sync_direct_dependencies(
+    let summary = match sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -529,6 +559,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         true,
         &cache,
         options.offline,
+        &cancellation,
     ) {
         Ok(summary) => summary,
         Err(error) => return Err(rollback_update(error, &lock_snapshot, &output)),
@@ -706,6 +737,9 @@ fn parse_update_arguments(
 
 fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_outdated_arguments(arguments)?;
+    if options.json {
+        emit_json_started("outdated");
+    }
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -717,6 +751,9 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if options.json {
+        emit_json_progress("outdated", "reading-lockfile");
+    }
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
         user_error(
@@ -727,7 +764,8 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
     let cache = CacheLayout::from_environment()?;
     let report = report_outdated(&lock, &cache, options.offline);
     if options.json {
-        println!("{}", render_outdated_json(&report));
+        emit_json_progress("outdated", "report-ready");
+        emit_json_result(&render_outdated_json(&report));
     } else {
         println!("{}", render_outdated(&report));
     }
@@ -736,6 +774,9 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
 
 fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_audit_arguments(arguments)?;
+    if options.json {
+        emit_json_started("audit");
+    }
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -747,6 +788,9 @@ fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagno
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if options.json {
+        emit_json_progress("audit", "reading-lockfile");
+    }
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
         user_error(
@@ -756,7 +800,8 @@ fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagno
     })?;
     let report = ProvenanceReport::from_lockfile(&lock);
     if options.json {
-        println!("{}", render_audit_json(&report));
+        emit_json_progress("audit", "report-ready");
+        emit_json_result(&render_audit_json(&report));
     } else {
         println!("{}", render_audit(&report));
     }
@@ -1694,9 +1739,14 @@ fn required_add_value(
 
 fn run_tree(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_view_arguments(arguments, false)?;
+    if options.json {
+        emit_json_started("tree");
+        emit_json_progress("tree", "reading-lockfile");
+    }
     let graph = load_dependency_graph(options.project.as_deref())?;
     if options.json {
-        println!("{}", render_tree_json(&graph));
+        emit_json_progress("tree", "graph-ready");
+        emit_json_result(&render_tree_json(&graph));
     } else {
         println!("{}", render_tree(&graph));
     }
@@ -1705,6 +1755,9 @@ fn run_tree(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
 
 fn run_why(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_view_arguments(arguments, true)?;
+    if options.json {
+        emit_json_started("why");
+    }
     let target = options.target.ok_or_else(|| {
         user_error(
             "why requires a package name",
@@ -1720,6 +1773,9 @@ fn run_why(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             .with_recovery("use a lowercase package name"),
         )
     })?;
+    if options.json {
+        emit_json_progress("why", "reading-lockfile");
+    }
     let graph = load_dependency_graph(options.project.as_deref())?;
     if !graph.packages().contains_key(&target) {
         return Err(user_error(
@@ -1735,7 +1791,8 @@ fn run_why(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         ));
     }
     if options.json {
-        println!("{}", render_why_json(&target, &paths));
+        emit_json_progress("why", "paths-ready");
+        emit_json_result(&render_why_json(&target, &paths));
     } else {
         println!("{}", render_why(&target, &paths));
     }
@@ -2023,6 +2080,24 @@ fn render_why_json(
     )
 }
 
+fn emit_json_started(command: &str) {
+    println!(
+        "{}",
+        json!({"protocol": PROTOCOL_VERSION, "type": "started", "command": command})
+    );
+}
+
+fn emit_json_progress(command: &str, phase: &str) {
+    println!(
+        "{}",
+        json!({"protocol": PROTOCOL_VERSION, "type": "progress", "command": command, "phase": phase})
+    );
+}
+
+fn emit_json_result(result: &str) {
+    println!("{{\"protocol\":{PROTOCOL_VERSION},\"type\":\"result\",\"result\":{result}}}");
+}
+
 fn json_string(value: &str) -> String {
     let mut output = String::from('"');
     for character in value.chars() {
@@ -2179,6 +2254,7 @@ fn human_bytes(bytes: u64) -> String {
 
 fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_lock_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -2220,12 +2296,13 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         }
     };
     let cache = CacheLayout::from_environment()?;
-    let locked = lock_direct_dependencies(
+    let locked = lock_direct_dependencies_with_cancellation(
         &manifest_path,
         &manifest,
         existing.as_ref(),
         &cache,
         options.offline,
+        &cancellation,
     )?;
     let godot_report = validate_locked_package_godot_compatibility(&locked, &compatibility)?;
     let output = locked.to_toml();
@@ -2264,6 +2341,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
 
 fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_sync_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -2289,8 +2367,14 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     let godot_report = validate_locked_package_godot_compatibility(&lock, &compatibility)?;
     let cache = CacheLayout::from_environment()?;
     if options.locked {
-        let expected =
-            lock_direct_dependencies(&manifest_path, &manifest, None, &cache, options.offline)?;
+        let expected = lock_direct_dependencies_with_cancellation(
+            &manifest_path,
+            &manifest,
+            None,
+            &cache,
+            options.offline,
+            &cancellation,
+        )?;
         if expected.to_toml() != lock.to_toml() {
             return Err(user_error(
                 "manifest and lockfile differ while --locked was supplied",
@@ -2298,7 +2382,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             ));
         }
     }
-    let summary = sync_direct_dependencies(
+    let summary = sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -2306,6 +2390,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         options.include_dev,
         &cache,
         options.offline,
+        &cancellation,
     )?;
     println!(
         "sync: {} written, {} unchanged, {} removed",
@@ -2523,7 +2608,13 @@ fn user_error(message: impl AsRef<str>, recovery: impl AsRef<str>) -> Box<Diagno
 }
 
 fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
-    eprintln!("{}", render_human(diagnostic, false));
+    JSON_MODE.with(|mode| {
+        if mode.get() {
+            eprintln!("{}", render_json(diagnostic));
+        } else {
+            eprintln!("{}", render_human(diagnostic, false));
+        }
+    });
     ProcessExit::from_diagnostic(diagnostic)
 }
 
@@ -2535,6 +2626,36 @@ fn print_usage() {
 
 fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
     Box::new(diagnostic)
+}
+
+fn cli_cancellation() -> Result<CancellationToken, Box<Diagnostic>> {
+    if let Some(cancellation) = CLI_CANCELLATION.get() {
+        return Ok(cancellation.clone());
+    }
+    let cancellation = CancellationToken::new();
+    let handler_cancellation = cancellation.clone();
+    ctrlc::set_handler(move || handler_cancellation.cancel()).map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not install the cancellation handler",
+            )
+            .with_cause(error)
+            .with_recovery("retry in a terminal that permits Ctrl-C handling"),
+        )
+    })?;
+    if CLI_CANCELLATION.set(cancellation.clone()).is_ok() {
+        return Ok(cancellation);
+    }
+    CLI_CANCELLATION.get().cloned().ok_or_else(|| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "cancellation handler initialization did not retain a token",
+            )
+            .with_recovery("retry the command"),
+        )
+    })
 }
 
 #[cfg(test)]

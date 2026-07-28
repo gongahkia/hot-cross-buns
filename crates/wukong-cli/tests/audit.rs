@@ -51,25 +51,54 @@ fn invariant_audit_displays_deterministic_immutable_provenance() {
     assert!(first_json.status.success());
     assert_eq!(first_json.stdout, second_json.stdout);
     let json = String::from_utf8(first_json.stdout).expect("JSON audit output should be UTF-8");
-    let archive_package_checksum = format!("{:064x}", 3);
-    let git_package_checksum = format!("{:064x}", 2);
-    let local_package_checksum = format!("{:064x}", 1);
+    let events = json_events(&json);
     assert_eq!(
-        json,
-        format!(
-            "{{\"schema\":1,\"signature_verification\":\"not_implemented\",\"packages\":[{{\"name\":\"archive-addon\",\"source_kind\":\"http\",\"canonical_source\":\"https://example.test/addon.zip\",\"immutable_id\":\"sha256:{ARCHIVE_CHECKSUM}\",\"immutable_revision\":null,\"source_checksum\":\"{ARCHIVE_CHECKSUM}\",\"package_checksum\":\"{archive_package_checksum}\"}},{{\"name\":\"git-addon\",\"source_kind\":\"git\",\"canonical_source\":\"https://example.test/Org/addon.git\",\"immutable_id\":\"git:{COMMIT}\",\"immutable_revision\":\"{COMMIT}\",\"source_checksum\":null,\"package_checksum\":\"{git_package_checksum}\"}},{{\"name\":\"local-addon\",\"source_kind\":\"local\",\"canonical_source\":\"local:sha256:{LOCAL_CHECKSUM}\",\"immutable_id\":\"sha256:{LOCAL_CHECKSUM}\",\"immutable_revision\":null,\"source_checksum\":\"{LOCAL_CHECKSUM}\",\"package_checksum\":\"{local_package_checksum}\"}}]}}\n"
-        )
+        event_types(&events),
+        ["started", "progress", "progress", "result"]
     );
+    assert_eq!(events[0]["command"], "audit");
+    assert_eq!(events[3]["result"]["packages"][0]["name"], "archive-addon");
+    assert_eq!(events[3]["result"]["packages"][1]["name"], "git-addon");
+    assert_eq!(events[3]["result"]["packages"][2]["name"], "local-addon");
 }
 
 #[test]
 fn invariant_audit_requires_a_lockfile() {
     let fixture = Fixture::without_lock();
 
-    let output = command(fixture.root()).output().expect("audit should run");
+    let output = command(fixture.root())
+        .arg("--json")
+        .output()
+        .expect("audit should run");
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("wukong.lock is required"));
+    let events = json_events(std::str::from_utf8(&output.stdout).expect("stdout should be UTF-8"));
+    assert_eq!(event_types(&events), ["started", "progress"]);
+    let diagnostic: serde_json::Value =
+        serde_json::from_slice(&output.stderr).expect("JSON diagnostics should be parseable");
+    assert_eq!(diagnostic["protocol"], 1);
+    assert_eq!(diagnostic["type"], "diagnostic");
+    assert_eq!(diagnostic["code"], "WUK001");
+    assert!(
+        diagnostic["message"]
+            .as_str()
+            .expect("message should be a string")
+            .contains("wukong.lock is required")
+    );
+}
+
+fn json_events(output: &str) -> Vec<serde_json::Value> {
+    output
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("JSON event should parse"))
+        .collect()
+}
+
+fn event_types(events: &[serde_json::Value]) -> Vec<&str> {
+    events
+        .iter()
+        .map(|event| event["type"].as_str().expect("event should have a type"))
+        .collect()
 }
 
 fn command(current_directory: &Path) -> Command {

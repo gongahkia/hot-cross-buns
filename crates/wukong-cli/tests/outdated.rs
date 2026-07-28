@@ -37,10 +37,20 @@ fn invariant_outdated_json_is_deterministic_and_versioned() {
 
     assert!(first.status.success());
     assert_eq!(first.stdout, second.stdout);
+    let output = String::from_utf8(first.stdout).expect("output should be UTF-8");
+    let events = output
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event should parse"))
+        .collect::<Vec<_>>();
     assert_eq!(
-        String::from_utf8(first.stdout).expect("output should be UTF-8"),
-        "{\"schema\":1,\"packages\":[{\"name\":\"alpha\",\"status\":\"unavailable\",\"current\":null,\"compatible\":null,\"breaking\":null,\"reason\":\"local source has no version catalogue\"}]}\n"
+        events
+            .iter()
+            .map(|event| event["type"].as_str().expect("event should have a type"))
+            .collect::<Vec<_>>(),
+        ["started", "progress", "progress", "result"]
     );
+    assert_eq!(events[0]["command"], "outdated");
+    assert_eq!(events[3]["result"]["packages"][0]["name"], "alpha");
 }
 
 fn command(current_directory: &Path) -> Command {

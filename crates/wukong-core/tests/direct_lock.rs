@@ -6,10 +6,14 @@ use tempfile::TempDir;
 use wukong_core::{
     cache::CacheLayout,
     diagnostic::ErrorCode,
-    direct_lock::{lock_direct_dependencies, update_direct_dependencies},
+    direct_lock::{
+        lock_direct_dependencies, lock_direct_dependencies_with_cancellation,
+        update_direct_dependencies,
+    },
     direct_sync::sync_direct_dependencies,
     lockfile::LockedSource,
     manifest::Manifest,
+    source::CancellationToken,
 };
 
 #[test]
@@ -136,6 +140,31 @@ fn invariant_changed_local_content_changes_the_direct_lock() {
     let second = lock(&fixture, &manifest, None);
 
     assert_ne!(first.to_toml(), second.to_toml());
+}
+
+#[test]
+fn invariant_cancelled_lock_reads_no_source_content() {
+    let fixture = Fixture::new();
+    let addon = fixture.addon("addon", "first");
+    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    fs::remove_dir_all(addon).expect("fixture source should be removable");
+
+    let error = lock_direct_dependencies_with_cancellation(
+        fixture.manifest_path(),
+        &manifest,
+        None,
+        &cache,
+        true,
+        &cancellation,
+    )
+    .expect_err("cancelled lock should not access the source");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert!(error.message().contains("cancelled"));
 }
 
 #[test]

@@ -10,11 +10,14 @@ use wukong_core::{
     cache::CacheLayout,
     diagnostic::ErrorCode,
     direct_lock::lock_direct_local_dependencies,
-    direct_sync::{sync_direct_dependencies, sync_direct_local_dependencies},
+    direct_sync::{
+        sync_direct_dependencies, sync_direct_dependencies_with_cancellation,
+        sync_direct_local_dependencies,
+    },
     identity::PackageName,
     lockfile::{GodotCompatibility, LockedGitSource, LockedHttpSource, LockedPackage, Lockfile},
     manifest::Manifest,
-    source::ImmutableSourceId,
+    source::{CancellationToken, ImmutableSourceId},
 };
 
 #[test]
@@ -46,6 +49,34 @@ fn invariant_direct_sync_rejects_changed_locked_content_before_project_mutation(
     fs::write(addon.join("plugin.gd"), "changed").expect("source should change");
 
     assert!(sync(&fixture, &manifest, &lock, false).is_err());
+    assert!(!fixture.project().join("addons").exists());
+    assert!(!fixture.project().join(".wukong/state.toml").exists());
+}
+
+#[test]
+fn invariant_cancelled_sync_leaves_project_unmodified() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let lock = lock(&fixture, &manifest);
+    let cache = CacheLayout::for_root(fixture.project().join("cache"))
+        .expect("cache layout should be valid");
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+
+    let error = sync_direct_dependencies_with_cancellation(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        false,
+        &cache,
+        true,
+        &cancellation,
+    )
+    .expect_err("cancelled sync should fail");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
     assert!(!fixture.project().join("addons").exists());
     assert!(!fixture.project().join(".wukong/state.toml").exists());
 }

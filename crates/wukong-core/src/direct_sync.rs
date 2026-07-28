@@ -13,7 +13,7 @@ use crate::{
     manifest::{Dependency, GitReference, Manifest},
     ownership::{PackageMaterialization, build_desired_file_map},
     package_tree::prepare_package_tree,
-    project_sync::{SyncSummary, sync_project},
+    project_sync::{SyncSummary, sync_project_with_cancellation},
     source::{CancellationToken, ResolvedSource, SourceAdapter},
 };
 use std::{
@@ -37,6 +37,38 @@ pub fn sync_direct_dependencies(
     cache: &CacheLayout,
     offline: bool,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
+    let cancellation = CancellationToken::new();
+    sync_direct_dependencies_with_cancellation(
+        project_root,
+        manifest_path,
+        manifest,
+        lock,
+        include_dev,
+        cache,
+        offline,
+        &cancellation,
+    )
+}
+
+/// Synchronises selected direct dependencies while observing cancellation.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the manifest, lockfile, or source content
+/// disagrees before any project file is changed, or when cancellation is
+/// requested at a transaction-safe boundary.
+#[allow(clippy::too_many_arguments)]
+pub fn sync_direct_dependencies_with_cancellation(
+    project_root: &Path,
+    manifest_path: &Path,
+    manifest: &Manifest,
+    lock: &Lockfile,
+    include_dev: bool,
+    cache: &CacheLayout,
+    offline: bool,
+    cancellation: &CancellationToken,
+) -> Result<SyncSummary, Box<Diagnostic>> {
+    cancellation.check()?;
     let git = GitFetcher::new(cache.clone());
     let http = HttpArchiveFetcher::new(cache.clone());
     if offline {
@@ -44,10 +76,10 @@ pub fn sync_direct_dependencies(
     }
     let staging = TempDir::new()
         .map_err(|error| internal("could not create sync preparation directory", error))?;
-    let cancellation = CancellationToken::new();
     let mut trees = BTreeMap::new();
     let mut packages = Vec::new();
     for locked in lock.packages().values() {
+        cancellation.check()?;
         if locked.development() && !include_dev {
             continue;
         }
@@ -58,7 +90,7 @@ pub fn sync_direct_dependencies(
             manifest_path,
             &git,
             &http,
-            &cancellation,
+            cancellation,
             staging.path(),
             offline,
             locked.name().as_str(),
@@ -92,6 +124,7 @@ pub fn sync_direct_dependencies(
         .values()
         .filter(|locked| !locked.development() || include_dev)
     {
+        cancellation.check()?;
         let tree = trees.get(locked.name()).ok_or_else(|| {
             Box::new(
                 Diagnostic::new(
@@ -112,7 +145,7 @@ pub fn sync_direct_dependencies(
     if include_dev {
         groups.insert(DependencyGroup::DevDependencies);
     }
-    sync_project(project_root, groups, packages, &desired)
+    sync_project_with_cancellation(project_root, groups, packages, &desired, cancellation)
 }
 
 fn verify_offline_cache(

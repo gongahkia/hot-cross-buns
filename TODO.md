@@ -867,12 +867,12 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-130: Define a machine-readable CLI protocol
 
-- [ ] Stable JSON output.
-- [ ] Progress events.
-- [ ] Structured diagnostics.
-- [ ] Cancellation.
-- [ ] Exit-status conventions.
-- [ ] Protocol versioning.
+- [x] Stable JSON output.
+- [x] Progress events.
+- [x] Structured diagnostics.
+- [x] Cancellation.
+- [x] Exit-status conventions.
+- [x] Protocol versioning.
 
 ## wukong-131: Build a minimal Godot editor plugin
 

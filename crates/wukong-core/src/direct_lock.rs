@@ -41,6 +41,32 @@ pub fn lock_direct_dependencies(
     cache: &CacheLayout,
     offline: bool,
 ) -> Result<Lockfile, Box<Diagnostic>> {
+    let cancellation = CancellationToken::new();
+    lock_direct_dependencies_with_cancellation(
+        manifest_path,
+        manifest,
+        existing,
+        cache,
+        offline,
+        &cancellation,
+    )
+}
+
+/// Locks direct dependencies while observing a caller-owned cancellation token.
+///
+/// # Errors
+///
+/// Returns a diagnostic for invalid declarations, unavailable sources, failed
+/// integrity verification, package preparation errors, or cancellation.
+pub fn lock_direct_dependencies_with_cancellation(
+    manifest_path: &Path,
+    manifest: &Manifest,
+    existing: Option<&Lockfile>,
+    cache: &CacheLayout,
+    offline: bool,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    cancellation.check()?;
     let declarations = direct_declarations(manifest)?;
     if let Some(lock) = existing.filter(|lock| reusable(lock, &declarations)) {
         return Ok(lock.clone());
@@ -53,16 +79,16 @@ pub fn lock_direct_dependencies(
     }
     let staging = TempDir::new()
         .map_err(|error| internal("could not create package-lock staging directory", error))?;
-    let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for declaration in declarations.values() {
+        cancellation.check()?;
         packages.push(lock_declaration(
             manifest_path,
             declaration,
             local,
             &git,
             &http,
-            &cancellation,
+            cancellation,
             staging.path(),
             offline,
         )?);
@@ -88,6 +114,35 @@ pub fn update_direct_dependencies(
     cache: &CacheLayout,
     offline: bool,
 ) -> Result<Lockfile, Box<Diagnostic>> {
+    let cancellation = CancellationToken::new();
+    update_direct_dependencies_with_cancellation(
+        manifest_path,
+        manifest,
+        existing,
+        selected,
+        cache,
+        offline,
+        &cancellation,
+    )
+}
+
+/// Re-locks direct dependencies while observing a caller-owned cancellation token.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the selected dependency is absent, the existing
+/// lockfile does not match the manifest, source preparation fails, or the
+/// operation is cancelled.
+pub fn update_direct_dependencies_with_cancellation(
+    manifest_path: &Path,
+    manifest: &Manifest,
+    existing: &Lockfile,
+    selected: Option<&PackageName>,
+    cache: &CacheLayout,
+    offline: bool,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    cancellation.check()?;
     let declarations = direct_declarations(manifest)?;
     validate_existing_lock(existing, &declarations)?;
     if let Some(selected) = selected {
@@ -116,9 +171,9 @@ pub fn update_direct_dependencies(
     }
     let staging = TempDir::new()
         .map_err(|error| internal("could not create package-update staging directory", error))?;
-    let cancellation = CancellationToken::new();
     let mut packages = Vec::new();
     for (name, declaration) in &declarations {
+        cancellation.check()?;
         if selected.is_none_or(|selected| selected == name) {
             packages.push(lock_declaration(
                 manifest_path,
@@ -126,7 +181,7 @@ pub fn update_direct_dependencies(
                 local,
                 &git,
                 &http,
-                &cancellation,
+                cancellation,
                 staging.path(),
                 offline,
             )?);

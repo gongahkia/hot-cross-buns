@@ -9,6 +9,7 @@ use crate::{
     materialization::{MaterializationPreference, materialize_file},
     operation_lock::AdvisoryLock,
     ownership::{DesiredFile, DesiredFileMap, validate_project_file_conflicts},
+    source::CancellationToken,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -40,12 +41,29 @@ pub fn sync_project(
     packages: impl IntoIterator<Item = InstalledPackage>,
     desired: &DesiredFileMap,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
-    sync_project_with_preference(
+    let cancellation = CancellationToken::new();
+    sync_project_with_cancellation(project_root, groups, packages, desired, &cancellation)
+}
+
+/// Reconciles a desired map while observing cancellation at transaction-safe boundaries.
+///
+/// # Errors
+///
+/// Returns a diagnostic without leaving a partially valid installed state.
+pub fn sync_project_with_cancellation(
+    project_root: &Path,
+    groups: BTreeSet<DependencyGroup>,
+    packages: impl IntoIterator<Item = InstalledPackage>,
+    desired: &DesiredFileMap,
+    cancellation: &CancellationToken,
+) -> Result<SyncSummary, Box<Diagnostic>> {
+    sync_project_with_preference_and_cancellation(
         project_root,
         groups,
         packages,
         desired,
         MaterializationPreference::Auto,
+        cancellation,
     )
 }
 
@@ -61,8 +79,28 @@ pub fn sync_project_with_preference(
     desired: &DesiredFileMap,
     preference: MaterializationPreference,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
+    let cancellation = CancellationToken::new();
+    sync_project_with_preference_and_cancellation(
+        project_root,
+        groups,
+        packages,
+        desired,
+        preference,
+        &cancellation,
+    )
+}
+
+fn sync_project_with_preference_and_cancellation(
+    project_root: &Path,
+    groups: BTreeSet<DependencyGroup>,
+    packages: impl IntoIterator<Item = InstalledPackage>,
+    desired: &DesiredFileMap,
+    preference: MaterializationPreference,
+    cancellation: &CancellationToken,
+) -> Result<SyncSummary, Box<Diagnostic>> {
     let _lock = acquire_project_lock(project_root)?;
     recover_transaction(project_root)?;
+    cancellation.check()?;
     let packages = packages.into_iter().collect::<Vec<_>>();
     let previous = read_state(project_root)?;
     let prior_paths = previous.files().keys().cloned().collect::<BTreeSet<_>>();
@@ -87,7 +125,7 @@ pub fn sync_project_with_preference(
     let staging = state_directory.join(".transaction");
     fs::create_dir(&staging)
         .map_err(|error| internal("could not create project transaction staging", error))?;
-    let strategies = match stage_files(&staging, &plan, preference) {
+    let strategies = match stage_files(&staging, &plan, preference, cancellation) {
         Ok(strategies) => strategies,
         Err(error) => {
             let _ = fs::remove_dir_all(&staging);
@@ -95,7 +133,11 @@ pub fn sync_project_with_preference(
         }
     };
     let next = next_state(groups, packages, desired, &previous, &strategies)?;
-    if let Err(error) = stage_state(&staging, &next) {
+    if let Err(error) = stage_state(&staging, &next, cancellation) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error);
+    }
+    if let Err(error) = cancellation.check() {
         let _ = fs::remove_dir_all(&staging);
         return Err(error);
     }
@@ -107,6 +149,16 @@ pub fn sync_project_with_preference(
     }
     fs::remove_dir_all(&staging)
         .map_err(|error| internal("could not clean completed transaction", error))?;
+    if cancellation.is_cancelled() {
+        return Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                "operation was cancelled after its transactional commit completed",
+            )
+            .with_modification(Modification::Applied(project_root.to_path_buf()))
+            .with_recovery("the project was fully synchronised; rerun the command to inspect it"),
+        ));
+    }
     Ok(SyncSummary {
         written: plan.writes.len(),
         unchanged: desired.files().len() - plan.writes.len(),
@@ -214,10 +266,13 @@ fn stage_files(
     staging: &Path,
     plan: &SyncPlan,
     preference: MaterializationPreference,
+    cancellation: &CancellationToken,
 ) -> Result<BTreeMap<PathBuf, MaterializationStrategy>, Box<Diagnostic>> {
+    cancellation.check()?;
     Journal::create(staging)?;
     let mut strategies = BTreeMap::new();
     for (path, file) in &plan.writes {
+        cancellation.check()?;
         #[cfg(test)]
         interrupt_if_requested(InterruptionPoint::FileStaging)?;
         let staged = staging.join("files").join(path);
@@ -234,7 +289,12 @@ fn stage_files(
     Ok(strategies)
 }
 
-fn stage_state(staging: &Path, next: &InstalledState) -> Result<(), Box<Diagnostic>> {
+fn stage_state(
+    staging: &Path,
+    next: &InstalledState,
+    cancellation: &CancellationToken,
+) -> Result<(), Box<Diagnostic>> {
+    cancellation.check()?;
     #[cfg(test)]
     interrupt_if_requested(InterruptionPoint::StateFileWrite)?;
     let state = staging.join(STATE_FILE_NAME);

@@ -1,6 +1,10 @@
 //! Human-readable diagnostics and stable process exit codes.
 
+use serde_json::json;
 use wukong_core::diagnostic::{Diagnostic, ErrorKind};
+
+/// Stable machine-protocol version.
+pub const PROTOCOL_VERSION: u8 = 1;
 
 /// Stable process exit codes for automation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -60,9 +64,26 @@ pub fn render_human(diagnostic: &Diagnostic, verbose: bool) -> String {
     lines.join("\n")
 }
 
+/// Renders one versioned, credential-redacted diagnostic event.
+#[must_use]
+pub fn render_json(diagnostic: &Diagnostic) -> String {
+    json!({
+        "protocol": PROTOCOL_VERSION,
+        "type": "diagnostic",
+        "code": diagnostic.code().to_string(),
+        "message": diagnostic.message(),
+        "package": diagnostic.package(),
+        "source": diagnostic.source_description().map(wukong_core::diagnostic::RedactedSource::as_str),
+        "modified": diagnostic.modification().to_string(),
+        "rollback": diagnostic.rollback().to_string(),
+        "recovery": diagnostic.recovery(),
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ProcessExit, render_human};
+    use super::{ProcessExit, render_human, render_json};
     use wukong_core::diagnostic::{Diagnostic, ErrorCode, Modification, RollbackStatus};
 
     #[test]
@@ -116,5 +137,19 @@ mod tests {
             ProcessExit::from_diagnostic(&Diagnostic::new(ErrorCode::InternalFailure, "failed")),
             ProcessExit::Internal
         );
+    }
+
+    #[test]
+    fn invariant_json_diagnostics_are_versioned_and_redacted() {
+        let diagnostic = Diagnostic::new(ErrorCode::SourceAccess, "source unavailable")
+            .with_source("https://user:secret@example.test/addon?token=secret")
+            .with_recovery("retry");
+        let output = render_json(&diagnostic);
+
+        assert_eq!(
+            output,
+            r#"{"code":"WUK002","message":"source unavailable","modified":"none","package":null,"protocol":1,"recovery":"retry","rollback":"not required","source":"https://<redacted>@example.test/addon?token=<redacted>","type":"diagnostic"}"#
+        );
+        assert!(!output.contains("secret"));
     }
 }

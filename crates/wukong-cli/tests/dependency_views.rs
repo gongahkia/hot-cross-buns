@@ -29,10 +29,17 @@ fn invariant_tree_compacts_repeated_subgraphs_and_marks_dependency_kinds() {
     assert!(stdout.contains("development dependencies:"));
     assert!(stdout.contains("dev-tool@1.0.0 [direct, development]"));
     assert!(json.status.success());
+    let events = json_events(&json.stdout);
     assert_eq!(
-        String::from_utf8_lossy(&json.stdout),
-        "{\"schema\":1,\"roots\":{\"runtime\":[\"alpha\",\"beta\"],\"development\":[\"dev-tool\"]},\"packages\":[{\"name\":\"alpha\",\"version\":\"1.0.0\",\"direct\":true,\"development\":false,\"dependencies\":[\"shared\"]},{\"name\":\"beta\",\"version\":\"1.0.0\",\"direct\":true,\"development\":false,\"dependencies\":[\"shared\"]},{\"name\":\"dev-tool\",\"version\":\"1.0.0\",\"direct\":true,\"development\":true,\"dependencies\":[]},{\"name\":\"shared\",\"version\":\"1.0.0\",\"direct\":false,\"development\":false,\"dependencies\":[]}]}\n"
+        event_types(&events),
+        ["started", "progress", "progress", "result"]
     );
+    assert_eq!(events[0]["command"], "tree");
+    assert_eq!(
+        events[3]["result"]["roots"]["runtime"],
+        serde_json::json!(["alpha", "beta"])
+    );
+    assert_eq!(events[3]["result"]["packages"][3]["name"], "shared");
 }
 
 #[test]
@@ -59,10 +66,31 @@ fn invariant_why_reports_all_root_paths_and_json_is_deterministic() {
     );
     assert!(first_json.status.success());
     assert_eq!(first_json.stdout, second_json.stdout);
+    let events = json_events(&first_json.stdout);
     assert_eq!(
-        String::from_utf8_lossy(&first_json.stdout),
-        "{\"schema\":1,\"package\":\"shared\",\"paths\":[[\"alpha\",\"shared\"],[\"beta\",\"shared\"]]}\n"
+        event_types(&events),
+        ["started", "progress", "progress", "result"]
     );
+    assert_eq!(events[0]["command"], "why");
+    assert_eq!(
+        events[3]["result"]["paths"],
+        serde_json::json!([["alpha", "shared"], ["beta", "shared"]])
+    );
+}
+
+fn json_events(output: &[u8]) -> Vec<serde_json::Value> {
+    std::str::from_utf8(output)
+        .expect("JSON output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("JSON event should parse"))
+        .collect()
+}
+
+fn event_types(events: &[serde_json::Value]) -> Vec<&str> {
+    events
+        .iter()
+        .map(|event| event["type"].as_str().expect("event should have a type"))
+        .collect()
 }
 
 #[test]
