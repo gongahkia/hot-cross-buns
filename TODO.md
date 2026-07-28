@@ -642,11 +642,15 @@ prints the chosen source.
 
 ## wukong-083: Add headless validation
 
-- [ ] Run a safe Godot headless import or project check.
-- [ ] Capture structured diagnostics where possible.
-- [ ] Do not make Godot execution mandatory for normal package installation.
-- [ ] Add a timeout.
-- [ ] Redact project paths where necessary in shared reports.
+- [x] Run a safe Godot headless import or project check.
+- [x] Capture structured diagnostics where possible.
+- [x] Do not make Godot execution mandatory for normal package installation.
+- [x] Add a timeout.
+- [x] Redact project paths where necessary in shared reports.
+
+`wukong validate` is opt-in and invokes Godot with `--headless --path <project>
+--editor --quit --recovery-mode`. It records a bounded, redacted structured
+outcome, defaults to 60 seconds, and accepts `--timeout-seconds 1..=600`.
 
 ## wukong-084: Expand compatibility corpus to 20 addons
 

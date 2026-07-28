@@ -1,7 +1,10 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
 
-use std::{collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf, process};
+use std::{
+    collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf, process,
+    time::Duration,
+};
 use wukong_core::{
     cache::{CacheLayout, verify_cached_packages},
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
@@ -13,6 +16,7 @@ use wukong_core::{
         validate_locked_package_godot_compatibility,
     },
     godot_executable::discover_godot_executable,
+    godot_validation::{HeadlessValidationOutcome, run_headless_project_check},
     identity::PackageName,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
@@ -61,6 +65,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "godot" => match run_godot(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "validate" => match run_validate(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -738,6 +746,165 @@ fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
     }
     println!("{}", executable.path().display());
     Ok(())
+}
+
+const DEFAULT_GODOT_VALIDATION_TIMEOUT: Duration = Duration::from_secs(60);
+const MAX_GODOT_VALIDATION_TIMEOUT: Duration = Duration::from_secs(600);
+
+fn run_validate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_validate_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let executable =
+        discover_godot_executable(options.executable.as_deref())?.ok_or_else(|| {
+            user_error(
+                "could not locate a Godot executable",
+                "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+            )
+        })?;
+    if options.verbose {
+        println!("selected from {}", executable.source().as_str());
+    }
+    let report = run_headless_project_check(&executable, project.path(), options.timeout)?;
+    match report.outcome() {
+        HeadlessValidationOutcome::Passed => {
+            println!("validation: passed in {} ms", report.elapsed().as_millis());
+            Ok(())
+        }
+        HeadlessValidationOutcome::Failed { exit_code, output } => {
+            if options.verbose && !output.is_empty() {
+                eprintln!("{output}");
+            }
+            let status = exit_code.map_or_else(
+                || "without an exit code".to_owned(),
+                |code| format!("with exit code {code}"),
+            );
+            Err(boxed(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    format!("Godot headless validation failed {status}"),
+                )
+                .with_cause(validation_output_cause(output))
+                .with_recovery(
+                    "inspect the redacted validation output and correct the project error",
+                ),
+            ))
+        }
+        HeadlessValidationOutcome::TimedOut { output } => {
+            if options.verbose && !output.is_empty() {
+                eprintln!("{output}");
+            }
+            Err(boxed(
+                Diagnostic::new(ErrorCode::SourceAccess, "Godot headless validation timed out")
+                    .with_cause(validation_output_cause(output))
+                    .with_recovery(
+                        "fix the stalled project check or raise --timeout-seconds within its 600-second limit",
+                    ),
+            ))
+        }
+    }
+}
+
+fn validation_output_cause(output: &str) -> &str {
+    if output.is_empty() {
+        "Godot produced no diagnostic output"
+    } else {
+        output
+    }
+}
+
+#[derive(Debug)]
+struct ValidateOptions {
+    project: Option<PathBuf>,
+    executable: Option<PathBuf>,
+    timeout: Duration,
+    verbose: bool,
+}
+
+fn parse_validate_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<ValidateOptions, Box<Diagnostic>> {
+    let mut options = ValidateOptions {
+        project: None,
+        executable: None,
+        timeout: DEFAULT_GODOT_VALIDATION_TIMEOUT,
+        verbose: false,
+    };
+    let mut timeout_set = false;
+    while let Some(argument) = arguments.next() {
+        if argument == "--project" {
+            let project = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(project).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        if argument == "--godot-executable" {
+            let executable =
+                PathBuf::from(required_add_value(&mut arguments, "--godot-executable")?);
+            if options.executable.replace(executable).is_some() {
+                return Err(user_error(
+                    "--godot-executable may be supplied only once",
+                    "provide one executable path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--timeout-seconds" {
+            if timeout_set {
+                return Err(user_error(
+                    "--timeout-seconds may be supplied only once",
+                    "provide one timeout from 1 to 600 seconds",
+                ));
+            }
+            let seconds = required_add_value(&mut arguments, "--timeout-seconds")?
+                .parse::<u64>()
+                .map_err(|_| {
+                    user_error(
+                        "--timeout-seconds must be an integer",
+                        "provide a timeout from 1 to 600 seconds",
+                    )
+                })?;
+            if seconds == 0 || seconds > MAX_GODOT_VALIDATION_TIMEOUT.as_secs() {
+                return Err(user_error(
+                    "--timeout-seconds must be from 1 to 600",
+                    "provide a timeout from 1 to 600 seconds",
+                ));
+            }
+            options.timeout = Duration::from_secs(seconds);
+            timeout_set = true;
+            continue;
+        }
+        if argument == "--verbose" {
+            if std::mem::replace(&mut options.verbose, true) {
+                return Err(user_error(
+                    "--verbose may be supplied only once",
+                    "run wukong validate --verbose",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported validate argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --project <path>, --godot-executable <path>, --timeout-seconds <1-600>, or --verbose",
+        ));
+    }
+    Ok(options)
 }
 
 struct GodotPathOptions {
@@ -1824,7 +1991,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|godot path|lock|install|sync|tree|why|cache verify> [options]"
+        "usage: wukong <init|add|remove|update|outdated|godot path|validate|lock|install|sync|tree|why|cache verify> [options]"
     );
 }
 
@@ -1836,7 +2003,7 @@ fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
 mod tests {
     use super::{
         AddOptions, parse_add_arguments, parse_godot_path_arguments, parse_outdated_arguments,
-        parse_sync_arguments, parse_update_arguments,
+        parse_sync_arguments, parse_update_arguments, parse_validate_arguments,
     };
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
@@ -1967,5 +2134,37 @@ mod tests {
 
         assert_eq!(options.executable, Some(PathBuf::from("godot")));
         assert!(options.verbose);
+    }
+
+    #[test]
+    fn validation_parser_accepts_bounded_execution_options() {
+        let options = parse_validate_arguments(
+            [
+                "--project",
+                "game",
+                "--godot-executable",
+                "godot4",
+                "--timeout-seconds",
+                "120",
+                "--verbose",
+            ]
+            .into_iter()
+            .map(OsString::from),
+        )
+        .expect("validation options should parse");
+
+        assert_eq!(options.project, Some(PathBuf::from("game")));
+        assert_eq!(options.executable, Some(PathBuf::from("godot4")));
+        assert_eq!(options.timeout, std::time::Duration::from_secs(120));
+        assert!(options.verbose);
+    }
+
+    #[test]
+    fn validation_parser_rejects_an_unbounded_timeout() {
+        let error =
+            parse_validate_arguments(["--timeout-seconds", "601"].into_iter().map(OsString::from))
+                .expect_err("unbounded timeout should fail");
+
+        assert!(error.message().contains("1 to 600"));
     }
 }

@@ -52,6 +52,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Godot compatibility input](docs/godot-compatibility.md)
 - [Godot compatibility enforcement](docs/godot-compatibility-enforcement.md)
 - [Godot executable discovery](docs/godot-executable.md)
+- [Headless project validation](docs/validation.md)
 - [Canonical package trees](docs/canonical-package-trees.md)
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
 - [Lockfile schema](docs/lockfile.md)

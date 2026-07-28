@@ -45,6 +45,9 @@ pub mod godot_compatibility;
 /// Godot executable discovery without execution.
 pub mod godot_executable;
 
+/// Optional bounded headless Godot validation.
+pub mod godot_validation;
+
 /// Git fetching through the user-installed Git executable.
 pub mod git_fetch;
 

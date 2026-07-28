@@ -31,6 +31,7 @@ Current records:
 - [0025: dependency resolver strategy](0025-dependency-resolver-strategy.md)
 - [0026: Git version discovery](0026-git-version-discovery.md)
 - [0027: dependency mutation transaction](0027-dependency-mutation-transaction.md)
+- [0028: optional headless validation execution](0028-headless-validation-execution.md)
 
 ## When to write an ADR
 
