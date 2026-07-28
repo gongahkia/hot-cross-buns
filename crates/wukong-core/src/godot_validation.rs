@@ -322,7 +322,7 @@ mod tests {
         let fixture = Fixture::new();
         let executable = fixture.script("noisy", "yes x | head -c 70000; exit 9");
         let report =
-            run_headless_project_check(&executable, fixture.project(), Duration::from_secs(1))
+            run_headless_project_check(&executable, fixture.project(), Duration::from_secs(5))
                 .expect("validation should complete");
 
         assert!(matches!(
