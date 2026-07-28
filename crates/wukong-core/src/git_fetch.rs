@@ -6,15 +6,14 @@ use crate::{
     git_source::{GitSourceRequest, canonicalize_git_source},
     identity::GitSourceIdentity,
     manifest::GitReference,
+    operation_lock::AdvisoryLock,
     semantic_version::SemanticVersion,
     source::{ImmutableSourceId, ResolvedSource, SourceResult},
 };
-use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
-    fs::{File, OpenOptions},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -171,7 +170,8 @@ impl GitFetcher {
         offline: bool,
     ) -> SourceResult<GitVersionCatalog> {
         let source = canonicalize_git_source(request)?;
-        let _lock = CacheLock::acquire(&self.lock_path(&source))?;
+        let _lock =
+            AdvisoryLock::try_acquire(&self.lock_path(&source), "this Git repository cache entry")?;
         if offline {
             return self.cached_versions(&source, tag_prefix)?.ok_or_else(|| {
                 source_error(
@@ -195,7 +195,8 @@ impl GitFetcher {
         offline: bool,
     ) -> SourceResult<GitCheckout> {
         let selector = selector(reference);
-        let _lock = CacheLock::acquire(&self.lock_path(source))?;
+        let _lock =
+            AdvisoryLock::try_acquire(&self.lock_path(source), "this Git repository cache entry")?;
         if let Some(GitReference::Rev(commit)) = reference {
             if self.checkout_path(source, commit).is_dir() {
                 return self.verified_checkout(source, commit);
@@ -631,32 +632,6 @@ impl GitFetcher {
     }
 }
 
-struct CacheLock(File);
-impl CacheLock {
-    fn acquire(path: &Path) -> SourceResult<Self> {
-        let parent = path
-            .parent()
-            .ok_or_else(|| internal("Git lock path has no parent", "invalid cache layout"))?;
-        fs::create_dir_all(parent)
-            .map_err(|error| internal("could not create Git lock directory", error))?;
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .truncate(false)
-            .write(true)
-            .open(path)
-            .map_err(|error| internal("could not open Git cache lock", error))?;
-        file.lock_exclusive()
-            .map_err(|error| internal("could not acquire Git cache lock", error))?;
-        Ok(Self(file))
-    }
-}
-impl Drop for CacheLock {
-    fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.0);
-    }
-}
-
 fn selector(reference: Option<&GitReference>) -> String {
     match reference {
         None => "head".to_owned(),
@@ -780,6 +755,7 @@ mod tests {
         identity::PackageName,
         lockfile::{GodotCompatibility, LockedGitSource, LockedPackage, Lockfile},
         manifest::{GitReference, Manifest},
+        operation_lock::AdvisoryLock,
         package_tree::prepare_package_tree,
         semantic_version::SemanticVersion,
         source::ImmutableSourceId,
@@ -869,6 +845,28 @@ mod tests {
     }
 
     #[test]
+    fn invariant_git_repository_lock_reports_an_active_operation() {
+        let fixture = Fixture::new();
+        let source = GitSourceIdentity::new("https://fixture.test/locked.git".to_owned());
+        let reference = GitReference::Branch("main".to_owned());
+        let fetcher = fixture.fetcher();
+        let lock = AdvisoryLock::try_acquire(&fetcher.lock_path(&source), "fixture Git repository")
+            .expect("fixture lock should acquire");
+
+        let error = fetcher
+            .fetch_remote(&source, Some(&reference), fixture.remote(), false)
+            .expect_err("active repository lock should stop fetch");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        assert!(
+            error
+                .message()
+                .contains("another wukong operation is active")
+        );
+        drop(lock);
+    }
+
+    #[test]
     fn invariant_offline_sync_materialises_a_complete_git_checkout_without_selector_metadata() {
         let fixture = Fixture::new();
         let source = GitSourceIdentity::new("https://127.0.0.1:9/addon.git".to_owned());
@@ -949,20 +947,21 @@ mod tests {
         let first_reference = reference.clone();
 
         let first = thread::spawn(move || {
-            first
-                .fetch_remote(&first_source, Some(&first_reference), &remote, false)
-                .expect("first fetch should work")
+            first.fetch_remote(&first_source, Some(&first_reference), &remote, false)
         });
         let second = thread::spawn(move || {
-            second
-                .fetch_remote(&source, Some(&reference), &remote_second, false)
-                .expect("second fetch should work")
+            second.fetch_remote(&source, Some(&reference), &remote_second, false)
         });
-        let first = first.join().expect("first thread should join");
-        let second = second.join().expect("second thread should join");
+        let results = [
+            first.join().expect("first thread should join"),
+            second.join().expect("second thread should join"),
+        ];
 
-        assert_eq!(first.root(), second.root());
-        assert_eq!(first.resolution(), second.resolution());
+        assert!(results.iter().any(Result::is_ok));
+        assert!(results.iter().all(|result| match result {
+            Ok(_) => true,
+            Err(error) => error.code() == ErrorCode::SourceAccess,
+        }));
     }
 
     #[test]

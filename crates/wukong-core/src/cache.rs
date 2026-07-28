@@ -2,6 +2,7 @@
 
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
+    operation_lock::AdvisoryLock,
     package_tree::{PreparedPackageTree, prepare_package_tree},
 };
 #[cfg(unix)]
@@ -164,16 +165,21 @@ pub fn publish_prepared_package(
     prepared: &PreparedPackageTree,
 ) -> Result<CacheObject, Box<Diagnostic>> {
     let final_path = layout.package_object(prepared.sha256())?;
+    let _lock = AdvisoryLock::try_acquire(
+        &layout.object_lock(prepared.sha256())?,
+        &format!("cache object {}", prepared.sha256()),
+    )?;
     let parent = final_path
         .parent()
         .ok_or_else(|| internal("cache object path has no parent", "invalid cache layout"))?;
     fs::create_dir_all(parent)
         .map_err(|error| internal("could not create cache package directory", error))?;
+    clean_abandoned_package_staging(parent, prepared.sha256())?;
     if final_path.exists() {
         return verify_existing(&final_path, prepared.sha256(), parent);
     }
     let temporary = Builder::new()
-        .prefix(".wukong-tmp-")
+        .prefix(&package_staging_prefix(prepared.sha256()))
         .tempdir_in(parent)
         .map_err(|error| internal("could not create unique cache staging directory", error))?;
     let staged_path = temporary.path().join("object");
@@ -208,6 +214,10 @@ pub fn verify_package_object(
     sha256: &str,
 ) -> Result<CacheObject, Box<Diagnostic>> {
     let path = layout.package_object(sha256)?;
+    let _lock = AdvisoryLock::try_acquire(
+        &layout.object_lock(sha256)?,
+        &format!("cache object {sha256}"),
+    )?;
     let parent = path
         .parent()
         .ok_or_else(|| internal("cache object path has no parent", "invalid cache layout"))?;
@@ -256,12 +266,43 @@ pub fn verify_cached_packages(layout: &CacheLayout) -> Result<CacheVerification,
                     name.to_string_lossy()
                 ))
             })?;
+        let _lock = AdvisoryLock::try_acquire(
+            &layout.object_lock(digest)?,
+            &format!("cache object {digest}"),
+        )?;
         match inspect_package_object(&entry.path(), digest, &objects)? {
             ObjectVerification::Valid(_) => report.verified_packages += 1,
             ObjectVerification::CorruptRemoved => report.removed_corrupt_packages += 1,
         }
     }
     Ok(report)
+}
+
+fn package_staging_prefix(sha256: &str) -> String {
+    format!(".wukong-package-{sha256}-")
+}
+
+fn clean_abandoned_package_staging(parent: &Path, sha256: &str) -> Result<(), Box<Diagnostic>> {
+    let prefix = package_staging_prefix(sha256);
+    let entries = fs::read_dir(parent)
+        .map_err(|error| internal("could not inspect cache package staging", error))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| internal("could not inspect cache package staging entry", error))?;
+        if !entry.file_name().to_string_lossy().starts_with(&prefix) {
+            continue;
+        }
+        if entry
+            .file_type()
+            .map_err(|error| internal("could not inspect cache package staging entry", error))?
+            .is_dir()
+        {
+            fs::remove_dir_all(entry.path()).map_err(|error| {
+                internal("could not remove abandoned cache package staging", error)
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn verify_existing(

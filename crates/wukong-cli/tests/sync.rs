@@ -8,6 +8,7 @@ use tempfile::TempDir;
 use wukong_core::{
     identity::PackageName,
     lockfile::{GodotCompatibility, LockedGitSource, LockedHttpSource, LockedPackage, Lockfile},
+    operation_lock::AdvisoryLock,
     source::ImmutableSourceId,
 };
 
@@ -203,6 +204,48 @@ fn invariant_offline_cli_sync_lists_missing_remote_cache_objects_before_project_
     )));
     assert!(!fixture.root().join("addons").exists());
     assert!(!fixture.root().join(".wukong/state.toml").exists());
+}
+
+#[test]
+fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_release() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    assert!(
+        command("lock", fixture.root())
+            .output()
+            .expect("lock should run")
+            .status
+            .success()
+    );
+    let lock_path = fixture.root().join(".wukong/mutation.lock");
+    let lock = AdvisoryLock::try_acquire(&lock_path, "fixture project")
+        .expect("fixture project lock should acquire");
+
+    let blocked = command("sync", fixture.root())
+        .output()
+        .expect("blocked sync should run");
+
+    assert_eq!(blocked.status.code(), Some(3));
+    assert!(
+        String::from_utf8(blocked.stderr)
+            .expect("diagnostic should be UTF-8")
+            .contains("another wukong operation is active for this project")
+    );
+    assert!(!fixture.root().join("addons").exists());
+    drop(lock);
+
+    let recovered = command("sync", fixture.root())
+        .output()
+        .expect("recovered sync should run");
+
+    assert!(recovered.status.success());
+    assert!(lock_path.is_file());
+    assert_eq!(
+        fs::read_to_string(fixture.root().join("addons/addon/plugin.gd"))
+            .expect("plugin should materialise"),
+        "first"
+    );
 }
 
 #[test]

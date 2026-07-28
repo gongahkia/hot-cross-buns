@@ -9,10 +9,14 @@ matching process lock is `locks/sha256/<digest>.lock`. Cache paths never store
 credentials, source URLs, timestamps, or host-specific source paths. See
 [ADR 0013](adr/0013-cache-layout.md).
 
-Publication stages a canonical tree in a unique sibling directory, flushes it,
-then atomically renames and re-verifies the final object. A concurrently
-published object is verified and reused; mismatched content returns an
-integrity error. See [ADR 0014](adr/0014-cache-publication.md).
+Publication stages a canonical tree in a unique object-specific sibling
+directory, flushes it, then atomically renames and re-verifies the final object.
+An active object lock fails fast with a retry diagnostic. Once released, a
+later publication verifies and reuses the object; mismatched content returns an
+integrity error. Stale object-specific staging is cleaned only while holding
+that object's lock; empty persistent lock files are safe. See
+[ADR 0014](adr/0014-cache-publication.md) and
+[ADR 0030](adr/0030-advisory-operation-locks.md).
 
 The prepared-package cache-read API re-hashes a canonical tree against the
 object's SHA-256 directory name. A mismatching object is cache-owned, removed,

@@ -11,9 +11,12 @@ responses and bodies above 256 MiB are rejected.
 
 Bytes stream to a unique temporary directory below `downloads/sha256/`.
 Wukong hashes the stream before atomically publishing it as
-`downloads/sha256/<checksum>`. Failed or interrupted downloads publish no cache
-entry; abandoned staging directories for that checksum are removed while
-holding its process lock. A warm-cache read re-hashes the file before reuse.
+`downloads/sha256/<checksum>`. An active checksum lock fails fast with a retry
+diagnostic; its persistent lock file is safe because the operating system
+releases held advisory state on process exit. Failed or interrupted downloads
+publish no cache entry; abandoned staging directories for that checksum are
+removed while holding its process lock. A warm-cache read re-hashes the file
+before reuse. See [ADR 0030](adr/0030-advisory-operation-locks.md).
 
 The archive fetcher neither executes package scripts nor persists source URLs,
 redirect destinations, timestamps, or credentials. Conditional requests are

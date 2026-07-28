@@ -679,12 +679,12 @@ Version `0.1.0` must not be released before this task is complete.
 
 ## wukong-091: Implement cross-process locking
 
-- [ ] Cache object locks.
-- [ ] Safely reclaim cache-publication candidates abandoned by interrupted processes.
-- [ ] Repository fetch locks.
-- [ ] Project mutation lock.
-- [ ] Stale-lock recovery.
-- [ ] Clear diagnostics when another operation is active.
+- [x] Cache object locks.
+- [x] Safely reclaim cache-publication candidates abandoned by interrupted processes.
+- [x] Repository fetch locks.
+- [x] Project mutation lock.
+- [x] Stale-lock recovery.
+- [x] Clear diagnostics when another operation is active.
 
 ## wukong-092: Add interruption and crash tests
 

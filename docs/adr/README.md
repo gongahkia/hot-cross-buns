@@ -33,6 +33,7 @@ Current records:
 - [0027: dependency mutation transaction](0027-dependency-mutation-transaction.md)
 - [0028: optional headless validation execution](0028-headless-validation-execution.md)
 - [0029: strict offline mode](0029-strict-offline-mode.md)
+- [0030: advisory operation locks](0030-advisory-operation-locks.md)
 
 ## When to write an ADR
 

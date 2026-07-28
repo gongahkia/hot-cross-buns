@@ -7,6 +7,7 @@ use crate::{
         STATE_FILE_NAME, create_state_directory, state_directory, state_path,
     },
     materialization::{MaterializationPreference, materialize_file},
+    operation_lock::AdvisoryLock,
     ownership::{DesiredFile, DesiredFileMap, validate_project_file_conflicts},
 };
 use sha2::{Digest, Sha256};
@@ -60,6 +61,7 @@ pub fn sync_project_with_preference(
     desired: &DesiredFileMap,
     preference: MaterializationPreference,
 ) -> Result<SyncSummary, Box<Diagnostic>> {
+    let _lock = acquire_project_lock(project_root)?;
     recover_transaction(project_root)?;
     let packages = packages.into_iter().collect::<Vec<_>>();
     let previous = read_state(project_root)?;
@@ -110,6 +112,11 @@ pub fn sync_project_with_preference(
         unchanged: desired.files().len() - plan.writes.len(),
         removed: plan.removals.len(),
     })
+}
+
+fn acquire_project_lock(project_root: &Path) -> Result<AdvisoryLock, Box<Diagnostic>> {
+    let state_directory = create_state_directory(project_root)?;
+    AdvisoryLock::try_acquire(&state_directory.join("mutation.lock"), "this project")
 }
 
 #[derive(Default)]

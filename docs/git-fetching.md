@@ -11,12 +11,15 @@ that commit, and atomically published under a SHA-256 key derived from the
 canonical source identity and commit. Selector metadata stores only the commit.
 Paths and metadata contain no source URLs or credentials.
 
-An advisory source lock serialises concurrent fetches. A retry removes only
-staging directories with its own source-derived prefix, recovering from an
-interrupted fetch without touching another source. Offline fetching accepts a
-verified checkout for an exact immutable revision without selector metadata;
-tag, branch, and HEAD selectors still require a verified cached mapping. See
-[ADR 0021](adr/0021-system-git-fetching.md). `wukong lock` records the
+An advisory source lock fails fast when another process is fetching the same
+source; retry after that operation finishes. A retry removes only staging
+directories with its own source-derived prefix, recovering from an interrupted
+fetch without touching another source. The persistent lock file is safe because
+the operating system releases its held advisory state on process exit. Offline
+fetching accepts a verified checkout for an exact immutable revision without
+selector metadata; tag, branch, and HEAD selectors still require a verified
+cached mapping. See [ADR 0021](adr/0021-system-git-fetching.md) and
+[ADR 0030](adr/0030-advisory-operation-locks.md). `wukong lock` records the
 canonical URL and resolved complete commit in schema-two locks; `wukong sync`
 materialises locked direct Git sources transactionally.
 

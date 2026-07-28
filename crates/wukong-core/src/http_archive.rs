@@ -3,8 +3,8 @@
 use crate::{
     cache::CacheLayout,
     diagnostic::{Diagnostic, ErrorCode},
+    operation_lock::AdvisoryLock,
 };
-use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::{
     fs,
@@ -114,12 +114,13 @@ impl HttpArchiveFetcher {
     ) -> Result<CachedArchive, Box<Diagnostic>> {
         validate(url, sha256)?;
         let final_path = self.cache.downloads().join("sha256").join(sha256);
-        let _lock = Lock::acquire(
+        let _lock = AdvisoryLock::try_acquire(
             &self
                 .cache
                 .locks()
                 .join("http")
                 .join(format!("{sha256}.lock")),
+            "this HTTPS archive cache entry",
         )?;
         if final_path.is_file() {
             return verify(&final_path, sha256);
@@ -424,32 +425,6 @@ fn sync_directory(path: &Path) -> Result<(), Box<Diagnostic>> {
         .and_then(|directory| directory.sync_all())
         .map_err(|error| internal("could not flush archive cache directory", error))
 }
-struct Lock(File);
-impl Lock {
-    fn acquire(path: &Path) -> Result<Self, Box<Diagnostic>> {
-        fs::create_dir_all(
-            path.parent().ok_or_else(|| {
-                internal("archive lock path has no parent", "invalid cache layout")
-            })?,
-        )
-        .map_err(|error| internal("could not create archive lock directory", error))?;
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .truncate(false)
-            .open(path)
-            .map_err(|error| internal("could not open archive cache lock", error))?;
-        file.lock_exclusive()
-            .map_err(|error| internal("could not acquire archive cache lock", error))?;
-        Ok(Self(file))
-    }
-}
-impl Drop for Lock {
-    fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.0);
-    }
-}
 fn source(
     url: &str,
     message: impl AsRef<str>,
@@ -486,7 +461,7 @@ mod tests {
         CachedArchive, DownloadLimits, HttpArchiveFetcher, clean_abandoned_staging,
         redirect_target, staging_prefix, stream_download,
     };
-    use crate::{cache::CacheLayout, diagnostic::ErrorCode};
+    use crate::{cache::CacheLayout, diagnostic::ErrorCode, operation_lock::AdvisoryLock};
     use sha2::{Digest, Sha256};
     use std::{
         fs,
@@ -539,6 +514,36 @@ mod tests {
 
         assert_eq!(error.code(), ErrorCode::SourceAccess);
         assert_no_connection(&listener);
+    }
+
+    #[test]
+    fn invariant_archive_lock_reports_an_active_operation_before_download() {
+        let fixture = Fixture::new();
+        let checksum = checksum(&empty_zip());
+        let lock = AdvisoryLock::try_acquire(
+            &fixture
+                .cache
+                .locks()
+                .join("http")
+                .join(format!("{checksum}.lock")),
+            "fixture archive",
+        )
+        .expect("fixture lock should acquire");
+
+        let error = fixture
+            .fetcher
+            .fetch_with(fixture.url, &checksum, false, |_| {
+                panic!("active archive lock must stop download")
+            })
+            .expect_err("active archive lock should stop fetch");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        assert!(
+            error
+                .message()
+                .contains("another wukong operation is active")
+        );
+        drop(lock);
     }
 
     #[test]

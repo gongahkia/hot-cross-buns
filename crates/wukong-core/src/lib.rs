@@ -81,6 +81,9 @@ pub mod project;
 /// Transactional project-file reconciliation.
 pub mod project_sync;
 
+/// Cross-process advisory locking for mutable Wukong resources.
+pub mod operation_lock;
+
 /// Source-adapter contracts.
 pub mod source;
 

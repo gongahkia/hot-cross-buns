@@ -14,6 +14,7 @@ use wukong_core::{
         verify_package_object,
     },
     diagnostic::ErrorCode,
+    operation_lock::AdvisoryLock,
     package_tree::{PreparedPackageTree, prepare_package_tree},
 };
 
@@ -106,19 +107,70 @@ fn invariant_concurrent_publishers_converge_on_one_verified_object() {
             thread::spawn(move || publish_prepared_package(&layout, &prepared))
         })
         .collect::<Vec<_>>();
-    let objects = publishers
-        .into_iter()
-        .map(|publisher| {
-            publisher
-                .join()
-                .expect("publisher should not panic")
-                .expect("concurrent publication should succeed")
-        })
-        .collect::<Vec<_>>();
+    let mut objects = Vec::new();
+    for publisher in publishers {
+        match publisher.join().expect("publisher should not panic") {
+            Ok(object) => objects.push(object),
+            Err(error) => assert_eq!(error.code(), ErrorCode::SourceAccess),
+        }
+    }
 
-    assert_eq!(objects[0], objects[1]);
-    assert_eq!(objects[0].sha256(), prepared.sha256());
+    assert!(!objects.is_empty());
+    assert!(
+        objects
+            .iter()
+            .all(|object| object.sha256() == prepared.sha256())
+    );
+    verify_package_object(&layout, prepared.sha256())
+        .expect("one publisher should leave a verified cache object");
     assert_no_temporary_candidates(&layout);
+}
+
+#[test]
+fn invariant_cache_object_lock_reports_contention_and_recovers_after_release() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let lock = AdvisoryLock::try_acquire(
+        &layout
+            .object_lock(prepared.sha256())
+            .expect("object lock should derive"),
+        "fixture cache object",
+    )
+    .expect("fixture lock should acquire");
+
+    let error = publish_prepared_package(&layout, &prepared)
+        .expect_err("publication should report an active object lock");
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert!(
+        error
+            .message()
+            .contains("another wukong operation is active")
+    );
+    drop(lock);
+
+    publish_prepared_package(&layout, &prepared)
+        .expect("publication should recover after object lock release");
+}
+
+#[test]
+fn invariant_abandoned_package_staging_is_reclaimed_only_for_its_locked_object() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    let parent = layout.packages().join("sha256");
+    let abandoned = parent.join(format!(".wukong-package-{}-abandoned", prepared.sha256()));
+    write(&abandoned.join("partial"), "abandoned\n");
+
+    publish_prepared_package(&layout, &prepared).expect("publication should reclaim its staging");
+
+    assert!(!abandoned.exists());
+    assert!(
+        layout
+            .package_object(prepared.sha256())
+            .expect("object path should derive")
+            .is_dir()
+    );
 }
 
 #[test]
@@ -281,7 +333,7 @@ fn assert_no_temporary_candidates(layout: &CacheLayout) {
             !entry
                 .file_name()
                 .to_string_lossy()
-                .starts_with(".wukong-tmp-"),
+                .starts_with(".wukong-package-"),
             "temporary staging candidate should be removed"
         );
     }
