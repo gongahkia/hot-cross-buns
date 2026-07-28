@@ -39,19 +39,6 @@ Acceptance criteria:
 - [x] `cargo fmt --check` succeeds.
 - [x] `cargo clippy --workspace --all-targets --all-features -- -D warnings` succeeds.
 
-## wukong-002: Establish CI
-
-- [ ] Add GitHub Actions for macOS, Linux and Windows.
-- [ ] Run formatting, linting and tests.
-- [ ] Cache Cargo dependencies safely.
-- [ ] Add a dependency vulnerability audit.
-- [ ] Add a minimal release-build smoke test.
-
-Acceptance criteria:
-
-- A pull request cannot merge with failing required checks.
-- All three operating systems execute at least one integration test.
-
 ## wukong-003: Add repository documentation skeleton
 
 - [ ] Add `README.md`.
@@ -151,6 +138,27 @@ Acceptance criteria:
 - [ ] Preserve comments where practical.
 - [ ] Maintain deterministic formatting.
 - [ ] Back up or transactionally update the file.
+
+---
+
+# Deferred external validation
+
+## wukong-002: Establish CI
+
+> Deferred because GitHub Actions cannot start until the repository account's
+> billing or spending limit is resolved. Complete after Phase 1 so its
+> cross-platform matrix runs meaningful integration tests.
+
+- [ ] Add GitHub Actions for macOS, Linux and Windows.
+- [ ] Run formatting, linting and tests.
+- [ ] Cache Cargo dependencies safely.
+- [ ] Add a dependency vulnerability audit.
+- [ ] Add a minimal release-build smoke test.
+
+Acceptance criteria:
+
+- A pull request cannot merge with failing required checks.
+- All three operating systems execute at least one integration test.
 
 ---
 
