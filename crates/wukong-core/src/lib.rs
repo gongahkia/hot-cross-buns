@@ -39,6 +39,9 @@ pub mod direct_sync;
 /// Git source URL and revision canonicalisation.
 pub mod git_source;
 
+/// Project-level Godot compatibility inputs.
+pub mod godot_compatibility;
+
 /// Git fetching through the user-installed Git executable.
 pub mod git_fetch;
 

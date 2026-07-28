@@ -8,6 +8,7 @@ use wukong_core::{
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::{lock_direct_dependencies, update_direct_dependencies},
     direct_sync::sync_direct_dependencies,
+    godot_compatibility::resolve_project_godot_compatibility,
     identity::PackageName,
     init::initialize_manifest,
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
@@ -1343,6 +1344,8 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         )
     })?;
     let manifest = Manifest::parse(&manifest_path, &input)?;
+    let _compatibility =
+        resolve_project_godot_compatibility(&manifest, options.godot_version.as_deref())?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let existing = match fs::read_to_string(&lock_path) {
         Ok(input) => Some(Lockfile::parse(&lock_path, &input)?),
@@ -1413,6 +1416,8 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let manifest = read_manifest(&manifest_path)?;
+    let _compatibility =
+        resolve_project_godot_compatibility(&manifest, options.godot_version.as_deref())?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
         user_error(
@@ -1451,6 +1456,7 @@ struct LockOptions {
     project: Option<PathBuf>,
     locked: bool,
     offline: bool,
+    godot_version: Option<String>,
 }
 fn parse_lock_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -1459,6 +1465,7 @@ fn parse_lock_arguments(
         project: None,
         locked: false,
         offline: false,
+        godot_version: None,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--locked" {
@@ -1467,6 +1474,16 @@ fn parse_lock_arguments(
         }
         if argument == "--offline" {
             options.offline = true;
+            continue;
+        }
+        if argument == "--godot" {
+            let version = required_add_value(&mut arguments, "--godot")?;
+            if options.godot_version.replace(version).is_some() {
+                return Err(user_error(
+                    "--godot may be supplied only once",
+                    "provide one complete Godot version",
+                ));
+            }
             continue;
         }
         if argument == "--project" {
@@ -1486,7 +1503,7 @@ fn parse_lock_arguments(
         }
         return Err(user_error(
             format!("unsupported lock argument {}", argument.to_string_lossy()),
-            "run wukong lock --help for supported options",
+            "use --locked, --offline, --godot <x.y.z>, or --project <path>",
         ));
     }
     Ok(options)
@@ -1497,6 +1514,7 @@ struct SyncOptions {
     include_dev: bool,
     locked: bool,
     offline: bool,
+    godot_version: Option<String>,
 }
 fn parse_sync_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -1506,6 +1524,7 @@ fn parse_sync_arguments(
         include_dev: false,
         locked: false,
         offline: false,
+        godot_version: None,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
@@ -1525,6 +1544,16 @@ fn parse_sync_arguments(
             options.offline = true;
             continue;
         }
+        if argument == "--godot" {
+            let version = required_add_value(&mut arguments, "--godot")?;
+            if options.godot_version.replace(version).is_some() {
+                return Err(user_error(
+                    "--godot may be supplied only once",
+                    "provide one complete Godot version",
+                ));
+            }
+            continue;
+        }
         if argument == "--project" {
             let path = arguments.next().ok_or_else(|| {
                 user_error(
@@ -1542,7 +1571,7 @@ fn parse_sync_arguments(
         }
         return Err(user_error(
             format!("unsupported sync argument {}", argument.to_string_lossy()),
-            "run wukong sync --help for supported options",
+            "use --dev, --locked, --frozen, --offline, --godot <x.y.z>, or --project <path>",
         ));
     }
     Ok(options)
@@ -1648,7 +1677,8 @@ fn boxed(diagnostic: Diagnostic) -> Box<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AddOptions, parse_add_arguments, parse_outdated_arguments, parse_update_arguments,
+        AddOptions, parse_add_arguments, parse_outdated_arguments, parse_sync_arguments,
+        parse_update_arguments,
     };
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
@@ -1758,5 +1788,13 @@ mod tests {
         assert!(options.json);
         assert!(options.offline);
         assert_eq!(options.project, Some(PathBuf::from("game")));
+    }
+
+    #[test]
+    fn sync_parser_accepts_an_explicit_godot_version() {
+        let options = parse_sync_arguments(["--godot", "4.4.1"].into_iter().map(OsString::from))
+            .expect("sync specification should parse");
+
+        assert_eq!(options.godot_version.as_deref(), Some("4.4.1"));
     }
 }

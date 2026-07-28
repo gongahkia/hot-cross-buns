@@ -22,6 +22,8 @@ checksum still matches.
   only.
 - `--offline` permits only verified cached Git checkouts and HTTP archives.
   Local-path sync performs no network I/O.
+- `--godot <x.y.z>` validates an explicit active engine version against
+  `[project].godot` before synchronisation.
 - `--locked` recomputes direct source resolution and refuses any manifest,
   source, or lockfile mismatch before project mutation.
 - `--frozen` combines `--locked` and `--offline`.

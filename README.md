@@ -49,6 +49,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Archive extraction](docs/archive-extraction.md)
 - [Package layout](docs/package-layout.md)
 - [Package metadata](docs/package-metadata.md)
+- [Godot compatibility input](docs/godot-compatibility.md)
 - [Canonical package trees](docs/canonical-package-trees.md)
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
 - [Lockfile schema](docs/lockfile.md)

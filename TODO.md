@@ -608,10 +608,14 @@ guessing a newer version.
 
 ## wukong-080: Parse project Godot compatibility
 
-- [ ] Define manifest-based Godot requirement.
-- [ ] Optionally inspect `project.godot` for useful version metadata.
-- [ ] Allow an explicit CLI override.
-- [ ] Avoid unreliable inference.
+- [x] Define manifest-based Godot requirement.
+- [x] Treat `project.godot` as project settings only; it has no reliable engine-version field to infer.
+- [x] Allow an explicit CLI override.
+- [x] Avoid unreliable inference.
+
+`wukong lock` and `wukong sync` accept `--godot <x.y.z>` as an exact active
+engine version. It must satisfy `[project].godot` before mutation; absent that
+option, no installed engine version is inferred.
 
 ## wukong-081: Enforce package Godot constraints
 

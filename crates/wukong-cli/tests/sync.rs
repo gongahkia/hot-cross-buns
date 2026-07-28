@@ -96,6 +96,37 @@ fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("0 written, 0 unchanged, 1 removed"));
 }
 
+#[test]
+fn invariant_explicit_godot_version_is_validated_before_lockfile_or_project_mutation() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+
+    let incompatible_lock = command("lock", fixture.root())
+        .args(["--godot", "3.5.0"])
+        .output()
+        .expect("lock should run");
+    assert_eq!(incompatible_lock.status.code(), Some(2));
+    assert!(!fixture.root().join("wukong.lock").exists());
+
+    assert!(
+        command("lock", fixture.root())
+            .args(["--godot", "4.4.0"])
+            .output()
+            .expect("compatible lock should run")
+            .status
+            .success()
+    );
+    let incompatible_sync = command("sync", fixture.root())
+        .args(["--godot", "3.5.0"])
+        .output()
+        .expect("sync should run");
+
+    assert_eq!(incompatible_sync.status.code(), Some(2));
+    assert!(!fixture.root().join("addons").exists());
+    assert!(String::from_utf8_lossy(&incompatible_sync.stderr).contains("does not satisfy"));
+}
+
 fn command(subcommand: &str, current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg(subcommand).current_dir(current_directory);

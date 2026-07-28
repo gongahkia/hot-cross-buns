@@ -12,7 +12,9 @@ godot = ">=4.5,<5"
 example = { path = "../example-addon" }
 ```
 
-`project.name` is a non-empty string. `project.godot` and version-only
+`project.name` is a non-empty string. `project.godot` is the declared Godot
+compatibility requirement; it is not inferred from the Godot project-settings
+file. See [Godot compatibility input](godot-compatibility.md). Version-only
 dependencies use the [versioning policy](versioning.md). Dependency aliases are lowercase ASCII
 letters, digits, and internal hyphens; they must begin and end with an
 alphanumeric character.
