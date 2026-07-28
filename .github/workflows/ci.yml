@@ -1,62 +1,63 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-  workflow_dispatch:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main]
+  pull_request:
+  merge_group:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  python:
-    name: Python checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
-        with:
-          version: "0.8.13"
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install locked dependencies
-        run: uv sync --locked --extra dev
-
-      - name: Check formatting
-        run: uv run ruff format --check src tests tools/benchmark_python.py
-
-      - name: Lint
-        run: uv run ruff check src tests tools/benchmark_python.py
-
-      - name: Type check
-        run: uv run mypy src
-
-      - name: Test
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: uv run pytest
-
-      - name: Build distributions
-        run: uv build
-
-      - name: Test isolated wheel install and entrypoint
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Install Rust
         run: |
-          uv venv --python 3.12 "$RUNNER_TEMP/hcb-wheel"
-          uv pip install --python "$RUNNER_TEMP/hcb-wheel/bin/python" dist/*.whl
-          test "$("$RUNNER_TEMP/hcb-wheel/bin/hcb" --json-schema-version)" = "1"
-          TERM=dumb NO_COLOR=1 "$RUNNER_TEMP/hcb-wheel/bin/hcb" --help > /dev/null
+          rustup toolchain install 1.85.0 --profile minimal --component clippy --component rustfmt
+          rustup default 1.85.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Build workspace
+        run: cargo build --workspace
+      - name: Test workspace
+        run: cargo test --workspace
+      - name: Lint workspace
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: RustSec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998
+
+  release-smoke:
+    name: release-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          rustup default 1.85.0
+      - name: Build release workspace
+        run: cargo build --workspace --release
