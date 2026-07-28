@@ -1,0 +1,4 @@
+[project]
+name = "fixture"
+name = "duplicate"
+godot = "4"

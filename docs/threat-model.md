@@ -78,8 +78,9 @@ residual risks; it is not a security guarantee or a substitute for a review.
   repositories and permitted source trees can still consume disk, CPU, or time.
 - Cross-platform filesystem behavior is tested on native macOS and a Windows
   compile target in this environment; Linux execution remains unverified here.
-- Parser and archive fuzzing, an independent security review, and release
-  artifact signing remain outstanding roadmap work.
+- Archive fuzzing, an independent security review, and release artifact signing
+  remain outstanding roadmap work. Parser fuzzing is bounded and scheduled; it
+  does not establish parser correctness.
 
 ## Security response
 

@@ -737,10 +737,10 @@ Check:
 
 ## wukong-101: Fuzz manifest and lockfile parsers
 
-- [ ] Add fuzz targets.
-- [ ] Seed with valid and invalid fixtures.
-- [ ] Run bounded fuzzing in CI or scheduled workflows.
-- [ ] Convert crashes into regression tests.
+- [x] Add fuzz targets.
+- [x] Seed with valid and invalid fixtures.
+- [x] Run bounded fuzzing in CI or scheduled workflows.
+- [x] Convert crashes into regression tests.
 
 ## wukong-102: Fuzz archive extraction
 

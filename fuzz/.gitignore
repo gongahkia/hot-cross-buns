@@ -1,0 +1,6 @@
+/artifacts/
+/target/
+/corpus/manifest/*
+/corpus/lockfile/*
+!/corpus/manifest/*.toml
+!/corpus/lockfile/*.toml

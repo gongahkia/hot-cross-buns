@@ -1,0 +1,31 @@
+[package]
+name = "wukong-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.12"
+wukong-core = { path = "../crates/wukong-core" }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "lockfile"
+path = "fuzz_targets/lockfile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest"
+path = "fuzz_targets/manifest.rs"
+test = false
+doc = false
+bench = false
