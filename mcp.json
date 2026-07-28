@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "a-slow-walk-levels": {
+      "command": "uv",
+      "args": ["--directory", "tools/level_mcp", "run", "a-slow-walk-level-mcp"]
+    }
+  }
+}
