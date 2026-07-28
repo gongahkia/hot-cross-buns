@@ -3,8 +3,16 @@ pub mod diagnostics;
 
 use serde_json::json;
 use std::{
-    cell::Cell, collections::BTreeSet, env, ffi::OsString, fs, io::IsTerminal, path::PathBuf,
-    process, sync::OnceLock, time::Duration,
+    cell::Cell,
+    collections::{BTreeMap, BTreeSet},
+    env,
+    ffi::OsString,
+    fs,
+    io::IsTerminal,
+    path::PathBuf,
+    process,
+    sync::OnceLock,
+    time::Duration,
 };
 use wukong_core::{
     cache::{
@@ -93,6 +101,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "doctor" => match run_doctor(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "status" => match run_status(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -1136,6 +1148,114 @@ fn run_doctor(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     failure.map_or(Ok(()), Err)
 }
 
+struct StatusOptions {
+    project: Option<PathBuf>,
+    json: bool,
+}
+
+fn run_status(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_status_arguments(arguments)?;
+    if options.json {
+        emit_json_started("status");
+    }
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if options.json {
+        emit_json_progress("status", "reading-installed-state");
+    }
+    let packages = read_installed_packages(project.path())?;
+    if options.json {
+        emit_json_result(&render_status_json(&packages));
+    } else if packages.is_empty() {
+        println!("installed packages: none");
+    } else {
+        println!("installed packages:");
+        for package in packages.values() {
+            println!(
+                "{} {} sha256:{}",
+                package.name(),
+                package.source_immutable_id(),
+                package.package_sha256()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn parse_status_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<StatusOptions, Box<Diagnostic>> {
+    let mut options = StatusOptions {
+        project: None,
+        json: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong status --json",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!("unsupported status argument {}", argument.to_string_lossy()),
+            "use --json or --project <path>",
+        ));
+    }
+    Ok(options)
+}
+
+fn read_installed_packages(
+    project_root: &std::path::Path,
+) -> Result<BTreeMap<PackageName, wukong_core::installed_state::InstalledPackage>, Box<Diagnostic>>
+{
+    let path = state_path(project_root);
+    match fs::read_to_string(&path) {
+        Ok(input) => Ok(InstalledState::parse(&path, &input)?.packages().clone()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(BTreeMap::new()),
+        Err(error) => Err(boxed(
+            Diagnostic::new(ErrorCode::InternalFailure, "could not read installed state")
+                .with_cause(error)
+                .with_recovery("check .wukong/state.toml permissions and retry"),
+        )),
+    }
+}
+
+fn render_status_json(
+    packages: &BTreeMap<PackageName, wukong_core::installed_state::InstalledPackage>,
+) -> String {
+    json!({
+        "schema": 1,
+        "packages": packages.values().map(|package| json!({
+            "name": package.name().as_str(),
+            "immutable_id": package.source_immutable_id().as_str(),
+            "package_checksum": package.package_sha256(),
+        })).collect::<Vec<_>>(),
+    })
+    .to_string()
+}
+
 fn parse_doctor_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<DoctorOptions, Box<Diagnostic>> {
@@ -2080,6 +2200,23 @@ fn render_why_json(
     )
 }
 
+fn render_sync_json(
+    summary: &wukong_core::project_sync::SyncSummary,
+    godot: &PackageGodotCompatibilityReport,
+) -> String {
+    json!({
+        "schema": 1,
+        "written": summary.written,
+        "unchanged": summary.unchanged,
+        "removed": summary.removed,
+        "godot": {
+            "unknown": godot.unknown().iter().map(PackageName::as_str).collect::<Vec<_>>(),
+            "indeterminate": godot.indeterminate().iter().map(PackageName::as_str).collect::<Vec<_>>(),
+        },
+    })
+    .to_string()
+}
+
 fn emit_json_started(command: &str) {
     println!(
         "{}",
@@ -2341,6 +2478,9 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
 
 fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_sync_arguments(arguments)?;
+    if matches!(options.output, OutputFormat::Json) {
+        emit_json_started("sync");
+    }
     let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
@@ -2353,6 +2493,9 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if matches!(options.output, OutputFormat::Json) {
+        emit_json_progress("sync", "reading-manifest");
+    }
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let manifest = read_manifest(&manifest_path)?;
     let compatibility =
@@ -2364,6 +2507,9 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             "run wukong lock to resolve the current manifest",
         )
     })?;
+    if matches!(options.output, OutputFormat::Json) {
+        emit_json_progress("sync", "validating-lockfile");
+    }
     let godot_report = validate_locked_package_godot_compatibility(&lock, &compatibility)?;
     let cache = CacheLayout::from_environment()?;
     if options.locked {
@@ -2382,6 +2528,9 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             ));
         }
     }
+    if matches!(options.output, OutputFormat::Json) {
+        emit_json_progress("sync", "materialising-packages");
+    }
     let summary = sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
@@ -2392,11 +2541,16 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         options.offline,
         &cancellation,
     )?;
-    println!(
-        "sync: {} written, {} unchanged, {} removed",
-        summary.written, summary.unchanged, summary.removed
-    );
-    print_godot_compatibility_report(&godot_report);
+    if matches!(options.output, OutputFormat::Json) {
+        emit_json_progress("sync", "state-written");
+        emit_json_result(&render_sync_json(&summary, &godot_report));
+    } else {
+        println!(
+            "sync: {} written, {} unchanged, {} removed",
+            summary.written, summary.unchanged, summary.removed
+        );
+        print_godot_compatibility_report(&godot_report);
+    }
     Ok(())
 }
 
@@ -2463,6 +2617,13 @@ struct SyncOptions {
     locked: bool,
     offline: bool,
     godot_version: Option<String>,
+    output: OutputFormat,
+}
+
+#[derive(Clone, Copy)]
+enum OutputFormat {
+    Human,
+    Json,
 }
 fn parse_sync_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -2473,6 +2634,7 @@ fn parse_sync_arguments(
         locked: false,
         offline: false,
         godot_version: None,
+        output: OutputFormat::Human,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
@@ -2490,6 +2652,16 @@ fn parse_sync_arguments(
         }
         if argument == "--offline" {
             options.offline = true;
+            continue;
+        }
+        if argument == "--json" {
+            if matches!(options.output, OutputFormat::Json) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong sync --json",
+                ));
+            }
+            options.output = OutputFormat::Json;
             continue;
         }
         if argument == "--godot" {
@@ -2519,7 +2691,7 @@ fn parse_sync_arguments(
         }
         return Err(user_error(
             format!("unsupported sync argument {}", argument.to_string_lossy()),
-            "use --dev, --locked, --frozen, --offline, --godot <x.y.z>, or --project <path>",
+            "use --dev, --locked, --frozen, --offline, --json, --godot <x.y.z>, or --project <path>",
         ));
     }
     Ok(options)
@@ -2620,7 +2792,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
@@ -2775,10 +2947,15 @@ mod tests {
     }
 
     #[test]
-    fn sync_parser_accepts_an_explicit_godot_version() {
-        let options = parse_sync_arguments(["--godot", "4.4.1"].into_iter().map(OsString::from))
-            .expect("sync specification should parse");
+    fn sync_parser_accepts_json_and_an_explicit_godot_version() {
+        let options = parse_sync_arguments(
+            ["--json", "--godot", "4.4.1"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("sync specification should parse");
 
+        assert!(matches!(options.output, super::OutputFormat::Json));
         assert_eq!(options.godot_version.as_deref(), Some("4.4.1"));
     }
 

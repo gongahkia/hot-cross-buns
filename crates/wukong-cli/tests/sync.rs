@@ -44,6 +44,45 @@ fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop()
 }
 
 #[test]
+fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    assert!(
+        command("lock", fixture.root())
+            .output()
+            .expect("lock should run")
+            .status
+            .success()
+    );
+
+    let output = command("sync", fixture.root())
+        .args(["--offline", "--json"])
+        .output()
+        .expect("JSON sync should run");
+
+    assert!(output.status.success());
+    let events = String::from_utf8(output.stdout)
+        .expect("JSON output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event should parse"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| event["type"].as_str().expect("event should have a type"))
+            .collect::<Vec<_>>(),
+        [
+            "started", "progress", "progress", "progress", "progress", "result"
+        ]
+    );
+    assert_eq!(events[0]["command"], "sync");
+    assert_eq!(events[5]["result"]["written"], 1);
+    assert_eq!(events[5]["result"]["unchanged"], 0);
+    assert_eq!(events[5]["result"]["removed"], 0);
+}
+
+#[test]
 fn invariant_locked_and_frozen_sync_refuse_a_changed_manifest_without_project_mutation() {
     let fixture = Fixture::new();
     fixture.addon("first", "first");

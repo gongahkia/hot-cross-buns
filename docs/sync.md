@@ -30,6 +30,9 @@ checksum still matches.
 - `--locked` recomputes direct source resolution and refuses any manifest,
   source, or lockfile mismatch before project mutation.
 - `--frozen` combines `--locked` and `--offline`.
+- `--json` emits versioned JSON Lines events for editor and automation clients;
+  the terminal result contains written, unchanged, removed, and Godot
+  compatibility-summary fields.
 
 Without `--locked`, sync applies the existing lockfile but still verifies every
 locked source and prepared package before it changes project files. Run

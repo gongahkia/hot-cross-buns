@@ -876,13 +876,13 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-131: Build a minimal Godot editor plugin
 
-- [ ] Detect CLI.
-- [ ] Display installed packages.
-- [ ] Run sync.
-- [ ] Show progress.
-- [ ] Display errors.
-- [ ] Open manifest and lockfile.
-- [ ] Avoid duplicating package-management logic.
+- [x] Detect CLI.
+- [x] Display installed packages.
+- [x] Run sync.
+- [x] Show progress.
+- [x] Display errors.
+- [x] Open manifest and lockfile.
+- [x] Avoid duplicating package-management logic.
 
 ## wukong-132: Add editor dependency views
 

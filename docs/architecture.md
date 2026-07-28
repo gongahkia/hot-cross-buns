@@ -19,6 +19,10 @@ wukong
 `wukong-core` must not depend on terminal rendering. The CLI calls core services
 and converts their results into human or machine-readable output.
 
+The optional Godot editor plugin is a separate, thin client of the versioned
+CLI protocol. It must never parse manifests or lockfiles to resolve packages,
+modify project files directly, or duplicate core transaction logic.
+
 ## Planned core boundaries
 
 | Area | Responsibility |

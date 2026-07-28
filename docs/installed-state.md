@@ -1,5 +1,9 @@
 # Installed state
 
+`wukong status` reads this metadata and reports the package identities actually
+materialised in the project. `wukong status --json` is the editor-facing view;
+it does not reimplement or infer package state from addon directories.
+
 After transactional synchronisation, Wukong records package-owned project
 files in `.wukong/state.toml`. Schema one is deterministic TOML:
 

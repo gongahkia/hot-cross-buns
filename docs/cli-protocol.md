@@ -2,7 +2,7 @@
 
 Protocol version 1 is opt-in with `--json` and is designed for editor and automation clients.
 
-Output is UTF-8 JSON Lines. Every stdout line is one JSON object with `protocol: 1`, `type`, and a deterministic payload. The protocol-enabled report commands (`outdated`, `audit`, `tree`, and `why`) emit `started`, zero or more `progress`, then exactly one `result` event. Human output is suppressed in this mode.
+Output is UTF-8 JSON Lines. Every stdout line is one JSON object with `protocol: 1`, `type`, and a deterministic payload. The protocol-enabled commands (`sync`, `status`, `outdated`, `audit`, `tree`, and `why`) emit `started`, zero or more `progress`, then exactly one `result` event. Human output is suppressed in this mode.
 
 Failures emit exactly one JSON diagnostic to stderr and retain the stable process exit codes: `0` success, `2` user input, `3` source access, `4` integrity, and `70` internal failure. The diagnostic object contains `code`, `message`, `package`, `source`, `modified`, `rollback`, and `recovery`; absent optional values are JSON null. Sources and causes remain credential-redacted.
 
