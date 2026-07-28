@@ -1,6 +1,7 @@
 //! Canonical package names, local source identities, and conflict detection.
 
 use std::{
+    borrow::Borrow,
     collections::BTreeMap,
     error::Error,
     fmt::{self, Display, Formatter},
@@ -50,6 +51,12 @@ impl PackageName {
 impl Display for PackageName {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+impl Borrow<str> for PackageName {
+    fn borrow(&self) -> &str {
+        self.as_str()
     }
 }
 

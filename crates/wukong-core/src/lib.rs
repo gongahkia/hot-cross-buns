@@ -18,6 +18,9 @@ pub mod local_source;
 /// Conservative package-layout detection.
 pub mod layout;
 
+/// Optional package-owned metadata parsing.
+pub mod package_metadata;
+
 /// Project-manifest parsing and validation.
 pub mod manifest;
 

@@ -12,6 +12,7 @@ Current records:
 - [0006: local-path snapshot](0006-local-path-snapshot.md)
 - [0007: ZIP extraction security](0007-zip-extraction-security.md)
 - [0008: package layout detection](0008-package-layout-detection.md)
+- [0009: package metadata schema](0009-package-metadata-schema.md)
 
 ## When to write an ADR
 

@@ -294,13 +294,13 @@ Acceptance criteria:
 
 ## wukong-032: Define optional package metadata
 
-- [ ] Define `wukong-package.toml`.
-- [ ] Add package name and version.
-- [ ] Add Godot compatibility.
-- [ ] Add dependency declarations.
-- [ ] Add package root or target mapping.
-- [ ] Add schema-version handling.
-- [ ] Document that metadata is optional for direct installation.
+- [x] Define `wukong-package.toml`.
+- [x] Add package name and version.
+- [x] Add Godot compatibility.
+- [x] Add dependency declarations.
+- [x] Add package root or target mapping.
+- [x] Add schema-version handling.
+- [x] Document that metadata is optional for direct installation.
 
 ## wukong-033: Prepare canonical package trees
 
