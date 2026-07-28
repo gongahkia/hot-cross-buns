@@ -783,16 +783,16 @@ Check:
 
 Measure separately:
 
-- [ ] Manifest parsing.
-- [ ] Lockfile parsing.
-- [ ] Resolution.
-- [ ] Git fetch.
-- [ ] HTTP fetch.
-- [ ] Extraction.
-- [ ] Hashing.
-- [ ] Cache lookup.
-- [ ] Materialisation.
-- [ ] No-op sync.
+- [x] Manifest parsing.
+- [x] Lockfile parsing.
+- [x] Resolution.
+- [x] Git fetch.
+- [x] HTTP fetch.
+- [x] Extraction.
+- [x] Hashing.
+- [x] Cache lookup.
+- [x] Materialisation.
+- [x] No-op sync.
 
 ## wukong-111: Define benchmark fixtures
 

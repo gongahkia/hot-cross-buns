@@ -4,7 +4,7 @@ No performance claims are published yet.
 
 ## Measurements
 
-When implemented, measure independently:
+The component harness measures independently:
 
 - Manifest and lockfile parsing
 - Dependency resolution
@@ -14,6 +14,23 @@ When implemented, measure independently:
 - Materialisation
 - Cold and warm end-to-end synchronisation
 - No-op synchronisation
+
+Run the local deterministic workloads with:
+
+```sh
+cargo +1.85.0 bench -p wukong-core --bench component_harness
+```
+
+It reports manifest/lockfile parsing, resolver work, ZIP extraction, local-tree
+hashing, cache lookup, copy materialisation, and no-op sync as separate rows.
+It does not make performance claims or compare runs.
+
+Git and HTTPS fetch rows require immutable public inputs supplied through
+`WUKONG_BENCH_GIT_URL` plus `WUKONG_BENCH_GIT_REV`, and
+`WUKONG_BENCH_HTTP_URL` plus `WUKONG_BENCH_HTTP_SHA256`. Without a complete
+pair, the harness emits a skip row and opens no network connection. Configured
+fetches run both cold-cache and warm offline-cache workloads. Do not provide
+credentials in benchmark environment variables.
 
 ## Resolver baseline
 
