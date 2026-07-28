@@ -124,11 +124,35 @@ impl Display for LocalSourceIdentityError {
 
 impl Error for LocalSourceIdentityError {}
 
-/// A source identity implemented by the current local-path vertical slice.
+/// A canonical Git repository source location without a mutable revision.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GitSourceIdentity(String);
+
+impl GitSourceIdentity {
+    /// Returns the canonical Git repository location.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) const fn new(canonical_url: String) -> Self {
+        Self(canonical_url)
+    }
+}
+
+impl Display for GitSourceIdentity {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// A source identity implemented by supported source adapters.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum SourceIdentity {
     /// A filesystem-canonical local package directory.
     Local(LocalSourceIdentity),
+    /// A canonical Git repository location; resolution later pins a commit.
+    Git(GitSourceIdentity),
 }
 
 /// A package name paired with a canonical source identity.

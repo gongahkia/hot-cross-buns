@@ -30,11 +30,13 @@ archive = { url = "https://example.test/addon.zip", sha256 = "e3b0c44298fc1c149a
 
 Local paths may be relative or absolute. Relative paths are resolved against
 the manifest directory and lexically normalised; existence, symlink handling,
-and content hashing are deferred to the local-path adapter. Git accepts at most
-one of `rev`, `tag`, or `branch`. Archive sources require a 64-character
-hexadecimal SHA-256 value.
+and content hashing are deferred to the local-path adapter. Git accepts HTTPS,
+`ssh://`, and Git's `user@host:path` SSH form, with at most one of `rev`, `tag`,
+or `branch`. `rev` must be a complete 40- or 64-character hexadecimal object
+ID. Archive sources require a 64-character hexadecimal SHA-256 value.
 
-Credentials in URL user information or sensitive query parameters are rejected.
+HTTPS user information and sensitive query parameters are rejected. SSH user
+names are allowed for standard Git remotes, but SSH passwords are rejected.
 Manifests declare inputs only: `wukong` does not execute package scripts.
 
 ## Editing

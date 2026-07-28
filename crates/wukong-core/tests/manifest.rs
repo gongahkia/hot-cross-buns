@@ -233,6 +233,37 @@ example = { git = "https://secret-token@example.test/repository" }
     assert!(!error.message().contains("secret-token"));
 }
 
+#[test]
+fn invariant_git_ssh_users_and_safe_selectors_parse_but_invalid_revisions_fail() {
+    let manifest = parse(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+example = { git = "ssh://git@work-alias/team/addon.git", branch = "release/1.2" }
+"#,
+    );
+    let error = parse_error(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+example = { git = "https://example.test/addon.git", rev = "deadbeef" }
+"#,
+    );
+
+    assert!(matches!(
+        manifest.dependencies().get("example"),
+        Some(Dependency::Git { reference: Some(GitReference::Branch(branch)), .. }) if branch == "release/1.2"
+    ));
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert!(error.message().contains("dependencies.example.rev"));
+}
+
 fn parse(input: &str) -> Manifest {
     Manifest::parse(Path::new(MANIFEST_PATH), input).expect("manifest should parse")
 }

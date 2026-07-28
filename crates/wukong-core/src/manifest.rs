@@ -8,6 +8,8 @@ use semver::VersionReq;
 use std::{
     borrow::Borrow,
     collections::BTreeMap,
+    error::Error,
+    fmt::{self, Display, Formatter},
     path::{Component, Path, PathBuf},
 };
 use toml_edit::{Document, Item, TableLike};
@@ -154,6 +156,44 @@ pub enum GitReference {
     Tag(String),
     Branch(String),
 }
+
+impl GitReference {
+    /// Validates a selector before it is passed to a Git implementation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the selector cannot safely identify a Git ref.
+    pub fn validate(&self) -> Result<(), GitReferenceError> {
+        match self {
+            Self::Rev(value) if valid_commit(value) => Ok(()),
+            Self::Rev(_) => Err(GitReferenceError::ExactRevision),
+            Self::Tag(value) | Self::Branch(value) if valid_ref_name(value) => Ok(()),
+            Self::Tag(_) | Self::Branch(_) => Err(GitReferenceError::Name),
+        }
+    }
+}
+
+/// An invalid Git revision selector.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GitReferenceError {
+    /// An exact revision was not a complete object ID.
+    ExactRevision,
+    /// A tag or branch name was not a valid safe ref name.
+    Name,
+}
+
+impl Display for GitReferenceError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ExactRevision => {
+                formatter.write_str("must be a 40- or 64-character hexadecimal commit ID")
+            }
+            Self::Name => formatter.write_str("must be a non-empty safe Git reference name"),
+        }
+    }
+}
+
+impl Error for GitReferenceError {}
 
 fn parse_project(table: &dyn TableLike, path: &Path, input: &str) -> ManifestResult<Project> {
     reject_unknown_fields(table, &["name", "godot"], path, input, "project")?;
@@ -307,7 +347,7 @@ fn parse_git_source(
     item: &Item,
 ) -> ManifestResult<Dependency> {
     reject_present(table, &["path", "url", "sha256"], path, input, field)?;
-    let url = safe_url(
+    let url = safe_git_url(
         required_string(table, "git", path, input, field)?,
         path,
         input,
@@ -332,11 +372,24 @@ fn parse_git_source(
         .find(|key| table.contains_key(key))
         .map(|key| required_string(table, key, path, input, field).map(|value| (key, value)))
         .transpose()?
-        .map(|(key, value)| match key {
-            "rev" => GitReference::Rev(value),
-            "tag" => GitReference::Tag(value),
-            _ => GitReference::Branch(value),
-        });
+        .map(|(key, value)| {
+            let reference = match key {
+                "rev" => GitReference::Rev(value),
+                "tag" => GitReference::Tag(value),
+                _ => GitReference::Branch(value),
+            };
+            reference.validate().map_err(|error| {
+                field_error(
+                    path,
+                    input,
+                    &format!("{field}.{key}"),
+                    table.get(key),
+                    &error.to_string(),
+                )
+            })?;
+            Ok::<GitReference, Box<Diagnostic>>(reference)
+        })
+        .transpose()?;
     Ok(Dependency::Git { url, reference })
 }
 
@@ -503,6 +556,91 @@ fn safe_url(
     } else {
         Ok(value)
     }
+}
+
+fn safe_git_url(
+    value: String,
+    path: &Path,
+    input: &str,
+    field: &str,
+    item: Option<&Item>,
+) -> ManifestResult<String> {
+    if value.trim().is_empty() || value.chars().any(char::is_whitespace) {
+        return Err(field_error(
+            path,
+            input,
+            field,
+            item,
+            "must be a non-empty URL without whitespace",
+        ));
+    }
+    let has_disallowed_user_info = value.find("://").is_some_and(|scheme_end| {
+        let authority = &value[scheme_end + 3..];
+        let authority = &authority[..authority.find(['/', '?', '#']).unwrap_or(authority.len())];
+        authority.split_once('@').is_some_and(|(user, _)| {
+            !value[..scheme_end].eq_ignore_ascii_case("ssh")
+                || user.is_empty()
+                || user.contains(':')
+        })
+    });
+    let has_secret_query = value.split_once('?').is_some_and(|(_, query)| {
+        query.split('#').next().is_some_and(|query| {
+            query.split('&').any(|pair| {
+                pair.split_once('=').is_some_and(|(key, _)| {
+                    let key = key.to_ascii_lowercase();
+                    key.contains("token")
+                        || key.contains("secret")
+                        || key.contains("password")
+                        || key.contains("credential")
+                        || key == "key"
+                        || key.contains("api_key")
+                        || key.contains("apikey")
+                })
+            })
+        })
+    });
+    if has_disallowed_user_info || has_secret_query {
+        Err(field_error(
+            path,
+            input,
+            field,
+            item,
+            "must not contain credentials",
+        ))
+    } else {
+        Ok(value)
+    }
+}
+
+fn valid_commit(value: &str) -> bool {
+    matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn valid_ref_name(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('-')
+        && !value.starts_with('/')
+        && !value.ends_with('/')
+        && !value.ends_with('.')
+        && !value.contains("..")
+        && !value.contains("@{")
+        && !value.chars().any(|character| {
+            character.is_whitespace()
+                || character.is_control()
+                || matches!(character, '~' | '^' | ':' | '?' | '*' | '[' | '\\')
+        })
+        && value.split('/').all(|component| {
+            !component.is_empty()
+                && component != "."
+                && component != ".."
+                && !has_lock_suffix(component)
+        })
+}
+
+fn has_lock_suffix(value: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(5)..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(".lock"))
 }
 
 fn resolve_path(directory: &Path, source_path: &Path) -> PathBuf {

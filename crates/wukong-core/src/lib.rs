@@ -36,6 +36,9 @@ pub mod direct_lock;
 /// Direct local-path lockfile verification and synchronisation.
 pub mod direct_sync;
 
+/// Git source URL and revision canonicalisation.
+pub mod git_source;
+
 /// Versioned content-addressed cache layout.
 pub mod cache;
 

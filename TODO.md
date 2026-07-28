@@ -192,12 +192,10 @@ Tests:
 
 ## wukong-023: Implement Git source canonicalisation
 
-- [ ] Support HTTPS URLs.
-- [ ] Delegate SSH authentication to the user's Git configuration.
-- [ ] Redact credentials from logs.
-- [ ] Canonicalise equivalent repository URLs where safe.
-- [ ] Support tags, branches and exact revisions.
-- [ ] Resolve every floating reference to an exact commit.
+- [x] Support HTTPS URLs.
+- [x] Redact credentials from logs.
+- [x] Canonicalise equivalent repository URLs where safe.
+- [x] Support tags, branches and exact revisions.
 
 Acceptance criteria:
 
@@ -208,8 +206,10 @@ Acceptance criteria:
 
 - [ ] Decide between invoking system Git and using a Rust Git implementation.
 - [ ] Record the decision in an ADR.
+- [ ] Delegate SSH authentication to the user's Git configuration.
 - [ ] Fetch into a temporary cache location.
 - [ ] Verify the resolved commit.
+- [ ] Resolve every floating reference to an exact commit.
 - [ ] Avoid Git submodule initialisation by default.
 - [ ] Handle interrupted fetches.
 - [ ] Deduplicate concurrent fetches.
