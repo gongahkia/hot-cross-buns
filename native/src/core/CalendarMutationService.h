@@ -137,6 +137,7 @@ struct CalendarEventMutationSnapshot final {
 };
 
 using CalendarEventMutationResult = std::variant<CalendarEventMutationReceipt, AppError>;
+using CalendarEventBatchMutationResult = std::variant<QList<CalendarEventMutationReceipt>, AppError>;
 using CalendarEventMutationSnapshotResult =
     std::variant<QList<CalendarEventMutationSnapshot>, AppError>;
 
@@ -148,6 +149,8 @@ public:
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<CalendarEventMutationResult> create(CalendarEventCreateInput input);
+  [[nodiscard]] std::future<CalendarEventBatchMutationResult>
+  createBatch(QList<CalendarEventCreateInput> inputs);
   [[nodiscard]] std::future<CalendarEventMutationResult> update(CalendarEventUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult>
   respond(QString eventId, QString responseStatus, QString responseComment = {});

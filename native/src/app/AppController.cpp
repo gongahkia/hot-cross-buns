@@ -798,6 +798,8 @@ QVariantList AppController::visibleCalendarIds() const { return visibleCalendarI
 
 bool AppController::calendarVisibilityConfigured() const { return calendarVisibilityConfigured_; }
 
+QVariantList AppController::calendarManagementRows() const { return calendarManagementRows_; }
+
 bool AppController::notesEnabled() const { return notesEnabled_; }
 
 int AppController::notesProjectionMode() const { return notesProjectionMode_; }
@@ -1950,6 +1952,237 @@ void AppController::subscribeGoogleCalendar(QString calendarId) {
           }
           setStatus(QStringLiteral("Google calendar subscribed"));
           requestGoogleSync(SyncScheduleTrigger::Manual);
+        });
+}
+
+void AppController::updateGoogleCalendar(QString calendarId,
+                                         QString title,
+                                         QString description,
+                                         QString timeZone) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before editing a calendar"));
+    return;
+  }
+  watch(calendarReadService_.findCalendar(std::move(calendarId)),
+        [this,
+         title = std::move(title),
+         description = std::move(description),
+         timeZone = std::move(timeZone)](CalendarLookupResult result) mutable {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const std::optional<CalendarSummary>& calendar =
+              std::get<std::optional<CalendarSummary>>(result);
+          if (!calendar.has_value() || calendar->primary ||
+              calendar->accessRole.value_or(QString()) != QStringLiteral("owner")) {
+            setStatus(QStringLiteral("Only owned secondary calendars can be edited"));
+            return;
+          }
+          const GoogleCalendarUpdateRequest request{
+              .calendarId = calendar->remoteId,
+              .title = std::move(title),
+              .description = std::optional<QString>(std::move(description)),
+              .timeZone = timeZone.trimmed().isEmpty() ? std::optional<QString>{}
+                                                        : std::optional<QString>(std::move(timeZone))};
+          watch(std::async(std::launch::async,
+                           [this, request]()
+                               -> std::variant<GoogleCalendarManagementResult, AppError> {
+                             OAuthCredentialReadResult read =
+                                 credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                             if (std::holds_alternative<AppError>(read)) {
+                               return std::get<AppError>(std::move(read));
+                             }
+                             const std::optional<OAuthStoredCredential>& credential =
+                                 std::get<std::optional<OAuthStoredCredential>>(read);
+                             if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                               return AppError(AppErrorCode::Configuration,
+                                               QStringLiteral("Google authorization must be renewed"));
+                             }
+                             GoogleCalendarManagementResultOrError updated =
+                                 googleCalendarManagementClient_.update(request, credential->accessToken).get();
+                             return std::holds_alternative<GoogleApiError>(updated)
+                                        ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                              AppErrorCode::Network,
+                                              std::get<GoogleApiError>(std::move(updated)).message()))
+                                        : std::variant<GoogleCalendarManagementResult, AppError>(
+                                              std::get<GoogleCalendarManagementResult>(std::move(updated)));
+                           }),
+                [this](std::variant<GoogleCalendarManagementResult, AppError> updated) {
+                  if (std::holds_alternative<AppError>(updated)) {
+                    setStatus(errorMessage(std::get<AppError>(std::move(updated))));
+                    return;
+                  }
+                  setStatus(QStringLiteral("Google calendar updated"));
+                  requestGoogleSync(SyncScheduleTrigger::Manual);
+                });
+        });
+}
+
+void AppController::deleteGoogleCalendar(QString calendarId) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before deleting a calendar"));
+    return;
+  }
+  watch(calendarReadService_.findCalendar(std::move(calendarId)),
+        [this](CalendarLookupResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const std::optional<CalendarSummary>& calendar =
+              std::get<std::optional<CalendarSummary>>(result);
+          if (!calendar.has_value() || calendar->primary ||
+              calendar->accessRole.value_or(QString()) != QStringLiteral("owner")) {
+            setStatus(QStringLiteral("Only owned secondary calendars can be deleted"));
+            return;
+          }
+          const QString remoteId = calendar->remoteId;
+          watch(std::async(std::launch::async,
+                           [this, remoteId]()
+                               -> std::variant<GoogleCalendarManagementResult, AppError> {
+                             OAuthCredentialReadResult read =
+                                 credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                             if (std::holds_alternative<AppError>(read)) {
+                               return std::get<AppError>(std::move(read));
+                             }
+                             const std::optional<OAuthStoredCredential>& credential =
+                                 std::get<std::optional<OAuthStoredCredential>>(read);
+                             if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                               return AppError(AppErrorCode::Configuration,
+                                               QStringLiteral("Google authorization must be renewed"));
+                             }
+                             GoogleCalendarManagementResultOrError removed =
+                                 googleCalendarManagementClient_.remove(remoteId, credential->accessToken).get();
+                             return std::holds_alternative<GoogleApiError>(removed)
+                                        ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                              AppErrorCode::Network,
+                                              std::get<GoogleApiError>(std::move(removed)).message()))
+                                        : std::variant<GoogleCalendarManagementResult, AppError>(
+                                              std::get<GoogleCalendarManagementResult>(std::move(removed)));
+                           }),
+                [this](std::variant<GoogleCalendarManagementResult, AppError> removed) {
+                  if (std::holds_alternative<AppError>(removed)) {
+                    setStatus(errorMessage(std::get<AppError>(std::move(removed))));
+                    return;
+                  }
+                  setStatus(QStringLiteral("Google calendar deleted"));
+                  requestGoogleSync(SyncScheduleTrigger::Manual);
+                });
+        });
+}
+
+void AppController::updateGoogleCalendarListEntry(QString calendarId,
+                                                   bool selected,
+                                                   bool hidden,
+                                                   QString colorId) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before editing calendar preferences"));
+    return;
+  }
+  watch(calendarReadService_.findCalendar(std::move(calendarId)),
+        [this, selected, hidden, colorId = std::move(colorId)](CalendarLookupResult result) mutable {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const std::optional<CalendarSummary>& calendar =
+              std::get<std::optional<CalendarSummary>>(result);
+          if (!calendar.has_value()) {
+            setStatus(QStringLiteral("Calendar is unavailable"));
+            return;
+          }
+          const GoogleCalendarListUpdateRequest request{
+              .calendarId = calendar->remoteId,
+              .selected = selected,
+              .hidden = hidden,
+              .colorId = colorId.trimmed().isEmpty() ? std::optional<QString>{}
+                                                       : std::optional<QString>(std::move(colorId))};
+          watch(std::async(std::launch::async,
+                           [this, request]()
+                               -> std::variant<GoogleCalendarManagementResult, AppError> {
+                             OAuthCredentialReadResult read =
+                                 credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                             if (std::holds_alternative<AppError>(read)) {
+                               return std::get<AppError>(std::move(read));
+                             }
+                             const std::optional<OAuthStoredCredential>& credential =
+                                 std::get<std::optional<OAuthStoredCredential>>(read);
+                             if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                               return AppError(AppErrorCode::Configuration,
+                                               QStringLiteral("Google authorization must be renewed"));
+                             }
+                             GoogleCalendarManagementResultOrError updated =
+                                 googleCalendarManagementClient_.updateListEntry(request,
+                                                                                  credential->accessToken).get();
+                             return std::holds_alternative<GoogleApiError>(updated)
+                                        ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                              AppErrorCode::Network,
+                                              std::get<GoogleApiError>(std::move(updated)).message()))
+                                        : std::variant<GoogleCalendarManagementResult, AppError>(
+                                              std::get<GoogleCalendarManagementResult>(std::move(updated)));
+                           }),
+                [this](std::variant<GoogleCalendarManagementResult, AppError> updated) {
+                  if (std::holds_alternative<AppError>(updated)) {
+                    setStatus(errorMessage(std::get<AppError>(std::move(updated))));
+                    return;
+                  }
+                  setStatus(QStringLiteral("Google calendar preferences updated"));
+                  requestGoogleSync(SyncScheduleTrigger::Manual);
+                });
+        });
+}
+
+void AppController::unsubscribeGoogleCalendar(QString calendarId) {
+  if (!googleConnected_ || credentialStore_ == nullptr) {
+    setStatus(QStringLiteral("Connect Google before unsubscribing from a calendar"));
+    return;
+  }
+  watch(calendarReadService_.findCalendar(std::move(calendarId)),
+        [this](CalendarLookupResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          const std::optional<CalendarSummary>& calendar =
+              std::get<std::optional<CalendarSummary>>(result);
+          if (!calendar.has_value() || calendar->primary) {
+            setStatus(QStringLiteral("The primary calendar cannot be unsubscribed"));
+            return;
+          }
+          const QString remoteId = calendar->remoteId;
+          watch(std::async(std::launch::async,
+                           [this, remoteId]()
+                               -> std::variant<GoogleCalendarManagementResult, AppError> {
+                             OAuthCredentialReadResult read =
+                                 credentialStore_->read(QString::fromLatin1(kGoogleAccountId)).get();
+                             if (std::holds_alternative<AppError>(read)) {
+                               return std::get<AppError>(std::move(read));
+                             }
+                             const std::optional<OAuthStoredCredential>& credential =
+                                 std::get<std::optional<OAuthStoredCredential>>(read);
+                             if (!credential.has_value() || credential->accessToken.isEmpty()) {
+                               return AppError(AppErrorCode::Configuration,
+                                               QStringLiteral("Google authorization must be renewed"));
+                             }
+                             GoogleCalendarManagementResultOrError removed =
+                                 googleCalendarManagementClient_.removeListEntry(remoteId,
+                                                                                  credential->accessToken).get();
+                             return std::holds_alternative<GoogleApiError>(removed)
+                                        ? std::variant<GoogleCalendarManagementResult, AppError>(AppError(
+                                              AppErrorCode::Network,
+                                              std::get<GoogleApiError>(std::move(removed)).message()))
+                                        : std::variant<GoogleCalendarManagementResult, AppError>(
+                                              std::get<GoogleCalendarManagementResult>(std::move(removed)));
+                           }),
+                [this](std::variant<GoogleCalendarManagementResult, AppError> removed) {
+                  if (std::holds_alternative<AppError>(removed)) {
+                    setStatus(errorMessage(std::get<AppError>(std::move(removed))));
+                    return;
+                  }
+                  setStatus(QStringLiteral("Google calendar unsubscribed"));
+                  requestGoogleSync(SyncScheduleTrigger::Manual);
+                });
         });
 }
 
@@ -3725,6 +3958,7 @@ void AppController::refreshCalendar() {
   }
   const std::uint64_t generation = ++calendarRefreshGeneration_;
   refreshInvitations();
+  loadCalendarManagementRows(generation, 0, {});
   watch(calendarReadService_.listCalendars(), [this, generation](CalendarListPageResult result) {
     if (generation != calendarRefreshGeneration_) {
       return;
@@ -3742,6 +3976,45 @@ void AppController::refreshCalendar() {
     calendarSourceModel_.setCalendars(std::move(calendars));
     refreshCalendarEvents(std::move(ids), generation);
   });
+}
+
+void AppController::loadCalendarManagementRows(std::uint64_t generation,
+                                               std::int64_t offset,
+                                               QVariantList rows) {
+  watch(calendarReadService_.listCalendars(
+            {.includeHidden = true, .limit = 100, .offset = offset}),
+        [this, generation, rows = std::move(rows)](CalendarListPageResult result) mutable {
+          if (generation != calendarRefreshGeneration_) {
+            return;
+          }
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(std::move(result))));
+            return;
+          }
+          CalendarListPage page = std::get<CalendarListPage>(std::move(result));
+          rows.reserve(rows.size() + page.items.size());
+          for (const CalendarSummary& calendar : page.items) {
+            QVariantMap row;
+            row.insert(QStringLiteral("id"), calendar.id);
+            row.insert(QStringLiteral("title"), calendar.title);
+            row.insert(QStringLiteral("description"), calendar.description.value_or(QString()));
+            row.insert(QStringLiteral("timeZone"), calendar.timeZone.value_or(QString()));
+            row.insert(QStringLiteral("colorId"), calendar.colorId.value_or(QString()));
+            row.insert(QStringLiteral("backgroundColor"),
+                       calendar.backgroundColor.value_or(QString()));
+            row.insert(QStringLiteral("accessRole"), calendar.accessRole.value_or(QString()));
+            row.insert(QStringLiteral("selected"), calendar.selected);
+            row.insert(QStringLiteral("hidden"), calendar.hidden);
+            row.insert(QStringLiteral("primary"), calendar.primary);
+            rows.append(std::move(row));
+          }
+          if (page.nextOffset.has_value()) {
+            loadCalendarManagementRows(generation, *page.nextOffset, std::move(rows));
+            return;
+          }
+          setCalendarManagementRows(std::move(rows));
+        },
+        false);
 }
 
 void AppController::refreshInvitations() {
@@ -4086,6 +4359,14 @@ void AppController::setInvitations(QVariantList invitations) {
   }
   invitations_ = std::move(invitations);
   emit invitationsChanged();
+}
+
+void AppController::setCalendarManagementRows(QVariantList rows) {
+  if (calendarManagementRows_ == rows) {
+    return;
+  }
+  calendarManagementRows_ = std::move(rows);
+  emit calendarManagementRowsChanged();
 }
 
 void AppController::setBusy(bool busy) {

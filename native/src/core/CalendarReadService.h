@@ -21,10 +21,12 @@ struct CalendarSummary final {
   QString title;
   std::optional<QString> description;
   std::optional<QString> timeZone;
+  std::optional<QString> colorId;
   std::optional<QString> backgroundColor;
   std::optional<QString> foregroundColor;
   std::optional<QString> accessRole;
   bool selected;
+  bool hidden;
   bool primary;
   std::optional<QString> etag;
   std::optional<QString> remoteUpdatedAt;
@@ -35,6 +37,7 @@ struct CalendarSummary final {
 struct CalendarListReadRequest final {
   std::optional<QString> accountId;
   bool selectedOnly{false};
+  bool includeHidden{false};
   std::int64_t limit{50};
   std::int64_t offset{0};
 };

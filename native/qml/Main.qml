@@ -778,6 +778,136 @@ ApplicationWindow {
         }
     }
 
+    HcbDialog {
+        id: calendarManagerDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        title: "Calendar settings"
+        primaryText: "Save"
+        property string calendarId: ""
+        property bool ownedSecondary: false
+        property bool primaryCalendar: false
+        property string initialTitle: ""
+        property string initialDescription: ""
+        property string initialTimeZone: ""
+        property string initialColorId: ""
+        property bool initialSelected: true
+        property bool initialHidden: false
+        primaryEnabled: calendarManagerTitle.text.trim().length > 0 &&
+                        window.appController !== null && !window.appController.busy
+
+        function openForCalendar(calendar) {
+            calendarId = calendar.id
+            ownedSecondary = calendar.accessRole === "owner" && !calendar.primary
+            primaryCalendar = calendar.primary === true
+            initialTitle = calendar.title || ""
+            initialDescription = calendar.description || ""
+            initialTimeZone = calendar.timeZone || ""
+            initialColorId = calendar.colorId || ""
+            initialSelected = calendar.selected !== false
+            initialHidden = calendar.hidden === true
+            open()
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: calendarManagerDialog.ownedSecondary
+                  ? "This owned secondary calendar can be edited."
+                  : "Only Calendar-list preferences can be changed for this calendar."
+            wrapMode: Text.WordWrap
+            color: Theme.textSecondary
+        }
+
+        TextField {
+            id: calendarManagerTitle
+            Layout.fillWidth: true
+            text: calendarManagerDialog.initialTitle
+            enabled: calendarManagerDialog.ownedSecondary
+            placeholderText: "Calendar name"
+            Accessible.name: placeholderText
+        }
+
+        TextArea {
+            id: calendarManagerDescription
+            Layout.fillWidth: true
+            text: calendarManagerDialog.initialDescription
+            enabled: calendarManagerDialog.ownedSecondary
+            placeholderText: "Calendar description"
+            Accessible.name: placeholderText
+            wrapMode: TextArea.Wrap
+        }
+
+        TextField {
+            id: calendarManagerTimeZone
+            Layout.fillWidth: true
+            text: calendarManagerDialog.initialTimeZone
+            enabled: calendarManagerDialog.ownedSecondary
+            placeholderText: "Calendar time zone (IANA)"
+            Accessible.name: placeholderText
+        }
+
+        TextField {
+            id: calendarManagerColorId
+            Layout.fillWidth: true
+            text: calendarManagerDialog.initialColorId
+            placeholderText: "Google Calendar color ID (blank keeps current)"
+            Accessible.name: placeholderText
+        }
+
+        Switch {
+            id: calendarManagerSelected
+            text: "Show in Google Calendar"
+            checked: calendarManagerDialog.initialSelected
+            Accessible.name: text
+        }
+
+        Switch {
+            id: calendarManagerHidden
+            text: "Hide in Google Calendar"
+            checked: calendarManagerDialog.initialHidden
+            Accessible.name: text
+        }
+
+        onPrimaryAction: {
+            if (ownedSecondary) {
+                window.controllerCall("updateGoogleCalendar", [calendarId, calendarManagerTitle.text,
+                                                                 calendarManagerDescription.text,
+                                                                 calendarManagerTimeZone.text])
+            }
+            window.controllerCall("updateGoogleCalendarListEntry", [calendarId,
+                                                                       calendarManagerSelected.checked,
+                                                                       calendarManagerHidden.checked,
+                                                                       calendarManagerColorId.text])
+        }
+    }
+
+    HcbDialog {
+        id: calendarRemovalDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        property string calendarId: ""
+        property bool deleteCalendar: false
+        property string calendarTitle: ""
+        title: deleteCalendar ? "Delete Google Calendar" : "Unsubscribe from Google Calendar"
+        primaryText: deleteCalendar ? "Delete calendar" : "Unsubscribe"
+        primaryDestructive: true
+        primaryEnabled: window.appController !== null && !window.appController.busy
+
+        Label {
+            Layout.fillWidth: true
+            text: calendarRemovalDialog.deleteCalendar
+                  ? "Delete “" + calendarRemovalDialog.calendarTitle + "” permanently for every Google Calendar user with access? This cannot be undone."
+                  : "Remove “" + calendarRemovalDialog.calendarTitle + "” from this Google account’s Calendar list? The calendar itself is unchanged."
+            wrapMode: Text.WordWrap
+            color: Theme.textSecondary
+        }
+
+        onPrimaryAction: {
+            window.controllerCall(deleteCalendar ? "deleteGoogleCalendar" : "unsubscribeGoogleCalendar",
+                                  [calendarId])
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -1198,10 +1328,23 @@ ApplicationWindow {
                 }
             }
 
-            ColumnLayout {
+            Flickable {
                 anchors.fill: parent
                 visible: window.currentPage === "Settings"
-                spacing: Theme.spacingMedium
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+                contentWidth: width
+                contentHeight: settingsContent.implicitHeight
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: parent.contentHeight > parent.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                }
+
+                ColumnLayout {
+                    id: settingsContent
+                    width: parent.width
+                    spacing: Theme.spacingMedium
 
                 Label {
                     text: "Google setup"
@@ -1297,6 +1440,96 @@ ApplicationWindow {
                              subscribeGoogleCalendarId.text.trim().length > 0 && !window.appController.busy
                     Accessible.name: text
                     onClicked: window.controllerCall("subscribeGoogleCalendar", [subscribeGoogleCalendarId.text])
+                }
+
+                Label {
+                    text: "Manage Google calendars"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Google visibility is synced separately from HCB’s local calendar-view filters. Owned secondary calendars can be renamed or deleted; subscription and display preferences apply to every accessible calendar."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Repeater {
+                    model: window.appController !== null && window.appController.calendarManagementRows !== undefined
+                           ? window.appController.calendarManagementRows : []
+
+                    delegate: Frame {
+                        required property var modelData
+                        Layout.fillWidth: true
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: Theme.spacingSmall
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: modelData.title
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    Accessible.name: text
+                                }
+                                Label {
+                                    text: modelData.primary ? "Primary" : modelData.accessRole
+                                    color: Theme.textSecondary
+                                    Accessible.name: text
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: (modelData.hidden ? "Hidden in Google Calendar" : "Visible in Google Calendar") +
+                                      " · " + (modelData.selected ? "selected" : "not selected")
+                                color: Theme.textSecondary
+                                Accessible.name: text
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                Button {
+                                    text: "Settings"
+                                    enabled: window.appController !== null && !window.appController.busy
+                                    Accessible.name: modelData.title + " calendar settings"
+                                    onClicked: calendarManagerDialog.openForCalendar(modelData)
+                                }
+
+                                Button {
+                                    visible: !modelData.primary
+                                    text: "Unsubscribe"
+                                    enabled: window.appController !== null && !window.appController.busy
+                                    Accessible.name: "Unsubscribe from " + modelData.title
+                                    onClicked: {
+                                        calendarRemovalDialog.calendarId = modelData.id
+                                        calendarRemovalDialog.calendarTitle = modelData.title
+                                        calendarRemovalDialog.deleteCalendar = false
+                                        calendarRemovalDialog.open()
+                                    }
+                                }
+
+                                Button {
+                                    visible: !modelData.primary && modelData.accessRole === "owner"
+                                    text: "Delete calendar"
+                                    enabled: window.appController !== null && !window.appController.busy
+                                    Accessible.name: "Delete " + modelData.title
+                                    onClicked: {
+                                        calendarRemovalDialog.calendarId = modelData.id
+                                        calendarRemovalDialog.calendarTitle = modelData.title
+                                        calendarRemovalDialog.deleteCalendar = true
+                                        calendarRemovalDialog.open()
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Label {
@@ -1795,7 +2028,8 @@ ApplicationWindow {
                     color: Theme.textSecondary
                 }
 
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillHeight: true }
+                }
             }
 
             ColumnLayout {

@@ -91,6 +91,7 @@ struct TaskRecurrenceReconciliation final {
 };
 
 using TaskMutationResult = std::variant<TaskMutationReceipt, AppError>;
+using TaskBatchMutationResult = std::variant<QList<TaskMutationReceipt>, AppError>;
 using TaskRemoteIdResult = std::variant<std::optional<QString>, AppError>;
 using TaskMutationSnapshotResult = std::variant<QList<TaskMutationSnapshot>, AppError>;
 using TaskRecurrenceReconciliationResult = std::variant<TaskRecurrenceReconciliation, AppError>;
@@ -103,6 +104,7 @@ public:
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<TaskMutationResult> create(TaskCreateInput input);
+  [[nodiscard]] std::future<TaskBatchMutationResult> createBatch(QList<TaskCreateInput> inputs);
   [[nodiscard]] std::future<TaskMutationResult> update(TaskUpdateInput input);
   [[nodiscard]] std::future<TaskMutationResult> moveToTaskList(QString taskId, QString taskListId);
   [[nodiscard]] std::future<TaskMutationResult>

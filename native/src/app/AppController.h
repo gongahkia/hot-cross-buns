@@ -140,6 +140,8 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList visibleCalendarIds READ visibleCalendarIds NOTIFY visibleCalendarIdsChanged)
   Q_PROPERTY(bool calendarVisibilityConfigured READ calendarVisibilityConfigured NOTIFY
                  calendarVisibilityConfiguredChanged)
+  Q_PROPERTY(QVariantList calendarManagementRows READ calendarManagementRows NOTIFY
+                 calendarManagementRowsChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
@@ -210,6 +212,7 @@ public:
   [[nodiscard]] int workdayEndHour() const;
   [[nodiscard]] QVariantList visibleCalendarIds() const;
   [[nodiscard]] bool calendarVisibilityConfigured() const;
+  [[nodiscard]] QVariantList calendarManagementRows() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
@@ -260,6 +263,16 @@ public:
   Q_INVOKABLE void saveCalendarVisibility(QVariantList calendarIds);
   Q_INVOKABLE void createGoogleCalendar(QString title, QString description, QString timeZone);
   Q_INVOKABLE void subscribeGoogleCalendar(QString calendarId);
+  Q_INVOKABLE void updateGoogleCalendar(QString calendarId,
+                                        QString title,
+                                        QString description,
+                                        QString timeZone);
+  Q_INVOKABLE void deleteGoogleCalendar(QString calendarId);
+  Q_INVOKABLE void updateGoogleCalendarListEntry(QString calendarId,
+                                                 bool selected,
+                                                 bool hidden,
+                                                 QString colorId);
+  Q_INVOKABLE void unsubscribeGoogleCalendar(QString calendarId);
   Q_INVOKABLE void queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt);
   Q_INVOKABLE void searchGoogleDriveAttachments(QString query);
   Q_INVOKABLE void saveClientId(QString clientId);
@@ -460,6 +473,7 @@ signals:
   void workdayEndHourChanged();
   void visibleCalendarIdsChanged();
   void calendarVisibilityConfiguredChanged();
+  void calendarManagementRowsChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
   void freeBusyIntervalsChanged();
@@ -514,6 +528,9 @@ private:
   void pollPending();
   void refreshTasks();
   void refreshCalendar();
+  void loadCalendarManagementRows(std::uint64_t generation,
+                                  std::int64_t offset,
+                                  QVariantList rows);
   void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
   void refreshInvitations();
   void refreshCalendarInstanceCache(QList<QString> calendarIds,
@@ -548,6 +565,7 @@ private:
   void setBulkEventPreviewMessage(QString message, int requestToken);
   void setReminderStatusMessage(QString message);
   void setInvitations(QVariantList invitations);
+  void setCalendarManagementRows(QVariantList rows);
   void setBusy(bool busy);
   [[nodiscard]] QuickCaptureAliases quickCaptureAliasesConfiguration() const;
   [[nodiscard]] QuickCaptureParseResult quickCaptureParse(QString text,
@@ -650,6 +668,7 @@ private:
   int workdayEndHour_{17};
   QVariantList visibleCalendarIds_;
   bool calendarVisibilityConfigured_{false};
+  QVariantList calendarManagementRows_;
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
   QVariantList freeBusyIntervals_;

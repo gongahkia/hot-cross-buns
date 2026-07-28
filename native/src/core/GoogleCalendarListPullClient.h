@@ -27,6 +27,7 @@ struct GoogleCalendarMirror final {
   QString title;
   std::optional<QString> description;
   std::optional<QString> timeZone;
+  std::optional<QString> colorId;
   std::optional<QString> backgroundColor;
   std::optional<QString> foregroundColor;
   std::optional<GoogleCalendarAccessRole> accessRole;

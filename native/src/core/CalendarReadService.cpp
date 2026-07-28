@@ -110,12 +110,13 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
   const std::optional<QString> accountId = requiredText(statement, 1);
   const std::optional<QString> remoteId = requiredText(statement, 2);
   const std::optional<QString> title = requiredText(statement, 3);
-  const std::optional<QString> updatedAt = requiredText(statement, 13);
+  const std::optional<QString> updatedAt = requiredText(statement, 15);
   if (!id.has_value() || !accountId.has_value() || !remoteId.has_value() || !title.has_value() ||
-      !updatedAt.has_value() || !isStoredBoolean(statement, 9) || !isStoredBoolean(statement, 10)) {
+      !updatedAt.has_value() || !isStoredBoolean(statement, 10) || !isStoredBoolean(statement, 11) ||
+      !isStoredBoolean(statement, 12)) {
     return AppError(AppErrorCode::Database, QStringLiteral("Stored calendar row is invalid"));
   }
-  const std::int64_t eventCount = sqlite3_column_int64(statement, 14);
+  const std::int64_t eventCount = sqlite3_column_int64(statement, 16);
   if (eventCount < 0) {
     return AppError(AppErrorCode::Database,
                     QStringLiteral("Stored calendar event count is invalid"));
@@ -126,13 +127,15 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
                          .title = *title,
                          .description = optionalText(statement, 4),
                          .timeZone = optionalText(statement, 5),
-                         .backgroundColor = optionalText(statement, 6),
-                         .foregroundColor = optionalText(statement, 7),
-                         .accessRole = optionalText(statement, 8),
-                         .selected = sqlite3_column_int(statement, 9) == 1,
-                         .primary = sqlite3_column_int(statement, 10) == 1,
-                         .etag = optionalText(statement, 11),
-                         .remoteUpdatedAt = optionalText(statement, 12),
+                         .colorId = optionalText(statement, 6),
+                         .backgroundColor = optionalText(statement, 7),
+                         .foregroundColor = optionalText(statement, 8),
+                         .accessRole = optionalText(statement, 9),
+                         .selected = sqlite3_column_int(statement, 10) == 1,
+                         .hidden = sqlite3_column_int(statement, 11) == 1,
+                         .primary = sqlite3_column_int(statement, 12) == 1,
+                         .etag = optionalText(statement, 13),
+                         .remoteUpdatedAt = optionalText(statement, 14),
                          .updatedAt = *updatedAt,
                          .eventCount = eventCount};
 }
@@ -198,8 +201,8 @@ bindInteger(sqlite3_stmt* statement, int index, std::int64_t value) {
 
 constexpr char calendarProjectionSql[] = R"(
 SELECT calendars.id, calendars.account_id, calendars.remote_id, calendars.title,
-       calendars.description, calendars.time_zone, calendars.background_color,
-       calendars.foreground_color, calendars.access_role, calendars.is_selected,
+       calendars.description, calendars.time_zone, calendars.color_id, calendars.background_color,
+       calendars.foreground_color, calendars.access_role, calendars.is_selected, calendars.is_hidden,
        calendars.is_primary, calendars.etag, calendars.remote_updated_at, calendars.updated_at,
        COUNT(events.id) AS event_count
 FROM local_calendars AS calendars
@@ -272,7 +275,10 @@ WHERE calendars.deleted_at IS NULL
     return AppError(AppErrorCode::Database,
                     QStringLiteral("SQLite calendar connection is unavailable"));
   }
-  QString where = QStringLiteral(" AND calendars.is_hidden = 0");
+  QString where;
+  if (!request.includeHidden) {
+    where = QStringLiteral(" AND calendars.is_hidden = 0");
+  }
   if (request.accountId.has_value()) {
     where.append(QStringLiteral(" AND calendars.account_id = ?1"));
   }
@@ -334,8 +340,10 @@ WHERE calendars.deleted_at IS NULL
                          finalizeResult);
   }
 
-  QString countSql = QStringLiteral(
-      "SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL AND is_hidden = 0");
+  QString countSql = QStringLiteral("SELECT COUNT(*) FROM local_calendars WHERE deleted_at IS NULL");
+  if (!request.includeHidden) {
+    countSql.append(QStringLiteral(" AND is_hidden = 0"));
+  }
   if (request.accountId.has_value()) {
     countSql.append(QStringLiteral(" AND account_id = ?1"));
   }

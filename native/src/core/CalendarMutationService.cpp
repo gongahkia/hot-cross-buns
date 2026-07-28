@@ -2484,6 +2484,76 @@ CalendarMutationService::create(CalendarEventCreateInput input) {
       });
 }
 
+std::future<CalendarEventBatchMutationResult>
+CalendarMutationService::createBatch(QList<CalendarEventCreateInput> inputs) {
+  constexpr qsizetype kMaximumBatchSize = 1'000;
+  if (inputs.isEmpty() || inputs.size() > kMaximumBatchSize) {
+    return readyFuture(CalendarEventBatchMutationResult(
+        validationError(QStringLiteral("Calendar event creation batch is invalid"))));
+  }
+  struct PendingCreate final {
+    CalendarEventCreateInput input;
+    QString eventId;
+    QString remoteId;
+  };
+  QList<PendingCreate> creates;
+  creates.reserve(inputs.size());
+  for (CalendarEventCreateInput& input : inputs) {
+    const std::variant<CalendarEventCreateInput, AppError> canonical = canonicalize(std::move(input));
+    if (std::holds_alternative<AppError>(canonical)) {
+      return readyFuture(CalendarEventBatchMutationResult(std::get<AppError>(canonical)));
+    }
+    const QString localId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    creates.append({.input = std::get<CalendarEventCreateInput>(canonical),
+                    .eventId = QStringLiteral("event:") + localId,
+                    .remoteId = QStringLiteral("pending:") + localId});
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [creates = std::move(creates), updatedAt](SqliteConnection& connection) {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventBatchMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        QList<CalendarEventMutationReceipt> receipts;
+        receipts.reserve(creates.size());
+        for (const PendingCreate& create : creates) {
+          CalendarEventMutationResult created = createStoredEvent(
+              connection, create.input, create.eventId, create.remoteId, updatedAt);
+          if (std::holds_alternative<AppError>(created)) {
+            return CalendarEventBatchMutationResult(std::get<AppError>(std::move(created)));
+          }
+          const std::variant<std::optional<StoredEventContext>, AppError> contextResult =
+              readEventContext(connection, create.eventId);
+          if (std::holds_alternative<AppError>(contextResult)) {
+            return CalendarEventBatchMutationResult(std::get<AppError>(contextResult));
+          }
+          const std::optional<StoredEventContext>& context =
+              std::get<std::optional<StoredEventContext>>(contextResult);
+          if (!context.has_value()) {
+            return CalendarEventBatchMutationResult(AppError(
+                AppErrorCode::Database, QStringLiteral("Created calendar event is unavailable")));
+          }
+          if (const std::optional<AppError> error = queueEventMutation(
+                  connection,
+                  *context,
+                  context,
+                  QStringLiteral("event.create"),
+                  updatedAt,
+                  create.input.richMetadata.sendUpdates);
+              error.has_value()) {
+            return CalendarEventBatchMutationResult(*error);
+          }
+          receipts.append(std::get<CalendarEventMutationReceipt>(std::move(created)));
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventBatchMutationResult(*error);
+        }
+        return CalendarEventBatchMutationResult(std::move(receipts));
+      });
+}
+
 std::future<CalendarEventMutationResult>
 CalendarMutationService::update(CalendarEventUpdateInput input) {
   const std::variant<CalendarEventUpdateInput, AppError> canonical = canonicalize(std::move(input));

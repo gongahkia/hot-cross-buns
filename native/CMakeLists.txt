@@ -95,6 +95,8 @@ set(HCB_NATIVE_SOURCES
   src/core/GoogleApiError.h
   src/core/GoogleHttpClient.cpp
   src/core/GoogleHttpClient.h
+  src/core/ImportService.cpp
+  src/core/ImportService.h
   src/core/GoogleMirrorStore.cpp
   src/core/GoogleMirrorStore.h
   src/core/GoogleTaskMirrorSyncService.cpp
@@ -904,6 +906,17 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_quick_capture_parser_tests)
   hcb_enable_sanitizers(hcb_quick_capture_parser_tests)
   add_test(NAME hcb_quick_capture_parser_tests COMMAND hcb_quick_capture_parser_tests)
+
+  qt_add_executable(hcb_import_service_tests
+    tests/ImportServiceTest.cpp
+    src/core/ImportService.cpp
+    src/core/ImportService.h
+  )
+  target_link_libraries(hcb_import_service_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_import_service_tests PRIVATE src)
+  hcb_enable_warnings(hcb_import_service_tests)
+  hcb_enable_sanitizers(hcb_import_service_tests)
+  add_test(NAME hcb_import_service_tests COMMAND hcb_import_service_tests)
 
   qt_add_executable(hcb_settings_registry_tests
     tests/SettingsRegistryTest.cpp

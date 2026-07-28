@@ -17,6 +17,8 @@ class GoogleCalendarManagementClientTest final : public QObject {
 private slots:
   void createsCalendar();
   void subscribesCalendar();
+  void updatesAndDeletesCalendar();
+  void updatesAndRemovesCalendarListEntry();
   void rejectsInvalidInputBeforeNetwork();
 };
 
@@ -70,6 +72,80 @@ void GoogleCalendarManagementClientTest::subscribesCalendar() {
   QVERIFY(!body.value(QStringLiteral("selected")).toBool());
   QVERIFY(body.value(QStringLiteral("hidden")).toBool());
   QCOMPARE(body.value(QStringLiteral("colorId")).toString(), QStringLiteral("4"));
+}
+
+void GoogleCalendarManagementClientTest::updatesAndDeletesCalendar() {
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{\"id\":\"calendar-owned\"}")});
+  manager.enqueue({.status = 204});
+  hcb::GoogleHttpClient http(nullptr, &manager);
+  hcb::GoogleCalendarManagementClient client(http);
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> updated = client.update(
+      {.calendarId = QStringLiteral("calendar-owned"),
+       .title = QStringLiteral("Renamed"),
+       .description = QStringLiteral("Description"),
+       .timeZone = QStringLiteral("UTC")},
+      QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(
+      updated.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarManagementResult>(updated.get()));
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> removed =
+      client.remove(QStringLiteral("calendar-owned"), QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(
+      removed.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarManagementResult>(removed.get()));
+
+  QCOMPARE(manager.requests().size(), 2);
+  const hcb::test::CapturedNetworkRequest& patch = manager.requests().at(0);
+  QCOMPARE(patch.operation, QNetworkAccessManager::CustomOperation);
+  QCOMPARE(patch.request.attribute(QNetworkRequest::CustomVerbAttribute).toByteArray(),
+           QByteArray("PATCH"));
+  QCOMPARE(patch.request.url().path(), QStringLiteral("/calendar/v3/calendars/calendar-owned"));
+  const QJsonObject body = QJsonDocument::fromJson(patch.body).object();
+  QCOMPARE(body.value(QStringLiteral("summary")).toString(), QStringLiteral("Renamed"));
+  QCOMPARE(body.value(QStringLiteral("timeZone")).toString(), QStringLiteral("UTC"));
+  const hcb::test::CapturedNetworkRequest& remove = manager.requests().at(1);
+  QCOMPARE(remove.operation, QNetworkAccessManager::DeleteOperation);
+  QCOMPARE(remove.request.url().path(), QStringLiteral("/calendar/v3/calendars/calendar-owned"));
+}
+
+void GoogleCalendarManagementClientTest::updatesAndRemovesCalendarListEntry() {
+  hcb::test::MockNetworkAccessManager manager;
+  manager.enqueue({.body = QByteArray("{\"id\":\"calendar-shared\"}")});
+  manager.enqueue({.status = 204});
+  hcb::GoogleHttpClient http(nullptr, &manager);
+  hcb::GoogleCalendarManagementClient client(http);
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> updated = client.updateListEntry(
+      {.calendarId = QStringLiteral("calendar-shared"),
+       .selected = false,
+       .hidden = true,
+       .colorId = QStringLiteral("7")},
+      QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(
+      updated.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarManagementResult>(updated.get()));
+
+  std::future<hcb::GoogleCalendarManagementResultOrError> removed =
+      client.removeListEntry(QStringLiteral("calendar-shared"), QStringLiteral("access-token"));
+  QTRY_VERIFY_WITH_TIMEOUT(
+      removed.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  QVERIFY(std::holds_alternative<hcb::GoogleCalendarManagementResult>(removed.get()));
+
+  QCOMPARE(manager.requests().size(), 2);
+  const hcb::test::CapturedNetworkRequest& patch = manager.requests().at(0);
+  QCOMPARE(patch.request.url().path(),
+           QStringLiteral("/calendar/v3/users/me/calendarList/calendar-shared"));
+  const QJsonObject body = QJsonDocument::fromJson(patch.body).object();
+  QVERIFY(!body.value(QStringLiteral("selected")).toBool());
+  QVERIFY(body.value(QStringLiteral("hidden")).toBool());
+  QCOMPARE(body.value(QStringLiteral("colorId")).toString(), QStringLiteral("7"));
+  const hcb::test::CapturedNetworkRequest& remove = manager.requests().at(1);
+  QCOMPARE(remove.operation, QNetworkAccessManager::DeleteOperation);
+  QCOMPARE(remove.request.url().path(),
+           QStringLiteral("/calendar/v3/users/me/calendarList/calendar-shared"));
 }
 
 void GoogleCalendarManagementClientTest::rejectsInvalidInputBeforeNetwork() {

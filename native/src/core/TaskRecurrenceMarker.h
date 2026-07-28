@@ -44,6 +44,11 @@ struct TaskRecurrenceMarker final {
   QString templatePriority;
 };
 
+struct TaskRecurrenceRuleInfo final {
+  TaskRecurrenceFrequency frequency{TaskRecurrenceFrequency::Daily};
+  std::int32_t interval{1};
+};
+
 enum class TaskRecurrenceNotesState : std::uint8_t {
   Unmanaged,
   Managed,
@@ -64,6 +69,7 @@ struct TaskRecurrenceSerializationResult final {
 };
 
 [[nodiscard]] TaskRecurrenceNotes parseTaskRecurrenceNotes(const QString& notes);
+[[nodiscard]] std::optional<TaskRecurrenceRuleInfo> parseTaskRecurrenceRule(const QString& rule);
 [[nodiscard]] TaskRecurrenceSerializationResult
 serializeTaskRecurrenceNotes(const QString& userNotes, const TaskRecurrenceMarker& marker);
 [[nodiscard]] std::optional<QString> taskRecurrenceDate(const TaskRecurrenceMarker& marker,

@@ -592,6 +592,14 @@ TaskRecurrenceNotes parseTaskRecurrenceNotes(const QString& notes) {
           .marker = marker};
 }
 
+std::optional<TaskRecurrenceRuleInfo> parseTaskRecurrenceRule(const QString& rule) {
+  const std::optional<DateOnlyRule> parsed = parseDateOnlyRule(rule);
+  return parsed.has_value()
+             ? std::optional<TaskRecurrenceRuleInfo>(
+                   {.frequency = parsed->frequency, .interval = parsed->interval})
+             : std::nullopt;
+}
+
 TaskRecurrenceSerializationResult serializeTaskRecurrenceNotes(const QString& userNotes,
                                                                const TaskRecurrenceMarker& marker) {
   if (userNotes.contains(QChar::Null)) {

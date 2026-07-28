@@ -864,6 +864,11 @@ ON local_reminder_state(event_id, trigger_at, snoozed_until)
 WHERE dismissed_at IS NULL;
 )";
 
+constexpr char calendarListColorSchemaSql[] = R"(
+ALTER TABLE local_calendars
+ADD COLUMN color_id TEXT CHECK(color_id IS NULL OR length(trim(color_id)) BETWEEN 1 AND 32);
+)";
+
 [[nodiscard]] QString checksum(const char* sql) {
   return QString::fromLatin1(
       QCryptographicHash::hash(QByteArray(sql), QCryptographicHash::Algorithm::Sha256).toHex());
@@ -1000,8 +1005,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
   return applySchema(connection, reminderStateSchemaSql, QStringLiteral("SQLite reminder-state schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 23>& migrations() {
-  static const std::array<SqliteMigration, 23> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyCalendarListColorSchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     calendarListColorSchemaSql,
+                     QStringLiteral("SQLite calendar-list color schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 24>& migrations() {
+  static const std::array<SqliteMigration, 24> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -1082,6 +1093,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("store local reminder state"),
        checksum(reminderStateSchemaSql),
        applyReminderStateSchema},
+      {24,
+       QStringLiteral("store calendar-list color IDs"),
+       checksum(calendarListColorSchemaSql),
+       applyCalendarListColorSchema},
   }};
   return catalogue;
 }

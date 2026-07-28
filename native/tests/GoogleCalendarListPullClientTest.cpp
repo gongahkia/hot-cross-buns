@@ -28,7 +28,7 @@ void GoogleCalendarListPullClientTest::readsEveryPageAndNormalizesCalendars() {
       {.body = QByteArray(
            "{\"nextPageToken\":\"page-2\",\"items\":[{\"id\":\"calendar-1\",\"summary\":"
            "\"Work\",\"summaryOverride\":\"Team\",\"description\":\"Planning\",\"timeZone\":"
-           "\"Asia/Singapore\",\"backgroundColor\":\"#123abc\",\"foregroundColor\":\"#FFFFFF\","
+           "\"Asia/Singapore\",\"colorId\":\"9\",\"backgroundColor\":\"#123abc\",\"foregroundColor\":\"#FFFFFF\","
            "\"accessRole\":\"owner\",\"selected\":false,\"hidden\":true,\"primary\":true,"
            "\"defaultReminders\":[{\"method\":\"popup\",\"minutes\":10}],"
            "\"etag\":\"etag-1\"}]}"),
@@ -53,6 +53,7 @@ void GoogleCalendarListPullClientTest::readsEveryPageAndNormalizesCalendars() {
   QCOMPARE(first.id, QStringLiteral("calendar-1"));
   QCOMPARE(first.title, QStringLiteral("Team"));
   QCOMPARE(first.description, std::optional<QString>(QStringLiteral("Planning")));
+  QCOMPARE(first.colorId, std::optional<QString>(QStringLiteral("9")));
   QCOMPARE(first.accessRole,
            std::optional<hcb::GoogleCalendarAccessRole>(hcb::GoogleCalendarAccessRole::Owner));
   QVERIFY(!first.selected);

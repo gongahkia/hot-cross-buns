@@ -23,6 +23,7 @@ constexpr qsizetype kMaximumCalendarTitleLength = 500;
 constexpr qsizetype kMaximumDescriptionLength = 20'000;
 constexpr qsizetype kMaximumTimeZoneLength = 120;
 constexpr qsizetype kMaximumColorLength = 7;
+constexpr qsizetype kMaximumColorIdLength = 32;
 constexpr qsizetype kMaximumEtagLength = 4'096;
 constexpr qsizetype kMaximumPageTokenLength = 8'192;
 constexpr qsizetype kMaximumSyncTokenLength = 8'192;
@@ -224,6 +225,7 @@ calendarAccessRole(const QJsonObject& object) {
         optionalString(item, u"description", kMaximumDescriptionLength);
     const std::optional<QString> timeZone =
         optionalString(item, u"timeZone", kMaximumTimeZoneLength);
+    const std::optional<QString> colorId = optionalString(item, u"colorId", kMaximumColorIdLength);
     const std::optional<QString> backgroundColor =
         optionalString(item, u"backgroundColor", kMaximumColorLength);
     const std::optional<QString> foregroundColor =
@@ -238,6 +240,7 @@ calendarAccessRole(const QJsonObject& object) {
     if (!title.has_value() ||
         (!description.has_value() && isPresent(item.value(QStringLiteral("description")))) ||
         (!timeZone.has_value() && isPresent(item.value(QStringLiteral("timeZone")))) ||
+        (!colorId.has_value() && isPresent(item.value(QStringLiteral("colorId")))) ||
         (!backgroundColor.has_value() &&
          isPresent(item.value(QStringLiteral("backgroundColor")))) ||
         (!foregroundColor.has_value() &&
@@ -254,6 +257,7 @@ calendarAccessRole(const QJsonObject& object) {
                       .title = *title,
                       .description = description,
                       .timeZone = timeZone,
+                      .colorId = colorId,
                       .backgroundColor = backgroundColor,
                       .foregroundColor = foregroundColor,
                       .accessRole = accessRole,
@@ -279,7 +283,7 @@ calendarAccessRole(const QJsonObject& object) {
       {.name = QStringLiteral("showHidden"), .value = QStringLiteral("true")},
       {.name = QStringLiteral("fields"),
        .value = QStringLiteral(
-           "nextPageToken,nextSyncToken,items(id,summary,summaryOverride,description,timeZone,"
+           "nextPageToken,nextSyncToken,items(id,summary,summaryOverride,description,timeZone,colorId,"
            "backgroundColor,foregroundColor,accessRole,selected,hidden,primary,deleted,etag,"
            "defaultReminders)")}};
   if (request.syncToken.has_value()) {

@@ -466,12 +466,13 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
   return execute(
       handle,
       "INSERT INTO local_calendars (id, account_id, remote_id, title, description, time_zone, "
-      "background_color, foreground_color, access_role, is_selected, is_hidden, is_primary, etag, "
+      "color_id, background_color, foreground_color, access_role, is_selected, is_hidden, is_primary, etag, "
       "default_reminders_json, updated_at, deleted_at) "
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) "
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) "
       "ON CONFLICT(account_id, remote_id) DO UPDATE SET "
       "title = excluded.title, description = excluded.description, time_zone = excluded.time_zone, "
-      "background_color = excluded.background_color, foreground_color = excluded.foreground_color, "
+      "color_id = excluded.color_id, background_color = excluded.background_color, "
+      "foreground_color = excluded.foreground_color, "
       "access_role = excluded.access_role, is_selected = excluded.is_selected, "
       "is_hidden = excluded.is_hidden, is_primary = excluded.is_primary, etag = excluded.etag, "
       "default_reminders_json = excluded.default_reminders_json, "
@@ -490,6 +491,7 @@ markEventsDeleted(sqlite3* handle, const QString& localCalendarId, const QString
        textValue(calendar.title.left(500)),
        optionalTextValue(calendar.description),
        optionalTextValue(calendar.timeZone),
+       optionalTextValue(calendar.colorId),
        optionalTextValue(calendar.backgroundColor),
        optionalTextValue(calendar.foregroundColor),
        optionalTextValue(accessRole),

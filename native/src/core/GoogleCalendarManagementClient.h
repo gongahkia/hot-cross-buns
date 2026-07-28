@@ -25,6 +25,20 @@ struct GoogleCalendarSubscribeRequest final {
   std::optional<QString> colorId;
 };
 
+struct GoogleCalendarUpdateRequest final {
+  QString calendarId;
+  QString title;
+  std::optional<QString> description;
+  std::optional<QString> timeZone;
+};
+
+struct GoogleCalendarListUpdateRequest final {
+  QString calendarId;
+  bool selected{true};
+  bool hidden{false};
+  std::optional<QString> colorId;
+};
+
 struct GoogleCalendarManagementResult final {
   QString calendarId;
 };
@@ -40,6 +54,14 @@ public:
   create(GoogleCalendarCreateRequest request, QString accessToken);
   [[nodiscard]] std::future<GoogleCalendarManagementResultOrError>
   subscribe(GoogleCalendarSubscribeRequest request, QString accessToken);
+  [[nodiscard]] std::future<GoogleCalendarManagementResultOrError>
+  update(GoogleCalendarUpdateRequest request, QString accessToken);
+  [[nodiscard]] std::future<GoogleCalendarManagementResultOrError>
+  remove(QString calendarId, QString accessToken);
+  [[nodiscard]] std::future<GoogleCalendarManagementResultOrError>
+  updateListEntry(GoogleCalendarListUpdateRequest request, QString accessToken);
+  [[nodiscard]] std::future<GoogleCalendarManagementResultOrError>
+  removeListEntry(QString calendarId, QString accessToken);
 
 private:
   GoogleHttpClient& httpClient_;

@@ -19,10 +19,12 @@ public:
     TitleRole,
     DescriptionRole,
     TimeZoneRole,
+    ColorIdRole,
     BackgroundColorRole,
     ForegroundColorRole,
     AccessRoleRole,
     SelectedRole,
+    HiddenRole,
     PrimaryRole,
     EventCountRole
   };

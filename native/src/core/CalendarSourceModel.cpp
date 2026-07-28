@@ -11,9 +11,10 @@ namespace {
   return left.id == right.id && left.accountId == right.accountId &&
          left.remoteId == right.remoteId && left.title == right.title &&
          left.description == right.description && left.timeZone == right.timeZone &&
+         left.colorId == right.colorId &&
          left.backgroundColor == right.backgroundColor &&
          left.foregroundColor == right.foregroundColor && left.accessRole == right.accessRole &&
-         left.selected == right.selected && left.primary == right.primary &&
+         left.selected == right.selected && left.hidden == right.hidden && left.primary == right.primary &&
          left.etag == right.etag && left.remoteUpdatedAt == right.remoteUpdatedAt &&
          left.updatedAt == right.updatedAt && left.eventCount == right.eventCount;
 }
@@ -43,6 +44,8 @@ QVariant CalendarSourceModel::data(const QModelIndex& index, int role) const {
     return calendar.description.value_or(QString());
   case TimeZoneRole:
     return calendar.timeZone.value_or(QString());
+  case ColorIdRole:
+    return calendar.colorId.value_or(QString());
   case BackgroundColorRole:
     return calendar.backgroundColor.value_or(QString());
   case ForegroundColorRole:
@@ -51,6 +54,8 @@ QVariant CalendarSourceModel::data(const QModelIndex& index, int role) const {
     return calendar.accessRole.value_or(QString());
   case SelectedRole:
     return calendar.selected;
+  case HiddenRole:
+    return calendar.hidden;
   case PrimaryRole:
     return calendar.primary;
   case EventCountRole:
@@ -66,10 +71,12 @@ QHash<int, QByteArray> CalendarSourceModel::roleNames() const {
           {TitleRole, "title"},
           {DescriptionRole, "description"},
           {TimeZoneRole, "timeZone"},
+          {ColorIdRole, "colorId"},
           {BackgroundColorRole, "backgroundColor"},
           {ForegroundColorRole, "foregroundColor"},
           {AccessRoleRole, "accessRole"},
           {SelectedRole, "selected"},
+          {HiddenRole, "hidden"},
           {PrimaryRole, "primary"},
           {EventCountRole, "eventCount"}};
 }
