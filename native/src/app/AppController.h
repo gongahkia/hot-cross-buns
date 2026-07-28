@@ -16,6 +16,7 @@
 #include "core/GoogleDriveFilePickerClient.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleMirrorStore.h"
+#include "core/ImportService.h"
 #include "core/GoogleSyncRecoveryService.h"
 #include "core/GoogleSyncConflictResolver.h"
 #include "core/GoogleTaskListPullClient.h"
@@ -142,6 +143,8 @@ class AppController final : public QObject {
                  calendarVisibilityConfiguredChanged)
   Q_PROPERTY(QVariantList calendarManagementRows READ calendarManagementRows NOTIFY
                  calendarManagementRowsChanged)
+  Q_PROPERTY(QVariantList importPreviewRows READ importPreviewRows NOTIFY importPreviewRowsChanged)
+  Q_PROPERTY(QString importSourceName READ importSourceName NOTIFY importSourceNameChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
@@ -213,6 +216,8 @@ public:
   [[nodiscard]] QVariantList visibleCalendarIds() const;
   [[nodiscard]] bool calendarVisibilityConfigured() const;
   [[nodiscard]] QVariantList calendarManagementRows() const;
+  [[nodiscard]] QVariantList importPreviewRows() const;
+  [[nodiscard]] QString importSourceName() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
@@ -273,6 +278,8 @@ public:
                                                  bool hidden,
                                                  QString colorId);
   Q_INVOKABLE void unsubscribeGoogleCalendar(QString calendarId);
+  Q_INVOKABLE void chooseImportFile();
+  Q_INVOKABLE void runImport(QString defaultTaskListId, QString defaultCalendarId);
   Q_INVOKABLE void queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt);
   Q_INVOKABLE void searchGoogleDriveAttachments(QString query);
   Q_INVOKABLE void saveClientId(QString clientId);
@@ -474,6 +481,8 @@ signals:
   void visibleCalendarIdsChanged();
   void calendarVisibilityConfiguredChanged();
   void calendarManagementRowsChanged();
+  void importPreviewRowsChanged();
+  void importSourceNameChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
   void freeBusyIntervalsChanged();
@@ -531,6 +540,19 @@ private:
   void loadCalendarManagementRows(std::uint64_t generation,
                                   std::int64_t offset,
                                   QVariantList rows);
+  void loadImportTaskLists(QString defaultTaskListId,
+                           QString defaultCalendarId,
+                           std::int64_t offset,
+                           QList<TaskListSummary> taskLists);
+  void loadImportCalendars(QString defaultTaskListId,
+                           QString defaultCalendarId,
+                           std::int64_t offset,
+                           QList<TaskListSummary> taskLists,
+                           QList<CalendarSummary> calendars);
+  void executeImport(QString defaultTaskListId,
+                     QString defaultCalendarId,
+                     const QList<TaskListSummary>& taskLists,
+                     const QList<CalendarSummary>& calendars);
   void refreshCalendarEvents(QList<QString> calendarIds, std::uint64_t generation);
   void refreshInvitations();
   void refreshCalendarInstanceCache(QList<QString> calendarIds,
@@ -566,6 +588,8 @@ private:
   void setReminderStatusMessage(QString message);
   void setInvitations(QVariantList invitations);
   void setCalendarManagementRows(QVariantList rows);
+  void setImportPreviewRows(QVariantList rows);
+  void setImportSourceName(QString sourceName);
   void setBusy(bool busy);
   [[nodiscard]] QuickCaptureAliases quickCaptureAliasesConfiguration() const;
   [[nodiscard]] QuickCaptureParseResult quickCaptureParse(QString text,
@@ -669,6 +693,9 @@ private:
   QVariantList visibleCalendarIds_;
   bool calendarVisibilityConfigured_{false};
   QVariantList calendarManagementRows_;
+  QList<ImportItem> importItems_;
+  QVariantList importPreviewRows_;
+  QString importSourceName_;
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
   QVariantList freeBusyIntervals_;

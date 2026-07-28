@@ -331,6 +331,8 @@ ApplicationWindow {
         }
         if (command.commandId === "create.quickCapture") {
             openQuickCapture()
+        } else if (command.commandId === "import.items") {
+            controllerCall("chooseImportFile", [])
         } else if (command.commandId === "create.task") {
             taskCreateDialog.openForCreate("", "")
         } else if (command.commandId === "create.event") {
@@ -908,6 +910,89 @@ ApplicationWindow {
         }
     }
 
+    HcbDialog {
+        id: importDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        title: "Import Tasks and events"
+        primaryText: "Import ready rows"
+        primaryEnabled: window.appController !== null && !window.appController.busy &&
+                        window.appController.importPreviewRows !== undefined &&
+                        window.appController.importPreviewRows.some(function(row) { return row.accepted })
+
+        Label {
+            Layout.fillWidth: true
+            text: window.appController !== null && window.appController.importSourceName !== undefined &&
+                  window.appController.importSourceName.length > 0
+                  ? "Previewing “" + window.appController.importSourceName + "”. Destination names in the file must match exactly and unambiguously; blank destinations use the defaults below."
+                  : "Choose a UTF-8 delimited file or version-1 CSV file to preview it."
+            wrapMode: Text.WordWrap
+            color: Theme.textSecondary
+        }
+
+        Button {
+            text: "Choose import file"
+            enabled: window.appController !== null && !window.appController.busy
+            Accessible.name: text
+            onClicked: window.controllerCall("chooseImportFile", [])
+        }
+
+        ComboBox {
+            id: importDefaultTaskList
+            Layout.fillWidth: true
+            property int taskListRevision: window.taskListModel !== null && window.taskListModel.revision !== undefined
+                                           ? window.taskListModel.revision : 0
+            model: {
+                const revision = taskListRevision
+                return window.taskListModel !== null && typeof window.taskListModel.selectedTaskLists === "function"
+                       ? window.taskListModel.selectedTaskLists() : []
+            }
+            textRole: "title"
+            valueRole: "id"
+            displayText: currentIndex >= 0 ? "Default Task list: " + currentText : "Default Task list required"
+            Accessible.name: "Default Task list for import rows without list"
+        }
+
+        ComboBox {
+            id: importDefaultCalendar
+            Layout.fillWidth: true
+            property int calendarRevision: window.calendarSourceModel !== null && window.calendarSourceModel.revision !== undefined
+                                           ? window.calendarSourceModel.revision : 0
+            model: window.calendarSourceModel
+            textRole: "title"
+            valueRole: "id"
+            displayText: currentIndex >= 0 ? "Default calendar: " + currentText : "Default calendar required"
+            Accessible.name: "Default calendar for import rows without calendar"
+        }
+
+        Repeater {
+            model: window.appController !== null && window.appController.importPreviewRows !== undefined
+                   ? window.appController.importPreviewRows : []
+            delegate: Label {
+                required property var modelData
+                Layout.fillWidth: true
+                text: (modelData.line > 0 ? "Line " + modelData.line + ": " : "File: ") +
+                      modelData.kind + (modelData.title.length > 0 ? " — " + modelData.title : "") +
+                      " · " + modelData.message
+                color: modelData.accepted ? Theme.textSecondary : Theme.destructive
+                wrapMode: Text.WordWrap
+                Accessible.name: text
+            }
+        }
+
+        onPrimaryAction: window.controllerCall("runImport", [importDefaultTaskList.currentValue || "",
+                                                                importDefaultCalendar.currentValue || ""])
+    }
+
+    Connections {
+        target: window.appController
+        function onImportPreviewRowsChanged() {
+            if (window.appController !== null && window.appController.importPreviewRows.length > 0) {
+                importDialog.open()
+            }
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -1440,6 +1525,13 @@ ApplicationWindow {
                              subscribeGoogleCalendarId.text.trim().length > 0 && !window.appController.busy
                     Accessible.name: text
                     onClicked: window.controllerCall("subscribeGoogleCalendar", [subscribeGoogleCalendarId.text])
+                }
+
+                Button {
+                    text: "Import Tasks and events"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: text
+                    onClicked: window.controllerCall("chooseImportFile", [])
                 }
 
                 Label {

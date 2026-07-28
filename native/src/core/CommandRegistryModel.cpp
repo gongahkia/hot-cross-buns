@@ -23,6 +23,7 @@ CommandRegistryModel::CommandRegistryModel(QObject* parent)
           {QStringLiteral("create.quickCapture"),
            QStringLiteral("Quick Capture"),
            QStringLiteral("Ctrl+Shift+N")},
+          {QStringLiteral("import.items"), QStringLiteral("Import Tasks and events"), QString()},
           {QStringLiteral("create.task"), QStringLiteral("New Task"), QString()},
           {QStringLiteral("create.event"), QStringLiteral("New Event"), QString()}} {}
 

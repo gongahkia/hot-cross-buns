@@ -14,7 +14,7 @@ private slots:
 void CommandRegistryModelTest::exposesNativeNavigationAndCreationCommands() {
   hcb::CommandRegistryModel commands;
 
-  QCOMPARE(commands.rowCount(), 8);
+  QCOMPARE(commands.rowCount(), 9);
   QCOMPARE(commands.rowCount(commands.index(0, 0)), 0);
   QCOMPARE(commands.data(commands.index(0, 0), hcb::CommandRegistryModel::CommandIdRole).toString(),
            QStringLiteral("navigation.tasks"));
@@ -36,7 +36,9 @@ void CommandRegistryModelTest::exposesNativeNavigationAndCreationCommands() {
            QByteArrayLiteral("commandShortcut"));
   QCOMPARE(commands.data(commands.index(5, 0), hcb::CommandRegistryModel::CommandIdRole).toString(),
            QStringLiteral("create.quickCapture"));
-  QCOMPARE(commands.data(commands.index(7, 0), Qt::DisplayRole).toString(),
+  QCOMPARE(commands.data(commands.index(6, 0), Qt::DisplayRole).toString(),
+           QStringLiteral("Import Tasks and events"));
+  QCOMPARE(commands.data(commands.index(8, 0), Qt::DisplayRole).toString(),
            QStringLiteral("New Event"));
 }
 
@@ -44,7 +46,7 @@ void CommandRegistryModelTest::rejectsInvalidIndexesAndUnknownLabels() {
   hcb::CommandRegistryModel commands;
 
   QVERIFY(!commands.data(QModelIndex(), Qt::DisplayRole).isValid());
-  QVERIFY(!commands.data(commands.index(8, 0), Qt::DisplayRole).isValid());
+  QVERIFY(!commands.data(commands.index(9, 0), Qt::DisplayRole).isValid());
   QVERIFY(commands.containsLabel(QStringLiteral("Notes")));
   QVERIFY(!commands.containsLabel(QStringLiteral("Unsupported")));
   QVERIFY(!commands.containsLabel(QStringLiteral("notes")));
@@ -54,7 +56,7 @@ void CommandRegistryModelTest::filtersCommandsByIdAndLabel() {
   hcb::CommandRegistryModel commands;
 
   const QVariantList allCommands = commands.matchingCommands(QString());
-  QCOMPARE(allCommands.size(), 8);
+  QCOMPARE(allCommands.size(), 9);
   const QVariantList labelMatch = commands.matchingCommands(QStringLiteral("notes"));
   QCOMPARE(labelMatch.size(), 1);
   QCOMPARE(labelMatch.constFirst().toMap().value(QStringLiteral("commandId")).toString(),
