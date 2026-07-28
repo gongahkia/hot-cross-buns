@@ -23,21 +23,21 @@
 
 ## wukong-001: Create the Rust workspace
 
-- [ ] Create a Cargo workspace.
-- [ ] Add a reusable core crate, provisionally `wukong-core`.
-- [ ] Add a CLI crate, provisionally `wukong-cli`.
+- [x] Create a Cargo workspace.
+- [x] Add a reusable core crate, provisionally `wukong-core`.
+- [x] Add a CLI crate, provisionally `wukong-cli`.
 - [ ] Add a test-support crate only when shared fixtures justify it.
-- [ ] Set a supported minimum Rust version.
-- [ ] Enable strict linting.
-- [ ] Configure formatting.
+- [x] Set a supported minimum Rust version.
+- [x] Enable strict linting.
+- [x] Configure formatting.
 - [ ] Add licence and contribution files.
 
 Acceptance criteria:
 
-- `cargo build --workspace` succeeds.
-- `cargo test --workspace` succeeds.
-- `cargo fmt --check` succeeds.
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` succeeds.
+- [x] `cargo build --workspace` succeeds.
+- [x] `cargo test --workspace` succeeds.
+- [x] `cargo fmt --check` succeeds.
+- [x] `cargo clippy --workspace --all-targets --all-features -- -D warnings` succeeds.
 
 ## wukong-002: Establish CI
 
