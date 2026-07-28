@@ -51,11 +51,11 @@ Acceptance criteria:
 
 ## wukong-004: Define error and diagnostic conventions
 
-- [ ] Create structured internal error types.
-- [ ] Separate user errors, source errors, integrity errors and internal errors.
-- [ ] Define stable process exit codes.
-- [ ] Ensure secrets and credentials are redacted.
-- [ ] Provide contextual error chains without exposing implementation noise by default.
+- [x] Create structured internal error types.
+- [x] Separate user errors, source errors, integrity errors and internal errors.
+- [x] Define stable process exit codes.
+- [x] Ensure secrets and credentials are redacted.
+- [x] Provide contextual error chains without exposing implementation noise by default.
 
 Acceptance criteria:
 
