@@ -484,11 +484,11 @@ Do not default to symlinks.
 
 ## wukong-060: Evaluate resolver implementations
 
-- [ ] Define required constraint semantics.
-- [ ] Evaluate PubGrub-compatible Rust libraries.
-- [ ] Evaluate simpler graph resolution for source-pinned packages.
-- [ ] Record the decision in an ADR.
-- [ ] Build resolver benchmarks before custom implementation.
+- [x] Define required constraint semantics.
+- [x] Evaluate PubGrub-compatible Rust libraries.
+- [x] Evaluate simpler graph resolution for source-pinned packages.
+- [x] Record the decision in an ADR.
+- [x] Build resolver benchmarks before custom implementation.
 
 ## wukong-061: Implement semantic version handling
 

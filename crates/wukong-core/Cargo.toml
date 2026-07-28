@@ -22,3 +22,7 @@ zip = { version = "7.2.0", default-features = false, features = ["deflate-flate2
 
 [dev-dependencies]
 proptest = "1.11.0"
+
+[[bench]]
+name = "resolver_baseline"
+harness = false

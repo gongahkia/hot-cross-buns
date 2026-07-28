@@ -28,6 +28,7 @@ Current records:
 - [0022: HTTP archive transport](0022-http-archive-transport.md)
 - [0023: source-adapter cancellation](0023-source-adapter-cancellation.md)
 - [0024: lockfile schema two remote sources](0024-lockfile-schema-two-remote-sources.md)
+- [0025: dependency resolver strategy](0025-dependency-resolver-strategy.md)
 
 ## When to write an ADR
 
