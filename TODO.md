@@ -280,12 +280,12 @@ Acceptance criteria:
 
 Support explicit configuration and conservative inference for:
 
-- [ ] Root is the addon.
-- [ ] Root contains `addons/<name>`.
-- [ ] Archive contains one wrapper directory.
-- [ ] Repository contains multiple addon candidates.
-- [ ] Declared source subdirectory.
-- [ ] Declared target path.
+- [x] Root is the addon.
+- [x] Root contains `addons/<name>`.
+- [x] Archive contains one wrapper directory.
+- [x] Repository contains multiple addon candidates.
+- [x] Declared source subdirectory.
+- [x] Declared target path.
 
 Acceptance criteria:
 

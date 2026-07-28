@@ -15,6 +15,9 @@ pub mod identity;
 /// Local-path source adapter and content snapshots.
 pub mod local_source;
 
+/// Conservative package-layout detection.
+pub mod layout;
+
 /// Project-manifest parsing and validation.
 pub mod manifest;
 
