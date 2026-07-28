@@ -2,9 +2,10 @@
 
 ## Status
 
-This is the initial architecture baseline. It describes intended boundaries,
-not implemented package-management behaviour. Format, identity, transaction,
-and source-adapter decisions require ADRs before implementation.
+This is the implemented architecture baseline. The core and CLI boundaries are
+stable for the current direct local, Git, HTTP archive, and optional AssetLib
+workflows. Format, identity, transaction, and source-adapter changes require
+ADRs before implementation.
 
 ## Workspace
 
@@ -23,7 +24,7 @@ The optional Godot editor plugin is a separate, thin client of the versioned
 CLI protocol. It must never parse manifests or lockfiles to resolve packages,
 modify project files directly, or duplicate core transaction logic.
 
-## Planned core boundaries
+## Core boundaries
 
 | Area | Responsibility |
 | --- | --- |
@@ -36,7 +37,7 @@ modify project files directly, or duplicate core transaction logic.
 | Transactions | Stage, verify, commit, and recover filesystem changes. |
 | Diagnostics | Return structured, contextual errors without exposing secrets. |
 
-## Planned synchronisation flow
+## Synchronisation flow
 
 ```text
 manifest + lockfile

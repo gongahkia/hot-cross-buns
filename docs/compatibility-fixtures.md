@@ -19,6 +19,9 @@ tree, materialises it once into a fresh project, reuses that prepared tree for
 a second fresh project, then checks a no-op repeat synchronisation. See
 [ADR 0011](adr/0011-compatibility-fixture-schema.md).
 
+Contributor selection, review, and update rules are in the
+[fixture guide](fixture-guide.md).
+
 ## W084 validation record
 
 The recorded layouts are explicit because addon repositories do not have one

@@ -922,13 +922,13 @@ Start only after Git, URL and local sources are stable.
 
 ## wukong-142: Complete contributor documentation
 
-- [ ] Architecture overview.
-- [ ] Source adapter guide.
-- [ ] Fixture guide.
-- [ ] Release process.
-- [ ] Debugging instructions.
-- [ ] Compatibility corpus process.
-- [ ] ADR process.
+- [x] Architecture overview.
+- [x] Source adapter guide.
+- [x] Fixture guide.
+- [x] Release process.
+- [x] Debugging instructions.
+- [x] Compatibility corpus process.
+- [x] ADR process.
 
 ## wukong-143: Recruit external testers
 

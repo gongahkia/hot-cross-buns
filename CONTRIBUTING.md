@@ -24,6 +24,15 @@ cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
+## Contributor guides
+
+- [Architecture overview](docs/architecture.md)
+- [Source adapter guide](docs/source-adapter-guide.md)
+- [Fixture guide and compatibility corpus process](docs/fixture-guide.md)
+- [Debugging](docs/debugging.md)
+- [Release process](docs/release-process.md)
+- [ADR process](docs/adr/README.md)
+
 ## Licensing
 
 Contributions must be compatible with the project's MIT license. See

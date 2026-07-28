@@ -49,6 +49,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Offline and CI guide](docs/ci.md)
 - [Security guide](docs/security.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Contributor guide](CONTRIBUTING.md)
 - [Official Asset Library research](docs/asset-library-research.md)
 - [Official AssetLib adapter](docs/asset-library.md)
 - [Diagnostics](docs/diagnostics.md)
