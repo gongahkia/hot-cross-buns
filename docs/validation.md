@@ -23,8 +23,9 @@ startup. Wukong never forwards package-defined commands or scripts.
 The default timeout is 60 seconds; `--timeout-seconds` accepts an integer from
 1 through 600. On timeout Wukong stops the direct Godot process and returns a
 failure. A child process that the operating system does not associate with that
-process can require manual cleanup; this command is optional and does not
-change project files.
+process can require manual cleanup. Wukong does not write project files itself,
+but Godot can update derived files under `.godot` while starting. Run validation
+from a clean worktree and inspect generated-file changes before committing them.
 
 Failures retain a structured outcome with exit status, elapsed time, and up to
 64 KiB of combined stdout/stderr. Captured occurrences of the canonical project
