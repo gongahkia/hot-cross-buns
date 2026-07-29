@@ -63,7 +63,8 @@ test-tools = {{ path = "test-tools" }}
     assert!(matches!(
         manifest.dependencies().get("shared-tools"),
         Some(Dependency::Path { path, layout })
-            if path == &PathBuf::from("shared-tools") && layout == &DependencyLayout::default()
+            if path == &PathBuf::from("fixture").join("shared-tools")
+                && layout == &DependencyLayout::default()
     ));
 }
 
