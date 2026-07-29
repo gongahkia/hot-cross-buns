@@ -44,6 +44,8 @@ TestCase {
         compare(mainWindow.height, 760)
         compare(mainWindow.minimumWidth, 900)
         compare(mainWindow.minimumHeight, 600)
+        compare(mainWindow.headerSearchButton.text, "")
+        compare(mainWindow.headerSearchButton.Accessible.name, "Search")
         mainWindow.destroy()
     }
 
@@ -147,17 +149,29 @@ TestCase {
     function test_unconnectedGoogleRestrictsNavigationToSettings() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
+        const commands = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        commands.append({ commandId: "navigation.tasks", commandLabel: "Tasks", commandShortcut: "Ctrl+1" })
+        commands.append({ commandId: "navigation.calendar", commandLabel: "Calendar", commandShortcut: "Ctrl+2" })
+        commands.append({ commandId: "navigation.invitations", commandLabel: "Invitations", commandShortcut: "Ctrl+3" })
+        commands.append({ commandId: "navigation.settings", commandLabel: "Settings", commandShortcut: "Ctrl+," })
 
         const mainWindow = component.createObject(null, {
-            navigationCommands: navigationCommands,
+            navigationCommands: commands,
             appController: { googleConnected: false }
         })
         verify(mainWindow !== null)
+        compare(mainWindow.navigationSidebar.pageButtons.count, 4)
+        for (let row = 0; row < 3; ++row) {
+            verify(!mainWindow.navigationSidebar.pageButtons.itemAt(row).enabled)
+            verify(!mainWindow.navigationSidebar.pageButtons.itemAt(row).checked)
+        }
+        verify(mainWindow.navigationSidebar.pageButtons.itemAt(3).enabled)
         mainWindow.selectPage("Calendar")
         compare(mainWindow.currentPage, "Tasks")
         mainWindow.selectPage("Settings")
         compare(mainWindow.currentPage, "Settings")
         mainWindow.destroy()
+        commands.destroy()
     }
 
     function test_sidebarRoutesSelectionThroughWindow() {

@@ -58,12 +58,6 @@ Popup {
         Accessible.role: Accessible.Dialog
         Accessible.name: "Search"
 
-        Label {
-            text: "Search cached Google data"
-            font.bold: true
-            font.pixelSize: Theme.labelFontSize
-        }
-
         TextField {
             id: queryField
             objectName: "searchQuery"

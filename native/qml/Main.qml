@@ -89,6 +89,7 @@ ApplicationWindow {
     property alias quickCaptureDurationSelector: quickCaptureDurationSelector
     property alias quickCaptureRemoveParsedTextSwitch: quickCaptureRemoveParsedTextSwitch
     property alias searchPopup: searchPopup
+    property alias headerSearchButton: headerSearchButton
     property alias searchQuery: searchPopup.queryField
     property alias searchResults: searchPopup.resultRows
     property alias searchShortcut: searchShortcut
@@ -1025,21 +1026,41 @@ ApplicationWindow {
             anchors.leftMargin: Theme.spacingLarge
             anchors.rightMargin: Theme.spacingLarge
 
-            Label {
-                text: "Hot Cross Buns"
-                font.bold: true
-                font.pixelSize: Theme.labelFontSize
-            }
-            Button {
-                text: "Search"
-                Accessible.name: text
+            ToolButton {
+                id: headerSearchButton
+                Accessible.name: "Search"
+                Accessible.description: "Open local search"
+                ToolTip.visible: hovered
+                ToolTip.text: "Search"
                 onClicked: window.openSearch()
+                contentItem: Item {
+                    implicitWidth: 22
+                    implicitHeight: 22
+
+                    Rectangle {
+                        x: 3
+                        y: 3
+                        width: 11
+                        height: 11
+                        radius: width / 2
+                        color: "transparent"
+                        border.width: 2
+                        border.color: headerSearchButton.palette.buttonText
+                    }
+
+                    Rectangle {
+                        x: 12
+                        y: 14
+                        width: 8
+                        height: 2
+                        radius: 1
+                        color: headerSearchButton.palette.buttonText
+                        rotation: 45
+                        transformOrigin: Item.Left
+                    }
+                }
             }
             Item { Layout.fillWidth: true }
-            Label {
-                text: "Google Calendar & Tasks"
-                opacity: 0.7
-            }
         }
     }
 
@@ -1050,6 +1071,7 @@ ApplicationWindow {
             id: navigationSidebar
             commandRegistry: window.navigationOnlyCommands()
             currentPage: window.currentPage
+            googleConnected: window.appController === null || window.appController.googleConnected !== false
             notesEnabled: window.notesEnabled
             pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
                                     ? window.appController.pendingInvitationCount : 0
@@ -2212,14 +2234,6 @@ ApplicationWindow {
                 text: "Connect Google to continue"
                 font.pixelSize: Theme.titleFontSize
                 horizontalAlignment: Text.AlignHCenter
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: "This preview requires your Google account before tasks and calendar are available."
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.textSecondary
             }
 
             Button {
