@@ -45,6 +45,7 @@ TestCase {
         compare(mainWindow.minimumWidth, 900)
         compare(mainWindow.minimumHeight, 600)
         compare(mainWindow.headerSearchButton.text, "")
+        compare(mainWindow.headerSearchButton.icon.name, "system-search")
         compare(mainWindow.headerSearchButton.Accessible.name, "Search")
         mainWindow.destroy()
     }

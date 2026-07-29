@@ -1032,33 +1032,11 @@ ApplicationWindow {
                 Accessible.description: "Open local search"
                 ToolTip.visible: hovered
                 ToolTip.text: "Search"
+                display: AbstractButton.IconOnly
+                icon.name: "system-search"
+                icon.width: 18
+                icon.height: 18
                 onClicked: window.openSearch()
-                contentItem: Item {
-                    implicitWidth: 22
-                    implicitHeight: 22
-
-                    Rectangle {
-                        x: 3
-                        y: 3
-                        width: 11
-                        height: 11
-                        radius: width / 2
-                        color: "transparent"
-                        border.width: 2
-                        border.color: headerSearchButton.palette.buttonText
-                    }
-
-                    Rectangle {
-                        x: 12
-                        y: 14
-                        width: 8
-                        height: 2
-                        radius: 1
-                        color: headerSearchButton.palette.buttonText
-                        rotation: 45
-                        transformOrigin: Item.Left
-                    }
-                }
             }
             Item { Layout.fillWidth: true }
         }
