@@ -24,8 +24,23 @@ godot = ">=4.5,<5"
 }
 
 #[test]
-fn invariant_prd_manifest_example_parses_successfully() {
-    let manifest = parse(prd_manifest_example());
+fn invariant_representative_direct_source_manifest_parses_successfully() {
+    let manifest = parse(&format!(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[dependencies]
+dialogic = "^2.0"
+terrain3d = {{ git = "https://example.test/terrain3d.git", tag = "v1.0.0" }}
+custom-ui = {{ url = "https://example.test/custom-ui.zip", sha256 = "{SHA256_EMPTY_FILE}" }}
+shared-tools = {{ path = "shared-tools" }}
+
+[dev-dependencies]
+test-tools = {{ path = "test-tools" }}
+"#,
+    ));
 
     assert_eq!(manifest.project().name(), "my-game");
     assert_eq!(manifest.dependencies().len(), 4);
@@ -347,19 +362,4 @@ fn parse(input: &str) -> Manifest {
 
 fn parse_error(input: &str) -> Box<wukong_core::diagnostic::Diagnostic> {
     Manifest::parse(Path::new(MANIFEST_PATH), input).expect_err("manifest should fail")
-}
-
-fn prd_manifest_example() -> &'static str {
-    let prd = include_str!("../../../PRD.md");
-    let manifest_section = prd
-        .split_once("## 9. Manifest")
-        .expect("PRD must contain the manifest section")
-        .1;
-    manifest_section
-        .split_once("```toml\n")
-        .expect("PRD manifest section must contain TOML")
-        .1
-        .split_once("\n```")
-        .expect("PRD TOML example must close")
-        .0
 }
