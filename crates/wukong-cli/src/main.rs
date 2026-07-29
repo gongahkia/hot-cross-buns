@@ -1,6 +1,7 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
 
+use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::json;
 use std::{
     cell::Cell,
@@ -24,7 +25,11 @@ use wukong_core::{
     direct_lock::{
         lock_direct_dependencies_with_cancellation, update_direct_dependencies_with_cancellation,
     },
-    direct_sync::sync_direct_dependencies_with_cancellation,
+    direct_sync::{
+        SyncProgress, SyncProgressObserver, SyncProgressStage,
+        sync_direct_dependencies_with_cancellation,
+        sync_direct_dependencies_with_progress_and_cancellation,
+    },
     godot_compatibility::{
         PackageGodotCompatibilityReport, resolve_project_godot_compatibility,
         validate_locked_package_godot_compatibility,
@@ -2241,6 +2246,26 @@ fn emit_json_progress(command: &str, phase: &str) {
     );
 }
 
+fn emit_json_sync_package_progress(progress: &SyncProgress) {
+    let phase = match progress.stage() {
+        SyncProgressStage::ValidatingSource => "validating-source",
+        SyncProgressStage::PreparingPackage => "preparing-package",
+        SyncProgressStage::Prepared => "package-ready",
+    };
+    println!(
+        "{}",
+        json!({
+            "protocol": PROTOCOL_VERSION,
+            "type": "progress",
+            "command": "sync",
+            "phase": phase,
+            "package": progress.package().as_str(),
+            "completed": progress.completed(),
+            "total": progress.total(),
+        })
+    );
+}
+
 fn emit_json_result(result: &str) {
     println!("{{\"protocol\":{PROTOCOL_VERSION},\"type\":\"result\",\"result\":{result}}}");
 }
@@ -2542,7 +2567,8 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     if matches!(options.output, OutputFormat::Json) {
         emit_json_progress("sync", "materialising-packages");
     }
-    let summary = sync_direct_dependencies_with_cancellation(
+    let progress = CliSyncProgress::new(options.output, options.no_progress);
+    let summary = sync_direct_dependencies_with_progress_and_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -2551,7 +2577,10 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         &cache,
         options.offline,
         &cancellation,
-    )?;
+        &progress,
+    );
+    progress.finish();
+    let summary = summary?;
     if matches!(options.output, OutputFormat::Json) {
         emit_json_progress("sync", "state-written");
         emit_json_result(&render_sync_json(&summary, &godot_report));
@@ -2622,6 +2651,7 @@ fn parse_lock_arguments(
     Ok(options)
 }
 
+#[allow(clippy::struct_excessive_bools)] // independent command flags map directly to CLI options
 struct SyncOptions {
     project: Option<PathBuf>,
     include_dev: bool,
@@ -2629,6 +2659,7 @@ struct SyncOptions {
     offline: bool,
     godot_version: Option<String>,
     output: OutputFormat,
+    no_progress: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -2636,6 +2667,68 @@ enum OutputFormat {
     Human,
     Json,
 }
+
+enum SyncProgressOutput {
+    Json,
+    Terminal(ProgressBar),
+    Silent,
+}
+
+struct CliSyncProgress {
+    output: SyncProgressOutput,
+}
+impl CliSyncProgress {
+    fn new(output: OutputFormat, no_progress: bool) -> Self {
+        let output = match output {
+            OutputFormat::Json => SyncProgressOutput::Json,
+            OutputFormat::Human
+                if !no_progress
+                    && !progress_disabled_by_environment()
+                    && std::io::stderr().is_terminal() =>
+            {
+                let bar = ProgressBar::new(0);
+                let style = ProgressStyle::with_template(
+                    "{spinner:.cyan} {wide_msg} [{bar:24.cyan/dim}] {pos}/{len}",
+                )
+                .unwrap_or_else(|_| ProgressStyle::default_spinner());
+                bar.set_style(style);
+                bar.enable_steady_tick(Duration::from_millis(80));
+                SyncProgressOutput::Terminal(bar)
+            }
+            OutputFormat::Human => SyncProgressOutput::Silent,
+        };
+        Self { output }
+    }
+
+    fn finish(&self) {
+        if let SyncProgressOutput::Terminal(bar) = &self.output {
+            bar.finish_and_clear();
+        }
+    }
+}
+impl SyncProgressObserver for CliSyncProgress {
+    fn report(&self, progress: &SyncProgress) {
+        match &self.output {
+            SyncProgressOutput::Json => emit_json_sync_package_progress(progress),
+            SyncProgressOutput::Terminal(bar) => {
+                bar.set_length(progress.total() as u64);
+                bar.set_position(progress.completed() as u64);
+                let action = match progress.stage() {
+                    SyncProgressStage::ValidatingSource => "checking",
+                    SyncProgressStage::PreparingPackage => "preparing",
+                    SyncProgressStage::Prepared => "ready",
+                };
+                bar.set_message(format!("{action} {}", progress.package()));
+            }
+            SyncProgressOutput::Silent => {}
+        }
+    }
+}
+
+fn progress_disabled_by_environment() -> bool {
+    env::var_os("WUKONG_NO_PROGRESS").is_some_and(|value| value != "0")
+}
+
 fn parse_sync_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<SyncOptions, Box<Diagnostic>> {
@@ -2646,6 +2739,7 @@ fn parse_sync_arguments(
         offline: false,
         godot_version: None,
         output: OutputFormat::Human,
+        no_progress: false,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
@@ -2675,6 +2769,15 @@ fn parse_sync_arguments(
             options.output = OutputFormat::Json;
             continue;
         }
+        if argument == "--no-progress" {
+            if std::mem::replace(&mut options.no_progress, true) {
+                return Err(user_error(
+                    "--no-progress may be supplied only once",
+                    "run wukong sync --no-progress",
+                ));
+            }
+            continue;
+        }
         if argument == "--godot" {
             let version = required_add_value(&mut arguments, "--godot")?;
             if options.godot_version.replace(version).is_some() {
@@ -2702,7 +2805,7 @@ fn parse_sync_arguments(
         }
         return Err(user_error(
             format!("unsupported sync argument {}", argument.to_string_lossy()),
-            "use --dev, --locked, --frozen, --offline, --json, --godot <x.y.z>, or --project <path>",
+            "use --dev, --locked, --frozen, --offline, --json, --no-progress, --godot <x.y.z>, or --project <path>",
         ));
     }
     Ok(options)
@@ -2968,6 +3071,22 @@ mod tests {
 
         assert!(matches!(options.output, super::OutputFormat::Json));
         assert_eq!(options.godot_version.as_deref(), Some("4.4.1"));
+    }
+
+    #[test]
+    fn sync_parser_accepts_no_progress_once() {
+        let options = parse_sync_arguments(["--no-progress"].into_iter().map(OsString::from))
+            .expect("sync progress option should parse");
+
+        assert!(options.no_progress);
+        assert!(
+            parse_sync_arguments(
+                ["--no-progress", "--no-progress"]
+                    .into_iter()
+                    .map(OsString::from),
+            )
+            .is_err()
+        );
     }
 
     #[test]

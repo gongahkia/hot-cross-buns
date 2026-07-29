@@ -3,7 +3,7 @@
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     operation_lock::AdvisoryLock,
-    package_tree::{PreparedPackageTree, prepare_package_tree},
+    package_tree::{PreparedPackageTree, inspect_package_tree, prepare_package_tree},
 };
 #[cfg(unix)]
 use std::io;
@@ -26,7 +26,7 @@ pub struct CacheLayout {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CacheObject {
     path: PathBuf,
-    sha256: String,
+    prepared: PreparedPackageTree,
 }
 impl CacheObject {
     /// Returns the immutable object directory.
@@ -37,7 +37,31 @@ impl CacheObject {
     /// Returns the verified package-tree checksum.
     #[must_use]
     pub fn sha256(&self) -> &str {
-        &self.sha256
+        self.prepared.sha256()
+    }
+
+    /// Returns the verified canonical tree stored in this cache object.
+    #[must_use]
+    pub fn prepared(&self) -> &PreparedPackageTree {
+        &self.prepared
+    }
+}
+
+/// A verified cache object protected from concurrent cache maintenance.
+#[derive(Debug)]
+pub struct VerifiedCacheObject {
+    object: CacheObject,
+    _lock: AdvisoryLock,
+}
+impl VerifiedCacheObject {
+    /// Returns the verified canonical tree while this object remains locked.
+    #[must_use]
+    pub fn prepared(&self) -> &PreparedPackageTree {
+        self.object.prepared()
+    }
+
+    fn into_object(self) -> CacheObject {
+        self.object
     }
 }
 
@@ -315,8 +339,25 @@ pub fn verify_package_object(
     layout: &CacheLayout,
     sha256: &str,
 ) -> Result<CacheObject, Box<Diagnostic>> {
+    Ok(acquire_verified_package_object(layout, sha256)?.into_object())
+}
+
+/// Acquires and verifies a prepared cache object for the caller's use.
+///
+/// The returned value keeps the object-specific advisory lock until dropped,
+/// preventing conservative cache maintenance from removing the tree while a
+/// synchronisation operation reads it.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the object is missing, corrupt, inaccessible, or
+/// another Wukong operation currently owns the object lock.
+pub fn acquire_verified_package_object(
+    layout: &CacheLayout,
+    sha256: &str,
+) -> Result<VerifiedCacheObject, Box<Diagnostic>> {
     let path = layout.package_object(sha256)?;
-    let _lock = AdvisoryLock::try_acquire(
+    let lock = AdvisoryLock::try_acquire(
         &layout.object_lock(sha256)?,
         &format!("cache object {sha256}"),
     )?;
@@ -324,7 +365,10 @@ pub fn verify_package_object(
         .parent()
         .ok_or_else(|| internal("cache object path has no parent", "invalid cache layout"))?;
     match inspect_package_object(&path, sha256, parent)? {
-        ObjectVerification::Valid(object) => Ok(object),
+        ObjectVerification::Valid(object) => Ok(VerifiedCacheObject {
+            object,
+            _lock: lock,
+        }),
         ObjectVerification::CorruptRemoved => Err(corrupt_removed(sha256)),
     }
 }
@@ -694,7 +738,7 @@ fn verify_existing(
 fn package_object_matches(
     path: &Path,
     expected: &str,
-    parent: &Path,
+    _parent: &Path,
 ) -> Result<bool, Box<Diagnostic>> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
@@ -704,18 +748,13 @@ fn package_object_matches(
     if !metadata.file_type().is_dir() {
         return Ok(false);
     }
-    let temporary = Builder::new()
-        .prefix(".wukong-audit-")
-        .tempdir_in(parent)
-        .map_err(|error| internal("could not create cache audit directory", error))?;
-    Ok(prepare_package_tree(path, &temporary.path().join("object"))
-        .is_ok_and(|prepared| prepared.sha256() == expected))
+    Ok(inspect_package_tree(path).is_ok_and(|prepared| prepared.sha256() == expected))
 }
 
 fn inspect_package_object(
     path: &Path,
     expected: &str,
-    parent: &Path,
+    _parent: &Path,
 ) -> Result<ObjectVerification, Box<Diagnostic>> {
     let metadata = fs::symlink_metadata(path).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
@@ -734,22 +773,17 @@ fn inspect_package_object(
         remove_corrupt_object(path, expected, &metadata)?;
         return Ok(ObjectVerification::CorruptRemoved);
     }
-    let temporary = Builder::new()
-        .prefix(".wukong-verify-")
-        .tempdir_in(parent)
-        .map_err(|error| internal("could not create cache verification directory", error))?;
-    let verified = prepare_package_tree(path, &temporary.path().join("object"));
-    if verified
-        .as_ref()
-        .is_ok_and(|verified| verified.sha256() == expected)
-    {
-        Ok(ObjectVerification::Valid(CacheObject {
-            path: path.to_path_buf(),
-            sha256: expected.to_owned(),
-        }))
-    } else {
-        remove_corrupt_object(path, expected, &metadata)?;
-        Ok(ObjectVerification::CorruptRemoved)
+    match inspect_package_tree(path) {
+        Ok(prepared) if prepared.sha256() == expected => {
+            Ok(ObjectVerification::Valid(CacheObject {
+                path: path.to_path_buf(),
+                prepared,
+            }))
+        }
+        Ok(_) | Err(_) => {
+            remove_corrupt_object(path, expected, &metadata)?;
+            Ok(ObjectVerification::CorruptRemoved)
+        }
     }
 }
 

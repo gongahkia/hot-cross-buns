@@ -23,7 +23,9 @@ cargo +1.85.0 bench -p wukong-core --bench component_harness
 
 It reports manifest/lockfile parsing, resolver work, ZIP extraction, local-tree
 hashing, cache lookup, ownership-map construction, copy and automatic
-materialisation, and no-op sync as separate rows.
+materialisation, project-only no-op sync, and warm direct sync as separate
+rows. The direct-sync workload includes one package and 64 aliases sharing one
+local source, which exposes repeated canonical-tree work.
 It does not make performance claims or compare runs.
 
 ## Measured design decisions

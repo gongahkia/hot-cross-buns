@@ -33,6 +33,9 @@ checksum still matches.
 - `--json` emits versioned JSON Lines events for editor and automation clients;
   the terminal result contains written, unchanged, removed, and Godot
   compatibility-summary fields.
+- Interactive terminals show package-level source/cache progress on stderr.
+  `--no-progress` or `WUKONG_NO_PROGRESS=1` disables it; non-terminal and JSON
+  output never contains ANSI progress rendering.
 
 Without `--locked`, sync applies the existing lockfile but still verifies every
 locked source and prepared package before it changes project files. Run

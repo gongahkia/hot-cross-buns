@@ -10,8 +10,9 @@ use std::{
 use tempfile::TempDir;
 use wukong_core::{
     cache::{
-        CACHE_SCHEMA, CacheLayout, audit_cached_packages, check_cache_permissions, clean_cache,
-        inspect_cache, publish_prepared_package, verify_cached_packages, verify_package_object,
+        CACHE_SCHEMA, CacheLayout, acquire_verified_package_object, audit_cached_packages,
+        check_cache_permissions, clean_cache, inspect_cache, publish_prepared_package,
+        verify_cached_packages, verify_package_object,
     },
     diagnostic::ErrorCode,
     operation_lock::AdvisoryLock,
@@ -151,6 +152,23 @@ fn invariant_cache_object_lock_reports_contention_and_recovers_after_release() {
 
     publish_prepared_package(&layout, &prepared)
         .expect("publication should recover after object lock release");
+}
+
+#[test]
+fn invariant_verified_cache_object_is_retained_during_cache_maintenance() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let prepared = prepared_fixture(&fixture);
+    let layout = cache_layout(&fixture);
+    publish_prepared_package(&layout, &prepared).expect("publication should work");
+    let lease = acquire_verified_package_object(&layout, prepared.sha256())
+        .expect("cache object should verify and lock");
+
+    let error = clean_cache(&layout, false).expect_err("maintenance should respect the lease");
+
+    assert_eq!(error.code(), ErrorCode::SourceAccess);
+    assert_eq!(lease.prepared().sha256(), prepared.sha256());
+    drop(lease);
+    clean_cache(&layout, false).expect("maintenance should recover after the lease drops");
 }
 
 #[test]

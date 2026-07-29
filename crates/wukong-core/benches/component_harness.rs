@@ -14,6 +14,8 @@ use tempfile::TempDir;
 use wukong_core::{
     archive::{ExtractionLimits, extract_zip},
     cache::{CacheLayout, publish_prepared_package, verify_package_object},
+    direct_lock::lock_direct_dependencies,
+    direct_sync::sync_direct_dependencies,
     git_fetch::GitFetcher,
     git_source::GitSourceRequest,
     identity::PackageName,
@@ -35,6 +37,7 @@ use wukong_core::{
 const ITERATIONS: usize = 20;
 const NETWORK_COLD_ITERATIONS: usize = 3;
 const NETWORK_WARM_ITERATIONS: usize = 20;
+const DIRECT_SYNC_ALIAS_COUNT: usize = 64;
 
 fn main() {
     let fixture = LocalFixture::new(SMALL_PROJECT);
@@ -47,6 +50,8 @@ fn main() {
     benchmark_materialization(&fixture);
     benchmark_ownership_map();
     benchmark_noop_sync(&fixture);
+    benchmark_direct_sync_warm(&fixture);
+    benchmark_direct_sync_aliases();
     benchmark_git_fetch_from_environment();
     benchmark_http_fetch_from_environment();
 }
@@ -182,6 +187,88 @@ fn benchmark_noop_sync(fixture: &LocalFixture) {
         black_box(
             sync_project(&project, groups.clone(), [package.clone()], &desired)
                 .expect("benchmark no-op sync should complete"),
+        );
+    });
+}
+
+fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
+    let manifest_path = fixture.project.join("direct-sync-wukong.toml");
+    let manifest = Manifest::parse(
+        &manifest_path,
+        "[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dependencies]\nbenchmark-addon = { path = \"source\" }\n",
+    )
+    .expect("benchmark manifest should parse");
+    let cache = CacheLayout::for_root(fixture.root().join("direct-sync-cache"))
+        .expect("benchmark cache should configure");
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, true)
+        .expect("benchmark package should lock");
+    sync_direct_dependencies(
+        &fixture.project,
+        &manifest_path,
+        &manifest,
+        &lock,
+        false,
+        &cache,
+        true,
+    )
+    .expect("benchmark initial direct sync should complete");
+    benchmark(
+        "direct-sync-warm",
+        fixture.definition.id,
+        ITERATIONS,
+        || {
+            black_box(
+                sync_direct_dependencies(
+                    &fixture.project,
+                    &manifest_path,
+                    &manifest,
+                    &lock,
+                    false,
+                    &cache,
+                    true,
+                )
+                .expect("benchmark warm direct sync should complete"),
+            );
+        },
+    );
+}
+
+fn benchmark_direct_sync_aliases() {
+    let fixture = LocalFixture::new(SMALL_PROJECT);
+    let manifest_path = fixture.project.join("direct-sync-aliases-wukong.toml");
+    let mut input = String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dependencies]\n");
+    for index in 0..DIRECT_SYNC_ALIAS_COUNT {
+        input.push_str(&format!(
+            "addon-{index} = {{ path = \"source\", target = \"addons/addon-{index}\" }}\n"
+        ));
+    }
+    let manifest = Manifest::parse(&manifest_path, &input).expect("benchmark aliases should parse");
+    let cache = CacheLayout::for_root(fixture.root().join("direct-sync-aliases-cache"))
+        .expect("benchmark cache should configure");
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, true)
+        .expect("benchmark aliases should lock");
+    sync_direct_dependencies(
+        &fixture.project,
+        &manifest_path,
+        &manifest,
+        &lock,
+        false,
+        &cache,
+        true,
+    )
+    .expect("benchmark aliases should synchronise");
+    benchmark("direct-sync-warm", "local-aliases-64", ITERATIONS, || {
+        black_box(
+            sync_direct_dependencies(
+                &fixture.project,
+                &manifest_path,
+                &manifest,
+                &lock,
+                false,
+                &cache,
+                true,
+            )
+            .expect("benchmark warm alias sync should complete"),
         );
     });
 }

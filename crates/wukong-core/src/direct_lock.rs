@@ -4,7 +4,7 @@
 use crate::asset_library::{AssetId, AssetLibraryClient};
 use crate::{
     archive::{ExtractionLimits, extract_zip},
-    cache::CacheLayout,
+    cache::{CacheLayout, publish_prepared_package},
     diagnostic::{Diagnostic, ErrorCode},
     git_fetch::GitFetcher,
     git_source::GitSourceRequest,
@@ -86,6 +86,7 @@ pub fn lock_direct_dependencies_with_cancellation(
         declarations.values(),
         &git,
         &http,
+        cache,
         cancellation,
         staging.path(),
         offline,
@@ -177,6 +178,7 @@ pub fn update_direct_dependencies_with_cancellation(
         selected_declarations,
         &git,
         &http,
+        cache,
         cancellation,
         staging.path(),
         offline,
@@ -211,6 +213,7 @@ fn lock_declarations_parallel<'a>(
     declarations: impl IntoIterator<Item = &'a Declaration>,
     git: &GitFetcher,
     http: &HttpArchiveFetcher,
+    cache: &CacheLayout,
     cancellation: &CancellationToken,
     staging: &Path,
     offline: bool,
@@ -232,6 +235,7 @@ fn lock_declarations_parallel<'a>(
     let staging = staging.to_path_buf();
     let git = git.clone();
     let http = http.clone();
+    let cache = cache.clone();
     let cancellation = cancellation.clone();
     let mut outcomes = BTreeMap::new();
     thread::scope(|scope| {
@@ -242,6 +246,7 @@ fn lock_declarations_parallel<'a>(
                 let staging = staging.clone();
                 let git = git.clone();
                 let http = http.clone();
+                let cache = cache.clone();
                 let cancellation = cancellation.clone();
                 scope.spawn(move || {
                     batch
@@ -255,6 +260,7 @@ fn lock_declarations_parallel<'a>(
                                     LocalPathAdapter,
                                     &git,
                                     &http,
+                                    &cache,
                                     &cancellation,
                                     &staging,
                                     offline,
@@ -340,6 +346,7 @@ fn lock_package(
     declaration: &Declaration,
     source_root: &Path,
     source: LockedSource,
+    cache: &CacheLayout,
     staging: &Path,
 ) -> Result<LockedPackage, Box<Diagnostic>> {
     let source_root = std::fs::canonicalize(source_root)
@@ -377,7 +384,7 @@ fn lock_package(
         layout.source_root(),
         &staging.join(declaration.name.as_str()),
     )?;
-    LockedPackage::new(
+    let package = LockedPackage::new(
         declaration.name.clone(),
         metadata.as_ref().map(|metadata| metadata.version().clone()),
         source,
@@ -397,7 +404,13 @@ fn lock_package(
             GodotCompatibility::Requirement(metadata.godot().clone())
         }),
         declaration.development,
-    )
+    )?;
+    if let Err(error) = publish_prepared_package(cache, &prepared) {
+        if error.code() != ErrorCode::SourceAccess {
+            return Err(error);
+        }
+    }
+    Ok(package)
 }
 
 #[allow(clippy::too_many_arguments)] // each source adapter remains explicit
@@ -407,6 +420,7 @@ fn lock_declaration(
     local: LocalPathAdapter,
     git: &GitFetcher,
     http: &HttpArchiveFetcher,
+    cache: &CacheLayout,
     cancellation: &CancellationToken,
     staging: &Path,
     offline: bool,
@@ -463,7 +477,7 @@ fn lock_declaration(
             (extracted.root().to_path_buf(), source.into())
         }
     };
-    lock_package(declaration, &source_root, source, staging)
+    lock_package(declaration, &source_root, source, cache, staging)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

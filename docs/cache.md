@@ -18,12 +18,16 @@ that object's lock; empty persistent lock files are safe. See
 [ADR 0014](adr/0014-cache-publication.md) and
 [ADR 0030](adr/0030-advisory-operation-locks.md).
 
-The prepared-package cache-read API re-hashes a canonical tree against the
-object's SHA-256 directory name. A mismatching object is cache-owned, removed,
-and reported as an integrity failure. `wukong cache verify` checks all prepared
-objects in deterministic order, reports verified and removed-corrupt counts,
+The prepared-package cache-read API scans and re-hashes a canonical tree in
+place against the object's SHA-256 directory name. A mismatching object is
+cache-owned, removed, and reported as an integrity failure. `wukong cache
+verify` checks all prepared objects in deterministic order, reports verified
+and removed-corrupt counts,
 and exits with code 4 if it repaired corruption. Unrecognized entries are
 never deleted. See [ADR 0015](adr/0015-cache-integrity-verification.md).
+
+Sync holds a verified package object's advisory lock until materialisation
+finishes, so `wukong cache clean` cannot remove an in-use tree.
 
 Git checkouts use `checkouts/git/sha256/<digest>`, where the digest derives from
 a canonical source identity and immutable commit. Selector-to-commit metadata

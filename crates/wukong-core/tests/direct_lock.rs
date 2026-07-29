@@ -4,7 +4,7 @@ use std::{
 };
 use tempfile::TempDir;
 use wukong_core::{
-    cache::CacheLayout,
+    cache::{CacheLayout, verify_package_object},
     diagnostic::ErrorCode,
     direct_lock::{
         lock_direct_dependencies, lock_direct_dependencies_with_cancellation,
@@ -43,6 +43,24 @@ fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
             .as_str()
             .starts_with("sha256:")
     }));
+}
+
+#[test]
+fn invariant_lock_publishes_a_verified_prepared_package_cache_object() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let lock = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect("local package should lock");
+    let package = lock.packages().get("addon").expect("package should lock");
+    let object = verify_package_object(&cache, package.package_sha256())
+        .expect("lock should publish a verified cache object");
+
+    assert_eq!(object.sha256(), package.package_sha256());
+    assert_eq!(object.prepared().files().len(), 1);
 }
 
 #[test]

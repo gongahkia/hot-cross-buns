@@ -43,6 +43,8 @@ Current records:
 - [0037: release artifact layout](0037-release-artifact-layout.md)
 - [0038: direct-dependency layout overrides](0038-direct-dependency-layout-overrides.md)
 - [0039: 1.0 compatibility policy](0039-one-point-zero-compatibility-policy.md)
+- [0040: direct-sync prepared-cache reuse](0040-direct-sync-prepared-cache-reuse.md)
+- [0041: CLI progress rendering](0041-cli-progress-rendering.md)
 
 ## When to write an ADR
 

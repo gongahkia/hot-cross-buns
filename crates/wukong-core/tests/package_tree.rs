@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
     layout::{LayoutOptions, detect_package_layout},
-    package_tree::prepare_package_tree,
+    package_tree::{inspect_package_tree, prepare_package_tree},
 };
 
 #[test]
@@ -23,6 +23,25 @@ fn invariant_identical_selected_content_has_a_deterministic_tree_hash() {
         paths(&first),
         [Path::new("plugin.cfg"), Path::new("scripts/main.gd")]
     );
+}
+
+#[test]
+fn invariant_in_place_inspection_matches_copied_canonical_tree() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let source = fixture.path().join("source");
+    write(&source.join("plugin.cfg"), "[plugin]\nname=\"Example\"\n");
+    write(&source.join("scripts/main.gd"), "extends Node\n");
+
+    let inspected = inspect_package_tree(&source).expect("source should inspect");
+    let prepared = prepare_package_tree(&source, &fixture.path().join("stage"))
+        .expect("source should prepare");
+
+    assert_eq!(
+        inspected.root(),
+        source.canonicalize().expect("source should canonicalize")
+    );
+    assert_eq!(inspected.sha256(), prepared.sha256());
+    assert_eq!(inspected.files(), prepared.files());
 }
 
 #[test]

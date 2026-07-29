@@ -67,19 +67,46 @@ fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
         .lines()
         .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event should parse"))
         .collect::<Vec<_>>();
-    assert_eq!(
-        events
-            .iter()
-            .map(|event| event["type"].as_str().expect("event should have a type"))
-            .collect::<Vec<_>>(),
-        [
-            "started", "progress", "progress", "progress", "progress", "result"
-        ]
-    );
+    assert_eq!(events.first().expect("started event")["type"], "started");
+    assert_eq!(events.last().expect("result event")["type"], "result");
+    assert!(events.iter().all(|event| {
+        event["type"] == "started" || event["type"] == "progress" || event["type"] == "result"
+    }));
+    let package_ready = events
+        .iter()
+        .find(|event| event["phase"] == "package-ready")
+        .expect("package-ready progress should stream");
+    assert_eq!(package_ready["package"], "addon");
+    assert_eq!(package_ready["completed"], 1);
+    assert_eq!(package_ready["total"], 1);
     assert_eq!(events[0]["command"], "sync");
-    assert_eq!(events[5]["result"]["written"], 1);
-    assert_eq!(events[5]["result"]["unchanged"], 0);
-    assert_eq!(events[5]["result"]["removed"], 0);
+    let result = &events.last().expect("result event")["result"];
+    assert_eq!(result["written"], 1);
+    assert_eq!(result["unchanged"], 0);
+    assert_eq!(result["removed"], 0);
+}
+
+#[test]
+fn invariant_sync_no_progress_preserves_a_plain_human_summary() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    assert!(
+        command("lock", fixture.root())
+            .output()
+            .expect("lock should run")
+            .status
+            .success()
+    );
+
+    let output = command("sync", fixture.root())
+        .arg("--no-progress")
+        .output()
+        .expect("sync should run");
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("sync: 1 written"));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains('\u{1b}'));
 }
 
 #[test]

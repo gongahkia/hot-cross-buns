@@ -1,6 +1,7 @@
 mod support;
 
 use std::{
+    cell::RefCell,
     collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
@@ -9,14 +10,16 @@ use tempfile::TempDir;
 use wukong_core::{
     cache::CacheLayout,
     diagnostic::ErrorCode,
-    direct_lock::lock_direct_local_dependencies,
+    direct_lock::{lock_direct_dependencies, lock_direct_local_dependencies},
     direct_sync::{
-        sync_direct_dependencies, sync_direct_dependencies_with_cancellation,
-        sync_direct_local_dependencies,
+        SyncProgress, SyncProgressObserver, SyncProgressStage, sync_direct_dependencies,
+        sync_direct_dependencies_with_cancellation,
+        sync_direct_dependencies_with_progress_and_cancellation, sync_direct_local_dependencies,
     },
     identity::PackageName,
     lockfile::{GodotCompatibility, LockedGitSource, LockedHttpSource, LockedPackage, Lockfile},
     manifest::Manifest,
+    operation_lock::AdvisoryLock,
     source::{CancellationToken, ImmutableSourceId},
 };
 
@@ -38,6 +41,84 @@ fn invariant_direct_sync_follows_the_lockfile_and_is_idempotent() {
             .expect("locked file should materialise"),
         "first"
     );
+}
+
+#[test]
+fn invariant_direct_sync_reports_deterministic_package_progress() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let lock = lock(&fixture, &manifest);
+    let cache = CacheLayout::for_root(fixture.project().join("cache"))
+        .expect("cache layout should be valid");
+    let events = ProgressRecorder::default();
+    let cancellation = CancellationToken::new();
+
+    sync_direct_dependencies_with_progress_and_cancellation(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        false,
+        &cache,
+        true,
+        &cancellation,
+        &events,
+    )
+    .expect("sync should work");
+
+    assert_eq!(
+        events.events.into_inner(),
+        vec![
+            (
+                "addon".to_owned(),
+                0,
+                1,
+                SyncProgressStage::ValidatingSource
+            ),
+            (
+                "addon".to_owned(),
+                0,
+                1,
+                SyncProgressStage::PreparingPackage
+            ),
+            ("addon".to_owned(), 1, 1, SyncProgressStage::Prepared),
+        ]
+    );
+}
+
+#[test]
+fn invariant_direct_sync_uses_a_verified_source_tree_when_cache_object_is_busy() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let cache = CacheLayout::for_root(fixture.project().join("cache"))
+        .expect("cache layout should be valid");
+    let lock = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect("local package should lock");
+    let package = lock.packages().get("addon").expect("package should lock");
+    let held = AdvisoryLock::try_acquire(
+        &cache
+            .object_lock(package.package_sha256())
+            .expect("cache object lock should derive"),
+        "fixture cache object",
+    )
+    .expect("fixture lock should acquire");
+
+    let summary = sync_direct_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        false,
+        &cache,
+        true,
+    )
+    .expect("busy cache object should not block a verified source sync");
+
+    assert_eq!(summary.written, 1);
+    assert!(fixture.project().join("addons/addon/plugin.gd").is_file());
+    drop(held);
 }
 
 #[test]
@@ -299,6 +380,21 @@ struct Fixture {
     _directory: TempDir,
     project: PathBuf,
     manifest_path: PathBuf,
+}
+
+#[derive(Default)]
+struct ProgressRecorder {
+    events: RefCell<Vec<(String, usize, usize, SyncProgressStage)>>,
+}
+impl SyncProgressObserver for ProgressRecorder {
+    fn report(&self, progress: &SyncProgress) {
+        self.events.borrow_mut().push((
+            progress.package().as_str().to_owned(),
+            progress.completed(),
+            progress.total(),
+            progress.stage(),
+        ));
+    }
 }
 impl Fixture {
     fn new() -> Self {

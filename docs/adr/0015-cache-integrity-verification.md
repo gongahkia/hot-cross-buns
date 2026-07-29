@@ -13,10 +13,10 @@ be diagnosed without deleting entries whose ownership Wukong cannot prove.
 ## Decision
 
 Treat the lowercase SHA-256 directory name as the expected canonical
-package-tree hash. Before a prepared cache object is read, re-prepare it into
-a temporary verification tree and compare its hash with that name. A matching
-object is usable. A recognized mismatching object is cache-owned and removed;
-the caller receives an integrity diagnostic with recovery guidance.
+package-tree hash. Before a prepared cache object is read, scan and hash its
+canonical tree in place and compare its hash with that name. A matching object
+is usable. A recognized mismatching object is cache-owned and removed; the
+caller receives an integrity diagnostic with recovery guidance.
 
 `wukong cache verify` scans prepared package objects in deterministic filename
 order. It reports verified and removed-corrupt counts, returns integrity exit
@@ -27,9 +27,10 @@ have implemented formats.
 
 ## Consequences
 
-Cache reads incur hashing and tree validation. A corruption repair requires a
-later source operation to repopulate the object. Unknown entries are retained,
-which may require manual cache maintenance but avoids deleting unproven data.
+Cache reads incur hashing and tree validation but no temporary tree copy. A
+corruption repair requires a later source operation to repopulate the object.
+Unknown entries are retained, which may require manual cache maintenance but
+avoids deleting unproven data.
 
 ## Alternatives considered
 

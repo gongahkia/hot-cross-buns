@@ -98,6 +98,28 @@ pub fn prepare_package_tree(
     }
 }
 
+/// Scans and hashes a canonical package tree without copying it.
+///
+/// The returned tree references `source_root` directly. Callers must only use
+/// it as a read-only source while the underlying directory remains stable.
+///
+/// # Errors
+///
+/// Returns a diagnostic for unsafe source entries, portable-path collisions,
+/// inaccessible source content, or a source that changes during hashing.
+pub fn inspect_package_tree(source_root: &Path) -> Result<PreparedPackageTree, Box<Diagnostic>> {
+    let source_root = canonical_source_root(source_root)?;
+    let mut entries = scan_entries(&source_root, Path::new(""))?;
+    entries.sort_by(|left, right| left.relative.cmp(&right.relative));
+    reject_collisions(&entries)?;
+    let (sha256, files) = hash_entries(&entries)?;
+    Ok(PreparedPackageTree {
+        root: source_root,
+        sha256,
+        files,
+    })
+}
+
 #[derive(Debug)]
 struct SourceEntry {
     source: PathBuf,
@@ -273,6 +295,70 @@ fn copy_and_hash(
     Ok((format!("{:x}", hasher.finalize()), files))
 }
 
+fn hash_entries(
+    entries: &[SourceEntry],
+) -> Result<(String, Vec<PreparedPackageFile>), Box<Diagnostic>> {
+    let mut files = Vec::new();
+    let mut hasher = Sha256::new();
+    for entry in entries {
+        match entry.kind {
+            EntryKind::Directory => hash_directory(&mut hasher, &entry.relative),
+            EntryKind::File { executable } => {
+                let sha256 = hash_file(&entry.source, executable, &mut hasher, &entry.relative)?;
+                files.push(PreparedPackageFile {
+                    path: PathBuf::from(&entry.relative),
+                    executable,
+                    sha256,
+                });
+            }
+        }
+    }
+    Ok((format!("{:x}", hasher.finalize()), files))
+}
+
+fn hash_file(
+    source: &Path,
+    executable: bool,
+    tree_hasher: &mut Sha256,
+    relative: &str,
+) -> Result<String, Box<Diagnostic>> {
+    let metadata = fs::symlink_metadata(source).map_err(|error| source_error(source, error))?;
+    if !metadata.file_type().is_file() {
+        return Err(changed_source_file(source));
+    }
+    let mut input = fs::File::open(source).map_err(|error| source_error(source, error))?;
+    tree_hasher.update([b'f']);
+    update_length_prefixed(tree_hasher, relative.as_bytes());
+    tree_hasher.update([u8::from(executable)]);
+    tree_hasher.update(metadata.len().to_be_bytes());
+    let mut file_hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 64 * 1024];
+    let mut read_total = 0_u64;
+    loop {
+        let read = input
+            .read(&mut buffer)
+            .map_err(|error| source_error(source, error))?;
+        if read == 0 {
+            break;
+        }
+        tree_hasher.update(&buffer[..read]);
+        file_hasher.update(&buffer[..read]);
+        let read = u64::try_from(read)
+            .map_err(|_| source_error(source, io::Error::other("buffer length should fit u64")))?;
+        read_total = read_total
+            .checked_add(read)
+            .ok_or_else(|| source_error(source, io::Error::other("byte count overflow")))?;
+    }
+    let current = fs::symlink_metadata(source).map_err(|error| source_error(source, error))?;
+    if !current.file_type().is_file()
+        || current.len() != metadata.len()
+        || read_total != metadata.len()
+    {
+        return Err(changed_source_file(source));
+    }
+    Ok(format!("{:x}", file_hasher.finalize()))
+}
+
 fn copy_file_and_hash(
     source: &Path,
     destination: &Path,
@@ -282,16 +368,7 @@ fn copy_file_and_hash(
 ) -> Result<String, Box<Diagnostic>> {
     let metadata = fs::symlink_metadata(source).map_err(|error| source_error(source, error))?;
     if !metadata.file_type().is_file() {
-        return Err(Box::new(
-            Diagnostic::new(
-                ErrorCode::SourceAccess,
-                format!(
-                    "package source file changed while preparing {}",
-                    source.display()
-                ),
-            )
-            .with_recovery("retry after source changes have finished"),
-        ));
+        return Err(changed_source_file(source));
     }
     let mut input = fs::File::open(source).map_err(|error| source_error(source, error))?;
     let mut output =
@@ -326,16 +403,7 @@ fn copy_file_and_hash(
         })?;
     }
     if copied != metadata.len() {
-        return Err(Box::new(
-            Diagnostic::new(
-                ErrorCode::SourceAccess,
-                format!(
-                    "package source file changed while preparing {}",
-                    source.display()
-                ),
-            )
-            .with_recovery("retry after source changes have finished"),
-        ));
+        return Err(changed_source_file(source));
     }
     output
         .flush()
@@ -345,6 +413,19 @@ fn copy_file_and_hash(
     #[cfg(not(unix))]
     let _ = executable;
     Ok(format!("{:x}", file_hasher.finalize()))
+}
+
+fn changed_source_file(source: &Path) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(
+            ErrorCode::SourceAccess,
+            format!(
+                "package source file changed while preparing {}",
+                source.display()
+            ),
+        )
+        .with_recovery("retry after source changes have finished"),
+    )
 }
 
 fn hash_directory(hasher: &mut Sha256, relative: &str) {
