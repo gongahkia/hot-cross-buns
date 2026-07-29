@@ -2443,10 +2443,11 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         }
     };
     let cache = CacheLayout::from_environment()?;
+    let reusable = options.offline.then_some(existing.as_ref()).flatten();
     let locked = lock_direct_dependencies_with_cancellation(
         &manifest_path,
         &manifest,
-        existing.as_ref(),
+        reusable,
         &cache,
         options.offline,
         &cancellation,

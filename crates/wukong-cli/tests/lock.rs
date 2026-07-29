@@ -40,6 +40,28 @@ fn invariant_repeated_offline_lock_reuses_existing_bytes_without_source_access()
 }
 
 #[test]
+fn invariant_lock_refreshes_changed_local_source() {
+    let fixture = Fixture::new();
+    let addon = fixture.addon("addon", "first");
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let first = command(fixture.root())
+        .output()
+        .expect("first lock should run");
+    let initial_lock = fs::read(fixture.root().join("wukong.lock")).expect("lock should exist");
+    fs::write(addon.join("plugin.gd"), "second").expect("source should change");
+
+    let refreshed = command(fixture.root())
+        .output()
+        .expect("refreshed lock should run");
+    let refreshed_lock = fs::read(fixture.root().join("wukong.lock")).expect("lock should exist");
+
+    assert!(first.status.success());
+    assert!(refreshed.status.success());
+    assert_ne!(initial_lock, refreshed_lock);
+    assert!(String::from_utf8_lossy(&refreshed.stdout).contains("locked"));
+}
+
+#[test]
 fn invariant_locked_refuses_manifest_lock_mismatch() {
     let fixture = Fixture::new();
     fixture.addon("first", "first");
