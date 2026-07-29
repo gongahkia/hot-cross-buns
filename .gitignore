@@ -6,3 +6,6 @@ levels/_drafts/
 tools/level_mcp/.venv/
 tools/level_mcp/*.egg-info/
 __pycache__/
+.wukong/
+wukong.lock
+wukong.toml
