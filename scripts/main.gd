@@ -12,6 +12,7 @@ const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
+const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
 const SANDBOX_STATION_CENTERS := {
@@ -260,6 +261,7 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
 			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
 			if Input.is_action_just_pressed("consume_water"):Survival.consume_water()
+			if Input.is_action_just_pressed("place_material"):_attempt_material_placement()
 			var movement := SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
 			player.set_survival_speed_multiplier(float(movement.speed_multiplier))
 			Survival.advance(delta, environment, player.survival_exertion_active())
@@ -859,6 +861,24 @@ func _on_hard_landed(injury: float) -> void:
 		return
 	Survival.apply_injury(injury)
 	last_sandbox_event = "INJURY %02d" % int(ceilf(injury))
+
+func _attempt_material_placement() -> void:
+	if player == null or world_streamer == null: return
+	var forward := -player.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length() < 0.1: forward = Vector3.FORWARD
+	var target := player.global_position + forward.normalized() * 1.5
+	target.y = world_streamer.ground_height(target)
+	var surface: Dictionary = world_streamer.sample_at(target)
+	var gate := TRAVERSAL_MATERIAL_PLACEMENT.evaluate({"on_floor": player.is_on_floor(), "planar_speed": Vector2(player.velocity.x, player.velocity.z).length(), "traversal_active": player.style_multiplier_active()}, {"distance": player.global_position.distance_to(target), "slope": float(surface.get("slope", 0.0)), "water": bool(surface.get("water", false))}, Survival.scavenged_materials())
+	if not bool(gate.allowed):
+		last_sandbox_event = "PLACE " + str(gate.reason).replace("_", " ").to_upper()
+		return
+	if not world_streamer.place_material_marker(target, {"type": "route_marker", "cost": gate.cost}):
+		last_sandbox_event = "PLACE TARGET UNAVAILABLE"
+		return
+	Survival.spend_materials(gate.cost)
+	last_sandbox_event = "PLACE ROUTE MARKER"
 
 func _photo_metadata() -> Dictionary:
 	var world_data: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
@@ -1678,7 +1698,7 @@ func _refresh_hud() -> void:
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
-		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / MOUSE LOOK / " + player.tool_status()
+		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / 5 PLACE / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
 		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]

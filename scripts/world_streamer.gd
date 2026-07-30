@@ -149,6 +149,35 @@ func sample_at(world_position: Vector3) -> Dictionary:
 func ground_height(world_position: Vector3) -> float:
 	return float(sample_at(world_position).get("elevation", 0.0))
 
+func place_material_marker(world_position: Vector3, record: Dictionary = {}) -> bool:
+	if origin == null: return false
+	var chunk: Vector2i = origin.chunk_at_local(world_position)
+	var root: Node3D = chunks.get(_chunk_id(chunk.x, chunk.y)) as Node3D
+	if root == null: return false
+	var marker := Node3D.new()
+	marker.name = "MaterialMarker"
+	marker.set_meta("temporary_material", true)
+	marker.set_meta("record", record.duplicate(true))
+	root.add_child(marker)
+	marker.global_position = world_position
+	var pole := MeshInstance3D.new()
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.06
+	pole_mesh.bottom_radius = 0.09
+	pole_mesh.height = 1.0
+	pole.mesh = pole_mesh
+	pole.position.y = 0.5
+	pole.material_override = _material(Color("#d3ba72"), true)
+	marker.add_child(pole)
+	var flag := MeshInstance3D.new()
+	var flag_mesh := BoxMesh.new()
+	flag_mesh.size = Vector3(0.45, 0.24, 0.04)
+	flag.mesh = flag_mesh
+	flag.position = Vector3(0.23, 0.88, 0.0)
+	flag.material_override = _material(Color("#9fd477"), true)
+	marker.add_child(flag)
+	return true
+
 func _update_region() -> void:
 	var region: Dictionary = generator.region_at(origin.world_position(player.global_position))
 	if str(region.id) == current_region_id: return

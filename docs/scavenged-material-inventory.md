@@ -21,4 +21,4 @@ Inventory operations iterate only the requested cost keys; no polling, nodes, or
 
 ## Out of scope
 
-Inventory capacity, dropping, crafting recipes, material placement, persistence, and respawns.
+Inventory capacity, dropping, crafting recipes, material persistence, and respawns.
