@@ -54,7 +54,7 @@ func refresh(force: bool) -> void:
 			var id := _chunk_id(x, z)
 			wanted[id] = true
 			if not chunks.has(id) and not pending_chunks.has(id):
-				pending_chunks[id] = scheduler.request(x, z)
+				pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
 	if force:
 		_attach_completed(scheduler.wait_for_all())
 	for id in chunks.keys():
@@ -71,6 +71,10 @@ func _attach_completed(results: Array) -> void:
 		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 		pending_chunks.erase(id)
 		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+
+func _chunk_priority(center: Vector2i, target: Vector2i) -> float:
+	var offset:=Vector2(float(target.x-center.x),float(target.y-center.y));var velocity:=Vector2(player.velocity.x,player.velocity.z);var forward:=Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z) if player.camera else Vector2.ZERO
+	return offset.length_squared()-offset.normalized().dot(velocity.normalized())*.8-offset.normalized().dot(-forward.normalized())*.45 if not is_zero_approx(offset.length_squared()) else -1.0
 
 func sample_at(world_position: Vector3) -> Dictionary:
 	var canonical: Vector3 = origin.world_position(world_position) if origin else world_position
