@@ -23,6 +23,7 @@ func _initialize() -> void:
 	assert(InputMap.has_action("grapple"), "grapple input missing")
 	assert(InputMap.has_action("glide"), "glide input missing")
 	assert(InputMap.has_action("sprint"), "sprint input missing")
+	assert(InputMap.has_action("consume_food"), "food input missing")
 	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
 	app_settings.call("set_pixel_filter_mode", 0)
 	assert(not main.display_filter.visible, "pixel filter remained visible when disabled")

@@ -55,6 +55,9 @@ func consume(kind: String) -> bool:
 	changed.emit(snapshot())
 	return true
 
+func consume_food() -> bool:
+	return consume("food")
+
 func apply_injury(amount: float) -> void:
 	if not alive: return
 	health = maxf(0.0, health - amount)

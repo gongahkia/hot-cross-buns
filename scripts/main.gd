@@ -248,6 +248,8 @@ func _process(delta: float) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		RunData.set_style_movement_active(player != null and player.style_multiplier_active())
 		_present_style_result(RunData.advance(delta))
+		if not photo_mode.active and Input.is_action_just_pressed("consume_food"):
+			Survival.consume_food()
 		if bool(current_level.get("procedural", false)) and world_streamer and not photo_mode.active:
 			Survival.advance(delta, world_streamer.sample_at(player.global_position), player.style_multiplier_active())
 		_refresh_hud()
@@ -1653,10 +1655,10 @@ func _refresh_hud() -> void:
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
-		tool_label.text = "WASD MOVE / MOUSE LOOK / " + player.tool_status()
+		tool_label.text = "WASD MOVE / 1 EAT / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
-		survival_label.text = "H %03d  T %03d  W %03d  I %03d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health)]
+		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0))]
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
 	var style := RunData.style_snapshot()
