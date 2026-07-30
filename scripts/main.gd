@@ -12,6 +12,7 @@ const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
+const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
 const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
@@ -56,6 +57,7 @@ var last_resolved_run: Dictionary = {}
 var run_archive = RUN_ARCHIVE.new()
 var world_journal = WORLD_SURVEY_JOURNAL.new()
 var survey_check_time := 0.0
+var survival_movement: Dictionary = {}
 
 var ui: CanvasLayer
 var hud: Control
@@ -70,6 +72,7 @@ var par_label: Label
 var collect_label: Label
 var tool_label: Label
 var survival_label: Label
+var movement_feedback_label: Label
 var style_score_label: Label
 var combo_label: Label
 var style_event_label: Label
@@ -151,6 +154,7 @@ func _build_ui() -> void:
 	collect_label = _label("PICKUPS 0/0", 16, Color("#f2d98c"))
 	tool_label = _label("E TETHER / F GLIDE", 16, Color("#9edbb8"))
 	survival_label = _label("SURV 100 100 100 100", 14, Color("#d8e8bf"))
+	movement_feedback_label = _label("MVT OPTIMAL 00% x1.00", 14, Color("#9edbb8"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -159,11 +163,14 @@ func _build_ui() -> void:
 	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
 	tool_label.custom_minimum_size = Vector2(210.0, 28.0)
 	survival_label.custom_minimum_size = Vector2(370.0, 28.0)
+	movement_feedback_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	movement_feedback_label.custom_minimum_size = Vector2(188.0, 28.0)
 	top.add_child(timer_label)
 	top.add_child(par_label)
 	top.add_child(collect_label)
 	top.add_child(tool_label)
 	top.add_child(survival_label)
+	top.add_child(movement_feedback_label)
 	var style_box := VBoxContainer.new()
 	style_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	style_box.position = Vector2(22.0, -132.0)
@@ -284,8 +291,8 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("build_platform"):_attempt_platform_construction()
 			if Input.is_action_just_pressed("craft_filter"):_craft_field_filter()
 			environment["shelter"] = world_streamer.shelter_cover_at(player.global_position)
-			var movement := SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
-			player.set_survival_speed_multiplier(float(movement.speed_multiplier))
+			survival_movement = SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
+			player.set_survival_speed_multiplier(float(survival_movement.speed_multiplier))
 			Survival.advance(delta, environment, player.survival_exertion_active())
 		_refresh_hud()
 		_refresh_grapple_reticle()
@@ -479,6 +486,7 @@ func start_level(level_id: String) -> void:
 	var run_seed := int(current_level.get("seed", _seed_for_level(level_id)))
 	RunData.begin_run(level_id, run_seed)
 	world_journal = WORLD_SURVEY_JOURNAL.new()
+	survival_movement = {}
 	if bool(current_level.get("procedural", false)):
 		Survival.begin_run(run_seed)
 		weather_clock = 0.0
@@ -1904,8 +1912,14 @@ func _refresh_hud() -> void:
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
 		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]
+		var movement := survival_movement if not survival_movement.is_empty() else SURVIVAL_MOVEMENT_POLICY.evaluate(survival, player.survival_movement_state())
+		var feedback: Dictionary = SURVIVAL_MOVEMENT_FEEDBACK.present(movement)
+		movement_feedback_label.visible = true
+		movement_feedback_label.text = str(feedback.text)
+		movement_feedback_label.add_theme_color_override("font_color", feedback.color)
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
+		movement_feedback_label.visible = false
 	forecast_label.text = _forecast_text() if bool(current_level.get("procedural", false)) else "FORECAST --"
 	var style := RunData.style_snapshot()
 	var total_style := int(style.get("banked", 0)) + int(style.get("active", 0))
