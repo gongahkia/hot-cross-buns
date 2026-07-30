@@ -18,6 +18,7 @@ const FLOODED_INUNDATION := preload("res://scripts/world_flooded_city_inundation
 const FLOODED_ROUTES := preload("res://scripts/world_flooded_city_routes.gd")
 const FLOODED_STRUCTURES := preload("res://scripts/world_flooded_city_structures.gd")
 const FLOODED_ECOLOGY := preload("res://scripts/world_flooded_city_ecology.gd")
+const INDUSTRIAL_LAYOUT := preload("res://scripts/world_industrial_layout.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -76,6 +77,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	var descriptor:Dictionary={"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
 	var urban:=URBAN_FIELDS.sample(seed,chunk_x,chunk_z,str(sample_data.region.family))
 	if not urban.is_empty():descriptor["urban"]=urban
+	var industrial_layout:=INDUSTRIAL_LAYOUT.generate(seed,chunk_x,chunk_z,urban)
+	if not industrial_layout.is_empty():descriptor["industrial_layout"]=industrial_layout
 	var city_layout:=CITY_LAYOUT.sample(self,chunk_x,chunk_z,sample_data)
 	if not city_layout.is_empty():descriptor["city_layout"]=city_layout
 	var city_arterials:=CITY_ARTERIALS.generate(seed,chunk_x,chunk_z,city_layout)
