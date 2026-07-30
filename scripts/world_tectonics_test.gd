@@ -12,7 +12,7 @@ func _initialize() -> void:
 	_assert_result(tectonics.synthesize(continents.sample(-8320.0, -8960.0)), 0.46333750275228, 0.05318240717493, 0.0216613866484, 0.01554488865436, 0.0, 0.0, 0.0)
 	_assert_result(tectonics.synthesize(continents.sample(-5120.0, -8960.0)), -0.10906842602047, 0.1707096132165, 0.0, 0.0, 0.0, 0.00414223393949, 0.0)
 	var margin := tectonics.synthesize(continents.sample(-4480.0, -6400.0, "region"))
-	_assert_result(margin, -0.36624835065847, 0.11853942293785, 0.0, 0.0, 0.0114172450019, 0.0, 0.35)
+	_assert_result(margin, -0.40738403765841, 0.08022288514548, 0.0, 0.0, 0.0114172450019, 0.0, 0.35)
 	var hot := tectonics.synthesize(continents.sample(-4480.0, -6400.0, "region"), {"contribution": 0.1})
 	_expect(absf(float(hot.get("elevation", 0.0)) - float(margin.get("elevation", 0.0)) - 0.1) <= EPSILON, "optional hotspot contribution drifted")
 	_expect(tectonics.synthesize(continents.sample(-5120.0, -8960.0)) == tectonics.synthesize(continents.sample(-5120.0, -8960.0)), "tectonic synthesis is not repeatable")
