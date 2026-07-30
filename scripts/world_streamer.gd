@@ -3,6 +3,7 @@ extends Node3D
 
 signal region_changed(region: Dictionary)
 signal chunk_stats_changed(stats: Dictionary)
+signal streaming_hitch(sample:Dictionary)
 
 const GENERATOR := preload("res://scripts/world_generator.gd")
 const RNG := preload("res://scripts/world_rng.gd")
@@ -19,6 +20,7 @@ const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
+const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -35,6 +37,7 @@ var chunk_cache
 var far_chunks: Dictionary = {}
 var active_ids: Dictionary = {}
 var landmarks=LANDMARKS.new()
+var streaming_telemetry=STREAMING_TELEMETRY.new()
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -46,7 +49,10 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	refresh(true)
 
 func _process(_delta: float) -> void:
+	var started:=Time.get_ticks_usec()
 	refresh(false)
+	var hitch:=streaming_telemetry.record_refresh(float(Time.get_ticks_usec()-started)/1000.0,_streaming_context())
+	if not hitch.is_empty():streaming_hitch.emit(hitch)
 
 func _exit_tree() -> void:
 	if scheduler: scheduler.shutdown()
@@ -111,6 +117,9 @@ func _remove_far_chunk(id:String)->void:
 	var far:Node=far_chunks[id]
 	far_chunks.erase(id)
 	far.queue_free()
+
+func _streaming_context()->Dictionary:
+	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size()}
 
 func _preload_heading()->Vector2:
 	var velocity:=Vector2(player.velocity.x,player.velocity.z)
