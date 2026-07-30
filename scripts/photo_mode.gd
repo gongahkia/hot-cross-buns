@@ -3,6 +3,7 @@ extends Node
 
 const CONTROLS := preload("res://scripts/photo_camera_controls.gd")
 const VISUALS := preload("res://scripts/photo_visual_controls.gd")
+const HIGH_RESOLUTION := preload("res://scripts/photo_high_resolution.gd")
 
 signal mode_changed(active: bool)
 signal captured(path: String, metadata_path: String)
@@ -22,6 +23,7 @@ var entry_fov := 75.0
 var visual_state: Dictionary = {}
 var photo_attributes: CameraAttributesPractical
 var original_adjustment: Dictionary = {}
+var capture_in_progress := false
 
 func configure(next_subject: SpeedPlayer, next_hud: CanvasItem, provider: Callable, next_environment: Environment = null) -> void:
 	subject = next_subject
@@ -42,6 +44,9 @@ func handle_input(event: InputEvent) -> bool:
 			return true
 		if active and event.physical_keycode == KEY_F12:
 			capture()
+			return true
+		if active and event.physical_keycode == KEY_F11:
+			capture_high_resolution()
 			return true
 		if active and event.physical_keycode == KEY_R:
 			_reset_camera()
@@ -118,11 +123,42 @@ func _process(delta: float) -> void:
 
 func capture() -> void:
 	if not active: return
+	_save_capture_image(get_viewport().get_texture().get_image(), "")
+
+func capture_high_resolution() -> void:
+	if not active or capture_in_progress or camera == null: return
+	capture_in_progress = true
+	var source_size := Vector2i(get_viewport().get_visible_rect().size)
+	var target_size := HIGH_RESOLUTION.target_size(source_size)
+	var viewport := SubViewport.new()
+	viewport.name = "HighResolutionCapture"
+	viewport.size = target_size
+	viewport.world_3d = get_viewport().world_3d
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(viewport)
+	var capture_camera := Camera3D.new()
+	capture_camera.global_transform = camera.global_transform
+	capture_camera.fov = camera.fov
+	capture_camera.near = camera.near
+	capture_camera.far = camera.far
+	capture_camera.keep_aspect_mode = camera.keep_aspect_mode
+	capture_camera.cull_mask = camera.cull_mask
+	capture_camera.attributes = photo_attributes.duplicate(true) if photo_attributes else null
+	viewport.add_child(capture_camera)
+	capture_camera.current = true
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.queue_free()
+	capture_in_progress = false
+	if image and image.get_size() == target_size: _save_capture_image(image, "_hires")
+
+func _save_capture_image(image: Image, suffix: String) -> void:
+	if image == null or image.is_empty(): return
 	var directory := "user://captures"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	var base := directory.path_join("a-slow-walk_" + stamp)
-	var image := get_viewport().get_texture().get_image()
+	var base := directory.path_join("a-slow-walk_" + stamp + suffix)
 	var image_path := base + ".png"
 	var metadata_path := base + ".json"
 	if image.save_png(ProjectSettings.globalize_path(image_path)) != OK: return
