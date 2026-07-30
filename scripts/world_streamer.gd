@@ -259,6 +259,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_industrial_hazards(root,descriptor.get("industrial_hazards",{}))
 		_add_industrial_resources(root,descriptor.get("industrial_resources",{}))
 	elif family == "overgrown_suburb":
+		_add_suburb_roads(root,descriptor.get("suburb_roads",{}))
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
@@ -362,6 +363,15 @@ func _add_industrial_hazards(root:Node3D,fields:Dictionary)->void:
 
 func _add_industrial_resources(root:Node3D,fields:Dictionary)->void:
 	for resource:Dictionary in fields.get("resources",[]):_add_resource(root,resource)
+
+func _add_suburb_roads(root:Node3D,fields:Dictionary)->void:
+	var roads:Array=[fields.get("collector",{})]+fields.get("local_roads",[])
+	for road:Dictionary in roads:
+		if road.is_empty():continue
+		var axis:=str(road.axis);var offset:=float(road.offset);var position:=Vector3(32.0,.02,offset) if axis=="x" else Vector3(offset,.02,32.0);position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(64.0,.05,float(road.width)) if axis=="x" else Vector3(float(road.width),.05,64.0);visual.name="SuburbRoad";visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#535950"));root.add_child(visual)
+	for culdesac:Dictionary in fields.get("culdesacs",[]):
+		var axis:=str(culdesac.axis);var x:=float(culdesac.x);var z:=float(culdesac.z);var segment:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(float(culdesac.length),.05,float(culdesac.width)) if axis=="x" else Vector3(float(culdesac.width),.05,float(culdesac.length));segment.name="SuburbCuldesacRoad";segment.mesh=mesh;segment.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.02,z);segment.material_override=_material(Color("#535950"));root.add_child(segment)
+		var circle:=MeshInstance3D.new();var disk:=CylinderMesh.new();disk.top_radius=float(culdesac.radius);disk.bottom_radius=float(culdesac.radius);disk.height=.06;circle.name="SuburbCuldesac";circle.mesh=disk;circle.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.03,z);circle.material_override=_material(Color("#535950"));root.add_child(circle)
 
 func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(5):
