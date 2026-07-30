@@ -6,7 +6,7 @@ First-person survival traversal through deterministic, infinite reclaimed Earth.
 
 - Five generated macro-region families: reclaimed city, flooded city, industrial ruin, overgrown suburb, wilderness.
 - Streamed terrain/collision chunks, traversal resources, survival state, local run records, photo mode.
-- Internal creative editor remains available.
+- [Internal creative editor](docs/creative-levels.md) remains available for authored static levels, separate from procedural expeditions.
 
 ## Run
 
