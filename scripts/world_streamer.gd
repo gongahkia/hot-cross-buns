@@ -260,7 +260,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_industrial_resources(root,descriptor.get("industrial_resources",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb_roads(root,descriptor.get("suburb_roads",{}))
-		_add_suburb(root, chunk_x, chunk_z)
+		_add_suburb_parcels(root,descriptor.get("suburb_parcels",{}))
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
@@ -373,13 +373,13 @@ func _add_suburb_roads(root:Node3D,fields:Dictionary)->void:
 		var axis:=str(culdesac.axis);var x:=float(culdesac.x);var z:=float(culdesac.z);var segment:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(float(culdesac.length),.05,float(culdesac.width)) if axis=="x" else Vector3(float(culdesac.width),.05,float(culdesac.length));segment.name="SuburbCuldesacRoad";segment.mesh=mesh;segment.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.02,z);segment.material_override=_material(Color("#535950"));root.add_child(segment)
 		var circle:=MeshInstance3D.new();var disk:=CylinderMesh.new();disk.top_radius=float(culdesac.radius);disk.bottom_radius=float(culdesac.radius);disk.height=.06;circle.name="SuburbCuldesac";circle.mesh=disk;circle.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.03,z);circle.material_override=_material(Color("#535950"));root.add_child(circle)
 
-func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
-	for index in range(5):
-		var x := 7.0 + float(index % 3) * 22.0
-		var z := 8.0 + float(index / 3) * 28.0
-		var ground := ground_height(root.global_position + Vector3(x, 0.0, z))
-		_add_box(root, Vector3(x, ground + 3.0, z), Vector3(10.0, 6.0, 9.0), Color("#53604b"), "House")
-		_add_tree(root, Vector3(x + 5.0, ground, z + 4.0), 5.0 + float(index % 3) * 2.0, Color("#4e7645"))
+func _add_suburb_parcels(root:Node3D,fields:Dictionary)->void:
+	for yard:Dictionary in fields.get("yards",[]):
+		var x:=float(yard.x);var z:=float(yard.z);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(float(yard.width),.04,float(yard.depth));visual.name="SuburbYard";visual.mesh=mesh;visual.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.02,z);visual.material_override=_material(Color("#617554"));root.add_child(visual)
+	for home:Dictionary in fields.get("homes",[]):
+		var x:=float(home.x);var z:=float(home.z);var height:=float(home.height);var color:=Color("#586a57") if str(home.form)=="bungalow" else Color("#626b5a") if str(home.form)=="duplex" else Color("#6b6758");_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(home.width),height,float(home.depth)),color,"SuburbHome")
+	for utility:Dictionary in fields.get("utilities",[]):
+		var x:=float(utility.x);var z:=float(utility.z);var height:=float(utility.height);_add_cylinder(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),.22,height,Color("#76745e"),"SuburbUtility")
 
 func _add_wilderness(root: Node3D, chunk_x: int, chunk_z: int, biome: String) -> void:
 	var count := 3 if biome in ["desert", "cold_desert", "badland", "alpine_scree"] else 8
