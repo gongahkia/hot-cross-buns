@@ -13,6 +13,7 @@ const CHUNK_CACHE := preload("res://scripts/world_chunk_cache.gd")
 const RENDER_LOD := preload("res://scripts/world_render_lod.gd")
 const COLLISION_LOD := preload("res://scripts/world_collision_lod.gd")
 const COLLISION_MESH := preload("res://scripts/world_collision_mesh.gd")
+const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -70,6 +71,7 @@ func refresh(force: bool) -> void:
 			var stale: Node = chunks[id]
 			chunks.erase(id)
 			stale.queue_free()
+	_update_collision_lods()
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y]})
 
@@ -105,6 +107,8 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	root.name = "Chunk_%d_%d" % [chunk_x, chunk_z]
 	root.position = origin.local_chunk_position(Vector2i(chunk_x, chunk_z))
 	root.set_meta("descriptor", descriptor)
+	root.set_meta("chunk_x",chunk_x)
+	root.set_meta("chunk_z",chunk_z)
 	add_child(root)
 	var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var render_grid:=RENDER_LOD.grid_for_distance(distance);var collision_grid:=COLLISION_LOD.grid_for_distance(distance)
 	root.set_meta("render_grid",render_grid)
@@ -116,15 +120,25 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	visual.mesh = mesh
 	visual.material_override = _terrain_material(str(descriptor.biome), str(descriptor.region.family))
 	terrain.add_child(visual)
-	var collision := CollisionShape3D.new()
-	collision.shape = COLLISION_MESH.heightmap(generator, GENERATOR.CHUNK_SIZE, chunk_x, chunk_z, collision_grid)
-	var step := GENERATOR.CHUNK_SIZE / float(collision_grid)
-	collision.position = Vector3(GENERATOR.CHUNK_SIZE * 0.5, 0.0, GENERATOR.CHUNK_SIZE * 0.5)
-	collision.scale = Vector3(step, step, step)
-	terrain.add_child(collision)
+	terrain.add_child(_collision_shape(chunk_x,chunk_z,collision_grid))
 	root.add_child(terrain)
 	_add_features(root, chunk_x, chunk_z, descriptor)
 	return root
+
+func _update_collision_lods()->void:
+	for root:Node3D in chunks.values():
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var grid:=COLLISION_LOD.grid_for_distance(distance)
+		if int(root.get_meta("collision_grid",GRID))==grid:continue
+		var terrain:=root.get_node_or_null("Terrain") as StaticBody3D
+		if not terrain:continue
+		var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid))
+		root.set_meta("collision_grid",grid)
+		if retiring:COLLISION_HANDOFF.retire_after_physics_frame(get_tree(),retiring)
+
+func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
+	var collision:=CollisionShape3D.new();collision.shape=COLLISION_MESH.heightmap(generator,GENERATOR.CHUNK_SIZE,chunk_x,chunk_z,grid)
+	var step:=GENERATOR.CHUNK_SIZE/float(grid);collision.position=Vector3(GENERATOR.CHUNK_SIZE*.5,0.0,GENERATOR.CHUNK_SIZE*.5);collision.scale=Vector3(step,step,step)
+	return collision
 
 func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, grid: int = GRID) -> ArrayMesh:
 	var surface := SurfaceTool.new()
