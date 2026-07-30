@@ -10,6 +10,7 @@ const RESOURCE_PICKUP := preload("res://scripts/resource_pickup.gd")
 const WORLD_ORIGIN := preload("res://scripts/world_origin.gd")
 const CHUNK_SCHEDULER := preload("res://scripts/world_chunk_scheduler.gd")
 const CHUNK_CACHE := preload("res://scripts/world_chunk_cache.gd")
+const RENDER_LOD := preload("res://scripts/world_render_lod.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -103,7 +104,9 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	root.position = origin.local_chunk_position(Vector2i(chunk_x, chunk_z))
 	root.set_meta("descriptor", descriptor)
 	add_child(root)
-	var mesh := _terrain_mesh(chunk_x, chunk_z, str(descriptor.biome), str(descriptor.region.family))
+	var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var render_grid:=RENDER_LOD.grid_for_distance(distance)
+	root.set_meta("render_grid",render_grid)
+	var mesh := _terrain_mesh(chunk_x, chunk_z, str(descriptor.biome), str(descriptor.region.family),render_grid)
 	var terrain := StaticBody3D.new()
 	terrain.name = "Terrain"
 	var visual := MeshInstance3D.new()
@@ -120,12 +123,12 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	_add_features(root, chunk_x, chunk_z, descriptor)
 	return root
 
-func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String) -> ArrayMesh:
+func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, grid: int = GRID) -> ArrayMesh:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var step := GENERATOR.CHUNK_SIZE / float(GRID)
-	for z in range(GRID):
-		for x in range(GRID):
+	var step := GENERATOR.CHUNK_SIZE / float(grid)
+	for z in range(grid):
+		for x in range(grid):
 			var a := _vertex(chunk_x, chunk_z, x, z, step)
 			var b := _vertex(chunk_x, chunk_z, x + 1, z, step)
 			var c := _vertex(chunk_x, chunk_z, x + 1, z + 1, step)
