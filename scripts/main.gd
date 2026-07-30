@@ -11,6 +11,7 @@ const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
 const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
+const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
@@ -65,6 +66,8 @@ var world_journal = WORLD_SURVEY_JOURNAL.new()
 var survey_check_time := 0.0
 var survival_movement: Dictionary = {}
 var run_balance_telemetry = SURVIVAL_TRAVERSAL_TELEMETRY.new()
+var expedition_environment: Environment
+var expedition_sun: DirectionalLight3D
 
 var ui: CanvasLayer
 var hud: Control
@@ -290,6 +293,7 @@ func _process(delta: float) -> void:
 				var landmark: Dictionary = world_streamer.landmark_at(player.global_position)
 				if world_journal.survey_landmark(landmark): last_sandbox_event = "SURVEYED " + str(landmark.get("name", landmark.get("kind", "LANDMARK"))).to_upper()
 			environment["weather"] = WORLD_WEATHER.sample({"seed": world_streamer.generator.seed}, {"x": player.global_position.x, "y": player.global_position.z, "temperature": environment.temperature, "rainfall": environment.rainfall, "water": environment.water}, {"clock": weather_clock})
+			_apply_expedition_atmosphere(environment.weather)
 			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
 			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
 			if Input.is_action_just_pressed("consume_water"):Survival.consume_water()
@@ -937,12 +941,25 @@ func _add_expedition_lighting() -> void:
 	settings.fog_light_color = Color("#9ab39d")
 	settings.fog_density = 0.008
 	environment.environment = settings
+	expedition_environment = settings
 	course.add_child(environment)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-48.0, -34.0, 0.0)
 	sun.light_color = Color("#e4d7af")
 	sun.light_energy = 1.15
 	course.add_child(sun)
+	expedition_sun = sun
+
+func _apply_expedition_atmosphere(weather: Dictionary) -> void:
+	if expedition_environment == null or expedition_sun == null: return
+	var atmosphere: Dictionary = WORLD_ATMOSPHERE.presentation(weather, {"clock":weather_clock})
+	expedition_environment.background_color = atmosphere.background
+	expedition_environment.ambient_light_color = atmosphere.ambient
+	expedition_environment.fog_light_color = atmosphere.fog
+	expedition_environment.fog_density = float(atmosphere.fog_density)
+	expedition_sun.light_color = atmosphere.sun_color
+	expedition_sun.light_energy = float(atmosphere.sun_energy)
+	expedition_sun.rotation_degrees = atmosphere.sun_rotation
 
 func _on_expedition_region_changed(region: Dictionary) -> void:
 	current_region = region
