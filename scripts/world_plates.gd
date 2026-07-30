@@ -6,17 +6,19 @@ const RNG = preload("res://scripts/world_rng.gd")
 var seed: int
 var cell_size: float
 var cache_capacity: int
+var geologic_time: float
 var _cache: Dictionary = {}
 var _cache_order: Array[String] = []
 var _hits := 0
 var _misses := 0
 var _evictions := 0
 
-func _init(next_seed: int, next_cell_size: float = 640.0, next_cache_capacity: int = 4096) -> void:
+func _init(next_seed: int, next_cell_size: float = 640.0, next_cache_capacity: int = 4096, next_geologic_time: float = 0.0) -> void:
 	assert(next_cell_size > 0.0, "plate cell size must be positive")
 	seed = next_seed
 	cell_size = next_cell_size
 	cache_capacity = maxi(next_cache_capacity, 0)
+	geologic_time = next_geologic_time
 
 func center(cell_x: int, cell_z: int) -> Dictionary:
 	var key := _key(cell_x, cell_z)
@@ -87,15 +89,28 @@ func clear_cache() -> void:
 	_cache.clear()
 	_cache_order.clear()
 
+func set_geologic_time(next_geologic_time: float) -> void:
+	if geologic_time == next_geologic_time:
+		return
+	geologic_time = next_geologic_time
+	clear_cache()
+
 func cache_metrics() -> Dictionary:
-	return {"hits": _hits, "misses": _misses, "evictions": _evictions, "size": _cache.size(), "capacity": cache_capacity}
+	return {"hits": _hits, "misses": _misses, "evictions": _evictions, "size": _cache.size(), "capacity": cache_capacity, "geologic_time": geologic_time}
+
+static func drift(vx: float, vz: float, next_cell_size: float, next_geologic_time: float) -> Vector2:
+	return Vector2(tanh(vx * next_geologic_time), tanh(vz * next_geologic_time)) * next_cell_size * 0.4
 
 func _build_center(cell_x: int, cell_z: int) -> Dictionary:
 	var jitter_x := RNG.thoth_signed(seed, cell_x, cell_z, 11) * cell_size * 0.38
 	var jitter_z := RNG.thoth_signed(seed, cell_x, cell_z, 23) * cell_size * 0.38
 	var angle := RNG.unit_at(seed, cell_x, cell_z, 41) * TAU
 	var speed := 0.25 + RNG.unit_at(seed, cell_x, cell_z, 43) * 0.75
-	return {"id": RNG.thoth_hash(seed, cell_x, cell_z, 37), "x": (float(cell_x) + 0.5) * cell_size + jitter_x, "z": (float(cell_z) + 0.5) * cell_size + jitter_z, "cell_x": cell_x, "cell_z": cell_z, "vx": cos(angle) * speed, "vz": sin(angle) * speed, "crust": "continental" if RNG.unit_at(seed, cell_x, cell_z, 47) > 0.66 else "oceanic", "age": RNG.unit_at(seed, cell_x, cell_z, 49)}
+	var vx := cos(angle) * speed
+	var vz := sin(angle) * speed
+	var drift_x := tanh(vx * geologic_time) * cell_size * 0.4
+	var drift_z := tanh(vz * geologic_time) * cell_size * 0.4
+	return {"id": RNG.thoth_hash(seed, cell_x, cell_z, 37), "x": (float(cell_x) + 0.5) * cell_size + jitter_x + drift_x, "z": (float(cell_z) + 0.5) * cell_size + jitter_z + drift_z, "cell_x": cell_x, "cell_z": cell_z, "vx": vx, "vz": vz, "crust": "continental" if RNG.unit_at(seed, cell_x, cell_z, 47) > 0.66 else "oceanic", "age": RNG.unit_at(seed, cell_x, cell_z, 49)}
 
 func _touch(key: String) -> void:
 	var index := _cache_order.find(key)
