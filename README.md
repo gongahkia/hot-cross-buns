@@ -27,3 +27,7 @@ uv --directory tools/level_mcp run --group test python -m pytest
 Default traversal, survival, field, photo, and controller bindings: [expedition-controls-survival-photo-mode.md](docs/expedition-controls-survival-photo-mode.md).
 
 Photo captures and metadata are written to `user://captures/`.
+
+## Release
+
+[itch.io build, upload, and release checklist](docs/itchio-release-checklist.md).
