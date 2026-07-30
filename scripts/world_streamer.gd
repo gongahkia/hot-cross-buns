@@ -11,6 +11,8 @@ const WORLD_ORIGIN := preload("res://scripts/world_origin.gd")
 const CHUNK_SCHEDULER := preload("res://scripts/world_chunk_scheduler.gd")
 const CHUNK_CACHE := preload("res://scripts/world_chunk_cache.gd")
 const RENDER_LOD := preload("res://scripts/world_render_lod.gd")
+const COLLISION_LOD := preload("res://scripts/world_collision_lod.gd")
+const COLLISION_MESH := preload("res://scripts/world_collision_mesh.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -104,8 +106,9 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	root.position = origin.local_chunk_position(Vector2i(chunk_x, chunk_z))
 	root.set_meta("descriptor", descriptor)
 	add_child(root)
-	var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var render_grid:=RENDER_LOD.grid_for_distance(distance)
+	var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var render_grid:=RENDER_LOD.grid_for_distance(distance);var collision_grid:=COLLISION_LOD.grid_for_distance(distance)
 	root.set_meta("render_grid",render_grid)
+	root.set_meta("collision_grid",collision_grid)
 	var mesh := _terrain_mesh(chunk_x, chunk_z, str(descriptor.biome), str(descriptor.region.family),render_grid)
 	var terrain := StaticBody3D.new()
 	terrain.name = "Terrain"
@@ -114,8 +117,8 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	visual.material_override = _terrain_material(str(descriptor.biome), str(descriptor.region.family))
 	terrain.add_child(visual)
 	var collision := CollisionShape3D.new()
-	collision.shape = _terrain_collision(chunk_x, chunk_z)
-	var step := GENERATOR.CHUNK_SIZE / float(GRID)
+	collision.shape = COLLISION_MESH.heightmap(generator, GENERATOR.CHUNK_SIZE, chunk_x, chunk_z, collision_grid)
+	var step := GENERATOR.CHUNK_SIZE / float(collision_grid)
 	collision.position = Vector3(GENERATOR.CHUNK_SIZE * 0.5, 0.0, GENERATOR.CHUNK_SIZE * 0.5)
 	collision.scale = Vector3(step, step, step)
 	terrain.add_child(collision)
@@ -139,18 +142,6 @@ func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, gr
 	var mesh := surface.commit()
 	mesh.resource_name = biome + "_" + family
 	return mesh
-
-func _terrain_collision(chunk_x: int, chunk_z: int) -> HeightMapShape3D:
-	var shape := HeightMapShape3D.new()
-	shape.map_width = GRID + 1
-	shape.map_depth = GRID + 1
-	var step := GENERATOR.CHUNK_SIZE / float(GRID)
-	var heights := PackedFloat32Array()
-	for z in range(GRID + 1):
-		for x in range(GRID + 1):
-			heights.append(_vertex(chunk_x, chunk_z, x, z, step).y / step)
-	shape.map_data = heights
-	return shape
 
 func _vertex(chunk_x: int, chunk_z: int, x: int, z: int, step: float) -> Vector3:
 	var local_x := float(x) * step
