@@ -2,6 +2,7 @@ class_name WorldTectonics
 extends RefCounted
 
 const NOISE = preload("res://scripts/world_noise.gd")
+const BATHYMETRY = preload("res://scripts/world_bathymetry.gd")
 
 var seed: int
 
@@ -30,8 +31,9 @@ func synthesize(base: Dictionary, hotspot: Dictionary = {}) -> Dictionary:
 	if primary_crust == "oceanic":
 		abyssal_noise = (NOISE.fbm(seed + 707, float(base.get("warped_x", 0.0)), float(base.get("warped_z", 0.0)), 3, 0.014 / sqrt(factor), 2.0, 0.5, 7) - 0.5) * 0.025 * (1.0 - float(base.get("shelf_proximity", 0.0)))
 	var hotspot_contribution := float(hotspot.get("contribution", 0.0))
-	var elevation := float(base.get("elevation", 0.0)) + uplift + subduction_uplift + island_arc * 0.36 + hotspot_contribution + abyssal_noise - rift_valley * 0.26 - trench
-	return {"base": base, "elevation": elevation, "uplift": uplift, "continental_rift": continental_rift, "rift_valley": rift_valley, "trench": trench, "subduction_uplift": subduction_uplift, "island_arc": island_arc, "passive_margin": float(base.get("margin_blend", 0.0)), "abyssal_noise": abyssal_noise, "hotspot_contribution": hotspot_contribution}
+	var seamount_contribution := BATHYMETRY.seamount_at(seed, float(base.get("warped_x", 0.0)), float(base.get("warped_z", 0.0)), factor, plate, float(base.get("shelf_proximity", 0.0)))
+	var elevation := float(base.get("elevation", 0.0)) + uplift + subduction_uplift + island_arc * 0.36 + hotspot_contribution + abyssal_noise + seamount_contribution - rift_valley * 0.26 - trench
+	return {"base": base, "elevation": elevation, "uplift": uplift, "continental_rift": continental_rift, "rift_valley": rift_valley, "trench": trench, "subduction_uplift": subduction_uplift, "island_arc": island_arc, "passive_margin": float(base.get("margin_blend", 0.0)), "abyssal_noise": abyssal_noise, "hotspot_contribution": hotspot_contribution, "seamount_contribution": seamount_contribution}
 
 func _smoothstep(minimum: float, maximum: float, value: float) -> float:
 	var t := clampf((value - minimum) / (maximum - minimum), 0.0, 1.0)

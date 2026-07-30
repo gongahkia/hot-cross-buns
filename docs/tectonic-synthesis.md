@@ -6,7 +6,7 @@
 - continental rift and rift-valley reduction;
 - oceanic trench and opposite-side subduction uplift;
 - ocean–ocean island arcs;
-- ocean abyssal noise and the base layer’s passive-margin blend.
+- ocean abyssal noise, deterministic seamounts, and the base layer’s passive-margin blend.
 
 An optional hotspot contribution is accepted explicitly, so callers can compose the hotspot field without hidden generator state.
 
@@ -21,13 +21,13 @@ The fixture checks rift, island-arc, trench/passive-margin, optional-hotspot, an
 ## Dependencies
 
 - Continental base sample, including warped coordinates, scale factor, ridge, shelf, and plate fields.
-- OpenSimplex sampler for arc and abyssal terms; optional hotspot field output.
+- OpenSimplex sampler for arc and abyssal terms; deterministic bathymetry seamount sampler; optional hotspot field output.
 
 ## Performance impact
 
-The layer adds one arc sample only for eligible ocean–ocean boundaries and one three-octave abyssal fBm sample for oceanic plates. It allocates only its result dictionary.
+The layer adds one fixed 3×3 seamount sample plus one arc sample only for eligible ocean–ocean boundaries and one three-octave abyssal fBm sample for oceanic plates. It allocates only its result dictionary.
 
 ## Out of scope
 
-- Orography archetypes, seamounts, erosion, hydrology, climate, biome selection, and active terrain integration.
+- Orography archetypes, erosion, hydrology, climate, biome selection, and active terrain integration.
 - Tectonic feedback into plate velocity or crust classification.
