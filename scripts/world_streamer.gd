@@ -21,6 +21,7 @@ const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const LANDMARK_GRAPPLE := preload("res://scripts/world_landmark_grapple.gd")
 const WILDLIFE_ECOLOGY := preload("res://scripts/world_wildlife_ecology.gd")
 const WILDLIFE_AGENT := preload("res://scripts/wildlife_agent.gd")
+const REGION_PRESENTATION := preload("res://scripts/world_region_presentation.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
@@ -325,7 +326,7 @@ func _update_far_terrain()->void:
 func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
 	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()
 	root.name="FarChunk_%d_%d"%[chunk_x,chunk_z];root.position=origin.local_chunk_position(Vector2i(chunk_x,chunk_z));root.set_meta("impostor",true);root.set_meta("render_grid",FAR_TERRAIN.GRID)
-	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,str(descriptor.biome),str(descriptor.region.family),FAR_TERRAIN.GRID);visual.material_override=_terrain_material(str(descriptor.biome),str(descriptor.region.family))
+	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,str(descriptor.biome),str(descriptor.region.family),FAR_TERRAIN.GRID);visual.material_override=_silhouette_material(str(descriptor.biome),str(descriptor.region.family))
 	root.add_child(visual);add_child(root)
 	return root
 
@@ -719,13 +720,13 @@ func _add_cylinder(root:Node3D,position:Vector3,radius:float,height:float,color:
 	var collision:=CollisionShape3D.new();var shape:=CylinderShape3D.new();shape.radius=radius;shape.height=height;collision.shape=shape;body.add_child(collision);root.add_child(body)
 
 func _terrain_material(biome: String, family: String) -> StandardMaterial3D:
-	var color: Color = {"ocean": Color("#2e5d6b"), "coast": Color("#8f9b70"), "desert": Color("#aa9564"), "alpine": Color("#82919b"), "nival_zone": Color("#d5e5df"), "wetland": Color("#4b7665"), "temperate_forest": Color("#55794e"), "rainforest": Color("#3e7146")}.get(biome, Color("#5e7650"))
-	if family == "industrial_ruin": color = Color("#686653")
-	if family == "reclaimed_city": color = Color("#576b59")
-	if family == "flooded_city": color = Color("#466d72")
-	if family == "overgrown_suburb": color = Color("#5f7951")
-	var material := _material(color)
+	var material := _material(REGION_PRESENTATION.palette(biome,family).terrain)
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+func _silhouette_material(biome: String, family: String) -> StandardMaterial3D:
+	var material := _material(REGION_PRESENTATION.palette(biome,family).silhouette)
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
 
 func _material(color: Color, emissive := false) -> StandardMaterial3D:
