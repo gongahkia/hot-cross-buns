@@ -18,6 +18,7 @@ const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
+const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -234,6 +235,8 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
 	if not resource.is_empty():_add_resource(root,resource)
+	var hazard:=HAZARD_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,str(descriptor.biome),family)
+	if not hazard.is_empty():_add_hazard(root,hazard)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
 
@@ -330,6 +333,17 @@ func _add_resource(root:Node3D,record:Dictionary)->void:
 	visual.material_override = _material(Color("#9fd477") if kind in ["food", "water"] else Color("#d3ba72"), true)
 	pickup.add_child(visual)
 	root.add_child(pickup)
+
+func _add_hazard(root:Node3D,record:Dictionary)->void:
+	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
+	hazard.position=Vector3(float(record.local_x),ground_height(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z)))+.06,float(record.local_z))
+	var marker:=MeshInstance3D.new();var mesh:=CylinderMesh.new();mesh.top_radius=2.2;mesh.bottom_radius=2.2;mesh.height=.12;marker.mesh=mesh
+	var color:=Color("#8c7a43")
+	if str(record.kind)=="contamination":color=Color("#9b6a37")
+	elif str(record.kind)=="floodwater":color=Color("#4d8c9d")
+	elif str(record.kind)=="thermal":color=Color("#c0643f")
+	elif str(record.kind)=="sinkhole":color=Color("#574a44")
+	marker.material_override=_material(color,true);hazard.add_child(marker);root.add_child(hazard)
 
 func _add_grapple_anchor(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	var x := 12.0 + RNG.unit(generator.seed, chunk_x, chunk_z, 431) * 40.0
