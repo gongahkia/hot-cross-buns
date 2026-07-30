@@ -14,6 +14,7 @@ const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
 const PIXEL_PRESENTATION := preload("res://scripts/pixel_presentation.gd")
 const WEATHER_LAYERS := preload("res://scripts/weather_layers.gd")
+const WORLD_ARRIVAL_PRESENTATION := preload("res://scripts/world_arrival_presentation.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
@@ -95,6 +96,8 @@ var style_meter_fill: StyleBoxFlat
 var style_award_feed: StyleAwardFeed
 var style_meter_tween: Tween
 var briefing_label: Label
+var arrival_label: Label
+var arrival_tween: Tween
 var grapple_reticle: GrappleReticle
 var debug_panel: PanelContainer
 var debug_label: Label
@@ -220,6 +223,14 @@ func _build_ui() -> void:
 	briefing_label.size.x = 640.0
 	briefing_label.position.x = -320.0
 	hud.add_child(briefing_label)
+	arrival_label = _label("", 18, Color("#d8e7c2"))
+	arrival_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	arrival_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	arrival_label.position.y = 126.0
+	arrival_label.size.x = 760.0
+	arrival_label.position.x = -380.0
+	arrival_label.modulate.a = 0.0
+	hud.add_child(arrival_label)
 	grapple_reticle = GRAPPLE_RETICLE.new()
 	hud.add_child(grapple_reticle)
 	style_award_feed = STYLE_AWARD_FEED.new()
@@ -994,6 +1005,20 @@ func _on_expedition_region_changed(region: Dictionary) -> void:
 	world_journal.survey_region(region)
 	current_station = str(region.get("name", "Unknown"))
 	last_sandbox_event = "ENTERED " + current_station.to_upper()
+	var sample: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
+	_show_region_arrival(WORLD_ARRIVAL_PRESENTATION.presentation(region, str(sample.get("biome", "unknown"))))
+
+func _show_region_arrival(presentation: Dictionary) -> void:
+	if arrival_label == null: return
+	if arrival_tween: arrival_tween.kill()
+	var lines := [str(presentation.get("title", "UNKNOWN")), str(presentation.get("subtitle", ""))]
+	if not str(presentation.get("landmark", "")).is_empty(): lines.append(str(presentation.landmark))
+	arrival_label.text = "\n".join(lines)
+	arrival_label.add_theme_color_override("font_color", presentation.get("color", Color("#d8e7c2")))
+	arrival_label.modulate.a = 0.0
+	arrival_tween = create_tween()
+	arrival_tween.tween_property(arrival_label, "modulate:a", 1.0, 0.25)
+	arrival_tween.tween_property(arrival_label, "modulate:a", 0.0, 0.45).set_delay(3.0)
 
 func _on_chunk_stats_changed(stats: Dictionary) -> void:
 	if bool(current_level.get("procedural", false)):
