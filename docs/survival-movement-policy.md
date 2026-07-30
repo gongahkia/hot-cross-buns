@@ -14,8 +14,8 @@
 
 ## Performance impact
 
-- Pure, allocation-small policy evaluation; it is not yet applied by `SpeedPlayer`.
+- One pure, allocation-small policy evaluation runs per active expedition frame and sets `SpeedPlayer`'s future movement speed cap.
 
 ## Out of scope
 
-- Controller integration, meter depletion/consumption, injury recovery, accessibility settings, and balance tuning.
+- Accessibility settings and balance tuning.

@@ -4,6 +4,7 @@ extends CharacterBody3D
 signal reset_requested
 signal traversal_action(action: String, override_points: int)
 signal combo_landed
+signal hard_landed(injury: float)
 
 const WALK_SPEED := 10.0
 const SPRINT_SPEED := 17.0
@@ -66,6 +67,8 @@ const MAX_STRAFE_ROLL := 0.13962634
 const SLIDE_STRAFE_ROLL := 0.05235988
 const FOV_RESPONSE := 96.0
 const SHAKE_DECAY := 0.28
+const INJURY_LANDING_SPEED := 12.0
+const INJURY_PER_SPEED := 1.5
 
 var camera: Camera3D
 var dust_particles: GPUParticles3D
@@ -110,6 +113,7 @@ var grapple_line_mesh: ImmediateMesh
 var grapple_line_material: StandardMaterial3D
 var airborne_time := 0.0
 var flow_timer := 0.0
+var survival_speed_multiplier := 1.0
 
 func _ready() -> void:
 	name = "Player"
@@ -247,6 +251,9 @@ func _physics_process(delta: float) -> void:
 		var impact := minf(absf(impact_velocity), 18.0)
 		_add_camera_shake(0.012 + impact * 0.0018)
 		landing_offset = minf(landing_offset, -impact * 0.006)
+		var injury := landing_injury(impact_velocity)
+		if injury > 0.0:
+			hard_landed.emit(injury)
 	if on_floor_before_move and not is_on_floor():
 		_try_ramp_launch(floor_normal_before_move)
 	was_sliding = is_sliding
@@ -279,13 +286,30 @@ func _sprint_dash_requested(on_floor: bool) -> bool:
 	return Input.is_action_just_pressed("sprint") and not on_floor
 
 func _movement_top_speed(on_floor: bool) -> float:
-	var top_speed := GLIDE_SPEED if is_gliding else (SLIDE_SPEED if is_sliding else (SPRINT_SPEED if is_sprinting else WALK_SPEED))
+	var top_speed := (GLIDE_SPEED if is_gliding else (SLIDE_SPEED if is_sliding else (SPRINT_SPEED if is_sprinting else WALK_SPEED))) * survival_speed_multiplier
 	var planar_speed := Vector2(velocity.x, velocity.z).length()
 	if is_sprinting:
-		top_speed = maxf(top_speed, minf(planar_speed, SLIDE_SPEED))
+		top_speed = maxf(top_speed, minf(planar_speed, SLIDE_SPEED * survival_speed_multiplier))
 	if not on_floor:
-		top_speed = maxf(top_speed, minf(planar_speed, AIR_MOMENTUM_SPEED))
+		top_speed = maxf(top_speed, minf(planar_speed, AIR_MOMENTUM_SPEED * survival_speed_multiplier))
 	return top_speed
+
+func set_survival_speed_multiplier(multiplier: float) -> void:
+	survival_speed_multiplier = clampf(multiplier, 0.0, 1.0)
+
+func survival_movement_state() -> String:
+	if is_grappling: return "grapple"
+	if is_gliding: return "glide"
+	if dash_timer > 0.0: return "dash"
+	if is_sliding: return "slide"
+	if is_sprinting: return "sprint"
+	return "walk"
+
+func survival_exertion_active() -> bool:
+	return _planar_velocity().length() > 1.0 or not is_on_floor() or is_sliding or is_sprinting or is_gliding or is_grappling or is_wall_running
+
+static func landing_injury(impact_velocity: float) -> float:
+	return clampf((absf(impact_velocity) - INJURY_LANDING_SPEED) * INJURY_PER_SPEED, 0.0, 30.0)
 
 func _update_glide_state(on_floor: bool) -> void:
 	is_gliding = not on_floor and not is_grappling and not is_slamming and not is_wall_running and Input.is_action_pressed("glide") and velocity.y <= 1.5
@@ -306,7 +330,7 @@ func _apply_horizontal_movement(input_vector: Vector2, on_floor: bool, delta: fl
 			planar += steer
 		else:
 			planar = planar.move_toward(Vector3.ZERO, SLIDE_FRICTION * delta)
-		_set_planar_velocity(planar)
+		_set_planar_velocity(_soft_cap_planar(planar, SLIDE_SPEED * survival_speed_multiplier))
 		return
 	if is_wall_running:
 		var tangent := _wall_run_tangent()
@@ -314,9 +338,9 @@ func _apply_horizontal_movement(input_vector: Vector2, on_floor: bool, delta: fl
 			var desired_sign := signf(tangent.dot(direction)) if direction.length() > 0.1 else signf(tangent.dot(planar))
 			if is_zero_approx(desired_sign):
 				desired_sign = 1.0
-			planar = tangent * desired_sign * maxf(planar.length(), WALL_RUN_MIN_SPEED)
-			planar += tangent * desired_sign * WALL_RUN_ACCELERATION * delta
-		_set_planar_velocity(_soft_cap_planar(planar, AIR_SOFT_SPEED_CAP))
+			planar = tangent * desired_sign * maxf(planar.length(), WALL_RUN_MIN_SPEED * survival_speed_multiplier)
+			planar += tangent * desired_sign * WALL_RUN_ACCELERATION * survival_speed_multiplier * delta
+		_set_planar_velocity(_soft_cap_planar(planar, AIR_SOFT_SPEED_CAP * survival_speed_multiplier))
 		return
 	if on_floor:
 		var target := direction * _movement_top_speed(true)
@@ -330,7 +354,7 @@ func _apply_horizontal_movement(input_vector: Vector2, on_floor: bool, delta: fl
 		var aligned_speed := planar.dot(direction)
 		var acceleration := AIR_ACCELERATION if aligned_speed < _movement_top_speed(false) else AIR_STRAFE_ACCELERATION
 		planar += direction * acceleration * delta
-	_set_planar_velocity(_soft_cap_planar(planar, GLIDE_MAX_SPEED if is_gliding else AIR_SOFT_SPEED_CAP))
+	_set_planar_velocity(_soft_cap_planar(planar, (GLIDE_MAX_SPEED if is_gliding else AIR_SOFT_SPEED_CAP) * survival_speed_multiplier))
 
 func _apply_slope_acceleration(floor_normal: Vector3, delta: float) -> void:
 	var downhill := Vector3.DOWN.slide(floor_normal)
@@ -346,14 +370,14 @@ func _apply_glide_swoop(delta: float) -> void:
 	var dive_amount := maxf(0.0, -view_direction.y)
 	var planar_view := Vector3(view_direction.x, 0.0, view_direction.z).normalized()
 	if dive_amount > 0.18 and planar_view.length() > 0.1:
-		_set_planar_velocity(_soft_cap_planar(_planar_velocity() + planar_view * GLIDE_DIVE_ACCELERATION * dive_amount * delta, GLIDE_MAX_SPEED))
+		_set_planar_velocity(_soft_cap_planar(_planar_velocity() + planar_view * GLIDE_DIVE_ACCELERATION * survival_speed_multiplier * dive_amount * delta, GLIDE_MAX_SPEED * survival_speed_multiplier))
 		velocity.y -= GRAVITY * dive_amount * 0.45 * delta
 		if glide_dive_timer <= 0.0:
 			traversal_action.emit("glide_dive", -1)
 			glide_dive_timer = 0.65
 	elif view_direction.y > 0.25 and _planar_velocity().length() > GLIDE_SPEED:
 		velocity.y += GLIDE_LIFT_ACCELERATION * view_direction.y * delta
-		_set_planar_velocity(_planar_velocity().move_toward(Vector3.ZERO, GLIDE_LIFT_ACCELERATION * view_direction.y * delta))
+		_set_planar_velocity(_planar_velocity().move_toward(Vector3.ZERO, GLIDE_LIFT_ACCELERATION * survival_speed_multiplier * view_direction.y * delta))
 
 func _input_direction(input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")) -> Vector3:
 	return (transform.basis * Vector3(input_vector.x, 0.0, input_vector.y)).normalized()
@@ -441,17 +465,17 @@ func _update_grapple(delta: float, input_vector := Input.get_vector("move_left",
 		_stop_grapple()
 		return
 	var direction := offset / distance
-	grapple_rope_length = maxf(GRAPPLE_MIN_ROPE_LENGTH, grapple_rope_length - GRAPPLE_REEL_SPEED * delta)
+	grapple_rope_length = maxf(GRAPPLE_MIN_ROPE_LENGTH, grapple_rope_length - GRAPPLE_REEL_SPEED * survival_speed_multiplier * delta)
 	var radial_speed := velocity.dot(direction)
 	if radial_speed > 0.0:
 		velocity -= direction * radial_speed
 	var tension := maxf(distance - grapple_rope_length, 0.0)
 	if tension > 0.0:
-		velocity += direction * minf(tension * GRAPPLE_ROPE_STIFFNESS, 42.0) * delta
+		velocity += direction * minf(tension * GRAPPLE_ROPE_STIFFNESS, 42.0) * survival_speed_multiplier * delta
 	var pump_direction := _input_direction(input_vector).slide(direction)
 	if pump_direction.length() > 0.1:
-		velocity += pump_direction.normalized() * GRAPPLE_PUMP_ACCELERATION * delta
-	_set_planar_velocity(_soft_cap_planar(_planar_velocity(), DASH_MAX_SPEED))
+		velocity += pump_direction.normalized() * GRAPPLE_PUMP_ACCELERATION * survival_speed_multiplier * delta
+	_set_planar_velocity(_soft_cap_planar(_planar_velocity(), DASH_MAX_SPEED * survival_speed_multiplier))
 	_refresh_grapple_line()
 
 func _stop_grapple(award_release := false) -> void:
@@ -545,8 +569,8 @@ func _dash(style_action := "dash") -> void:
 		direction = _forward_direction()
 	var planar := _planar_velocity()
 	var along_speed := planar.dot(direction)
-	var boost := maxf(DASH_DIRECTIONAL_BOOST, DASH_SPEED - along_speed)
-	_set_planar_velocity(_soft_cap_planar(planar + direction * boost, DASH_MAX_SPEED))
+	var boost := maxf(DASH_DIRECTIONAL_BOOST * survival_speed_multiplier, DASH_SPEED * survival_speed_multiplier - along_speed)
+	_set_planar_velocity(_soft_cap_planar(planar + direction * boost, DASH_MAX_SPEED * survival_speed_multiplier))
 	var airborne := not is_on_floor()
 	if airborne:
 		velocity.y = max(velocity.y, 0.0)

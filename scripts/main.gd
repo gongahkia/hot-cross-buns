@@ -11,6 +11,7 @@ const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
 const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
+const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
 const SANDBOX_STATION_CENTERS := {
@@ -259,7 +260,9 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
 			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
 			if Input.is_action_just_pressed("consume_water"):Survival.consume_water()
-			Survival.advance(delta, environment, player.style_multiplier_active())
+			var movement := SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
+			player.set_survival_speed_multiplier(float(movement.speed_multiplier))
+			Survival.advance(delta, environment, player.survival_exertion_active())
 		_refresh_hud()
 		_refresh_grapple_reticle()
 		_refresh_sandbox_context()
@@ -455,6 +458,7 @@ func _build_creative_course() -> void:
 	player.reset_requested.connect(_bail_to_start)
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
+	player.hard_landed.connect(_on_hard_landed)
 	course.add_child(player)
 
 func _rebuild_creative_geometry(change: Dictionary = {}) -> void:
@@ -693,6 +697,7 @@ func _build_course(level: Dictionary) -> void:
 	player.reset_requested.connect(_bail_to_start)
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
+	player.hard_landed.connect(_on_hard_landed)
 	course.add_child(player)
 	_build_open_terrain(world_length, world_width, str(level.terrain_style))
 	_build_sandbox(palette)
@@ -726,6 +731,7 @@ func _load_document_level(level: Dictionary) -> void:
 	player.reset_requested.connect(_bail_to_start)
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
+	player.hard_landed.connect(_on_hard_landed)
 	course.add_child(player)
 
 func _load_baked_sandbox(level: Dictionary) -> void:
@@ -771,6 +777,7 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 	player.reset_requested.connect(_bail_to_start)
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
+	player.hard_landed.connect(_on_hard_landed)
 	course.add_child(player)
 
 func _load_expedition(level: Dictionary) -> void:
@@ -795,6 +802,7 @@ func _load_expedition(level: Dictionary) -> void:
 	player.reset_requested.connect(_bail_to_start)
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
+	player.hard_landed.connect(_on_hard_landed)
 	course.add_child(player)
 	world_streamer = WORLD_STREAMER.new()
 	course.add_child(world_streamer)
@@ -845,6 +853,12 @@ func _on_survival_depleted(reason: String) -> void:
 	if player: player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	show_title()
+
+func _on_hard_landed(injury: float) -> void:
+	if not RunData.running or not bool(current_level.get("procedural", false)):
+		return
+	Survival.apply_injury(injury)
+	last_sandbox_event = "INJURY %02d" % int(ceilf(injury))
 
 func _photo_metadata() -> Dictionary:
 	var world_data: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}

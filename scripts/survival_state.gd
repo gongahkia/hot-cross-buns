@@ -13,6 +13,7 @@ var health := MAX_VALUE
 var fatigue := 0.0
 var wetness := 0.0
 var exposure := 0.0
+var injury := 0.0
 var materials: Dictionary = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 var alive := true
 var run_seed := 0
@@ -26,6 +27,7 @@ func begin_run(seed: int) -> void:
 	fatigue = 0.0
 	wetness = 0.0
 	exposure = 0.0
+	injury = 0.0
 	materials = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 	alive = true
 	changed.emit(snapshot())
@@ -44,6 +46,10 @@ func advance(delta: float, environment: Dictionary, movement_active: bool) -> vo
 	thirst = maxf(0.0, thirst - delta * (0.42 + maxf(temperature - 0.55, 0.0) * 0.35))
 	warmth = clampf(warmth + delta * (0.18 - exposure * 0.65), 0.0, MAX_VALUE)
 	fatigue = clampf(fatigue + delta * (0.48 if movement_active else -0.24), 0.0, MAX_VALUE)
+	if not movement_active and hunger >= 60.0 and thirst >= 60.0 and warmth >= 60.0 and exposure <= 0.5 and injury > 0.0:
+		var recovery := minf(injury, delta * 0.3)
+		injury -= recovery
+		health = minf(MAX_VALUE, health + recovery)
 	if hunger <= 0.0 or thirst <= 0.0 or warmth <= 0.0:
 		health = maxf(0.0, health - delta * 4.0)
 	if health <= 0.0:
@@ -81,11 +87,13 @@ func purify_water() -> bool:
 
 func apply_injury(amount: float) -> void:
 	if not alive: return
-	health = maxf(0.0, health - amount)
+	var applied := clampf(amount, 0.0, MAX_VALUE)
+	injury = minf(MAX_VALUE, injury + applied)
+	health = maxf(0.0, health - applied)
 	if health <= 0.0:
 		alive = false
 		depleted.emit("injury")
 	changed.emit(snapshot())
 
 func snapshot() -> Dictionary:
-	return {"hunger": hunger, "thirst": thirst, "warmth": warmth, "health": health, "fatigue": fatigue, "wetness": wetness, "exposure": exposure, "materials": materials.duplicate(), "alive": alive, "seed": run_seed}
+	return {"hunger": hunger, "thirst": thirst, "warmth": warmth, "health": health, "fatigue": fatigue, "wetness": wetness, "exposure": exposure, "injury": injury, "materials": materials.duplicate(), "alive": alive, "seed": run_seed}
