@@ -18,7 +18,7 @@ The store rejects missing/invalid JSON, unsupported schema, non-positive generat
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/local_save_store_test.gd
 ```
 
-The test writes two generations, corrupts primary, and verifies recovery returns the preserved prior generation.
+The baseline test writes two generations, corrupts primary, and verifies recovery returns the preserved prior generation. `local_save_corruption_recovery_test.gd` additionally covers a newer valid interrupted staging file, schema-corrupt staging fallback, corrupt backup handling, and the all-candidates-corrupt result.
 
 ## Dependencies
 
