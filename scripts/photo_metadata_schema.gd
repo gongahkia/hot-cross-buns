@@ -39,7 +39,7 @@ static func validate(metadata: Dictionary) -> Dictionary:
 	if not (capture_value is Dictionary) or not _has_exact_keys(capture_value, CAPTURE_KEYS):
 		return _result(false, "invalid_capture")
 	var capture: Dictionary = capture_value
-	if typeof(capture.get("width")) != TYPE_INT or typeof(capture.get("height")) != TYPE_INT or int(capture.get("width")) <= 0 or int(capture.get("height")) <= 0:
+	if not _is_positive_integer(capture.get("width")) or not _is_positive_integer(capture.get("height")):
 		return _result(false, "invalid_capture")
 	if not _is_utc_timestamp(metadata.get("captured_at")):
 		return _result(false, "invalid_timestamp")
@@ -99,6 +99,12 @@ static func _is_finite_number(value: Variant) -> bool:
 	if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
 		return false
 	return is_finite(float(value))
+
+static func _is_positive_integer(value: Variant) -> bool:
+	if not _is_finite_number(value):
+		return false
+	var number := float(value)
+	return number > 0.0 and number == floor(number) and number <= 2147483647.0
 
 static func _is_json_value(value: Variant, depth := 0) -> bool:
 	if depth > MAX_NESTING_DEPTH:
