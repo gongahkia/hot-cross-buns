@@ -1,0 +1,41 @@
+{
+  "schema": "urban-region-fixtures/v1",
+  "cases": [
+    {
+      "id": "reclaimed-waterfront",
+      "seed": 20260730,
+      "chunk": {"x": -24, "z": -64},
+      "family": "reclaimed_city",
+      "urban": {"land_use": "park", "ruin_age_years": 69},
+      "required_fields": ["urban", "city_layout", "city_arterials", "city_secondary_roads", "city_parcels", "city_buildings", "city_traversal", "city_failures", "city_rooftop_resources", "city_vegetation"],
+      "signature": {"layout": "waterfront_grid", "axis": "x", "building_count": 8}
+    },
+    {
+      "id": "flooded-coastal-basin",
+      "seed": 20260730,
+      "chunk": {"x": 0, "z": -64},
+      "family": "flooded_city",
+      "urban": {"land_use": "marsh", "ruin_age_years": 48},
+      "required_fields": ["urban", "flood_basin", "flood_inundation", "flood_routes", "flood_structures", "flood_ecology"],
+      "signature": {"placement": "coastal_basin", "shore_axis": "x", "water_neighbors": 3, "inundation_depth": 3.31009461110933}
+    },
+    {
+      "id": "industrial-yard",
+      "seed": 20260730,
+      "chunk": {"x": -56, "z": -64},
+      "family": "industrial_ruin",
+      "urban": {"land_use": "yard", "ruin_age_years": 180},
+      "required_fields": ["urban", "industrial_layout", "industrial_structures", "industrial_traversal", "industrial_hazards", "industrial_resources"],
+      "signature": {"zone": "yard", "axis": "x", "factory_count": 1}
+    },
+    {
+      "id": "suburb-residential",
+      "seed": 20260730,
+      "chunk": {"x": -64, "z": -64},
+      "family": "overgrown_suburb",
+      "urban": {"land_use": "residential", "ruin_age_years": 150},
+      "required_fields": ["urban", "suburb_roads", "suburb_parcels", "suburb_transitions", "suburb_traversal", "suburb_resources"],
+      "signature": {"collector_axis": "x", "collector_offset": 33.2733572075485, "home_count": 4}
+    }
+  ]
+}
