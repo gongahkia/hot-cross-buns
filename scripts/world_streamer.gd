@@ -248,6 +248,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_city_traversal(root,descriptor.get("city_buildings",{}),descriptor.get("city_traversal",{}),descriptor.get("city_failures",{}))
 		_add_city_collapsed_routes(root,descriptor.get("city_buildings",{}),descriptor.get("city_failures",{}))
 		_add_city_rooftop_resources(root,descriptor.get("city_rooftop_resources",{}))
+		_add_city_vegetation(root,descriptor.get("city_vegetation",{}))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
@@ -401,6 +402,10 @@ func _add_resource_at(root:Node3D,record:Dictionary,x:float,z:float,y:float)->vo
 func _add_city_rooftop_resources(root:Node3D,ecology:Dictionary)->void:
 	for resource:Dictionary in ecology.get("resources",[]):
 		var x:=float(resource.x);var z:=float(resource.z);_add_resource_at(root,resource,x,z,ground_height(root.global_position+Vector3(x,0.0,z))+float(resource.roof_height)+1.1)
+
+func _add_city_vegetation(root:Node3D,ecology:Dictionary)->void:
+	for record:Dictionary in ecology.get("vegetation",[]):
+		var x:=float(record.x);var z:=float(record.z);var color:=Color("#688a55") if str(record.stage)=="pioneer" else Color("#4f7b4b") if str(record.stage)=="shrub" else Color("#3f703f");_add_tree(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(record.base_height),z),float(record.height),color)
 
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
