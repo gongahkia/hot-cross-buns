@@ -257,12 +257,13 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_industrial_structures(root,descriptor.get("industrial_structures",{}))
 		_add_industrial_traversal(root,descriptor.get("industrial_traversal",{}))
 		_add_industrial_hazards(root,descriptor.get("industrial_hazards",{}))
+		_add_industrial_resources(root,descriptor.get("industrial_resources",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
-	if not resource.is_empty():_add_resource(root,resource)
+	if not resource.is_empty() and family!="industrial_ruin":_add_resource(root,resource)
 	var hazard:=HAZARD_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,str(descriptor.biome),family)
 	if not hazard.is_empty() and family!="industrial_ruin":_add_hazard(root,hazard)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
@@ -358,6 +359,9 @@ func _add_industrial_traversal(root:Node3D,fields:Dictionary)->void:
 
 func _add_industrial_hazards(root:Node3D,fields:Dictionary)->void:
 	for field:Dictionary in fields.get("fields",[]):_add_hazard(root,field)
+
+func _add_industrial_resources(root:Node3D,fields:Dictionary)->void:
+	for resource:Dictionary in fields.get("resources",[]):_add_resource(root,resource)
 
 func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(5):
