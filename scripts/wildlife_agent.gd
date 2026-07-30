@@ -9,6 +9,7 @@ var player: Node3D
 var archetype: Dictionary = {}
 var warning_issued := false
 var territory_center := Vector3.ZERO
+var melee_cooldown := 0.0
 
 func configure(next_record: Dictionary, next_player: Node3D) -> void:
 	record = next_record.duplicate(true)
@@ -19,8 +20,16 @@ func _ready() -> void:
 	territory_center = global_position
 
 func _process(delta: float) -> void:
+	melee_cooldown = maxf(0.0, melee_cooldown-delta)
 	if player == null or not is_instance_valid(player) or archetype.is_empty(): return
 	var behavior: Dictionary = BEHAVIOR.step(archetype, global_position, player.global_position, warning_issued, territory_center)
 	warning_issued = bool(behavior.warning_issued)
 	set_meta("wildlife_state", str(behavior.state))
 	if str(behavior.state) == "flee": global_position += (behavior.direction as Vector3) * float(behavior.speed) * delta
+
+func register_traversal_hit(state: String) -> bool:
+	if melee_cooldown > 0.0: return false
+	melee_cooldown = 0.4
+	set_meta("wildlife_hit", state)
+	set_meta("wildlife_state", "flee")
+	return true

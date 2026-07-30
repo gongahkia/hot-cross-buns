@@ -305,6 +305,11 @@ func survival_movement_state() -> String:
 	if is_sprinting: return "sprint"
 	return "walk"
 
+func traversal_melee_context() -> Dictionary:
+	var state := "slam" if is_slamming else "slide" if is_sliding else ""
+	if state.is_empty(): return {}
+	return {"state":state,"speed":_planar_velocity().length(),"origin":global_position+Vector3(0.0,0.8,0.0)}
+
 func survival_exertion_active() -> bool:
 	return _planar_velocity().length() > 1.0 or not is_on_floor() or is_sliding or is_sprinting or is_gliding or is_grappling or is_wall_running
 
