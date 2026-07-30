@@ -7,6 +7,7 @@ signal chunk_stats_changed(stats: Dictionary)
 const GENERATOR := preload("res://scripts/world_generator.gd")
 const RNG := preload("res://scripts/world_rng.gd")
 const RESOURCE_PICKUP := preload("res://scripts/resource_pickup.gd")
+const WORLD_ORIGIN := preload("res://scripts/world_origin.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -16,9 +17,11 @@ var player: SpeedPlayer
 var chunks: Dictionary = {}
 var current_center := Vector2i(2147483647, 2147483647)
 var current_region_id := ""
+var origin
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
+	origin = WORLD_ORIGIN.new(GENERATOR.CHUNK_SIZE)
 	player = next_player
 	name = "ExpeditionWorld"
 	refresh(true)
@@ -28,7 +31,11 @@ func _process(_delta: float) -> void:
 
 func refresh(force: bool) -> void:
 	if generator == null or player == null: return
-	var center := Vector2i(floori(player.global_position.x / GENERATOR.CHUNK_SIZE), floori(player.global_position.z / GENERATOR.CHUNK_SIZE))
+	var rebase: Vector3 = origin.rebase_delta(player.global_position)
+	if rebase != Vector3.ZERO:
+		player.global_position += rebase
+		for root: Node3D in chunks.values(): root.global_position += rebase
+	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
 		_update_region()
 		return
@@ -49,13 +56,14 @@ func refresh(force: bool) -> void:
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y]})
 
 func sample_at(world_position: Vector3) -> Dictionary:
-	return generator.sample(world_position.x, world_position.z) if generator else {}
+	var canonical: Vector3 = origin.world_position(world_position) if origin else world_position
+	return generator.sample(canonical.x, canonical.z) if generator else {}
 
 func ground_height(world_position: Vector3) -> float:
 	return float(sample_at(world_position).get("elevation", 0.0))
 
 func _update_region() -> void:
-	var region: Dictionary = generator.region_at(player.global_position)
+	var region: Dictionary = generator.region_at(origin.world_position(player.global_position))
 	if str(region.id) == current_region_id: return
 	current_region_id = str(region.id)
 	region_changed.emit(region)
@@ -64,7 +72,7 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	var descriptor: Dictionary = generator.chunk_descriptor(chunk_x, chunk_z)
 	var root := Node3D.new()
 	root.name = "Chunk_%d_%d" % [chunk_x, chunk_z]
-	root.position = Vector3(float(chunk_x) * GENERATOR.CHUNK_SIZE, 0.0, float(chunk_z) * GENERATOR.CHUNK_SIZE)
+	root.position = origin.local_chunk_position(Vector2i(chunk_x, chunk_z))
 	root.set_meta("descriptor", descriptor)
 	add_child(root)
 	var mesh := _terrain_mesh(chunk_x, chunk_z, str(descriptor.biome), str(descriptor.region.family))
