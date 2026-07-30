@@ -6,8 +6,8 @@ const MAX_PLANAR_SPEED := 3.0
 const MAX_SLOPE := 0.35
 const MAX_DISTANCE := 2.5
 
-static func evaluate(player: Dictionary, surface: Dictionary, inventory: Dictionary) -> Dictionary:
-	var result := {"allowed": false, "reason": "unknown", "cost": MARKER_COST.duplicate()}
+static func evaluate(player: Dictionary, surface: Dictionary, inventory: Dictionary, cost: Dictionary = MARKER_COST) -> Dictionary:
+	var result := {"allowed": false, "reason": "unknown", "cost": cost.duplicate()}
 	if not bool(player.get("on_floor", false)):
 		result.reason = "grounded_required"
 		return result
@@ -20,8 +20,11 @@ static func evaluate(player: Dictionary, surface: Dictionary, inventory: Diction
 	if bool(surface.get("water", false)) or float(surface.get("slope", 0.0)) > MAX_SLOPE:
 		result.reason = "unsafe_surface"
 		return result
-	for kind: String in MARKER_COST:
-		if int(inventory.get(kind, 0)) < int(MARKER_COST[kind]):
+	if cost.is_empty():
+		result.reason = "materials_required"
+		return result
+	for kind: String in cost:
+		if int(inventory.get(kind, 0)) < int(cost[kind]) or int(cost[kind]) <= 0:
 			result.reason = "materials_required"
 			return result
 	result.allowed = true

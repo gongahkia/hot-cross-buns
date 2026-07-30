@@ -39,6 +39,7 @@ var far_chunks: Dictionary = {}
 var active_ids: Dictionary = {}
 var landmarks=LANDMARKS.new()
 var streaming_telemetry=STREAMING_TELEMETRY.new()
+var shelters: Array[Node3D] = []
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -46,6 +47,7 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	scheduler = CHUNK_SCHEDULER.new(next_seed)
 	chunk_cache = CHUNK_CACHE.new(128)
 	player = next_player
+	shelters.clear()
 	name = "ExpeditionWorld"
 	refresh(true)
 
@@ -177,6 +179,53 @@ func place_material_marker(world_position: Vector3, record: Dictionary = {}) -> 
 	flag.material_override = _material(Color("#9fd477"), true)
 	marker.add_child(flag)
 	return true
+
+func place_temporary_shelter(world_position: Vector3, record: Dictionary = {}) -> bool:
+	if origin == null: return false
+	var chunk: Vector2i = origin.chunk_at_local(world_position)
+	var root: Node3D = chunks.get(_chunk_id(chunk.x, chunk.y)) as Node3D
+	if root == null: return false
+	var shelter := Node3D.new()
+	shelter.name = "TemporaryShelter"
+	shelter.set_meta("temporary_shelter", true)
+	shelter.set_meta("record", record.duplicate(true))
+	shelter.set_meta("cover_radius", 3.2)
+	root.add_child(shelter)
+	shelter.global_position = world_position
+	var roof := MeshInstance3D.new()
+	var roof_mesh := PrismMesh.new()
+	roof_mesh.left_to_right = 0.5
+	roof_mesh.size = Vector3(3.4, 1.2, 2.8)
+	roof.mesh = roof_mesh
+	roof.position.y = 1.9
+	roof.material_override = _material(Color("#66754c"))
+	shelter.add_child(roof)
+	for offset in [Vector3(-1.35, 0.7, -0.9), Vector3(1.35, 0.7, -0.9), Vector3(-1.35, 0.7, 0.9), Vector3(1.35, 0.7, 0.9)]:
+		var post := MeshInstance3D.new()
+		var post_mesh := CylinderMesh.new()
+		post_mesh.top_radius = 0.07
+		post_mesh.bottom_radius = 0.10
+		post_mesh.height = 1.4
+		post.mesh = post_mesh
+		post.position = offset
+		post.material_override = _material(Color("#9a7650"))
+		shelter.add_child(post)
+	shelters.append(shelter)
+	return true
+
+func shelter_cover_at(world_position: Vector3) -> float:
+	var active_shelters: Array[Node3D] = []
+	var cover := 0.0
+	for shelter: Node3D in shelters:
+		if not is_instance_valid(shelter): continue
+		active_shelters.append(shelter)
+		var radius := float(shelter.get_meta("cover_radius", 0.0))
+		var offset := shelter.global_position - world_position
+		offset.y = 0.0
+		if radius > 0.0 and offset.length() < radius:
+			cover = maxf(cover, 1.0 - offset.length() / radius)
+	shelters = active_shelters
+	return cover
 
 func _update_region() -> void:
 	var region: Dictionary = generator.region_at(origin.world_position(player.global_position))

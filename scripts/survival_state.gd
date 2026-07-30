@@ -38,8 +38,9 @@ func advance(delta: float, environment: Dictionary, movement_active: bool) -> vo
 	var temperature := float(environment.get("temperature", 0.55))
 	var rainfall := float(environment.get("rainfall", 0.45))
 	var weather: Dictionary = environment.get("weather", {})
-	var precipitation := float(weather.get("intensity", rainfall)) if bool(weather.get("is_precipitating", false)) else 0.0
-	var wind := float(weather.get("wind_speed", 0.0))
+	var shelter := clampf(float(environment.get("shelter", 0.0)), 0.0, 1.0)
+	var precipitation := (float(weather.get("intensity", rainfall)) if bool(weather.get("is_precipitating", false)) else 0.0) * (1.0 - shelter)
+	var wind := float(weather.get("wind_speed", 0.0)) * (1.0 - shelter * 0.75)
 	var drying := 0.16 + maxf(0.0, temperature - 0.5) * 0.22 + wind * 0.16
 	wetness = clampf(wetness + delta * (precipitation * 0.8 - drying), 0.0, MAX_VALUE)
 	exposure = clampf(absf(temperature - 0.55) * 2.0 + wind * 0.24 + wetness * 0.009 + precipitation * 0.3, 0.0, 1.0)

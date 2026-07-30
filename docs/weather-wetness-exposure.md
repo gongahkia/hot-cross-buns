@@ -21,4 +21,4 @@ One weather sample runs per active procedural frame.
 
 ## Out of scope
 
-Visual weather layers, shelter occlusion, clothing, seasons, lightning, and hypothermia movement penalties.
+Visual weather layers, clothing, seasons, lightning, and hypothermia movement penalties.

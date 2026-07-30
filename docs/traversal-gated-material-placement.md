@@ -21,4 +21,4 @@ One placement evaluation runs only when the action is pressed; each placed marke
 
 ## Out of scope
 
-Shelters, collision-bearing bridges or platforms, crafting recipes, marker persistence, and marker retrieval.
+Collision-bearing bridges or platforms, crafting recipes, marker persistence, and marker retrieval.

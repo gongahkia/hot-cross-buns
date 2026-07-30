@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
-const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "collect_water", "purify_water", "consume_water", "place_material", "reset_run", "pause"]
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "collect_water", "purify_water", "consume_water", "place_material", "build_shelter", "reset_run", "pause"]
 const PIXEL_FILTER_OFF := 0
 const PIXEL_FILTER_2X := 2
 const PIXEL_FILTER_4X := 4
@@ -41,6 +41,7 @@ func default_binding_data() -> Dictionary:
 		"purify_water": [{"type": "key", "code": KEY_3}],
 		"consume_water": [{"type": "key", "code": KEY_4}, {"type": "joy_button", "button": JOY_BUTTON_DPAD_RIGHT}],
 		"place_material": [{"type": "key", "code": KEY_5}],
+		"build_shelter": [{"type": "key", "code": KEY_6}],
 		"reset_run": [{"type": "key", "code": KEY_R}, {"type": "joy_button", "button": JOY_BUTTON_Y}],
 		"pause": [{"type": "key", "code": KEY_ESCAPE}, {"type": "joy_button", "button": JOY_BUTTON_START}]
 	}
