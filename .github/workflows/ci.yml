@@ -1,0 +1,29 @@
+name: a-slow-walk CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  godot:
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.7.1-stable
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run smoke suite
+        run: godot --headless --path . --script res://scripts/smoke_test.gd
+      - name: Validate level fixtures
+        run: godot --headless --path . --script res://scripts/level_cli.gd -- --validation-fixtures
+
+  level-mcp:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/level_mcp/uv.lock
+      - name: Run level MCP tests
+        working-directory: tools/level_mcp
+        run: uv run --group test python -m pytest
