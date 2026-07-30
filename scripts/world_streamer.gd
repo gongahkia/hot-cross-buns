@@ -251,7 +251,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_city_vegetation(root,descriptor.get("city_vegetation",{}))
 	elif family == "flooded_city":
 		_add_flooded_city_routes(root,descriptor.get("flood_routes",{}))
-		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
+		_add_flooded_city_structures(root,descriptor.get("flood_structures",{}))
 	elif family == "industrial_ruin":
 		_add_industrial(root, chunk_x, chunk_z)
 	elif family == "overgrown_suburb":
@@ -415,6 +415,11 @@ func _add_flooded_city_routes(root:Node3D,routes:Dictionary)->void:
 		var axis:=str(bridge.axis);var position:=Vector3(float(bridge.offset),float(bridge.height),float(bridge.canal_offset)) if axis=="z" else Vector3(float(bridge.canal_offset),float(bridge.height),float(bridge.offset));position.y+=ground_height(root.global_position+Vector3(position.x,0.0,position.z));_add_box(root,position,Vector3(2.6,.6,float(bridge.length)) if axis=="z" else Vector3(float(bridge.length),.6,2.6),Color("#718072"),"FloodBridge")
 	for roof:Dictionary in routes.get("roof_routes",[]):
 		var axis:=str(roof.axis);var position:=Vector3(32.0,float(roof.height),float(roof.offset)) if axis=="x" else Vector3(float(roof.offset),float(roof.height),32.0);position.y+=ground_height(root.global_position+Vector3(position.x,0.0,position.z));_add_box(root,position,Vector3(float(roof.length),.5,2.4) if axis=="x" else Vector3(2.4,.5,float(roof.length)),Color("#668c82"),"FloodRoofRoute")
+
+func _add_flooded_city_structures(root:Node3D,fields:Dictionary)->void:
+	for structure:Dictionary in fields.get("structures",[]):
+		var x:=float(structure.x);var z:=float(structure.z);var height:=maxf(1.5,float(structure.height)*float(structure.height_scale)-float(structure.submerged_depth)*.4);var color:=Color("#47646a") if str(structure.collapse)=="standing" else Color("#5b5f58")
+		_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5-float(structure.submerged_depth)*.12,z),Vector3(float(structure.width),height,float(structure.depth)),color,"FloodStructure")
 
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
