@@ -13,6 +13,7 @@ const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
+const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
 const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
@@ -58,6 +59,7 @@ var run_archive = RUN_ARCHIVE.new()
 var world_journal = WORLD_SURVEY_JOURNAL.new()
 var survey_check_time := 0.0
 var survival_movement: Dictionary = {}
+var run_balance_telemetry = SURVIVAL_TRAVERSAL_TELEMETRY.new()
 
 var ui: CanvasLayer
 var hud: Control
@@ -293,6 +295,7 @@ func _process(delta: float) -> void:
 			environment["shelter"] = world_streamer.shelter_cover_at(player.global_position)
 			survival_movement = SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
 			player.set_survival_speed_multiplier(float(survival_movement.speed_multiplier))
+			run_balance_telemetry.record(delta, Survival.snapshot(), survival_movement, RunData.style_snapshot())
 			Survival.advance(delta, environment, player.survival_exertion_active())
 		_refresh_hud()
 		_refresh_grapple_reticle()
@@ -487,6 +490,7 @@ func start_level(level_id: String) -> void:
 	RunData.begin_run(level_id, run_seed)
 	world_journal = WORLD_SURVEY_JOURNAL.new()
 	survival_movement = {}
+	run_balance_telemetry = SURVIVAL_TRAVERSAL_TELEMETRY.new()
 	if bool(current_level.get("procedural", false)):
 		Survival.begin_run(run_seed)
 		weather_clock = 0.0
@@ -1576,6 +1580,7 @@ func _on_trigger(type: CourseTrigger.TriggerType, payload: Variant) -> void:
 
 func _on_traversal_action(action: String, override_points: int) -> void:
 	last_sandbox_event = action.replace("_", " ").to_upper()
+	if bool(current_level.get("procedural", false)): run_balance_telemetry.record_action(action)
 	_record_creative_event("traversal", action)
 	_present_style_result(RunData.add_style_action(action, override_points))
 
@@ -1635,7 +1640,13 @@ func _refresh_debug_hud() -> void:
 	var chunk_text := ""
 	if world_streamer:
 		chunk_text = "\nCHUNKS %d  REGION %s\n%s" % [world_streamer.chunks.size(), str(current_region.get("name", "Unknown")), WORLD_DIAGNOSTICS.summary(world_streamer.sample_at(player.global_position))]
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, last_sandbox_event]
+	var balance_text := ""
+	if bool(current_level.get("procedural", false)):
+		var balance: Dictionary = run_balance_telemetry.summary()
+		var action_total := 0
+		for count: int in (balance.actions as Dictionary).values(): action_total += count
+		balance_text = "\nBAL SPD %.2f  PRESS %.2f  STYLE %.2f  ACT %d" % [float(balance.minimum_speed_multiplier), float(balance.maximum_recovery_pressure), float(balance.average_style_movement_multiplier), action_total]
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, balance_text, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]
