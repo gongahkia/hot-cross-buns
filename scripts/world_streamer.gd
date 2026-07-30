@@ -8,6 +8,7 @@ const GENERATOR := preload("res://scripts/world_generator.gd")
 const RNG := preload("res://scripts/world_rng.gd")
 const RESOURCE_PICKUP := preload("res://scripts/resource_pickup.gd")
 const WORLD_ORIGIN := preload("res://scripts/world_origin.gd")
+const CHUNK_SCHEDULER := preload("res://scripts/world_chunk_scheduler.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -18,10 +19,13 @@ var chunks: Dictionary = {}
 var current_center := Vector2i(2147483647, 2147483647)
 var current_region_id := ""
 var origin
+var scheduler
+var pending_chunks: Dictionary = {}
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
 	origin = WORLD_ORIGIN.new(GENERATOR.CHUNK_SIZE)
+	scheduler = CHUNK_SCHEDULER.new(next_seed)
 	player = next_player
 	name = "ExpeditionWorld"
 	refresh(true)
@@ -29,8 +33,12 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 func _process(_delta: float) -> void:
 	refresh(false)
 
+func _exit_tree() -> void:
+	if scheduler: scheduler.shutdown()
+
 func refresh(force: bool) -> void:
 	if generator == null or player == null: return
+	_attach_completed(scheduler.wait_for_all() if force else scheduler.poll())
 	var rebase: Vector3 = origin.rebase_delta(player.global_position)
 	if rebase != Vector3.ZERO:
 		player.global_position += rebase
@@ -45,8 +53,10 @@ func refresh(force: bool) -> void:
 		for x in range(center.x - ACTIVE_RADIUS, center.x + ACTIVE_RADIUS + 1):
 			var id := _chunk_id(x, z)
 			wanted[id] = true
-			if not chunks.has(id):
-				chunks[id] = _build_chunk(x, z)
+			if not chunks.has(id) and not pending_chunks.has(id):
+				pending_chunks[id] = scheduler.request(x, z)
+	if force:
+		_attach_completed(scheduler.wait_for_all())
 	for id in chunks.keys():
 		if not wanted.has(id):
 			var stale: Node = chunks[id]
@@ -54,6 +64,13 @@ func refresh(force: bool) -> void:
 			stale.queue_free()
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y]})
+
+func _attach_completed(results: Array) -> void:
+	for result: Dictionary in results:
+		var key: Dictionary = result.get("key", {})
+		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+		pending_chunks.erase(id)
+		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 
 func sample_at(world_position: Vector3) -> Dictionary:
 	var canonical: Vector3 = origin.world_position(world_position) if origin else world_position
