@@ -31,6 +31,7 @@ const SUBURB_RESOURCES := preload("res://scripts/world_suburb_resources.gd")
 const URBAN_CORRIDORS := preload("res://scripts/world_urban_corridors.gd")
 const CITY_CORRIDORS := preload("res://scripts/world_city_corridors.gd")
 const NATURAL_RESOURCES := preload("res://scripts/world_natural_resources.gd")
+const URBAN_RESOURCES := preload("res://scripts/world_urban_resources.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -143,6 +144,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not flood_ecology.is_empty():descriptor["flood_ecology"]=flood_ecology
 	var natural_resources:=NATURAL_RESOURCES.generate(seed,chunk_x,chunk_z,sample_data)
 	if not natural_resources.is_empty():descriptor["natural_resources"]=natural_resources
+	var urban_resources:=URBAN_RESOURCES.generate(descriptor)
+	if not urban_resources.is_empty():descriptor["urban_resources"]=urban_resources
 	return descriptor
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
