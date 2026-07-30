@@ -244,8 +244,9 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	if family == "reclaimed_city":
 		_add_city_arterials(root,descriptor.get("city_arterials",{}))
 		_add_city_secondary_roads(root,descriptor.get("city_secondary_roads",{}))
-		_add_city_buildings(root,descriptor.get("city_buildings",{}))
-		_add_city_traversal(root,descriptor.get("city_buildings",{}),descriptor.get("city_traversal",{}))
+		_add_city_buildings(root,descriptor.get("city_buildings",{}),descriptor.get("city_failures",{}))
+		_add_city_traversal(root,descriptor.get("city_buildings",{}),descriptor.get("city_traversal",{}),descriptor.get("city_failures",{}))
+		_add_city_collapsed_routes(root,descriptor.get("city_buildings",{}),descriptor.get("city_failures",{}))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
@@ -294,18 +295,33 @@ func _add_city_secondary_roads(root:Node3D,roads:Dictionary)->void:
 		var axis:=str(road.get("axis","x"));var offset:=float(road.get("offset",32.0));var width:=float(road.get("width",1.0));var position:=Vector3(32.0,0.03,offset) if axis=="x" else Vector3(offset,0.03,32.0)
 		position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(64.0,.06,width) if axis=="x" else Vector3(width,.06,64.0);visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#59605b") if str(road.get("kind",""))=="secondary" else Color("#4a504c"));root.add_child(visual)
 
-func _add_city_buildings(root:Node3D,massing:Dictionary)->void:
+func _add_city_buildings(root:Node3D,massing:Dictionary,failures:Dictionary)->void:
 	for building:Dictionary in massing.get("buildings",[]):
-		var x:=float(building.get("x",32.0));var z:=float(building.get("z",32.0));var height:=float(building.get("height",6.0));var color:=Color("#4f6355") if str(building.get("form",""))=="courtyard" else Color("#495852")
+		var failure:=_city_failure(failures,str(building.id));var x:=float(building.get("x",32.0));var z:=float(building.get("z",32.0));var height:=float(building.get("height",6.0))*float(failure.get("height_scale",1.0));var color:=Color("#654f45") if str(failure.get("state",""))=="collapsed" else Color("#4f6355") if str(building.get("form",""))=="courtyard" else Color("#495852")
 		_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(building.get("width",4.0)),height,float(building.get("depth",4.0))),color,"Building")
 
-func _add_city_traversal(root:Node3D,massing:Dictionary,traversal:Dictionary)->void:
+func _add_city_traversal(root:Node3D,massing:Dictionary,traversal:Dictionary,failures:Dictionary)->void:
 	var buildings:Dictionary={}
 	for building:Dictionary in massing.get("buildings",[]):buildings[str(building.id)]=building
 	for facade:Dictionary in traversal.get("facades",[]):
 		var building:Dictionary=buildings.get(str(facade.get("building_id","")),{});if building.is_empty():continue
+		if float(facade.ledge_height)>=float(building.height)*float(_city_failure(failures,str(building.id)).get("height_scale",1.0))-.75:continue
 		var x:=float(building.x);var z:=float(building.z);var side:=str(facade.side);var outward:=Vector3(0.0,0.0,-1.0) if side=="north" else Vector3(1.0,0.0,0.0) if side=="east" else Vector3(0.0,0.0,1.0) if side=="south" else Vector3(-1.0,0.0,0.0);var half:=float(building.depth)*.5 if side in ["north","south"] else float(building.width)*.5
 		var position:=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(facade.ledge_height),z)+outward*(half+.35);var size:=Vector3(float(facade.ledge_width),.35,1.0) if side in ["north","south"] else Vector3(1.0,.35,float(facade.ledge_width));_add_box(root,position,size,Color("#6a7568"),"FacadeLedge")
+
+func _add_city_collapsed_routes(root:Node3D,massing:Dictionary,failures:Dictionary)->void:
+	var buildings:Dictionary={}
+	for building:Dictionary in massing.get("buildings",[]):buildings[str(building.id)]=building
+	for route:Dictionary in failures.get("collapsed_routes",[]):
+		var building:Dictionary=buildings.get(str(route.get("building_id","")),{});if building.is_empty():continue
+		var side:=str(route.get("side","north"));var outward:=Vector3(0.0,0.0,-1.0) if side=="north" else Vector3(1.0,0.0,0.0) if side=="east" else Vector3(0.0,0.0,1.0) if side=="south" else Vector3(-1.0,0.0,0.0);var half:=float(building.depth)*.5 if side in ["north","south"] else float(building.width)*.5;var count:=int(route.get("step_count",3));var width:=minf(float(building.width),float(building.depth))*.5
+		for step in range(count):
+			var progress:=float(step+1)/float(count);var x:=float(building.x)+outward.x*(half+progress*3.0);var z:=float(building.z)+outward.z*(half+progress*3.0);var height:=float(route.route_height)*progress;_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(width,height,1.8) if side in ["north","south"] else Vector3(1.8,height,width),Color("#765f50"),"DebrisStep")
+
+func _city_failure(failures:Dictionary,building_id:String)->Dictionary:
+	for failure:Dictionary in failures.get("failures",[]):
+		if str(failure.get("building_id",""))==building_id:return failure
+	return {}
 
 func _add_industrial(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(4):
