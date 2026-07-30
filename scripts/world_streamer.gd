@@ -244,7 +244,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	if family == "reclaimed_city":
 		_add_city_arterials(root,descriptor.get("city_arterials",{}))
 		_add_city_secondary_roads(root,descriptor.get("city_secondary_roads",{}))
-		_add_city_blocks(root, chunk_x, chunk_z, 6, Color("#3d5244"), Color("#71915f"))
+		_add_city_buildings(root,descriptor.get("city_buildings",{}))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
@@ -292,6 +292,11 @@ func _add_city_secondary_roads(root:Node3D,roads:Dictionary)->void:
 	for road:Dictionary in roads.get("roads",[]):
 		var axis:=str(road.get("axis","x"));var offset:=float(road.get("offset",32.0));var width:=float(road.get("width",1.0));var position:=Vector3(32.0,0.03,offset) if axis=="x" else Vector3(offset,0.03,32.0)
 		position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(64.0,.06,width) if axis=="x" else Vector3(width,.06,64.0);visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#59605b") if str(road.get("kind",""))=="secondary" else Color("#4a504c"));root.add_child(visual)
+
+func _add_city_buildings(root:Node3D,massing:Dictionary)->void:
+	for building:Dictionary in massing.get("buildings",[]):
+		var x:=float(building.get("x",32.0));var z:=float(building.get("z",32.0));var height:=float(building.get("height",6.0));var color:=Color("#4f6355") if str(building.get("form",""))=="courtyard" else Color("#495852")
+		_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(building.get("width",4.0)),height,float(building.get("depth",4.0))),color,"Building")
 
 func _add_industrial(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(4):
