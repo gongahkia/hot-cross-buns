@@ -57,6 +57,8 @@ func refresh(force: bool) -> void:
 				pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
 	if force:
 		_attach_completed(scheduler.wait_for_all())
+	for id in pending_chunks.keys():
+		if not wanted.has(id): scheduler.cancel(int(pending_chunks[id]));pending_chunks.erase(id)
 	for id in chunks.keys():
 		if not wanted.has(id):
 			var stale: Node = chunks[id]
@@ -69,6 +71,7 @@ func _attach_completed(results: Array) -> void:
 	for result: Dictionary in results:
 		var key: Dictionary = result.get("key", {})
 		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+		if int(pending_chunks.get(id,-1)) != int(result.get("token",-2)): continue
 		pending_chunks.erase(id)
 		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 
