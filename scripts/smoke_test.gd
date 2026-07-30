@@ -24,7 +24,7 @@ func _initialize() -> void:
 	assert(InputMap.has_action("glide"), "glide input missing")
 	assert(InputMap.has_action("sprint"), "sprint input missing")
 	assert(InputMap.has_action("consume_food"), "food input missing")
-	assert(InputMap.has_action("collect_water") and InputMap.has_action("purify_water") and InputMap.has_action("consume_water") and InputMap.has_action("place_material") and InputMap.has_action("build_shelter"), "survival inputs missing")
+	assert(InputMap.has_action("collect_water") and InputMap.has_action("purify_water") and InputMap.has_action("consume_water") and InputMap.has_action("place_material") and InputMap.has_action("build_shelter") and InputMap.has_action("build_platform"), "survival inputs missing")
 	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
 	app_settings.call("set_pixel_filter_mode", 0)
 	assert(not main.display_filter.visible, "pixel filter remained visible when disabled")

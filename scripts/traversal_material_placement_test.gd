@@ -14,6 +14,7 @@ func _initialize() -> void:
 	_expect(str(PLACEMENT.evaluate({"on_floor": true, "planar_speed": 4.0}, surface, inventory).reason) == "stabilize_required", "movement placement gate drifted")
 	_expect(str(PLACEMENT.evaluate(player, {"distance": 1.5, "slope": 0.5, "water": false}, inventory).reason) == "unsafe_surface", "surface placement gate drifted")
 	_expect(str(PLACEMENT.evaluate(player, surface, {"wood": 1, "fiber": 0}).reason) == "materials_required" and ready == PLACEMENT.evaluate(player, surface, inventory), "placement material/determinism drifted")
+	_expect(bool(PLACEMENT.evaluate(player, surface, {"wood": 2, "scrap": 2, "fiber": 1}, {"wood": 2, "scrap": 2, "fiber": 1}).allowed), "construction cost gate drifted")
 	quit(1 if failed else 0)
 
 func _expect(condition: bool, message: String) -> void:

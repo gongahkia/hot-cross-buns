@@ -213,6 +213,32 @@ func place_temporary_shelter(world_position: Vector3, record: Dictionary = {}) -
 	shelters.append(shelter)
 	return true
 
+func place_temporary_platform(world_position: Vector3, forward: Vector3, record: Dictionary = {}) -> bool:
+	if origin == null: return false
+	var chunk: Vector2i = origin.chunk_at_local(world_position)
+	var root: Node3D = chunks.get(_chunk_id(chunk.x, chunk.y)) as Node3D
+	if root == null: return false
+	var platform := StaticBody3D.new()
+	platform.name = "TemporaryPlatform"
+	platform.set_meta("temporary_traversal", true)
+	platform.set_meta("record", record.duplicate(true))
+	root.add_child(platform)
+	platform.global_position = world_position + Vector3(0.0, 0.18, 0.0)
+	var planar := Vector3(forward.x, 0.0, forward.z).normalized()
+	if planar.length() > 0.1: platform.rotation.y = atan2(planar.x, planar.z)
+	var visual := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(3.6, 0.36, 1.8)
+	visual.mesh = mesh
+	visual.material_override = _material(Color("#a17649"))
+	platform.add_child(visual)
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(3.6, 0.36, 1.8)
+	collision.shape = shape
+	platform.add_child(collision)
+	return true
+
 func shelter_cover_at(world_position: Vector3) -> float:
 	var active_shelters: Array[Node3D] = []
 	var cover := 0.0
