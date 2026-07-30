@@ -1,7 +1,7 @@
 class_name TraversalMelee
 extends RefCounted
 
-const REQUIREMENTS := {"slide":{"speed":12.0,"range":2.2},"slam":{"speed":16.0,"range":3.0}}
+const REQUIREMENTS := {"slide":{"speed":12.0,"range":2.2},"slam":{"speed":16.0,"range":3.0},"grapple":{"speed":18.0,"range":2.6}}
 
 static func hit(state: String, speed: float, origin: Vector3, target: Vector3) -> Dictionary:
 	var requirement: Dictionary = REQUIREMENTS.get(state, {})

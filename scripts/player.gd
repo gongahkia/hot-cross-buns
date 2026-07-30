@@ -306,7 +306,7 @@ func survival_movement_state() -> String:
 	return "walk"
 
 func traversal_melee_context() -> Dictionary:
-	var state := "slam" if is_slamming else "slide" if is_sliding else ""
+	var state := "slam" if is_slamming else "grapple" if is_grappling else "slide" if is_sliding else ""
 	if state.is_empty(): return {}
 	var planar := _planar_velocity()
 	var speed := maxf(planar.length(), absf(velocity.y)) if state == "slam" else planar.length()
