@@ -260,7 +260,8 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_industrial_resources(root,descriptor.get("industrial_resources",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb_roads(root,descriptor.get("suburb_roads",{}))
-		_add_suburb_parcels(root,descriptor.get("suburb_parcels",{}))
+		_add_suburb_parcels(root,descriptor.get("suburb_parcels",{}),descriptor.get("suburb_transitions",{}))
+		_add_suburb_transitions(root,descriptor.get("suburb_transitions",{}))
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
@@ -373,13 +374,29 @@ func _add_suburb_roads(root:Node3D,fields:Dictionary)->void:
 		var axis:=str(culdesac.axis);var x:=float(culdesac.x);var z:=float(culdesac.z);var segment:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(float(culdesac.length),.05,float(culdesac.width)) if axis=="x" else Vector3(float(culdesac.width),.05,float(culdesac.length));segment.name="SuburbCuldesacRoad";segment.mesh=mesh;segment.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.02,z);segment.material_override=_material(Color("#535950"));root.add_child(segment)
 		var circle:=MeshInstance3D.new();var disk:=CylinderMesh.new();disk.top_radius=float(culdesac.radius);disk.bottom_radius=float(culdesac.radius);disk.height=.06;circle.name="SuburbCuldesac";circle.mesh=disk;circle.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.03,z);circle.material_override=_material(Color("#535950"));root.add_child(circle)
 
-func _add_suburb_parcels(root:Node3D,fields:Dictionary)->void:
+func _add_suburb_parcels(root:Node3D,fields:Dictionary,transitions:Dictionary)->void:
+	var entries:Dictionary={}
+	for entry:Dictionary in transitions.get("entries",[]):entries[str(entry.home_id)]=entry
 	for yard:Dictionary in fields.get("yards",[]):
 		var x:=float(yard.x);var z:=float(yard.z);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(float(yard.width),.04,float(yard.depth));visual.name="SuburbYard";visual.mesh=mesh;visual.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+.02,z);visual.material_override=_material(Color("#617554"));root.add_child(visual)
 	for home:Dictionary in fields.get("homes",[]):
-		var x:=float(home.x);var z:=float(home.z);var height:=float(home.height);var color:=Color("#586a57") if str(home.form)=="bungalow" else Color("#626b5a") if str(home.form)=="duplex" else Color("#6b6758");_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(home.width),height,float(home.depth)),color,"SuburbHome")
+		_add_suburb_home(root,home,entries.get(str(home.id),{}))
 	for utility:Dictionary in fields.get("utilities",[]):
 		var x:=float(utility.x);var z:=float(utility.z);var height:=float(utility.height);_add_cylinder(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),.22,height,Color("#76745e"),"SuburbUtility")
+
+func _add_suburb_home(root:Node3D,home:Dictionary,entry:Dictionary)->void:
+	var x:=float(home.x);var z:=float(home.z);var width:=float(home.width);var depth:=float(home.depth);var height:=float(home.height);var ground:=ground_height(root.global_position+Vector3(x,0.0,z));var color:=Color("#586a57") if str(home.form)=="bungalow" else Color("#626b5a") if str(home.form)=="duplex" else Color("#6b6758");var side:=str(entry.get("side","north"));var door_width:=minf(float(entry.get("width",1.6)),(width if side in ["north","south"] else depth)-.6);var wall:=.4
+	if side in ["north","south"]:
+		var front_z:=z-depth*.5 if side=="north" else z+depth*.5;var back_z:=z+depth*.5 if side=="north" else z-depth*.5;var segment:=(width-door_width)*.5;var segment_offset:=door_width*.5+segment*.5;_add_box(root,Vector3(x-segment_offset,ground+height*.5,front_z),Vector3(segment,height,wall),color,"SuburbHomeWall");_add_box(root,Vector3(x+segment_offset,ground+height*.5,front_z),Vector3(segment,height,wall),color,"SuburbHomeWall");_add_box(root,Vector3(x,ground+height*.5,back_z),Vector3(width,height,wall),color,"SuburbHomeWall");_add_box(root,Vector3(x-width*.5,ground+height*.5,z),Vector3(wall,height,depth),color,"SuburbHomeWall");_add_box(root,Vector3(x+width*.5,ground+height*.5,z),Vector3(wall,height,depth),color,"SuburbHomeWall")
+	else:
+		var front_x:=x+width*.5 if side=="east" else x-width*.5;var back_x:=x-width*.5 if side=="east" else x+width*.5;var segment:=(depth-door_width)*.5;var segment_offset:=door_width*.5+segment*.5;_add_box(root,Vector3(front_x,ground+height*.5,z-segment_offset),Vector3(wall,height,segment),color,"SuburbHomeWall");_add_box(root,Vector3(front_x,ground+height*.5,z+segment_offset),Vector3(wall,height,segment),color,"SuburbHomeWall");_add_box(root,Vector3(back_x,ground+height*.5,z),Vector3(wall,height,depth),color,"SuburbHomeWall");_add_box(root,Vector3(x,ground+height*.5,z-depth*.5),Vector3(width,height,wall),color,"SuburbHomeWall");_add_box(root,Vector3(x,ground+height*.5,z+depth*.5),Vector3(width,height,wall),color,"SuburbHomeWall")
+	_add_box(root,Vector3(x,ground+height+.2,z),Vector3(width+.4,.4,depth+.4),color,"SuburbHomeRoof")
+
+func _add_suburb_transitions(root:Node3D,fields:Dictionary)->void:
+	for entry:Dictionary in fields.get("entries",[]):
+		var side:=str(entry.side);var normal:=Vector3(0.0,0.0,-1.0) if side=="north" else Vector3(1.0,0.0,0.0) if side=="east" else Vector3(0.0,0.0,1.0) if side=="south" else Vector3(-1.0,0.0,0.0);var x:=float(entry.x);var z:=float(entry.z);var depth:=float(entry.porch_depth);var width:=float(entry.width)+.8;var porch_x:=x+normal.x*depth*.5;var porch_z:=z+normal.z*depth*.5;var size:=Vector3(width,.3,depth) if side in ["north","south"] else Vector3(depth,.3,width);_add_box(root,Vector3(porch_x,ground_height(root.global_position+Vector3(porch_x,0.0,porch_z))+.15,porch_z),size,Color("#747660"),"SuburbPorch")
+		for step in range(2):
+			var step_x:=x+normal.x*(depth+float(step)*.8);var step_z:=z+normal.z*(depth+float(step)*.8);var height:=.22-float(step)*.07;var step_size:=Vector3(width,height,.8) if side in ["north","south"] else Vector3(.8,height,width);_add_box(root,Vector3(step_x,ground_height(root.global_position+Vector3(step_x,0.0,step_z))+height*.5,step_z),step_size,Color("#747660"),"SuburbPorchStep")
 
 func _add_wilderness(root: Node3D, chunk_x: int, chunk_z: int, biome: String) -> void:
 	var count := 3 if biome in ["desert", "cold_desert", "badland", "alpine_scree"] else 8
