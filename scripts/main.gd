@@ -146,7 +146,7 @@ func _build_ui() -> void:
 	par_label.custom_minimum_size = Vector2(170.0, 28.0)
 	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
 	tool_label.custom_minimum_size = Vector2(210.0, 28.0)
-	survival_label.custom_minimum_size = Vector2(280.0, 28.0)
+	survival_label.custom_minimum_size = Vector2(370.0, 28.0)
 	top.add_child(timer_label)
 	top.add_child(par_label)
 	top.add_child(collect_label)
@@ -1681,7 +1681,7 @@ func _refresh_hud() -> void:
 		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
-		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.wetness), int(survival.exposure * 100.0)]
+		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
 	var style := RunData.style_snapshot()

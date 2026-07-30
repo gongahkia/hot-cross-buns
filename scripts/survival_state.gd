@@ -5,6 +5,7 @@ signal changed(snapshot: Dictionary)
 signal depleted(reason: String)
 
 const MAX_VALUE := 100.0
+const SCAVENGED_MATERIALS := ["wood", "scrap", "fiber"]
 
 var hunger := MAX_VALUE
 var thirst := MAX_VALUE
@@ -57,10 +58,31 @@ func advance(delta: float, environment: Dictionary, movement_active: bool) -> vo
 		depleted.emit("exposure" if warmth <= 0.0 else "deprivation")
 	changed.emit(snapshot())
 
-func collect(kind: String, amount := 1) -> void:
-	if not materials.has(kind): return
+func collect(kind: String, amount := 1) -> bool:
+	if not materials.has(kind) or amount <= 0: return false
 	materials[kind] = int(materials[kind]) + amount
 	changed.emit(snapshot())
+	return true
+
+func scavenged_materials() -> Dictionary:
+	var inventory: Dictionary = {}
+	for kind: String in SCAVENGED_MATERIALS:
+		inventory[kind] = int(materials.get(kind, 0))
+	return inventory
+
+func can_spend_materials(cost: Dictionary) -> bool:
+	if cost.is_empty(): return false
+	for kind: String in cost:
+		var amount := int(cost[kind])
+		if not SCAVENGED_MATERIALS.has(kind) or amount <= 0 or int(materials.get(kind, 0)) < amount: return false
+	return true
+
+func spend_materials(cost: Dictionary) -> bool:
+	if not can_spend_materials(cost): return false
+	for kind: String in cost:
+		materials[kind] = int(materials[kind]) - int(cost[kind])
+	changed.emit(snapshot())
+	return true
 
 func consume(kind: String) -> bool:
 	if int(materials.get(kind, 0)) <= 0: return false
