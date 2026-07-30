@@ -12,6 +12,7 @@ const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
+const PIXEL_PRESENTATION := preload("res://scripts/pixel_presentation.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
@@ -1863,10 +1864,15 @@ func _make_pixel_filter_material() -> ShaderMaterial:
 shader_type canvas_item;
 uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform float pixel_size = 4.0;
+uniform float palette_steps = 8.0;
+uniform float dither_strength = 0.075;
 void fragment() {
 	vec2 cell = SCREEN_PIXEL_SIZE * pixel_size;
 	vec2 sample_uv = (floor(SCREEN_UV / cell) + vec2(0.5)) * cell;
-	COLOR = texture(screen_texture, sample_uv);
+	vec4 color = texture(screen_texture, sample_uv);
+	float ordered = fract(sin(dot(floor(SCREEN_UV / cell), vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+	color.rgb = floor(clamp(color.rgb + ordered*dither_strength, 0.0, 1.0)*palette_steps+0.5)/palette_steps;
+	COLOR = color;
 }
 """
 	var material := ShaderMaterial.new()
@@ -1879,6 +1885,8 @@ func _apply_pixel_filter(mode: int) -> void:
 	display_filter.visible = mode != Settings.PIXEL_FILTER_OFF
 	if display_filter.visible:
 		(display_filter.material as ShaderMaterial).set_shader_parameter("pixel_size", float(mode))
+		(display_filter.material as ShaderMaterial).set_shader_parameter("palette_steps", 8.0)
+		(display_filter.material as ShaderMaterial).set_shader_parameter("dither_strength", 0.075)
 
 func _add_forest_motes() -> void:
 	var particles := GPUParticles3D.new()
