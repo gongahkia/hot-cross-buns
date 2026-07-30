@@ -14,6 +14,7 @@ const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
+const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
 const SHELTER_COST := {"wood": 3, "scrap": 1, "fiber": 2}
 const PLATFORM_COST := {"wood": 2, "scrap": 2, "fiber": 1}
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
@@ -53,6 +54,8 @@ var weather_forecast: Array = []
 var weather_forecast_key := ""
 var last_resolved_run: Dictionary = {}
 var run_archive = RUN_ARCHIVE.new()
+var world_journal = WORLD_SURVEY_JOURNAL.new()
+var survey_check_time := 0.0
 
 var ui: CanvasLayer
 var hud: Control
@@ -267,6 +270,11 @@ func _process(delta: float) -> void:
 		if bool(current_level.get("procedural", false)) and world_streamer and not photo_mode.active:
 			var environment:Dictionary=world_streamer.sample_at(player.global_position)
 			weather_clock += delta
+			survey_check_time -= delta
+			if survey_check_time <= 0.0:
+				survey_check_time = 0.25
+				var landmark: Dictionary = world_streamer.landmark_at(player.global_position)
+				if world_journal.survey_landmark(landmark): last_sandbox_event = "SURVEYED " + str(landmark.get("name", landmark.get("kind", "LANDMARK"))).to_upper()
 			environment["weather"] = WORLD_WEATHER.sample({"seed": world_streamer.generator.seed}, {"x": player.global_position.x, "y": player.global_position.z, "temperature": environment.temperature, "rainfall": environment.rainfall, "water": environment.water}, {"clock": weather_clock})
 			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
 			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
@@ -355,6 +363,9 @@ func show_title() -> void:
 	var records := _button("Run records", 18)
 	records.pressed.connect(show_run_archive)
 	box.add_child(records)
+	var journal := _button("Survey journal", 18)
+	journal.pressed.connect(show_world_journal.bind("title"))
+	box.add_child(journal)
 	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug", 14, Color("#8ea18a")))
 
 func show_run_archive() -> void:
@@ -374,6 +385,40 @@ func show_run_archive() -> void:
 			box.add_child(_label("#%02d  %s  %s  %s  %d resources" % [int(record.id),str(record.outcome).to_upper(),_time_text(float(record.elapsed)),str(record.level).to_upper(),(record.resources as Dictionary).size()], 16, Color("#d3dec5")))
 	var back := _button("Back", 18)
 	back.pressed.connect(show_title)
+	box.add_child(back)
+
+func show_world_journal(back_mode: String) -> void:
+	menu_mode = "journal"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_clear_menu()
+	var panel := _center_panel(Vector2(680.0, 560.0))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	panel.add_child(box)
+	box.add_child(_label("Survey journal", 34, Color("#edf3d5")))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size.y = 390.0
+	box.add_child(scroll)
+	var entries := VBoxContainer.new()
+	entries.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	entries.add_theme_constant_override("separation", 6)
+	scroll.add_child(entries)
+	var snapshot := world_journal.snapshot()
+	var regions: Array = snapshot.regions
+	var landmarks: Array = snapshot.landmarks
+	if regions.is_empty() and landmarks.is_empty():
+		entries.add_child(_label("No survey discoveries in this expedition.", 17, Color("#b5c6a5")))
+	else:
+		entries.add_child(_label("REGIONS  %d" % regions.size(), 18, Color("#9db197")))
+		for region: Dictionary in regions:
+			entries.add_child(_label("%s — %s" % [str(region.name), str(region.family).to_upper()], 16, Color("#d3dec5")))
+		entries.add_child(_label("LANDMARKS  %d" % landmarks.size(), 18, Color("#9db197")))
+		for landmark: Dictionary in landmarks:
+			var taxonomy := str(landmark.get("taxonomy", ""))
+			var detail := str(landmark.kind) if taxonomy.is_empty() else taxonomy
+			entries.add_child(_label("%s — %s" % [str(landmark.name), detail.to_upper()], 16, Color("#d3dec5")))
+	var back := _button("Back", 18)
+	back.pressed.connect(show_pause if back_mode == "pause" else show_title)
 	box.add_child(back)
 
 func show_level_select() -> void:
@@ -433,11 +478,14 @@ func start_level(level_id: String) -> void:
 	_build_course(current_level)
 	var run_seed := int(current_level.get("seed", _seed_for_level(level_id)))
 	RunData.begin_run(level_id, run_seed)
+	world_journal = WORLD_SURVEY_JOURNAL.new()
 	if bool(current_level.get("procedural", false)):
 		Survival.begin_run(run_seed)
 		weather_clock = 0.0
 		weather_forecast_key = ""
 		weather_forecast.clear()
+		survey_check_time = 0.0
+		world_journal.survey_region(current_region)
 	hud.visible = true
 	debug_panel.visible = debug_visible
 	briefing_label.modulate.a = 1.0
@@ -881,6 +929,7 @@ func _add_expedition_lighting() -> void:
 func _on_expedition_region_changed(region: Dictionary) -> void:
 	current_region = region
 	RunData.discover_region(str(region.get("id", "")))
+	world_journal.survey_region(region)
 	current_station = str(region.get("name", "Unknown"))
 	last_sandbox_event = "ENTERED " + current_station.to_upper()
 
@@ -1949,6 +1998,10 @@ func show_pause() -> void:
 	var settings := _button("Settings", 19)
 	settings.pressed.connect(show_settings.bind("pause"))
 	box.add_child(settings)
+	if bool(current_level.get("procedural", false)):
+		var journal := _button("Survey journal", 19)
+		journal.pressed.connect(show_world_journal.bind("pause"))
+		box.add_child(journal)
 	var levels := _button("Sandbox select", 19)
 	levels.pressed.connect(show_level_select)
 	box.add_child(levels)

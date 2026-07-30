@@ -253,6 +253,15 @@ func shelter_cover_at(world_position: Vector3) -> float:
 	shelters = active_shelters
 	return cover
 
+func landmark_at(world_position: Vector3, range: float = 12.0) -> Dictionary:
+	if generator == null or origin == null: return {}
+	var region: Dictionary = generator.region_at(origin.world_position(world_position))
+	var record: Dictionary = landmarks.record_for(generator.seed, region)
+	if record.is_empty(): return {}
+	var position: Vector3 = origin.local_chunk_position(Vector2i(int(record.chunk_x), int(record.chunk_z))) + Vector3(float(record.local_x), 0.0, float(record.local_z))
+	position.y = ground_height(position)
+	return record if position.distance_to(world_position) <= range else {}
+
 func _update_region() -> void:
 	var region: Dictionary = generator.region_at(origin.world_position(player.global_position))
 	if str(region.id) == current_region_id: return
