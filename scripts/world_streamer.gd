@@ -18,6 +18,7 @@ const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
 const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
+const LANDMARK_GRAPPLE := preload("res://scripts/world_landmark_grapple.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
@@ -399,7 +400,26 @@ func _add_landmark(root:Node3D,record:Dictionary)->void:
 	elif str(record.kind)=="wind farm":size=Vector3(2.0,14.0,2.0);color=Color("#d4ded5")
 	elif str(record.kind)=="glass conservatory":size=Vector3(9.0,6.0,7.0);color=Color("#91b8a1")
 	_add_box(landmark,Vector3(0.0,size.y*.5,0.0),size,color,"LandmarkCore")
+	_add_landmark_grapple_anchor(landmark,record,size.y)
 	root.add_child(landmark)
+
+func _add_landmark_grapple_anchor(landmark: Node3D, record: Dictionary, height: float) -> void:
+	var spec: Dictionary = LANDMARK_GRAPPLE.anchor_spec(record, height)
+	if spec.is_empty(): return
+	var anchor := Node3D.new()
+	anchor.name = str(spec.name)
+	anchor.position = Vector3(0.0, float(spec.height), 0.0)
+	anchor.add_to_group("grapple_anchor")
+	anchor.set_meta("landmark_anchor", true)
+	anchor.set_meta("landmark_id", str(spec.landmark_id))
+	var mesh := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.55
+	ring.outer_radius = 0.75
+	mesh.mesh = ring
+	mesh.material_override = _material(Color("#d5f29d"), true)
+	anchor.add_child(mesh)
+	landmark.add_child(anchor)
 
 func _add_urban_corridors(root:Node3D,fields:Dictionary)->void:
 	for corridor:Dictionary in fields.get("corridors",[]):
