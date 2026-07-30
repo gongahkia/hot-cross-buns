@@ -867,11 +867,32 @@ func _on_chunk_stats_changed(stats: Dictionary) -> void:
 func _on_survival_depleted(reason: String) -> void:
 	if not RunData.running or not bool(current_level.get("procedural", false)):
 		return
-	last_sandbox_event = "RUN ENDED: " + reason.to_upper()
-	RunData.running = false
+	var snapshot := Survival.snapshot()
+	snapshot["failure"] = reason
+	last_resolved_run = RunData.finish("failed", snapshot)
+	last_sandbox_event = "RUN FAILED: " + reason.to_upper()
 	if player: player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	show_title()
+	show_failure_resolution(reason)
+
+func show_failure_resolution(reason: String) -> void:
+	menu_mode = "failure"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	get_tree().paused = false
+	_clear_menu()
+	var panel := _center_panel(Vector2(460.0, 300.0))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_label("Expedition failed", 34, Color("#f1c38b")))
+	box.add_child(_label("Cause: " + reason.replace("_", " ").to_upper(), 17, Color("#d7b999")))
+	box.add_child(_label("Elapsed " + _time_text(float(last_resolved_run.get("elapsed", 0.0))) + "  /  Resources " + str((last_resolved_run.get("resources", {}) as Dictionary).size()), 15, Color("#b5c6a5")))
+	var retry := _button("Retry expedition", 19)
+	retry.pressed.connect(func(): start_level(str(current_level.get("id", "expedition"))))
+	box.add_child(retry)
+	var title := _button("Return to title", 19)
+	title.pressed.connect(show_title)
+	box.add_child(title)
 
 func show_extraction_confirm() -> void:
 	if not RunData.running or not bool(current_level.get("procedural", false)): return
