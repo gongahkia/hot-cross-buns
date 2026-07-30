@@ -27,6 +27,12 @@ static func sample(world: Dictionary, cell: Dictionary = {}, options: Dictionary
 	elif storm=="hurricane": visibility=minf(visibility,.2)
 	return {"bucket":bucket,"event_id":segment,"event_start":segment*MAX_EVENT_SECONDS,"event_duration":duration,"event_active":active,"front":"low" if low>.35 else "high" if high>.35 else "zonal","pressure":pressure,"precipitation":precipitation,"storm":storm,"intensity":intensity,"cloud_cover":cloud,"wind_speed":wind_speed,"visibility":visibility,"temperature_c":temp_c,"koppen":str(cell.get("koppen",KOPPEN.classify(float(cell.get("temperature",.5)),rainfall,cell))),"audio_cue":_audio(precipitation,storm),"is_precipitating":precipitation!="clear"}
 static func label(state: Dictionary) -> String: return str(state.get("storm","none")) if str(state.get("storm","none"))!="none" else str(state.get("precipitation","clear"))
+static func forecast(world: Dictionary, routes: Array, options: Dictionary = {}) -> Array:
+	var clock := float(options.get("clock", 0.0)); var travel_speed := maxf(1.0, float(options.get("travel_speed", 6.0))); var forecast: Array = []
+	for route: Dictionary in routes:
+		var cell: Dictionary = route.get("cell", {}); var distance := maxf(0.0, float(route.get("distance", 0.0))); var weather := sample(world, cell, {"clock": clock + distance / travel_speed, "x": float(cell.get("x", 0.0)), "y": float(cell.get("y", 0.0))}); var cold := clampf((8.0 - float(weather.temperature_c)) / 32.0, 0.0, 1.0); var risk := clampf(float(weather.intensity) * .45 + float(weather.wind_speed) * .25 + (1.0 - float(weather.visibility)) * .2 + cold * .1, 0.0, 1.0)
+		forecast.append({"route": str(route.get("route", "route")), "distance": distance, "eta_seconds": distance / travel_speed, "weather": weather, "risk": risk})
+	return forecast
 static func particle_count(state: Dictionary,width: float=1280.0,height: float=720.0) -> int:
 	var area:=clampf(width*height/(1280.0*720.0),.4,1.8); var intensity:=clampf(float(state.get("intensity",0.0)),0.0,1.0); var precipitation:=str(state.get("precipitation","clear")); var storm:=str(state.get("storm","none"))
 	if storm=="sandstorm": return floori((90+intensity*160)*area)

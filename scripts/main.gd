@@ -48,6 +48,8 @@ var world_streamer
 var photo_mode
 var current_region: Dictionary = {}
 var weather_clock := 0.0
+var weather_forecast: Array = []
+var weather_forecast_key := ""
 
 var ui: CanvasLayer
 var hud: Control
@@ -65,6 +67,7 @@ var survival_label: Label
 var style_score_label: Label
 var combo_label: Label
 var style_event_label: Label
+var forecast_label: Label
 var style_meter: ProgressBar
 var style_meter_fill: StyleBoxFlat
 var style_award_feed: StyleAwardFeed
@@ -158,12 +161,13 @@ func _build_ui() -> void:
 	var style_box := VBoxContainer.new()
 	style_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	style_box.position = Vector2(22.0, -132.0)
-	style_box.custom_minimum_size = Vector2(312.0, 104.0)
+	style_box.custom_minimum_size = Vector2(312.0, 122.0)
 	style_box.add_theme_constant_override("separation", 2)
 	hud.add_child(style_box)
 	style_score_label = _label("STYLE 000000  QUIET", 21, Color("#f1d477"))
 	combo_label = _label("COMBO --", 16, Color("#b9f6df"))
 	style_event_label = _label("CHAIN MOVEMENT TO BANK STYLE", 13, Color("#9db197"))
+	forecast_label = _label("FORECAST --", 13, Color("#9db197"))
 	style_meter = ProgressBar.new()
 	style_meter.show_percentage = false
 	style_meter.min_value = 0.0
@@ -182,6 +186,7 @@ func _build_ui() -> void:
 	style_box.add_child(combo_label)
 	style_box.add_child(style_meter)
 	style_box.add_child(style_event_label)
+	style_box.add_child(forecast_label)
 	briefing_label = _label("", 22, Color("#e9f0d8"))
 	briefing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	briefing_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -403,6 +408,8 @@ func start_level(level_id: String) -> void:
 	if bool(current_level.get("procedural", false)):
 		Survival.begin_run(run_seed)
 		weather_clock = 0.0
+		weather_forecast_key = ""
+		weather_forecast.clear()
 	hud.visible = true
 	debug_panel.visible = debug_visible
 	briefing_label.modulate.a = 1.0
@@ -1732,6 +1739,28 @@ func _bail_to_start() -> void:
 	player.reset_for_bail(player_spawn)
 	Audio.play_sfx("dash")
 
+func _forecast_text() -> String:
+	if world_streamer == null or player == null: return "FORECAST --"
+	var cell_x := floori(player.global_position.x / 48.0)
+	var cell_z := floori(player.global_position.z / 48.0)
+	var key := "%d:%d:%d" % [WORLD_WEATHER.bucket_for(weather_clock), cell_x, cell_z]
+	if key != weather_forecast_key:
+		weather_forecast_key = key
+		var forward := -player.global_transform.basis.z
+		forward.y = 0.0
+		if forward.length() < 0.1: forward = Vector3.FORWARD
+		var side := Vector3(-forward.z, 0.0, forward.x)
+		var routes: Array = []
+		for route: Dictionary in [{"route":"FWD","offset":forward.normalized()*96.0},{"route":"L","offset":(forward-side).normalized()*72.0},{"route":"R","offset":(forward+side).normalized()*72.0}]:
+			var point: Vector3 = player.global_position + route.offset
+			var sample: Dictionary = world_streamer.sample_at(point)
+			routes.append({"route":route.route,"distance":float(route.offset.length()),"cell":{"x":point.x,"y":point.z,"temperature":sample.temperature,"rainfall":sample.rainfall,"water":sample.water,"slope":sample.get("slope",0.0)}})
+		weather_forecast = WORLD_WEATHER.forecast({"seed":world_streamer.generator.seed}, routes, {"clock":weather_clock})
+	var parts: Array[String] = []
+	for forecast: Dictionary in weather_forecast:
+		parts.append("%s %s %02d" % [str(forecast.route), WORLD_WEATHER.label(forecast.weather).to_upper(), int(float(forecast.risk)*100.0)])
+	return "FORECAST " + " / ".join(parts)
+
 func _refresh_hud() -> void:
 	if current_level.is_empty():
 		return
@@ -1749,6 +1778,7 @@ func _refresh_hud() -> void:
 		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
+	forecast_label.text = _forecast_text() if bool(current_level.get("procedural", false)) else "FORECAST --"
 	var style := RunData.style_snapshot()
 	var total_style := int(style.get("banked", 0)) + int(style.get("active", 0))
 	var tier := str(style.get("tier", "QUIET"))
