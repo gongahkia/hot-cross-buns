@@ -38,6 +38,51 @@ func center(cell_x: int, cell_z: int) -> Dictionary:
 func center_at(world_x: float, world_z: float) -> Dictionary:
 	return center(floori(world_x / cell_size), floori(world_z / cell_size))
 
+func nearest(world_x: float, world_z: float) -> Dictionary:
+	var cell_x := floori(world_x / cell_size)
+	var cell_z := floori(world_z / cell_size)
+	var first: Dictionary = {}
+	var second: Dictionary = {}
+	var first_distance := INF
+	var second_distance := INF
+	for z_offset in range(-1, 2):
+		for x_offset in range(-1, 2):
+			var plate := center(cell_x + x_offset, cell_z + z_offset)
+			var distance := Vector2(world_x - float(plate.x), world_z - float(plate.z)).length()
+			if distance < first_distance:
+				second = first
+				second_distance = first_distance
+				first = plate
+				first_distance = distance
+			elif distance < second_distance:
+				second = plate
+				second_distance = distance
+	return {"first": first, "second": second, "first_distance": first_distance, "second_distance": second_distance}
+
+func plate_at(world_x: float, world_z: float) -> Dictionary:
+	var nearest_pair := nearest(world_x, world_z)
+	var first: Dictionary = nearest_pair.first
+	var second: Dictionary = nearest_pair.second
+	var first_distance := float(nearest_pair.first_distance)
+	var second_distance := float(nearest_pair.second_distance)
+	var gap := maxf(0.0, second_distance - first_distance)
+	var boundary := clampf(1.0 - gap / (cell_size * 0.34), 0.0, 1.0)
+	var normal := Vector2(float(second.x) - float(first.x), float(second.z) - float(first.z)).normalized()
+	var relative_velocity := (float(first.vx) - float(second.vx)) * normal.x + (float(first.vz) - float(second.vz)) * normal.y
+	var convergent := clampf(relative_velocity, 0.0, 1.0)
+	var divergent := clampf(-relative_velocity, 0.0, 1.0)
+	var subducting: Dictionary = {}
+	if convergent > 0.0:
+		if str(first.crust) != str(second.crust):
+			subducting = first if str(first.crust) == "oceanic" else second
+		elif str(first.crust) == "oceanic":
+			subducting = first if float(first.age) >= float(second.age) else second
+	var first_subducts := not subducting.is_empty() and int(subducting.id) == int(first.id)
+	var oceanic_subduction := boundary * convergent if not subducting.is_empty() else 0.0
+	var ocean_ocean_subduction := oceanic_subduction if str(first.crust) == "oceanic" and str(second.crust) == "oceanic" else 0.0
+	var continent_ocean_subduction := oceanic_subduction if str(first.crust) != str(second.crust) else 0.0
+	return {"id": first.id, "secondary_id": second.id, "crust": first.crust, "secondary_crust": second.crust, "age": first.age, "secondary_age": second.age, "boundary": boundary, "convergent": convergent, "divergent": divergent, "oceanic_subduction": oceanic_subduction, "ocean_ocean_subduction": ocean_ocean_subduction, "continent_ocean_subduction": continent_ocean_subduction, "subducting": first_subducts, "subduction_bias": oceanic_subduction * (-1.0 if first_subducts else 1.0), "vx": first.vx, "vz": first.vz}
+
 func clear_cache() -> void:
 	_cache.clear()
 	_cache_order.clear()
@@ -48,7 +93,9 @@ func cache_metrics() -> Dictionary:
 func _build_center(cell_x: int, cell_z: int) -> Dictionary:
 	var jitter_x := RNG.thoth_signed(seed, cell_x, cell_z, 11) * cell_size * 0.38
 	var jitter_z := RNG.thoth_signed(seed, cell_x, cell_z, 23) * cell_size * 0.38
-	return {"id": RNG.thoth_hash(seed, cell_x, cell_z, 37), "x": (float(cell_x) + 0.5) * cell_size + jitter_x, "z": (float(cell_z) + 0.5) * cell_size + jitter_z, "cell_x": cell_x, "cell_z": cell_z}
+	var angle := RNG.unit_at(seed, cell_x, cell_z, 41) * TAU
+	var speed := 0.25 + RNG.unit_at(seed, cell_x, cell_z, 43) * 0.75
+	return {"id": RNG.thoth_hash(seed, cell_x, cell_z, 37), "x": (float(cell_x) + 0.5) * cell_size + jitter_x, "z": (float(cell_z) + 0.5) * cell_size + jitter_z, "cell_x": cell_x, "cell_z": cell_z, "vx": cos(angle) * speed, "vz": sin(angle) * speed, "crust": "continental" if RNG.unit_at(seed, cell_x, cell_z, 47) > 0.66 else "oceanic", "age": RNG.unit_at(seed, cell_x, cell_z, 49)}
 
 func _touch(key: String) -> void:
 	var index := _cache_order.find(key)
