@@ -28,6 +28,7 @@ const SUBURB_PARCELS := preload("res://scripts/world_suburb_parcels.gd")
 const SUBURB_TRANSITIONS := preload("res://scripts/world_suburb_transitions.gd")
 const SUBURB_TRAVERSAL := preload("res://scripts/world_suburb_traversal.gd")
 const SUBURB_RESOURCES := preload("res://scripts/world_suburb_resources.gd")
+const URBAN_CORRIDORS := preload("res://scripts/world_urban_corridors.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -84,6 +85,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	var center := Vector3(SCALE.chunk_center(chunk_x, CHUNK_SIZE, scale.id), 0.0, SCALE.chunk_center(chunk_z, CHUNK_SIZE, scale.id))
 	var sample_data := sample(center.x, center.z, scale.id)
 	var descriptor:Dictionary={"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
+	var urban_corridors:=URBAN_CORRIDORS.generate(self,chunk_x,chunk_z,sample_data)
+	if not urban_corridors.is_empty():descriptor["urban_corridors"]=urban_corridors
 	var urban:=URBAN_FIELDS.sample(seed,chunk_x,chunk_z,str(sample_data.region.family))
 	if not urban.is_empty():descriptor["urban"]=urban
 	var suburb_roads:=SUBURB_ROADS.generate(seed,chunk_x,chunk_z,urban)
