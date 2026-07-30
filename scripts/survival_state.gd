@@ -11,6 +11,8 @@ var thirst := MAX_VALUE
 var warmth := MAX_VALUE
 var health := MAX_VALUE
 var fatigue := 0.0
+var wetness := 0.0
+var exposure := 0.0
 var materials: Dictionary = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 var alive := true
 var run_seed := 0
@@ -22,6 +24,8 @@ func begin_run(seed: int) -> void:
 	warmth = MAX_VALUE
 	health = MAX_VALUE
 	fatigue = 0.0
+	wetness = 0.0
+	exposure = 0.0
 	materials = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 	alive = true
 	changed.emit(snapshot())
@@ -30,10 +34,15 @@ func advance(delta: float, environment: Dictionary, movement_active: bool) -> vo
 	if not alive: return
 	var temperature := float(environment.get("temperature", 0.55))
 	var rainfall := float(environment.get("rainfall", 0.45))
-	var exposed := absf(temperature - 0.55) * 2.0 + rainfall * 0.3
+	var weather: Dictionary = environment.get("weather", {})
+	var precipitation := float(weather.get("intensity", rainfall)) if bool(weather.get("is_precipitating", false)) else 0.0
+	var wind := float(weather.get("wind_speed", 0.0))
+	var drying := 0.16 + maxf(0.0, temperature - 0.5) * 0.22 + wind * 0.16
+	wetness = clampf(wetness + delta * (precipitation * 0.8 - drying), 0.0, MAX_VALUE)
+	exposure = clampf(absf(temperature - 0.55) * 2.0 + wind * 0.24 + wetness * 0.009 + precipitation * 0.3, 0.0, 1.0)
 	hunger = maxf(0.0, hunger - delta * (0.28 + fatigue * 0.004))
 	thirst = maxf(0.0, thirst - delta * (0.42 + maxf(temperature - 0.55, 0.0) * 0.35))
-	warmth = clampf(warmth + delta * (0.18 - exposed * 0.65), 0.0, MAX_VALUE)
+	warmth = clampf(warmth + delta * (0.18 - exposure * 0.65), 0.0, MAX_VALUE)
 	fatigue = clampf(fatigue + delta * (0.48 if movement_active else -0.24), 0.0, MAX_VALUE)
 	if hunger <= 0.0 or thirst <= 0.0 or warmth <= 0.0:
 		health = maxf(0.0, health - delta * 4.0)
@@ -79,4 +88,4 @@ func apply_injury(amount: float) -> void:
 	changed.emit(snapshot())
 
 func snapshot() -> Dictionary:
-	return {"hunger": hunger, "thirst": thirst, "warmth": warmth, "health": health, "fatigue": fatigue, "materials": materials.duplicate(), "alive": alive, "seed": run_seed}
+	return {"hunger": hunger, "thirst": thirst, "warmth": warmth, "health": health, "fatigue": fatigue, "wetness": wetness, "exposure": exposure, "materials": materials.duplicate(), "alive": alive, "seed": run_seed}

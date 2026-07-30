@@ -10,6 +10,7 @@ const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
 const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
 const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
+const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
 const SANDBOX_STATION_CENTERS := {
@@ -42,6 +43,7 @@ var frame_time := 0.0
 var world_streamer
 var photo_mode
 var current_region: Dictionary = {}
+var weather_clock := 0.0
 
 var ui: CanvasLayer
 var hud: Control
@@ -252,6 +254,8 @@ func _process(delta: float) -> void:
 			Survival.consume_food()
 		if bool(current_level.get("procedural", false)) and world_streamer and not photo_mode.active:
 			var environment:Dictionary=world_streamer.sample_at(player.global_position)
+			weather_clock += delta
+			environment["weather"] = WORLD_WEATHER.sample({"seed": world_streamer.generator.seed}, {"x": player.global_position.x, "y": player.global_position.z, "temperature": environment.temperature, "rainfall": environment.rainfall, "water": environment.water}, {"clock": weather_clock})
 			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
 			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
 			if Input.is_action_just_pressed("consume_water"):Survival.consume_water()
@@ -387,6 +391,7 @@ func start_level(level_id: String) -> void:
 	RunData.begin_run(level_id, run_seed)
 	if bool(current_level.get("procedural", false)):
 		Survival.begin_run(run_seed)
+		weather_clock = 0.0
 	hud.visible = true
 	debug_panel.visible = debug_visible
 	briefing_label.modulate.a = 1.0
@@ -1662,7 +1667,7 @@ func _refresh_hud() -> void:
 		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
-		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0))]
+		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.wetness), int(survival.exposure * 100.0)]
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
 	var style := RunData.style_snapshot()
