@@ -245,6 +245,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_city_arterials(root,descriptor.get("city_arterials",{}))
 		_add_city_secondary_roads(root,descriptor.get("city_secondary_roads",{}))
 		_add_city_buildings(root,descriptor.get("city_buildings",{}))
+		_add_city_traversal(root,descriptor.get("city_buildings",{}),descriptor.get("city_traversal",{}))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
@@ -297,6 +298,14 @@ func _add_city_buildings(root:Node3D,massing:Dictionary)->void:
 	for building:Dictionary in massing.get("buildings",[]):
 		var x:=float(building.get("x",32.0));var z:=float(building.get("z",32.0));var height:=float(building.get("height",6.0));var color:=Color("#4f6355") if str(building.get("form",""))=="courtyard" else Color("#495852")
 		_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(building.get("width",4.0)),height,float(building.get("depth",4.0))),color,"Building")
+
+func _add_city_traversal(root:Node3D,massing:Dictionary,traversal:Dictionary)->void:
+	var buildings:Dictionary={}
+	for building:Dictionary in massing.get("buildings",[]):buildings[str(building.id)]=building
+	for facade:Dictionary in traversal.get("facades",[]):
+		var building:Dictionary=buildings.get(str(facade.get("building_id","")),{});if building.is_empty():continue
+		var x:=float(building.x);var z:=float(building.z);var side:=str(facade.side);var outward:=Vector3(0.0,0.0,-1.0) if side=="north" else Vector3(1.0,0.0,0.0) if side=="east" else Vector3(0.0,0.0,1.0) if side=="south" else Vector3(-1.0,0.0,0.0);var half:=float(building.depth)*.5 if side in ["north","south"] else float(building.width)*.5
+		var position:=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(facade.ledge_height),z)+outward*(half+.35);var size:=Vector3(float(facade.ledge_width),.35,1.0) if side in ["north","south"] else Vector3(1.0,.35,float(facade.ledge_width));_add_box(root,position,size,Color("#6a7568"),"FacadeLedge")
 
 func _add_industrial(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(4):
