@@ -35,20 +35,21 @@ func sample(world_x: float, world_z: float, scope: Variant = "local") -> Diction
 	var ocean_age_my := 0.0
 	var shelf_proximity := 0.0
 	var shelf_distance := 999.0
+	var margin_blend := 0.0
 	if str(plate.get("crust", "")) == "continental":
 		continental_bias = 0.22 + shield * 0.04 + craton * 0.04
 	else:
 		var ocean: Dictionary = OCEAN.sample(plate, sea_level, z_scale, max_ocean_age_my)
 		ocean_depth_meters = float(ocean.depth_meters)
 		ocean_age_my = float(ocean.age_my)
-		var margin_blend := _smoothstep(0.05, 0.45, float(plate.get("boundary", 0.0))) * 0.35 if str(plate.get("secondary_crust", "")) == "continental" else 0.0
+		margin_blend = _smoothstep(0.05, 0.45, float(plate.get("boundary", 0.0))) * 0.35 if str(plate.get("secondary_crust", "")) == "continental" else 0.0
 		var ocean_weight := _smoothstep(0.0, 1.0, 0.46 * (1.0 - margin_blend))
 		shelf_proximity = _smoothstep(0.04, 0.42, float(plate.get("boundary", 0.0))) if str(plate.get("secondary_crust", "")) == "continental" else 0.0
 		shelf_distance = (1.0 - shelf_proximity) * 50.0 if shelf_proximity > 0.0 else 999.0
 		continental_bias = -0.16 * (1.0 - ocean_weight) + float(ocean.elevation) * ocean_weight + shelf_proximity * 0.02
 	var rough_contribution := (rough - 0.5) * 0.24 * (1.0 - stable_damping)
 	var elevation := continental_bias + (continent - 0.5) * 0.72 + rough_contribution
-	return {"x": world_x, "z": world_z, "scale": scale.id, "scale_factor": scale.factor, "warped_x": warped.x, "warped_z": warped.y, "plate": plate, "continent": continent, "rough": rough, "ridge": ridge, "shield": shield, "craton": craton, "stable_damping": stable_damping, "continental_bias": continental_bias, "ocean_depth_meters": ocean_depth_meters, "ocean_age_my": ocean_age_my, "shelf_proximity": shelf_proximity, "shelf_distance": shelf_distance, "elevation": elevation}
+	return {"x": world_x, "z": world_z, "scale": scale.id, "scale_factor": scale.factor, "warped_x": warped.x, "warped_z": warped.y, "plate": plate, "continent": continent, "rough": rough, "ridge": ridge, "shield": shield, "craton": craton, "stable_damping": stable_damping, "continental_bias": continental_bias, "ocean_depth_meters": ocean_depth_meters, "ocean_age_my": ocean_age_my, "margin_blend": margin_blend, "shelf_proximity": shelf_proximity, "shelf_distance": shelf_distance, "elevation": elevation}
 
 func _shield(plate: Dictionary) -> float:
 	if str(plate.get("crust", "")) != "continental":
