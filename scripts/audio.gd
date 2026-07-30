@@ -8,6 +8,12 @@ var ambient_phase := 0.0
 var sfx_phase := 0.0
 var sfx_frequency := 440.0
 var sfx_remaining := 0.0
+var weather_cue := "none"
+var weather_intensity := 0.0
+
+func set_weather_cue(cue: String, intensity: float) -> void:
+	weather_cue = cue
+	weather_intensity = clampf(intensity, 0.0, 1.0)
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
@@ -94,7 +100,8 @@ func _fill_ambient(_delta: float) -> void:
 	for _frame in ambient_playback.get_frames_available():
 		var low := sin(ambient_phase * TAU * 77.0) * 0.16
 		var high := sin(ambient_phase * TAU * 123.0) * 0.05
-		ambient_playback.push_frame(Vector2.ONE * (low + high))
+		var weather := sin(ambient_phase * TAU * (63.0 if weather_cue == "wind" else 151.0 if weather_cue == "rain" else 94.0)) * weather_intensity * 0.11
+		ambient_playback.push_frame(Vector2.ONE * (low + high + weather))
 		ambient_phase = fmod(ambient_phase + 1.0 / rate, 1.0)
 
 func _fill_sfx(_delta: float) -> void:

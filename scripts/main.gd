@@ -13,6 +13,7 @@ const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
 const PIXEL_PRESENTATION := preload("res://scripts/pixel_presentation.gd")
+const WEATHER_LAYERS := preload("res://scripts/weather_layers.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
@@ -69,6 +70,7 @@ var survival_movement: Dictionary = {}
 var run_balance_telemetry = SURVIVAL_TRAVERSAL_TELEMETRY.new()
 var expedition_environment: Environment
 var expedition_sun: DirectionalLight3D
+var weather_particles: GPUParticles3D
 
 var ui: CanvasLayer
 var hud: Control
@@ -950,10 +952,28 @@ func _add_expedition_lighting() -> void:
 	sun.light_energy = 1.15
 	course.add_child(sun)
 	expedition_sun = sun
+	weather_particles = GPUParticles3D.new()
+	weather_particles.name = "WeatherParticles"
+	weather_particles.lifetime = 1.8
+	weather_particles.local_coords = false
+	weather_particles.visibility_aabb = AABB(Vector3(-20.0,-12.0,-20.0),Vector3(40.0,24.0,40.0))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = Vector3(16.0,2.0,16.0)
+	process.direction = Vector3(0.0,-1.0,0.0)
+	process.spread = 18.0
+	process.initial_velocity_min = 7.0
+	process.initial_velocity_max = 11.0
+	process.color = Color("#d6e8efaa")
+	weather_particles.process_material = process
+	weather_particles.draw_pass_1 = _particle_quad(0.06,Color("#d6e8efaa"))
+	weather_particles.visible = false
+	course.add_child(weather_particles)
 
 func _apply_expedition_atmosphere(weather: Dictionary) -> void:
 	if expedition_environment == null or expedition_sun == null: return
 	var atmosphere: Dictionary = WORLD_ATMOSPHERE.presentation(weather, {"clock":weather_clock})
+	var layers: Dictionary = WEATHER_LAYERS.profile(weather)
 	expedition_environment.background_color = atmosphere.background
 	expedition_environment.ambient_light_color = atmosphere.ambient
 	expedition_environment.fog_light_color = atmosphere.fog
@@ -961,6 +981,12 @@ func _apply_expedition_atmosphere(weather: Dictionary) -> void:
 	expedition_sun.light_color = atmosphere.sun_color
 	expedition_sun.light_energy = float(atmosphere.sun_energy)
 	expedition_sun.rotation_degrees = atmosphere.sun_rotation
+	if weather_particles:
+		var particle_count := int(layers.particles)
+		weather_particles.amount = maxi(particle_count,1)
+		weather_particles.visible = particle_count > 0
+		if player: weather_particles.global_position = player.global_position + Vector3(0.0,8.0,0.0)
+	Audio.set_weather_cue(str(layers.audio), float(layers.opacity))
 
 func _on_expedition_region_changed(region: Dictionary) -> void:
 	current_region = region
