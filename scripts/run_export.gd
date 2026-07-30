@@ -4,6 +4,7 @@ extends RefCounted
 const SCHEMA := "a-slow-walk.export.v1"
 const GENERATOR_SCHEMA_VERSION := "1.0.0"
 const EXPORT_DIRECTORY := "user://exports"
+const RUN_CARD_RENDERER := preload("res://scripts/run_card_renderer.gd")
 
 static func seed_payload(seed: int) -> Dictionary:
 	return {"schema":SCHEMA,"type":"seed","world":world_identity(seed)}
@@ -24,7 +25,13 @@ static func export_seed(seed: int) -> String:
 
 static func export_run_card(record: Dictionary) -> String:
 	if record.is_empty(): return ""
-	return _write_json("run-card-%04d" % int(record.get("id", 0)), run_card_payload(record))
+	var path := _write_json("run-card-%04d" % int(record.get("id", 0)), run_card_payload(record))
+	if path.is_empty(): return ""
+	var image := FileAccess.open(path.get_basename() + ".svg", FileAccess.WRITE)
+	if image:
+		image.store_string(RUN_CARD_RENDERER.render(run_card_payload(record)))
+		image.close()
+	return path
 
 static func export_photo(image_path: String, metadata_path: String) -> Dictionary:
 	if not FileAccess.file_exists(image_path) or not FileAccess.file_exists(metadata_path): return {}
