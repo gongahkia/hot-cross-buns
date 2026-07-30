@@ -256,6 +256,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	elif family == "industrial_ruin":
 		_add_industrial_structures(root,descriptor.get("industrial_structures",{}))
 		_add_industrial_traversal(root,descriptor.get("industrial_traversal",{}))
+		_add_industrial_hazards(root,descriptor.get("industrial_hazards",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
@@ -263,7 +264,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
 	if not resource.is_empty():_add_resource(root,resource)
 	var hazard:=HAZARD_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,str(descriptor.biome),family)
-	if not hazard.is_empty():_add_hazard(root,hazard)
+	if not hazard.is_empty() and family!="industrial_ruin":_add_hazard(root,hazard)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
 
@@ -354,6 +355,9 @@ func _add_industrial_traversal(root:Node3D,fields:Dictionary)->void:
 		var count:=int(access.step_count);var axis:=str(access.axis);var direction:=float(access.direction)
 		for step in range(count):
 			var progress:=float(step+1)/float(count);var x:=float(access.x)-direction*float(access.run)*(1.0-progress) if axis=="x" else float(access.x);var z:=float(access.z)-direction*float(access.run)*(1.0-progress) if axis=="z" else float(access.z);var height:=float(access.rise)*progress;var size:=Vector3(float(access.run)/float(count),height,2.4) if axis=="x" else Vector3(2.4,height,float(access.run)/float(count));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),size,Color("#7f7c67"),"IndustrialAccessStep")
+
+func _add_industrial_hazards(root:Node3D,fields:Dictionary)->void:
+	for field:Dictionary in fields.get("fields",[]):_add_hazard(root,field)
 
 func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(5):
@@ -449,6 +453,8 @@ func _add_flooded_city_ecology(root:Node3D,ecology:Dictionary)->void:
 
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
+	if record.has("source"):hazard.set_meta("source",str(record.source))
+	if record.has("intensity"):hazard.set_meta("intensity",float(record.intensity))
 	hazard.position=Vector3(float(record.local_x),ground_height(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z)))+.06,float(record.local_z))
 	var marker:=MeshInstance3D.new();var mesh:=CylinderMesh.new();var radius:=float(record.get("radius",2.2));mesh.top_radius=radius;mesh.bottom_radius=radius;mesh.height=.12;marker.mesh=mesh
 	var color:=Color("#8c7a43")
