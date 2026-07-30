@@ -16,6 +16,7 @@ const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_fee
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
 const TRAVERSAL_MELEE := preload("res://scripts/traversal_melee.gd")
 const SLIDE_IMPACT := preload("res://scripts/slide_impact.gd")
+const SLAM_IMPACT := preload("res://scripts/slam_impact.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
 const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
@@ -1595,7 +1596,7 @@ func _attempt_wildlife_traversal_hits() -> void:
 		var animal := node as Node3D
 		if animal == null or not animal.has_method("register_traversal_hit"): continue
 		var result: Dictionary = TRAVERSAL_MELEE.hit(str(context.state), float(context.speed), context.origin, animal.global_position)
-		var impulse := SLIDE_IMPACT.resolve(float(context.speed), context.direction) if str(context.state) == "slide" else Vector3.ZERO
+		var impulse := SLIDE_IMPACT.resolve(float(context.speed), context.direction) if str(context.state) == "slide" else SLAM_IMPACT.resolve(float(context.speed), context.origin, animal.global_position)
 		if bool(result.hit) and bool(animal.call("register_traversal_hit", str(context.state), impulse)):
 			last_sandbox_event = "WILDLIFE " + str(context.state).to_upper()
 
