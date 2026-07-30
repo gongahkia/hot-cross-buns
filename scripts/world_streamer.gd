@@ -252,6 +252,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	elif family == "flooded_city":
 		_add_flooded_city_routes(root,descriptor.get("flood_routes",{}))
 		_add_flooded_city_structures(root,descriptor.get("flood_structures",{}))
+		_add_flooded_city_ecology(root,descriptor.get("flood_ecology",{}))
 	elif family == "industrial_ruin":
 		_add_industrial(root, chunk_x, chunk_z)
 	elif family == "overgrown_suburb":
@@ -421,13 +422,20 @@ func _add_flooded_city_structures(root:Node3D,fields:Dictionary)->void:
 		var x:=float(structure.x);var z:=float(structure.z);var height:=maxf(1.5,float(structure.height)*float(structure.height_scale)-float(structure.submerged_depth)*.4);var color:=Color("#47646a") if str(structure.collapse)=="standing" else Color("#5b5f58")
 		_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5-float(structure.submerged_depth)*.12,z),Vector3(float(structure.width),height,float(structure.depth)),color,"FloodStructure")
 
+func _add_flooded_city_ecology(root:Node3D,ecology:Dictionary)->void:
+	for resource:Dictionary in ecology.get("resources",[]):
+		var x:=float(resource.local_x);var z:=float(resource.local_z);_add_resource_at(root,resource,x,z,ground_height(root.global_position+Vector3(x,0.0,z))+float(resource.support_height)+1.1)
+	for hazard:Dictionary in ecology.get("hazards",[]):_add_hazard(root,hazard)
+
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
 	hazard.position=Vector3(float(record.local_x),ground_height(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z)))+.06,float(record.local_z))
-	var marker:=MeshInstance3D.new();var mesh:=CylinderMesh.new();mesh.top_radius=2.2;mesh.bottom_radius=2.2;mesh.height=.12;marker.mesh=mesh
+	var marker:=MeshInstance3D.new();var mesh:=CylinderMesh.new();var radius:=float(record.get("radius",2.2));mesh.top_radius=radius;mesh.bottom_radius=radius;mesh.height=.12;marker.mesh=mesh
 	var color:=Color("#8c7a43")
 	if str(record.kind)=="contamination":color=Color("#9b6a37")
 	elif str(record.kind)=="floodwater":color=Color("#4d8c9d")
+	elif str(record.kind)=="current":color=Color("#3a7b90")
+	elif str(record.kind)=="deep_water":color=Color("#274e67")
 	elif str(record.kind)=="thermal":color=Color("#c0643f")
 	elif str(record.kind)=="sinkhole":color=Color("#574a44")
 	marker.material_override=_material(color,true);hazard.add_child(marker);root.add_child(hazard)
