@@ -398,7 +398,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 func _add_wildlife(root: Node3D, record: Dictionary) -> void:
 	var animal := WILDLIFE_AGENT.new()
 	animal.name = "Wildlife_" + str(record.id).replace(":", "_")
-	animal.configure(record, player)
+	animal.configure(record, player, sample_at(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z))))
 	animal.add_to_group("wildlife")
 	animal.set_meta("record", record.duplicate(true))
 	animal.set_meta("archetype_id", str(record.archetype_id))
