@@ -1,14 +1,17 @@
 extends SceneTree
 
 const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
+const WORLD_GENERATOR := preload("res://scripts/world_generator.gd")
 
 func _initialize() -> void:
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	var main := scene.instantiate()
 	var runs: Variant = root.get_node_or_null("RunData")
 	var app_settings: Variant = root.get_node_or_null("Settings")
+	var survival: Variant = root.get_node_or_null("Survival")
 	assert(runs != null, "RunData autoload missing")
 	assert(app_settings != null, "Settings autoload missing")
+	assert(survival != null, "Survival autoload missing")
 	root.add_child(main)
 	await process_frame
 	assert(main.hud.theme != null, "ui theme missing")
@@ -27,24 +30,74 @@ func _initialize() -> void:
 	app_settings.call("set_pixel_filter_mode", original_filter_mode)
 
 	var levels := LevelLibrary.all_levels()
-	assert(levels.size() == 1, "sandbox must be the only playable level")
-	assert(str(levels[0].id) == "sandbox", "sandbox id missing")
-	main.start_level("sandbox")
+	assert(levels.size() == 1, "expedition must be the only playable level")
+	assert(str(levels[0].get("id", "")) == "expedition", "expedition id missing")
+	assert(str(LevelLibrary.by_id("sandbox").get("id", "")) == "expedition", "retired sandbox remained playable")
+	main.start_level("expedition")
 	await process_frame
-	assert(main.player != null, "sandbox player missing")
-	assert(main.course != null, "sandbox course missing")
-	assert(str(main.course.get_meta("layout_id", "")) == "sandbox", "wrong sandbox layout id")
-	assert(main.course.get_node_or_null("OpenBasin") != null, "sandbox recovery floor missing")
+	assert(main.world_streamer != null, "expedition world streamer missing")
+	assert(main.world_streamer.chunks.size() == 25, "expedition chunk radius missing")
+	assert(main.player != null and main.player.movement_enabled, "expedition player missing")
+	for _frame in range(45):
+		await physics_frame
+	var resting_ground: float = main.world_streamer.ground_height(main.player.global_position)
+	assert(main.player.is_on_floor(), "expedition player did not settle on terrain")
+	assert(not main.player.is_on_wall(), "expedition terrain trapped the player against a wall")
+	assert(absf(main.player.global_position.y - resting_ground) < 0.06, "expedition player settled inside terrain")
+	var resting_style: Dictionary = runs.call("style_snapshot")
+	assert(int(resting_style.get("active", -1)) == 0, "idle terrain generated style actions")
+	var forward_events := InputMap.action_get_events("move_forward")
+	assert(not forward_events.is_empty(), "WASD binding was not installed")
+	assert(forward_events[0] is InputEventKey and (forward_events[0] as InputEventKey).keycode == KEY_W, "WASD binding has the wrong key")
+	var forward_key := InputEventKey.new()
+	forward_key.keycode = KEY_W
+	forward_key.pressed = true
+	assert(forward_key.is_action("move_forward"), "WASD binding did not register")
+	Input.action_press("move_forward")
+	var start_position: Vector3 = main.player.global_position
+	for _frame in range(12):
+		await physics_frame
+	assert(main.player.global_position.distance_to(start_position) > 0.3, "WASD did not move the expedition player")
+	Input.action_release("move_forward")
+	var yaw_before: float = main.player.rotation.y
+	main.player._apply_look(Vector2(48.0, 0.0))
+	assert(not is_equal_approx(main.player.rotation.y, yaw_before), "mouse input did not rotate the expedition camera")
+	var generated_a: Dictionary = WORLD_GENERATOR.new(20260730).sample(128.0, -384.0)
+	var generated_b: Dictionary = WORLD_GENERATOR.new(20260730).sample(128.0, -384.0)
+	assert(is_equal_approx(float(generated_a.elevation), float(generated_b.elevation)), "world seed is not deterministic")
+	assert(generated_a.region == generated_b.region, "world region is not deterministic")
+	assert(str(generated_a.region.get("family", "")) in ["reclaimed_city", "flooded_city", "industrial_ruin", "overgrown_suburb", "wilderness"], "world family missing")
+	survival.call("collect", "wood", 2)
+	survival.call("advance", 1.0, generated_a, true)
+	var survival_snapshot: Dictionary = survival.call("snapshot")
+	assert(int(survival_snapshot.get("materials", {}).get("wood", 0)) == 2, "survival resources missing")
+	assert(float(survival_snapshot.get("hunger", 100.0)) < 100.0, "survival did not advance")
+	runs.call("add_resource", "wood", 2)
+	var run_record: Dictionary = runs.call("run_record", survival_snapshot)
+	assert(int(run_record.get("resources", {}).get("wood", 0)) == 2, "run resource record missing")
+	main.photo_mode.toggle()
+	assert(main.photo_mode.active and not main.hud.visible, "photo mode did not enter")
+	main.photo_mode.toggle()
+	assert(not main.photo_mode.active and main.hud.visible, "photo mode did not exit")
+	var internal_fixture := LevelLibrary.level("_internal_sandbox_fixture", "Internal fixture", 0.0, "", "", 150.0, 116.0, "summit")
+	main.current_level = internal_fixture
+	main._build_course(internal_fixture)
+	runs.call("begin_run", "_internal_sandbox_fixture")
+	await process_frame
+	assert(main.player != null, "internal fixture player missing")
+	assert(main.course != null, "internal fixture course missing")
+	assert(str(main.course.get_meta("layout_id", "")) == "_internal_sandbox_fixture", "wrong internal fixture layout id")
+	assert(main.course.get_node_or_null("OpenBasin") != null, "internal fixture recovery floor missing")
 	assert(bool(main.course.get_node("OpenBasin").get_meta("recovery_floor", false)), "recovery floor metadata missing")
 	for route_name in ["CentralPlaza", "MovementPlaza", "GapYard", "WallTower", "AerialAtrium", "PowerHall", "StyleBowl", "IntegratedLine"]:
-		assert(main.course.get_node_or_null(route_name) != null, "sandbox route missing: " + route_name)
-	assert(main.sandbox_stations.size() == 8, "sandbox station registry missing")
-	assert(main.traversal_ramp_count >= 20, "sandbox traversal routes missing")
-	assert(main.climbable_trunk_count >= 4, "sandbox wall-jump fixtures missing")
-	assert(main.grapple_anchor_count >= 4, "sandbox grapple fixtures missing")
-	assert(main.combo_gap_count >= 12, "sandbox style gaps missing")
-	assert(main.recharge_gate_count >= 6, "sandbox recharge gates missing")
-	assert(main._collectible_count(levels[0]) >= 18, "sandbox collectibles missing")
+		assert(main.course.get_node_or_null(route_name) != null, "internal fixture route missing: " + route_name)
+	assert(main.sandbox_stations.size() == 8, "internal fixture station registry missing")
+	assert(main.traversal_ramp_count >= 20, "internal fixture traversal routes missing")
+	assert(main.climbable_trunk_count >= 4, "internal fixture wall-jump fixtures missing")
+	assert(main.grapple_anchor_count >= 4, "internal fixture grapple fixtures missing")
+	assert(main.combo_gap_count >= 12, "internal fixture style gaps missing")
+	assert(main.recharge_gate_count >= 6, "internal fixture recharge gates missing")
+	assert(main._collectible_count(internal_fixture) >= 18, "internal fixture collectibles missing")
 	assert(main.course.find_children("InteriorBuilding", "", true, false).size() >= 2, "interior buildings missing")
 	assert(main.course.find_children("CentralResetPad", "", true, false).size() == 1, "central reset pad missing")
 	assert(main.course.find_children("StationResetPad", "", true, false).size() >= 6, "station reset pads missing")
@@ -53,16 +106,15 @@ func _initialize() -> void:
 		if node is CourseTrigger:
 			fixture_types[node.trigger_type] = true
 	for trigger_type in [CourseTrigger.TriggerType.COLLECTIBLE, CourseTrigger.TriggerType.BOOST, CourseTrigger.TriggerType.LAUNCH, CourseTrigger.TriggerType.COMBO_GAP, CourseTrigger.TriggerType.RESET, CourseTrigger.TriggerType.RECHARGE]:
-		assert(fixture_types.has(trigger_type), "sandbox fixture missing trigger type " + str(trigger_type))
+		assert(fixture_types.has(trigger_type), "internal fixture missing trigger type " + str(trigger_type))
 
 	runs.advance(1.0)
 	var session_time: float = runs.elapsed
 	main._reset_to_station({"spawn": Vector3(20.0, 1.4, -72.0), "station": "Power Hall"})
 	assert(main.player.global_position.is_equal_approx(Vector3(20.0, 1.4, -72.0)), "local reset spawn missing")
 	assert(is_equal_approx(float(runs.elapsed), session_time), "local reset cleared free-play session")
-	main._restart_level()
-	assert(is_zero_approx(float(runs.elapsed)), "central reset did not restart session")
-	await process_frame
+	runs.call("begin_run", "_internal_sandbox_fixture")
+	assert(is_zero_approx(float(runs.elapsed)), "internal fixture run reset failed")
 	main.player.global_position = Vector3(30.0, 3.0, -47.0)
 	main._refresh_sandbox_context()
 	assert(main.current_station == "WALL TOWER", "station context did not update")

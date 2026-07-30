@@ -9,5 +9,6 @@ if [[ ! -x "$GODOT_BIN" ]]; then
   exit 1
 fi
 
+mkdir -p "$ROOT_DIR/dist"
 "$GODOT_BIN" --headless --path "$ROOT_DIR" --export-release macOS "$ROOT_DIR/dist/a-slow-walk.app"
 "$GODOT_BIN" --headless --path "$ROOT_DIR" --export-release "Windows Desktop" "$ROOT_DIR/dist/a-slow-walk.exe"

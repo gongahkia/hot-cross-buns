@@ -3,16 +3,22 @@ extends Node
 const STYLE_RUN := preload("res://scripts/style_run.gd")
 
 var active_level_id := ""
+var run_seed := 0
 var elapsed := 0.0
 var collected := 0
 var running := false
 var style: StyleRun = STYLE_RUN.new()
 var style_movement_active := false
+var resources: Dictionary = {}
+var discovered_regions: Array[String] = []
 
-func begin_run(level_id: String) -> void:
+func begin_run(level_id: String, seed := 0) -> void:
 	active_level_id = level_id
+	run_seed = seed
 	elapsed = 0.0
 	collected = 0
+	resources = {}
+	discovered_regions = []
 	style.begin()
 	style_movement_active = false
 	running = true
@@ -30,6 +36,16 @@ func set_style_movement_active(active: bool) -> void:
 func add_collectible() -> void:
 	if running:
 		collected += 1
+
+func add_resource(kind: String, amount := 1) -> void:
+	if not running: return
+	resources[kind] = int(resources.get(kind, 0)) + amount
+
+func discover_region(region_id: String) -> void:
+	if running and not discovered_regions.has(region_id): discovered_regions.append(region_id)
+
+func run_record(survival: Dictionary = {}) -> Dictionary:
+	return {"level": active_level_id, "seed": run_seed, "elapsed": elapsed, "collectibles": collected, "resources": resources.duplicate(), "regions": discovered_regions.duplicate(), "style": style.snapshot(), "survival": survival}
 
 func add_style_action(action: String, override_points := -1, gap_id := "") -> Dictionary:
 	if not running:

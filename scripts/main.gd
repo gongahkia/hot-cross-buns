@@ -7,6 +7,8 @@ const SANDBOX_GEOMETRY_EXPORTER := preload("res://scripts/generate_sandbox_geome
 const LEVEL_DOCUMENT := preload("res://scripts/level_document.gd")
 const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
 const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
+const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
+const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
 const SANDBOX_STATION_CENTERS := {
@@ -36,6 +38,9 @@ var sandbox_stations: Array[Dictionary] = []
 var current_station := "Central Plaza"
 var last_sandbox_event := "Session started"
 var frame_time := 0.0
+var world_streamer
+var photo_mode
+var current_region: Dictionary = {}
 
 var ui: CanvasLayer
 var hud: Control
@@ -49,6 +54,7 @@ var timer_label: Label
 var par_label: Label
 var collect_label: Label
 var tool_label: Label
+var survival_label: Label
 var style_score_label: Label
 var combo_label: Label
 var style_event_label: Label
@@ -92,6 +98,9 @@ func _ready() -> void:
 	creative_editor.playtest_requested.connect(_playtest_creative_draft)
 	creative_editor.close_requested.connect(_exit_creative_mode)
 	add_child(creative_editor)
+	photo_mode = PHOTO_MODE.new()
+	add_child(photo_mode)
+	Survival.depleted.connect(_on_survival_depleted)
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
 	show_title()
 	if geometry_export_mode:
@@ -125,6 +134,7 @@ func _build_ui() -> void:
 	par_label = _label("SANDBOX  /  FREE PLAY", 16, Color("#b5c6a5"))
 	collect_label = _label("PICKUPS 0/0", 16, Color("#f2d98c"))
 	tool_label = _label("E TETHER / F GLIDE", 16, Color("#9edbb8"))
+	survival_label = _label("SURV 100 100 100 100", 14, Color("#d8e8bf"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -132,10 +142,12 @@ func _build_ui() -> void:
 	par_label.custom_minimum_size = Vector2(170.0, 28.0)
 	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
 	tool_label.custom_minimum_size = Vector2(210.0, 28.0)
+	survival_label.custom_minimum_size = Vector2(280.0, 28.0)
 	top.add_child(timer_label)
 	top.add_child(par_label)
 	top.add_child(collect_label)
 	top.add_child(tool_label)
+	top.add_child(survival_label)
 	var style_box := VBoxContainer.new()
 	style_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	style_box.position = Vector2(22.0, -132.0)
@@ -231,8 +243,12 @@ func _process(delta: float) -> void:
 			resume_run()
 		return
 	if RunData.running:
+		if not photo_mode.active and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		RunData.set_style_movement_active(player != null and player.style_multiplier_active())
 		_present_style_result(RunData.advance(delta))
+		if bool(current_level.get("procedural", false)) and world_streamer and not photo_mode.active:
+			Survival.advance(delta, world_streamer.sample_at(player.global_position), player.style_multiplier_active())
 		_refresh_hud()
 		_refresh_grapple_reticle()
 		_refresh_sandbox_context()
@@ -242,6 +258,11 @@ func _process(delta: float) -> void:
 			show_pause()
 
 func _input(event: InputEvent) -> void:
+	if photo_mode and photo_mode.handle_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if RunData.running and not get_tree().paused and event is InputEventMouseButton and event.pressed:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F2 and rebinding_action.is_empty():
 		if creative_session and not creative_editor.is_open():
 			_return_to_creative_editor()
@@ -285,11 +306,11 @@ func show_title() -> void:
 	box.add_theme_constant_override("separation", 14)
 	panel.add_child(box)
 	box.add_child(_label("a-slow-walk", 46, Color("#edf3d5")))
-	box.add_child(_label("a forest style arena", 18, Color("#9db197")))
+	box.add_child(_label("infinite survival traversal", 18, Color("#9db197")))
 	var divider := HSeparator.new()
 	box.add_child(divider)
-	box.add_child(_label("Build lines, test movement, and bank style.", 18, Color("#d3dec5")))
-	var start := _button("Choose a space", 22)
+	box.add_child(_label("Stay alive, cross reclaimed Earth, and bank movement.", 18, Color("#d3dec5")))
+	var start := _button("Choose a journey", 22)
 	start.pressed.connect(show_level_select)
 	box.add_child(start)
 	var creative := _button("Creative mode", 22)
@@ -313,16 +334,16 @@ func show_level_select() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	panel.add_child(box)
-	box.add_child(_label("Choose a space", 34, Color("#edf3d5")))
-	box.add_child(_label("Free play. Build style through the full movement kit.", 16, Color("#aabda1")))
+	box.add_child(_label("Choose an expedition", 34, Color("#edf3d5")))
+	box.add_child(_label("One persistent world. Survival and movement carry the run.", 16, Color("#aabda1")))
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 1
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 8)
 	box.add_child(grid)
 	for level in LEVELS.all_levels():
-		var button := _button(level.title + "\nFREE PLAY  -  FULL STYLE KIT\nF3 DIAGNOSTICS", 16)
-		button.custom_minimum_size = Vector2(350.0, 56.0)
+		var button := _button(level.title + "\nSURVIVAL TRAVERSAL  -  DETERMINISTIC WORLD\nF3 DIAGNOSTICS", 16)
+		button.custom_minimum_size = Vector2(700.0, 72.0)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.tooltip_text = level.briefing
 		button.pressed.connect(start_level.bind(level.id))
@@ -341,6 +362,8 @@ func show_level_select() -> void:
 	bottom.add_child(settings)
 
 func start_level(level_id: String) -> void:
+	if photo_mode and photo_mode.active:
+		photo_mode.toggle()
 	if creative_editor and creative_editor.is_open():
 		creative_editor.close()
 	creative_session = false
@@ -353,7 +376,10 @@ func start_level(level_id: String) -> void:
 	_clear_style_flash()
 	style_award_feed.clear_feed()
 	_build_course(current_level)
-	RunData.begin_run(level_id)
+	var run_seed := int(current_level.get("seed", _seed_for_level(level_id)))
+	RunData.begin_run(level_id, run_seed)
+	if bool(current_level.get("procedural", false)):
+		Survival.begin_run(run_seed)
 	hud.visible = true
 	debug_panel.visible = debug_visible
 	briefing_label.modulate.a = 1.0
@@ -611,6 +637,11 @@ func _exit_creative_mode() -> void:
 func _build_course(level: Dictionary) -> void:
 	if course:
 		course.queue_free()
+	world_streamer = null
+	current_region = {}
+	if bool(level.get("procedural", false)):
+		_load_expedition(level)
+		return
 	if level.has("document_path"):
 		_load_document_level(level)
 		return
@@ -729,6 +760,89 @@ func _load_baked_sandbox(level: Dictionary) -> void:
 	player.traversal_action.connect(_on_traversal_action)
 	player.combo_landed.connect(_on_combo_landed)
 	course.add_child(player)
+
+func _load_expedition(level: Dictionary) -> void:
+	course = Node3D.new()
+	course.name = "Expedition"
+	course.set_meta("layout_id", "expedition")
+	course.set_meta("focus", "infinite survival traversal")
+	add_child(course)
+	total_collectibles_in_level = 0
+	traversal_ramp_count = 0
+	climbable_trunk_count = 0
+	grapple_anchor_count = 0
+	combo_gap_count = 0
+	recharge_gate_count = 0
+	trigger_count = 0
+	sandbox_stations.clear()
+	current_station = "Unknown"
+	last_sandbox_event = "EXPEDITION START"
+	_add_expedition_lighting()
+	player = SpeedPlayer.new()
+	player.position = Vector3(0.0, 8.0, 0.0)
+	player.reset_requested.connect(_bail_to_start)
+	player.traversal_action.connect(_on_traversal_action)
+	player.combo_landed.connect(_on_combo_landed)
+	course.add_child(player)
+	world_streamer = WORLD_STREAMER.new()
+	course.add_child(world_streamer)
+	world_streamer.region_changed.connect(_on_expedition_region_changed)
+	world_streamer.chunk_stats_changed.connect(_on_chunk_stats_changed)
+	var seed := int(level.get("seed", _seed_for_level(str(level.get("id", "expedition")))))
+	world_streamer.configure(seed, player)
+	player_spawn = Vector3(0.0, world_streamer.ground_height(Vector3.ZERO) + 1.2, 0.0)
+	player.global_position = player_spawn
+	photo_mode.configure(player, hud, Callable(self, "_photo_metadata"))
+	current_region = world_streamer.sample_at(player.global_position).get("region", {})
+
+func _add_expedition_lighting() -> void:
+	var environment := WorldEnvironment.new()
+	var settings := Environment.new()
+	settings.background_mode = Environment.BG_COLOR
+	settings.background_color = Color("#172923")
+	settings.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	settings.ambient_light_color = Color("#9eb98b")
+	settings.ambient_light_energy = 0.82
+	settings.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	settings.fog_enabled = true
+	settings.fog_light_color = Color("#9ab39d")
+	settings.fog_density = 0.008
+	environment.environment = settings
+	course.add_child(environment)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-48.0, -34.0, 0.0)
+	sun.light_color = Color("#e4d7af")
+	sun.light_energy = 1.15
+	course.add_child(sun)
+
+func _on_expedition_region_changed(region: Dictionary) -> void:
+	current_region = region
+	RunData.discover_region(str(region.get("id", "")))
+	current_station = str(region.get("name", "Unknown"))
+	last_sandbox_event = "ENTERED " + current_station.to_upper()
+
+func _on_chunk_stats_changed(stats: Dictionary) -> void:
+	if bool(current_level.get("procedural", false)):
+		last_sandbox_event = "CHUNKS " + str(stats.get("active", 0))
+
+func _on_survival_depleted(reason: String) -> void:
+	if not RunData.running or not bool(current_level.get("procedural", false)):
+		return
+	last_sandbox_event = "RUN ENDED: " + reason.to_upper()
+	RunData.running = false
+	if player: player.movement_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	show_title()
+
+func _photo_metadata() -> Dictionary:
+	var world_data: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
+	return {"run": RunData.run_record(Survival.snapshot()), "world": world_data, "position": [player.global_position.x, player.global_position.y, player.global_position.z] if player else []}
+
+func _seed_for_level(level_id: String) -> int:
+	var value := 17
+	for index in range(level_id.length()):
+		value = (value * 31 + level_id.unicode_at(index)) & 0x7fffffff
+	return value
 
 func _route(name: String, focus: String) -> Node3D:
 	var route := Node3D.new()
@@ -1284,7 +1398,10 @@ func _refresh_debug_hud() -> void:
 	var islands := int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT))
 	var lightmap := course.get_node_or_null("BakedLightmap") as LightmapGI
 	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, last_sandbox_event]
+	var chunk_text := ""
+	if world_streamer:
+		chunk_text = "\nCHUNKS %d  REGION %s" % [world_streamer.chunks.size(), str(current_region.get("name", "Unknown"))]
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]
@@ -1528,11 +1645,19 @@ func _refresh_hud() -> void:
 	if current_level.is_empty():
 		return
 	timer_label.text = _time_text(RunData.elapsed)
-	par_label.text = "SANDBOX  /  FREE PLAY"
+	if bool(current_level.get("procedural", false)):
+		par_label.text = str(current_region.get("name", "UNKNOWN")) + "  /  " + str(current_region.get("family", "wilderness")).replace("_", " ").to_upper()
+	else:
+		par_label.text = "SANDBOX  /  FREE PLAY"
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
-		tool_label.text = player.tool_status()
+		tool_label.text = "WASD MOVE / MOUSE LOOK / " + player.tool_status()
+	if bool(current_level.get("procedural", false)):
+		var survival := Survival.snapshot()
+		survival_label.text = "H %03d  T %03d  W %03d  I %03d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health)]
+	else:
+		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
 	var style := RunData.style_snapshot()
 	var total_style := int(style.get("banked", 0)) + int(style.get("active", 0))
 	var tier := str(style.get("tier", "QUIET"))

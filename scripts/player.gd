@@ -134,14 +134,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not movement_enabled:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var app_settings := _settings()
-		if app_settings == null:
-			return
-		var sensitivity := float(app_settings.get("mouse_sensitivity"))
-		yaw -= event.relative.x * sensitivity
-		var direction := -1.0 if bool(app_settings.get("invert_y")) else 1.0
-		pitch = clamp(pitch - event.relative.y * sensitivity * direction, deg_to_rad(-84.0), deg_to_rad(84.0))
-		rotation.y = yaw
+		_apply_look(event.relative)
+
+func _apply_look(relative: Vector2) -> void:
+	var app_settings := _settings()
+	if app_settings == null:
+		return
+	var sensitivity := float(app_settings.get("mouse_sensitivity"))
+	yaw -= relative.x * sensitivity
+	var direction := -1.0 if bool(app_settings.get("invert_y")) else 1.0
+	pitch = clamp(pitch - relative.y * sensitivity * direction, deg_to_rad(-84.0), deg_to_rad(84.0))
+	rotation.y = yaw
 
 func _physics_process(delta: float) -> void:
 	if not movement_enabled:

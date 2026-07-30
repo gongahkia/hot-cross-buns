@@ -120,7 +120,7 @@ func event_from_data(data: Dictionary) -> InputEvent:
 	match String(data.get("type", "")):
 		"key":
 			var event := InputEventKey.new()
-			event.physical_keycode = int(data.get("code", 0))
+			event.keycode = int(data.get("code", 0))
 			return event
 		"joy_button":
 			var event := InputEventJoypadButton.new()
@@ -134,8 +134,8 @@ func event_from_data(data: Dictionary) -> InputEvent:
 	return null
 
 func data_from_event(event: InputEvent) -> Dictionary:
-	if event is InputEventKey and event.physical_keycode != KEY_NONE:
-		return {"type": "key", "code": event.physical_keycode}
+	if event is InputEventKey and event.keycode != KEY_NONE:
+		return {"type": "key", "code": event.keycode}
 	if event is InputEventJoypadButton and event.pressed:
 		return {"type": "joy_button", "button": event.button_index}
 	return {}

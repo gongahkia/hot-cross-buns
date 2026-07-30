@@ -3,7 +3,7 @@ extends RefCounted
 
 static func all_levels() -> Array:
 	var catalog: Array = [
-		level("sandbox", "Sandbox", 0.0, "Free play. Chain movement, test every tool, and chase style.", "full style kit", 150.0, 116.0, "summit")
+		{"id": "expedition", "title": "Infinite Expedition", "briefing": "Stay alive, cross reclaimed Earth, and record the world before it takes you.", "focus": "survival traversal", "procedural": true, "seed": 20260730}
 	]
 	var directory: DirAccess = DirAccess.open("res://levels")
 	if directory == null:

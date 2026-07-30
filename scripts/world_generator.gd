@@ -68,6 +68,6 @@ func _biome(elevation: float, temperature: float, rainfall: float, family: Strin
 	return "savanna" if temperature > 0.67 else "mixed_forest"
 
 func _region_name(rx: int, rz: int, family: String) -> String:
-	var first := ["Ash", "Cedar", "Glass", "Moss", "North", "Quiet", "Rust", "Tide"][RNG.hash_int(seed, rx, rz, 107) % 8]
-	var second := {"reclaimed_city": "District", "flooded_city": "Basin", "industrial_ruin": "Works", "overgrown_suburb": "Estate", "wilderness": "Wilds"}.get(family, "Wilds")
+	var first: String = ["Ash", "Cedar", "Glass", "Moss", "North", "Quiet", "Rust", "Tide"][RNG.hash_int(seed, rx, rz, 107) % 8]
+	var second: String = {"reclaimed_city": "District", "flooded_city": "Basin", "industrial_ruin": "Works", "overgrown_suburb": "Estate", "wilderness": "Wilds"}.get(family, "Wilds")
 	return first + " " + second

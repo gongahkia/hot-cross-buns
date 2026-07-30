@@ -12,5 +12,8 @@ dependencies = ["mcp>=1.0"]
 [project.scripts]
 a-slow-walk-level-mcp = "level_mcp.server:run_server"
 
+[dependency-groups]
+test = ["pytest>=8.0"]
+
 [tool.setuptools]
 packages = ["level_mcp"]
