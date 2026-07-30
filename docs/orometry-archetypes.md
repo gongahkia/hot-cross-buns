@@ -4,7 +4,7 @@
 
 Profile assignment is deterministic per scale-aware chunk block. Near a block edge it blends modifiers from the adjacent block over the configured halo, while retaining the primary profile identity and statistical fields.
 
-`WorldContinents` applies those blended ridge-frequency and relief modifiers only when either nearest plate is continental. It retains the effective modifier fields for later slope/peak classification.
+`WorldContinents` applies those blended ridge-frequency and relief modifiers only when either nearest plate is continental. `WorldMountainMetrics` consumes finalized local terrain grids for later [prominence, isolation, and ridge labels](mountain-prominence-isolation-ridges.md); it is intentionally not invoked during continent sampling.
 
 ## Verification
 
@@ -25,5 +25,5 @@ Selection performs a few integer coordinate transforms and one or two hashes. Th
 
 ## Out of scope
 
-- Orography mesh generation, peak/ridge classification, hydrology, and climate coupling.
+- Orography mesh generation, hydrology, and climate coupling.
 - Changing profiles dynamically during an expedition or treating profile selection as mutable cache state.
