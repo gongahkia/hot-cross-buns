@@ -20,6 +20,7 @@ const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const LANDMARK_GRAPPLE := preload("res://scripts/world_landmark_grapple.gd")
 const WILDLIFE_ECOLOGY := preload("res://scripts/world_wildlife_ecology.gd")
+const WILDLIFE_AGENT := preload("res://scripts/wildlife_agent.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
@@ -395,8 +396,9 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_grapple_anchor(root, chunk_x, chunk_z)
 
 func _add_wildlife(root: Node3D, record: Dictionary) -> void:
-	var animal := Node3D.new()
+	var animal := WILDLIFE_AGENT.new()
 	animal.name = "Wildlife_" + str(record.id).replace(":", "_")
+	animal.configure(record, player)
 	animal.add_to_group("wildlife")
 	animal.set_meta("record", record.duplicate(true))
 	animal.set_meta("archetype_id", str(record.archetype_id))
