@@ -36,6 +36,7 @@ const URBAN_RESOURCES := preload("res://scripts/world_urban_resources.gd")
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
 const SEA_LEVEL := 0.0
+const GENERATOR_SCHEMA_VERSION := "1.0.0"
 const URBAN_FAMILIES := ["reclaimed_city", "flooded_city", "industrial_ruin", "overgrown_suburb"]
 const NATURAL_BIOMES := ["ocean", "coast", "lake", "river", "wetland", "desert", "cold_desert", "polar_desert", "semiaird_shrubland", "playa_salt_flat", "dune_sea_erg", "badland", "oasis", "grassland", "savanna", "temperate_forest", "temperate_rainforest", "mixed_forest", "conifer_forest", "rainforest", "monsoon_forest", "dry_broadleaf", "cloud_forest", "thorn_scrub", "mediterranean_chaparral", "mangrove", "riparian_gallery_forest", "boreal_forest", "muskeg", "subalpine_krummholz", "tundra", "permafrost_polygon", "alpine", "alpine_scree", "nival_zone", "snow", "rock", "lava_flow", "shield", "karst", "reef", "lagoon", "kelp_forest_fringe", "atoll_ring", "seamount_cap", "fumarole_field", "hot_spring_travertine", "ash_plain"]
 

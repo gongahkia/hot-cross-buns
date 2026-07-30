@@ -2,7 +2,8 @@ class_name RunExport
 extends RefCounted
 
 const SCHEMA := "a-slow-walk.export.v1"
-const GENERATOR_SCHEMA_VERSION := "1.0.0"
+const WORLD_GENERATOR := preload("res://scripts/world_generator.gd")
+const GENERATOR_SCHEMA_VERSION := WORLD_GENERATOR.GENERATOR_SCHEMA_VERSION
 const EXPORT_DIRECTORY := "user://exports"
 const RUN_CARD_RENDERER := preload("res://scripts/run_card_renderer.gd")
 

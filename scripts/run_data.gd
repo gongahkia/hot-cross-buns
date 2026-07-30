@@ -1,6 +1,7 @@
 extends Node
 
 const STYLE_RUN := preload("res://scripts/style_run.gd")
+const RULESET_VERSION := "1.0.0"
 
 var active_level_id := ""
 var run_seed := 0
