@@ -2,6 +2,7 @@ class_name WorldGenerator
 extends RefCounted
 
 const RNG := preload("res://scripts/world_rng.gd")
+const SCALE := preload("res://scripts/world_scale.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -33,24 +34,31 @@ func region_at(world_position: Vector3) -> Dictionary:
 		landmark = ["weather station", "collapsed observatory", "radio mast", "floodgate", "wind farm", "glass conservatory"][RNG.hash_int(seed, rx, rz, 79) % 6]
 	return {"x": rx, "z": rz, "id": "%d:%d" % [rx, rz], "family": family, "landmark": landmark, "name": _region_name(rx, rz, family)}
 
-func sample(world_x: float, world_z: float) -> Dictionary:
-	var continental := RNG.fbm(seed, world_x / 900.0, world_z / 900.0, 5, 11) * 7.0
-	var relief := absf(RNG.fbm(seed, world_x / 170.0, world_z / 170.0, 4, 29)) * 15.0
-	var detail := RNG.fbm(seed, world_x / 42.0, world_z / 42.0, 4, 47) * 2.4
-	var plate := RNG.fbm(seed, world_x / 1500.0, world_z / 1500.0, 3, 61)
+static func scale_info(scope: Variant = "local") -> Dictionary:
+	return SCALE.info(scope)
+
+func sample(world_x: float, world_z: float, scope: Variant = "local") -> Dictionary:
+	var scale: Dictionary = SCALE.info(scope)
+	var sample_x := SCALE.coordinate(world_x, scale.get("id", "local"))
+	var sample_z := SCALE.coordinate(world_z, scale.get("id", "local"))
+	var continental := RNG.fbm(seed, sample_x / 900.0, sample_z / 900.0, 5, 11) * 7.0
+	var relief := absf(RNG.fbm(seed, sample_x / 170.0, sample_z / 170.0, 4, 29)) * 15.0
+	var detail := RNG.fbm(seed, sample_x / 42.0, sample_z / 42.0, 4, 47) * 2.4
+	var plate := RNG.fbm(seed, sample_x / 1500.0, sample_z / 1500.0, 3, 61)
 	var elevation := continental + relief * smoothstep(0.08, 0.62, absf(plate)) + detail - 1.6
-	var region := region_at(Vector3(world_x, 0.0, world_z))
+	var region := region_at(Vector3(sample_x, 0.0, sample_z))
 	if region.family == "flooded_city": elevation -= 4.2
 	if region.family == "industrial_ruin": elevation += 0.5
-	var temperature := clampf(0.58 - absf(RNG.fbm(seed, world_x / 3000.0, world_z / 3000.0, 2, 89)) * 0.42 - elevation * 0.018, 0.0, 1.0)
-	var rainfall := clampf(0.52 + RNG.fbm(seed, world_x / 1200.0, world_z / 1200.0, 4, 101) * 0.38, 0.0, 1.0)
+	var temperature := clampf(0.58 - absf(RNG.fbm(seed, sample_x / 3000.0, sample_z / 3000.0, 2, 89)) * 0.42 - elevation * 0.018, 0.0, 1.0)
+	var rainfall := clampf(0.52 + RNG.fbm(seed, sample_x / 1200.0, sample_z / 1200.0, 4, 101) * 0.38, 0.0, 1.0)
 	var biome := _biome(elevation, temperature, rainfall, region.family)
-	return {"elevation": elevation, "temperature": temperature, "rainfall": rainfall, "biome": biome, "region": region, "water": elevation <= SEA_LEVEL}
+	return {"elevation": elevation, "temperature": temperature, "rainfall": rainfall, "biome": biome, "region": region, "water": elevation <= SEA_LEVEL, "scale": scale.id, "scale_factor": scale.factor, "sample_x": sample_x, "sample_z": sample_z}
 
-func chunk_descriptor(chunk_x: int, chunk_z: int) -> Dictionary:
-	var center := Vector3((float(chunk_x) + 0.5) * CHUNK_SIZE, 0.0, (float(chunk_z) + 0.5) * CHUNK_SIZE)
-	var sample_data := sample(center.x, center.z)
-	return {"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water}
+func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> Dictionary:
+	var scale: Dictionary = SCALE.info(scope)
+	var center := Vector3(SCALE.chunk_center(chunk_x, CHUNK_SIZE, scale.id), 0.0, SCALE.chunk_center(chunk_z, CHUNK_SIZE, scale.id))
+	var sample_data := sample(center.x, center.z, scale.id)
+	return {"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
 	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"
