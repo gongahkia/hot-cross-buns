@@ -12,5 +12,5 @@ static func generate(seed: int, chunk_x: int, chunk_z: int, descriptor: Dictiona
 		if (archetype.families as Array).has(family): candidates.append(archetype)
 	if candidates.is_empty() or RNG.unit(seed, chunk_x, chunk_z, 2501) < 0.42: return {}
 	var archetype: Dictionary = candidates[floori(RNG.unit(seed, chunk_x, chunk_z, 2503) * candidates.size())]
-	var record := {"id":"wildlife:%s:%d:%d" % [str(archetype.id), chunk_x, chunk_z],"archetype_id":str(archetype.id),"family":family,"biome":str(descriptor.get("biome", "")),"local_x":8.0+RNG.unit(seed,chunk_x,chunk_z,2507)*48.0,"local_z":8.0+RNG.unit(seed,chunk_x,chunk_z,2509)*48.0}
+	var record := {"id":"wildlife:%s:%d:%d" % [str(archetype.id), chunk_x, chunk_z],"archetype_id":str(archetype.id),"family":family,"biome":str(descriptor.get("biome", "")),"local_x":8.0+RNG.unit(seed,chunk_x,chunk_z,2507)*48.0,"local_z":8.0+RNG.unit(seed,chunk_x,chunk_z,2509)*48.0,"territory_radius":float(archetype.get("territory_radius", 0.0))}
 	return {"animals":[record]}
