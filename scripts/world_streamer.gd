@@ -242,6 +242,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	var landmark:=landmarks.for_chunk(seed,descriptor.region,chunk_x,chunk_z)
 	if not landmark.is_empty():_add_landmark(root,landmark)
 	_add_urban_corridors(root,descriptor.get("urban_corridors",{}))
+	_add_city_corridors(root,descriptor.get("city_corridors",{}))
 	if family == "reclaimed_city":
 		_add_city_arterials(root,descriptor.get("city_arterials",{}))
 		_add_city_secondary_roads(root,descriptor.get("city_secondary_roads",{}))
@@ -289,6 +290,10 @@ func _add_landmark(root:Node3D,record:Dictionary)->void:
 func _add_urban_corridors(root:Node3D,fields:Dictionary)->void:
 	for corridor:Dictionary in fields.get("corridors",[]):
 		var direction:Array=corridor.direction;var axis:=str(corridor.axis);var position:=Vector3(32.0,.015,32.0);position.x=2.0 if int(direction[0])<0 else 62.0 if int(direction[0])>0 else position.x;position.z=2.0 if int(direction[1])<0 else 62.0 if int(direction[1])>0 else position.z;position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(12.0,.03,float(corridor.width)) if axis=="x" else Vector3(float(corridor.width),.03,12.0);visual.name="UrbanCorridor";visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#77735f"));root.add_child(visual)
+
+func _add_city_corridors(root:Node3D,fields:Dictionary)->void:
+	for corridor:Dictionary in fields.get("corridors",[]):
+		var direction:Array=corridor.direction;var axis:=str(corridor.axis);var position:=Vector3(32.0,.015,32.0);position.x=2.0 if int(direction[0])<0 else 62.0 if int(direction[0])>0 else position.x;position.z=2.0 if int(direction[1])<0 else 62.0 if int(direction[1])>0 else position.z;position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(12.0,.03,float(corridor.width)) if axis=="x" else Vector3(float(corridor.width),.03,12.0);visual.name="CityCorridor";visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#6c6658"));root.add_child(visual)
 
 func _add_city_blocks(root: Node3D, chunk_x: int, chunk_z: int, count: int, color: Color, growth: Color, flooded := false) -> void:
 	for index in range(count):
