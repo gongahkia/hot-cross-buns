@@ -262,6 +262,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_suburb_roads(root,descriptor.get("suburb_roads",{}))
 		_add_suburb_parcels(root,descriptor.get("suburb_parcels",{}),descriptor.get("suburb_transitions",{}))
 		_add_suburb_transitions(root,descriptor.get("suburb_transitions",{}))
+		_add_suburb_traversal(root,descriptor.get("suburb_traversal",{}))
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
@@ -397,6 +398,14 @@ func _add_suburb_transitions(root:Node3D,fields:Dictionary)->void:
 		var side:=str(entry.side);var normal:=Vector3(0.0,0.0,-1.0) if side=="north" else Vector3(1.0,0.0,0.0) if side=="east" else Vector3(0.0,0.0,1.0) if side=="south" else Vector3(-1.0,0.0,0.0);var x:=float(entry.x);var z:=float(entry.z);var depth:=float(entry.porch_depth);var width:=float(entry.width)+.8;var porch_x:=x+normal.x*depth*.5;var porch_z:=z+normal.z*depth*.5;var size:=Vector3(width,.3,depth) if side in ["north","south"] else Vector3(depth,.3,width);_add_box(root,Vector3(porch_x,ground_height(root.global_position+Vector3(porch_x,0.0,porch_z))+.15,porch_z),size,Color("#747660"),"SuburbPorch")
 		for step in range(2):
 			var step_x:=x+normal.x*(depth+float(step)*.8);var step_z:=z+normal.z*(depth+float(step)*.8);var height:=.22-float(step)*.07;var step_size:=Vector3(width,height,.8) if side in ["north","south"] else Vector3(.8,height,width);_add_box(root,Vector3(step_x,ground_height(root.global_position+Vector3(step_x,0.0,step_z))+height*.5,step_z),step_size,Color("#747660"),"SuburbPorchStep")
+
+func _add_suburb_traversal(root:Node3D,fields:Dictionary)->void:
+	for root_record:Dictionary in fields.get("roots",[]):
+		var x:=float(root_record.x);var z:=float(root_record.z);var size:=Vector3(float(root_record.length),float(root_record.height),float(root_record.width)) if str(root_record.axis)=="x" else Vector3(float(root_record.width),float(root_record.height),float(root_record.length));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(root_record.height)*.5,z),size,Color("#665d45"),"SuburbRoot")
+	for canopy:Dictionary in fields.get("canopies",[]):
+		var x:=float(canopy.x);var z:=float(canopy.z);var ground:=ground_height(root.global_position+Vector3(x,0.0,z));_add_tree(root,Vector3(x,ground,z),float(canopy.trunk_height),Color("#466c43"));_add_box(root,Vector3(x,ground+float(canopy.trunk_height),z),Vector3(float(canopy.platform_width),.35,float(canopy.platform_depth)),Color("#557747"),"SuburbCanopy")
+	for collapse:Dictionary in fields.get("collapses",[]):
+		var x:=float(collapse.x);var z:=float(collapse.z);var size:=Vector3(float(collapse.length),float(collapse.height),1.4) if str(collapse.axis)=="x" else Vector3(1.4,float(collapse.height),float(collapse.length));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(collapse.height)*.5,z),size,Color("#705d4c"),"SuburbCollapse")
 
 func _add_wilderness(root: Node3D, chunk_x: int, chunk_z: int, biome: String) -> void:
 	var count := 3 if biome in ["desert", "cold_desert", "badland", "alpine_scree"] else 8

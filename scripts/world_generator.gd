@@ -26,6 +26,7 @@ const INDUSTRIAL_RESOURCES := preload("res://scripts/world_industrial_resources.
 const SUBURB_ROADS := preload("res://scripts/world_suburb_roads.gd")
 const SUBURB_PARCELS := preload("res://scripts/world_suburb_parcels.gd")
 const SUBURB_TRANSITIONS := preload("res://scripts/world_suburb_transitions.gd")
+const SUBURB_TRAVERSAL := preload("res://scripts/world_suburb_traversal.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -90,6 +91,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not suburb_parcels.is_empty():descriptor["suburb_parcels"]=suburb_parcels
 	var suburb_transitions:=SUBURB_TRANSITIONS.generate(seed,chunk_x,chunk_z,suburb_parcels,suburb_roads)
 	if not suburb_transitions.is_empty():descriptor["suburb_transitions"]=suburb_transitions
+	var suburb_traversal:=SUBURB_TRAVERSAL.generate(seed,chunk_x,chunk_z,suburb_parcels,suburb_transitions)
+	if not suburb_traversal.is_empty():descriptor["suburb_traversal"]=suburb_traversal
 	var industrial_layout:=INDUSTRIAL_LAYOUT.generate(seed,chunk_x,chunk_z,urban)
 	if not industrial_layout.is_empty():descriptor["industrial_layout"]=industrial_layout
 	var industrial_structures:=INDUSTRIAL_STRUCTURES.generate(seed,chunk_x,chunk_z,industrial_layout)
