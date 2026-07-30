@@ -8,6 +8,7 @@ const LEVEL_DOCUMENT := preload("res://scripts/level_document.gd")
 const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
 const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
 const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
+const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
 const SANDBOX_GEOMETRY := preload("res://scenes/sandbox_geometry.tscn")
@@ -1400,7 +1401,7 @@ func _refresh_debug_hud() -> void:
 	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
 	var chunk_text := ""
 	if world_streamer:
-		chunk_text = "\nCHUNKS %d  REGION %s" % [world_streamer.chunks.size(), str(current_region.get("name", "Unknown"))]
+		chunk_text = "\nCHUNKS %d  REGION %s\n%s" % [world_streamer.chunks.size(), str(current_region.get("name", "Unknown")), WORLD_DIAGNOSTICS.summary(world_streamer.sample_at(player.global_position))]
 	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
