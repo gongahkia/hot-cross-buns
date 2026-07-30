@@ -13,6 +13,7 @@ const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
+const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
 const SHELTER_COST := {"wood": 3, "scrap": 1, "fiber": 2}
 const PLATFORM_COST := {"wood": 2, "scrap": 2, "fiber": 1}
 const SANDBOX_GEOMETRY_PATH := "res://scenes/sandbox_geometry.tscn"
@@ -51,6 +52,7 @@ var weather_clock := 0.0
 var weather_forecast: Array = []
 var weather_forecast_key := ""
 var last_resolved_run: Dictionary = {}
+var run_archive = RUN_ARCHIVE.new()
 
 var ui: CanvasLayer
 var hud: Control
@@ -350,7 +352,29 @@ func show_title() -> void:
 	var settings := _button("Settings", 18)
 	settings.pressed.connect(show_settings.bind("title"))
 	box.add_child(settings)
+	var records := _button("Run records", 18)
+	records.pressed.connect(show_run_archive)
+	box.add_child(records)
 	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug", 14, Color("#8ea18a")))
+
+func show_run_archive() -> void:
+	menu_mode = "records"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_clear_menu()
+	var panel := _center_panel(Vector2(680.0, 520.0))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	panel.add_child(box)
+	box.add_child(_label("Run records", 34, Color("#edf3d5")))
+	var records: Array = run_archive.list()
+	if records.is_empty():
+		box.add_child(_label("No resolved expeditions.", 17, Color("#b5c6a5")))
+	else:
+		for record: Dictionary in records:
+			box.add_child(_label("#%02d  %s  %s  %s  %d resources" % [int(record.id),str(record.outcome).to_upper(),_time_text(float(record.elapsed)),str(record.level).to_upper(),(record.resources as Dictionary).size()], 16, Color("#d3dec5")))
+	var back := _button("Back", 18)
+	back.pressed.connect(show_title)
+	box.add_child(back)
 
 func show_level_select() -> void:
 	menu_mode = "levels"
@@ -870,6 +894,7 @@ func _on_survival_depleted(reason: String) -> void:
 	var snapshot := Survival.snapshot()
 	snapshot["failure"] = reason
 	last_resolved_run = RunData.finish("failed", snapshot)
+	run_archive.append(last_resolved_run)
 	last_sandbox_event = "RUN FAILED: " + reason.to_upper()
 	if player: player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -917,6 +942,7 @@ func show_extraction_confirm() -> void:
 func _extract_run() -> void:
 	if not RunData.running: return
 	last_resolved_run = RunData.finish("extracted", Survival.snapshot())
+	run_archive.append(last_resolved_run)
 	last_sandbox_event = "RUN EXTRACTED"
 	get_tree().paused = false
 	if player: player.movement_enabled = false
