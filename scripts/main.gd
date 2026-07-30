@@ -266,6 +266,7 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("place_material"):_attempt_material_placement()
 			if Input.is_action_just_pressed("build_shelter"):_attempt_shelter_construction()
 			if Input.is_action_just_pressed("build_platform"):_attempt_platform_construction()
+			if Input.is_action_just_pressed("craft_filter"):_craft_field_filter()
 			environment["shelter"] = world_streamer.shelter_cover_at(player.global_position)
 			var movement := SURVIVAL_MOVEMENT_POLICY.evaluate(Survival.snapshot(), player.survival_movement_state())
 			player.set_survival_speed_multiplier(float(movement.speed_multiplier))
@@ -917,6 +918,12 @@ func _attempt_platform_construction() -> void:
 		return
 	Survival.spend_materials(gate.cost)
 	last_sandbox_event = "PLATFORM BUILT"
+
+func _craft_field_filter() -> void:
+	if Survival.craft("water_filter"):
+		last_sandbox_event = "CRAFT WATER FILTER"
+	else:
+		last_sandbox_event = "CRAFT MATERIALS REQUIRED"
 
 func _photo_metadata() -> Dictionary:
 	var world_data: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
@@ -1736,7 +1743,7 @@ func _refresh_hud() -> void:
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
-		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / 5 PLACE / 6 SHELTER / 7 PLATFORM / MOUSE LOOK / " + player.tool_status()
+		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / 5 PLACE / 6 SHELTER / 7 PLATFORM / 8 FILTER / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
 		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]

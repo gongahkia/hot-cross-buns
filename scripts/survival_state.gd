@@ -6,6 +6,7 @@ signal depleted(reason: String)
 
 const MAX_VALUE := 100.0
 const SCAVENGED_MATERIALS := ["wood", "scrap", "fiber"]
+const FIELD_CRAFTING := preload("res://scripts/field_crafting.gd")
 
 var hunger := MAX_VALUE
 var thirst := MAX_VALUE
@@ -107,6 +108,13 @@ func collect_water_source(environment:Dictionary) -> String:
 func purify_water() -> bool:
 	if int(materials.get("dirty_water",0))<=0:return false
 	materials["dirty_water"]=int(materials["dirty_water"])-1;materials["water"]=int(materials["water"])+1;changed.emit(snapshot());return true
+
+func craft(recipe_id: String) -> bool:
+	var crafted := FIELD_CRAFTING.craft(materials, recipe_id)
+	if crafted.is_empty(): return false
+	materials = crafted
+	changed.emit(snapshot())
+	return true
 
 func apply_injury(amount: float) -> void:
 	if not alive: return
