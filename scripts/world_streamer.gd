@@ -9,6 +9,7 @@ const RNG := preload("res://scripts/world_rng.gd")
 const RESOURCE_PICKUP := preload("res://scripts/resource_pickup.gd")
 const WORLD_ORIGIN := preload("res://scripts/world_origin.gd")
 const CHUNK_SCHEDULER := preload("res://scripts/world_chunk_scheduler.gd")
+const CHUNK_CACHE := preload("res://scripts/world_chunk_cache.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -21,11 +22,13 @@ var current_region_id := ""
 var origin
 var scheduler
 var pending_chunks: Dictionary = {}
+var chunk_cache
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
 	origin = WORLD_ORIGIN.new(GENERATOR.CHUNK_SIZE)
 	scheduler = CHUNK_SCHEDULER.new(next_seed)
+	chunk_cache = CHUNK_CACHE.new(128)
 	player = next_player
 	name = "ExpeditionWorld"
 	refresh(true)
@@ -73,7 +76,7 @@ func _attach_completed(results: Array) -> void:
 		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 		if int(pending_chunks.get(id,-1)) != int(result.get("token",-2)): continue
 		pending_chunks.erase(id)
-		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunk_cache.put(id,result.get("descriptor",{}));chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 
 func _chunk_priority(center: Vector2i, target: Vector2i) -> float:
 	var offset:=Vector2(float(target.x-center.x),float(target.y-center.y));var velocity:=Vector2(player.velocity.x,player.velocity.z);var forward:=Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z) if player.camera else Vector2.ZERO
@@ -93,7 +96,8 @@ func _update_region() -> void:
 	region_changed.emit(region)
 
 func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
-	var descriptor: Dictionary = generator.chunk_descriptor(chunk_x, chunk_z)
+	var descriptor: Dictionary = chunk_cache.fetch(_chunk_id(chunk_x,chunk_z)) if chunk_cache else {}
+	if descriptor.is_empty(): descriptor=generator.chunk_descriptor(chunk_x, chunk_z)
 	var root := Node3D.new()
 	root.name = "Chunk_%d_%d" % [chunk_x, chunk_z]
 	root.position = origin.local_chunk_position(Vector2i(chunk_x, chunk_z))
