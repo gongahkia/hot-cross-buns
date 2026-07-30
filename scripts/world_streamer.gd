@@ -16,6 +16,7 @@ const COLLISION_MESH := preload("res://scripts/world_collision_mesh.gd")
 const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
 const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
+const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -31,6 +32,7 @@ var pending_chunks: Dictionary = {}
 var chunk_cache
 var far_chunks: Dictionary = {}
 var active_ids: Dictionary = {}
+var landmarks=LANDMARKS.new()
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -217,6 +219,8 @@ func _vertex(chunk_x: int, chunk_z: int, x: int, z: int, step: float) -> Vector3
 func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Dictionary) -> void:
 	var family := str(descriptor.region.family)
 	var seed: int = generator.seed
+	var landmark:=landmarks.for_chunk(seed,descriptor.region,chunk_x,chunk_z)
+	if not landmark.is_empty():_add_landmark(root,landmark)
 	if family == "reclaimed_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 6, Color("#3d5244"), Color("#71915f"))
 	elif family == "flooded_city":
@@ -234,6 +238,18 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_resource(root, chunk_x, chunk_z, kind, 401)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
+
+func _add_landmark(root:Node3D,record:Dictionary)->void:
+	var landmark:=Node3D.new();landmark.name="Landmark_"+str(record.id).replace(":","_");landmark.set_meta("record",record.duplicate(true))
+	var position:=Vector3(float(record.local_x),ground_height(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z))),float(record.local_z));landmark.position=position
+	var size:=Vector3(4.0,8.0,4.0);var color:=Color("#8e9a8d")
+	if str(record.kind)=="radio mast":size=Vector3(1.2,18.0,1.2);color=Color("#9db7a0")
+	elif str(record.kind)=="collapsed observatory":size=Vector3(10.0,4.0,10.0);color=Color("#8b897d")
+	elif str(record.kind)=="floodgate":size=Vector3(14.0,7.0,2.0);color=Color("#6d8280")
+	elif str(record.kind)=="wind farm":size=Vector3(2.0,14.0,2.0);color=Color("#d4ded5")
+	elif str(record.kind)=="glass conservatory":size=Vector3(9.0,6.0,7.0);color=Color("#91b8a1")
+	_add_box(landmark,Vector3(0.0,size.y*.5,0.0),size,color,"LandmarkCore")
+	root.add_child(landmark)
 
 func _add_city_blocks(root: Node3D, chunk_x: int, chunk_z: int, count: int, color: Color, growth: Color, flooded := false) -> void:
 	for index in range(count):
