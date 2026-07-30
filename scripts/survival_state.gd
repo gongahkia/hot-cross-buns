@@ -11,7 +11,7 @@ var thirst := MAX_VALUE
 var warmth := MAX_VALUE
 var health := MAX_VALUE
 var fatigue := 0.0
-var materials: Dictionary = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0}
+var materials: Dictionary = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 var alive := true
 var run_seed := 0
 
@@ -22,7 +22,7 @@ func begin_run(seed: int) -> void:
 	warmth = MAX_VALUE
 	health = MAX_VALUE
 	fatigue = 0.0
-	materials = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0}
+	materials = {"wood": 0, "scrap": 0, "fiber": 0, "food": 0, "water": 0, "dirty_water": 0}
 	alive = true
 	changed.emit(snapshot())
 
@@ -57,6 +57,18 @@ func consume(kind: String) -> bool:
 
 func consume_food() -> bool:
 	return consume("food")
+
+func consume_water() -> bool:
+	return consume("water")
+
+func collect_water_source(environment:Dictionary) -> String:
+	var biome:=str(environment.get("biome",""));var family:=str(environment.get("region",{}).get("family",""));var source:=(bool(environment.get("water",false)) and biome not in ["ocean","coast"]) or biome in ["lake","river","wetland","lagoon","mangrove"]
+	if not source:return ""
+	var kind:="dirty_water" if family in ["flooded_city","industrial_ruin"] or biome in ["wetland","lagoon","mangrove"] else "water";collect(kind);return kind
+
+func purify_water() -> bool:
+	if int(materials.get("dirty_water",0))<=0:return false
+	materials["dirty_water"]=int(materials["dirty_water"])-1;materials["water"]=int(materials["water"])+1;changed.emit(snapshot());return true
 
 func apply_injury(amount: float) -> void:
 	if not alive: return

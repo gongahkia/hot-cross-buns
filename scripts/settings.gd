@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
-const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "reset_run", "pause"]
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "collect_water", "purify_water", "consume_water", "reset_run", "pause"]
 const PIXEL_FILTER_OFF := 0
 const PIXEL_FILTER_2X := 2
 const PIXEL_FILTER_4X := 4
@@ -37,6 +37,9 @@ func default_binding_data() -> Dictionary:
 		"grapple": [{"type": "key", "code": KEY_E}, {"type": "joy_button", "button": JOY_BUTTON_X}],
 		"glide": [{"type": "key", "code": KEY_F}, {"type": "joy_button", "button": JOY_BUTTON_DPAD_UP}],
 		"consume_food": [{"type": "key", "code": KEY_1}, {"type": "joy_button", "button": JOY_BUTTON_DPAD_LEFT}],
+		"collect_water": [{"type": "key", "code": KEY_2}],
+		"purify_water": [{"type": "key", "code": KEY_3}],
+		"consume_water": [{"type": "key", "code": KEY_4}, {"type": "joy_button", "button": JOY_BUTTON_DPAD_RIGHT}],
 		"reset_run": [{"type": "key", "code": KEY_R}, {"type": "joy_button", "button": JOY_BUTTON_Y}],
 		"pause": [{"type": "key", "code": KEY_ESCAPE}, {"type": "joy_button", "button": JOY_BUTTON_START}]
 	}

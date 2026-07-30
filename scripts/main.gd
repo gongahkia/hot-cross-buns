@@ -251,7 +251,11 @@ func _process(delta: float) -> void:
 		if not photo_mode.active and Input.is_action_just_pressed("consume_food"):
 			Survival.consume_food()
 		if bool(current_level.get("procedural", false)) and world_streamer and not photo_mode.active:
-			Survival.advance(delta, world_streamer.sample_at(player.global_position), player.style_multiplier_active())
+			var environment:Dictionary=world_streamer.sample_at(player.global_position)
+			if Input.is_action_just_pressed("collect_water"):Survival.collect_water_source(environment)
+			if Input.is_action_just_pressed("purify_water"):Survival.purify_water()
+			if Input.is_action_just_pressed("consume_water"):Survival.consume_water()
+			Survival.advance(delta, environment, player.style_multiplier_active())
 		_refresh_hud()
 		_refresh_grapple_reticle()
 		_refresh_sandbox_context()
@@ -1655,10 +1659,10 @@ func _refresh_hud() -> void:
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
 	if player:
-		tool_label.text = "WASD MOVE / 1 EAT / MOUSE LOOK / " + player.tool_status()
+		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / MOUSE LOOK / " + player.tool_status()
 	if bool(current_level.get("procedural", false)):
 		var survival := Survival.snapshot()
-		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0))]
+		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0))]
 	else:
 		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
 	var style := RunData.style_snapshot()
