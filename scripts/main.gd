@@ -2125,6 +2125,14 @@ func show_settings(back_mode: String) -> void:
 		Settings.save_settings()
 	)
 	content.add_child(tether_mode)
+	var wildlife_mode := CheckBox.new()
+	wildlife_mode.text = "Wildlife encounters"
+	wildlife_mode.button_pressed = Settings.wildlife_encounters
+	wildlife_mode.toggled.connect(func(value: bool):
+		Settings.wildlife_encounters = value
+		Settings.save_settings()
+	)
+	content.add_child(wildlife_mode)
 	var reduced_effects := CheckBox.new()
 	reduced_effects.text = "Reduce screen effects (keeps score UI)"
 	reduced_effects.button_pressed = Settings.reduce_screen_effects

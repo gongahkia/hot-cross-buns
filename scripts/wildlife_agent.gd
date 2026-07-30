@@ -26,6 +26,8 @@ func _ready() -> void:
 	territory_center = global_position
 
 func _process(delta: float) -> void:
+	visible = Settings.wildlife_encounters
+	if not Settings.wildlife_encounters: return
 	melee_cooldown = maxf(0.0, melee_cooldown-delta)
 	if impact_velocity.length() > 0.01:
 		global_position += impact_velocity*delta
@@ -38,6 +40,7 @@ func _process(delta: float) -> void:
 	if str(behavior.state) == "flee" and bool(environment.can_move): global_position += (behavior.direction as Vector3) * float(behavior.speed) * float(environment.speed_multiplier) * delta
 
 func register_traversal_hit(state: String, impulse: Vector3 = Vector3.ZERO) -> bool:
+	if not Settings.wildlife_encounters: return false
 	if melee_cooldown > 0.0: return false
 	melee_cooldown = 0.4
 	impact_velocity += impulse
