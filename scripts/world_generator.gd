@@ -5,6 +5,7 @@ const RNG := preload("res://scripts/world_rng.gd")
 const SCALE := preload("res://scripts/world_scale.gd")
 const URBAN_FIELDS := preload("res://scripts/world_urban_fields.gd")
 const CITY_LAYOUT := preload("res://scripts/world_reclaimed_city_layout.gd")
+const CITY_ARTERIALS := preload("res://scripts/world_city_arterials.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -65,6 +66,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not urban.is_empty():descriptor["urban"]=urban
 	var city_layout:=CITY_LAYOUT.sample(self,chunk_x,chunk_z,sample_data)
 	if not city_layout.is_empty():descriptor["city_layout"]=city_layout
+	var city_arterials:=CITY_ARTERIALS.generate(seed,chunk_x,chunk_z,city_layout)
+	if not city_arterials.is_empty():descriptor["city_arterials"]=city_arterials
 	return descriptor
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:

@@ -242,6 +242,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	var landmark:=landmarks.for_chunk(seed,descriptor.region,chunk_x,chunk_z)
 	if not landmark.is_empty():_add_landmark(root,landmark)
 	if family == "reclaimed_city":
+		_add_city_arterials(root,descriptor.get("city_arterials",{}))
 		_add_city_blocks(root, chunk_x, chunk_z, 6, Color("#3d5244"), Color("#71915f"))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
@@ -280,6 +281,11 @@ func _add_city_blocks(root: Node3D, chunk_x: int, chunk_z: int, count: int, colo
 		_add_box(root, Vector3(x, ground + height * 0.5, z), Vector3(6.0 + fmod(float(index), 3.0) * 2.0, height, 7.0), color, "Ruin")
 		if index % 2 == 0:
 			_add_box(root, Vector3(x, ground + height + 1.2, z), Vector3(1.2, 2.4, 1.2), growth, "Regrowth")
+
+func _add_city_arterials(root:Node3D,arterials:Dictionary)->void:
+	for road:Dictionary in arterials.get("arterials",[]):
+		var axis:=str(road.get("axis","x"));var offset:=float(road.get("offset",32.0));var width:=float(road.get("width",4.0));var position:=Vector3(32.0,0.04,offset) if axis=="x" else Vector3(offset,0.04,32.0)
+		position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(64.0,.08,width) if axis=="x" else Vector3(width,.08,64.0);visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#3d4544"));root.add_child(visual)
 
 func _add_industrial(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(4):
