@@ -45,6 +45,7 @@ func _initialize() -> void:
 	for _frame in range(45):
 		await physics_frame
 	assert(int(main.world_streamer.streaming_telemetry.summary().samples)>0,"streaming telemetry did not record refreshes")
+	assert(int(main.world_streamer.chunk_memory_snapshot().minimum_payload_bytes)>0,"chunk-memory telemetry did not report payloads")
 	var preload_targets:Dictionary=PRELOAD_CORRIDOR.targets(main.world_streamer.current_center,main.world_streamer._preload_heading())
 	assert(not preload_targets.is_empty() and not main.world_streamer.chunk_cache.fetch(str(preload_targets.keys()[0])).is_empty(), "biome and region preload corridor did not cache a descriptor")
 	var resting_ground: float = main.world_streamer.ground_height(main.player.global_position)

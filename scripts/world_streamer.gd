@@ -21,6 +21,7 @@ const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
+const CHUNK_MEMORY_TELEMETRY := preload("res://scripts/world_chunk_memory_telemetry.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -98,7 +99,7 @@ func refresh(force: bool) -> void:
 	_update_collision_lods()
 	_update_far_terrain()
 	_update_region()
-	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y]})
+	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y],"memory":chunk_memory_snapshot()})
 
 func _attach_completed(results: Array) -> void:
 	for result: Dictionary in results:
@@ -119,7 +120,15 @@ func _remove_far_chunk(id:String)->void:
 	far.queue_free()
 
 func _streaming_context()->Dictionary:
-	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size()}
+	var memory:=chunk_memory_snapshot()
+	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size(),"minimum_payload_bytes":memory.minimum_payload_bytes,"static_memory_bytes":memory.static_memory_bytes}
+
+func chunk_memory_snapshot()->Dictionary:
+	var render_grids:Array=[];var collision_grids:Array=[]
+	for root:Node3D in chunks.values():
+		render_grids.append(int(root.get_meta("render_grid",GRID)))
+		collision_grids.append(int(root.get_meta("collision_grid",GRID)))
+	return CHUNK_MEMORY_TELEMETRY.snapshot(render_grids,collision_grids,far_chunks.size(),chunk_cache.size() if chunk_cache else 0,int(Performance.get_monitor(Performance.MEMORY_STATIC)))
 
 func _preload_heading()->Vector2:
 	var velocity:=Vector2(player.velocity.x,player.velocity.z)
