@@ -254,7 +254,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_flooded_city_structures(root,descriptor.get("flood_structures",{}))
 		_add_flooded_city_ecology(root,descriptor.get("flood_ecology",{}))
 	elif family == "industrial_ruin":
-		_add_industrial(root, chunk_x, chunk_z)
+		_add_industrial_structures(root,descriptor.get("industrial_structures",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
@@ -327,13 +327,24 @@ func _city_failure(failures:Dictionary,building_id:String)->Dictionary:
 		if str(failure.get("building_id",""))==building_id:return failure
 	return {}
 
-func _add_industrial(root: Node3D, chunk_x: int, chunk_z: int) -> void:
-	for index in range(4):
-		var x := 9.0 + float(index % 2) * 30.0
-		var z := 12.0 + float(index / 2) * 28.0
-		var ground := ground_height(root.global_position + Vector3(x, 0.0, z))
-		_add_box(root, Vector3(x, ground + 4.0, z), Vector3(15.0, 8.0, 11.0), Color("#5b5848"), "Factory")
-		_add_box(root, Vector3(x, ground + 9.0, z), Vector3(2.0, 2.0, 18.0), Color("#9d9b71"), "Gantry")
+func _add_industrial_structures(root:Node3D,fields:Dictionary)->void:
+	for factory:Dictionary in fields.get("factories",[]):
+		var x:=float(factory.x);var z:=float(factory.z);var height:=float(factory.height);_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),Vector3(float(factory.width),height,float(factory.depth)),Color("#5b5848"),"IndustrialFactory")
+	for tank:Dictionary in fields.get("tanks",[]):
+		var x:=float(tank.x);var z:=float(tank.z);var height:=float(tank.height);_add_cylinder(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),float(tank.radius),height,Color("#727369"),"IndustrialTank")
+	for gantry:Dictionary in fields.get("gantries",[]):_add_industrial_gantry(root,gantry)
+	for pipe:Dictionary in fields.get("pipes",[]):_add_industrial_pipe(root,pipe)
+	for conveyor:Dictionary in fields.get("conveyors",[]):
+		var x:=float(conveyor.x);var z:=float(conveyor.z);var height:=float(conveyor.height);var size:=Vector3(float(conveyor.length),height,1.4) if str(conveyor.axis)=="x" else Vector3(1.4,height,float(conveyor.length));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),size,Color("#6e6758"),"IndustrialConveyor")
+
+func _add_industrial_gantry(root:Node3D,record:Dictionary)->void:
+	var x:=float(record.x);var z:=float(record.z);var span:=float(record.span);var height:=float(record.height);var axis:=str(record.axis);var ground:=ground_height(root.global_position+Vector3(x,0.0,z));var offset:=span*.5
+	_add_box(root,Vector3(x-offset,ground+height*.5,z),Vector3(.8,height,.8),Color("#9d9b71"),"IndustrialGantryPost") if axis=="x" else _add_box(root,Vector3(x,ground+height*.5,z-offset),Vector3(.8,height,.8),Color("#9d9b71"),"IndustrialGantryPost")
+	_add_box(root,Vector3(x+offset,ground+height*.5,z),Vector3(.8,height,.8),Color("#9d9b71"),"IndustrialGantryPost") if axis=="x" else _add_box(root,Vector3(x,ground+height*.5,z+offset),Vector3(.8,height,.8),Color("#9d9b71"),"IndustrialGantryPost")
+	_add_box(root,Vector3(x,ground+height,z),Vector3(span,.8,1.0) if axis=="x" else Vector3(1.0,.8,span),Color("#9d9b71"),"IndustrialGantryBeam")
+
+func _add_industrial_pipe(root:Node3D,record:Dictionary)->void:
+	var x:=float(record.x);var z:=float(record.z);var pipe:=MeshInstance3D.new();var mesh:=CylinderMesh.new();mesh.top_radius=float(record.radius);mesh.bottom_radius=float(record.radius);mesh.height=float(record.length);pipe.name="IndustrialPipe";pipe.mesh=mesh;pipe.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(record.height),z);pipe.rotation.z=PI*.5 if str(record.axis)=="x" else 0.0;pipe.rotation.x=PI*.5 if str(record.axis)=="z" else 0.0;pipe.material_override=_material(Color("#6f746c"));root.add_child(pipe)
 
 func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(5):
@@ -473,6 +484,11 @@ func _add_box(root: Node3D, position: Vector3, size: Vector3, color: Color, node
 	collision.shape = shape
 	body.add_child(collision)
 	root.add_child(body)
+
+func _add_cylinder(root:Node3D,position:Vector3,radius:float,height:float,color:Color,node_name:String)->void:
+	var body:=StaticBody3D.new();body.name=node_name;body.position=position
+	var visual:=MeshInstance3D.new();var cylinder:=CylinderMesh.new();cylinder.top_radius=radius;cylinder.bottom_radius=radius;cylinder.height=height;visual.mesh=cylinder;visual.material_override=_material(color);body.add_child(visual)
+	var collision:=CollisionShape3D.new();var shape:=CylinderShape3D.new();shape.radius=radius;shape.height=height;collision.shape=shape;body.add_child(collision);root.add_child(body)
 
 func _terrain_material(biome: String, family: String) -> StandardMaterial3D:
 	var color: Color = {"ocean": Color("#2e5d6b"), "coast": Color("#8f9b70"), "desert": Color("#aa9564"), "alpine": Color("#82919b"), "nival_zone": Color("#d5e5df"), "wetland": Color("#4b7665"), "temperate_forest": Color("#55794e"), "rainforest": Color("#3e7146")}.get(biome, Color("#5e7650"))
