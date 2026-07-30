@@ -3,6 +3,7 @@ extends RefCounted
 
 const RNG := preload("res://scripts/world_rng.gd")
 const SCALE := preload("res://scripts/world_scale.gd")
+const URBAN_FIELDS := preload("res://scripts/world_urban_fields.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -58,7 +59,10 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	var scale: Dictionary = SCALE.info(scope)
 	var center := Vector3(SCALE.chunk_center(chunk_x, CHUNK_SIZE, scale.id), 0.0, SCALE.chunk_center(chunk_z, CHUNK_SIZE, scale.id))
 	var sample_data := sample(center.x, center.z, scale.id)
-	return {"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
+	var descriptor:Dictionary={"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
+	var urban:=URBAN_FIELDS.sample(seed,chunk_x,chunk_z,str(sample_data.region.family))
+	if not urban.is_empty():descriptor["urban"]=urban
+	return descriptor
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
 	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"
