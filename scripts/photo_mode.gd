@@ -4,6 +4,7 @@ extends Node
 const CONTROLS := preload("res://scripts/photo_camera_controls.gd")
 const VISUALS := preload("res://scripts/photo_visual_controls.gd")
 const HIGH_RESOLUTION := preload("res://scripts/photo_high_resolution.gd")
+const PNG_METADATA := preload("res://scripts/png_metadata.gd")
 
 signal mode_changed(active: bool)
 signal captured(path: String, metadata_path: String)
@@ -163,8 +164,17 @@ func _save_capture_image(image: Image, suffix: String) -> void:
 	var metadata_path := base + ".json"
 	if image.save_png(ProjectSettings.globalize_path(image_path)) != OK: return
 	var metadata: Dictionary = metadata_provider.call() if metadata_provider.is_valid() else {}
+	metadata["schema"] = "a-slow-walk.photo.v1"
 	metadata["camera"] = {"position": [camera.global_position.x, camera.global_position.y, camera.global_position.z], "fov": camera.fov}
+	metadata["capture"] = {"width":image.get_width(),"height":image.get_height()}
 	metadata["captured_at"] = Time.get_datetime_string_from_system(true)
+	var encoded_metadata := JSON.stringify(metadata)
+	var embedded := PNG_METADATA.embed(FileAccess.get_file_as_bytes(image_path), "a-slow-walk", encoded_metadata)
+	if not embedded.is_empty():
+		var png_file := FileAccess.open(image_path, FileAccess.WRITE)
+		if png_file:
+			png_file.store_buffer(embedded)
+			png_file.close()
 	var file := FileAccess.open(metadata_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(metadata, "\t"))
