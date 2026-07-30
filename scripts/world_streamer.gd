@@ -19,6 +19,7 @@ const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
 const LANDMARK_GRAPPLE := preload("res://scripts/world_landmark_grapple.gd")
+const WILDLIFE_ECOLOGY := preload("res://scripts/world_wildlife_ecology.gd")
 const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
@@ -387,8 +388,27 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	if not resource.is_empty() and family not in ["industrial_ruin","overgrown_suburb","wilderness"]:_add_resource(root,resource)
 	var hazard:=HAZARD_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,str(descriptor.biome),family)
 	if not hazard.is_empty() and family!="industrial_ruin":_add_hazard(root,hazard)
+	var wildlife: Dictionary = WILDLIFE_ECOLOGY.generate(seed, chunk_x, chunk_z, descriptor)
+	for animal: Dictionary in wildlife.get("animals", []): _add_wildlife(root, animal)
+	root.set_meta("wildlife_count", (wildlife.get("animals", []) as Array).size())
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
+
+func _add_wildlife(root: Node3D, record: Dictionary) -> void:
+	var animal := Node3D.new()
+	animal.name = "Wildlife_" + str(record.id).replace(":", "_")
+	animal.add_to_group("wildlife")
+	animal.set_meta("record", record.duplicate(true))
+	animal.set_meta("archetype_id", str(record.archetype_id))
+	animal.position = Vector3(float(record.local_x), ground_height(root.global_position + Vector3(float(record.local_x), 0.0, float(record.local_z))) + 0.45, float(record.local_z))
+	var mesh := MeshInstance3D.new()
+	var body := CapsuleMesh.new()
+	body.radius = 0.32
+	body.height = 1.1
+	mesh.mesh = body
+	mesh.material_override = _material(Color("#a98562") if str(record.archetype_id) == "territorial_boar" else Color("#b5a881"), true)
+	animal.add_child(mesh)
+	root.add_child(animal)
 
 func _add_landmark(root:Node3D,record:Dictionary)->void:
 	var landmark:=Node3D.new();landmark.name="Landmark_"+str(record.id).replace(":","_");landmark.set_meta("record",record.duplicate(true));landmark.set_meta("label",str(record.get("name",record.kind)));if record.has("taxonomy"):landmark.set_meta("taxonomy",str(record.taxonomy))
