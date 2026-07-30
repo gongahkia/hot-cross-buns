@@ -50,6 +50,7 @@ var current_region: Dictionary = {}
 var weather_clock := 0.0
 var weather_forecast: Array = []
 var weather_forecast_key := ""
+var last_resolved_run: Dictionary = {}
 
 var ui: CanvasLayer
 var hud: Control
@@ -281,6 +282,9 @@ func _process(delta: float) -> void:
 		_refresh_sandbox_context()
 		_refresh_debug_hud()
 		_record_creative_sample(delta)
+		if bool(current_level.get("procedural", false)) and Input.is_action_just_pressed("extract"):
+			show_extraction_confirm()
+			return
 		if Input.is_action_just_pressed("pause"):
 			show_pause()
 
@@ -867,6 +871,34 @@ func _on_survival_depleted(reason: String) -> void:
 	RunData.running = false
 	if player: player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	show_title()
+
+func show_extraction_confirm() -> void:
+	if not RunData.running or not bool(current_level.get("procedural", false)): return
+	menu_mode = "extract"
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_clear_menu()
+	var panel := _center_panel(Vector2(430.0, 260.0))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_label("Extract from expedition?", 28, Color("#edf3d5")))
+	box.add_child(_label("Bank the current run record and return to title.", 16, Color("#b5c6a5")))
+	var extract := _button("Extract now", 19)
+	extract.pressed.connect(_extract_run)
+	box.add_child(extract)
+	var cancel := _button("Continue expedition", 19)
+	cancel.pressed.connect(resume_run)
+	box.add_child(cancel)
+
+func _extract_run() -> void:
+	if not RunData.running: return
+	last_resolved_run = RunData.finish("extracted", Survival.snapshot())
+	last_sandbox_event = "RUN EXTRACTED"
+	get_tree().paused = false
+	if player: player.movement_enabled = false
 	show_title()
 
 func _on_hard_landed(injury: float) -> void:
