@@ -1,6 +1,8 @@
 class_name PhotoMode
 extends Node
 
+const CONTROLS := preload("res://scripts/photo_camera_controls.gd")
+
 signal mode_changed(active: bool)
 signal captured(path: String, metadata_path: String)
 
@@ -12,6 +14,8 @@ var active := false
 var yaw := 0.0
 var pitch := 0.0
 var move_speed := 18.0
+var look_sensitivity := 0.002
+var entry_transform := Transform3D.IDENTITY
 
 func configure(next_subject: SpeedPlayer, next_hud: CanvasItem, provider: Callable) -> void:
 	subject = next_subject
@@ -32,10 +36,25 @@ func handle_input(event: InputEvent) -> bool:
 		if active and event.physical_keycode == KEY_F12:
 			capture()
 			return true
+		if active and event.physical_keycode == KEY_R:
+			_reset_camera()
+			return true
+		if active and event.physical_keycode == KEY_MINUS:
+			move_speed = CONTROLS.next_speed(move_speed, -1)
+			return true
+		if active and event.physical_keycode == KEY_EQUAL:
+			move_speed = CONTROLS.next_speed(move_speed, 1)
+			return true
+		if active and event.physical_keycode == KEY_COMMA:
+			look_sensitivity = CONTROLS.next_sensitivity(look_sensitivity, -1)
+			return true
+		if active and event.physical_keycode == KEY_PERIOD:
+			look_sensitivity = CONTROLS.next_sensitivity(look_sensitivity, 1)
+			return true
 	if not active: return false
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		yaw -= event.relative.x * 0.002
-		pitch = clampf(pitch - event.relative.y * 0.002, deg_to_rad(-88.0), deg_to_rad(88.0))
+		yaw -= event.relative.x * look_sensitivity
+		pitch = CONTROLS.clamp_pitch(pitch - event.relative.y * look_sensitivity)
 		camera.rotation = Vector3(pitch, yaw, 0.0)
 		return true
 	if event is InputEventMouseButton and event.pressed:
@@ -50,10 +69,9 @@ func handle_input(event: InputEvent) -> bool:
 func _process(delta: float) -> void:
 	if not active or camera == null: return
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var direction := camera.global_transform.basis * Vector3(input.x, 0.0, input.y)
-	if Input.is_key_pressed(KEY_SPACE): direction += Vector3.UP
-	if Input.is_key_pressed(KEY_CTRL): direction += Vector3.DOWN
-	var speed := move_speed * (2.5 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+	var local_direction := CONTROLS.direction(input, Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_Q), Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_E))
+	var direction := camera.global_transform.basis * local_direction
+	var speed := CONTROLS.speed(move_speed, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_ALT))
 	if direction.length() > 0.01:
 		camera.global_position += direction.normalized() * speed * delta
 
@@ -80,7 +98,8 @@ func _enter() -> void:
 	if subject == null or subject.camera == null: return
 	camera = Camera3D.new()
 	camera.name = "PhotoCamera"
-	camera.global_transform = subject.camera.global_transform
+	entry_transform = subject.camera.global_transform
+	camera.global_transform = entry_transform
 	camera.fov = subject.camera.fov
 	yaw = camera.rotation.y
 	pitch = camera.rotation.x
@@ -91,6 +110,12 @@ func _enter() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	active = true
 	mode_changed.emit(true)
+
+func _reset_camera() -> void:
+	if camera == null: return
+	camera.global_transform = entry_transform
+	yaw = camera.rotation.y
+	pitch = camera.rotation.x
 
 func _exit() -> void:
 	if camera:
