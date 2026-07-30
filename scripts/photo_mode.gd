@@ -2,6 +2,7 @@ class_name PhotoMode
 extends Node
 
 const CONTROLS := preload("res://scripts/photo_camera_controls.gd")
+const VISUALS := preload("res://scripts/photo_visual_controls.gd")
 
 signal mode_changed(active: bool)
 signal captured(path: String, metadata_path: String)
@@ -10,17 +11,23 @@ var camera: Camera3D
 var subject: SpeedPlayer
 var hud: CanvasItem
 var metadata_provider: Callable
+var environment: Environment
 var active := false
 var yaw := 0.0
 var pitch := 0.0
 var move_speed := 18.0
 var look_sensitivity := 0.002
 var entry_transform := Transform3D.IDENTITY
+var entry_fov := 75.0
+var visual_state: Dictionary = {}
+var photo_attributes: CameraAttributesPractical
+var original_adjustment: Dictionary = {}
 
-func configure(next_subject: SpeedPlayer, next_hud: CanvasItem, provider: Callable) -> void:
+func configure(next_subject: SpeedPlayer, next_hud: CanvasItem, provider: Callable, next_environment: Environment = null) -> void:
 	subject = next_subject
 	hud = next_hud
 	metadata_provider = provider
+	environment = next_environment
 
 func toggle() -> void:
 	if active:
@@ -51,6 +58,38 @@ func handle_input(event: InputEvent) -> bool:
 		if active and event.physical_keycode == KEY_PERIOD:
 			look_sensitivity = CONTROLS.next_sensitivity(look_sensitivity, 1)
 			return true
+		if active and event.physical_keycode == KEY_0:
+			visual_state.fov = entry_fov
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_LEFT:
+			visual_state.exposure = VISUALS.exposure(float(visual_state.exposure), -1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_RIGHT:
+			visual_state.exposure = VISUALS.exposure(float(visual_state.exposure), 1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_Z:
+			visual_state.focus_distance = VISUALS.focus_distance(float(visual_state.focus_distance), -1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_X:
+			visual_state.focus_distance = VISUALS.focus_distance(float(visual_state.focus_distance), 1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_C:
+			visual_state.blur_amount = VISUALS.blur_amount(float(visual_state.blur_amount), -1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_V:
+			visual_state.blur_amount = VISUALS.blur_amount(float(visual_state.blur_amount), 1)
+			_apply_visuals()
+			return true
+		if active and event.physical_keycode == KEY_F:
+			visual_state.filter_index = VISUALS.next_filter(int(visual_state.filter_index))
+			_apply_visuals()
+			return true
 	if not active: return false
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * look_sensitivity
@@ -59,10 +98,12 @@ func handle_input(event: InputEvent) -> bool:
 		return true
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			camera.fov = maxf(22.0, camera.fov - 4.0)
+			visual_state.fov = VISUALS.fov(float(visual_state.fov), -1)
+			_apply_visuals()
 			return true
 		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			camera.fov = minf(110.0, camera.fov + 4.0)
+			visual_state.fov = VISUALS.fov(float(visual_state.fov), 1)
+			_apply_visuals()
 			return true
 	return false
 
@@ -101,6 +142,12 @@ func _enter() -> void:
 	entry_transform = subject.camera.global_transform
 	camera.global_transform = entry_transform
 	camera.fov = subject.camera.fov
+	entry_fov = camera.fov
+	visual_state = VISUALS.defaults(entry_fov)
+	photo_attributes = CameraAttributesPractical.new()
+	camera.attributes = photo_attributes
+	_snapshot_environment_adjustment()
+	_apply_visuals()
 	yaw = camera.rotation.y
 	pitch = camera.rotation.x
 	add_child(camera)
@@ -117,7 +164,38 @@ func _reset_camera() -> void:
 	yaw = camera.rotation.y
 	pitch = camera.rotation.x
 
+func _apply_visuals() -> void:
+	if camera == null or photo_attributes == null: return
+	camera.fov = float(visual_state.get("fov", entry_fov))
+	photo_attributes.exposure_multiplier = float(visual_state.get("exposure", 1.0))
+	photo_attributes.dof_blur_far_enabled = float(visual_state.get("blur_amount", 0.0)) > 0.0
+	photo_attributes.dof_blur_far_distance = float(visual_state.get("focus_distance", 24.0))
+	photo_attributes.dof_blur_far_transition = 8.0
+	photo_attributes.dof_blur_amount = float(visual_state.get("blur_amount", 0.0))
+	if environment == null: return
+	var filter: Dictionary = VISUALS.filter(int(visual_state.get("filter_index", 0)))
+	if int(visual_state.get("filter_index", 0)) == 0:
+		_restore_environment_adjustment()
+		return
+	environment.adjustment_enabled = true
+	environment.adjustment_brightness = float(filter.brightness)
+	environment.adjustment_contrast = float(filter.contrast)
+	environment.adjustment_saturation = float(filter.saturation)
+
+func _snapshot_environment_adjustment() -> void:
+	original_adjustment = {}
+	if environment == null: return
+	original_adjustment = {"enabled":environment.adjustment_enabled,"brightness":environment.adjustment_brightness,"contrast":environment.adjustment_contrast,"saturation":environment.adjustment_saturation}
+
+func _restore_environment_adjustment() -> void:
+	if environment == null or original_adjustment.is_empty(): return
+	environment.adjustment_enabled = bool(original_adjustment.enabled)
+	environment.adjustment_brightness = float(original_adjustment.brightness)
+	environment.adjustment_contrast = float(original_adjustment.contrast)
+	environment.adjustment_saturation = float(original_adjustment.saturation)
+
 func _exit() -> void:
+	_restore_environment_adjustment()
 	if camera:
 		camera.queue_free()
 		camera = null
@@ -126,4 +204,6 @@ func _exit() -> void:
 		if subject.camera: subject.camera.current = true
 	if hud: hud.visible = true
 	active = false
+	photo_attributes = null
+	visual_state = {}
 	mode_changed.emit(false)

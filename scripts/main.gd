@@ -939,7 +939,7 @@ func _load_expedition(level: Dictionary) -> void:
 	world_streamer.configure(seed, player)
 	player_spawn = Vector3(0.0, world_streamer.ground_height(Vector3.ZERO) + 1.2, 0.0)
 	player.global_position = player_spawn
-	photo_mode.configure(player, hud, Callable(self, "_photo_metadata"))
+	photo_mode.configure(player, hud, Callable(self, "_photo_metadata"), expedition_environment)
 	current_region = world_streamer.sample_at(player.global_position).get("region", {})
 
 func _add_expedition_lighting() -> void:
