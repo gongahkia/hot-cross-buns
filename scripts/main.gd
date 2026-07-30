@@ -18,6 +18,7 @@ const TRAVERSAL_MELEE := preload("res://scripts/traversal_melee.gd")
 const SLIDE_IMPACT := preload("res://scripts/slide_impact.gd")
 const SLAM_IMPACT := preload("res://scripts/slam_impact.gd")
 const GRAPPLE_IMPACT := preload("res://scripts/grapple_impact.gd")
+const WILDLIFE_FEEDBACK := preload("res://scripts/wildlife_feedback.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
 const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
@@ -1019,6 +1020,7 @@ func _on_hard_landed(injury: float) -> void:
 		return
 	Survival.apply_injury(injury)
 	last_sandbox_event = "INJURY %02d" % int(ceilf(injury))
+	_show_encounter_feedback(WILDLIFE_FEEDBACK.injury(injury))
 
 func _attempt_material_placement() -> void:
 	if player == null or world_streamer == null: return
@@ -1600,6 +1602,15 @@ func _attempt_wildlife_traversal_hits() -> void:
 		var impulse := SLIDE_IMPACT.resolve(float(context.speed), context.direction) if str(context.state) == "slide" else SLAM_IMPACT.resolve(float(context.speed), context.origin, animal.global_position) if str(context.state) == "slam" else GRAPPLE_IMPACT.resolve(float(context.speed), context.direction)
 		if bool(result.hit) and bool(animal.call("register_traversal_hit", str(context.state), impulse)):
 			last_sandbox_event = "WILDLIFE " + str(context.state).to_upper()
+			_show_encounter_feedback(WILDLIFE_FEEDBACK.escape(str(context.state)))
+
+func _show_encounter_feedback(feedback: Dictionary) -> void:
+	if briefing_label == null: return
+	briefing_label.text = str(feedback.text)
+	briefing_label.add_theme_color_override("font_color", feedback.color)
+	briefing_label.modulate.a = 1.0
+	var tween := create_tween()
+	tween.tween_property(briefing_label, "modulate:a", 0.0, 0.35).set_delay(1.4)
 
 func _on_combo_landed() -> void:
 	RunData.style_land()

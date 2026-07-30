@@ -1,6 +1,8 @@
 class_name WildlifeAgent
 extends Node3D
 
+signal escaped(action: String)
+
 const ARCHETYPES := preload("res://scripts/wildlife_archetypes.gd")
 const BEHAVIOR := preload("res://scripts/wildlife_behavior.gd")
 const ENVIRONMENT := preload("res://scripts/wildlife_environment.gd")
@@ -41,4 +43,5 @@ func register_traversal_hit(state: String, impulse: Vector3 = Vector3.ZERO) -> b
 	impact_velocity += impulse
 	set_meta("wildlife_hit", state)
 	set_meta("wildlife_state", "flee")
+	escaped.emit(state)
 	return true
