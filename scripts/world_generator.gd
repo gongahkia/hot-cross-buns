@@ -20,6 +20,7 @@ const FLOODED_STRUCTURES := preload("res://scripts/world_flooded_city_structures
 const FLOODED_ECOLOGY := preload("res://scripts/world_flooded_city_ecology.gd")
 const INDUSTRIAL_LAYOUT := preload("res://scripts/world_industrial_layout.gd")
 const INDUSTRIAL_STRUCTURES := preload("res://scripts/world_industrial_structures.gd")
+const INDUSTRIAL_TRAVERSAL := preload("res://scripts/world_industrial_traversal.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -82,6 +83,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not industrial_layout.is_empty():descriptor["industrial_layout"]=industrial_layout
 	var industrial_structures:=INDUSTRIAL_STRUCTURES.generate(seed,chunk_x,chunk_z,industrial_layout)
 	if not industrial_structures.is_empty():descriptor["industrial_structures"]=industrial_structures
+	var industrial_traversal:=INDUSTRIAL_TRAVERSAL.generate(seed,chunk_x,chunk_z,industrial_layout,industrial_structures)
+	if not industrial_traversal.is_empty():descriptor["industrial_traversal"]=industrial_traversal
 	var city_layout:=CITY_LAYOUT.sample(self,chunk_x,chunk_z,sample_data)
 	if not city_layout.is_empty():descriptor["city_layout"]=city_layout
 	var city_arterials:=CITY_ARTERIALS.generate(seed,chunk_x,chunk_z,city_layout)

@@ -255,6 +255,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_flooded_city_ecology(root,descriptor.get("flood_ecology",{}))
 	elif family == "industrial_ruin":
 		_add_industrial_structures(root,descriptor.get("industrial_structures",{}))
+		_add_industrial_traversal(root,descriptor.get("industrial_traversal",{}))
 	elif family == "overgrown_suburb":
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
@@ -345,6 +346,14 @@ func _add_industrial_gantry(root:Node3D,record:Dictionary)->void:
 
 func _add_industrial_pipe(root:Node3D,record:Dictionary)->void:
 	var x:=float(record.x);var z:=float(record.z);var pipe:=MeshInstance3D.new();var mesh:=CylinderMesh.new();mesh.top_radius=float(record.radius);mesh.bottom_radius=float(record.radius);mesh.height=float(record.length);pipe.name="IndustrialPipe";pipe.mesh=mesh;pipe.position=Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(record.height),z);pipe.rotation.z=PI*.5 if str(record.axis)=="x" else 0.0;pipe.rotation.x=PI*.5 if str(record.axis)=="z" else 0.0;pipe.material_override=_material(Color("#6f746c"));root.add_child(pipe)
+
+func _add_industrial_traversal(root:Node3D,fields:Dictionary)->void:
+	for catwalk:Dictionary in fields.get("catwalks",[]):
+		var x:=float(catwalk.x);var z:=float(catwalk.z);var size:=Vector3(float(catwalk.length),.45,float(catwalk.width)) if str(catwalk.axis)=="x" else Vector3(float(catwalk.width),.45,float(catwalk.length));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(catwalk.height),z),size,Color("#89906e"),"IndustrialCatwalk")
+	for access:Dictionary in fields.get("access_routes",[]):
+		var count:=int(access.step_count);var axis:=str(access.axis);var direction:=float(access.direction)
+		for step in range(count):
+			var progress:=float(step+1)/float(count);var x:=float(access.x)-direction*float(access.run)*(1.0-progress) if axis=="x" else float(access.x);var z:=float(access.z)-direction*float(access.run)*(1.0-progress) if axis=="z" else float(access.z);var height:=float(access.rise)*progress;var size:=Vector3(float(access.run)/float(count),height,2.4) if axis=="x" else Vector3(2.4,height,float(access.run)/float(count));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+height*.5,z),size,Color("#7f7c67"),"IndustrialAccessStep")
 
 func _add_suburb(root: Node3D, chunk_x: int, chunk_z: int) -> void:
 	for index in range(5):
