@@ -247,6 +247,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_city_buildings(root,descriptor.get("city_buildings",{}),descriptor.get("city_failures",{}))
 		_add_city_traversal(root,descriptor.get("city_buildings",{}),descriptor.get("city_traversal",{}),descriptor.get("city_failures",{}))
 		_add_city_collapsed_routes(root,descriptor.get("city_buildings",{}),descriptor.get("city_failures",{}))
+		_add_city_rooftop_resources(root,descriptor.get("city_rooftop_resources",{}))
 	elif family == "flooded_city":
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
@@ -373,13 +374,16 @@ func _add_tree(root: Node3D, position: Vector3, height: float, color: Color) -> 
 	root.add_child(trunk)
 
 func _add_resource(root:Node3D,record:Dictionary)->void:
-	var kind:=str(record.kind);var x:=float(record.local_x);var z:=float(record.local_z)
-	var ground := ground_height(root.global_position + Vector3(x, 0.0, z))
+	var x:=float(record.local_x);var z:=float(record.local_z)
+	_add_resource_at(root,record,x,z,ground_height(root.global_position+Vector3(x,0.0,z))+1.1)
+
+func _add_resource_at(root:Node3D,record:Dictionary,x:float,z:float,y:float)->void:
+	var kind:=str(record.kind)
 	var pickup = RESOURCE_PICKUP.new()
 	pickup.name = kind.capitalize() + "Pickup"
 	pickup.set_meta("resource_id",str(record.id))
 	pickup.kind = kind
-	pickup.position = Vector3(x, ground + 1.1, z)
+	pickup.position = Vector3(x,y,z)
 	var collision := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
 	shape.radius = 0.8
@@ -393,6 +397,10 @@ func _add_resource(root:Node3D,record:Dictionary)->void:
 	visual.material_override = _material(Color("#9fd477") if kind in ["food", "water"] else Color("#d3ba72"), true)
 	pickup.add_child(visual)
 	root.add_child(pickup)
+
+func _add_city_rooftop_resources(root:Node3D,ecology:Dictionary)->void:
+	for resource:Dictionary in ecology.get("resources",[]):
+		var x:=float(resource.x);var z:=float(resource.z);_add_resource_at(root,resource,x,z,ground_height(root.global_position+Vector3(x,0.0,z))+float(resource.roof_height)+1.1)
 
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))
