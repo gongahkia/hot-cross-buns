@@ -250,6 +250,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_city_rooftop_resources(root,descriptor.get("city_rooftop_resources",{}))
 		_add_city_vegetation(root,descriptor.get("city_vegetation",{}))
 	elif family == "flooded_city":
+		_add_flooded_city_routes(root,descriptor.get("flood_routes",{}))
 		_add_city_blocks(root, chunk_x, chunk_z, 4, Color("#39545a"), Color("#79a99b"), true)
 	elif family == "industrial_ruin":
 		_add_industrial(root, chunk_x, chunk_z)
@@ -406,6 +407,14 @@ func _add_city_rooftop_resources(root:Node3D,ecology:Dictionary)->void:
 func _add_city_vegetation(root:Node3D,ecology:Dictionary)->void:
 	for record:Dictionary in ecology.get("vegetation",[]):
 		var x:=float(record.x);var z:=float(record.z);var color:=Color("#688a55") if str(record.stage)=="pioneer" else Color("#4f7b4b") if str(record.stage)=="shrub" else Color("#3f703f");_add_tree(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(record.base_height),z),float(record.height),color)
+
+func _add_flooded_city_routes(root:Node3D,routes:Dictionary)->void:
+	for canal:Dictionary in routes.get("canals",[]):
+		var axis:=str(canal.axis);var offset:=float(canal.offset);var position:=Vector3(32.0,.02,offset) if axis=="x" else Vector3(offset,.02,32.0);position.y+=ground_height(root.global_position+position);var visual:=MeshInstance3D.new();var mesh:=BoxMesh.new();mesh.size=Vector3(64.0,.04,float(canal.width)) if axis=="x" else Vector3(float(canal.width),.04,64.0);visual.mesh=mesh;visual.position=position;visual.material_override=_material(Color("#315f73"));root.add_child(visual)
+	for bridge:Dictionary in routes.get("bridges",[]):
+		var axis:=str(bridge.axis);var position:=Vector3(float(bridge.offset),float(bridge.height),float(bridge.canal_offset)) if axis=="z" else Vector3(float(bridge.canal_offset),float(bridge.height),float(bridge.offset));position.y+=ground_height(root.global_position+Vector3(position.x,0.0,position.z));_add_box(root,position,Vector3(2.6,.6,float(bridge.length)) if axis=="z" else Vector3(float(bridge.length),.6,2.6),Color("#718072"),"FloodBridge")
+	for roof:Dictionary in routes.get("roof_routes",[]):
+		var axis:=str(roof.axis);var position:=Vector3(32.0,float(roof.height),float(roof.offset)) if axis=="x" else Vector3(float(roof.offset),float(roof.height),32.0);position.y+=ground_height(root.global_position+Vector3(position.x,0.0,position.z));_add_box(root,position,Vector3(float(roof.length),.5,2.4) if axis=="x" else Vector3(2.4,.5,float(roof.length)),Color("#668c82"),"FloodRoofRoute")
 
 func _add_hazard(root:Node3D,record:Dictionary)->void:
 	var hazard:=Node3D.new();hazard.name="Hazard_"+str(record.id).replace(":","_");hazard.add_to_group("hazard");hazard.set_meta("hazard_id",str(record.id));hazard.set_meta("kind",str(record.kind))

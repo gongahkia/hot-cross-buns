@@ -15,6 +15,7 @@ const CITY_ROOFTOP_RESOURCES := preload("res://scripts/world_city_rooftop_resour
 const CITY_VEGETATION := preload("res://scripts/world_city_vegetation.gd")
 const FLOODED_BASIN := preload("res://scripts/world_flooded_city_basin.gd")
 const FLOODED_INUNDATION := preload("res://scripts/world_flooded_city_inundation.gd")
+const FLOODED_ROUTES := preload("res://scripts/world_flooded_city_routes.gd")
 
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
@@ -95,6 +96,8 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not flood_basin.is_empty():descriptor["flood_basin"]=flood_basin
 	var flood_inundation:=FLOODED_INUNDATION.generate(seed,chunk_x,chunk_z,flood_basin)
 	if not flood_inundation.is_empty():descriptor["flood_inundation"]=flood_inundation
+	var flood_routes:=FLOODED_ROUTES.generate(seed,chunk_x,chunk_z,flood_basin,flood_inundation)
+	if not flood_routes.is_empty():descriptor["flood_routes"]=flood_routes
 	return descriptor
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
