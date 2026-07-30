@@ -33,6 +33,7 @@ This is a manual release gate for the current Godot 4 project. It does not publi
 - [ ] Inspect the produced macOS `.app` and every Windows companion file. Do not treat a successful export command as a platform launch test.
 - [ ] Stage one exact portable build directory per platform. Keep the macOS `.app` intact; stage the Windows executable with all files generated beside it. Do not push the mixed `dist/` parent directory or a lone `.exe`.
 - [ ] Launch/test staged builds on their target platforms: cold launch, controls, procedural expedition, save/recovery, survival resolution, photo capture, export, and clean exit. Run the Windows stability path on Windows. If macOS distribution needs signing/notarization, complete that separate workflow and record the result.
+- [ ] Confirm the [Windows export validation workflow](windows-export-validation.md) passed for the release commit; it validates the artifact and headless soak, not interactive player QA.
 
 ## 3. Prepare the itch.io project page
 
