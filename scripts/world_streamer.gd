@@ -276,7 +276,7 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_grapple_anchor(root, chunk_x, chunk_z)
 
 func _add_landmark(root:Node3D,record:Dictionary)->void:
-	var landmark:=Node3D.new();landmark.name="Landmark_"+str(record.id).replace(":","_");landmark.set_meta("record",record.duplicate(true))
+	var landmark:=Node3D.new();landmark.name="Landmark_"+str(record.id).replace(":","_");landmark.set_meta("record",record.duplicate(true));landmark.set_meta("label",str(record.get("name",record.kind)));if record.has("taxonomy"):landmark.set_meta("taxonomy",str(record.taxonomy))
 	var position:=Vector3(float(record.local_x),ground_height(root.global_position+Vector3(float(record.local_x),0.0,float(record.local_z))),float(record.local_z));landmark.position=position
 	var size:=Vector3(4.0,8.0,4.0);var color:=Color("#8e9a8d")
 	if str(record.kind)=="radio mast":size=Vector3(1.2,18.0,1.2);color=Color("#9db7a0")
