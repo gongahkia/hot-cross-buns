@@ -2,6 +2,7 @@ extends SceneTree
 
 const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
 const WORLD_GENERATOR := preload("res://scripts/world_generator.gd")
+const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 
 func _initialize() -> void:
 	var scene := load("res://scenes/main.tscn") as PackedScene
@@ -43,6 +44,8 @@ func _initialize() -> void:
 	assert(main.player != null and main.player.movement_enabled, "expedition player missing")
 	for _frame in range(45):
 		await physics_frame
+	var preload_targets:Dictionary=PRELOAD_CORRIDOR.targets(main.world_streamer.current_center,main.world_streamer._preload_heading())
+	assert(not preload_targets.is_empty() and not main.world_streamer.chunk_cache.fetch(str(preload_targets.keys()[0])).is_empty(), "biome and region preload corridor did not cache a descriptor")
 	var resting_ground: float = main.world_streamer.ground_height(main.player.global_position)
 	assert(main.player.is_on_floor(), "expedition player did not settle on terrain")
 	assert(not main.player.is_on_wall(), "expedition terrain trapped the player against a wall")

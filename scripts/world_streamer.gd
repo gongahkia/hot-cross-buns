@@ -15,6 +15,7 @@ const COLLISION_LOD := preload("res://scripts/world_collision_lod.gd")
 const COLLISION_MESH := preload("res://scripts/world_collision_mesh.gd")
 const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
 const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
+const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -29,6 +30,7 @@ var scheduler
 var pending_chunks: Dictionary = {}
 var chunk_cache
 var far_chunks: Dictionary = {}
+var active_ids: Dictionary = {}
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -64,13 +66,22 @@ func refresh(force: bool) -> void:
 			var id := _chunk_id(x, z)
 			wanted[id] = true
 			if not chunks.has(id) and not pending_chunks.has(id):
-				pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
+				if chunk_cache and not chunk_cache.fetch(id).is_empty():
+					_remove_far_chunk(id)
+					chunks[id]=_build_chunk(x,z)
+				else: pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
+	active_ids=wanted.duplicate()
 	if force:
 		_attach_completed(scheduler.wait_for_all())
+	var preload_targets:=PRELOAD_CORRIDOR.targets(center,_preload_heading())
+	for id in preload_targets.keys():
+		if chunks.has(id) or pending_chunks.has(id) or (chunk_cache and not chunk_cache.fetch(id).is_empty()):continue
+		var chunk:Vector2i=preload_targets[id];pending_chunks[id]=scheduler.request(chunk.x,chunk.y,0,50.0)
+		wanted[id]=true
 	for id in pending_chunks.keys():
 		if not wanted.has(id): scheduler.cancel(int(pending_chunks[id]));pending_chunks.erase(id)
 	for id in chunks.keys():
-		if not wanted.has(id):
+		if not active_ids.has(id):
 			var stale: Node = chunks[id]
 			chunks.erase(id)
 			stale.queue_free()
@@ -86,11 +97,24 @@ func _attach_completed(results: Array) -> void:
 		if int(pending_chunks.get(id,-1)) != int(result.get("token",-2)): continue
 		pending_chunks.erase(id)
 		if str(result.get("status", "")) == "ok" and not chunks.has(id):
-			if far_chunks.has(id):
-				var far:Node=far_chunks[id]
-				far_chunks.erase(id)
-				far.queue_free()
-			chunk_cache.put(id,result.get("descriptor",{}));chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+			chunk_cache.put(id,result.get("descriptor",{}))
+			if active_ids.has(id):
+				_remove_far_chunk(id)
+				chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+
+func _remove_far_chunk(id:String)->void:
+	if not far_chunks.has(id):return
+	var far:Node=far_chunks[id]
+	far_chunks.erase(id)
+	far.queue_free()
+
+func _preload_heading()->Vector2:
+	var velocity:=Vector2(player.velocity.x,player.velocity.z)
+	if velocity.length_squared()>.25:return velocity.normalized()
+	if player.camera:
+		var facing:=-Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z)
+		if facing.length_squared()>0.0001:return facing.normalized()
+	return Vector2.ZERO
 
 func _chunk_priority(center: Vector2i, target: Vector2i) -> float:
 	var offset:=Vector2(float(target.x-center.x),float(target.y-center.y));var velocity:=Vector2(player.velocity.x,player.velocity.z);var forward:=Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z) if player.camera else Vector2.ZERO
@@ -152,12 +176,12 @@ func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
 func _update_far_terrain()->void:
 	var wanted:=FAR_TERRAIN.targets(current_center,ACTIVE_RADIUS)
 	for id in far_chunks.keys():
-		if not wanted.has(id) or chunks.has(id) or pending_chunks.has(id):
+		if not wanted.has(id) or chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)):
 			var stale:Node=far_chunks[id]
 			far_chunks.erase(id)
 			stale.queue_free()
 	for id in wanted.keys():
-		if chunks.has(id) or pending_chunks.has(id) or far_chunks.has(id):continue
+		if chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)) or far_chunks.has(id):continue
 		var chunk:Vector2i=wanted[id];far_chunks[id]=_build_far_chunk(chunk.x,chunk.y)
 
 func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
