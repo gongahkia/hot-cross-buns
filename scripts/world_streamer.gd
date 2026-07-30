@@ -263,10 +263,11 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_suburb_parcels(root,descriptor.get("suburb_parcels",{}),descriptor.get("suburb_transitions",{}))
 		_add_suburb_transitions(root,descriptor.get("suburb_transitions",{}))
 		_add_suburb_traversal(root,descriptor.get("suburb_traversal",{}))
+		_add_suburb_resources(root,descriptor.get("suburb_resources",{}))
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
 	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
-	if not resource.is_empty() and family!="industrial_ruin":_add_resource(root,resource)
+	if not resource.is_empty() and family not in ["industrial_ruin","overgrown_suburb"]:_add_resource(root,resource)
 	var hazard:=HAZARD_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,str(descriptor.biome),family)
 	if not hazard.is_empty() and family!="industrial_ruin":_add_hazard(root,hazard)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
@@ -406,6 +407,9 @@ func _add_suburb_traversal(root:Node3D,fields:Dictionary)->void:
 		var x:=float(canopy.x);var z:=float(canopy.z);var ground:=ground_height(root.global_position+Vector3(x,0.0,z));_add_tree(root,Vector3(x,ground,z),float(canopy.trunk_height),Color("#466c43"));_add_box(root,Vector3(x,ground+float(canopy.trunk_height),z),Vector3(float(canopy.platform_width),.35,float(canopy.platform_depth)),Color("#557747"),"SuburbCanopy")
 	for collapse:Dictionary in fields.get("collapses",[]):
 		var x:=float(collapse.x);var z:=float(collapse.z);var size:=Vector3(float(collapse.length),float(collapse.height),1.4) if str(collapse.axis)=="x" else Vector3(1.4,float(collapse.height),float(collapse.length));_add_box(root,Vector3(x,ground_height(root.global_position+Vector3(x,0.0,z))+float(collapse.height)*.5,z),size,Color("#705d4c"),"SuburbCollapse")
+
+func _add_suburb_resources(root:Node3D,fields:Dictionary)->void:
+	for resource:Dictionary in fields.get("resources",[]):_add_resource(root,resource)
 
 func _add_wilderness(root: Node3D, chunk_x: int, chunk_z: int, biome: String) -> void:
 	var count := 3 if biome in ["desert", "cold_desert", "badland", "alpine_scree"] else 8
