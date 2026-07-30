@@ -17,6 +17,7 @@ const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
 const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 const PRELOAD_CORRIDOR := preload("res://scripts/world_preload_corridor.gd")
 const LANDMARKS := preload("res://scripts/world_landmarks.gd")
+const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -231,11 +232,8 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 		_add_suburb(root, chunk_x, chunk_z)
 	else:
 		_add_wilderness(root, chunk_x, chunk_z, str(descriptor.biome))
-	var resource_roll := RNG.unit(seed, chunk_x, chunk_z, 313)
-	if resource_roll > 0.32:
-		var kind := "scrap" if family in GENERATOR.URBAN_FAMILIES else "wood"
-		if resource_roll > 0.86: kind = "water" if family == "flooded_city" else "food"
-		_add_resource(root, chunk_x, chunk_z, kind, 401)
+	var resource:=RESOURCE_PLACEMENT.for_chunk(seed,chunk_x,chunk_z,family)
+	if not resource.is_empty():_add_resource(root,resource)
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
 
@@ -311,12 +309,12 @@ func _add_tree(root: Node3D, position: Vector3, height: float, color: Color) -> 
 	trunk.add_child(collision)
 	root.add_child(trunk)
 
-func _add_resource(root: Node3D, chunk_x: int, chunk_z: int, kind: String, salt: int) -> void:
-	var x := 8.0 + RNG.unit(generator.seed, chunk_x, chunk_z, salt) * 48.0
-	var z := 8.0 + RNG.unit(generator.seed, chunk_x, chunk_z, salt + 2) * 48.0
+func _add_resource(root:Node3D,record:Dictionary)->void:
+	var kind:=str(record.kind);var x:=float(record.local_x);var z:=float(record.local_z)
 	var ground := ground_height(root.global_position + Vector3(x, 0.0, z))
 	var pickup = RESOURCE_PICKUP.new()
 	pickup.name = kind.capitalize() + "Pickup"
+	pickup.set_meta("resource_id",str(record.id))
 	pickup.kind = kind
 	pickup.position = Vector3(x, ground + 1.1, z)
 	var collision := CollisionShape3D.new()
