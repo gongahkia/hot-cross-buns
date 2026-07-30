@@ -25,6 +25,7 @@ const GRAPPLE_IMPACT := preload("res://scripts/grapple_impact.gd")
 const WILDLIFE_FEEDBACK := preload("res://scripts/wildlife_feedback.gd")
 const TRAVERSAL_MATERIAL_PLACEMENT := preload("res://scripts/traversal_material_placement.gd")
 const RUN_ARCHIVE := preload("res://scripts/run_archive.gd")
+const RUN_EXPORT := preload("res://scripts/run_export.gd")
 const WORLD_SURVEY_JOURNAL := preload("res://scripts/world_survey_journal.gd")
 const SHELTER_COST := {"wood": 3, "scrap": 1, "fiber": 2}
 const PLATFORM_COST := {"wood": 2, "scrap": 2, "fiber": 1}
@@ -134,6 +135,7 @@ func _ready() -> void:
 	creative_editor.close_requested.connect(_exit_creative_mode)
 	add_child(creative_editor)
 	photo_mode = PHOTO_MODE.new()
+	photo_mode.captured.connect(_on_photo_captured)
 	add_child(photo_mode)
 	Survival.depleted.connect(_on_survival_depleted)
 	Settings.pixel_filter_mode_changed.connect(_apply_pixel_filter)
@@ -416,7 +418,19 @@ func show_run_archive() -> void:
 		box.add_child(_label("No resolved expeditions.", 17, Color("#b5c6a5")))
 	else:
 		for record: Dictionary in records:
-			box.add_child(_label("#%02d  %s  %s  %s  %d resources" % [int(record.id),str(record.outcome).to_upper(),_time_text(float(record.elapsed)),str(record.level).to_upper(),(record.resources as Dictionary).size()], 16, Color("#d3dec5")))
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 10)
+			var detail := _label("#%02d  %s  %s  %s  %d resources" % [int(record.id),str(record.outcome).to_upper(),_time_text(float(record.elapsed)),str(record.level).to_upper(),(record.resources as Dictionary).size()], 16, Color("#d3dec5"))
+			detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(detail)
+			var export := _button("Export", 14)
+			export.pressed.connect(_export_run_card.bind(record))
+			row.add_child(export)
+			box.add_child(row)
+	if RunData.running:
+		var seed_export := _button("Export current seed", 16)
+		seed_export.pressed.connect(_export_seed.bind(RunData.run_seed))
+		box.add_child(seed_export)
 	var back := _button("Back", 18)
 	back.pressed.connect(show_title)
 	box.add_child(back)
@@ -1030,7 +1044,7 @@ func _on_survival_depleted(reason: String) -> void:
 	var snapshot := Survival.snapshot()
 	snapshot["failure"] = reason
 	last_resolved_run = RunData.finish("failed", snapshot)
-	run_archive.append(last_resolved_run)
+	_export_resolved_run(run_archive.append(last_resolved_run))
 	last_sandbox_event = "RUN FAILED: " + reason.to_upper()
 	if player: player.movement_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -1078,7 +1092,7 @@ func show_extraction_confirm() -> void:
 func _extract_run() -> void:
 	if not RunData.running: return
 	last_resolved_run = RunData.finish("extracted", Survival.snapshot())
-	run_archive.append(last_resolved_run)
+	_export_resolved_run(run_archive.append(last_resolved_run))
 	last_sandbox_event = "RUN EXTRACTED"
 	get_tree().paused = false
 	if player: player.movement_enabled = false
@@ -1151,6 +1165,23 @@ func _craft_field_filter() -> void:
 func _photo_metadata() -> Dictionary:
 	var world_data: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
 	return {"run": RunData.run_record(Survival.snapshot()), "world": world_data, "position": [player.global_position.x, player.global_position.y, player.global_position.z] if player else []}
+
+func _on_photo_captured(image_path: String, metadata_path: String) -> void:
+	var exported := RUN_EXPORT.export_photo(image_path, metadata_path)
+	if not exported.is_empty(): last_sandbox_event = "PHOTO EXPORTED"
+
+func _export_resolved_run(record: Dictionary) -> void:
+	if record.is_empty(): return
+	_export_seed(int(record.get("seed", 0)))
+	_export_run_card(record)
+
+func _export_seed(seed: int) -> void:
+	var path := RUN_EXPORT.export_seed(seed)
+	if not path.is_empty(): last_sandbox_event = "SEED EXPORTED"
+
+func _export_run_card(record: Dictionary) -> void:
+	var path := RUN_EXPORT.export_run_card(record)
+	if not path.is_empty(): last_sandbox_event = "RUN CARD EXPORTED"
 
 func _seed_for_level(level_id: String) -> int:
 	var value := 17
