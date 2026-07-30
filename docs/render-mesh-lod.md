@@ -1,6 +1,6 @@
 # Render-mesh LOD
 
-`WorldRenderLod` selects 16×16, 8×8, or 4×4 render grids by chunk distance. `WorldStreamer` records the render grid per root; collision remains 16×16.
+`WorldRenderLod` selects 16×16, 8×8, or 4×4 render grids by chunk distance. `WorldStreamer` records the render grid per root. Collision LOD is documented in `collision-mesh-lod.md`; outer impostors are documented in `far-terrain.md`.
 
 ## Verification
 
@@ -14,8 +14,8 @@
 
 ## Performance impact
 
-Far chunks submit fewer render triangles; collision cost is unchanged.
+Far active chunks submit fewer render triangles. Collision has independent LOD.
 
 ## Out of scope
 
-- LOD stitching, geomorphing, collision LOD, and impostors.
+- LOD stitching and geomorphing.

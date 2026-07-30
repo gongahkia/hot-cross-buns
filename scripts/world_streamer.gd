@@ -14,6 +14,7 @@ const RENDER_LOD := preload("res://scripts/world_render_lod.gd")
 const COLLISION_LOD := preload("res://scripts/world_collision_lod.gd")
 const COLLISION_MESH := preload("res://scripts/world_collision_mesh.gd")
 const COLLISION_HANDOFF := preload("res://scripts/world_collision_handoff.gd")
+const FAR_TERRAIN := preload("res://scripts/world_far_terrain.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -27,6 +28,7 @@ var origin
 var scheduler
 var pending_chunks: Dictionary = {}
 var chunk_cache
+var far_chunks: Dictionary = {}
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -50,6 +52,7 @@ func refresh(force: bool) -> void:
 	if rebase != Vector3.ZERO:
 		player.global_position += rebase
 		for root: Node3D in chunks.values(): root.global_position += rebase
+		for root: Node3D in far_chunks.values(): root.global_position += rebase
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
 		_update_region()
@@ -72,6 +75,7 @@ func refresh(force: bool) -> void:
 			chunks.erase(id)
 			stale.queue_free()
 	_update_collision_lods()
+	_update_far_terrain()
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y]})
 
@@ -81,7 +85,12 @@ func _attach_completed(results: Array) -> void:
 		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 		if int(pending_chunks.get(id,-1)) != int(result.get("token",-2)): continue
 		pending_chunks.erase(id)
-		if str(result.get("status", "")) == "ok" and not chunks.has(id): chunk_cache.put(id,result.get("descriptor",{}));chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+		if str(result.get("status", "")) == "ok" and not chunks.has(id):
+			if far_chunks.has(id):
+				var far:Node=far_chunks[id]
+				far_chunks.erase(id)
+				far.queue_free()
+			chunk_cache.put(id,result.get("descriptor",{}));chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
 
 func _chunk_priority(center: Vector2i, target: Vector2i) -> float:
 	var offset:=Vector2(float(target.x-center.x),float(target.y-center.y));var velocity:=Vector2(player.velocity.x,player.velocity.z);var forward:=Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z) if player.camera else Vector2.ZERO
@@ -139,6 +148,24 @@ func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
 	var collision:=CollisionShape3D.new();collision.shape=COLLISION_MESH.heightmap(generator,GENERATOR.CHUNK_SIZE,chunk_x,chunk_z,grid)
 	var step:=GENERATOR.CHUNK_SIZE/float(grid);collision.position=Vector3(GENERATOR.CHUNK_SIZE*.5,0.0,GENERATOR.CHUNK_SIZE*.5);collision.scale=Vector3(step,step,step)
 	return collision
+
+func _update_far_terrain()->void:
+	var wanted:=FAR_TERRAIN.targets(current_center,ACTIVE_RADIUS)
+	for id in far_chunks.keys():
+		if not wanted.has(id) or chunks.has(id) or pending_chunks.has(id):
+			var stale:Node=far_chunks[id]
+			far_chunks.erase(id)
+			stale.queue_free()
+	for id in wanted.keys():
+		if chunks.has(id) or pending_chunks.has(id) or far_chunks.has(id):continue
+		var chunk:Vector2i=wanted[id];far_chunks[id]=_build_far_chunk(chunk.x,chunk.y)
+
+func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
+	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()
+	root.name="FarChunk_%d_%d"%[chunk_x,chunk_z];root.position=origin.local_chunk_position(Vector2i(chunk_x,chunk_z));root.set_meta("impostor",true);root.set_meta("render_grid",FAR_TERRAIN.GRID)
+	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,str(descriptor.biome),str(descriptor.region.family),FAR_TERRAIN.GRID);visual.material_override=_terrain_material(str(descriptor.biome),str(descriptor.region.family))
+	root.add_child(visual);add_child(root)
+	return root
 
 func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, grid: int = GRID) -> ArrayMesh:
 	var surface := SurfaceTool.new()

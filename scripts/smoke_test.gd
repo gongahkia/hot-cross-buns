@@ -37,6 +37,9 @@ func _initialize() -> void:
 	await process_frame
 	assert(main.world_streamer != null, "expedition world streamer missing")
 	assert(main.world_streamer.chunks.size() == 25, "expedition chunk radius missing")
+	assert(main.world_streamer.far_chunks.size() == 96, "far terrain impostor radius missing")
+	var far_chunk: Node3D = main.world_streamer.far_chunks.values()[0]
+	assert(bool(far_chunk.get_meta("impostor", false)) and far_chunk.get_child(0) is MeshInstance3D, "far terrain impostor has gameplay collision")
 	assert(main.player != null and main.player.movement_enabled, "expedition player missing")
 	for _frame in range(45):
 		await physics_frame
