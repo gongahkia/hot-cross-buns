@@ -1,8 +1,10 @@
 # Windows export validation
 
-`.github/workflows/windows-export.yml` runs on `windows-2022` for pushes, pull requests, and manual dispatch. It downloads Godot `4.7.1-stable` and its matching Windows export template, imports project resources, runs `windows_long_run_stability_test.gd`, exports the `Windows Desktop` preset, requires an `.exe` and matching `.pck`, verifies the executable `MZ` header, archives both files, and uploads `a-slow-walk-windows.zip`.
+`.github/workflows/windows-export.yml` runs on `windows-2022` for pushes, pull requests, and manual dispatch. It downloads Godot `4.7.1-stable` and its matching Windows export template, imports project resources verbosely, runs `windows_long_run_stability_test.gd`, exports the `Windows Desktop` preset, requires an `.exe` and matching `.pck`, verifies the executable `MZ` header, archives both files, and uploads `a-slow-walk-windows.zip`.
 
 The workflow saves the absolute downloaded Godot executable path in the runner temporary directory and invokes that exact executable in every later step. It does not rely on a PATH mutation between PowerShell steps.
+
+Godot’s `.godot/` directory is local editor/import state and is excluded from source control. This is required for a portable clean import: cached editor metadata can contain platform-local build paths and cannot be reused across macOS and Windows runners. Script `.uid` files remain source metadata and are tracked.
 
 ## Verification
 

@@ -1,7 +1,6 @@
 .codex
 dist/
-.godot/exported/
-.godot/editor/*folding-*.cfg
+.godot/
 levels/_drafts/
 tools/level_mcp/.venv/
 tools/level_mcp/*.egg-info/

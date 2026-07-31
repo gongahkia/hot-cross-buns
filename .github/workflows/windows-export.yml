@@ -40,7 +40,7 @@ jobs:
         shell: pwsh
         run: |
           $godot = Get-Content -LiteralPath "$env:RUNNER_TEMP\godot-path.txt" -Raw
-          & $godot --headless --path . --import
+          & $godot --headless --path . --import --verbose
           if ($LASTEXITCODE -ne 0) { throw 'Godot project import failed.' }
       - name: Run Windows headless soak
         shell: pwsh
