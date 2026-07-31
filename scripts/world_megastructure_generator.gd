@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 12
+const DESCRIPTOR_SCHEMA_VERSION := 13
 const SPATIAL_LAYOUT_VERSION := 11
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
@@ -64,6 +64,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var epochs := _construction_epochs()
 	var ecology := _ecology(hydrology, construction_elements, epochs)
 	var survival_opportunities := _survival_opportunities(survival_detour, hydrology)
+	var historical_reveal := _historical_reveal_descriptor(route_prefix, construction_elements, center + axis * 32, axis)
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
 		"entry": {
@@ -86,7 +87,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 			"terrain_mode": "flat_enclosed_floor",
 			"unit": "world_unit",
 		},
-		"reveals": [reveal],
+		"reveals": [reveal, historical_reveal],
 		"routes": [baseline, shortcut, survival_detour],
 		"sectors": [{
 			"bounds": opening_bounds,
@@ -130,6 +131,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_ecology_constraints(descriptor).get("valid", false)), "generated megastructure ecology constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_survival_opportunities(descriptor).get("valid", false)), "generated megastructure survival opportunities are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_transformation_stages(descriptor).get("valid", false)), "generated megastructure transformation stages are invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_historical_reveal(descriptor).get("valid", false)), "generated megastructure historical reveal is invalid")
 	return descriptor
 
 func _route_validation_stage(stage_id: String, before: Dictionary, after: Dictionary) -> Dictionary:
@@ -237,6 +239,21 @@ func _reveal_descriptor(route_prefix: String, center: Vector3i, axis: Vector3i, 
 		"streaming_priority_bias": 1,
 		"type": "reveal",
 	}
+
+func _historical_reveal_descriptor(route_prefix: String, elements: Array, view_anchor: Vector3i, view_direction: Vector3i) -> Dictionary:
+	var element_ids: Array = []
+	var epoch_ids: Array = []
+	var points: Array = []
+	for element: Dictionary in elements:
+		var bounds: Dictionary = element.get("bounds", {})
+		var minimum: Array = bounds.get("min", [])
+		var maximum: Array = bounds.get("max", [])
+		element_ids.append(str(element.get("element_id", "")))
+		epoch_ids.append(int(element.get("epoch_id", 0)))
+		points.append(Vector3i(int(minimum[0]), int(minimum[1]), int(minimum[2])))
+		points.append(Vector3i(int(maximum[0]), int(maximum[1]), int(maximum[2])))
+	var composition_bounds := _bounds(points, 0, 0)
+	return {"background_bounds":composition_bounds.duplicate(true),"composition_bounds":composition_bounds,"focus_bounds":composition_bounds.duplicate(true),"foreground_bounds":composition_bounds.duplicate(true),"minimum_visibility_distance":128,"minimum_visible_epoch_count":epoch_ids.size(),"recommended_view_anchor":_point(view_anchor),"recommended_view_direction":_point(view_direction),"required_element_ids":element_ids,"required_epoch_ids":epoch_ids,"required_route_ids":[route_prefix + ":baseline"],"reveal_id":route_prefix + ":history_layers","reveal_type":"construction_history_cross_section","streaming_priority_bias":2,"type":"reveal"}
 
 func _baseline_route(route_prefix: String, start: Vector3i, post_threshold: Vector3i, finish: Vector3i) -> Dictionary:
 	return _route(route_prefix + ":baseline", "baseline", "walk", start, finish, [post_threshold], true, {})

@@ -15,6 +15,7 @@ const HYDROLOGY_CONSTRAINT_SCHEMA := "megastructure-hydrology-constraint-validat
 const ECOLOGY_CONSTRAINT_SCHEMA := "megastructure-ecology-constraint-validation/v1"
 const SURVIVAL_OPPORTUNITY_SCHEMA := "megastructure-survival-opportunity-validation/v1"
 const TRANSFORMATION_STAGE_SCHEMA := "megastructure-transformation-stage-validation/v1"
+const HISTORICAL_REVEAL_SCHEMA := "megastructure-historical-reveal-validation/v1"
 const TRANSFORMATION_STAGE_IDS := ["construction_epochs", "construction_elements", "constrained_damage", "infrastructure_hydrology", "ecological_reclamation", "utility_survival"]
 const TRANSFORMATION_STAGE_CHECKS := ["mandatory_route_preservation"]
 const GRAPPLE_ANCHOR_HEIGHT := 12
@@ -360,6 +361,32 @@ static func validate_survival_opportunities(descriptor: Dictionary) -> Dictionar
 		issues.append("survival_opportunity_missing")
 	return _survival_result(issues)
 
+static func validate_historical_reveal(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var historical: Array = []
+	var elements := {}
+	for reveal: Dictionary in descriptor.get("reveals", []):
+		if str(reveal.get("reveal_type", "")) == "construction_history_cross_section":
+			historical.append(reveal)
+	for element: Dictionary in descriptor.get("construction_elements", []):
+		elements[str(element.get("element_id", ""))] = element
+	if historical.size() != 1:
+		issues.append("historical_reveal_count_invalid")
+		return _historical_reveal_result(issues)
+	var reveal: Dictionary = historical[0]
+	var element_ids: Array = reveal.get("required_element_ids", [])
+	var epoch_ids: Array = reveal.get("required_epoch_ids", [])
+	var required_route_ids: Array = reveal.get("required_route_ids", [])
+	if str(reveal.get("type", "")) != "reveal" or str(reveal.get("reveal_id", "")).is_empty() or not _valid_bounds(reveal.get("composition_bounds", {})) or not _is_point(reveal.get("recommended_view_anchor", [])) or not _is_point(reveal.get("recommended_view_direction", [])) or required_route_ids != (descriptor.get("entry", {}) as Dictionary).get("required_route_ids", []) or element_ids.size() != 6 or epoch_ids.size() != 6 or int(reveal.get("minimum_visible_epoch_count", 0)) != epoch_ids.size():
+		issues.append("historical_reveal_contract_invalid")
+	for index in range(mini(element_ids.size(), epoch_ids.size())):
+		var element: Dictionary = elements.get(str(element_ids[index]), {})
+		if element.is_empty() or int(element.get("epoch_id", 0)) != int(epoch_ids[index]):
+			issues.append("historical_reveal_source_invalid")
+	if element_ids.duplicate() != ["primary_spine_core", "attached_habitation_east", "emergency_breach_channel", "autonomous_machine_clamp", "salvage_refuge_patch", "reclamation_root_lattice"] or epoch_ids.duplicate() != [1, 2, 3, 4, 5, 6]:
+		issues.append("historical_reveal_epoch_order_invalid")
+	return _historical_reveal_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -503,3 +530,6 @@ static func _transformation_stage_result(stage_id: String, issues: Array) -> Dic
 
 static func _transformation_stages_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":TRANSFORMATION_STAGE_SCHEMA,"valid":issues.is_empty()}
+
+static func _historical_reveal_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":HISTORICAL_REVEAL_SCHEMA,"valid":issues.is_empty()}
