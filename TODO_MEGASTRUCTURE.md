@@ -31,7 +31,7 @@ Goal: establish exact integration points without changing world appearance.
 - [x] M0.7 Copy approved `MEGA-*` invariants into `docs/design-pillars.md`.
 - [x] M0.8 Add a short architecture note showing the chosen file layout and why.
 - [x] M0.9 Add empty or minimal test entry points only where consistent with the repository.
-- [ ] M0.10 Re-run all baseline tests and commit the documentation/scaffolding.
+- [x] M0.10 Re-run all baseline tests and commit the documentation/scaffolding.
 
 Exit criteria:
 

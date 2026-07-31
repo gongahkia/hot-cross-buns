@@ -14,6 +14,10 @@ All required commands exited `0` before this audit's documentation changes:
 
 The first two print only the Godot banner. The soak also exits `0`; no test assertion failed. The known DummyShader RID diagnostic did not occur in this run.
 
+## Final validation
+
+The same three commands exited `0` again after all M0 documentation changes. The final smoke run emitted `1 RID allocations of type 'N13RendererDummy15MaterialStorage11DummyShaderE' were leaked at exit`; it is the documented non-failing diagnostic and all smoke assertions passed. The runtime-budget and traversal-soak commands printed only the Godot banner and completed without assertion failures.
+
 ## Existing descriptor and streaming boundaries
 
 `WorldGenerator` in `scripts/world_generator.gd` owns deterministic terrain/region sampling and returns a fresh data-only `Dictionary` from `chunk_descriptor(chunk_x, chunk_z)`. Its current descriptor is the integration point for chunk-local megastructure intersections, but not before Milestone 3.
