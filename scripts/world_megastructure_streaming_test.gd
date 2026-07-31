@@ -54,6 +54,16 @@ func _assert_runtime_interior_contract() -> void:
 	_expect(root_chunk != null and bool(root_chunk.get_meta("megastructure_interior", false)) and terrain != null and shell != null and collision != null and traversal != null and floor_is_flat, "streamed chunk did not attach the megastructure interior phases")
 	var guide := traversal.get_node_or_null("TraversalGuide") as MeshInstance3D if traversal else null
 	_expect(guide != null and shell.get_child_count() > 0 and collision.get_child_count() > 0 and is_equal_approx(streamer.ground_height(main.player.global_position), 24.0) and main.player.is_on_floor(), "runtime opening is not grounded inside the megastructure")
+	var history_reveal: Dictionary = (main.megastructure_descriptor.get("reveals", []) as Array)[1]
+	var history_anchor: Array = history_reveal.get("recommended_view_anchor", [])
+	main.player.movement_enabled = false
+	main.player.global_position = Vector3(float(history_anchor[0]), 25.55, float(history_anchor[2])) - Vector3(float(streamer.origin.origin_chunk.x) * 64.0, 0.0, float(streamer.origin.origin_chunk.y) * 64.0)
+	for _frame in range(120):
+		await physics_frame
+	var history_chunk: Vector2i = streamer.origin.chunk_at_local(main.player.global_position)
+	var history_root := streamer.chunks.get("%d:%d" % [history_chunk.x, history_chunk.y]) as Node3D
+	var history := history_root.get_node_or_null("MegastructureTraversal/MegastructureHistory") as Node3D if history_root else null
+	_expect(history != null and history.get_child_count() >= 5, "runtime history-view chunk did not render multiple epochs")
 	main.queue_free()
 	await process_frame
 

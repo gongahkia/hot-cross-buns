@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "b5b3154b4386e2357b18a19df12a9cb22ac793594102d780105853b85a8fc03c",
-	"-1:0:-3": "7bdb055459db9683478abd0ac1d947bfd142258a41bb1b5f3642047f6685cfa7",
-	"0:0:0": "882432e09c6b5cbe25ce51c34df272f22fc736b34ccf1e8f75c6cc54336cef36",
-	"4:0:-2": "145a5d7e06cbd49bcc73a61c7686cd89ec4c0d0c94ba82106c8eb7699db1ef50",
-	"7:0:5": "35168db970164a29484158b12f763bdf9dc7a61e53cb1b968413955ffc780ad8",
+	"-2:0:1": "0e2932163885acd9c105f611753a51b53cc4851c0ed2f5a59c9fed14211fc2f8",
+	"-1:0:-3": "fe1519f2b051556b45abc65ca947c4ad39afa6e01b472979243ec16377886c59",
+	"0:0:0": "65b05415fee6be35ab5fc32cf3c55c0e628fb93a086b09d0cf26bfd3e92bd006",
+	"4:0:-2": "15c4ee77cee7e78202177a8ea79fee1ae7eef4e378c9276611ddf93c84863ea4",
+	"7:0:5": "533c6586c9a521a0c94b6885a85d5c372ba008b6def4dae925bda64ed0668674",
 }
 var failed := false
 
@@ -47,7 +47,7 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	var routes: Array = descriptor.get("routes", [])
 	var reveals: Array = descriptor.get("reveals", [])
 	var interior: Dictionary = descriptor.get("interior", {})
-	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 12 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 13 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
 	_assert_epochs(descriptor.get("epochs", []))
 	_assert_construction_elements(descriptor.get("construction_elements", []))
 	_assert_damage(descriptor.get("damage", []))
