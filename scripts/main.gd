@@ -1719,15 +1719,24 @@ func _refresh_debug_hud() -> void:
 	var lightmap := course.get_node_or_null("BakedLightmap") as LightmapGI
 	var lightmap_state := "BAKED" if lightmap and lightmap.light_data else "BAKE REQUIRED"
 	var chunk_text := ""
+	var streaming_text := ""
 	if world_streamer:
 		chunk_text = "\nCHUNKS %d  REGION %s\n%s" % [world_streamer.chunks.size(), str(current_region.get("name", "Unknown")), WORLD_DIAGNOSTICS.summary(world_streamer.sample_at(player.global_position))]
+		var diagnostics: Dictionary = world_streamer.streaming_diagnostics()
+		var refresh: Dictionary = diagnostics.get("refresh", {})
+		var telemetry: Dictionary = diagnostics.get("telemetry", {})
+		var memory: Dictionary = diagnostics.get("memory", {})
+		var recent: Array = telemetry.get("recent_hitches", [])
+		var last: Dictionary = recent.back() as Dictionary if not recent.is_empty() else {}
+		var last_phases: Dictionary = last.get("phases", {})
+		streaming_text = "\nSTREAM %.1fms  MAX %.1fms  HITCH %d  LAST %.1fms\nBUILD A %.1f F %.1f D %.1f C %.1f  PEND %d\nLAST A %.1f F %.1f D %.1f C %.1f\nMEM %.1fMB  PAYLOAD %.1fMB" % [float(refresh.get("refresh_ms", 0.0)), float(telemetry.get("max_refresh_ms", 0.0)), int(telemetry.get("hitches", 0)), float(last.get("refresh_ms", 0.0)), float(refresh.get("active_chunk_build_ms", 0.0)), float(refresh.get("far_chunk_build_ms", 0.0)), float(refresh.get("feature_build_ms", 0.0)), float(refresh.get("collision_lod_ms", 0.0)), int(refresh.get("pending_features", 0)), float(last_phases.get("active_chunk_build_ms", 0.0)), float(last_phases.get("far_chunk_build_ms", 0.0)), float(last_phases.get("feature_build_ms", 0.0)), float(last_phases.get("collision_lod_ms", 0.0)), float(int(memory.get("static_memory_bytes", 0))) / 1048576.0, float(int(memory.get("minimum_payload_bytes", 0))) / 1048576.0]
 	var balance_text := ""
 	if bool(current_level.get("procedural", false)):
 		var balance: Dictionary = run_balance_telemetry.summary()
 		var action_total := 0
 		for count: int in (balance.actions as Dictionary).values(): action_total += count
 		balance_text = "\nBAL SPD %.2f  PRESS %.2f  STYLE %.2f  ACT %d" % [float(balance.minimum_speed_multiplier), float(balance.maximum_recovery_pressure), float(balance.average_style_movement_multiplier), action_total]
-	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, balance_text, last_sandbox_event]
+	debug_label.text = "DEBUG  F3 TO HIDE\nFPS %d  FRAME %.2fms  PHYS %dHz\nPOS %s  VEL %s  SPD %.2f\nSTATE %s\nDASH %s  DOUBLE %s  GRAPPLE %s\nANCHOR %s\nMOM %.1f/%.1f  WALL %.2fs\nSTATION %s  LIGHTMAP %s\nPHYS ACTIVE %d  PAIRS %d  ISLANDS %d\nNODES %d  TRIGGERS %d  RAMPS %d  GAPS %d\nREFILLS %d%s%s%s\nEVENT %s" % [Engine.get_frames_per_second(), frame_time * 1000.0, Engine.physics_ticks_per_second, _vector_text(player.global_position), _vector_text(player.velocity), planar_speed, " / ".join(flags), "READY" if player.can_dash else "USED", "READY" if player.can_double_jump else "USED", "ON" if player.is_grappling else "OFF", anchor_text, planar_speed, SpeedPlayer.AIR_SOFT_SPEED_CAP, player.wall_run_timer, current_station, lightmap_state, active_objects, collision_pairs, islands, get_tree().get_node_count(), trigger_count, traversal_ramp_count, combo_gap_count, recharge_gate_count, chunk_text, streaming_text, balance_text, last_sandbox_event]
 
 func _vector_text(value: Vector3) -> String:
 	return "(%.1f, %.1f, %.1f)" % [value.x, value.y, value.z]

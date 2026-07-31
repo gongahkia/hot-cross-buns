@@ -30,6 +30,8 @@ const CHUNK_MEMORY_TELEMETRY := preload("res://scripts/world_chunk_memory_teleme
 const GRID := 16
 const ACTIVE_RADIUS := 2
 const FAR_CHUNKS_PER_FRAME := 2
+const FEATURE_BUILD_RADIUS := 1.5
+const FEATURE_CHUNKS_PER_FRAME := 1
 
 var generator
 var player: SpeedPlayer
@@ -45,6 +47,9 @@ var active_ids: Dictionary = {}
 var landmarks=LANDMARKS.new()
 var streaming_telemetry=STREAMING_TELEMETRY.new()
 var shelters: Array[Node3D] = []
+var material_cache: Dictionary = {}
+var refresh_metrics: Dictionary = {}
+var last_refresh_metrics: Dictionary = {}
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -53,13 +58,13 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	chunk_cache = CHUNK_CACHE.new(128)
 	player = next_player
 	shelters.clear()
+	material_cache.clear()
 	name = "ExpeditionWorld"
 	refresh(true)
 
 func _process(_delta: float) -> void:
-	var started:=Time.get_ticks_usec()
 	refresh(false)
-	var hitch:=streaming_telemetry.record_refresh(float(Time.get_ticks_usec()-started)/1000.0,_streaming_context())
+	var hitch:=streaming_telemetry.record_refresh(float(last_refresh_metrics.get("refresh_ms",0.0)),_streaming_context())
 	if not hitch.is_empty():streaming_hitch.emit(hitch)
 
 func _exit_tree() -> void:
@@ -67,7 +72,9 @@ func _exit_tree() -> void:
 
 func refresh(force: bool) -> void:
 	if generator == null or player == null: return
-	_attach_completed(scheduler.wait_for_all() if force else scheduler.poll())
+	var started:=Time.get_ticks_usec()
+	refresh_metrics={"active_chunk_build_ms":0.0,"far_chunk_build_ms":0.0,"feature_build_ms":0.0,"collision_lod_ms":0.0,"active_chunks_built":0,"far_chunks_built":0,"feature_chunks_built":0}
+	_attach_completed(scheduler.wait_for_all() if force else scheduler.poll(),force)
 	var rebase: Vector3 = origin.rebase_delta(player.global_position)
 	if rebase != Vector3.ZERO:
 		player.global_position += rebase
@@ -76,7 +83,9 @@ func refresh(force: bool) -> void:
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
 		_update_far_terrain()
+		_build_pending_features()
 		_update_region()
+		_finish_refresh_metrics(started)
 		return
 	current_center = center
 	var wanted: Dictionary = {}
@@ -87,11 +96,11 @@ func refresh(force: bool) -> void:
 			if not chunks.has(id) and not pending_chunks.has(id):
 				if chunk_cache and not chunk_cache.fetch(id).is_empty():
 					_remove_far_chunk(id)
-					chunks[id]=_build_chunk(x,z)
+					chunks[id]=_build_chunk(x,z,force)
 				else: pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
 	active_ids=wanted.duplicate()
 	if force:
-		_attach_completed(scheduler.wait_for_all())
+		_attach_completed(scheduler.wait_for_all(),true)
 	var preload_targets:=PRELOAD_CORRIDOR.targets(center,_preload_heading())
 	for id in preload_targets.keys():
 		if chunks.has(id) or pending_chunks.has(id) or (chunk_cache and not chunk_cache.fetch(id).is_empty()):continue
@@ -104,12 +113,16 @@ func refresh(force: bool) -> void:
 			var stale: Node = chunks[id]
 			chunks.erase(id)
 			stale.queue_free()
+	var collision_started:=Time.get_ticks_usec()
 	_update_collision_lods()
+	refresh_metrics["collision_lod_ms"]=float(Time.get_ticks_usec()-collision_started)/1000.0
 	_update_far_terrain(force)
+	_build_pending_features(force)
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y],"memory":chunk_memory_snapshot()})
+	_finish_refresh_metrics(started)
 
-func _attach_completed(results: Array) -> void:
+func _attach_completed(results: Array, build_features:=false) -> void:
 	for result: Dictionary in results:
 		var key: Dictionary = result.get("key", {})
 		var id := _chunk_id(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
@@ -119,7 +132,7 @@ func _attach_completed(results: Array) -> void:
 			chunk_cache.put(id,result.get("descriptor",{}))
 			if active_ids.has(id):
 				_remove_far_chunk(id)
-				chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)))
+				chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)),build_features)
 
 func _remove_far_chunk(id:String)->void:
 	if not far_chunks.has(id):return
@@ -129,7 +142,17 @@ func _remove_far_chunk(id:String)->void:
 
 func _streaming_context()->Dictionary:
 	var memory:=chunk_memory_snapshot()
-	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size(),"minimum_payload_bytes":memory.minimum_payload_bytes,"static_memory_bytes":memory.static_memory_bytes}
+	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size(),"minimum_payload_bytes":memory.minimum_payload_bytes,"static_memory_bytes":memory.static_memory_bytes,"phases":last_refresh_metrics.duplicate(true)}
+
+func streaming_diagnostics()->Dictionary:
+	return {"refresh":last_refresh_metrics.duplicate(true),"telemetry":streaming_telemetry.summary(),"memory":chunk_memory_snapshot()}
+
+func _finish_refresh_metrics(started:int)->void:
+	refresh_metrics["refresh_ms"]=float(Time.get_ticks_usec()-started)/1000.0
+	refresh_metrics["pending_features"]=0
+	for root:Node3D in chunks.values():
+		if not bool(root.get_meta("features_ready",false)):refresh_metrics["pending_features"]=int(refresh_metrics.pending_features)+1
+	last_refresh_metrics=refresh_metrics.duplicate(true)
 
 func chunk_memory_snapshot()->Dictionary:
 	var render_grids:Array=[];var collision_grids:Array=[]
@@ -274,7 +297,8 @@ func _update_region() -> void:
 	current_region_id = str(region.id)
 	region_changed.emit(region)
 
-func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
+func _build_chunk(chunk_x: int, chunk_z: int, build_features:=false) -> Node3D:
+	var started:=Time.get_ticks_usec()
 	var descriptor: Dictionary = chunk_cache.fetch(_chunk_id(chunk_x,chunk_z)) if chunk_cache else {}
 	if descriptor.is_empty(): descriptor=generator.chunk_descriptor(chunk_x, chunk_z)
 	var root := Node3D.new()
@@ -296,8 +320,32 @@ func _build_chunk(chunk_x: int, chunk_z: int) -> Node3D:
 	terrain.add_child(visual)
 	terrain.add_child(_collision_shape(chunk_x,chunk_z,collision_grid))
 	root.add_child(terrain)
-	_add_features(root, chunk_x, chunk_z, descriptor)
+	root.set_meta("features_ready",build_features)
+	if build_features:_add_features(root, chunk_x, chunk_z, descriptor)
+	refresh_metrics["active_chunk_build_ms"]=float(refresh_metrics.active_chunk_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
+	refresh_metrics["active_chunks_built"]=int(refresh_metrics.active_chunks_built)+1
 	return root
+
+func _build_pending_features(build_all:=false)->void:
+	var candidates:Array=[]
+	for root:Node3D in chunks.values():
+		if bool(root.get_meta("features_ready",false)):continue
+		var distance:=Vector2(float(int(root.get_meta("chunk_x",0))-current_center.x),float(int(root.get_meta("chunk_z",0))-current_center.y)).length()
+		if build_all or distance<=FEATURE_BUILD_RADIUS:candidates.append({"root":root,"distance":distance})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+	var built:=0
+	for candidate:Dictionary in candidates:
+		if not build_all and built>=FEATURE_CHUNKS_PER_FRAME:break
+		var root:=candidate.root as Node3D
+		if root==null or not is_instance_valid(root):continue
+		var descriptor:=root.get_meta("descriptor",{}) as Dictionary
+		if descriptor.is_empty():continue
+		var started:=Time.get_ticks_usec()
+		_add_features(root,int(root.get_meta("chunk_x",0)),int(root.get_meta("chunk_z",0)),descriptor)
+		root.set_meta("features_ready",true)
+		refresh_metrics["feature_build_ms"]=float(refresh_metrics.feature_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
+		refresh_metrics["feature_chunks_built"]=int(refresh_metrics.feature_chunks_built)+1
+		built+=1
 
 func _update_collision_lods()->void:
 	for root:Node3D in chunks.values():
@@ -329,10 +377,13 @@ func _update_far_terrain(build_all:=false)->void:
 		built+=1
 
 func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
+	var started:=Time.get_ticks_usec()
 	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()
 	root.name="FarChunk_%d_%d"%[chunk_x,chunk_z];root.position=origin.local_chunk_position(Vector2i(chunk_x,chunk_z));root.set_meta("impostor",true);root.set_meta("render_grid",FAR_TERRAIN.GRID)
 	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,str(descriptor.biome),str(descriptor.region.family),FAR_TERRAIN.GRID);visual.material_override=_silhouette_material(str(descriptor.biome),str(descriptor.region.family))
 	root.add_child(visual);add_child(root)
+	refresh_metrics["far_chunk_build_ms"]=float(refresh_metrics.far_chunk_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
+	refresh_metrics["far_chunks_built"]=int(refresh_metrics.far_chunks_built)+1
 	return root
 
 func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, grid: int = GRID) -> ArrayMesh:
@@ -725,22 +776,25 @@ func _add_cylinder(root:Node3D,position:Vector3,radius:float,height:float,color:
 	var collision:=CollisionShape3D.new();var shape:=CylinderShape3D.new();shape.radius=radius;shape.height=height;collision.shape=shape;body.add_child(collision);root.add_child(body)
 
 func _terrain_material(biome: String, family: String) -> StandardMaterial3D:
-	var material := _material(REGION_PRESENTATION.palette(biome,family).terrain)
+	var material := _material(REGION_PRESENTATION.palette(biome,family).terrain).duplicate() as StandardMaterial3D
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
 func _silhouette_material(biome: String, family: String) -> StandardMaterial3D:
-	var material := _material(REGION_PRESENTATION.palette(biome,family).silhouette)
+	var material := _material(REGION_PRESENTATION.palette(biome,family).silhouette).duplicate() as StandardMaterial3D
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
 
 func _material(color: Color, emissive := false) -> StandardMaterial3D:
+	var key:=color.to_html(true)+":"+str(emissive)
+	if material_cache.has(key):return material_cache[key] as StandardMaterial3D
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = 0.9
 	if emissive:
 		material.emission_enabled = true
 		material.emission = color
+	material_cache[key]=material
 	return material
 
 func _chunk_id(x: int, z: int) -> String:
