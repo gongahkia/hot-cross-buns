@@ -37,3 +37,10 @@ Every route marked `recovery_required` must provide an explicit volume around it
 ## Post-damage preservation contract
 
 `validate_route_preservation(before, after)` compares a descriptor with its transformed result. It requires every mandatory route ID, movement mode, anchors, and waypoints to remain unchanged; then reruns baseline, recovery, and visibility validation on the result. M6 damage, hydrology, and ecology transforms must run this pure check before publishing a descriptor. A future validated replacement-route policy must extend this contract explicitly rather than silently changing a mandatory path.
+
+## Verification
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/world_megastructure_route_validator_test.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/world_megastructure_cross_chunk_route_test.gd
+```
