@@ -88,12 +88,13 @@ func refresh(force: bool) -> void:
 		for root: Node3D in far_chunks.values(): root.global_position += rebase
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
-		_build_pending_chunks()
+		var active_built:=_build_pending_chunks()
 		var collision_started:=Time.get_ticks_usec()
-		_update_collision_lods()
+		_update_collision_lods(false,active_built==0)
 		refresh_metrics["collision_lod_ms"]=float(Time.get_ticks_usec()-collision_started)/1000.0
-		_update_far_terrain()
-		_build_pending_features()
+		var background_builds_allowed:=active_built==0 and int(refresh_metrics.collision_lods_built)==0
+		_update_far_terrain(false,background_builds_allowed)
+		_build_pending_features(false,background_builds_allowed)
 		_update_region()
 		_finish_refresh_metrics(started)
 		return
@@ -124,12 +125,13 @@ func refresh(force: bool) -> void:
 			var stale: Node = chunks[id]
 			chunks.erase(id)
 			stale.queue_free()
-	_build_pending_chunks(force)
+	var active_built:=_build_pending_chunks(force)
 	var collision_started:=Time.get_ticks_usec()
-	_update_collision_lods(force)
+	_update_collision_lods(force,force or active_built==0)
 	refresh_metrics["collision_lod_ms"]=float(Time.get_ticks_usec()-collision_started)/1000.0
-	_update_far_terrain(force)
-	_build_pending_features(force)
+	var background_builds_allowed:=force or (active_built==0 and int(refresh_metrics.collision_lods_built)==0)
+	_update_far_terrain(force,background_builds_allowed)
+	_build_pending_features(force,background_builds_allowed)
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y],"memory":chunk_memory_snapshot()})
 	_finish_refresh_metrics(started)
@@ -144,7 +146,7 @@ func _attach_completed(results: Array, build_features:=false) -> void:
 			chunk_cache.put(id,result.get("descriptor",{}))
 			if active_ids.has(id):queued_active_chunks[id]=Vector2i(int(key.get("chunk_x",0)),int(key.get("chunk_z",0)))
 
-func _build_pending_chunks(build_all:=false)->void:
+func _build_pending_chunks(build_all:=false)->int:
 	var candidates:Array=[]
 	for id:String in queued_active_chunks.keys():
 		if not active_ids.has(id) or chunks.has(id):
@@ -163,6 +165,7 @@ func _build_pending_chunks(build_all:=false)->void:
 		_remove_far_chunk(id)
 		chunks[id]=_build_chunk(chunk.x,chunk.y,build_all)
 		built+=1
+	return built
 
 func _remove_far_chunk(id:String)->void:
 	if not far_chunks.has(id):return
@@ -358,7 +361,8 @@ func _build_chunk(chunk_x: int, chunk_z: int, build_features:=false) -> Node3D:
 	refresh_metrics["active_chunks_built"]=int(refresh_metrics.active_chunks_built)+1
 	return root
 
-func _build_pending_features(build_all:=false)->void:
+func _build_pending_features(build_all:=false,allow_build:=true)->void:
+	if not build_all and not allow_build:return
 	var candidates:Array=[]
 	for root:Node3D in chunks.values():
 		if bool(root.get_meta("features_ready",false)):continue
@@ -379,7 +383,7 @@ func _build_pending_features(build_all:=false)->void:
 		refresh_metrics["feature_chunks_built"]=int(refresh_metrics.feature_chunks_built)+1
 		built+=1
 
-func _update_collision_lods(build_all:=false)->void:
+func _update_collision_lods(build_all:=false,allow_build:=true)->void:
 	for id in pending_collision_lods.keys():
 		if not chunks.has(id):pending_collision_lods.erase(id)
 	for id:String in chunks.keys():
@@ -389,6 +393,7 @@ func _update_collision_lods(build_all:=false)->void:
 			pending_collision_lods.erase(id)
 			continue
 		pending_collision_lods[id]=grid
+	if not build_all and not allow_build:return
 	var candidates:Array=[]
 	for id:String in pending_collision_lods.keys():
 		var root:=chunks.get(id) as Node3D
@@ -419,13 +424,14 @@ func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
 	var step:=GENERATOR.CHUNK_SIZE/float(grid);collision.position=Vector3(GENERATOR.CHUNK_SIZE*.5,0.0,GENERATOR.CHUNK_SIZE*.5);collision.scale=Vector3(step,step,step)
 	return collision
 
-func _update_far_terrain(build_all:=false)->void:
+func _update_far_terrain(build_all:=false,allow_build:=true)->void:
 	var wanted:=FAR_TERRAIN.targets(current_center,ACTIVE_RADIUS)
 	for id in far_chunks.keys():
 		if not wanted.has(id) or chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)):
 			var stale:Node=far_chunks[id]
 			far_chunks.erase(id)
 			stale.queue_free()
+	if not build_all and not allow_build:return
 	var built:=0
 	for id in wanted.keys():
 		if chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)) or far_chunks.has(id):continue
