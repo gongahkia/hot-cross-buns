@@ -4,6 +4,7 @@ extends Node3D
 signal region_changed(region: Dictionary)
 signal chunk_stats_changed(stats: Dictionary)
 signal streaming_hitch(sample:Dictionary)
+signal origin_rebased(delta: Vector3)
 
 const GENERATOR := preload("res://scripts/world_generator.gd")
 const RNG := preload("res://scripts/world_rng.gd")
@@ -86,6 +87,7 @@ func refresh(force: bool) -> void:
 		player.global_position += rebase
 		for root: Node3D in chunks.values(): root.global_position += rebase
 		for root: Node3D in far_chunks.values(): root.global_position += rebase
+		origin_rebased.emit(rebase)
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
 		var active_built:=_build_pending_chunks()

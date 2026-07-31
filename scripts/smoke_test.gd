@@ -40,6 +40,11 @@ func _initialize() -> void:
 	main.start_level("expedition")
 	await process_frame
 	assert(main.world_streamer != null, "expedition world streamer missing")
+	assert(not main.megastructure_descriptor.is_empty() and main.megastructure_prototype != null, "expedition megastructure prototype missing")
+	var entry: Dictionary = main.megastructure_descriptor.entry
+	var approach: Array = entry.approach_anchor
+	var canonical_position: Vector3 = main.world_streamer.origin.world_position(main.player.global_position)
+	assert(is_equal_approx(canonical_position.x, float(approach[0])) and is_equal_approx(canonical_position.z, float(approach[2])), "expedition player did not begin at the megastructure approach")
 	assert(main.world_streamer.chunks.size() == 25, "expedition chunk radius missing")
 	assert(main.world_streamer.far_chunks.size() == 96, "far terrain impostor radius missing")
 	var far_chunk: Node3D = main.world_streamer.far_chunks.values()[0]
@@ -55,10 +60,17 @@ func _initialize() -> void:
 	main.debug_visible = false
 	var preload_targets:Dictionary=PRELOAD_CORRIDOR.targets(main.world_streamer.current_center,main.world_streamer._preload_heading())
 	assert(not preload_targets.is_empty() and not main.world_streamer.chunk_cache.fetch(str(preload_targets.keys()[0])).is_empty(), "biome and region preload corridor did not cache a descriptor")
-	var resting_ground: float = main.world_streamer.ground_height(main.player.global_position)
+	var opening_route := main.megastructure_prototype.get_node_or_null("OpeningRoute") as StaticBody3D
 	assert(main.player.is_on_floor(), "expedition player did not settle on terrain")
 	assert(not main.player.is_on_wall(), "expedition terrain trapped the player against a wall")
-	assert(absf(main.player.global_position.y - resting_ground) < 0.06, "expedition player settled inside terrain")
+	assert(opening_route != null and absf(main.player.global_position.y - (opening_route.global_position.y + 0.35)) < 0.06, "expedition player settled inside the opening route")
+	var f4 := InputEventKey.new()
+	f4.physical_keycode = KEY_F4
+	f4.pressed = true
+	main._input(f4)
+	assert(main.megastructure_debug_visible and (main.megastructure_prototype.get_node("MegastructureDebug") as Node3D).visible, "F4 did not show megastructure debug geometry")
+	main._input(f4)
+	assert(not main.megastructure_debug_visible and not (main.megastructure_prototype.get_node("MegastructureDebug") as Node3D).visible, "F4 did not hide megastructure debug geometry")
 	var resting_style: Dictionary = runs.call("style_snapshot")
 	assert(int(resting_style.get("active", -1)) == 0, "idle terrain generated style actions")
 	var forward_events := InputMap.action_get_events("move_forward")

@@ -66,16 +66,16 @@ Exit criteria:
 
 Goal: make the first structure understandable in a controlled test scene or fixed seed.
 
-- [ ] M2.1 Add debug visualization for structure bounds, sectors, routes, entry threshold, and reveal focus.
-- [ ] M2.2 Compile coarse structure masses for the first archetype.
-- [ ] M2.3 Place the player outside or at a liminal approach.
-- [ ] M2.4 Make the player cross the generated threshold through normal movement.
-- [ ] M2.5 Create the compressed opening route.
-- [ ] M2.6 Create the first internal scale reveal.
-- [ ] M2.7 Ensure the reveal includes a readable foreground route and distant structure continuation.
-- [ ] M2.8 Add a temporary deterministic signature sector or landmark.
-- [ ] M2.9 Validate the sequence manually through `./script/build_and_run.sh`.
-- [ ] M2.10 Re-run headless tests and commit.
+- [x] M2.1 Add debug visualization for structure bounds, sectors, routes, entry threshold, and reveal focus.
+- [x] M2.2 Compile coarse structure masses for the first archetype.
+- [x] M2.3 Place the player outside or at a liminal approach.
+- [x] M2.4 Make the player cross the generated threshold through normal movement.
+- [x] M2.5 Create the compressed opening route.
+- [x] M2.6 Create the first internal scale reveal.
+- [x] M2.7 Ensure the reveal includes a readable foreground route and distant structure continuation.
+- [x] M2.8 Add a temporary deterministic signature sector or landmark.
+- [x] M2.9 Validate the sequence manually through `./script/build_and_run.sh`.
+- [x] M2.10 Re-run headless tests and commit.
 
 Exit criteria:
 
