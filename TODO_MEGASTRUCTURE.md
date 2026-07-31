@@ -118,7 +118,7 @@ Goal: stream the structure without regressing frame pacing.
 - [x] M4.8 Add phase timings to F3 diagnostics.
 - [x] M4.9 Add phase timings to JSON profile export without silently breaking its schema.
 - [x] M4.10 Extend the streaming-budget test with entry and first-reveal cases.
-- [ ] M4.11 Run a fresh L-profile traversal and inspect all hitches.
+- [x] M4.11 Run a fresh L-profile traversal and inspect all hitches.
 - [ ] M4.12 Commit only after no unexplained regression.
 
 Exit criteria:

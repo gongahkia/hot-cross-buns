@@ -23,3 +23,7 @@ Shell walls are emitted only on faces without a structural continuation port or 
 ```
 
 The test checks direct compilation against the worker payload shape, all four phase arrays, enclosure elevations, JSON serialization, and fresh-descriptor isolation.
+
+## M4 traversal profile
+
+On 2026-07-31, a fresh local `streaming-profile/v1` was recorded while moving from local position `x=48.0` to `x=-319.4` through the entry enclosure. It contains 49 samples over 49.943 seconds: average FPS `115.04`, minimum FPS `95`, zero streaming hitches, and cumulative maximum streaming refresh `18.784 ms` against the `22 ms` hitch threshold. Its maximum full-frame sample was `30.554 ms`; the profile does not attribute full-frame time outside streaming refresh. The profile's one-second samples recorded no megastructure phase build because those phase frames did not coincide with a sample.
