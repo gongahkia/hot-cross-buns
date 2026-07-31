@@ -704,8 +704,48 @@ func _add_megastructure_traversal_details(root: Node3D, descriptor: Dictionary) 
 			var anchor: Array = record.get("grapple_anchor", [])
 			var anchor_position := _megastructure_local_point(root, _megastructure_point(anchor)) if anchor.size() == 3 else (start + finish) * 0.5 + Vector3(0.0, MEGASTRUCTURE_ROUTE_VALIDATOR.GRAPPLE_ANCHOR_HEIGHT, 0.0)
 			_add_megastructure_grapple_anchor(host, anchor_position)
+	_add_megastructure_history_layers(host, root, descriptor.get("megastructure_lod", {}) as Dictionary)
 	_add_megastructure_debug(host, root, descriptor)
 	root.add_child(host)
+
+func _add_megastructure_history_layers(host: Node3D, root: Node3D, lod: Dictionary) -> void:
+	var history := Node3D.new()
+	history.name = "MegastructureHistory"
+	for record: Dictionary in lod.get("historical_layers", []):
+		var bounds: Dictionary = record.get("bounds", {})
+		var minimum := _megastructure_point(bounds.get("min", []))
+		var maximum := _megastructure_point(bounds.get("max", []))
+		if maximum.x <= minimum.x or maximum.y <= minimum.y or maximum.z <= minimum.z:
+			continue
+		var epoch_id := int(record.get("epoch_id", 0))
+		var visual := MeshInstance3D.new()
+		visual.name = "Epoch_%d_%s" % [epoch_id, str(record.get("element_id", ""))]
+		visual.position = _megastructure_local_point(root, (minimum + maximum) * 0.5)
+		var mesh := BoxMesh.new()
+		mesh.size = maximum - minimum
+		visual.mesh = mesh
+		visual.material_override = _megastructure_history_material(epoch_id)
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		history.add_child(visual)
+	if history.get_child_count() > 0:
+		host.add_child(history)
+	else:
+		history.queue_free()
+
+func _megastructure_history_material(epoch_id: int) -> StandardMaterial3D:
+	var color := Color("#92a0a0")
+	match epoch_id:
+		2: color = Color("#d8a65a")
+		3: color = Color("#c56b5d")
+		4: color = Color("#69b9c7")
+		5: color = Color("#d3c86b")
+		6: color = Color("#76ad74")
+	var material := _material(color, true).duplicate() as StandardMaterial3D
+	material.albedo_color = Color(color.r, color.g, color.b, 0.45)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return material
 
 func _add_megastructure_grapple_anchor(host: Node3D, position: Vector3) -> void:
 	var anchor := Node3D.new()

@@ -1,10 +1,10 @@
 class_name WorldMegastructureLod
 extends RefCounted
 
-const SCHEMA := "megastructure-lod/v1"
+const SCHEMA := "megastructure-lod/v2"
 
 static func compile(megastructure: Dictionary) -> Dictionary:
-	var result := {"active_collisions": [], "macro_silhouettes": [], "schema": SCHEMA, "sector_shells": [], "traversal_details": []}
+	var result := {"active_collisions": [], "historical_layers": [], "macro_silhouettes": [], "schema": SCHEMA, "sector_shells": [], "traversal_details": []}
 	for intersection: Dictionary in megastructure.get("intersections", []):
 		var macro: Dictionary = intersection.get("macro", {})
 		var interior: Dictionary = intersection.get("interior", {})
@@ -27,7 +27,14 @@ static func compile(megastructure: Dictionary) -> Dictionary:
 			record["id"] = structure_id + ":" + str(record.get("id", ""))
 			record["structure_id"] = structure_id
 			(result.traversal_details as Array).append(record)
-	for field: String in ["active_collisions", "macro_silhouettes", "sector_shells", "traversal_details"]:
+		for reveal: Dictionary in intersection.get("historical_reveals", []):
+			for layer: Dictionary in reveal.get("layers", []):
+				var historical := layer.duplicate(true)
+				historical["id"] = structure_id + ":history:" + str(reveal.get("reveal_id", "")) + ":" + str(historical.get("element_id", ""))
+				historical["reveal_id"] = str(reveal.get("reveal_id", ""))
+				historical["structure_id"] = structure_id
+				(result.historical_layers as Array).append(historical)
+	for field: String in ["active_collisions", "historical_layers", "macro_silhouettes", "sector_shells", "traversal_details"]:
 		(result[field] as Array).sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left.get("id", "")) < str(right.get("id", "")))
 	return result
 

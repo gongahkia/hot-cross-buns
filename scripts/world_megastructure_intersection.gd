@@ -3,7 +3,7 @@ extends RefCounted
 
 const HASH := preload("res://scripts/world_megastructure_hash.gd")
 
-const SCHEMA := "megastructure-intersection/v1"
+const SCHEMA := "megastructure-intersection/v2"
 const CHUNK_SIZE := 64
 const POINT_SCALE := 1024
 
@@ -11,6 +11,7 @@ static func compile(descriptor: Dictionary, chunk: Vector2i) -> Dictionary:
 	var macro_bounds := _macro_bounds(descriptor)
 	var result := {
 		"chunk": _chunk_point(chunk),
+		"historical_reveals": [],
 		"interior": (descriptor.get("interior", {}) as Dictionary).duplicate(true),
 		"macro": _clip_to_chunk(macro_bounds, chunk),
 		"schema": SCHEMA,
@@ -24,11 +25,40 @@ static func compile(descriptor: Dictionary, chunk: Vector2i) -> Dictionary:
 		var clipped := _clip_to_chunk(sector.get("bounds", {}), chunk)
 		if not clipped.is_empty():
 			(result.sectors as Array).append({"bounds": clipped, "sector_id": str(sector.get("sector_id", ""))})
+	result.historical_reveals = _historical_reveals(descriptor, chunk)
 	if not (result.macro as Dictionary).is_empty():
 		result.structural_ports = _structural_ports(descriptor, macro_bounds, chunk)
 	result.traversal_segments = _traversal_segments(descriptor, chunk)
 	result.traversal_ports = _traversal_ports(descriptor, chunk)
 	return result
+
+static func _historical_reveals(descriptor: Dictionary, chunk: Vector2i) -> Array:
+	var elements := {}
+	var epochs := {}
+	var records: Array = []
+	for element: Dictionary in descriptor.get("construction_elements", []):
+		elements[str(element.get("element_id", ""))] = element
+	for epoch: Dictionary in descriptor.get("epochs", []):
+		epochs[int(epoch.get("epoch_id", 0))] = epoch
+	for reveal: Dictionary in descriptor.get("reveals", []):
+		if str(reveal.get("reveal_type", "")) != "construction_history_cross_section":
+			continue
+		var composition := _clip_to_chunk(reveal.get("composition_bounds", {}), chunk)
+		if composition.is_empty():
+			continue
+		var layers: Array = []
+		for element_id_value: Variant in reveal.get("required_element_ids", []):
+			var element: Dictionary = elements.get(str(element_id_value), {})
+			var bounds := _clip_to_chunk(element.get("bounds", {}), chunk)
+			if bounds.is_empty():
+				continue
+			var epoch: Dictionary = epochs.get(int(element.get("epoch_id", 0)), {})
+			layers.append({"bounds":bounds,"element_id":str(element.get("element_id", "")),"epoch_id":int(element.get("epoch_id", 0)),"material_family":str(epoch.get("material_family", ""))})
+		if layers.is_empty():
+			continue
+		records.append({"bounds":composition,"layers":layers,"minimum_visible_epoch_count":int(reveal.get("minimum_visible_epoch_count", 0)),"reveal_id":str(reveal.get("reveal_id", "")),"required_epoch_ids":(reveal.get("required_epoch_ids", []) as Array).duplicate(true)})
+	records.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left.get("reveal_id", "")) < str(right.get("reveal_id", "")))
+	return records
 
 static func canonical_boundary_key(descriptor: Dictionary, first: Vector2i, second: Vector2i, layer: String) -> String:
 	if abs(first.x - second.x) + abs(first.y - second.y) != 1 or layer.is_empty():
