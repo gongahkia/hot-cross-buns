@@ -48,8 +48,6 @@ func _assert_z_seam(generator: WorldGenerator, north_z: int, south_z: int, north
 func _assert_loaded_physics_seam(main: Node3D) -> void:
 	var state := main.get_world_3d().direct_space_state
 	var excluded := [main.player.get_rid()]
-	for body: StaticBody3D in main.megastructure_prototype.find_children("*", "StaticBody3D", true, false):
-		excluded.append(body.get_rid())
 	for position in [Vector3(0.0,0.0,-32.0),Vector3(0.0,0.0,32.0),Vector3(-32.0,0.0,0.0),Vector3(32.0,0.0,0.0)]:
 		var expected: float = main.world_streamer.ground_height(position)
 		var query := PhysicsRayQueryParameters3D.create(position + Vector3.UP * (expected + 12.0), position + Vector3.UP * (expected - 12.0))

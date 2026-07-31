@@ -45,13 +45,15 @@ func _assert_runtime_interior_contract() -> void:
 	var visual := terrain.get_child(0) as MeshInstance3D if terrain and terrain.get_child_count() > 0 else null
 	var mesh := visual.mesh as ArrayMesh if visual else null
 	var vertices: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] if mesh else PackedVector3Array()
+	var shell := root_chunk.get_node_or_null("MegastructureShell") as Node3D if root_chunk else null
+	var collision := root_chunk.get_node_or_null("MegastructureCollision") as StaticBody3D if root_chunk else null
+	var traversal := root_chunk.get_node_or_null("MegastructureTraversal") as Node3D if root_chunk else null
 	var floor_is_flat := not vertices.is_empty()
 	for vertex: Vector3 in vertices:
 		floor_is_flat = floor_is_flat and is_equal_approx(vertex.y, 24.0)
-	_expect(root_chunk != null and bool(root_chunk.get_meta("megastructure_interior", false)) and root_chunk.get_child_count() == 1 and floor_is_flat, "streamed chunk still generated terrain below the megastructure interior")
-	var route := main.megastructure_prototype.get_node_or_null("OpeningRoute") as StaticBody3D
-	var deck := main.megastructure_prototype.get_node_or_null("TransitDeck") as Node3D
-	_expect(route != null and deck != null and is_equal_approx(route.global_position.y, 24.0) and deck.global_position.y > route.global_position.y and is_equal_approx(streamer.ground_height(main.player.global_position), 24.0) and main.player.is_on_floor(), "runtime opening is not grounded inside the megastructure")
+	_expect(root_chunk != null and bool(root_chunk.get_meta("megastructure_interior", false)) and terrain != null and shell != null and collision != null and traversal != null and floor_is_flat, "streamed chunk did not attach the megastructure interior phases")
+	var guide := traversal.get_node_or_null("TraversalGuide") as MeshInstance3D if traversal else null
+	_expect(guide != null and shell.get_child_count() > 0 and collision.get_child_count() > 0 and is_equal_approx(streamer.ground_height(main.player.global_position), 24.0) and main.player.is_on_floor(), "runtime opening is not grounded inside the megastructure")
 	main.queue_free()
 	await process_frame
 

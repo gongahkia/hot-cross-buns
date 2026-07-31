@@ -30,10 +30,10 @@ The same three commands exited `0` again after all M0 documentation changes. The
 | --- | --- | --- |
 | `WorldGenerator.chunk_descriptor` | bounded pure `megastructure` intersection field | coordinate-derived; no loaded-neighbor or cache dependency |
 | `WorldChunkScheduler._generate` | carries the enlarged pure descriptor unchanged | one worker; cancellation/token handoff remains authoritative |
-| `WorldStreamer._build_chunk` | later attach active shell/collision only after its existing category is admitted | canonical descriptor is converted to local transforms here |
-| `WorldStreamer._update_far_terrain` | later attach macro silhouettes | far remains collision-free |
-| `WorldStreamer._build_pending_features` | later attach traversal/detail nodes | detail remains chunk-owned and unloads with its root |
-| `WorldStreamer._update_collision_lods` + `WorldCollisionHandoff` | later replace terrain/structure collision | replacement precedes retirement through the next physics frame |
+| `WorldStreamer._build_chunk` | attach active sector shell visuals | canonical descriptor is converted to local transforms here |
+| `WorldStreamer._update_far_terrain` | attach macro silhouettes | far remains collision-free |
+| `WorldStreamer._build_pending_features` | attach traversal guides and F4 boundary markers | detail remains chunk-owned and unloads with its root |
+| `WorldStreamer._update_collision_lods` + `WorldCollisionHandoff` | install active shell collision and replace terrain collision | terrain replacement precedes retirement through the next physics frame |
 | `WorldOrigin` | remains the canonical-world to engine-local conversion boundary | rebases cannot change descriptor IDs, hashes, ports, or cache keys |
 | `scripts/main.gd` + `StreamingProfileRecorder` | M4 diagnostics/profile phases and later debug draw wiring | retain F3/L behavior and `streaming-profile/v1` schema unless versioned |
 
@@ -51,7 +51,7 @@ The same three commands exited `0` again after all M0 documentation changes. The
 
 Therefore active construction excludes collision, far, and feature construction for that frame; collision construction excludes far and feature construction. The current code can construct far terrain and feature detail in the same already-admitted background frame. `refresh(true)` is controlled synchronous initialization and intentionally bypasses normal-frame caps; it is not a new normal-frame queue category.
 
-M4 must add no independent megastructure queue. Far/shell/collision/detail work must enter the matching existing category and inherit this gate. Collision replacements must keep `WorldCollisionHandoff.install` followed by `retire_after_physics_frame` exactly as the terrain path does.
+M4 adds no independent megastructure queue. Far/shell/collision/detail work enters the matching existing category and inherits this gate. Terrain collision replacements keep `WorldCollisionHandoff.install` followed by `retire_after_physics_frame`; initial shell collision is installed once in the collision category.
 
 ## Deterministic identity, hash, and RNG choices
 

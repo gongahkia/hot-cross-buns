@@ -10,7 +10,6 @@ const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
 const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
 const WORLD_GENERATOR := preload("res://scripts/world_generator.gd")
 const MEGASTRUCTURE_GENERATOR := preload("res://scripts/world_megastructure_generator.gd")
-const MEGASTRUCTURE_PROTOTYPE := preload("res://scripts/world_megastructure_prototype.gd")
 const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
 const STREAMING_PROFILE := preload("res://scripts/streaming_profile_recorder.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
@@ -63,7 +62,6 @@ var last_sandbox_event := "Session started"
 var frame_time := 0.0
 var world_streamer
 var megastructure_descriptor: Dictionary = {}
-var megastructure_prototype: Node3D
 var megastructure_debug_visible := false
 var photo_mode
 var current_region: Dictionary = {}
@@ -332,9 +330,9 @@ func _input(event: InputEvent) -> void:
 			_refresh_debug_hud()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F4 and rebinding_action.is_empty() and megastructure_prototype and is_instance_valid(megastructure_prototype):
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F4 and rebinding_action.is_empty() and world_streamer:
 		megastructure_debug_visible = not megastructure_debug_visible
-		MEGASTRUCTURE_PROTOTYPE.set_debug_visible(megastructure_prototype, megastructure_debug_visible)
+		world_streamer.set_megastructure_debug_visible(megastructure_debug_visible)
 		last_sandbox_event = "MEGASTRUCTURE DEBUG " + ("ON" if megastructure_debug_visible else "OFF")
 		get_viewport().set_input_as_handled()
 		return
@@ -926,7 +924,6 @@ func _load_expedition(level: Dictionary) -> void:
 	current_station = "Unknown"
 	last_sandbox_event = "EXPEDITION START"
 	megastructure_descriptor = {}
-	megastructure_prototype = null
 	megastructure_debug_visible = false
 	_add_expedition_lighting()
 	var seed := int(level.get("seed", _seed_for_level(str(level.get("id", "expedition")))))
@@ -952,22 +949,15 @@ func _load_expedition(level: Dictionary) -> void:
 	world_streamer.streaming_hitch.connect(_on_streaming_hitch)
 	world_streamer.configure(seed, player)
 	world_streamer.origin_rebased.connect(_on_expedition_origin_rebased)
-	megastructure_prototype = MEGASTRUCTURE_PROTOTYPE.compile(megastructure_descriptor, Callable(self, "_megastructure_ground_height"))
-	course.add_child(megastructure_prototype)
-	MEGASTRUCTURE_PROTOTYPE.set_origin(megastructure_prototype, world_streamer.origin.origin_chunk)
-	var canonical_spawn := MEGASTRUCTURE_PROTOTYPE.entry_spawn(megastructure_descriptor, Callable(self, "_megastructure_ground_height"))
+	var interior: Dictionary = megastructure_descriptor.get("interior", {})
+	var canonical_spawn := Vector3(float(approach[0]), float(interior.get("floor_y", 0)) + 1.55, float(approach[2]))
 	player_spawn = canonical_spawn - Vector3(float(world_streamer.origin.origin_chunk.x) * WORLD_GENERATOR.CHUNK_SIZE, 0.0, float(world_streamer.origin.origin_chunk.y) * WORLD_GENERATOR.CHUNK_SIZE)
 	player.global_position = player_spawn
 	photo_mode.configure(player, hud, Callable(self, "_photo_metadata"), expedition_environment)
 	current_region = world_streamer.sample_at(player.global_position).get("region", {})
 
-func _megastructure_ground_height(canonical_position: Vector3) -> float:
-	return float(world_streamer.generator.sample(canonical_position.x, canonical_position.z).elevation)
-
 func _on_expedition_origin_rebased(delta: Vector3) -> void:
-	if megastructure_prototype and is_instance_valid(megastructure_prototype):
-		megastructure_prototype.global_position += delta
-		player_spawn += delta
+	player_spawn += delta
 
 func _add_expedition_lighting() -> void:
 	var environment := WorldEnvironment.new()

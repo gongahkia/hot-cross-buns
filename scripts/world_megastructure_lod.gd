@@ -15,9 +15,12 @@ static func compile(megastructure: Dictionary) -> Dictionary:
 		var ceiling_y := int(interior.get("ceiling_y", floor_y))
 		var macro_id := structure_id + ":macro"
 		(result.macro_silhouettes as Array).append({"bounds": macro.duplicate(true), "ceiling_y": ceiling_y, "floor_y": floor_y, "id": macro_id, "structure_id": structure_id})
-		for sector: Dictionary in intersection.get("sectors", []):
+		var sectors: Array = intersection.get("sectors", [])
+		for sector: Dictionary in sectors:
 			var sector_id := str(sector.get("sector_id", ""))
-			(result.sector_shells as Array).append({"bounds": (sector.get("bounds", {}) as Dictionary).duplicate(true), "ceiling_y": ceiling_y, "floor_y": floor_y, "id": structure_id + ":sector:" + sector_id, "sector_id": sector_id, "structure_id": structure_id, "wall_faces": _wall_faces(intersection)})
+			(result.sector_shells as Array).append({"bounds": macro.duplicate(true), "ceiling_y": ceiling_y, "floor_y": floor_y, "id": structure_id + ":sector:" + sector_id, "sector_bounds": (sector.get("bounds", {}) as Dictionary).duplicate(true), "sector_id": sector_id, "structure_id": structure_id, "wall_faces": _wall_faces(intersection)})
+		if sectors.is_empty():
+			(result.sector_shells as Array).append({"bounds": macro.duplicate(true), "ceiling_y": ceiling_y, "floor_y": floor_y, "id": macro_id + ":shell", "sector_id": "", "structure_id": structure_id, "wall_faces": _wall_faces(intersection)})
 		(result.active_collisions as Array).append({"bounds": macro.duplicate(true), "ceiling_y": ceiling_y, "floor_y": floor_y, "id": macro_id + ":collision", "structure_id": structure_id, "wall_faces": _wall_faces(intersection)})
 		for segment: Dictionary in intersection.get("traversal_segments", []):
 			var record := segment.duplicate(true)
@@ -46,6 +49,23 @@ static func _wall_faces(intersection: Dictionary) -> Array:
 	var faces: Array = []
 	for candidate: Dictionary in [{"face":"x_min","offset":Vector2i(-1,0)}, {"face":"x_max","offset":Vector2i(1,0)}, {"face":"z_min","offset":Vector2i(0,-1)}, {"face":"z_max","offset":Vector2i(0,1)}]:
 		var neighbor: Vector2i = chunk_point + (candidate.offset as Vector2i)
-		if not connected.has("%d:%d" % [neighbor.x, neighbor.y]):
-			faces.append(str(candidate.face))
+		var face := str(candidate.face)
+		if not connected.has("%d:%d" % [neighbor.x, neighbor.y]) and not _has_traversal_opening(intersection, face):
+			faces.append(face)
 	return faces
+
+static func _has_traversal_opening(intersection: Dictionary, face: String) -> bool:
+	var macro: Dictionary = intersection.get("macro", {})
+	var minimum: Array = macro.get("min", [])
+	var maximum: Array = macro.get("max", [])
+	if minimum.size() != 3 or maximum.size() != 3:
+		return false
+	var coordinate := float(minimum[0]) if face == "x_min" else float(maximum[0]) if face == "x_max" else float(minimum[2]) if face == "z_min" else float(maximum[2])
+	for segment: Dictionary in intersection.get("traversal_segments", []):
+		for endpoint: Variant in [segment.get("start_fp", []), segment.get("end_fp", [])]:
+			if not endpoint is Array or endpoint.size() != 3:
+				continue
+			var value := float(endpoint[0]) / 1024.0 if face.begins_with("x_") else float(endpoint[2]) / 1024.0
+			if is_equal_approx(value, coordinate):
+				return true
+	return false

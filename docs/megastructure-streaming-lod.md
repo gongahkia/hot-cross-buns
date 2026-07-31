@@ -9,6 +9,10 @@
 
 `WorldMegastructureIntersection` owns route clipping. Its `traversal_segments` use `point_fp` coordinates at 1/1024 world-unit precision; no scene nodes, cache state, timing, or loaded-neighbor state enters the contract. The generator stores the compiled result under `chunk_descriptor.megastructure_lod` and the worker carries it unchanged.
 
+`WorldStreamer` attaches these records without a new queue: macro silhouettes are added inside `_update_far_terrain`; shells are added while `_build_pending_chunks` admits the active root; active collision is deferred through `_update_collision_lods`; traversal guides and F4 boundary markers are added by `_build_pending_features`. Normal frames retain the existing active > collision > background gate. `refresh(true)` remains the synchronous initialization exception.
+
+Shell walls are emitted only on faces without a structural continuation port or a route endpoint. This leaves the generated entry/exit openings passable while roofs and remaining exterior faces enclose the flat interior. The prior always-loaded `MegastructurePrototype` is no longer attached at expedition startup; pure prototype tests remain as the M2 fixture.
+
 ## Verification
 
 ```sh

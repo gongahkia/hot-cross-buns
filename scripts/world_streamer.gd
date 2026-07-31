@@ -55,6 +55,7 @@ var shelters: Array[Node3D] = []
 var material_cache: Dictionary = {}
 var refresh_metrics: Dictionary = {}
 var last_refresh_metrics: Dictionary = {}
+var megastructure_debug_visible := false
 
 func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	generator = GENERATOR.new(next_seed)
@@ -66,6 +67,7 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	material_cache.clear()
 	queued_active_chunks.clear()
 	pending_collision_lods.clear()
+	megastructure_debug_visible = false
 	name = "ExpeditionWorld"
 	refresh(true)
 
@@ -80,7 +82,7 @@ func _exit_tree() -> void:
 func refresh(force: bool) -> void:
 	if generator == null or player == null: return
 	var started:=Time.get_ticks_usec()
-	refresh_metrics={"active_chunk_build_ms":0.0,"far_chunk_build_ms":0.0,"feature_build_ms":0.0,"collision_lod_ms":0.0,"active_chunks_built":0,"collision_lods_built":0,"far_chunks_built":0,"feature_chunks_built":0}
+	refresh_metrics={"active_chunk_build_ms":0.0,"far_chunk_build_ms":0.0,"feature_build_ms":0.0,"collision_lod_ms":0.0,"macro_silhouette_ms":0.0,"sector_shell_ms":0.0,"structure_collision_ms":0.0,"traversal_detail_ms":0.0,"active_chunks_built":0,"collision_lods_built":0,"far_chunks_built":0,"feature_chunks_built":0,"structure_collisions_built":0}
 	_attach_completed(scheduler.wait_for_all() if force else scheduler.poll(),force)
 	var rebase: Vector3 = origin.rebase_delta(player.global_position)
 	if rebase != Vector3.ZERO:
@@ -181,6 +183,13 @@ func _streaming_context()->Dictionary:
 
 func streaming_diagnostics()->Dictionary:
 	return {"refresh":last_refresh_metrics.duplicate(true),"telemetry":streaming_telemetry.summary(),"memory":chunk_memory_snapshot()}
+
+func set_megastructure_debug_visible(visible: bool) -> void:
+	megastructure_debug_visible = visible
+	for root: Node3D in chunks.values():
+		var debug := root.get_node_or_null("MegastructureTraversal/MegastructureDebug") as Node3D
+		if debug:
+			debug.visible = visible
 
 func _finish_refresh_metrics(started:int)->void:
 	refresh_metrics["refresh_ms"]=float(Time.get_ticks_usec()-started)/1000.0
@@ -354,6 +363,8 @@ func _build_chunk(chunk_x: int, chunk_z: int, build_features:=false) -> Node3D:
 	root.set_meta("collision_grid",collision_grid)
 	var interior := _is_megastructure_interior(descriptor)
 	root.set_meta("megastructure_interior", interior)
+	var megastructure_lod: Dictionary = descriptor.get("megastructure_lod", {})
+	root.set_meta("megastructure_collision_ready", (megastructure_lod.get("active_collisions", []) as Array).is_empty())
 	var mesh := _terrain_mesh(chunk_x, chunk_z, descriptor, render_grid)
 	var terrain := StaticBody3D.new()
 	terrain.name = "Terrain"
@@ -363,6 +374,9 @@ func _build_chunk(chunk_x: int, chunk_z: int, build_features:=false) -> Node3D:
 	terrain.add_child(visual)
 	terrain.add_child(_collision_shape(chunk_x,chunk_z,collision_grid,descriptor))
 	root.add_child(terrain)
+	var shell_started := Time.get_ticks_usec()
+	_add_megastructure_shells(root, megastructure_lod)
+	refresh_metrics["sector_shell_ms"] = float(refresh_metrics.sector_shell_ms) + float(Time.get_ticks_usec() - shell_started) / 1000.0
 	root.set_meta("features_ready",build_features)
 	if build_features:_add_features(root, chunk_x, chunk_z, descriptor)
 	refresh_metrics["active_chunk_build_ms"]=float(refresh_metrics.active_chunk_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
@@ -386,6 +400,8 @@ func _build_pending_features(build_all:=false,allow_build:=true)->void:
 		if descriptor.is_empty():continue
 		var started:=Time.get_ticks_usec()
 		_add_features(root,int(root.get_meta("chunk_x",0)),int(root.get_meta("chunk_z",0)),descriptor)
+		if bool(root.get_meta("megastructure_interior",false)):
+			refresh_metrics["traversal_detail_ms"]=float(refresh_metrics.traversal_detail_ms)+float(Time.get_ticks_usec()-started)/1000.0
 		root.set_meta("features_ready",true)
 		refresh_metrics["feature_build_ms"]=float(refresh_metrics.feature_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
 		refresh_metrics["feature_chunks_built"]=int(refresh_metrics.feature_chunks_built)+1
@@ -397,7 +413,7 @@ func _update_collision_lods(build_all:=false,allow_build:=true)->void:
 	for id:String in chunks.keys():
 		var root:=chunks[id] as Node3D
 		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var grid:=COLLISION_LOD.grid_for_distance(distance)
-		if int(root.get_meta("collision_grid",GRID))==grid:
+		if int(root.get_meta("collision_grid",GRID))==grid and bool(root.get_meta("megastructure_collision_ready",true)):
 			pending_collision_lods.erase(id)
 			continue
 		pending_collision_lods[id]=grid
@@ -413,14 +429,21 @@ func _update_collision_lods(build_all:=false,allow_build:=true)->void:
 	for candidate:Dictionary in candidates:
 		if not build_all and built>=COLLISION_LODS_PER_FRAME:break
 		var id:=str(candidate.id);var root:=candidate.root as Node3D;var grid:=int(candidate.grid)
-		if root==null or not is_instance_valid(root) or int(root.get_meta("collision_grid",GRID))==grid:
+		if root==null or not is_instance_valid(root) or (int(root.get_meta("collision_grid",GRID))==grid and bool(root.get_meta("megastructure_collision_ready",true))):
 			pending_collision_lods.erase(id)
 			continue
 		var terrain:=root.get_node_or_null("Terrain") as StaticBody3D
 		if terrain==null:
 			pending_collision_lods.erase(id)
 			continue
-		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var descriptor:=root.get_meta("descriptor",{}) as Dictionary;var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid,descriptor))
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var descriptor:=root.get_meta("descriptor",{}) as Dictionary;var retiring:CollisionShape3D=null
+		if int(root.get_meta("collision_grid",GRID))!=grid:retiring=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid,descriptor))
+		if not bool(root.get_meta("megastructure_collision_ready",true)):
+			var structure_started:=Time.get_ticks_usec()
+			_install_megastructure_collision(root,descriptor.get("megastructure_lod",{}) as Dictionary)
+			root.set_meta("megastructure_collision_ready",true)
+			refresh_metrics["structure_collision_ms"]=float(refresh_metrics.structure_collision_ms)+float(Time.get_ticks_usec()-structure_started)/1000.0
+			refresh_metrics["structure_collisions_built"]=int(refresh_metrics.structure_collisions_built)+1
 		root.set_meta("collision_grid",grid)
 		pending_collision_lods.erase(id)
 		refresh_metrics["collision_lods_built"]=int(refresh_metrics.collision_lods_built)+1
@@ -452,10 +475,106 @@ func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
 	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()
 	root.name="FarChunk_%d_%d"%[chunk_x,chunk_z];root.position=origin.local_chunk_position(Vector2i(chunk_x,chunk_z));root.set_meta("impostor",true);root.set_meta("render_grid",FAR_TERRAIN.GRID)
 	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,descriptor,FAR_TERRAIN.GRID);visual.material_override=_interior_material() if _is_megastructure_interior(descriptor) else _silhouette_material(str(descriptor.biome),str(descriptor.region.family))
-	root.add_child(visual);add_child(root)
+	root.add_child(visual)
+	var silhouette_started:=Time.get_ticks_usec()
+	_add_macro_silhouettes(root,descriptor.get("megastructure_lod",{}) as Dictionary)
+	refresh_metrics["macro_silhouette_ms"]=float(refresh_metrics.macro_silhouette_ms)+float(Time.get_ticks_usec()-silhouette_started)/1000.0
+	add_child(root)
 	refresh_metrics["far_chunk_build_ms"]=float(refresh_metrics.far_chunk_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
 	refresh_metrics["far_chunks_built"]=int(refresh_metrics.far_chunks_built)+1
 	return root
+
+func _add_macro_silhouettes(root: Node3D, lod: Dictionary) -> void:
+	var host := Node3D.new()
+	host.name = "MegastructureMacroSilhouettes"
+	var added := 0
+	for record: Dictionary in lod.get("macro_silhouettes", []):
+		for spec: Dictionary in _megastructure_shell_specs(record):
+			_add_megastructure_visual_box(host, root, spec, Color("#27312f"), "MacroSilhouette")
+			added += 1
+	if added > 0:
+		root.add_child(host)
+	else:
+		host.queue_free()
+
+func _add_megastructure_shells(root: Node3D, lod: Dictionary) -> void:
+	var host := Node3D.new()
+	host.name = "MegastructureShell"
+	var added := 0
+	for record: Dictionary in lod.get("sector_shells", []):
+		for spec: Dictionary in _megastructure_shell_specs(record):
+			_add_megastructure_visual_box(host, root, spec, Color("#3a453d"), "SectorShell")
+			added += 1
+	if added > 0:
+		root.add_child(host)
+	else:
+		host.queue_free()
+
+func _install_megastructure_collision(root: Node3D, lod: Dictionary) -> void:
+	var records: Array = lod.get("active_collisions", [])
+	if records.is_empty() or root.get_node_or_null("MegastructureCollision") != null:
+		return
+	var body := StaticBody3D.new()
+	body.name = "MegastructureCollision"
+	var added := 0
+	for record: Dictionary in records:
+		for spec: Dictionary in _megastructure_shell_specs(record):
+			var collision := CollisionShape3D.new()
+			collision.name = "StructureCollision"
+			collision.position = _megastructure_local_point(root, spec.get("position", Vector3.ZERO))
+			var shape := BoxShape3D.new()
+			shape.size = spec.get("size", Vector3.ONE)
+			collision.shape = shape
+			body.add_child(collision)
+			added += 1
+	if added > 0:
+		root.add_child(body)
+	else:
+		body.queue_free()
+
+func _megastructure_shell_specs(record: Dictionary) -> Array:
+	var bounds: Dictionary = record.get("bounds", {})
+	var minimum := _megastructure_point(bounds.get("min", []))
+	var maximum := _megastructure_point(bounds.get("max", []))
+	var floor_y := float(record.get("floor_y", 0))
+	var ceiling_y := float(record.get("ceiling_y", floor_y))
+	if maximum.x <= minimum.x or maximum.z <= minimum.z or ceiling_y <= floor_y:
+		return []
+	var width := maximum.x - minimum.x
+	var depth := maximum.z - minimum.z
+	var center_x := (minimum.x + maximum.x) * 0.5
+	var center_z := (minimum.z + maximum.z) * 0.5
+	var specs: Array = [{"position":Vector3(center_x, ceiling_y - 1.0, center_z), "size":Vector3(width, 2.0, depth)}]
+	for face: String in record.get("wall_faces", []):
+		match face:
+			"x_min": specs.append({"position":Vector3(minimum.x + 1.0, (floor_y + ceiling_y) * 0.5, center_z), "size":Vector3(2.0, ceiling_y - floor_y, depth)})
+			"x_max": specs.append({"position":Vector3(maximum.x - 1.0, (floor_y + ceiling_y) * 0.5, center_z), "size":Vector3(2.0, ceiling_y - floor_y, depth)})
+			"z_min": specs.append({"position":Vector3(center_x, (floor_y + ceiling_y) * 0.5, minimum.z + 1.0), "size":Vector3(width, ceiling_y - floor_y, 2.0)})
+			"z_max": specs.append({"position":Vector3(center_x, (floor_y + ceiling_y) * 0.5, maximum.z - 1.0), "size":Vector3(width, ceiling_y - floor_y, 2.0)})
+	return specs
+
+func _add_megastructure_visual_box(host: Node3D, root: Node3D, spec: Dictionary, color: Color, node_name: String) -> void:
+	var visual := MeshInstance3D.new()
+	visual.name = node_name
+	visual.position = _megastructure_local_point(root, spec.get("position", Vector3.ZERO))
+	var mesh := BoxMesh.new()
+	mesh.size = spec.get("size", Vector3.ONE)
+	visual.mesh = mesh
+	visual.material_override = _material(color)
+	host.add_child(visual)
+
+func _megastructure_local_point(root: Node3D, point: Vector3) -> Vector3:
+	return point - Vector3(float(int(root.get_meta("chunk_x", 0))) * GENERATOR.CHUNK_SIZE, 0.0, float(int(root.get_meta("chunk_z", 0))) * GENERATOR.CHUNK_SIZE)
+
+func _megastructure_point(value: Variant) -> Vector3:
+	if value is Array and value.size() == 3:
+		return Vector3(float(value[0]), float(value[1]), float(value[2]))
+	return Vector3.ZERO
+
+func _megastructure_point_fp(value: Variant) -> Vector3:
+	if value is Array and value.size() == 3:
+		return Vector3(float(value[0]) / 1024.0, float(value[1]) / 1024.0, float(value[2]) / 1024.0)
+	return Vector3.ZERO
 
 func _terrain_mesh(chunk_x: int, chunk_z: int, descriptor: Dictionary, grid: int = GRID) -> ArrayMesh:
 	var surface := SurfaceTool.new()
@@ -501,6 +620,7 @@ func _megastructure_interior(descriptor: Dictionary) -> Dictionary:
 
 func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Dictionary) -> void:
 	if _is_megastructure_interior(descriptor):
+		_add_megastructure_traversal_details(root, descriptor)
 		root.set_meta("wildlife_count", 0)
 		return
 	var family := str(descriptor.region.family)
@@ -544,6 +664,69 @@ func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Diction
 	root.set_meta("wildlife_count", (wildlife.get("animals", []) as Array).size())
 	if RNG.unit(seed, chunk_x, chunk_z, 419) > 0.82:
 		_add_grapple_anchor(root, chunk_x, chunk_z)
+
+func _add_megastructure_traversal_details(root: Node3D, descriptor: Dictionary) -> void:
+	if root.get_node_or_null("MegastructureTraversal") != null:
+		return
+	var host := Node3D.new()
+	host.name = "MegastructureTraversal"
+	for record: Dictionary in (descriptor.get("megastructure_lod", {}) as Dictionary).get("traversal_details", []):
+		var start := _megastructure_local_point(root, _megastructure_point_fp(record.get("start_fp", [])))
+		var finish := _megastructure_local_point(root, _megastructure_point_fp(record.get("end_fp", [])))
+		var direction := Vector3(finish.x - start.x, 0.0, finish.z - start.z)
+		var length := direction.length()
+		if length <= 0.01:
+			continue
+		var guide := MeshInstance3D.new()
+		guide.name = "TraversalGuide"
+		guide.position = (start + finish) * 0.5 + Vector3(0.0, 0.12, 0.0)
+		guide.rotation.y = atan2(-direction.z, direction.x)
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(length, 0.24, 2.0)
+		guide.mesh = mesh
+		guide.material_override = _material(Color("#87966b"), true)
+		host.add_child(guide)
+		if str(record.get("movement_mode", "")) == "grapple":
+			_add_megastructure_grapple_anchor(host, (start + finish) * 0.5 + Vector3(0.0, 12.0, 0.0))
+	_add_megastructure_debug(host, root, descriptor)
+	root.add_child(host)
+
+func _add_megastructure_grapple_anchor(host: Node3D, position: Vector3) -> void:
+	var anchor := Node3D.new()
+	anchor.name = "MegastructureGrappleAnchor"
+	anchor.position = position
+	anchor.add_to_group("grapple_anchor")
+	var visual := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.55
+	ring.outer_radius = 0.75
+	visual.mesh = ring
+	visual.material_override = _material(Color("#cde596"), true)
+	anchor.add_child(visual)
+	host.add_child(anchor)
+
+func _add_megastructure_debug(host: Node3D, root: Node3D, descriptor: Dictionary) -> void:
+	var debug := Node3D.new()
+	debug.name = "MegastructureDebug"
+	debug.visible = megastructure_debug_visible
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _material(Color("#68dfb0"), true))
+	var added := 0
+	for intersection: Dictionary in (descriptor.get("megastructure", {}) as Dictionary).get("intersections", []):
+		for port: Dictionary in (intersection.get("structural_ports", []) as Array) + (intersection.get("traversal_ports", []) as Array):
+			var point := _megastructure_local_point(root, _megastructure_point_fp(port.get("point_fp", [])))
+			mesh.surface_add_vertex(point - Vector3(0.0, 2.0, 0.0))
+			mesh.surface_add_vertex(point + Vector3(0.0, 2.0, 0.0))
+			mesh.surface_add_vertex(point - Vector3(2.0, 0.0, 0.0))
+			mesh.surface_add_vertex(point + Vector3(2.0, 0.0, 0.0))
+			added += 1
+	mesh.surface_end()
+	if added > 0:
+		var visual := MeshInstance3D.new()
+		visual.name = "BoundaryOwnership"
+		visual.mesh = mesh
+		debug.add_child(visual)
+	host.add_child(debug)
 
 func _add_wildlife(root: Node3D, record: Dictionary) -> void:
 	var animal := WILDLIFE_AGENT.new()

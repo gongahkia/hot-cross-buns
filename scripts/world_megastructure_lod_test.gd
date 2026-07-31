@@ -17,7 +17,7 @@ func _initialize() -> void:
 	_expect(str(lod.get("schema", "")) == LOD.SCHEMA and lod == LOD.compile(megastructure), "chunk lod descriptor drifted")
 	_expect(not (lod.get("macro_silhouettes", []) as Array).is_empty() and not (lod.get("sector_shells", []) as Array).is_empty() and not (lod.get("active_collisions", []) as Array).is_empty() and not (lod.get("traversal_details", []) as Array).is_empty(), "chunk lod phases missing")
 	var collision: Dictionary = (lod.get("active_collisions", []) as Array)[0]
-	_expect(int(collision.get("floor_y", 0)) == 24 and int(collision.get("ceiling_y", 0)) == 100 and not (collision.get("wall_faces", []) as Array).is_empty(), "enclosed shell contract drifted")
+	_expect(int(collision.get("floor_y", 0)) == 24 and int(collision.get("ceiling_y", 0)) == 100 and not (collision.get("bounds", {}) as Dictionary).is_empty(), "enclosed shell contract drifted")
 	var parsed: Variant = JSON.parse_string(JSON.stringify(lod))
 	_expect(parsed is Dictionary, "chunk lod descriptor is not JSON serializable")
 	(lod.get("macro_silhouettes", []) as Array)[0]["id"] = "mutated"
