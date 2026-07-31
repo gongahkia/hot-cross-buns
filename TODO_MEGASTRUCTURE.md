@@ -135,7 +135,7 @@ Goal: make routes derive from the existing player movement vocabulary.
 - [x] M5.2 Validate the baseline entry route.
 - [x] M5.3 Validate the optional expressive route.
 - [x] M5.4 Validate recovery volumes where required.
-- [ ] M5.5 Validate affordance visibility before commitment.
+- [x] M5.5 Validate affordance visibility before commitment.
 - [ ] M5.6 Add route-preservation checks after damage.
 - [ ] M5.7 Add a generated cross-chunk route test.
 - [ ] M5.8 Add a rapid traversal soak through the opening sector.

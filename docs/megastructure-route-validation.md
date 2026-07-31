@@ -29,3 +29,7 @@ All values are world units. Grounded modes require an explicit continuous floor;
 ## Recovery-volume contract
 
 Every route marked `recovery_required` must provide an explicit volume around its landing. It must contain the landing, leave at least two horizontal units on every side, start on the known flat floor, and provide two units of headroom. The grapple shortcut is currently the sole recovery-required route. These volumes are pure route data for later damage and hydrology revalidation; they do not add a separate runtime recovery system.
+
+## Affordance-visibility contract
+
+`validate_affordance_visibility` requires the entry threshold to be geometrically exposed at least 96 units before crossing, and requires the grapple anchor to be at least 12 units from its commitment point while remaining inside its 26-unit acquisition range. This is a deterministic geometric check over descriptors; occlusion and final rendering legibility remain runtime/playtest concerns.

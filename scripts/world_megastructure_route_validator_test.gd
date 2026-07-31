@@ -17,6 +17,7 @@ func _initialize() -> void:
 	_assert_baseline_entry_validation()
 	_assert_expressive_route_validation()
 	_assert_recovery_volume_validation()
+	_assert_affordance_visibility_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -113,6 +114,21 @@ func _assert_recovery_volume_validation() -> void:
 	((cramped_volume.routes[1] as Dictionary).recovery_volume as Dictionary)["min"] = [0, 24, 0]
 	((cramped_volume.routes[1] as Dictionary).recovery_volume as Dictionary)["max"] = [1, 25, 1]
 	_expect("recovery_landing_missing" in VALIDATOR.validate_recovery_volumes(cramped_volume).get("issues", []), "recovery volume without landing was accepted")
+
+func _assert_affordance_visibility_validation() -> void:
+	var generator := GENERATOR.new(20260731)
+	for cell: Vector3i in [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i.ZERO, Vector3i(4, 0, -2), Vector3i(7, 0, 5)]:
+		var validation := VALIDATOR.validate_affordance_visibility(generator.generate(cell))
+		_expect(str(validation.get("schema", "")) == VALIDATOR.AFFORDANCE_VISIBILITY_SCHEMA and bool(validation.get("valid", false)) and (validation.get("issues", []) as Array).is_empty(), "generated affordance visibility is invalid")
+	var late_threshold := generator.generate(Vector3i.ZERO).duplicate(true)
+	(late_threshold.entry as Dictionary)["threshold_visibility_distance"] = 128
+	_expect("threshold_not_visible_before_commit" in VALIDATOR.validate_affordance_visibility(late_threshold).get("issues", []), "late threshold visibility was accepted")
+	var close_affordance := generator.generate(Vector3i.ZERO).duplicate(true)
+	(close_affordance.routes[1] as Dictionary)["affordance_visibility_distance"] = 20
+	_expect("expressive_affordance_too_close" in VALIDATOR.validate_affordance_visibility(close_affordance).get("issues", []), "close expressive affordance was accepted")
+	var invalid_commit := generator.generate(Vector3i.ZERO).duplicate(true)
+	(invalid_commit.routes[1] as Dictionary)["commit_anchor"] = [0, 24, 0]
+	_expect("expressive_commit_anchor_invalid" in VALIDATOR.validate_affordance_visibility(invalid_commit).get("issues", []), "off-route commitment anchor was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

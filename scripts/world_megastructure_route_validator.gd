@@ -7,9 +7,12 @@ const SCHEMA := "megastructure-route-envelope/v2"
 const BASELINE_ENTRY_SCHEMA := "megastructure-baseline-entry-validation/v1"
 const EXPRESSIVE_ROUTE_SCHEMA := "megastructure-expressive-route-validation/v1"
 const RECOVERY_VOLUME_SCHEMA := "megastructure-recovery-volume-validation/v1"
+const AFFORDANCE_VISIBILITY_SCHEMA := "megastructure-affordance-visibility-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
+const MIN_THRESHOLD_VISIBILITY_DISTANCE := 64.0
+const MIN_EXPRESSIVE_VISIBILITY_DISTANCE := 8.0
 const MODE_IDS := ["walk", "jump", "double_jump", "dash", "slide", "wall_run", "grapple", "glide", "drop"]
 
 static func envelopes() -> Dictionary:
@@ -149,6 +152,43 @@ static func validate_recovery_volumes(descriptor: Dictionary) -> Dictionary:
 		issues.append("recovery_volume_missing")
 	return _recovery_result(issues)
 
+static func validate_affordance_visibility(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var entry: Dictionary = descriptor.get("entry", {})
+	var approach: Variant = entry.get("approach_anchor", [])
+	var threshold: Dictionary = entry.get("threshold_volume", {})
+	var threshold_visibility_distance := float(entry.get("threshold_visibility_distance", 0))
+	if not _is_point(approach) or not _valid_threshold_bounds(threshold) or threshold_visibility_distance < MIN_THRESHOLD_VISIBILITY_DISTANCE:
+		issues.append("threshold_visibility_contract")
+	elif _point_to_bounds_distance(_point(approach), _point(threshold.min), _point(threshold.max)) < threshold_visibility_distance:
+		issues.append("threshold_not_visible_before_commit")
+	var expressive_routes: Array = []
+	for route: Dictionary in descriptor.get("routes", []):
+		if str(route.get("route_class", "")) == "expressive":
+			expressive_routes.append(route)
+	if expressive_routes.size() != 1:
+		issues.append("expressive_visibility_route_count")
+		return _visibility_result(issues)
+	var route: Dictionary = expressive_routes[0]
+	var path := _route_path(route, issues)
+	var commit: Variant = route.get("commit_anchor", [])
+	var target: Variant = route.get("anchor", [])
+	var required_distance := float(route.get("affordance_visibility_distance", 0))
+	if path.size() != 2 or not _is_point(commit) or not _is_point(target) or required_distance < MIN_EXPRESSIVE_VISIBILITY_DISTANCE:
+		issues.append("expressive_visibility_contract")
+		return _visibility_result(issues)
+	var commit_point := _point(commit)
+	var target_point := _point(target)
+	if commit_point != path[0]:
+		issues.append("expressive_commit_anchor_invalid")
+	var visible_distance := commit_point.distance_to(target_point)
+	if visible_distance < required_distance:
+		issues.append("expressive_affordance_too_close")
+	var grapple := envelope("grapple")
+	if visible_distance > float(grapple.get("max_anchor_distance", 0.0)):
+		issues.append("expressive_affordance_out_of_range")
+	return _visibility_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -210,8 +250,19 @@ static func _valid_bounds(bounds: Dictionary) -> bool:
 	var maximum := _point(bounds.max)
 	return minimum.x < maximum.x and minimum.y < maximum.y and minimum.z < maximum.z
 
+static func _valid_threshold_bounds(bounds: Dictionary) -> bool:
+	if not _is_point(bounds.get("min", [])) or not _is_point(bounds.get("max", [])):
+		return false
+	var minimum := _point(bounds.min)
+	var maximum := _point(bounds.max)
+	return minimum.x <= maximum.x and minimum.y < maximum.y and minimum.z <= maximum.z and (minimum.x < maximum.x or minimum.z < maximum.z)
+
 static func _point_in_bounds(point: Vector3, minimum: Vector3, maximum: Vector3) -> bool:
 	return point.x >= minimum.x and point.x <= maximum.x and point.y >= minimum.y and point.y <= maximum.y and point.z >= minimum.z and point.z <= maximum.z
+
+static func _point_to_bounds_distance(point: Vector3, minimum: Vector3, maximum: Vector3) -> float:
+	var closest := Vector3(clampf(point.x, minimum.x, maximum.x), clampf(point.y, minimum.y, maximum.y), clampf(point.z, minimum.z, maximum.z))
+	return point.distance_to(closest)
 
 static func _segment_intersects_bounds(start: Vector3, finish: Vector3, minimum: Vector3, maximum: Vector3) -> bool:
 	var lower := 0.0
@@ -253,3 +304,6 @@ static func _expressive_result(route_id: String, issues: Array) -> Dictionary:
 
 static func _recovery_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":RECOVERY_VOLUME_SCHEMA,"valid":issues.is_empty()}
+
+static func _visibility_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":AFFORDANCE_VISIBILITY_SCHEMA,"valid":issues.is_empty()}
