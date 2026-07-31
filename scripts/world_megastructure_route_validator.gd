@@ -60,11 +60,6 @@ static func validate_baseline_entry(descriptor: Dictionary) -> Dictionary:
 			if not is_equal_approx(point.y, floor_y):
 				issues.append("baseline_not_on_floor")
 				break
-	var world_bounds: Dictionary = descriptor.get("world_bounds", {})
-	for point: Vector3 in path:
-		if not _point_in_bounds(point, world_bounds):
-			issues.append("baseline_outside_world_bounds")
-			break
 	if not _path_intersects_bounds(path, entry.get("threshold_volume", {})):
 		issues.append("entry_threshold_not_crossed")
 	var reveal := _reveal_by_id(descriptor.get("reveals", []), str(entry.get("initial_reveal_id", "")))
@@ -122,13 +117,6 @@ static func _is_point(value: Variant) -> bool:
 
 static func _point(value: Array) -> Vector3:
 	return Vector3(float(value[0]), float(value[1]), float(value[2]))
-
-static func _point_in_bounds(point: Vector3, bounds: Dictionary) -> bool:
-	if not _is_point(bounds.get("min", [])) or not _is_point(bounds.get("max", [])):
-		return false
-	var minimum := _point(bounds.min)
-	var maximum := _point(bounds.max)
-	return point.x >= minimum.x and point.x <= maximum.x and point.y >= minimum.y and point.y <= maximum.y and point.z >= minimum.z and point.z <= maximum.z
 
 static func _path_intersects_bounds(path: Array, bounds: Dictionary) -> bool:
 	if path.size() < 2 or not _is_point(bounds.get("min", [])) or not _is_point(bounds.get("max", [])):

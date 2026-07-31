@@ -20,4 +20,4 @@ All values are world units. Grounded modes require an explicit continuous floor;
 
 ## Baseline entry contract
 
-`validate_baseline_entry` requires the entry's sole required route to be mandatory, walking, and baseline-class. It proves that the approach, post-threshold, first-goal, threshold volume, and initial reveal are connected in order; confirms every route anchor has ground support inside the structure bounds; and returns stable issue codes for invalid descriptors. The generator asserts this pure-data contract before returning a descriptor, so a seed/version regression fails at generation rather than after attachment.
+`validate_baseline_entry` requires the entry's sole required route to be mandatory, walking, and baseline-class. It proves that the approach, post-threshold, first-goal, threshold volume, and initial reveal are connected in order; confirms every route anchor has flat-interior ground support; and returns stable issue codes for invalid descriptors. The generator asserts this pure-data contract before returning a descriptor, so a seed/version regression fails at generation rather than after attachment.
