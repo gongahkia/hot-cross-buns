@@ -69,6 +69,7 @@ const FOV_RESPONSE := 96.0
 const SHAKE_DECAY := 0.28
 const INJURY_LANDING_SPEED := 12.0
 const INJURY_PER_SPEED := 1.5
+const KEYBOARD_LOOK_PIXELS_PER_SECOND := 720.0
 
 var camera: Camera3D
 var dust_particles: GPUParticles3D
@@ -150,9 +151,16 @@ func _apply_look(relative: Vector2) -> void:
 	pitch = clamp(pitch - relative.y * sensitivity * direction, deg_to_rad(-84.0), deg_to_rad(84.0))
 	rotation.y = yaw
 
+func _apply_keyboard_look(delta: float) -> void:
+	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	if look.is_zero_approx():
+		return
+	_apply_look(look * KEYBOARD_LOOK_PIXELS_PER_SECOND * delta)
+
 func _physics_process(delta: float) -> void:
 	if not movement_enabled:
 		return
+	_apply_keyboard_look(delta)
 	if Input.is_action_just_pressed("reset_run"):
 		reset_requested.emit()
 		return

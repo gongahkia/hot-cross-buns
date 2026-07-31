@@ -9,6 +9,7 @@ const LEVEL_BUILDER := preload("res://scripts/level_builder.gd")
 const CREATIVE_EDITOR := preload("res://scripts/creative_editor.gd")
 const WORLD_STREAMER := preload("res://scripts/world_streamer.gd")
 const WORLD_DIAGNOSTICS := preload("res://scripts/world_diagnostics.gd")
+const STREAMING_PROFILE := preload("res://scripts/streaming_profile_recorder.gd")
 const PHOTO_MODE := preload("res://scripts/photo_mode.gd")
 const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
@@ -67,6 +68,8 @@ var last_resolved_run: Dictionary = {}
 var run_archive = RUN_ARCHIVE.new()
 var world_journal = WORLD_SURVEY_JOURNAL.new()
 var survey_check_time := 0.0
+var streaming_profile = STREAMING_PROFILE.new()
+var streaming_profile_sample_time := 0.0
 var survival_movement: Dictionary = {}
 var run_balance_telemetry = SURVIVAL_TRAVERSAL_TELEMETRY.new()
 var expedition_environment: Environment
@@ -294,6 +297,7 @@ func _process(delta: float) -> void:
 		_refresh_hud()
 		_refresh_grapple_reticle()
 		_refresh_sandbox_context()
+		_record_streaming_profile(delta)
 		_refresh_debug_hud()
 		_record_creative_sample(delta)
 		if bool(current_level.get("procedural", false)) and Input.is_action_just_pressed("extract"):
@@ -320,6 +324,10 @@ func _input(event: InputEvent) -> void:
 		debug_panel.visible = debug_visible and hud.visible
 		if debug_visible:
 			_refresh_debug_hud()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F4 and rebinding_action.is_empty():
+		_toggle_streaming_profile()
 		get_viewport().set_input_as_handled()
 		return
 	if rebinding_action.is_empty():
@@ -370,7 +378,7 @@ func show_title() -> void:
 	var journal := _button("Survey journal", 18)
 	journal.pressed.connect(show_world_journal.bind("title"))
 	box.add_child(journal)
-	box.add_child(_label("WASD + Mouse - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse/Arrows - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug - F4 profile", 14, Color("#8ea18a")))
 
 func show_run_archive() -> void:
 	menu_mode = "records"
@@ -917,6 +925,7 @@ func _load_expedition(level: Dictionary) -> void:
 	course.add_child(world_streamer)
 	world_streamer.region_changed.connect(_on_expedition_region_changed)
 	world_streamer.chunk_stats_changed.connect(_on_chunk_stats_changed)
+	world_streamer.streaming_hitch.connect(_on_streaming_hitch)
 	var seed := int(level.get("seed", _seed_for_level(str(level.get("id", "expedition")))))
 	world_streamer.configure(seed, player)
 	player_spawn = Vector3(0.0, world_streamer.ground_height(Vector3.ZERO) + 1.2, 0.0)
@@ -990,6 +999,42 @@ func _on_expedition_region_changed(region: Dictionary) -> void:
 func _on_chunk_stats_changed(stats: Dictionary) -> void:
 	if bool(current_level.get("procedural", false)):
 		last_sandbox_event = "CHUNKS " + str(stats.get("active", 0))
+
+func _on_streaming_hitch(sample: Dictionary) -> void:
+	streaming_profile.record_hitch(sample)
+
+func _toggle_streaming_profile() -> void:
+	if not RunData.running or not bool(current_level.get("procedural", false)) or world_streamer == null:
+		return
+	if streaming_profile.active:
+		var path := streaming_profile.export()
+		streaming_profile_sample_time = 0.0
+		_show_streaming_profile_notice("STREAM PROFILE SAVED" if not path.is_empty() else "STREAM PROFILE EXPORT FAILED")
+		if not path.is_empty():
+			print("STREAMING_PROFILE " + path)
+		return
+	streaming_profile.begin({"level":str(current_level.get("id", "")),"seed":int(current_level.get("seed", 0))})
+	streaming_profile_sample_time = 0.0
+	_show_streaming_profile_notice("STREAM PROFILE RECORDING")
+
+func _record_streaming_profile(delta: float) -> void:
+	if not streaming_profile.active or world_streamer == null or player == null:
+		return
+	streaming_profile_sample_time += delta
+	if streaming_profile_sample_time < 1.0:
+		return
+	streaming_profile_sample_time = fmod(streaming_profile_sample_time, 1.0)
+	streaming_profile.record_sample(float(Engine.get_frames_per_second()), frame_time * 1000.0, world_streamer.streaming_diagnostics(), player.global_position, current_region)
+
+func _show_streaming_profile_notice(text: String) -> void:
+	last_sandbox_event = text
+	if briefing_label == null:
+		return
+	briefing_label.text = text
+	briefing_label.add_theme_color_override("font_color", Color("#9edbb8"))
+	briefing_label.modulate.a = 1.0
+	var tween := create_tween()
+	tween.tween_property(briefing_label, "modulate:a", 0.0, 0.35).set_delay(1.4)
 
 func _on_survival_depleted(reason: String) -> void:
 	if not RunData.running or not bool(current_level.get("procedural", false)):

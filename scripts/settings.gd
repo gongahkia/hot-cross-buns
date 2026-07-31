@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://a_slow_walk_settings.json"
-const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "collect_water", "purify_water", "consume_water", "place_material", "build_shelter", "build_platform", "craft_filter", "extract", "reset_run", "pause"]
+const ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "look_left", "look_right", "look_up", "look_down", "jump", "slam", "dash", "sprint", "slide", "grapple", "glide", "consume_food", "collect_water", "purify_water", "consume_water", "place_material", "build_shelter", "build_platform", "craft_filter", "extract", "reset_run", "pause"]
 const PIXEL_FILTER_OFF := 0
 const PIXEL_FILTER_2X := 2
 const PIXEL_FILTER_4X := 4
@@ -30,6 +30,10 @@ func default_binding_data() -> Dictionary:
 		"move_back": [{"type": "key", "code": KEY_S}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_Y, "value": 1.0}],
 		"move_left": [{"type": "key", "code": KEY_A}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": -1.0}],
 		"move_right": [{"type": "key", "code": KEY_D}, {"type": "joy_axis", "axis": JOY_AXIS_LEFT_X, "value": 1.0}],
+		"look_left": [{"type": "key", "code": KEY_LEFT}],
+		"look_right": [{"type": "key", "code": KEY_RIGHT}],
+		"look_up": [{"type": "key", "code": KEY_UP}],
+		"look_down": [{"type": "key", "code": KEY_DOWN}],
 		"jump": [{"type": "key", "code": KEY_SPACE}, {"type": "joy_button", "button": JOY_BUTTON_A}],
 		"slam": [{"type": "key", "code": KEY_Q}, {"type": "joy_button", "button": JOY_BUTTON_LEFT_SHOULDER}],
 		"dash": [{"type": "key", "code": KEY_SHIFT}, {"type": "joy_button", "button": JOY_BUTTON_RIGHT_SHOULDER}],

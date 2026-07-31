@@ -23,6 +23,7 @@ func _initialize() -> void:
 	assert(InputMap.has_action("grapple"), "grapple input missing")
 	assert(InputMap.has_action("glide"), "glide input missing")
 	assert(InputMap.has_action("sprint"), "sprint input missing")
+	assert(InputMap.has_action("look_left") and InputMap.has_action("look_right") and InputMap.has_action("look_up") and InputMap.has_action("look_down"), "arrow look inputs missing")
 	assert(InputMap.has_action("consume_food"), "food input missing")
 	assert(InputMap.has_action("collect_water") and InputMap.has_action("purify_water") and InputMap.has_action("consume_water") and InputMap.has_action("place_material") and InputMap.has_action("build_shelter") and InputMap.has_action("build_platform") and InputMap.has_action("extract"), "survival inputs missing")
 	var original_filter_mode := int(app_settings.get("pixel_filter_mode"))
@@ -67,6 +68,15 @@ func _initialize() -> void:
 	forward_key.keycode = KEY_W
 	forward_key.pressed = true
 	assert(forward_key.is_action("move_forward"), "WASD binding did not register")
+	var look_right_key := InputEventKey.new()
+	look_right_key.keycode = KEY_RIGHT
+	look_right_key.pressed = true
+	assert(look_right_key.is_action("look_right"), "right arrow binding did not register")
+	var yaw_before_arrow: float = main.player.rotation.y
+	Input.action_press("look_right")
+	main.player._apply_keyboard_look(0.1)
+	Input.action_release("look_right")
+	assert(not is_equal_approx(main.player.rotation.y, yaw_before_arrow), "right arrow did not rotate the player")
 	Input.action_press("move_forward")
 	var start_position: Vector3 = main.player.global_position
 	for _frame in range(12):
