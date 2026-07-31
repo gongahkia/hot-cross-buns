@@ -17,6 +17,7 @@ static func compile(descriptor: Dictionary, chunk: Vector2i) -> Dictionary:
 		"sectors": [],
 		"structure_id": str((descriptor.get("identity", {}) as Dictionary).get("structure_id", "")),
 		"structural_ports": [],
+		"traversal_segments": [],
 		"traversal_ports": [],
 	}
 	for sector: Dictionary in descriptor.get("sectors", []):
@@ -25,6 +26,7 @@ static func compile(descriptor: Dictionary, chunk: Vector2i) -> Dictionary:
 			(result.sectors as Array).append({"bounds": clipped, "sector_id": str(sector.get("sector_id", ""))})
 	if not (result.macro as Dictionary).is_empty():
 		result.structural_ports = _structural_ports(descriptor, macro_bounds, chunk)
+	result.traversal_segments = _traversal_segments(descriptor, chunk)
 	result.traversal_ports = _traversal_ports(descriptor, chunk)
 	return result
 
@@ -97,6 +99,55 @@ static func _traversal_ports(descriptor: Dictionary, chunk: Vector2i) -> Array:
 				})
 	ports.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left.contract_key) < str(right.contract_key))
 	return ports
+
+static func _traversal_segments(descriptor: Dictionary, chunk: Vector2i) -> Array:
+	var segments: Array = []
+	for route: Dictionary in descriptor.get("routes", []):
+		var points := [_point(route.get("start_anchor", []))]
+		for waypoint in route.get("waypoints", []):
+			points.append(_point(waypoint))
+		points.append(_point(route.get("end_anchor", [])))
+		for index in range(points.size() - 1):
+			var clipped := _clip_segment_to_chunk(points[index], points[index + 1], chunk)
+			if clipped.is_empty():
+				continue
+			segments.append({
+				"end_fp": _point_fp(clipped.end),
+				"id": str(route.get("route_id", "")) + ":segment:%d" % index,
+				"mandatory": bool(route.get("mandatory", false)),
+				"movement_mode": str(route.get("movement_mode", "")),
+				"route_class": str(route.get("route_class", "")),
+				"route_id": str(route.get("route_id", "")),
+				"start_fp": _point_fp(clipped.start),
+			})
+	segments.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left.id) < str(right.id))
+	return segments
+
+static func _clip_segment_to_chunk(start: Vector3, finish: Vector3, chunk: Vector2i) -> Dictionary:
+	var minimum_x := float(chunk.x * CHUNK_SIZE)
+	var minimum_z := float(chunk.y * CHUNK_SIZE)
+	var maximum_x := minimum_x + CHUNK_SIZE
+	var maximum_z := minimum_z + CHUNK_SIZE
+	var delta := finish - start
+	var lower := 0.0
+	var upper := 1.0
+	for edge: Array in [[-delta.x, start.x - minimum_x], [delta.x, maximum_x - start.x], [-delta.z, start.z - minimum_z], [delta.z, maximum_z - start.z]]:
+		var p := float(edge[0])
+		var q := float(edge[1])
+		if is_zero_approx(p):
+			if q < 0.0:
+				return {}
+			continue
+		var ratio := q / p
+		if p < 0.0:
+			lower = maxf(lower, ratio)
+		else:
+			upper = minf(upper, ratio)
+		if lower > upper:
+			return {}
+	if is_equal_approx(lower, upper):
+		return {}
+	return {"end": start.lerp(finish, upper), "start": start.lerp(finish, lower)}
 
 static func _segment_crossings(start: Vector3, finish: Vector3) -> Array:
 	var crossings: Array = []

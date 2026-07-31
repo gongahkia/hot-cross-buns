@@ -5,6 +5,7 @@ const RNG := preload("res://scripts/world_rng.gd")
 const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd")
 const MEGASTRUCTURE_GENERATOR := preload("res://scripts/world_megastructure_generator.gd")
 const MEGASTRUCTURE_INTERSECTION := preload("res://scripts/world_megastructure_intersection.gd")
+const MEGASTRUCTURE_LOD := preload("res://scripts/world_megastructure_lod.gd")
 const SCALE := preload("res://scripts/world_scale.gd")
 const URBAN_FIELDS := preload("res://scripts/world_urban_fields.gd")
 const CITY_LAYOUT := preload("res://scripts/world_reclaimed_city_layout.gd")
@@ -154,7 +155,9 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	var urban_resources:=URBAN_RESOURCES.generate(descriptor)
 	if not urban_resources.is_empty():descriptor["urban_resources"]=urban_resources
 	var megastructure := _megastructure_descriptor(chunk_x, chunk_z, str(scale.id))
-	if not megastructure.is_empty(): descriptor["megastructure"] = megastructure
+	if not megastructure.is_empty():
+		descriptor["megastructure"] = megastructure
+		descriptor["megastructure_lod"] = MEGASTRUCTURE_LOD.compile(megastructure)
 	return descriptor
 
 func _megastructure_descriptor(chunk_x: int, chunk_z: int, scale_id: String) -> Dictionary:
