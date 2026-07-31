@@ -326,7 +326,7 @@ func _input(event: InputEvent) -> void:
 			_refresh_debug_hud()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F4 and rebinding_action.is_empty():
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_L and rebinding_action.is_empty():
 		_toggle_streaming_profile()
 		get_viewport().set_input_as_handled()
 		return
@@ -378,7 +378,7 @@ func show_title() -> void:
 	var journal := _button("Survey journal", 18)
 	journal.pressed.connect(show_world_journal.bind("title"))
 	box.add_child(journal)
-	box.add_child(_label("WASD + Mouse/Arrows - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug - F4 profile", 14, Color("#8ea18a")))
+	box.add_child(_label("WASD + Mouse/Arrows - Ctrl sprint/air dash - C slide - E tether - F glide - Q slam - Shift dash - R reset - F3 debug - L profile", 14, Color("#8ea18a")))
 
 func show_run_archive() -> void:
 	menu_mode = "records"
