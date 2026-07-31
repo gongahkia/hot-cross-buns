@@ -95,7 +95,7 @@ Goal: compile the macrostructure into existing streamed chunks.
 - [ ] M3.6 Integrate megastructure intersection data into existing chunk descriptors.
 - [x] M3.7 Confirm cache eviction does not alter results.
 - [x] M3.8 Confirm worker completion order does not alter results.
-- [ ] M3.9 Add debug display for boundary ownership.
+- [x] M3.9 Add debug display for boundary ownership.
 - [ ] M3.10 Commit after determinism, boundary, and baseline tests pass.
 
 Exit criteria:

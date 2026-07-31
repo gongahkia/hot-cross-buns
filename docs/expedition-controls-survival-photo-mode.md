@@ -18,7 +18,7 @@ These are the default bindings from `Settings`. Action bindings can be changed i
 | Extract | `X` | — | In a procedural expedition, opens confirmation; extraction banks the resolved record and returns to title. |
 | Pause | `Esc` | Start | Pause/resume. |
 | Diagnostics | `F3` | — | Toggle the debug panel. |
-| Megastructure debug | `F4` | — | Toggle structure, sector, route, threshold, and reveal debug geometry during a procedural expedition. |
+| Megastructure debug | `F4` | — | Toggle structure, sector, route, threshold, reveal, and boundary-owner/follower debug geometry during a procedural expedition. |
 
 ## Survival and field actions
 

@@ -14,7 +14,7 @@ The prototype compiles only coarse first-slice masses:
 
 The entry uses the descriptor's revealed direction for the initial player view. Walking normally passes from the exterior approach through the threshold/compression sequence to the foreground route beneath the long deck. The deck/support rhythm is a deliberate distant continuation cue; it is not streamed megastructure content yet.
 
-Press `F4` during an expedition to toggle non-authoritative debug geometry for the descriptor's structure/sector bounds, entry threshold, route lines, and reveal focus. The runtime mass remains visible with the overlay disabled. `F2`, `F3`, `L`, photo controls, pixel filtering, and normal streaming arbitration are unchanged.
+Press `F4` during an expedition to toggle non-authoritative debug geometry for the descriptor's structure/sector bounds, entry threshold, route lines, reveal focus, and M3 boundary ports sampled along declared routes. Green/yellow crosses are canonical structural/traversal owners; purple/coral crosses are their neighboring copies. The runtime mass remains visible with the overlay disabled. `F2`, `F3`, `L`, photo controls, pixel filtering, and normal streaming arbitration are unchanged.
 
 ## Verification
 

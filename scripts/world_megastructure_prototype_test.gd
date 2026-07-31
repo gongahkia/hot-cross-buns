@@ -13,7 +13,10 @@ func _initialize() -> void:
 		_expect(root.get_node_or_null(expected) != null, "prototype mass missing: " + expected)
 	_expect((root.get_node_or_null("SpineWallLeft") as Node).get_child_count() == 2 and (root.get_node_or_null("OpeningRoute") as Node).get_child_count() == 2, "prototype collision ownership drifted")
 	var debug := root.get_node_or_null("MegastructureDebug") as Node3D
-	_expect(debug != null and not debug.visible and debug.get_child_count() == 7, "debug overlay contract drifted")
+	var ownership: Node3D = debug.get_node_or_null("BoundaryOwnership") as Node3D if debug else null
+	_expect(debug != null and not debug.visible and ownership != null and ownership.get_child_count() == 4, "debug overlay contract drifted")
+	for expected in ["OwnerStructuralPorts", "NeighborStructuralPorts", "OwnerTraversalPorts", "NeighborTraversalPorts"]:
+		_expect(ownership.get_node_or_null(expected) != null, "boundary ownership debug missing: " + expected)
 	PROTOTYPE.set_debug_visible(root, true)
 	_expect(debug.visible, "debug overlay did not activate")
 	PROTOTYPE.set_origin(root, Vector2i(3, -2))

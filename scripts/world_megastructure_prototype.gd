@@ -2,6 +2,8 @@ class_name WorldMegastructurePrototype
 extends RefCounted
 
 const CHUNK_SIZE := 64.0
+const INTERSECTION := preload("res://scripts/world_megastructure_intersection.gd")
+const POINT_SCALE := 1024.0
 
 static func compile(descriptor: Dictionary, terrain_height: Callable) -> Node3D:
 	var root := Node3D.new()
@@ -87,6 +89,7 @@ static func _add_grapple_anchor(root: Node3D, position: Vector3) -> void:
 static func _debug_overlay(descriptor: Dictionary) -> Node3D:
 	var root := Node3D.new()
 	_add_wire_box(root, "StructureBounds", descriptor.get("world_bounds", {}), Color("#6bcfa9"))
+	_add_wire_box(root, "MacroBounds", _macro_bounds(descriptor), Color("#6484c8"))
 	for sector: Dictionary in descriptor.get("sectors", []):
 		_add_wire_box(root, "SectorBounds", sector.get("bounds", {}), Color("#f0d78a"))
 	var entry: Dictionary = descriptor.get("entry", {})
@@ -95,7 +98,78 @@ static func _debug_overlay(descriptor: Dictionary) -> Node3D:
 		_add_wire_box(root, "RevealFocus", reveal.get("focus_bounds", {}), Color("#9ccbf2"))
 	for route: Dictionary in descriptor.get("routes", []):
 		_add_route_line(root, route)
+	_add_boundary_port_debug(root, descriptor)
 	return root
+
+static func _add_boundary_port_debug(root: Node3D, descriptor: Dictionary) -> void:
+	var boundary_root := Node3D.new()
+	boundary_root.name = "BoundaryOwnership"
+	var owner_structural: Array = []
+	var neighbor_structural: Array = []
+	var owner_traversal: Array = []
+	var neighbor_traversal: Array = []
+	for chunk: Vector2i in _debug_boundary_chunks(descriptor):
+		var intersection := INTERSECTION.compile(descriptor, chunk)
+		for port: Dictionary in (intersection.get("structural_ports", []) as Array) + (intersection.get("traversal_ports", []) as Array):
+			var owner: Array = port.get("owner_chunk", [])
+			var target: Array = owner_structural if str(port.get("port_type", "")) == "structural" else owner_traversal
+			if owner.size() == 2 and int(owner[0]) == chunk.x and int(owner[1]) == chunk.y:
+				target.append(port)
+			else:
+				target = neighbor_structural if str(port.get("port_type", "")) == "structural" else neighbor_traversal
+				target.append(port)
+	_add_boundary_port_mesh(boundary_root, "OwnerStructuralPorts", owner_structural, Color("#68dfb0"), 8.0)
+	_add_boundary_port_mesh(boundary_root, "NeighborStructuralPorts", neighbor_structural, Color("#9374d8"), 4.0)
+	_add_boundary_port_mesh(boundary_root, "OwnerTraversalPorts", owner_traversal, Color("#f0d78a"), 8.0)
+	_add_boundary_port_mesh(boundary_root, "NeighborTraversalPorts", neighbor_traversal, Color("#ef8b70"), 4.0)
+	root.add_child(boundary_root)
+
+static func _debug_boundary_chunks(descriptor: Dictionary) -> Array:
+	var chunks: Array = []
+	var seen := {}
+	for route: Dictionary in descriptor.get("routes", []):
+		var points := [_point(route.get("start_anchor", []))]
+		for waypoint in route.get("waypoints", []):
+			points.append(_point(waypoint))
+		points.append(_point(route.get("end_anchor", [])))
+		for index in range(points.size() - 1):
+			var start: Vector3 = points[index]
+			var finish: Vector3 = points[index + 1]
+			var steps := maxi(1, ceili(maxf(absf(finish.x - start.x), absf(finish.z - start.z)) / CHUNK_SIZE))
+			for step in range(steps + 1):
+				var point := start.lerp(finish, float(step) / float(steps))
+				var chunk := Vector2i(floori(point.x / CHUNK_SIZE), floori(point.z / CHUNK_SIZE))
+				var key := "%d:%d" % [chunk.x, chunk.y]
+				if not seen.has(key):
+					seen[key] = true
+					chunks.append(chunk)
+	chunks.sort_custom(func(first: Vector2i, second: Vector2i) -> bool: return first.x < second.x or (first.x == second.x and first.y < second.y))
+	return chunks
+
+static func _add_boundary_port_mesh(root: Node3D, node_name: String, ports: Array, color: Color, y_offset: float) -> void:
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _material(color, true))
+	for port: Dictionary in ports:
+		var point_fp: Array = port.get("point_fp", [])
+		if point_fp.size() != 3:
+			continue
+		var point := Vector3(float(point_fp[0]) / POINT_SCALE, float(point_fp[1]) / POINT_SCALE + y_offset, float(point_fp[2]) / POINT_SCALE)
+		var lateral := Vector3(0.0, 0.0, 3.0) if str(port.get("boundary_axis", "")) == "x" else Vector3(3.0, 0.0, 0.0)
+		mesh.surface_add_vertex(point - Vector3(0.0, 3.0, 0.0))
+		mesh.surface_add_vertex(point + Vector3(0.0, 3.0, 0.0))
+		mesh.surface_add_vertex(point - lateral)
+		mesh.surface_add_vertex(point + lateral)
+	mesh.surface_end()
+	var visual := MeshInstance3D.new()
+	visual.name = node_name
+	visual.mesh = mesh
+	root.add_child(visual)
+
+static func _macro_bounds(descriptor: Dictionary) -> Dictionary:
+	var bounds: Dictionary = descriptor.get("world_bounds", {})
+	for reveal: Dictionary in descriptor.get("reveals", []):
+		bounds = _merge_bounds(bounds, reveal.get("background_bounds", {}))
+	return bounds
 
 static func _add_wire_box(root: Node3D, node_name: String, bounds: Dictionary, color: Color) -> void:
 	var minimum := _point(bounds.get("min", []))
@@ -159,3 +233,18 @@ static func _point(value: Variant) -> Vector3:
 static func _ground_point(value: Variant) -> Vector3:
 	var point := _point(value)
 	return Vector3(point.x, 0.0, point.z)
+
+static func _merge_bounds(first: Dictionary, second: Dictionary) -> Dictionary:
+	if first.is_empty():
+		return second.duplicate(true)
+	if second.is_empty():
+		return first.duplicate(true)
+	var first_minimum := _point(first.get("min", []))
+	var first_maximum := _point(first.get("max", []))
+	var second_minimum := _point(second.get("min", []))
+	var second_maximum := _point(second.get("max", []))
+	return {
+		"max": [maxi(int(first_maximum.x), int(second_maximum.x)), maxi(int(first_maximum.y), int(second_maximum.y)), maxi(int(first_maximum.z), int(second_maximum.z))],
+		"min": [mini(int(first_minimum.x), int(second_minimum.x)), mini(int(first_minimum.y), int(second_minimum.y)), mini(int(first_minimum.z), int(second_minimum.z))],
+		"unit": "world_unit",
+	}

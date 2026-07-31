@@ -25,3 +25,7 @@ Structural ports use the `structure` layer. Traversal ports use `traversal/<rout
 ```
 
 The test verifies macro/sector clipping, matching independently compiled neighbor ports, canonical ownership, cache eviction independence, forward/reverse/shuffled request-order equality, and actual `WorkerThreadPool` queue-order equality.
+
+## Debug display
+
+The existing `F4` prototype overlay samples every declared route and compiles its pure intersections. It displays structural owners in green, structural neighboring copies in purple, traversal owners in yellow, and traversal neighboring copies in coral. This is diagnostic geometry only; it does not attach streamed content or mutate chunk descriptors.
