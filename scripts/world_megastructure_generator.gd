@@ -4,6 +4,7 @@ extends RefCounted
 const RNG := preload("res://scripts/world_rng.gd")
 const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd")
+const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
 const DESCRIPTOR_SCHEMA_VERSION := 2
@@ -90,6 +91,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 		"world_bounds": opening_bounds,
 	}
 	descriptor["canonical_hash"] = HASH.canonical_hash(descriptor)
+	assert(bool(ROUTE_VALIDATOR.validate_baseline_entry(descriptor).get("valid", false)), "generated megastructure baseline entry route is invalid")
 	return descriptor
 
 func _axis(megacell: Vector3i) -> Vector3i:

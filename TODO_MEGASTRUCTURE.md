@@ -132,7 +132,7 @@ Exit criteria:
 Goal: make routes derive from the existing player movement vocabulary.
 
 - [x] M5.1 Encode conservative movement envelopes for walk, jump, double jump, dash, slide, wall-run, grapple, glide, and drop.
-- [ ] M5.2 Validate the baseline entry route.
+- [x] M5.2 Validate the baseline entry route.
 - [ ] M5.3 Validate the optional expressive route.
 - [ ] M5.4 Validate recovery volumes where required.
 - [ ] M5.5 Validate affordance visibility before commitment.
