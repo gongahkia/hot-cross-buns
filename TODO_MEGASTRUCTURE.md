@@ -6,9 +6,9 @@ This backlog is intentionally staged. Do not attempt all milestones in one agent
 
 ## Global rules
 
-- [ ] Read `docs/design-pillars.md` before making changes.
-- [ ] Read `docs/megastructure-design-spec.md`.
-- [ ] Read `docs/megastructure-technical-design.md`.
+- [x] Read `docs/design-pillars.md` before making changes.
+- [x] Read `docs/megastructure-design-spec.md`.
+- [x] Read `docs/megastructure-technical-design.md`.
 - [ ] Preserve deterministic, load-order-independent generation.
 - [ ] Preserve the current normal-frame mutual deferral of heavyweight streaming work.
 - [ ] Keep worker generation pure-data and main-thread attachment explicit.
@@ -22,15 +22,15 @@ This backlog is intentionally staged. Do not attempt all milestones in one agent
 
 Goal: establish exact integration points without changing world appearance.
 
-- [ ] M0.1 Run and record the three existing headless validation commands.
-- [ ] M0.2 Inspect `scripts/world_generator.gd` and document descriptor boundaries.
-- [ ] M0.3 Inspect `scripts/world_streamer.gd` and document all normal-frame queue arbitration.
-- [ ] M0.4 Identify the current stable hashing and seeded-random utilities.
-- [ ] M0.5 Identify the current test organization and naming convention.
-- [ ] M0.6 Identify unused or safely extendable debug input bindings.
+- [x] M0.1 Run and record the three existing headless validation commands.
+- [x] M0.2 Inspect `scripts/world_generator.gd` and document descriptor boundaries.
+- [x] M0.3 Inspect `scripts/world_streamer.gd` and document all normal-frame queue arbitration.
+- [x] M0.4 Identify the current stable hashing and seeded-random utilities.
+- [x] M0.5 Identify the current test organization and naming convention.
+- [x] M0.6 Identify unused or safely extendable debug input bindings.
 - [ ] M0.7 Copy approved `MEGA-*` invariants into `docs/design-pillars.md`.
-- [ ] M0.8 Add a short architecture note showing the chosen file layout and why.
-- [ ] M0.9 Add empty or minimal test entry points only where consistent with the repository.
+- [x] M0.8 Add a short architecture note showing the chosen file layout and why.
+- [x] M0.9 Add empty or minimal test entry points only where consistent with the repository.
 - [ ] M0.10 Re-run all baseline tests and commit the documentation/scaffolding.
 
 Exit criteria:
