@@ -8,6 +8,7 @@ const BASELINE_ENTRY_SCHEMA := "megastructure-baseline-entry-validation/v1"
 const EXPRESSIVE_ROUTE_SCHEMA := "megastructure-expressive-route-validation/v1"
 const RECOVERY_VOLUME_SCHEMA := "megastructure-recovery-volume-validation/v1"
 const AFFORDANCE_VISIBILITY_SCHEMA := "megastructure-affordance-visibility-validation/v1"
+const ROUTE_PRESERVATION_SCHEMA := "megastructure-route-preservation-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -189,6 +190,30 @@ static func validate_affordance_visibility(descriptor: Dictionary) -> Dictionary
 		issues.append("expressive_affordance_out_of_range")
 	return _visibility_result(issues)
 
+static func validate_route_preservation(before: Dictionary, after: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var before_entry: Dictionary = before.get("entry", {})
+	var after_entry: Dictionary = after.get("entry", {})
+	var required_route_ids: Array = before_entry.get("required_route_ids", [])
+	if required_route_ids.is_empty() or required_route_ids != after_entry.get("required_route_ids", []):
+		issues.append("mandatory_route_identity_changed")
+	for route_id_value: Variant in required_route_ids:
+		var route_id := str(route_id_value)
+		var before_route := _route_by_id(before.get("routes", []), route_id)
+		var after_route := _route_by_id(after.get("routes", []), route_id)
+		if before_route.is_empty() or after_route.is_empty():
+			issues.append("mandatory_route_missing_after_damage")
+			continue
+		if not bool(after_route.get("mandatory", false)) or str(before_route.get("movement_mode", "")) != str(after_route.get("movement_mode", "")) or before_route.get("start_anchor", []) != after_route.get("start_anchor", []) or before_route.get("waypoints", []) != after_route.get("waypoints", []) or before_route.get("end_anchor", []) != after_route.get("end_anchor", []):
+			issues.append("mandatory_route_changed_after_damage")
+	if not bool(validate_baseline_entry(after).get("valid", false)):
+		issues.append("baseline_invalid_after_damage")
+	if not bool(validate_recovery_volumes(after).get("valid", false)):
+		issues.append("recovery_invalid_after_damage")
+	if not bool(validate_affordance_visibility(after).get("valid", false)):
+		issues.append("visibility_invalid_after_damage")
+	return _preservation_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -307,3 +332,6 @@ static func _recovery_result(issues: Array) -> Dictionary:
 
 static func _visibility_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":AFFORDANCE_VISIBILITY_SCHEMA,"valid":issues.is_empty()}
+
+static func _preservation_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":ROUTE_PRESERVATION_SCHEMA,"valid":issues.is_empty()}

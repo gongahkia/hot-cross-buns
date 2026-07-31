@@ -96,6 +96,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_expressive_route(descriptor).get("valid", false)), "generated megastructure expressive route is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_recovery_volumes(descriptor).get("valid", false)), "generated megastructure recovery volumes are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_affordance_visibility(descriptor).get("valid", false)), "generated megastructure affordance visibility is invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_route_preservation(descriptor, descriptor).get("valid", false)), "generated megastructure route preservation is invalid")
 	return descriptor
 
 func _axis(megacell: Vector3i) -> Vector3i:

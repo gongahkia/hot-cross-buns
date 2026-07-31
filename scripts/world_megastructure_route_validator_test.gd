@@ -18,6 +18,7 @@ func _initialize() -> void:
 	_assert_expressive_route_validation()
 	_assert_recovery_volume_validation()
 	_assert_affordance_visibility_validation()
+	_assert_route_preservation_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -129,6 +130,19 @@ func _assert_affordance_visibility_validation() -> void:
 	var invalid_commit := generator.generate(Vector3i.ZERO).duplicate(true)
 	(invalid_commit.routes[1] as Dictionary)["commit_anchor"] = [0, 24, 0]
 	_expect("expressive_commit_anchor_invalid" in VALIDATOR.validate_affordance_visibility(invalid_commit).get("issues", []), "off-route commitment anchor was accepted")
+
+func _assert_route_preservation_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var preserved := source.duplicate(true)
+	preserved["damage"] = {"fixture":"non_route_damage"}
+	var valid := VALIDATOR.validate_route_preservation(source, preserved)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.ROUTE_PRESERVATION_SCHEMA and bool(valid.get("valid", false)), "route-preserving damage was rejected")
+	var changed_route := source.duplicate(true)
+	(changed_route.routes[0] as Dictionary)["end_anchor"] = [0, 24, 0]
+	_expect("mandatory_route_changed_after_damage" in VALIDATOR.validate_route_preservation(source, changed_route).get("issues", []), "damaged mandatory route was accepted")
+	var missing_route := source.duplicate(true)
+	missing_route["routes"] = (missing_route.routes as Array).slice(1)
+	_expect("mandatory_route_missing_after_damage" in VALIDATOR.validate_route_preservation(source, missing_route).get("issues", []), "removed mandatory route was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

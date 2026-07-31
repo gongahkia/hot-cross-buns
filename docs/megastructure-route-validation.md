@@ -33,3 +33,7 @@ Every route marked `recovery_required` must provide an explicit volume around it
 ## Affordance-visibility contract
 
 `validate_affordance_visibility` requires the entry threshold to be geometrically exposed at least 96 units before crossing, and requires the grapple anchor to be at least 12 units from its commitment point while remaining inside its 26-unit acquisition range. This is a deterministic geometric check over descriptors; occlusion and final rendering legibility remain runtime/playtest concerns.
+
+## Post-damage preservation contract
+
+`validate_route_preservation(before, after)` compares a descriptor with its transformed result. It requires every mandatory route ID, movement mode, anchors, and waypoints to remain unchanged; then reruns baseline, recovery, and visibility validation on the result. M6 damage, hydrology, and ecology transforms must run this pure check before publishing a descriptor. A future validated replacement-route policy must extend this contract explicitly rather than silently changing a mandatory path.
