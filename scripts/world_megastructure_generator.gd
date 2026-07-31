@@ -3,13 +3,15 @@ extends RefCounted
 
 const RNG := preload("res://scripts/world_rng.gd")
 const HASH := preload("res://scripts/world_megastructure_hash.gd")
-const WORLD_GENERATOR := preload("res://scripts/world_generator.gd")
+const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 1
+const DESCRIPTOR_SCHEMA_VERSION := 2
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
-const GENERATOR_SCHEMA_VERSION := WORLD_GENERATOR.GENERATOR_SCHEMA_VERSION
+const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
+const INTERIOR_FLOOR_Y := 24
+const INTERIOR_CEILING_Y := 100
 const STAGE_AXIS := 3101
 const STAGE_WIDTH := 3103
 const STAGE_REFUGE := 3107
@@ -68,6 +70,12 @@ func generate(megacell: Vector3i) -> Dictionary:
 			"type": "entry",
 		},
 		"identity": identity,
+		"interior": {
+			"ceiling_y": INTERIOR_CEILING_Y,
+			"floor_y": INTERIOR_FLOOR_Y,
+			"terrain_mode": "flat_enclosed_floor",
+			"unit": "world_unit",
+		},
 		"reveals": [reveal],
 		"routes": [baseline, shortcut, survival_detour],
 		"sectors": [{

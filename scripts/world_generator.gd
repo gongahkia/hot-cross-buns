@@ -2,6 +2,9 @@ class_name WorldGenerator
 extends RefCounted
 
 const RNG := preload("res://scripts/world_rng.gd")
+const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd")
+const MEGASTRUCTURE_GENERATOR := preload("res://scripts/world_megastructure_generator.gd")
+const MEGASTRUCTURE_INTERSECTION := preload("res://scripts/world_megastructure_intersection.gd")
 const SCALE := preload("res://scripts/world_scale.gd")
 const URBAN_FIELDS := preload("res://scripts/world_urban_fields.gd")
 const CITY_LAYOUT := preload("res://scripts/world_reclaimed_city_layout.gd")
@@ -36,14 +39,17 @@ const URBAN_RESOURCES := preload("res://scripts/world_urban_resources.gd")
 const CHUNK_SIZE := 64.0
 const REGION_SIZE := 512.0
 const SEA_LEVEL := 0.0
-const GENERATOR_SCHEMA_VERSION := "1.0.0"
+const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
 const URBAN_FAMILIES := ["reclaimed_city", "flooded_city", "industrial_ruin", "overgrown_suburb"]
 const NATURAL_BIOMES := ["ocean", "coast", "lake", "river", "wetland", "desert", "cold_desert", "polar_desert", "semiaird_shrubland", "playa_salt_flat", "dune_sea_erg", "badland", "oasis", "grassland", "savanna", "temperate_forest", "temperate_rainforest", "mixed_forest", "conifer_forest", "rainforest", "monsoon_forest", "dry_broadleaf", "cloud_forest", "thorn_scrub", "mediterranean_chaparral", "mangrove", "riparian_gallery_forest", "boreal_forest", "muskeg", "subalpine_krummholz", "tundra", "permafrost_polygon", "alpine", "alpine_scree", "nival_zone", "snow", "rock", "lava_flow", "shield", "karst", "reef", "lagoon", "kelp_forest_fringe", "atoll_ring", "seamount_cap", "fumarole_field", "hot_spring_travertine", "ash_plain"]
 
 var seed: int
+var megastructure_generator
+var megastructure_cache: Dictionary = {}
 
 func _init(next_seed: int) -> void:
 	seed = next_seed
+	megastructure_generator = MEGASTRUCTURE_GENERATOR.new(seed, GENERATOR_SCHEMA_VERSION)
 
 func region_at(world_position: Vector3) -> Dictionary:
 	var rx := floori(world_position.x / REGION_SIZE)
@@ -147,7 +153,32 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 	if not natural_resources.is_empty():descriptor["natural_resources"]=natural_resources
 	var urban_resources:=URBAN_RESOURCES.generate(descriptor)
 	if not urban_resources.is_empty():descriptor["urban_resources"]=urban_resources
+	var megastructure := _megastructure_descriptor(chunk_x, chunk_z, str(scale.id))
+	if not megastructure.is_empty(): descriptor["megastructure"] = megastructure
 	return descriptor
+
+func _megastructure_descriptor(chunk_x: int, chunk_z: int, scale_id: String) -> Dictionary:
+	if scale_id != "local":
+		return {}
+	var current := megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
+	var intersections: Array = []
+	for offset_z in range(-1, 2):
+		for offset_x in range(-1, 2):
+			var megacell := Vector3i(current.x + offset_x, 0, current.z + offset_z)
+			var source := _megastructure_at(megacell)
+			var intersection := MEGASTRUCTURE_INTERSECTION.compile(source, Vector2i(chunk_x, chunk_z))
+			if not (intersection.get("macro", {}) as Dictionary).is_empty():
+				intersections.append(intersection)
+	intersections.sort_custom(func(first: Dictionary, second: Dictionary) -> bool: return str(first.get("structure_id", "")) < str(second.get("structure_id", "")))
+	if intersections.is_empty():
+		return {}
+	return {"intersections": intersections, "schema": "megastructure-chunk/v1"}
+
+func _megastructure_at(megacell: Vector3i) -> Dictionary:
+	var key := "%d:%d:%d" % [megacell.x, megacell.y, megacell.z]
+	if not megastructure_cache.has(key):
+		megastructure_cache[key] = megastructure_generator.generate(megacell)
+	return (megastructure_cache[key] as Dictionary).duplicate(true)
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
 	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"

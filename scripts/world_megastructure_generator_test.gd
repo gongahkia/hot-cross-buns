@@ -18,6 +18,7 @@ func _initialize() -> void:
 	var generator := GENERATOR.new(SEED)
 	_expect(generator.megacell_at(Vector3i(-1, 0, -1)) == Vector3i(-1, 0, -1) and generator.megacell_at(Vector3i(4095, 0, 4095)) == Vector3i(0, 0, 0) and generator.megacell_at(Vector3i(4096, 4096, -4097)) == Vector3i(1, 1, -2), "megacell quantization drifted")
 	var forward := _generate_hashes(generator, CELLS)
+	print(JSON.stringify(forward))
 	_expect(forward == EXPECTED_HASHES, "megastructure descriptor golden hashes drifted")
 	_expect(HASH.canonical_json({"b": 1, "a": [true, null]}) == "{\"a\":[true,null],\"b\":1}" and HASH.canonical_json(0.5).is_empty(), "canonical serialization contract drifted")
 	var reversed_cells := CELLS.duplicate()

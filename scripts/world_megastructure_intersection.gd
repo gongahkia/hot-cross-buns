@@ -11,6 +11,7 @@ static func compile(descriptor: Dictionary, chunk: Vector2i) -> Dictionary:
 	var macro_bounds := _macro_bounds(descriptor)
 	var result := {
 		"chunk": _chunk_point(chunk),
+		"interior": (descriptor.get("interior", {}) as Dictionary).duplicate(true),
 		"macro": _clip_to_chunk(macro_bounds, chunk),
 		"schema": SCHEMA,
 		"sectors": [],
