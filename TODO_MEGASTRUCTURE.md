@@ -158,7 +158,7 @@ Goal: make the megastructure feel accumulated and reclaimed.
 - [x] M6.5 Add ecological reclamation tied to light, water, material, and exposure.
 - [x] M6.6 Derive at least one survival opportunity from utility history.
 - [x] M6.7 Revalidate mandatory routes after every transformation stage.
-- [ ] M6.8 Add a historical reveal showing multiple epochs at once.
+- [x] M6.8 Add a historical reveal showing multiple epochs at once.
 - [ ] M6.9 Commit after route preservation and baseline tests pass.
 
 Exit criteria:

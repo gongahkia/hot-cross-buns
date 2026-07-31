@@ -62,7 +62,8 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	_expect((expressive.waypoints as Array).is_empty() and (expressive.anchor as Array).size() == 3 and (expressive.commit_anchor as Array).size() == 3 and int(expressive.affordance_visibility_distance) == 12 and str(expressive.required_ability) == "grapple" and bool(expressive.recovery_required) and (expressive.recovery_volume as Dictionary).has_all(["min", "max"]), "expressive grapple descriptor contract drifted")
 	var survival := _route_by_class(routes, "survival")
 	_expect(str(survival.survival_opportunity) == "warm_utility_refuge" and int(survival.shelter_basis_points) > 0 and int(survival.exposure_reduction_basis_points) > 0 and int(survival.warmth_recovery_basis_points) > 0, "survival detour lost warmth/shelter/exposure contract")
-	_expect(reveals.size() == 1 and str(reveals[0].reveal_type) == "transcontinental_spine_continuation" and int(reveals[0].minimum_visibility_distance) >= 1024, "initial reveal descriptor contract drifted")
+	_expect(reveals.size() == 2 and str(reveals[0].reveal_type) == "transcontinental_spine_continuation" and int(reveals[0].minimum_visibility_distance) >= 1024, "initial reveal descriptor contract drifted")
+	_assert_historical_reveal(reveals)
 	var clone := descriptor.duplicate(true)
 	clone.erase("canonical_hash")
 	_expect(str(descriptor.canonical_hash) == HASH.canonical_hash(clone) and str(descriptor.canonical_hash).length() == 64, "canonical descriptor hash drifted")
@@ -139,6 +140,13 @@ func _assert_route_validation_stages(stages: Array) -> void:
 	_expect(stage_ids == ["construction_epochs", "construction_elements", "constrained_damage", "infrastructure_hydrology", "ecological_reclamation", "utility_survival"], "route validation stage order drifted")
 	for stage: Dictionary in stages:
 		_expect(str(stage.get("type", "")) == "route_validation_stage" and stage.get("checks", []) == ["mandatory_route_preservation"] and not str(stage.get("mandatory_route_hash", "")).is_empty(), "route validation stage contract drifted")
+
+func _assert_historical_reveal(reveals: Array) -> void:
+	var historical: Dictionary = {}
+	for reveal: Dictionary in reveals:
+		if str(reveal.get("reveal_type", "")) == "construction_history_cross_section":
+			historical = reveal
+	_expect(not historical.is_empty() and str(historical.get("type", "")) == "reveal" and (historical.get("composition_bounds", {}) as Dictionary).has_all(["min", "max"]) and historical.get("required_epoch_ids", []) == [1, 2, 3, 4, 5, 6] and historical.get("required_element_ids", []) == ["primary_spine_core", "attached_habitation_east", "emergency_breach_channel", "autonomous_machine_clamp", "salvage_refuge_patch", "reclamation_root_lattice"] and int(historical.get("minimum_visible_epoch_count", 0)) == 6, "historical reveal contract drifted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

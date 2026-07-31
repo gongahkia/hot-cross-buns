@@ -24,7 +24,8 @@ func _initialize() -> void:
 	_expect(route_chunks.size() >= 4, "fixture did not span enough chunks")
 	var first_chunk: Vector2i = route_chunks[1]
 	var first: Dictionary = INTERSECTION.compile(descriptor, first_chunk)
-	_expect(str(first.schema) == "megastructure-intersection/v1" and not (first.macro as Dictionary).is_empty() and not (first.sectors as Array).is_empty(), "macro or sector chunk intersection drifted")
+	_expect(str(first.schema) == "megastructure-intersection/v2" and not (first.macro as Dictionary).is_empty() and not (first.sectors as Array).is_empty(), "macro or sector chunk intersection drifted")
+	_assert_historical_reveal_intersection(descriptor)
 	_assert_shared_ports(descriptor, route_chunks)
 	_assert_cache_independence(descriptor, route_chunks)
 	_assert_order_independence(descriptor, route_chunks)
@@ -90,6 +91,14 @@ func _assert_worker_order_independence(descriptor: Dictionary, chunks: Array) ->
 	var reverse := chunks.duplicate()
 	reverse.reverse()
 	_expect(_compile_in_workers(descriptor, chunks) == _compile_in_workers(descriptor, reverse), "intersection changed with worker queue order")
+
+func _assert_historical_reveal_intersection(descriptor: Dictionary) -> void:
+	var reveal: Dictionary = descriptor.get("reveals", [])[1]
+	var anchor: Array = reveal.get("recommended_view_anchor", [])
+	var chunk := Vector2i(floori(float(anchor[0]) / 64.0), floori(float(anchor[2]) / 64.0))
+	var intersection := INTERSECTION.compile(descriptor, chunk)
+	var historical: Array = intersection.get("historical_reveals", [])
+	_expect(historical.size() == 1 and (historical[0].get("layers", []) as Array).size() >= 5 and int(historical[0].get("minimum_visible_epoch_count", 0)) == 6, "historical reveal layers were not compiled into the view chunk")
 
 func _compile_in_workers(descriptor: Dictionary, chunks: Array) -> Dictionary:
 	var tasks: Array = []

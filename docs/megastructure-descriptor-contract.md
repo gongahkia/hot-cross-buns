@@ -16,7 +16,7 @@ All descriptor values are JSON-safe dictionaries, arrays, strings, booleans, and
 
 `WorldMegastructureHash` serializes dictionary keys lexicographically, preserves ordered arrays, and hashes UTF-8 canonical JSON with SHA-256. Floats are intentionally rejected: a later descriptor schema must explicitly document any fixed-point unit before adding one.
 
-Each generation stage derives an owned `WorldRng` seed from `WorldRng.thoth_hash` over the seed, all megacell coordinates, a fixed stage salt, archetype version, and descriptor schema version. It cannot consume shared RNG state.
+Each generation stage derives an owned `WorldRng` seed from `WorldRng.thoth_hash` over the seed, all megacell coordinates, a fixed stage salt, archetype version, and explicit spatial layout version. It cannot consume shared RNG state.
 
 ## Initial archetype contract
 
@@ -30,7 +30,7 @@ Its ordered route array contains:
 
 The v3 grapple shortcut is one 18-unit lateral-forward commitment with its reachable anchor carried through chunk compilation to runtime attachment. It replaces the v2 long-distance placeholder, which could not be acquired within `SpeedPlayer.GRAPPLE_RANGE`. Schema v4 adds its explicit floor-supported recovery volume for route-preservation revalidation. Schema v5 adds threshold and grapple-affordance visibility distances.
 
-Schema v6 adds the ordered construction epochs consumed by M6 transformations. Schema v7 adds their canonical attachment/cut elements. Schema v8 adds constrained off-route damage records. Schema v9 derives route-safe hydrology from that damage. Schema v10 derives ecological reclamation from material, water, light, and exposure. Schema v11 binds the warm-refuge detour to utility history. Schema v12 records mandatory-route validation after every transformation stage. Their relationships are declared in [megastructure-construction-history.md](megastructure-construction-history.md).
+Schema v6 adds the ordered construction epochs consumed by M6 transformations. Schema v7 adds their canonical attachment/cut elements. Schema v8 adds constrained off-route damage records. Schema v9 derives route-safe hydrology from that damage. Schema v10 derives ecological reclamation from material, water, light, and exposure. Schema v11 binds the warm-refuge detour to utility history. Schema v12 records mandatory-route validation after every transformation stage. Schema v13 adds the six-epoch historical cross-section reveal. Their relationships are declared in [megastructure-construction-history.md](megastructure-construction-history.md).
 
 The values are planning data only. M2 owns visual realization; M3 owns chunk intersection; M5 owns analytic movement validation and survival runtime wiring.
 

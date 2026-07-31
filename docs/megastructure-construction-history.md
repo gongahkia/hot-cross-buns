@@ -36,3 +36,7 @@ Schema v11 binds the existing warm-utility refuge detour to the autonomous-machi
 ## Route validation stages
 
 Schema v12 snapshots the mandatory-route contract after construction epochs, element attachment, damage, hydrology, ecology, and utility-derived survival. Generation reruns mandatory-route preservation validation after each stage; its baseline, recovery, and visibility checks reject a changed mandatory route. The descriptor schema no longer changes the spatial RNG, so metadata migrations preserve the generated layout until an explicit layout version update.
+
+## Historical reveal
+
+Schema v13 adds a cross-section reveal bound to all six construction elements and epochs. Chunk compilation clips the source elements into history layers; normal detail attachment renders their epoch-coded translucent volumes together at the reveal, without adding collision or changing routes.

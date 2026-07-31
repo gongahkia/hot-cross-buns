@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_assert_ecology_constraint_validation()
 	_assert_survival_opportunity_validation()
 	_assert_transformation_stage_validation()
+	_assert_historical_reveal_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -205,6 +206,17 @@ func _assert_transformation_stage_validation() -> void:
 	var changed_record := source.duplicate(true)
 	(changed_record.route_validation_stages[0] as Dictionary)["mandatory_route_hash"] = "invalid"
 	_expect("transformation_stage_route_hash_invalid" in VALIDATOR.validate_transformation_stages(changed_record).get("issues", []), "invalid stage route hash was accepted")
+
+func _assert_historical_reveal_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_historical_reveal(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.HISTORICAL_REVEAL_SCHEMA and bool(valid.get("valid", false)), "generated historical reveal is invalid")
+	var missing_epoch := source.duplicate(true)
+	(missing_epoch.reveals[1] as Dictionary)["required_epoch_ids"] = [1, 2, 3]
+	_expect("historical_reveal_contract_invalid" in VALIDATOR.validate_historical_reveal(missing_epoch).get("issues", []), "incomplete historical reveal was accepted")
+	var wrong_element := source.duplicate(true)
+	(wrong_element.reveals[1] as Dictionary)["required_element_ids"][3] = "missing_element"
+	_expect("historical_reveal_source_invalid" in VALIDATOR.validate_historical_reveal(wrong_element).get("issues", []), "historical reveal without an epoch source was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:
