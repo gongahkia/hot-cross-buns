@@ -13,7 +13,7 @@
 
 Shell walls are emitted only on faces without a structural continuation port or a route endpoint. This leaves the generated entry/exit openings passable while roofs and remaining exterior faces enclose the flat interior. The prior always-loaded `MegastructurePrototype` is no longer attached at expedition startup; pure prototype tests remain as the M2 fixture.
 
-`WorldGenerator.megastructure_reveal_priority` is a pure cached-descriptor query. It assigns the descriptor's reveal bias at background, twice that bias at focus, and three times that bias at foreground; zero-thickness reveal planes intersect both touching chunk boundaries. `WorldStreamer` uses that score only to sort existing worker, active, collision, far, and detail candidates. It adds no queue or frame-budget exception.
+`WorldGenerator.megastructure_reveal_priority` is a pure cached-descriptor query. It assigns the descriptor's reveal bias at background, twice that bias at focus, and three times that bias at foreground or the recommended view anchor; zero-thickness reveal planes intersect both touching chunk boundaries. `WorldStreamer` uses that score only to sort existing worker, active, collision, far, and detail candidates. It adds no queue or frame-budget exception.
 
 ## Verification
 

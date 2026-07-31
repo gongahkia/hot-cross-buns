@@ -171,7 +171,7 @@ func megastructure_reveal_priority(chunk_x: int, chunk_z: int, scope: Variant = 
 			var source := _megastructure_at(Vector3i(current.x + offset_x, 0, current.z + offset_z))
 			for reveal: Dictionary in source.get("reveals", []):
 				var bias := float(reveal.get("streaming_priority_bias", 0))
-				if _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("foreground_bounds", {}) as Dictionary):
+				if _chunk_contains_point(chunk_x, chunk_z, reveal.get("recommended_view_anchor", [])) or _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("foreground_bounds", {}) as Dictionary):
 					score = maxf(score, bias * 3.0)
 				elif _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("focus_bounds", {}) as Dictionary):
 					score = maxf(score, bias * 2.0)
@@ -212,6 +212,11 @@ func _chunk_intersects_bounds(chunk_x: int, chunk_z: int, bounds: Dictionary) ->
 	var chunk_max_x := chunk_min_x + CHUNK_SIZE
 	var chunk_max_z := chunk_min_z + CHUNK_SIZE
 	return float(maximum[0]) >= chunk_min_x and float(minimum[0]) <= chunk_max_x and float(maximum[2]) >= chunk_min_z and float(minimum[2]) <= chunk_max_z
+
+func _chunk_contains_point(chunk_x: int, chunk_z: int, point: Variant) -> bool:
+	if not point is Array or point.size() != 3:
+		return false
+	return floori(float(point[0]) / CHUNK_SIZE) == chunk_x and floori(float(point[2]) / CHUNK_SIZE) == chunk_z
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
 	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"

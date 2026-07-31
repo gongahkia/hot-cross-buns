@@ -56,7 +56,7 @@ func _initialize() -> void:
 	assert(int(main.world_streamer.chunk_memory_snapshot().minimum_payload_bytes)>0,"chunk-memory telemetry did not report payloads")
 	main.debug_visible = true
 	main._refresh_debug_hud()
-	assert("STREAM" in main.debug_label.text, "streaming diagnostics missing")
+	assert("STREAM" in main.debug_label.text and "MEGA" in main.debug_label.text, "streaming phase diagnostics missing")
 	main.debug_visible = false
 	var preload_targets:Dictionary=PRELOAD_CORRIDOR.targets(main.world_streamer.current_center,main.world_streamer._preload_heading())
 	assert(not preload_targets.is_empty() and not main.world_streamer.chunk_cache.fetch(str(preload_targets.keys()[0])).is_empty(), "biome and region preload corridor did not cache a descriptor")

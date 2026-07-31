@@ -29,7 +29,8 @@ func record_sample(fps: float, frame_ms: float, diagnostics: Dictionary, positio
 	var refresh: Dictionary = diagnostics.get("refresh", {})
 	var telemetry: Dictionary = diagnostics.get("telemetry", {})
 	var memory: Dictionary = diagnostics.get("memory", {})
-	samples.append({"t":elapsed_seconds(),"fps":fps,"frame_ms":frame_ms,"position":{"x":position.x,"y":position.y,"z":position.z},"region":{"id":str(region.get("id", "")),"name":str(region.get("name", "")),"family":str(region.get("family", ""))},"stream":{"refresh":refresh.duplicate(true),"hitches":int(telemetry.get("hitches", 0)),"max_refresh_ms":float(telemetry.get("max_refresh_ms", 0.0)),"memory":memory.duplicate(true)}})
+	var phases := {"macro_silhouette_ms":float(refresh.get("macro_silhouette_ms", 0.0)),"sector_shell_ms":float(refresh.get("sector_shell_ms", 0.0)),"structure_collision_ms":float(refresh.get("structure_collision_ms", 0.0)),"traversal_detail_ms":float(refresh.get("traversal_detail_ms", 0.0))}
+	samples.append({"t":elapsed_seconds(),"fps":fps,"frame_ms":frame_ms,"position":{"x":position.x,"y":position.y,"z":position.z},"region":{"id":str(region.get("id", "")),"name":str(region.get("name", "")),"family":str(region.get("family", ""))},"stream":{"refresh":refresh.duplicate(true),"phases":phases,"hitches":int(telemetry.get("hitches", 0)),"max_refresh_ms":float(telemetry.get("max_refresh_ms", 0.0)),"memory":memory.duplicate(true)}})
 
 func record_hitch(sample: Dictionary) -> void:
 	if not active:
