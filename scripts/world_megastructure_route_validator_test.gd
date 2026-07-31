@@ -16,6 +16,7 @@ func _initialize() -> void:
 	_assert_conservative_limits()
 	_assert_baseline_entry_validation()
 	_assert_expressive_route_validation()
+	_assert_recovery_volume_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -99,6 +100,19 @@ func _assert_expressive_route_validation() -> void:
 			compiled_anchor = segment.get("grapple_anchor", [])
 			break
 	_expect(compiled_anchor == expressive.get("anchor", []), "expressive route anchor was lost during chunk compilation")
+
+func _assert_recovery_volume_validation() -> void:
+	var generator := GENERATOR.new(20260731)
+	for cell: Vector3i in [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i.ZERO, Vector3i(4, 0, -2), Vector3i(7, 0, 5)]:
+		var validation := VALIDATOR.validate_recovery_volumes(generator.generate(cell))
+		_expect(str(validation.get("schema", "")) == VALIDATOR.RECOVERY_VOLUME_SCHEMA and bool(validation.get("valid", false)) and (validation.get("issues", []) as Array).is_empty(), "generated recovery volume is invalid")
+	var missing_volume := generator.generate(Vector3i.ZERO).duplicate(true)
+	(missing_volume.routes[1] as Dictionary).erase("recovery_volume")
+	_expect("recovery_volume_invalid" in VALIDATOR.validate_recovery_volumes(missing_volume).get("issues", []), "required recovery volume was accepted when absent")
+	var cramped_volume := generator.generate(Vector3i.ZERO).duplicate(true)
+	((cramped_volume.routes[1] as Dictionary).recovery_volume as Dictionary)["min"] = [0, 24, 0]
+	((cramped_volume.routes[1] as Dictionary).recovery_volume as Dictionary)["max"] = [1, 25, 1]
+	_expect("recovery_landing_missing" in VALIDATOR.validate_recovery_volumes(cramped_volume).get("issues", []), "recovery volume without landing was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

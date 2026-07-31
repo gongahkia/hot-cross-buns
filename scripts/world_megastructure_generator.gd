@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 3
+const DESCRIPTOR_SCHEMA_VERSION := 4
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -93,6 +93,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	descriptor["canonical_hash"] = HASH.canonical_hash(descriptor)
 	assert(bool(ROUTE_VALIDATOR.validate_baseline_entry(descriptor).get("valid", false)), "generated megastructure baseline entry route is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_expressive_route(descriptor).get("valid", false)), "generated megastructure expressive route is invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_recovery_volumes(descriptor).get("valid", false)), "generated megastructure recovery volumes are invalid")
 	return descriptor
 
 func _axis(megacell: Vector3i) -> Vector3i:
@@ -136,7 +137,7 @@ func _grapple_shortcut(route_prefix: String, start: Vector3i, finish: Vector3i, 
 	var launch := start + transverse * 18
 	var landing := launch + direction * 18
 	var anchor := (launch + landing) / 2 + Vector3i(0, ROUTE_VALIDATOR.GRAPPLE_ANCHOR_HEIGHT, 0)
-	return _route(route_prefix + ":grapple_shortcut", "expressive", "grapple", launch, landing, [], false, {"anchor": _point(anchor), "required_ability": "grapple"})
+	return _route(route_prefix + ":grapple_shortcut", "expressive", "grapple", launch, landing, [], false, {"anchor": _point(anchor), "recovery_required": true, "recovery_volume": _recovery_volume(landing), "required_ability": "grapple"})
 
 func _survival_detour(route_prefix: String, start: Vector3i, finish: Vector3i, transverse: Vector3i, rng: WorldRng) -> Dictionary:
 	var side := -1 if rng.next_range(0, 1) == 0 else 1
@@ -161,6 +162,9 @@ func _route(route_id: String, route_class: String, movement_mode: String, start:
 	for key: String in extras:
 		route[key] = extras[key]
 	return route
+
+func _recovery_volume(landing: Vector3i) -> Dictionary:
+	return _bounds([landing - Vector3i(4, 0, 4), landing + Vector3i(4, 0, 4)], 0, 4)
 
 func _bounds(points: Array, min_y_offset: int, max_y_offset: int) -> Dictionary:
 	assert(not points.is_empty(), "bounds need points")

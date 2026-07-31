@@ -6,7 +6,10 @@ const PLAYER := preload("res://scripts/player.gd")
 const SCHEMA := "megastructure-route-envelope/v2"
 const BASELINE_ENTRY_SCHEMA := "megastructure-baseline-entry-validation/v1"
 const EXPRESSIVE_ROUTE_SCHEMA := "megastructure-expressive-route-validation/v1"
+const RECOVERY_VOLUME_SCHEMA := "megastructure-recovery-volume-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
+const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
+const RECOVERY_HEADROOM := 2.0
 const MODE_IDS := ["walk", "jump", "double_jump", "dash", "slide", "wall_run", "grapple", "glide", "drop"]
 
 static func envelopes() -> Dictionary:
@@ -114,6 +117,38 @@ static func validate_expressive_route(descriptor: Dictionary) -> Dictionary:
 		issues.append("expressive_anchor_height")
 	return _expressive_result(route_id, issues)
 
+static func validate_recovery_volumes(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var required_count := 0
+	var interior: Dictionary = descriptor.get("interior", {})
+	var floor_y := float(interior.get("floor_y", 0))
+	if str(interior.get("terrain_mode", "")) != "flat_enclosed_floor":
+		issues.append("recovery_ground_support")
+	for route: Dictionary in descriptor.get("routes", []):
+		if not bool(route.get("recovery_required", false)):
+			continue
+		required_count += 1
+		var path := _route_path(route, issues)
+		if path.size() < 2:
+			issues.append("recovery_route_path_invalid")
+			continue
+		var bounds: Dictionary = route.get("recovery_volume", {})
+		if not _valid_bounds(bounds):
+			issues.append("recovery_volume_invalid")
+			continue
+		var minimum := _point(bounds.min)
+		var maximum := _point(bounds.max)
+		var landing: Vector3 = path[path.size() - 1]
+		if not _point_in_bounds(landing, minimum, maximum):
+			issues.append("recovery_landing_missing")
+		if minimum.x > landing.x - RECOVERY_HORIZONTAL_CLEARANCE or maximum.x < landing.x + RECOVERY_HORIZONTAL_CLEARANCE or minimum.z > landing.z - RECOVERY_HORIZONTAL_CLEARANCE or maximum.z < landing.z + RECOVERY_HORIZONTAL_CLEARANCE:
+			issues.append("recovery_landing_clearance")
+		if not is_equal_approx(minimum.y, floor_y) or landing.y != floor_y or maximum.y < floor_y + RECOVERY_HEADROOM:
+			issues.append("recovery_ground_support")
+	if required_count == 0:
+		issues.append("recovery_volume_missing")
+	return _recovery_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -168,6 +203,16 @@ static func _path_intersects_bounds(path: Array, bounds: Dictionary) -> bool:
 			return true
 	return false
 
+static func _valid_bounds(bounds: Dictionary) -> bool:
+	if not _is_point(bounds.get("min", [])) or not _is_point(bounds.get("max", [])):
+		return false
+	var minimum := _point(bounds.min)
+	var maximum := _point(bounds.max)
+	return minimum.x < maximum.x and minimum.y < maximum.y and minimum.z < maximum.z
+
+static func _point_in_bounds(point: Vector3, minimum: Vector3, maximum: Vector3) -> bool:
+	return point.x >= minimum.x and point.x <= maximum.x and point.y >= minimum.y and point.y <= maximum.y and point.z >= minimum.z and point.z <= maximum.z
+
 static func _segment_intersects_bounds(start: Vector3, finish: Vector3, minimum: Vector3, maximum: Vector3) -> bool:
 	var lower := 0.0
 	var upper := 1.0
@@ -205,3 +250,6 @@ static func _validation_result(route_id: String, issues: Array) -> Dictionary:
 
 static func _expressive_result(route_id: String, issues: Array) -> Dictionary:
 	return {"issues":issues,"route_id":route_id,"schema":EXPRESSIVE_ROUTE_SCHEMA,"valid":issues.is_empty()}
+
+static func _recovery_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":RECOVERY_VOLUME_SCHEMA,"valid":issues.is_empty()}

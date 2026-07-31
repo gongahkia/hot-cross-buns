@@ -25,3 +25,7 @@ All values are world units. Grounded modes require an explicit continuous floor;
 ## Expressive grapple contract
 
 `validate_expressive_route` requires one non-mandatory grapple route, with a matching declared ability and a unique actionable segment. Its horizontal, rise, drop, and endpoint-to-anchor distances must fit the conservative envelope. The compiled traversal segment carries the same anchor used by runtime attachment. Descriptor schema v3 records this changed route topology, so v2 identities and canonical hashes remain incompatible by design.
+
+## Recovery-volume contract
+
+Every route marked `recovery_required` must provide an explicit volume around its landing. It must contain the landing, leave at least two horizontal units on every side, start on the known flat floor, and provide two units of headroom. The grapple shortcut is currently the sole recovery-required route. These volumes are pure route data for later damage and hydrology revalidation; they do not add a separate runtime recovery system.

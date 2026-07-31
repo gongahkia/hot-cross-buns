@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "1cfe9f4acfe4e653e2a42356ad2aee253d809a60f054641ada9bceefdc1d896c",
-	"-1:0:-3": "b9edb806c989bcbccbcf21f65584f668199143b76ff2b5625fffed821d9fc280",
-	"0:0:0": "4ca4d2f38db7003693de6bd0caf2e19b91aafe7cde35191dcd94febc8a38283c",
-	"4:0:-2": "928055d1873c84321ccac1282b538671fa9474a3238b2ea9f10e756f566c743b",
-	"7:0:5": "41298cc5264bfd28fbb57da95caa4466a575afa506129a1192aa74b6d27994e2",
+	"-2:0:1": "1c9193a686f5159e03bb0ed13ddf33fb95eb96cf40e9f6f4575bebc8b33f02fd",
+	"-1:0:-3": "b88f69e112fe4e16964bf7d18e10f0b2a57d145ce11e0774e0b7df935de2637f",
+	"0:0:0": "8ff2122ff4861807f2d28080534a815a8e435e50121aa380bd861c9ef48e998a",
+	"4:0:-2": "1a40337587da54e79f047adf9edec4c2335ba88b27a02f0d4eb0055d8da936f6",
+	"7:0:5": "aa542a74bacd04200bfeb7d8e2928261ef6b03353a2d9cf7ca8391f802e80b91",
 }
 var failed := false
 
@@ -47,12 +47,12 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	var routes: Array = descriptor.get("routes", [])
 	var reveals: Array = descriptor.get("reveals", [])
 	var interior: Dictionary = descriptor.get("interior", {})
-	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 3 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 4 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
 	_expect(str(interior.terrain_mode) == "flat_enclosed_floor" and int(interior.floor_y) == 24 and int(interior.ceiling_y) == 100, "interior floor contract drifted")
 	_expect(str(entry.entry_type) == "elevated_spine_underpass" and (entry.approach_anchor as Array).size() == 3 and (entry.threshold_volume as Dictionary).has("min") and (entry.threshold_volume as Dictionary).has("max") and (entry.post_threshold_anchor as Array).size() == 3 and (entry.first_goal_anchor as Array).size() == 3 and not str(entry.initial_reveal_id).is_empty(), "entry descriptor contract drifted")
 	_expect(routes.size() == 3 and _route_exists(routes, "baseline", "walk", true) and _route_exists(routes, "expressive", "grapple", false) and _route_exists(routes, "survival", "walk", false) and str(routes[0].sector_id).ends_with(":sector"), "opening route descriptor contract drifted")
 	var expressive := _route_by_class(routes, "expressive")
-	_expect((expressive.waypoints as Array).is_empty() and (expressive.anchor as Array).size() == 3 and str(expressive.required_ability) == "grapple", "expressive grapple descriptor contract drifted")
+	_expect((expressive.waypoints as Array).is_empty() and (expressive.anchor as Array).size() == 3 and str(expressive.required_ability) == "grapple" and bool(expressive.recovery_required) and (expressive.recovery_volume as Dictionary).has_all(["min", "max"]), "expressive grapple descriptor contract drifted")
 	var survival := _route_by_class(routes, "survival")
 	_expect(str(survival.survival_opportunity) == "warm_utility_refuge" and int(survival.shelter_basis_points) > 0 and int(survival.exposure_reduction_basis_points) > 0 and int(survival.warmth_recovery_basis_points) > 0, "survival detour lost warmth/shelter/exposure contract")
 	_expect(reveals.size() == 1 and str(reveals[0].reveal_type) == "transcontinental_spine_continuation" and int(reveals[0].minimum_visibility_distance) >= 1024, "initial reveal descriptor contract drifted")
