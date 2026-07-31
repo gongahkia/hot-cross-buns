@@ -3,6 +3,7 @@ extends SceneTree
 const VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 const PLAYER := preload("res://scripts/player.gd")
 const GENERATOR := preload("res://scripts/world_megastructure_generator.gd")
+const INTERSECTION := preload("res://scripts/world_megastructure_intersection.gd")
 
 var failed := false
 
@@ -14,6 +15,7 @@ func _initialize() -> void:
 		_assert_envelope_shape(VALIDATOR.envelope(mode), mode)
 	_assert_conservative_limits()
 	_assert_baseline_entry_validation()
+	_assert_expressive_route_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -71,6 +73,32 @@ func _assert_baseline_entry_validation() -> void:
 	var missed_reveal := generator.generate(Vector3i.ZERO).duplicate(true)
 	(missed_reveal.reveals[0] as Dictionary)["recommended_view_anchor"] = [0, 1000, 0]
 	_expect("entry_reveal_not_reached" in VALIDATOR.validate_baseline_entry(missed_reveal).get("issues", []), "baseline route without reveal access was accepted")
+
+func _assert_expressive_route_validation() -> void:
+	var generator := GENERATOR.new(20260731)
+	for cell: Vector3i in [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i.ZERO, Vector3i(4, 0, -2), Vector3i(7, 0, 5)]:
+		var validation := VALIDATOR.validate_expressive_route(generator.generate(cell))
+		_expect(str(validation.get("schema", "")) == VALIDATOR.EXPRESSIVE_ROUTE_SCHEMA and bool(validation.get("valid", false)) and (validation.get("issues", []) as Array).is_empty(), "generated expressive route is invalid")
+	var invalid_ability := generator.generate(Vector3i.ZERO).duplicate(true)
+	(invalid_ability.routes[1] as Dictionary)["required_ability"] = "glide"
+	_expect("expressive_route_contract" in VALIDATOR.validate_expressive_route(invalid_ability).get("issues", []), "expressive route with wrong ability was accepted")
+	var distant_anchor := generator.generate(Vector3i.ZERO).duplicate(true)
+	(distant_anchor.routes[1] as Dictionary)["anchor"] = [0, 0, 0]
+	_expect("expressive_anchor_out_of_range" in VALIDATOR.validate_expressive_route(distant_anchor).get("issues", []), "expressive route with distant anchor was accepted")
+	var long_segment := generator.generate(Vector3i.ZERO).duplicate(true)
+	(long_segment.routes[1] as Dictionary)["end_anchor"] = [0, 24, 0]
+	_expect("expressive_motion_envelope" in VALIDATOR.validate_expressive_route(long_segment).get("issues", []), "expressive route outside its movement envelope was accepted")
+	var descriptor := generator.generate(Vector3i.ZERO)
+	var expressive: Dictionary = descriptor.routes[1]
+	var launch: Array = expressive.get("start_anchor", [])
+	var chunk := Vector2i(floori(float(launch[0]) / 64.0), floori(float(launch[2]) / 64.0))
+	var segments: Array = INTERSECTION.compile(descriptor, chunk).get("traversal_segments", [])
+	var compiled_anchor: Array = []
+	for segment: Dictionary in segments:
+		if str(segment.get("route_id", "")) == str(expressive.get("route_id", "")):
+			compiled_anchor = segment.get("grapple_anchor", [])
+			break
+	_expect(compiled_anchor == expressive.get("anchor", []), "expressive route anchor was lost during chunk compilation")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

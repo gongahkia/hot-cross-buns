@@ -5,6 +5,8 @@ const PLAYER := preload("res://scripts/player.gd")
 
 const SCHEMA := "megastructure-route-envelope/v2"
 const BASELINE_ENTRY_SCHEMA := "megastructure-baseline-entry-validation/v1"
+const EXPRESSIVE_ROUTE_SCHEMA := "megastructure-expressive-route-validation/v1"
+const GRAPPLE_ANCHOR_HEIGHT := 12
 const MODE_IDS := ["walk", "jump", "double_jump", "dash", "slide", "wall_run", "grapple", "glide", "drop"]
 
 static func envelopes() -> Dictionary:
@@ -73,6 +75,44 @@ static func validate_baseline_entry(descriptor: Dictionary) -> Dictionary:
 		if not _is_point(reveal_anchor) or not _path_contains_point(path, _point(reveal_anchor)):
 			issues.append("entry_reveal_not_reached")
 	return _validation_result(route_id, issues)
+
+static func validate_expressive_route(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var expressive_routes: Array = []
+	for route: Dictionary in descriptor.get("routes", []):
+		if str(route.get("route_class", "")) == "expressive":
+			expressive_routes.append(route)
+	if expressive_routes.size() != 1:
+		issues.append("expressive_route_count")
+		return _expressive_result("", issues)
+	var route: Dictionary = expressive_routes[0]
+	var route_id := str(route.get("route_id", ""))
+	var mode := str(route.get("movement_mode", ""))
+	var envelope := envelope(mode)
+	if route_id.is_empty() or bool(route.get("mandatory", false)) or mode != "grapple" or str(route.get("required_ability", "")) != mode or envelope.is_empty():
+		issues.append("expressive_route_contract")
+	var path := _route_path(route, issues)
+	if path.size() != 2:
+		issues.append("expressive_route_segment_count")
+		return _expressive_result(route_id, issues)
+	var anchor: Variant = route.get("anchor", [])
+	if not _is_point(anchor):
+		issues.append("expressive_anchor_invalid")
+		return _expressive_result(route_id, issues)
+	var start: Vector3 = path[0]
+	var finish: Vector3 = path[1]
+	var anchor_point := _point(anchor)
+	var horizontal := Vector2(finish.x - start.x, finish.z - start.z).length()
+	var rise := maxf(finish.y - start.y, 0.0)
+	var drop := maxf(start.y - finish.y, 0.0)
+	if horizontal > float(envelope.get("max_horizontal", 0.0)) or rise > float(envelope.get("max_rise", 0.0)) or drop > float(envelope.get("max_drop", 0.0)):
+		issues.append("expressive_motion_envelope")
+	var max_anchor_distance := float(envelope.get("max_anchor_distance", 0.0))
+	if start.distance_to(anchor_point) > max_anchor_distance or finish.distance_to(anchor_point) > max_anchor_distance:
+		issues.append("expressive_anchor_out_of_range")
+	if anchor_point.y < maxf(start.y, finish.y) + float(GRAPPLE_ANCHOR_HEIGHT):
+		issues.append("expressive_anchor_height")
+	return _expressive_result(route_id, issues)
 
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
@@ -162,3 +202,6 @@ static func _path_contains_point(path: Array, target: Vector3) -> bool:
 
 static func _validation_result(route_id: String, issues: Array) -> Dictionary:
 	return {"issues":issues,"route_id":route_id,"schema":BASELINE_ENTRY_SCHEMA,"valid":issues.is_empty()}
+
+static func _expressive_result(route_id: String, issues: Array) -> Dictionary:
+	return {"issues":issues,"route_id":route_id,"schema":EXPRESSIVE_ROUTE_SCHEMA,"valid":issues.is_empty()}

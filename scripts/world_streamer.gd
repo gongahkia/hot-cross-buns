@@ -27,6 +27,7 @@ const RESOURCE_PLACEMENT := preload("res://scripts/world_resource_placement.gd")
 const HAZARD_PLACEMENT := preload("res://scripts/world_hazard_placement.gd")
 const STREAMING_TELEMETRY := preload("res://scripts/world_streaming_telemetry.gd")
 const CHUNK_MEMORY_TELEMETRY := preload("res://scripts/world_chunk_memory_telemetry.gd")
+const MEGASTRUCTURE_ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
@@ -700,7 +701,9 @@ func _add_megastructure_traversal_details(root: Node3D, descriptor: Dictionary) 
 		guide.material_override = _material(Color("#87966b"), true)
 		host.add_child(guide)
 		if str(record.get("movement_mode", "")) == "grapple":
-			_add_megastructure_grapple_anchor(host, (start + finish) * 0.5 + Vector3(0.0, 12.0, 0.0))
+			var anchor: Array = record.get("grapple_anchor", [])
+			var anchor_position := _megastructure_local_point(root, _megastructure_point(anchor)) if anchor.size() == 3 else (start + finish) * 0.5 + Vector3(0.0, MEGASTRUCTURE_ROUTE_VALIDATOR.GRAPPLE_ANCHOR_HEIGHT, 0.0)
+			_add_megastructure_grapple_anchor(host, anchor_position)
 	_add_megastructure_debug(host, root, descriptor)
 	root.add_child(host)
 

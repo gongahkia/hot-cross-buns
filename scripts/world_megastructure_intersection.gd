@@ -111,7 +111,7 @@ static func _traversal_segments(descriptor: Dictionary, chunk: Vector2i) -> Arra
 			var clipped := _clip_segment_to_chunk(points[index], points[index + 1], chunk)
 			if clipped.is_empty():
 				continue
-			segments.append({
+			var segment := {
 				"end_fp": _point_fp(clipped.end),
 				"id": str(route.get("route_id", "")) + ":segment:%d" % index,
 				"mandatory": bool(route.get("mandatory", false)),
@@ -119,7 +119,10 @@ static func _traversal_segments(descriptor: Dictionary, chunk: Vector2i) -> Arra
 				"route_class": str(route.get("route_class", "")),
 				"route_id": str(route.get("route_id", "")),
 				"start_fp": _point_fp(clipped.start),
-			})
+			}
+			if str(route.get("movement_mode", "")) == "grapple" and index == 0 and route.get("anchor", []) is Array:
+				segment["grapple_anchor"] = (route.get("anchor", []) as Array).duplicate(true)
+			segments.append(segment)
 	segments.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left.id) < str(right.id))
 	return segments
 

@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 2
+const DESCRIPTOR_SCHEMA_VERSION := 3
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -92,6 +92,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	}
 	descriptor["canonical_hash"] = HASH.canonical_hash(descriptor)
 	assert(bool(ROUTE_VALIDATOR.validate_baseline_entry(descriptor).get("valid", false)), "generated megastructure baseline entry route is invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_expressive_route(descriptor).get("valid", false)), "generated megastructure expressive route is invalid")
 	return descriptor
 
 func _axis(megacell: Vector3i) -> Vector3i:
@@ -128,19 +129,24 @@ func _reveal_descriptor(route_prefix: String, center: Vector3i, axis: Vector3i, 
 	}
 
 func _baseline_route(route_prefix: String, start: Vector3i, post_threshold: Vector3i, finish: Vector3i) -> Dictionary:
-	return _route(route_prefix + ":baseline", "baseline", "walk", start, finish, post_threshold, true, {})
+	return _route(route_prefix + ":baseline", "baseline", "walk", start, finish, [post_threshold], true, {})
 
 func _grapple_shortcut(route_prefix: String, start: Vector3i, finish: Vector3i, transverse: Vector3i) -> Dictionary:
-	var launch := start + transverse * 36 + Vector3i(0, 24, 0)
-	var landing := finish + transverse * 36 + Vector3i(0, 24, 0)
-	return _route(route_prefix + ":grapple_shortcut", "expressive", "grapple", launch, landing, landing, false, {"anchor": _point((launch + landing) / 2 + Vector3i(0, 18, 0)), "required_ability": "grapple"})
+	var direction := Vector3i(signi(finish.x - start.x), 0, signi(finish.z - start.z))
+	var launch := start + transverse * 18
+	var landing := launch + direction * 18
+	var anchor := (launch + landing) / 2 + Vector3i(0, ROUTE_VALIDATOR.GRAPPLE_ANCHOR_HEIGHT, 0)
+	return _route(route_prefix + ":grapple_shortcut", "expressive", "grapple", launch, landing, [], false, {"anchor": _point(anchor), "required_ability": "grapple"})
 
 func _survival_detour(route_prefix: String, start: Vector3i, finish: Vector3i, transverse: Vector3i, rng: WorldRng) -> Dictionary:
 	var side := -1 if rng.next_range(0, 1) == 0 else 1
 	var refuge := (start + finish) / 2 + transverse * (side * 72)
-	return _route(route_prefix + ":warm_refuge", "survival", "walk", start, finish, refuge, false, {"exposure_reduction_basis_points": 4500, "shelter_basis_points": 8500, "survival_opportunity": "warm_utility_refuge", "warmth_recovery_basis_points": 1800})
+	return _route(route_prefix + ":warm_refuge", "survival", "walk", start, finish, [refuge], false, {"exposure_reduction_basis_points": 4500, "shelter_basis_points": 8500, "survival_opportunity": "warm_utility_refuge", "warmth_recovery_basis_points": 1800})
 
-func _route(route_id: String, route_class: String, movement_mode: String, start: Vector3i, finish: Vector3i, waypoint: Vector3i, mandatory: bool, extras: Dictionary) -> Dictionary:
+func _route(route_id: String, route_class: String, movement_mode: String, start: Vector3i, finish: Vector3i, waypoints: Array, mandatory: bool, extras: Dictionary) -> Dictionary:
+	var route_waypoints: Array = []
+	for waypoint: Vector3i in waypoints:
+		route_waypoints.append(_point(waypoint))
 	var route := {
 		"end_anchor": _point(finish),
 		"mandatory": mandatory,
@@ -150,7 +156,7 @@ func _route(route_id: String, route_class: String, movement_mode: String, start:
 		"sector_id": route_id.rsplit(":", false, 1)[0] + ":sector",
 		"start_anchor": _point(start),
 		"type": "route",
-		"waypoints": [_point(waypoint)],
+		"waypoints": route_waypoints,
 	}
 	for key: String in extras:
 		route[key] = extras[key]

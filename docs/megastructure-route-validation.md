@@ -21,3 +21,7 @@ All values are world units. Grounded modes require an explicit continuous floor;
 ## Baseline entry contract
 
 `validate_baseline_entry` requires the entry's sole required route to be mandatory, walking, and baseline-class. It proves that the approach, post-threshold, first-goal, threshold volume, and initial reveal are connected in order; confirms every route anchor has flat-interior ground support; and returns stable issue codes for invalid descriptors. The generator asserts this pure-data contract before returning a descriptor, so a seed/version regression fails at generation rather than after attachment.
+
+## Expressive grapple contract
+
+`validate_expressive_route` requires one non-mandatory grapple route, with a matching declared ability and a unique actionable segment. Its horizontal, rise, drop, and endpoint-to-anchor distances must fit the conservative envelope. The compiled traversal segment carries the same anchor used by runtime attachment. Descriptor schema v3 records this changed route topology, so v2 identities and canonical hashes remain incompatible by design.
