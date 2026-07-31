@@ -28,3 +28,7 @@ Schema v9 derives one hydrology record from each broken infrastructure element: 
 ## Ecological reclamation
 
 Schema v10 derives ecology from infrastructure hydrology, source-element epoch material, and explicit light/exposure conditions. Breach daylight plus rainwater produces wetland lichen on cladding; reflected utility light plus coolant seep produces moss on machine ceramic. Ecological records cannot name or spatially overlap mandatory routes.
+
+## Utility-derived survival
+
+Schema v11 binds the existing warm-utility refuge detour to the autonomous-machine epoch, its machine-clamp element, and its coolant-seep hydrology. The opportunity repeats the route's warmth recovery value, so utility history is the declared source of survival value rather than a separate random pickup.

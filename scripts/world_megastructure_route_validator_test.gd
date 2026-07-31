@@ -22,6 +22,7 @@ func _initialize() -> void:
 	_assert_damage_constraint_validation()
 	_assert_hydrology_constraint_validation()
 	_assert_ecology_constraint_validation()
+	_assert_survival_opportunity_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -180,6 +181,17 @@ func _assert_ecology_constraint_validation() -> void:
 	var missing_water := source.duplicate(true)
 	(missing_water.ecology[0] as Dictionary)["source_hydrology_id"] = "hydrology:missing"
 	_expect("ecology_source_invalid" in VALIDATOR.validate_ecology_constraints(missing_water).get("issues", []), "ecology without infrastructure water was accepted")
+
+func _assert_survival_opportunity_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_survival_opportunities(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.SURVIVAL_OPPORTUNITY_SCHEMA and bool(valid.get("valid", false)), "generated survival opportunity is invalid")
+	var wrong_element := source.duplicate(true)
+	(wrong_element.survival_opportunities[0] as Dictionary)["source_element_id"] = "attached_habitation_east"
+	_expect("survival_opportunity_source_invalid" in VALIDATOR.validate_survival_opportunities(wrong_element).get("issues", []), "survival opportunity without utility history was accepted")
+	var wrong_warmth := source.duplicate(true)
+	(wrong_warmth.survival_opportunities[0] as Dictionary)["warmth_recovery_basis_points"] = 0
+	_expect("survival_opportunity_source_invalid" in VALIDATOR.validate_survival_opportunities(wrong_warmth).get("issues", []), "survival opportunity disconnected from route recovery was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

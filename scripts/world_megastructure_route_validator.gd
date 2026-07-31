@@ -12,6 +12,7 @@ const ROUTE_PRESERVATION_SCHEMA := "megastructure-route-preservation-validation/
 const DAMAGE_CONSTRAINT_SCHEMA := "megastructure-damage-constraint-validation/v1"
 const HYDROLOGY_CONSTRAINT_SCHEMA := "megastructure-hydrology-constraint-validation/v1"
 const ECOLOGY_CONSTRAINT_SCHEMA := "megastructure-ecology-constraint-validation/v1"
+const SURVIVAL_OPPORTUNITY_SCHEMA := "megastructure-survival-opportunity-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -296,6 +297,31 @@ static func validate_ecology_constraints(descriptor: Dictionary) -> Dictionary:
 		issues.append("ecology_records_missing")
 	return _ecology_result(issues)
 
+static func validate_survival_opportunities(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var routes_by_id := {}
+	var elements_by_id := {}
+	var epochs_by_id := {}
+	var hydrology_by_id := {}
+	for route: Dictionary in descriptor.get("routes", []):
+		routes_by_id[str(route.get("route_id", ""))] = route
+	for element: Dictionary in descriptor.get("construction_elements", []):
+		elements_by_id[str(element.get("element_id", ""))] = element
+	for epoch: Dictionary in descriptor.get("epochs", []):
+		epochs_by_id[int(epoch.get("epoch_id", 0))] = epoch
+	for water: Dictionary in descriptor.get("hydrology", []):
+		hydrology_by_id[str(water.get("hydrology_id", ""))] = water
+	for opportunity: Dictionary in descriptor.get("survival_opportunities", []):
+		var route: Dictionary = routes_by_id.get(str(opportunity.get("route_id", "")), {})
+		var element: Dictionary = elements_by_id.get(str(opportunity.get("source_element_id", "")), {})
+		var epoch: Dictionary = epochs_by_id.get(int(opportunity.get("source_epoch_id", 0)), {})
+		var water: Dictionary = hydrology_by_id.get(str(opportunity.get("source_hydrology_id", "")), {})
+		if route.is_empty() or element.is_empty() or epoch.is_empty() or water.is_empty() or str(opportunity.get("type", "")) != "survival_opportunity" or str(opportunity.get("opportunity_type", "")) != "warm_utility_refuge" or str(route.get("route_class", "")) != "survival" or str(epoch.get("function", "")) != "autonomous_maintenance" or int(element.get("epoch_id", 0)) != int(opportunity.get("source_epoch_id", 0)) or str(water.get("source_element_id", "")) != str(element.get("element_id", "")) or int(opportunity.get("warmth_recovery_basis_points", 0)) != int(route.get("warmth_recovery_basis_points", 0)):
+			issues.append("survival_opportunity_source_invalid")
+	if (descriptor.get("survival_opportunities", []) as Array).is_empty():
+		issues.append("survival_opportunity_missing")
+	return _survival_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -430,3 +456,6 @@ static func _hydrology_result(issues: Array) -> Dictionary:
 
 static func _ecology_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":ECOLOGY_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}
+
+static func _survival_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":SURVIVAL_OPPORTUNITY_SCHEMA,"valid":issues.is_empty()}

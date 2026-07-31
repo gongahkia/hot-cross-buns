@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 10
+const DESCRIPTOR_SCHEMA_VERSION := 11
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -62,6 +62,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var hydrology := _hydrology(damage)
 	var epochs := _construction_epochs()
 	var ecology := _ecology(hydrology, construction_elements, epochs)
+	var survival_opportunities := _survival_opportunities(survival_detour, hydrology)
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
 		"construction_elements": construction_elements,
@@ -99,6 +100,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 			"structure_id": str(identity.structure_id),
 			"type": "sector",
 		}],
+		"survival_opportunities": survival_opportunities,
 		"type": "megastructure",
 		"world_bounds": opening_bounds,
 	}
@@ -111,6 +113,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_damage_constraints(descriptor).get("valid", false)), "generated megastructure damage constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_hydrology_constraints(descriptor).get("valid", false)), "generated megastructure hydrology constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_ecology_constraints(descriptor).get("valid", false)), "generated megastructure ecology constraints are invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_survival_opportunities(descriptor).get("valid", false)), "generated megastructure survival opportunities are invalid")
 	return descriptor
 
 func _construction_epochs() -> Array:
@@ -173,6 +176,13 @@ func _ecology(hydrology: Array, elements: Array, epochs: Array) -> Array:
 		var is_breach := str(water.get("effect", "")) == "rainwater_inflow"
 		effects.append({"affected_route_ids":[],"bounds":(water.get("bounds", {}) as Dictionary).duplicate(true),"ecology_id":"ecology:" + str(water.get("hydrology_id", "")),"exposure":"rain_exposed" if is_breach else "humid_enclosure","light_exposure":"breach_daylight" if is_breach else "utility_reflection","material_family":str(epoch.get("material_family", "")),"source_element_id":str(element.get("element_id", "")),"source_hydrology_id":str(water.get("hydrology_id", "")),"species_group":"wetland_lichen" if is_breach else "coolant_moss","type":"infrastructure_ecology"})
 	return effects
+
+func _survival_opportunities(survival_route: Dictionary, hydrology: Array) -> Array:
+	var coolant_hydrology_id := ""
+	for water: Dictionary in hydrology:
+		if str(water.get("source_element_id", "")) == "autonomous_machine_clamp":
+			coolant_hydrology_id = str(water.get("hydrology_id", ""))
+	return [{"benefit":"warmth_recovery","opportunity_id":"utility:autonomous_machine_clamp:warm_refuge","opportunity_type":"warm_utility_refuge","route_id":str(survival_route.get("route_id", "")),"source_element_id":"autonomous_machine_clamp","source_epoch_id":4,"source_hydrology_id":coolant_hydrology_id,"type":"survival_opportunity","warmth_recovery_basis_points":int(survival_route.get("warmth_recovery_basis_points", 0))}]
 
 func _axis(megacell: Vector3i) -> Vector3i:
 	match _stage_rng(megacell, STAGE_AXIS).next_range(0, 3):
