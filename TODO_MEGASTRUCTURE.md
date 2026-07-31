@@ -113,7 +113,7 @@ Goal: stream the structure without regressing frame pacing.
 - [x] M4.3 Add active collision descriptor compilation.
 - [x] M4.4 Add traversal-detail descriptor compilation.
 - [x] M4.5 Integrate logical queues without bypassing heavyweight mutual exclusion.
-- [ ] M4.6 Add reveal-aware priority bias.
+- [x] M4.6 Add reveal-aware priority bias.
 - [ ] M4.7 Ensure reveal priority remains subordinate to frame budgets.
 - [ ] M4.8 Add phase timings to F3 diagnostics.
 - [ ] M4.9 Add phase timings to JSON profile export without silently breaking its schema.

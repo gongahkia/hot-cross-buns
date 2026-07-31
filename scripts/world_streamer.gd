@@ -35,6 +35,8 @@ const COLLISION_LODS_PER_FRAME := 1
 const FAR_CHUNKS_PER_FRAME := 2
 const FEATURE_BUILD_RADIUS := 1.5
 const FEATURE_CHUNKS_PER_FRAME := 1
+const REVEAL_ACTIVE_PRIORITY_WEIGHT := 2.5
+const REVEAL_BACKGROUND_PRIORITY_WEIGHT := 4.0
 
 var generator
 var player: SpeedPlayer
@@ -118,7 +120,7 @@ func refresh(force: bool) -> void:
 	var preload_targets:=PRELOAD_CORRIDOR.targets(center,_preload_heading())
 	for id in preload_targets.keys():
 		if chunks.has(id) or pending_chunks.has(id) or (chunk_cache and not chunk_cache.fetch(id).is_empty()):continue
-		var chunk:Vector2i=preload_targets[id];pending_chunks[id]=scheduler.request(chunk.x,chunk.y,0,50.0)
+		var chunk:Vector2i=preload_targets[id];pending_chunks[id]=scheduler.request(chunk.x,chunk.y,0,50.0-_reveal_bias(chunk)*REVEAL_BACKGROUND_PRIORITY_WEIGHT)
 		wanted[id]=true
 	for id in pending_chunks.keys():
 		if not wanted.has(id): scheduler.cancel(int(pending_chunks[id]));pending_chunks.erase(id)
@@ -158,8 +160,8 @@ func _build_pending_chunks(build_all:=false)->int:
 			continue
 		var chunk:=queued_active_chunks[id] as Vector2i
 		var distance:=Vector2(float(chunk.x-current_center.x),float(chunk.y-current_center.y)).length()
-		candidates.append({"id":id,"chunk":chunk,"distance":distance})
-	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+		candidates.append({"id":id,"chunk":chunk,"priority":_chunk_priority(current_center,chunk),"distance":distance})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.priority)<float(b.priority) if not is_equal_approx(float(a.priority),float(b.priority)) else str(a.id)<str(b.id))
 	var built:=0
 	for candidate:Dictionary in candidates:
 		if not build_all and built>=ACTIVE_CHUNKS_PER_FRAME:break
@@ -217,7 +219,14 @@ func _preload_heading()->Vector2:
 
 func _chunk_priority(center: Vector2i, target: Vector2i) -> float:
 	var offset:=Vector2(float(target.x-center.x),float(target.y-center.y));var velocity:=Vector2(player.velocity.x,player.velocity.z);var forward:=Vector2(player.camera.global_transform.basis.z.x,player.camera.global_transform.basis.z.z) if player.camera else Vector2.ZERO
-	return offset.length_squared()-offset.normalized().dot(velocity.normalized())*.8-offset.normalized().dot(-forward.normalized())*.45 if not is_zero_approx(offset.length_squared()) else -1.0
+	var movement_priority:=offset.length_squared()-offset.normalized().dot(velocity.normalized())*.8-offset.normalized().dot(-forward.normalized())*.45 if not is_zero_approx(offset.length_squared()) else -1.0
+	return movement_priority-_reveal_bias(target)*REVEAL_ACTIVE_PRIORITY_WEIGHT
+
+func _phase_priority(chunk: Vector2i) -> float:
+	return Vector2(float(chunk.x-current_center.x),float(chunk.y-current_center.y)).length_squared()-_reveal_bias(chunk)*REVEAL_BACKGROUND_PRIORITY_WEIGHT
+
+func _reveal_bias(chunk: Vector2i) -> float:
+	return generator.megastructure_reveal_priority(chunk.x,chunk.y) if generator else 0.0
 
 func sample_at(world_position: Vector3) -> Dictionary:
 	var canonical: Vector3 = origin.world_position(world_position) if origin else world_position
@@ -388,9 +397,9 @@ func _build_pending_features(build_all:=false,allow_build:=true)->void:
 	var candidates:Array=[]
 	for root:Node3D in chunks.values():
 		if bool(root.get_meta("features_ready",false)):continue
-		var distance:=Vector2(float(int(root.get_meta("chunk_x",0))-current_center.x),float(int(root.get_meta("chunk_z",0))-current_center.y)).length()
-		if build_all or distance<=FEATURE_BUILD_RADIUS:candidates.append({"root":root,"distance":distance})
-	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+		var chunk:=Vector2i(int(root.get_meta("chunk_x",0)),int(root.get_meta("chunk_z",0)));var distance:=Vector2(float(chunk.x-current_center.x),float(chunk.y-current_center.y)).length()
+		if build_all or distance<=FEATURE_BUILD_RADIUS:candidates.append({"root":root,"priority":_phase_priority(chunk)})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.priority)<float(b.priority))
 	var built:=0
 	for candidate:Dictionary in candidates:
 		if not build_all and built>=FEATURE_CHUNKS_PER_FRAME:break
@@ -422,9 +431,9 @@ func _update_collision_lods(build_all:=false,allow_build:=true)->void:
 	for id:String in pending_collision_lods.keys():
 		var root:=chunks.get(id) as Node3D
 		if root==null:continue
-		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length()
-		candidates.append({"id":id,"root":root,"distance":distance,"grid":int(pending_collision_lods[id])})
-	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var chunk:=Vector2i(chunk_x,chunk_z)
+		candidates.append({"id":id,"root":root,"priority":_phase_priority(chunk),"grid":int(pending_collision_lods[id])})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.priority)<float(b.priority) if not is_equal_approx(float(a.priority),float(b.priority)) else str(a.id)<str(b.id))
 	var built:=0
 	for candidate:Dictionary in candidates:
 		if not build_all and built>=COLLISION_LODS_PER_FRAME:break
@@ -463,11 +472,15 @@ func _update_far_terrain(build_all:=false,allow_build:=true)->void:
 			far_chunks.erase(id)
 			stale.queue_free()
 	if not build_all and not allow_build:return
-	var built:=0
-	for id in wanted.keys():
+	var candidates:Array=[]
+	for id:String in wanted.keys():
 		if chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)) or far_chunks.has(id):continue
+		var chunk:Vector2i=wanted[id];candidates.append({"id":id,"chunk":chunk,"priority":_phase_priority(chunk)})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.priority)<float(b.priority) if not is_equal_approx(float(a.priority),float(b.priority)) else str(a.id)<str(b.id))
+	var built:=0
+	for candidate:Dictionary in candidates:
 		if not build_all and built>=FAR_CHUNKS_PER_FRAME:break
-		var chunk:Vector2i=wanted[id];far_chunks[id]=_build_far_chunk(chunk.x,chunk.y)
+		var id:=str(candidate.id);var chunk:=candidate.chunk as Vector2i;far_chunks[id]=_build_far_chunk(chunk.x,chunk.y)
 		built+=1
 
 func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:

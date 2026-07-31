@@ -160,6 +160,25 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 		descriptor["megastructure_lod"] = MEGASTRUCTURE_LOD.compile(megastructure)
 	return descriptor
 
+func megastructure_reveal_priority(chunk_x: int, chunk_z: int, scope: Variant = "local") -> float:
+	var scale: Dictionary = SCALE.info(scope)
+	if str(scale.get("id", "")) != "local":
+		return 0.0
+	var current: Vector3i = megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
+	var score := 0.0
+	for offset_z in range(-1, 2):
+		for offset_x in range(-1, 2):
+			var source := _megastructure_at(Vector3i(current.x + offset_x, 0, current.z + offset_z))
+			for reveal: Dictionary in source.get("reveals", []):
+				var bias := float(reveal.get("streaming_priority_bias", 0))
+				if _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("foreground_bounds", {}) as Dictionary):
+					score = maxf(score, bias * 3.0)
+				elif _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("focus_bounds", {}) as Dictionary):
+					score = maxf(score, bias * 2.0)
+				elif _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("background_bounds", {}) as Dictionary):
+					score = maxf(score, bias)
+	return score
+
 func _megastructure_descriptor(chunk_x: int, chunk_z: int, scale_id: String) -> Dictionary:
 	if scale_id != "local":
 		return {}
@@ -182,6 +201,17 @@ func _megastructure_at(megacell: Vector3i) -> Dictionary:
 	if not megastructure_cache.has(key):
 		megastructure_cache[key] = megastructure_generator.generate(megacell)
 	return (megastructure_cache[key] as Dictionary).duplicate(true)
+
+func _chunk_intersects_bounds(chunk_x: int, chunk_z: int, bounds: Dictionary) -> bool:
+	var minimum: Array = bounds.get("min", [])
+	var maximum: Array = bounds.get("max", [])
+	if minimum.size() != 3 or maximum.size() != 3:
+		return false
+	var chunk_min_x := float(chunk_x) * CHUNK_SIZE
+	var chunk_min_z := float(chunk_z) * CHUNK_SIZE
+	var chunk_max_x := chunk_min_x + CHUNK_SIZE
+	var chunk_max_z := chunk_min_z + CHUNK_SIZE
+	return float(maximum[0]) >= chunk_min_x and float(minimum[0]) <= chunk_max_x and float(maximum[2]) >= chunk_min_z and float(minimum[2]) <= chunk_max_z
 
 func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
 	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"
