@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "78b46d2bf4fb8f0b5887980d426675fbc17b639793acf78ad658fcd9bcce796f",
-	"-1:0:-3": "e25a3dbc34bd347bbf35f68246d3a7d516611cf983ebcc13f6e87739c6ceaf3a",
-	"0:0:0": "9ea265eca3f4679cd686eb3427db7a649adc919b1806bf08c3e338544ba940ad",
-	"4:0:-2": "b9dc557f58c820e6bdbe495accaac11553cbf565d68c042276bf06a5e90ba905",
-	"7:0:5": "85e35ddf562582804b732eb9c2c3affec2c90419a12a33a4237c1caba867e87a",
+	"-2:0:1": "b5b3154b4386e2357b18a19df12a9cb22ac793594102d780105853b85a8fc03c",
+	"-1:0:-3": "7bdb055459db9683478abd0ac1d947bfd142258a41bb1b5f3642047f6685cfa7",
+	"0:0:0": "882432e09c6b5cbe25ce51c34df272f22fc736b34ccf1e8f75c6cc54336cef36",
+	"4:0:-2": "145a5d7e06cbd49bcc73a61c7686cd89ec4c0d0c94ba82106c8eb7699db1ef50",
+	"7:0:5": "35168db970164a29484158b12f763bdf9dc7a61e53cb1b968413955ffc780ad8",
 }
 var failed := false
 

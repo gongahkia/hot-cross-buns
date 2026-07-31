@@ -8,6 +8,7 @@ const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_valida
 
 const MEGACELL_SIZE := 4096
 const DESCRIPTOR_SCHEMA_VERSION := 12
+const SPATIAL_LAYOUT_VERSION := 11
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -217,7 +218,7 @@ func _axis(megacell: Vector3i) -> Vector3i:
 
 func _stage_rng(megacell: Vector3i, stage: int) -> WorldRng:
 	var coordinate_seed := RNG.thoth_hash(world_seed, megacell.x, megacell.y, megacell.z, stage)
-	return RNG.new(RNG.thoth_hash(coordinate_seed, ARCHETYPE_VERSION, DESCRIPTOR_SCHEMA_VERSION, stage))
+	return RNG.new(RNG.thoth_hash(coordinate_seed, ARCHETYPE_VERSION, SPATIAL_LAYOUT_VERSION, stage))
 
 func _reveal_descriptor(route_prefix: String, center: Vector3i, axis: Vector3i, transverse: Vector3i, half_width: int, reveal_anchor: Vector3i) -> Dictionary:
 	var foreground := _bounds([reveal_anchor - axis * 64 - transverse * half_width, reveal_anchor - axis * 64 + transverse * half_width], 0, 76)
