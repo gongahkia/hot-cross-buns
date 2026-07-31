@@ -159,7 +159,7 @@ Goal: make the megastructure feel accumulated and reclaimed.
 - [x] M6.6 Derive at least one survival opportunity from utility history.
 - [x] M6.7 Revalidate mandatory routes after every transformation stage.
 - [x] M6.8 Add a historical reveal showing multiple epochs at once.
-- [ ] M6.9 Commit after route preservation and baseline tests pass.
+- [x] M6.9 Commit after route preservation and baseline tests pass.
 
 Exit criteria:
 
