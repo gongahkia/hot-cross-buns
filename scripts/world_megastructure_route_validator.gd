@@ -10,6 +10,7 @@ const RECOVERY_VOLUME_SCHEMA := "megastructure-recovery-volume-validation/v1"
 const AFFORDANCE_VISIBILITY_SCHEMA := "megastructure-affordance-visibility-validation/v1"
 const ROUTE_PRESERVATION_SCHEMA := "megastructure-route-preservation-validation/v1"
 const DAMAGE_CONSTRAINT_SCHEMA := "megastructure-damage-constraint-validation/v1"
+const HYDROLOGY_CONSTRAINT_SCHEMA := "megastructure-hydrology-constraint-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -240,6 +241,32 @@ static func validate_damage_constraints(descriptor: Dictionary) -> Dictionary:
 		issues.append("damage_records_missing")
 	return _damage_result(issues)
 
+static func validate_hydrology_constraints(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var damage_by_id := {}
+	for damage: Dictionary in descriptor.get("damage", []):
+		damage_by_id[str(damage.get("damage_id", ""))] = damage
+	var baseline := _route_by_id(descriptor.get("routes", []), _required_baseline_id(descriptor.get("entry", {})))
+	var baseline_issues: Array = []
+	var baseline_path := _route_path(baseline, baseline_issues)
+	for effect: Dictionary in descriptor.get("hydrology", []):
+		var source_id := str(effect.get("source_damage_id", ""))
+		var source: Dictionary = damage_by_id.get(source_id, {})
+		var bounds: Dictionary = effect.get("bounds", {})
+		if source.is_empty() or not _valid_bounds(bounds) or str(effect.get("type", "")) != "infrastructure_hydrology" or str(effect.get("source_element_id", "")) != str(source.get("target_element_id", "")):
+			issues.append("hydrology_source_invalid")
+			continue
+		var minimum := _point(bounds.min)
+		var maximum := _point(bounds.max)
+		var water_level := float(effect.get("water_level", minimum.y - 1.0))
+		if water_level < minimum.y or water_level > maximum.y:
+			issues.append("hydrology_level_invalid")
+		if not (effect.get("affected_route_ids", []) as Array).is_empty() or _path_intersects_bounds(baseline_path, bounds):
+			issues.append("hydrology_affects_mandatory_route")
+	if (descriptor.get("hydrology", []) as Array).is_empty():
+		issues.append("hydrology_records_missing")
+	return _hydrology_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -368,3 +395,6 @@ static func _preservation_result(issues: Array) -> Dictionary:
 
 static func _damage_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":DAMAGE_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}
+
+static func _hydrology_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":HYDROLOGY_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}

@@ -20,3 +20,7 @@ Schema v7 adds one canonical construction element per epoch. Later elements name
 ## Constrained damage
 
 Schema v8 adds deterministic damage records against habitation and machine elements only. Every record carries its target epoch, bounds, type, severity, and an empty affected-route set. Route validation rejects damage that names or intersects a mandatory route.
+
+## Infrastructure hydrology
+
+Schema v9 derives one hydrology record from each broken infrastructure element: a rainwater inflow at breached habitation and a coolant seep at damaged machinery. Effects retain their source damage/element IDs, bounded water level, quality, and route-safe bounds. Hydrology is therefore caused by damage rather than independent prop placement.

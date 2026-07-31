@@ -20,6 +20,7 @@ func _initialize() -> void:
 	_assert_affordance_visibility_validation()
 	_assert_route_preservation_validation()
 	_assert_damage_constraint_validation()
+	_assert_hydrology_constraint_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -156,6 +157,17 @@ func _assert_damage_constraint_validation() -> void:
 	var start: Array = (route_intersection.routes[0] as Dictionary).start_anchor
 	(route_intersection.damage[0] as Dictionary)["bounds"] = {"min":start,"max":[int(start[0]) + 1, int(start[1]) + 1, int(start[2]) + 1],"unit":"world_unit"}
 	_expect("damage_intersects_mandatory_route" in VALIDATOR.validate_damage_constraints(route_intersection).get("issues", []), "damage intersecting a mandatory route was accepted")
+
+func _assert_hydrology_constraint_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_hydrology_constraints(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.HYDROLOGY_CONSTRAINT_SCHEMA and bool(valid.get("valid", false)), "generated hydrology constraints are invalid")
+	var missing_source := source.duplicate(true)
+	(missing_source.hydrology[0] as Dictionary)["source_damage_id"] = "damage:missing"
+	_expect("hydrology_source_invalid" in VALIDATOR.validate_hydrology_constraints(missing_source).get("issues", []), "hydrology without broken infrastructure was accepted")
+	var bad_level := source.duplicate(true)
+	(bad_level.hydrology[0] as Dictionary)["water_level"] = 9999
+	_expect("hydrology_level_invalid" in VALIDATOR.validate_hydrology_constraints(bad_level).get("issues", []), "out-of-bounds water level was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:
