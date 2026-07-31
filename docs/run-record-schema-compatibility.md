@@ -4,6 +4,8 @@
 
 Existing `RunData.run_record` and `RunArchive` dictionaries are explicitly recognised as `legacy-summary/v0`. They remain records-only summaries: the compatibility reader does not upgrade them, synthesize replay data, or claim deterministic replay compatibility.
 
+The megastructure world-output transition uses generator `2.0.0`. Strict records identifying `1.0.0` are intentionally rejected as incompatible; no historical reader or migration is provided.
+
 ## Verification
 
 ```sh

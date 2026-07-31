@@ -92,11 +92,11 @@ Goal: compile the macrostructure into existing streamed chunks.
 - [x] M3.3 Generate matching traversal ports for neighboring chunks.
 - [x] M3.4 Generate matching structural continuation ports.
 - [x] M3.5 Add boundary-contract tests.
-- [ ] M3.6 Integrate megastructure intersection data into existing chunk descriptors.
+- [x] M3.6 Integrate megastructure intersection data into existing chunk descriptors.
 - [x] M3.7 Confirm cache eviction does not alter results.
 - [x] M3.8 Confirm worker completion order does not alter results.
 - [x] M3.9 Add debug display for boundary ownership.
-- [ ] M3.10 Commit after determinism, boundary, and baseline tests pass.
+- [x] M3.10 Commit after determinism, boundary, and baseline tests pass.
 
 Exit criteria:
 

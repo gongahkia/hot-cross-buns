@@ -9,7 +9,7 @@ Every `a-slow-walk.export.v1` manifest carries:
 ```json
 "world": {
   "seed": "20260730",
-  "generator_schema_version": "1.0.0",
+  "generator_schema_version": "2.0.0",
   "generation_options": {}
 }
 ```

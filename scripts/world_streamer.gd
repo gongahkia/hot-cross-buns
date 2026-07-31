@@ -215,7 +215,11 @@ func sample_at(world_position: Vector3) -> Dictionary:
 	return generator.sample(canonical.x, canonical.z) if generator else {}
 
 func ground_height(world_position: Vector3) -> float:
-	return float(sample_at(world_position).get("elevation", 0.0))
+	var canonical: Vector3 = origin.world_position(world_position) if origin else world_position
+	var chunk := Vector2i(floori(canonical.x / GENERATOR.CHUNK_SIZE), floori(canonical.z / GENERATOR.CHUNK_SIZE))
+	var descriptor: Dictionary = chunk_cache.fetch(_chunk_id(chunk.x, chunk.y)) if chunk_cache else {}
+	if descriptor.is_empty(): descriptor = generator.chunk_descriptor(chunk.x, chunk.y)
+	return _terrain_height(descriptor, canonical.x, canonical.z)
 
 func place_material_marker(world_position: Vector3, record: Dictionary = {}) -> bool:
 	if origin == null: return false
@@ -348,14 +352,16 @@ func _build_chunk(chunk_x: int, chunk_z: int, build_features:=false) -> Node3D:
 	var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var render_grid:=RENDER_LOD.grid_for_distance(distance);var collision_grid:=COLLISION_LOD.grid_for_distance(distance)
 	root.set_meta("render_grid",render_grid)
 	root.set_meta("collision_grid",collision_grid)
-	var mesh := _terrain_mesh(chunk_x, chunk_z, str(descriptor.biome), str(descriptor.region.family),render_grid)
+	var interior := _is_megastructure_interior(descriptor)
+	root.set_meta("megastructure_interior", interior)
+	var mesh := _terrain_mesh(chunk_x, chunk_z, descriptor, render_grid)
 	var terrain := StaticBody3D.new()
 	terrain.name = "Terrain"
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
-	visual.material_override = _terrain_material(str(descriptor.biome), str(descriptor.region.family))
+	visual.material_override = _interior_material() if interior else _terrain_material(str(descriptor.biome), str(descriptor.region.family))
 	terrain.add_child(visual)
-	terrain.add_child(_collision_shape(chunk_x,chunk_z,collision_grid))
+	terrain.add_child(_collision_shape(chunk_x,chunk_z,collision_grid,descriptor))
 	root.add_child(terrain)
 	root.set_meta("features_ready",build_features)
 	if build_features:_add_features(root, chunk_x, chunk_z, descriptor)
@@ -414,15 +420,15 @@ func _update_collision_lods(build_all:=false,allow_build:=true)->void:
 		if terrain==null:
 			pending_collision_lods.erase(id)
 			continue
-		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid))
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var descriptor:=root.get_meta("descriptor",{}) as Dictionary;var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid,descriptor))
 		root.set_meta("collision_grid",grid)
 		pending_collision_lods.erase(id)
 		refresh_metrics["collision_lods_built"]=int(refresh_metrics.collision_lods_built)+1
 		if retiring:COLLISION_HANDOFF.retire_after_physics_frame(get_tree(),retiring)
 		built+=1
 
-func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
-	var collision:=CollisionShape3D.new();collision.shape=COLLISION_MESH.heightmap(generator,GENERATOR.CHUNK_SIZE,chunk_x,chunk_z,grid)
+func _collision_shape(chunk_x:int,chunk_z:int,grid:int,descriptor:Dictionary)->CollisionShape3D:
+	var collision:=CollisionShape3D.new();collision.shape=COLLISION_MESH.heightmap(generator,GENERATOR.CHUNK_SIZE,chunk_x,chunk_z,grid,func(world_x:float,world_z:float)->float:return _terrain_height(descriptor,world_x,world_z))
 	var step:=GENERATOR.CHUNK_SIZE/float(grid);collision.position=Vector3(GENERATOR.CHUNK_SIZE*.5,0.0,GENERATOR.CHUNK_SIZE*.5);collision.scale=Vector3(step,step,step)
 	return collision
 
@@ -445,36 +451,58 @@ func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
 	var started:=Time.get_ticks_usec()
 	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()
 	root.name="FarChunk_%d_%d"%[chunk_x,chunk_z];root.position=origin.local_chunk_position(Vector2i(chunk_x,chunk_z));root.set_meta("impostor",true);root.set_meta("render_grid",FAR_TERRAIN.GRID)
-	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,str(descriptor.biome),str(descriptor.region.family),FAR_TERRAIN.GRID);visual.material_override=_silhouette_material(str(descriptor.biome),str(descriptor.region.family))
+	var visual:=MeshInstance3D.new();visual.mesh=_terrain_mesh(chunk_x,chunk_z,descriptor,FAR_TERRAIN.GRID);visual.material_override=_interior_material() if _is_megastructure_interior(descriptor) else _silhouette_material(str(descriptor.biome),str(descriptor.region.family))
 	root.add_child(visual);add_child(root)
 	refresh_metrics["far_chunk_build_ms"]=float(refresh_metrics.far_chunk_build_ms)+float(Time.get_ticks_usec()-started)/1000.0
 	refresh_metrics["far_chunks_built"]=int(refresh_metrics.far_chunks_built)+1
 	return root
 
-func _terrain_mesh(chunk_x: int, chunk_z: int, biome: String, family: String, grid: int = GRID) -> ArrayMesh:
+func _terrain_mesh(chunk_x: int, chunk_z: int, descriptor: Dictionary, grid: int = GRID) -> ArrayMesh:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var step := GENERATOR.CHUNK_SIZE / float(grid)
 	for z in range(grid):
 		for x in range(grid):
-			var a := _vertex(chunk_x, chunk_z, x, z, step)
-			var b := _vertex(chunk_x, chunk_z, x + 1, z, step)
-			var c := _vertex(chunk_x, chunk_z, x + 1, z + 1, step)
-			var d := _vertex(chunk_x, chunk_z, x, z + 1, step)
+			var a := _vertex(chunk_x, chunk_z, x, z, step, descriptor)
+			var b := _vertex(chunk_x, chunk_z, x + 1, z, step, descriptor)
+			var c := _vertex(chunk_x, chunk_z, x + 1, z + 1, step, descriptor)
+			var d := _vertex(chunk_x, chunk_z, x, z + 1, step, descriptor)
 			for vertex in [a, b, c, a, c, d]:
 				surface.set_uv(Vector2(vertex.x / GENERATOR.CHUNK_SIZE, vertex.z / GENERATOR.CHUNK_SIZE))
 				surface.add_vertex(vertex)
 	var mesh := surface.commit()
-	mesh.resource_name = biome + "_" + family
+	mesh.resource_name = str(descriptor.biome) + "_" + str(descriptor.region.family)
 	return mesh
 
-func _vertex(chunk_x: int, chunk_z: int, x: int, z: int, step: float) -> Vector3:
+func _vertex(chunk_x: int, chunk_z: int, x: int, z: int, step: float, descriptor: Dictionary) -> Vector3:
 	var local_x := float(x) * step
 	var local_z := float(z) * step
-	var sample: Dictionary = generator.sample(float(chunk_x) * GENERATOR.CHUNK_SIZE + local_x, float(chunk_z) * GENERATOR.CHUNK_SIZE + local_z)
-	return Vector3(local_x, float(sample.elevation), local_z)
+	return Vector3(local_x, _terrain_height(descriptor, float(chunk_x) * GENERATOR.CHUNK_SIZE + local_x, float(chunk_z) * GENERATOR.CHUNK_SIZE + local_z), local_z)
+
+func _terrain_height(descriptor: Dictionary, world_x: float, world_z: float) -> float:
+	var interior := _megastructure_interior(descriptor)
+	if not interior.is_empty():
+		return float(interior.get("floor_y", 0))
+	return float(generator.sample(world_x, world_z).get("elevation", 0.0))
+
+func _is_megastructure_interior(descriptor: Dictionary) -> bool:
+	return not _megastructure_interior(descriptor).is_empty()
+
+func _megastructure_interior(descriptor: Dictionary) -> Dictionary:
+	var megastructure: Dictionary = descriptor.get("megastructure", {})
+	for intersection: Dictionary in megastructure.get("intersections", []):
+		var macro: Dictionary = intersection.get("macro", {})
+		if macro.is_empty():
+			continue
+		var interior: Dictionary = intersection.get("interior", {})
+		if str(interior.get("terrain_mode", "")) == "flat_enclosed_floor":
+			return interior
+	return {}
 
 func _add_features(root: Node3D, chunk_x: int, chunk_z: int, descriptor: Dictionary) -> void:
+	if _is_megastructure_interior(descriptor):
+		root.set_meta("wildlife_count", 0)
+		return
 	var family := str(descriptor.region.family)
 	var seed: int = generator.seed
 	var landmark:=landmarks.for_chunk(seed,descriptor.region,chunk_x,chunk_z)
@@ -842,6 +870,11 @@ func _add_cylinder(root:Node3D,position:Vector3,radius:float,height:float,color:
 
 func _terrain_material(biome: String, family: String) -> StandardMaterial3D:
 	var material := _material(REGION_PRESENTATION.palette(biome,family).terrain).duplicate() as StandardMaterial3D
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+func _interior_material() -> StandardMaterial3D:
+	var material := _material(Color("#535b52")).duplicate() as StandardMaterial3D
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 

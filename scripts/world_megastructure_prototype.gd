@@ -19,16 +19,16 @@ static func compile(descriptor: Dictionary, terrain_height: Callable) -> Node3D:
 	var transverse := Vector3(-axis.z, 0.0, axis.x)
 	var threshold := _ground_point(entry.get("threshold_volume", {}).get("min", [])).lerp(_ground_point(entry.get("threshold_volume", {}).get("max", [])), 0.5)
 	var route_y := _route_floor_y(descriptor, terrain_height)
-	var wall_start := threshold - axis * 64.0
-	var opening_length: float = wall_start.distance_to(first_goal) + 96.0
-	var opening_center: Vector3 = (wall_start + first_goal) * 0.5
-	_add_box(root, "SpineWallLeft", opening_center + transverse * 30.0 + Vector3(0.0, route_y + 30.0, 0.0), _axis_size(axis, opening_length, 4.0, 60.0), Color("#313936"), true)
-	_add_box(root, "SpineWallRight", opening_center - transverse * 30.0 + Vector3(0.0, route_y + 30.0, 0.0), _axis_size(axis, opening_length, 4.0, 60.0), Color("#39413c"), true)
+	var interior_end := reveal_anchor + axis * 1904.0
+	var interior_length: float = approach.distance_to(interior_end) + 32.0
+	var interior_center: Vector3 = (approach + interior_end) * 0.5
+	_add_box(root, "SpineWallLeft", interior_center + transverse * 30.0 + Vector3(0.0, route_y + 30.0, 0.0), _axis_size(axis, interior_length, 4.0, 60.0), Color("#313936"), true)
+	_add_box(root, "SpineWallRight", interior_center - transverse * 30.0 + Vector3(0.0, route_y + 30.0, 0.0), _axis_size(axis, interior_length, 4.0, 60.0), Color("#39413c"), true)
 	_add_box(root, "ThresholdLintel", Vector3(threshold.x, route_y + 20.0, threshold.z), _axis_size(axis, 10.0, 68.0, 6.0), Color("#596254"), true)
 	_add_box(root, "CompressionWallLeft", post_threshold - axis * 44.0 + transverse * 12.0 + Vector3(0.0, route_y + 14.0, 0.0), _axis_size(axis, 128.0, 2.0, 28.0), Color("#4b5147"), true)
 	_add_box(root, "CompressionWallRight", post_threshold - axis * 44.0 - transverse * 12.0 + Vector3(0.0, route_y + 14.0, 0.0), _axis_size(axis, 128.0, 2.0, 28.0), Color("#4b5147"), true)
 	_add_box(root, "OpeningRoute", (approach + first_goal) * 0.5 + Vector3(0.0, route_y, 0.0), _axis_size(axis, approach.distance_to(first_goal) + 16.0, 18.0, 0.7), Color("#616853"), true)
-	_add_box(root, "TransitDeck", reveal_anchor + axis * 720.0 + Vector3(0.0, route_y + 58.0, 0.0), _axis_size(axis, 2368.0, 36.0, 5.0), Color("#222c2b"), false)
+	_add_box(root, "TransitDeck", interior_center + Vector3(0.0, route_y + 58.0, 0.0), _axis_size(axis, interior_length, 36.0, 5.0), Color("#222c2b"), false)
 	for distance: float in [192.0, 544.0, 928.0, 1344.0]:
 		var support: Vector3 = reveal_anchor + axis * distance
 		_add_box(root, "TransitSupport", support + transverse * 16.0 + Vector3(0.0, route_y + 28.0, 0.0), Vector3(5.0, 56.0, 5.0), Color("#303934"), false)
@@ -209,6 +209,9 @@ static func _axis_size(axis: Vector3, length: float, width: float, height: float
 	return Vector3(length, height, width) if absf(axis.x) > 0.5 else Vector3(width, height, length)
 
 static func _route_floor_y(descriptor: Dictionary, terrain_height: Callable) -> float:
+	var interior: Dictionary = descriptor.get("interior", {})
+	if str(interior.get("terrain_mode", "")) == "flat_enclosed_floor":
+		return float(interior.get("floor_y", 0))
 	var entry: Dictionary = descriptor.get("entry", {})
 	var start := _ground_point(entry.get("approach_anchor", []))
 	var finish := _ground_point(entry.get("first_goal_anchor", []))

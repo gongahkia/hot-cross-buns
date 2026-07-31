@@ -47,11 +47,14 @@ func _assert_z_seam(generator: WorldGenerator, north_z: int, south_z: int, north
 
 func _assert_loaded_physics_seam(main: Node3D) -> void:
 	var state := main.get_world_3d().direct_space_state
+	var excluded := [main.player.get_rid()]
+	for body: StaticBody3D in main.megastructure_prototype.find_children("*", "StaticBody3D", true, false):
+		excluded.append(body.get_rid())
 	for position in [Vector3(0.0,0.0,-32.0),Vector3(0.0,0.0,32.0),Vector3(-32.0,0.0,0.0),Vector3(32.0,0.0,0.0)]:
-		var query := PhysicsRayQueryParameters3D.create(position + Vector3.UP * 128.0, position + Vector3.DOWN * 128.0)
-		query.exclude = [main.player.get_rid()]
-		var hit: Dictionary = state.intersect_ray(query)
 		var expected: float = main.world_streamer.ground_height(position)
+		var query := PhysicsRayQueryParameters3D.create(position + Vector3.UP * (expected + 12.0), position + Vector3.UP * (expected - 12.0))
+		query.exclude = excluded
+		var hit: Dictionary = state.intersect_ray(query)
 		_expect(not hit.is_empty() and absf(float((hit.get("position", Vector3.ZERO) as Vector3).y) - expected) <= EPSILON, "loaded terrain collision seam drifted")
 
 func _height(shape: HeightMapShape3D, grid: int, x: int, z: int) -> float:

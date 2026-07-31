@@ -11,7 +11,7 @@ Schema `run-record/v1` stores a completed, failed, extracted, or in-progress exp
   "schema": "run-record/v1",
   "world": {
     "seed": "20260730",
-    "generator_schema_version": "1.0.0",
+    "generator_schema_version": "2.0.0",
     "generation_options": {"canonical": "values"}
   },
   "ruleset_version": "1.0.0",

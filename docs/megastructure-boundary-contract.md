@@ -1,6 +1,6 @@
 # Megastructure chunk-boundary contract
 
-Milestone 3 supplies a pure `WorldMegastructureIntersection.compile(descriptor, chunk)` step. It is not wired into `WorldGenerator`, the chunk cache, workers, streaming queues, or scene construction yet; M3.6 requires the generator identity and persisted-run migration decision recorded in the megastructure plan.
+Milestone 3 supplies the pure `WorldMegastructureIntersection.compile(descriptor, chunk)` step. `WorldGenerator.chunk_descriptor` now publishes non-empty results as `megastructure: {schema: "megastructure-chunk/v1", intersections: [...]}`; the scheduler, cache, and streamer carry that data without neighbor-load or worker-state input.
 
 ## Intersection data
 
@@ -25,6 +25,8 @@ Structural ports use the `structure` layer. Traversal ports use `traversal/<rout
 ```
 
 The test verifies macro/sector clipping, matching independently compiled neighbor ports, canonical ownership, cache eviction independence, forward/reverse/shuffled request-order equality, and actual `WorkerThreadPool` queue-order equality.
+
+The M3 streaming test also verifies descriptor and scheduler propagation, grounded interior terrain/collision, biome-feature suppression, and the enclosing prototype floor/deck relationship.
 
 ## Debug display
 

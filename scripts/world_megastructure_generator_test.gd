@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "6c036cea71d2acc8dc58a0a083c905d3427ab62d14d1009a81b6c42b55973ba6",
-	"-1:0:-3": "4739125056da264c842dee67a27da99e5b1f17cd142716096a110411c9249cf6",
-	"0:0:0": "25f7597729772a7088d7f5be91a49f0d557aefb800a7d377559682035db25736",
-	"4:0:-2": "648aaa1cdab54937d1a4928f028a370369f5c6077347f00cf85b93c4046bf790",
-	"7:0:5": "32a09660ca0aa7049701bfaa671f9614b524b0046758e434c146070fef30a2ca",
+	"-2:0:1": "9c9d563623e2083d9bcbb5576f33bcaa096839be3335de73dd1cc63659f0f21a",
+	"-1:0:-3": "a4ad579fe49f00d3091635c96af3ed38ff53a7fcdfdcb0c6bf8ce1678b7330b3",
+	"0:0:0": "ee9fa0fc7b51aa4eabee2ba0f19a558b5d8d7e2344a23c1777af333be41d3543",
+	"4:0:-2": "b2323b768dabd7e897ea72d7f69518b04754e34d22567a68b538a7731f9af716",
+	"7:0:5": "a44027445786c995e31e797a27cdf77dbad56aec3579af567a249d69d8ad94a4",
 }
 var failed := false
 
@@ -18,7 +18,6 @@ func _initialize() -> void:
 	var generator := GENERATOR.new(SEED)
 	_expect(generator.megacell_at(Vector3i(-1, 0, -1)) == Vector3i(-1, 0, -1) and generator.megacell_at(Vector3i(4095, 0, 4095)) == Vector3i(0, 0, 0) and generator.megacell_at(Vector3i(4096, 4096, -4097)) == Vector3i(1, 1, -2), "megacell quantization drifted")
 	var forward := _generate_hashes(generator, CELLS)
-	print(JSON.stringify(forward))
 	_expect(forward == EXPECTED_HASHES, "megastructure descriptor golden hashes drifted")
 	_expect(HASH.canonical_json({"b": 1, "a": [true, null]}) == "{\"a\":[true,null],\"b\":1}" and HASH.canonical_json(0.5).is_empty(), "canonical serialization contract drifted")
 	var reversed_cells := CELLS.duplicate()
@@ -47,7 +46,9 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	var entry: Dictionary = descriptor.get("entry", {})
 	var routes: Array = descriptor.get("routes", [])
 	var reveals: Array = descriptor.get("reveals", [])
-	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	var interior: Dictionary = descriptor.get("interior", {})
+	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 2 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	_expect(str(interior.terrain_mode) == "flat_enclosed_floor" and int(interior.floor_y) == 24 and int(interior.ceiling_y) == 100, "interior floor contract drifted")
 	_expect(str(entry.entry_type) == "elevated_spine_underpass" and (entry.approach_anchor as Array).size() == 3 and (entry.threshold_volume as Dictionary).has("min") and (entry.threshold_volume as Dictionary).has("max") and (entry.post_threshold_anchor as Array).size() == 3 and (entry.first_goal_anchor as Array).size() == 3 and not str(entry.initial_reveal_id).is_empty(), "entry descriptor contract drifted")
 	_expect(routes.size() == 3 and _route_exists(routes, "baseline", "walk", true) and _route_exists(routes, "expressive", "grapple", false) and _route_exists(routes, "survival", "walk", false) and str(routes[0].sector_id).ends_with(":sector"), "opening route descriptor contract drifted")
 	var survival := _route_by_class(routes, "survival")

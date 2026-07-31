@@ -1,10 +1,10 @@
 # Megastructure descriptor contract
 
-Milestone 1 adds `WorldMegastructureGenerator`, an unused pure-data source for the first archetype: `ruined_transcontinental_spine` v1. It is not yet part of `WorldGenerator`, workers, streaming queues, collision, runtime scene attachment, or the procedural spawn path.
+`WorldMegastructureGenerator` is the pure-data source for the first archetype: `ruined_transcontinental_spine` v1. `WorldGenerator` consumes its M3 intersections for local procedural chunk descriptors; workers carry the resulting data unchanged. Scene attachment remains owned by `WorldStreamer` and its existing M4 queue categories.
 
 ## Identity and canonical form
 
-`generate(Vector3i)` accepts a canonical 4096-unit megacell. Descriptor identity contains only:
+`generate(Vector3i)` accepts a canonical 4096-unit megacell. Descriptor schema v2 identity contains only:
 
 - decimal world seed;
 - `WorldGenerator.GENERATOR_SCHEMA_VERSION`;
@@ -29,6 +29,10 @@ Its ordered route array contains:
 - optional walk detour to a `warm_utility_refuge`, with declarative shelter, warmth, and exposure effects.
 
 The values are planning data only. M2 owns visual realization; M3 owns chunk intersection; M5 owns analytic movement validation and survival runtime wiring.
+
+## Enclosed interior
+
+The descriptor's `interior` contract defines a `flat_enclosed_floor` at `24 world_unit` and ceiling at `100 world_unit`. It is authoritative generation data, not an M2 visual offset: M3 terrain and collision use the floor in every touched macro chunk, and ordinary biome features are suppressed there. The entry prototype encloses the route with its walls and long overhead deck, so the generated opening is occupied from within rather than suspended above ordinary terrain.
 
 ## Verification
 

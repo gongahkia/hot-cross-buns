@@ -22,7 +22,7 @@ func _initialize() -> void:
 	PROTOTYPE.set_origin(root, Vector2i(3, -2))
 	_expect(root.position == Vector3(-192.0, 0.0, 128.0), "prototype origin conversion drifted")
 	var spawn := PROTOTYPE.entry_spawn(descriptor, func(_position: Vector3) -> float: return 7.5)
-	_expect(is_equal_approx(spawn.y, 49.55), "prototype entry spawn height drifted")
+	_expect(is_equal_approx(spawn.y, 25.55), "prototype entry spawn height drifted")
 	root.queue_free()
 	quit(1 if failed else 0)
 

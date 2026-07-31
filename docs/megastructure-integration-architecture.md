@@ -20,7 +20,7 @@ The same three commands exited `0` again after all M0 documentation changes. The
 
 ## Existing descriptor and streaming boundaries
 
-`WorldGenerator` in `scripts/world_generator.gd` owns deterministic terrain/region sampling and returns a fresh data-only `Dictionary` from `chunk_descriptor(chunk_x, chunk_z)`. Its current descriptor is the integration point for chunk-local megastructure intersections, but not before Milestone 3.
+`WorldGenerator` in `scripts/world_generator.gd` owns deterministic terrain/region sampling and returns a fresh data-only `Dictionary` from `chunk_descriptor(chunk_x, chunk_z)`. M3 now adds non-empty local `megastructure-chunk/v1` intersections there.
 
 `WorldChunkScheduler` in `scripts/world_chunk_scheduler.gd` creates a generator on its sole worker and returns only the descriptor, request token, and canonical chunk key. `WorldStreamer._attach_completed` validates the token against `pending_chunks`, then owns cache admission and the transition to `queued_active_chunks`. Worker code must continue to produce no nodes, meshes, collision shapes, or scene mutations.
 
@@ -28,7 +28,7 @@ The same three commands exited `0` again after all M0 documentation changes. The
 
 | Existing owner | M3/M4 integration point | Constraint |
 | --- | --- | --- |
-| `WorldGenerator.chunk_descriptor` | add a bounded pure `megastructure` intersection field after the macro descriptor/intersection contract exists | coordinate-derived; no loaded-neighbor or cache dependency |
+| `WorldGenerator.chunk_descriptor` | bounded pure `megastructure` intersection field | coordinate-derived; no loaded-neighbor or cache dependency |
 | `WorldChunkScheduler._generate` | carries the enlarged pure descriptor unchanged | one worker; cancellation/token handoff remains authoritative |
 | `WorldStreamer._build_chunk` | later attach active shell/collision only after its existing category is admitted | canonical descriptor is converted to local transforms here |
 | `WorldStreamer._update_far_terrain` | later attach macro silhouettes | far remains collision-free |
@@ -89,4 +89,4 @@ This keeps each class beside its headless test and aligns with the repository's 
 
 ## Owner decisions
 
-No owner decision blocks Milestone 1 because it adds unused pure descriptor data only. Before M3 makes descriptor output part of expeditions, the owner must approve the generator-identity/version transition and persistence strategy for megastructure-affecting world output. Before authored-level integration, the owner must approve the `LevelDocument` entry/exit-port schema and migration policy.
+No owner decision blocked Milestone 1 because it added unused pure descriptor data only. The owner approved M3's `2.0.0` generator-identity transition with no historical strict-run compatibility; M3 therefore rejects v1 strict world identity rather than migrating or regenerating it. Before authored-level integration, the owner must approve the `LevelDocument` entry/exit-port schema and migration policy.

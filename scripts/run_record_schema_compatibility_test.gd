@@ -3,8 +3,8 @@ extends SceneTree
 const RUN_DATA := preload("res://scripts/run_data.gd")
 const RUN_EXPORT := preload("res://scripts/run_export.gd")
 const SCHEMA := preload("res://scripts/run_record_schema.gd")
-const EXPECTED_CANONICAL := "{\"replay\":{\"checkpoints\":[{\"state_hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"tick\":60}],\"input_spans\":[{\"actions\":1,\"end_tick\":59,\"look_x\":0,\"look_y\":-4,\"start_tick\":0},{\"actions\":0,\"end_tick\":119,\"look_x\":1,\"look_y\":0,\"start_tick\":60}]},\"ruleset_version\":\"1.0.0\",\"run\":{\"outcome\":\"extracted\",\"summary\":{\"coordinates\":{\"chunk_x\":-1,\"chunk_z\":1,\"offset_x\":0,\"offset_z\":0},\"elapsed_ticks\":7200,\"inventory\":{\"food\":1,\"wood\":2}}},\"schema\":\"run-record/v1\",\"simulation\":{\"start_tick\":0,\"tick_hz\":60},\"world\":{\"generation_options\":{\"biome\":\"default\",\"erosion\":{\"passes\":2}},\"generator_schema_version\":\"1.0.0\",\"seed\":\"-9223372036854775808\"}}"
-const EXPECTED_HASH := "299dff3b2ff2b8c6ee33f0e9d1a38e4b6321aceb543f2bf1108292ed5e816787"
+const EXPECTED_CANONICAL := "{\"replay\":{\"checkpoints\":[{\"state_hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"tick\":60}],\"input_spans\":[{\"actions\":1,\"end_tick\":59,\"look_x\":0,\"look_y\":-4,\"start_tick\":0},{\"actions\":0,\"end_tick\":119,\"look_x\":1,\"look_y\":0,\"start_tick\":60}]},\"ruleset_version\":\"1.0.0\",\"run\":{\"outcome\":\"extracted\",\"summary\":{\"coordinates\":{\"chunk_x\":-1,\"chunk_z\":1,\"offset_x\":0,\"offset_z\":0},\"elapsed_ticks\":7200,\"inventory\":{\"food\":1,\"wood\":2}}},\"schema\":\"run-record/v1\",\"simulation\":{\"start_tick\":0,\"tick_hz\":60},\"world\":{\"generation_options\":{\"biome\":\"default\",\"erosion\":{\"passes\":2}},\"generator_schema_version\":\"2.0.0\",\"seed\":\"-9223372036854775808\"}}"
+const EXPECTED_HASH := "5df256e849f421b4fd27fcc70cbfb508f240e2e79213102a70c91a24fa179ded"
 
 var failed := false
 
@@ -43,7 +43,7 @@ func _assert_rejections() -> void:
 	var valid := _v1_record()
 	valid.integrity.canonical_hash = SCHEMA.canonical_hash(valid)
 	var incompatible_generator := valid.duplicate(true)
-	incompatible_generator.world.generator_schema_version = "2.0.0"
+	incompatible_generator.world.generator_schema_version = "1.0.0"
 	_expect(str(SCHEMA.compatibility(incompatible_generator).status) == "generator_schema_version_mismatch", "generator mismatch accepted")
 	var incompatible_ruleset := valid.duplicate(true)
 	incompatible_ruleset.ruleset_version = "2.0.0"

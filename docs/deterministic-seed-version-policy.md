@@ -35,6 +35,8 @@ Version labels do not make worlds compatible by themselves. Compatibility is dem
 5. The current generator may not read wall time, process-random state, unordered dictionary iteration, device state, or loading history to determine world output.
 6. Golden tests cover at least negative and positive coordinates, region boundaries, chunk seams, every region family, and every persisted generation option.
 
+The megastructure integration is the current `2.0.0` major transition. Its changed world output is not migrated from `1.0.0`; old strict run records remain incompatible and are never regenerated under v2.
+
 ## Canonicalization
 
 - Integer coordinates are chunk/region indices, not formatted floating-point positions.
