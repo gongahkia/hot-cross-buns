@@ -92,11 +92,11 @@ The full product and technical requirements are in:
 
 - `docs/megastructure-design-spec.md`
 - `docs/megastructure-technical-design.md`
-- `TODO_MEGASTRUCTURE.md`
+- the selected open GitHub megastructure roadmap issue
 
 ## Agent operating rules
 
-1. Read the three files above and all existing authoritative project docs before editing code.
+1. Read the two files above, the selected GitHub issue, and all existing authoritative project docs before editing code.
 2. Inspect current implementation rather than assuming the handoff summary is exact.
 3. Run baseline validation before changing code.
 4. Work on one milestone or smaller coherent unit at a time.
@@ -110,7 +110,7 @@ The full product and technical requirements are in:
 12. Preserve collision handoff.
 13. Preserve normal-frame heavyweight mutual deferral.
 14. Add profiling phases before accepting performance assumptions.
-15. Update `TODO_MEGASTRUCTURE.md` as tasks complete.
+15. Update the selected GitHub issue as tasks complete.
 16. Make one coherent git commit per completed task.
 17. Stop at milestone exit criteria. Do not continue into later milestones automatically.
 18. Ask the owner only when a genuinely blocking product or architecture decision remains after repository inspection.
@@ -131,9 +131,9 @@ Run:
 
 Also run repository formatting, linting, or other checks that already exist.
 
-## Recommended first agent assignment
+## Historical first-agent assignment
 
-Do only Milestone 0 from `TODO_MEGASTRUCTURE.md`.
+Milestone 0 is complete. Select the current GitHub roadmap issue instead.
 
 Expected output:
 
