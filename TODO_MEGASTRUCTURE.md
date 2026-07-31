@@ -44,16 +44,16 @@ Exit criteria:
 
 Goal: represent one infrastructure-spine megastructure and one entry sequence as pure deterministic data.
 
-- [ ] M1.1 Define canonical megacell and structure identity inputs.
-- [ ] M1.2 Add minimal pure-data types for structure, sector, route, entry, and reveal descriptors.
-- [ ] M1.3 Implement deterministic generation for one fixed archetype version.
-- [ ] M1.4 Generate one playable entry descriptor with approach, threshold, post-threshold anchor, and initial reveal.
-- [ ] M1.5 Generate one baseline route through the opening sector.
-- [ ] M1.6 Generate one optional traversal shortcut using an existing movement ability.
-- [ ] M1.7 Generate one survival detour tied to water, warmth, shelter, or exposure.
-- [ ] M1.8 Add canonical serialization or hashing for descriptor comparison.
-- [ ] M1.9 Add forward/reverse/shuffled determinism tests.
-- [ ] M1.10 Commit only after deterministic tests and baseline tests pass.
+- [x] M1.1 Define canonical megacell and structure identity inputs.
+- [x] M1.2 Add minimal pure-data types for structure, sector, route, entry, and reveal descriptors.
+- [x] M1.3 Implement deterministic generation for one fixed archetype version.
+- [x] M1.4 Generate one playable entry descriptor with approach, threshold, post-threshold anchor, and initial reveal.
+- [x] M1.5 Generate one baseline route through the opening sector.
+- [x] M1.6 Generate one optional traversal shortcut using an existing movement ability.
+- [x] M1.7 Generate one survival detour tied to water, warmth, shelter, or exposure.
+- [x] M1.8 Add canonical serialization or hashing for descriptor comparison.
+- [x] M1.9 Add forward/reverse/shuffled determinism tests.
+- [x] M1.10 Commit only after deterministic tests and baseline tests pass.
 
 Exit criteria:
 
