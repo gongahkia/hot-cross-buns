@@ -27,6 +27,22 @@ The following must hold for expedition content and runtime changes:
 | T6 | Transient systems do not corrupt world identity. | Streaming, photo mode, HUD state, audio, and visual LOD may change presentation but must not change generated terrain, resources, landmarks, or the authoritative run record. |
 | T7 | Traversal challenges have an alternate response. | A route can reward mastery, but failure cannot create an unwarned, inescapable state when a lower-skill detour, recovery resource, reset, or explicit run resolution is intended. |
 
+## Megastructure invariants
+
+| ID | Invariant |
+| --- | --- |
+| MEGA-EXPERIENCE-001 | Most traversal occurs in local, readable spaces, but deterministic reveal points must periodically expose civilization-scale continuity. |
+| MEGA-ENTRY-001 | Every authored level and procedural expedition begins with a playable entry sequence that establishes, crosses into, and internally reveals a megastructure. |
+| MEGA-SCALE-001 | A megastructure is defined above chunk and region scale. Chunks only compile local intersections of a persistent macrostructure. |
+| MEGA-DET-001 | Megastructure identity and macrographs depend only on world seed, generation version, and canonical coordinates. |
+| MEGA-DET-002 | Sector and chunk descriptors must not depend on chunk load order, loaded neighbors, frame timing, or cache state. |
+| MEGA-SEAM-001 | Every cross-chunk structural and traversal connection is defined by a canonical shared-boundary contract. |
+| MEGA-ROUTE-001 | Every active sector has at least one validated baseline route connected to the expedition network. |
+| MEGA-ROUTE-002 | Damage, flooding, and reclamation may not remove a mandatory route without providing and validating a replacement. |
+| MEGA-VIS-001 | Every mandatory movement affordance is recognizable at the distance and speed from which the player must commit. |
+| MEGA-HISTORY-001 | Visible architectural layers derive from ordered construction epochs rather than independent decorative randomization. |
+| MEGA-STREAM-001 | Megastructure attachment must preserve the normal-frame mutual deferral of active-chunk, collision-LOD, far/detail, and other heavyweight construction. |
+
 ## Decision order
 
 When requirements conflict, prioritize them in this order:

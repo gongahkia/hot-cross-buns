@@ -28,7 +28,7 @@ Goal: establish exact integration points without changing world appearance.
 - [x] M0.4 Identify the current stable hashing and seeded-random utilities.
 - [x] M0.5 Identify the current test organization and naming convention.
 - [x] M0.6 Identify unused or safely extendable debug input bindings.
-- [ ] M0.7 Copy approved `MEGA-*` invariants into `docs/design-pillars.md`.
+- [x] M0.7 Copy approved `MEGA-*` invariants into `docs/design-pillars.md`.
 - [x] M0.8 Add a short architecture note showing the chosen file layout and why.
 - [x] M0.9 Add empty or minimal test entry points only where consistent with the repository.
 - [ ] M0.10 Re-run all baseline tests and commit the documentation/scaffolding.
