@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 7
+const DESCRIPTOR_SCHEMA_VERSION := 8
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -16,6 +16,7 @@ const INTERIOR_CEILING_Y := 100
 const STAGE_AXIS := 3101
 const STAGE_WIDTH := 3103
 const STAGE_REFUGE := 3107
+const STAGE_DAMAGE := 3113
 
 var world_seed: int
 var generator_schema_version: String
@@ -56,9 +57,12 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var baseline := _baseline_route(route_prefix, approach, post_threshold, first_goal)
 	var shortcut := _grapple_shortcut(route_prefix, post_threshold, first_goal, transverse)
 	var survival_detour := _survival_detour(route_prefix, post_threshold, first_goal, transverse, _stage_rng(megacell, STAGE_REFUGE))
+	var construction_elements := _construction_elements(center, axis, transverse)
+	var damage := _constrained_damage(megacell, construction_elements)
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
-		"construction_elements": _construction_elements(center, axis, transverse),
+		"construction_elements": construction_elements,
+		"damage": damage,
 		"epochs": _construction_epochs(),
 		"entry": {
 			"approach_anchor": _point(approach),
@@ -99,6 +103,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_recovery_volumes(descriptor).get("valid", false)), "generated megastructure recovery volumes are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_affordance_visibility(descriptor).get("valid", false)), "generated megastructure affordance visibility is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_route_preservation(descriptor, descriptor).get("valid", false)), "generated megastructure route preservation is invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_damage_constraints(descriptor).get("valid", false)), "generated megastructure damage constraints are invalid")
 	return descriptor
 
 func _construction_epochs() -> Array:
@@ -126,6 +131,18 @@ func _construction_elements(center: Vector3i, axis: Vector3i, transverse: Vector
 		{"attachment_target_id":"emergency_breach_channel","bounds":_bounds([salvage - axis * 16 - transverse * 18, salvage + axis * 16 + transverse * 18], 2, 28),"cut_target_ids":["autonomous_machine_clamp"],"element_id":"salvage_refuge_patch","epoch_id":5,"relation":"reuses_and_cuts","type":"construction_element"},
 		{"attachment_target_id":"emergency_breach_channel","bounds":_bounds([reclamation - axis * 28 - transverse * 30, reclamation + axis * 28 + transverse * 30], 0, 38),"cut_target_ids":[],"element_id":"reclamation_root_lattice","epoch_id":6,"relation":"attached","type":"construction_element"},
 	]
+
+func _constrained_damage(megacell: Vector3i, elements: Array) -> Array:
+	var by_id := {}
+	for element: Dictionary in elements:
+		by_id[str(element.get("element_id", ""))] = element
+	var rng := _stage_rng(megacell, STAGE_DAMAGE)
+	var severity: String = ["minor", "moderate"][rng.next_range(0, 1)]
+	var records: Array = []
+	for target_id: String in ["attached_habitation_east", "autonomous_machine_clamp"]:
+		var target: Dictionary = by_id[target_id]
+		records.append({"affected_route_ids":[],"bounds":(target.get("bounds", {}) as Dictionary).duplicate(true),"damage_id":"damage:" + target_id,"damage_type":"facade_breach" if target_id == "attached_habitation_east" else "machine_shear","epoch_id":int(target.get("epoch_id", 0)),"severity":severity,"target_element_id":target_id,"type":"constrained_damage"})
+	return records
 
 func _axis(megacell: Vector3i) -> Vector3i:
 	match _stage_rng(megacell, STAGE_AXIS).next_range(0, 3):

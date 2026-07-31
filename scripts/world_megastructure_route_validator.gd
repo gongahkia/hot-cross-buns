@@ -9,6 +9,7 @@ const EXPRESSIVE_ROUTE_SCHEMA := "megastructure-expressive-route-validation/v1"
 const RECOVERY_VOLUME_SCHEMA := "megastructure-recovery-volume-validation/v1"
 const AFFORDANCE_VISIBILITY_SCHEMA := "megastructure-affordance-visibility-validation/v1"
 const ROUTE_PRESERVATION_SCHEMA := "megastructure-route-preservation-validation/v1"
+const DAMAGE_CONSTRAINT_SCHEMA := "megastructure-damage-constraint-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -214,6 +215,31 @@ static func validate_route_preservation(before: Dictionary, after: Dictionary) -
 		issues.append("visibility_invalid_after_damage")
 	return _preservation_result(issues)
 
+static func validate_damage_constraints(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var elements := {}
+	for element: Dictionary in descriptor.get("construction_elements", []):
+		elements[str(element.get("element_id", ""))] = element
+	var baseline := _route_by_id(descriptor.get("routes", []), _required_baseline_id(descriptor.get("entry", {})))
+	var baseline_issues: Array = []
+	var baseline_path := _route_path(baseline, baseline_issues)
+	if baseline.is_empty() or baseline_path.size() < 2:
+		issues.append("damage_baseline_missing")
+	for damage: Dictionary in descriptor.get("damage", []):
+		var target_id := str(damage.get("target_element_id", ""))
+		var target: Dictionary = elements.get(target_id, {})
+		var bounds: Dictionary = damage.get("bounds", {})
+		if target.is_empty() or not _valid_bounds(bounds) or str(damage.get("type", "")) != "constrained_damage" or int(damage.get("epoch_id", 0)) != int(target.get("epoch_id", 0)):
+			issues.append("damage_target_invalid")
+			continue
+		if not (damage.get("affected_route_ids", []) as Array).is_empty():
+			issues.append("damage_affects_mandatory_route")
+		if _path_intersects_bounds(baseline_path, bounds):
+			issues.append("damage_intersects_mandatory_route")
+	if (descriptor.get("damage", []) as Array).is_empty():
+		issues.append("damage_records_missing")
+	return _damage_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -230,6 +256,10 @@ static func _route_by_id(routes: Array, route_id: String) -> Dictionary:
 		if str(route.get("route_id", "")) == route_id:
 			return route
 	return {}
+
+static func _required_baseline_id(entry: Dictionary) -> String:
+	var route_ids: Array = entry.get("required_route_ids", [])
+	return str(route_ids[0]) if route_ids.size() == 1 else ""
 
 static func _route_path(route: Dictionary, issues: Array) -> Array:
 	var points: Array = [route.get("start_anchor", [])]
@@ -335,3 +365,6 @@ static func _visibility_result(issues: Array) -> Dictionary:
 
 static func _preservation_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":ROUTE_PRESERVATION_SCHEMA,"valid":issues.is_empty()}
+
+static func _damage_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":DAMAGE_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}

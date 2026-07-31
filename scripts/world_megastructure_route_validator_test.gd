@@ -19,6 +19,7 @@ func _initialize() -> void:
 	_assert_recovery_volume_validation()
 	_assert_affordance_visibility_validation()
 	_assert_route_preservation_validation()
+	_assert_damage_constraint_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -143,6 +144,18 @@ func _assert_route_preservation_validation() -> void:
 	var missing_route := source.duplicate(true)
 	missing_route["routes"] = (missing_route.routes as Array).slice(1)
 	_expect("mandatory_route_missing_after_damage" in VALIDATOR.validate_route_preservation(source, missing_route).get("issues", []), "removed mandatory route was accepted")
+
+func _assert_damage_constraint_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_damage_constraints(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.DAMAGE_CONSTRAINT_SCHEMA and bool(valid.get("valid", false)), "generated damage constraints are invalid")
+	var affected_route := source.duplicate(true)
+	(affected_route.damage[0] as Dictionary)["affected_route_ids"] = [(affected_route.entry as Dictionary).required_route_ids[0]]
+	_expect("damage_affects_mandatory_route" in VALIDATOR.validate_damage_constraints(affected_route).get("issues", []), "damage affecting a mandatory route was accepted")
+	var route_intersection := source.duplicate(true)
+	var start: Array = (route_intersection.routes[0] as Dictionary).start_anchor
+	(route_intersection.damage[0] as Dictionary)["bounds"] = {"min":start,"max":[int(start[0]) + 1, int(start[1]) + 1, int(start[2]) + 1],"unit":"world_unit"}
+	_expect("damage_intersects_mandatory_route" in VALIDATOR.validate_damage_constraints(route_intersection).get("issues", []), "damage intersecting a mandatory route was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

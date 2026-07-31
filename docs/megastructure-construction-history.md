@@ -16,3 +16,7 @@ Each epoch declares grammar, material, elevation, attachment, function, damage, 
 ## Structural relationships
 
 Schema v7 adds one canonical construction element per epoch. Later elements name attachment and cut targets from an earlier epoch: habitation brackets to the primary spine; the emergency channel cuts habitation; machine clamps attach to the spine; salvage reuses the breach and cuts a machine clamp; and reclamation roots attach at the breach. These are deterministic structural relationships, not decorative tags.
+
+## Constrained damage
+
+Schema v8 adds deterministic damage records against habitation and machine elements only. Every record carries its target epoch, bounds, type, severity, and an empty affected-route set. Route validation rejects damage that names or intersects a mandatory route.
