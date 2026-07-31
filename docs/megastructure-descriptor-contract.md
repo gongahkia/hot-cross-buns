@@ -30,7 +30,7 @@ Its ordered route array contains:
 
 The v3 grapple shortcut is one 18-unit lateral-forward commitment with its reachable anchor carried through chunk compilation to runtime attachment. It replaces the v2 long-distance placeholder, which could not be acquired within `SpeedPlayer.GRAPPLE_RANGE`. Schema v4 adds its explicit floor-supported recovery volume for route-preservation revalidation. Schema v5 adds threshold and grapple-affordance visibility distances.
 
-Schema v6 adds the ordered construction epochs consumed by M6 transformations. Their relationships are declared in [megastructure-construction-history.md](megastructure-construction-history.md).
+Schema v6 adds the ordered construction epochs consumed by M6 transformations. Schema v7 adds their canonical attachment/cut elements. Their relationships are declared in [megastructure-construction-history.md](megastructure-construction-history.md).
 
 The values are planning data only. M2 owns visual realization; M3 owns chunk intersection; M5 owns analytic movement validation and survival runtime wiring.
 

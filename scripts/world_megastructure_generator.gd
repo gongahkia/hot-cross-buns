@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 6
+const DESCRIPTOR_SCHEMA_VERSION := 7
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -58,6 +58,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var survival_detour := _survival_detour(route_prefix, post_threshold, first_goal, transverse, _stage_rng(megacell, STAGE_REFUGE))
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
+		"construction_elements": _construction_elements(center, axis, transverse),
 		"epochs": _construction_epochs(),
 		"entry": {
 			"approach_anchor": _point(approach),
@@ -108,6 +109,22 @@ func _construction_epochs() -> Array:
 		{"attachment_policy":"clamp_to_primary_frame","damage_profile":"machine_shear","epoch_id":4,"function":"autonomous_maintenance","grammar_id":"machine_additions","hydrology_role":"coolant_recirculation","material_family":"machine_ceramic","ordinal":4,"preferred_elevation":84,"prior_relation":"attached_to_epoch_1","reclamation_response":"moss_on_coolant_leaks","type":"construction_epoch"},
 		{"attachment_policy":"reuse_existing_voids","damage_profile":"salvage_scarring","epoch_id":5,"function":"temporary_human_refuge","grammar_id":"salvage_adaptation","hydrology_role":"rainwater_collection","material_family":"salvaged_sheet_metal","ordinal":5,"preferred_elevation":28,"prior_relation":"reuses_epochs_2_and_4","reclamation_response":"food_and_shelter_gardens","type":"construction_epoch"},
 		{"attachment_policy":"occupy_exposed_surfaces","damage_profile":"root_displacement","epoch_id":6,"function":"long_abandonment_reclamation","grammar_id":"ecological_reclamation","hydrology_role":"seep_and_retention","material_family":"root_bound_debris","ordinal":6,"preferred_elevation":24,"prior_relation":"overgrows_all_prior_epochs","reclamation_response":"mature_reclaimed_ecology","type":"construction_epoch"},
+	]
+
+func _construction_elements(center: Vector3i, axis: Vector3i, transverse: Vector3i) -> Array:
+	var primary := center - axis * 80
+	var habitation := center + transverse * 68 + axis * 24
+	var breach := habitation + axis * 20
+	var machine := center - transverse * 62 + axis * 88
+	var salvage := breach - axis * 40 + transverse * 12
+	var reclamation := breach + Vector3i(0, 20, 0)
+	return [
+		{"attachment_target_id":"","bounds":_bounds([primary - axis * 120 - transverse * 12, primary + axis * 120 + transverse * 12], 0, 84),"cut_target_ids":[],"element_id":"primary_spine_core","epoch_id":1,"relation":"origin","type":"construction_element"},
+		{"attachment_target_id":"primary_spine_core","bounds":_bounds([habitation - axis * 48 - transverse * 20, habitation + axis * 48 + transverse * 20], 18, 58),"cut_target_ids":[],"element_id":"attached_habitation_east","epoch_id":2,"relation":"attached","type":"construction_element"},
+		{"attachment_target_id":"attached_habitation_east","bounds":_bounds([breach - axis * 18 - transverse * 24, breach + axis * 18 + transverse * 24], 8, 44),"cut_target_ids":["attached_habitation_east"],"element_id":"emergency_breach_channel","epoch_id":3,"relation":"cuts_through","type":"construction_element"},
+		{"attachment_target_id":"primary_spine_core","bounds":_bounds([machine - axis * 30 - transverse * 14, machine + axis * 30 + transverse * 14], 44, 82),"cut_target_ids":[],"element_id":"autonomous_machine_clamp","epoch_id":4,"relation":"attached","type":"construction_element"},
+		{"attachment_target_id":"emergency_breach_channel","bounds":_bounds([salvage - axis * 16 - transverse * 18, salvage + axis * 16 + transverse * 18], 2, 28),"cut_target_ids":["autonomous_machine_clamp"],"element_id":"salvage_refuge_patch","epoch_id":5,"relation":"reuses_and_cuts","type":"construction_element"},
+		{"attachment_target_id":"emergency_breach_channel","bounds":_bounds([reclamation - axis * 28 - transverse * 30, reclamation + axis * 28 + transverse * 30], 0, 38),"cut_target_ids":[],"element_id":"reclamation_root_lattice","epoch_id":6,"relation":"attached","type":"construction_element"},
 	]
 
 func _axis(megacell: Vector3i) -> Vector3i:

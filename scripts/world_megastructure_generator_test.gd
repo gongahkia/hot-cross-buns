@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "df7a91cb142473a904425ef9dfd50754d45e37dd1e6fd2cf234deddbaec21c5c",
-	"-1:0:-3": "f7eafcbdf4cdd2847e04e4ee122c0a77a3bd90b017df73df423fb70340fe63ba",
-	"0:0:0": "a97ffcbea90a48b9962418dca6b9baf23a26a0ac9e63733675b68bc22c17cc76",
-	"4:0:-2": "cdb84db9025d2dd1e01a0f4732e161488d0a559b5607b3a6946363226cd3d206",
-	"7:0:5": "2e32cdb3dcd6303325419741e1b5b1f6314be33563d0edede70300e1bc0d6fc4",
+	"-2:0:1": "21af2912aec0b1fd7d1c1806678c2f7214e24691a90ebf3ceb4f2aabb1750365",
+	"-1:0:-3": "57a01ba18d3a16b887422d2e63acc683d9ed018d6bcf38c0c49ddc6a2c02e503",
+	"0:0:0": "0dace5e17eabadc04d91e56518314b4945336a02ce9adc692f5b3dc4b173a6a4",
+	"4:0:-2": "f5ece2cfcf0deb6323bdaff51e75f7faa1d06fac939529c99c47804b6df48247",
+	"7:0:5": "fda2f2f6e0d6b84c56e96c07e55ceb69b4d45ca61e53efa4c06621d9b3cfc082",
 }
 var failed := false
 
@@ -47,8 +47,9 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	var routes: Array = descriptor.get("routes", [])
 	var reveals: Array = descriptor.get("reveals", [])
 	var interior: Dictionary = descriptor.get("interior", {})
-	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 6 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 7 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
 	_assert_epochs(descriptor.get("epochs", []))
+	_assert_construction_elements(descriptor.get("construction_elements", []))
 	_expect(str(interior.terrain_mode) == "flat_enclosed_floor" and int(interior.floor_y) == 24 and int(interior.ceiling_y) == 100, "interior floor contract drifted")
 	_expect(str(entry.entry_type) == "elevated_spine_underpass" and (entry.approach_anchor as Array).size() == 3 and (entry.threshold_volume as Dictionary).has("min") and (entry.threshold_volume as Dictionary).has("max") and int(entry.threshold_visibility_distance) == 96 and (entry.post_threshold_anchor as Array).size() == 3 and (entry.first_goal_anchor as Array).size() == 3 and not str(entry.initial_reveal_id).is_empty(), "entry descriptor contract drifted")
 	_expect(routes.size() == 3 and _route_exists(routes, "baseline", "walk", true) and _route_exists(routes, "expressive", "grapple", false) and _route_exists(routes, "survival", "walk", false) and str(routes[0].sector_id).ends_with(":sector"), "opening route descriptor contract drifted")
@@ -81,6 +82,24 @@ func _assert_epochs(epochs: Array) -> void:
 		ordinals.append(int(epoch.get("ordinal", 0)))
 		_expect(epoch.has_all(["attachment_policy", "damage_profile", "function", "grammar_id", "hydrology_role", "material_family", "preferred_elevation", "prior_relation", "reclamation_response", "type"]) and str(epoch.get("type", "")) == "construction_epoch", "construction epoch contract drifted")
 	_expect(ids == [1, 2, 3, 4, 5, 6] and ordinals == ids and str(epochs[2].get("prior_relation", "")) == "cuts_through_epoch_2" and str(epochs[5].get("prior_relation", "")) == "overgrows_all_prior_epochs", "construction epoch order drifted")
+
+func _assert_construction_elements(elements: Array) -> void:
+	var by_id := {}
+	var ids: Array = []
+	for element: Dictionary in elements:
+		var element_id := str(element.get("element_id", ""))
+		by_id[element_id] = element
+		ids.append(element_id)
+	_expect(ids == ["primary_spine_core", "attached_habitation_east", "emergency_breach_channel", "autonomous_machine_clamp", "salvage_refuge_patch", "reclamation_root_lattice"], "construction element order drifted")
+	for element: Dictionary in elements:
+		_expect(str(element.get("type", "")) == "construction_element" and (element.get("bounds", {}) as Dictionary).has_all(["min", "max"]), "construction element contract drifted")
+		var epoch_id := int(element.get("epoch_id", 0))
+		var attachment := str(element.get("attachment_target_id", ""))
+		if not attachment.is_empty():
+			_expect(by_id.has(attachment) and int((by_id[attachment] as Dictionary).get("epoch_id", 0)) < epoch_id, "construction attachment did not target an earlier epoch")
+		for cut_target: Variant in element.get("cut_target_ids", []):
+			var cut_id := str(cut_target)
+			_expect(by_id.has(cut_id) and int((by_id[cut_id] as Dictionary).get("epoch_id", 0)) < epoch_id, "construction cut did not target an earlier epoch")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

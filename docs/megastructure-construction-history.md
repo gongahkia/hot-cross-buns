@@ -11,4 +11,8 @@ The infrastructure-spine descriptor carries six ordered epochs as pure data. Geo
 | 5 | salvage adaptation | reuses epochs 2 and 4 |
 | 6 | ecological reclamation | overgrows all prior epochs |
 
-Each epoch declares grammar, material, elevation, attachment, function, damage, hydrology, and reclamation data. The list is canonical and descriptor schema v6 versioned.
+Each epoch declares grammar, material, elevation, attachment, function, damage, hydrology, and reclamation data. The list is canonical, introduced in descriptor schema v6, and carried forward by later schemas.
+
+## Structural relationships
+
+Schema v7 adds one canonical construction element per epoch. Later elements name attachment and cut targets from an earlier epoch: habitation brackets to the primary spine; the emergency channel cuts habitation; machine clamps attach to the spine; salvage reuses the breach and cuts a machine clamp; and reclamation roots attach at the breach. These are deterministic structural relationships, not decorative tags.

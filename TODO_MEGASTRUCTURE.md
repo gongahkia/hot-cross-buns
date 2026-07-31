@@ -152,7 +152,7 @@ Exit criteria:
 Goal: make the megastructure feel accumulated and reclaimed.
 
 - [x] M6.1 Add ordered construction epochs.
-- [ ] M6.2 Make later epochs attach to or cut through prior systems.
+- [x] M6.2 Make later epochs attach to or cut through prior systems.
 - [ ] M6.3 Add constrained damage.
 - [ ] M6.4 Add hydrology effects tied to broken infrastructure.
 - [ ] M6.5 Add ecological reclamation tied to light, water, material, and exposure.
