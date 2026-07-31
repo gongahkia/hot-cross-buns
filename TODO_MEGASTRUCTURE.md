@@ -138,7 +138,7 @@ Goal: make routes derive from the existing player movement vocabulary.
 - [x] M5.5 Validate affordance visibility before commitment.
 - [x] M5.6 Add route-preservation checks after damage.
 - [x] M5.7 Add a generated cross-chunk route test.
-- [ ] M5.8 Add a rapid traversal soak through the opening sector.
+- [x] M5.8 Add a rapid traversal soak through the opening sector.
 - [ ] M5.9 Commit after all route and baseline tests pass.
 
 Exit criteria:

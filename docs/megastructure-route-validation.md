@@ -43,4 +43,5 @@ Every route marked `recovery_required` must provide an explicit volume around it
 ```sh
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/world_megastructure_route_validator_test.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/world_megastructure_cross_chunk_route_test.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script res://scripts/world_megastructure_rapid_traversal_test.gd
 ```
