@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 11
+const DESCRIPTOR_SCHEMA_VERSION := 12
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -65,11 +65,6 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var survival_opportunities := _survival_opportunities(survival_detour, hydrology)
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
-		"construction_elements": construction_elements,
-		"damage": damage,
-		"ecology": ecology,
-		"epochs": epochs,
-		"hydrology": hydrology,
 		"entry": {
 			"approach_anchor": _point(approach),
 			"entry_id": route_prefix + ":entry",
@@ -100,10 +95,29 @@ func generate(megacell: Vector3i) -> Dictionary:
 			"structure_id": str(identity.structure_id),
 			"type": "sector",
 		}],
-		"survival_opportunities": survival_opportunities,
 		"type": "megastructure",
 		"world_bounds": opening_bounds,
 	}
+	var route_validation_stages: Array = []
+	var previous_stage := descriptor.duplicate(true)
+	descriptor["epochs"] = epochs
+	route_validation_stages.append(_route_validation_stage("construction_epochs", previous_stage, descriptor))
+	previous_stage = descriptor.duplicate(true)
+	descriptor["construction_elements"] = construction_elements
+	route_validation_stages.append(_route_validation_stage("construction_elements", previous_stage, descriptor))
+	previous_stage = descriptor.duplicate(true)
+	descriptor["damage"] = damage
+	route_validation_stages.append(_route_validation_stage("constrained_damage", previous_stage, descriptor))
+	previous_stage = descriptor.duplicate(true)
+	descriptor["hydrology"] = hydrology
+	route_validation_stages.append(_route_validation_stage("infrastructure_hydrology", previous_stage, descriptor))
+	previous_stage = descriptor.duplicate(true)
+	descriptor["ecology"] = ecology
+	route_validation_stages.append(_route_validation_stage("ecological_reclamation", previous_stage, descriptor))
+	previous_stage = descriptor.duplicate(true)
+	descriptor["survival_opportunities"] = survival_opportunities
+	route_validation_stages.append(_route_validation_stage("utility_survival", previous_stage, descriptor))
+	descriptor["route_validation_stages"] = route_validation_stages
 	descriptor["canonical_hash"] = HASH.canonical_hash(descriptor)
 	assert(bool(ROUTE_VALIDATOR.validate_baseline_entry(descriptor).get("valid", false)), "generated megastructure baseline entry route is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_expressive_route(descriptor).get("valid", false)), "generated megastructure expressive route is invalid")
@@ -114,7 +128,13 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_hydrology_constraints(descriptor).get("valid", false)), "generated megastructure hydrology constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_ecology_constraints(descriptor).get("valid", false)), "generated megastructure ecology constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_survival_opportunities(descriptor).get("valid", false)), "generated megastructure survival opportunities are invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_transformation_stages(descriptor).get("valid", false)), "generated megastructure transformation stages are invalid")
 	return descriptor
+
+func _route_validation_stage(stage_id: String, before: Dictionary, after: Dictionary) -> Dictionary:
+	var validation := ROUTE_VALIDATOR.validate_transformation_stage(before, after, stage_id)
+	assert(bool(validation.get("valid", false)), "megastructure mandatory route changed during " + stage_id)
+	return {"checks":ROUTE_VALIDATOR.TRANSFORMATION_STAGE_CHECKS.duplicate(),"mandatory_route_hash":ROUTE_VALIDATOR.mandatory_route_hash(after),"stage_id":stage_id,"type":"route_validation_stage","validation_schema":ROUTE_VALIDATOR.TRANSFORMATION_STAGE_SCHEMA}
 
 func _construction_epochs() -> Array:
 	return [

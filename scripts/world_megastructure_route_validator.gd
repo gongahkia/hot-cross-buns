@@ -2,6 +2,7 @@ class_name WorldMegastructureRouteValidator
 extends RefCounted
 
 const PLAYER := preload("res://scripts/player.gd")
+const HASH := preload("res://scripts/world_megastructure_hash.gd")
 
 const SCHEMA := "megastructure-route-envelope/v2"
 const BASELINE_ENTRY_SCHEMA := "megastructure-baseline-entry-validation/v1"
@@ -13,6 +14,9 @@ const DAMAGE_CONSTRAINT_SCHEMA := "megastructure-damage-constraint-validation/v1
 const HYDROLOGY_CONSTRAINT_SCHEMA := "megastructure-hydrology-constraint-validation/v1"
 const ECOLOGY_CONSTRAINT_SCHEMA := "megastructure-ecology-constraint-validation/v1"
 const SURVIVAL_OPPORTUNITY_SCHEMA := "megastructure-survival-opportunity-validation/v1"
+const TRANSFORMATION_STAGE_SCHEMA := "megastructure-transformation-stage-validation/v1"
+const TRANSFORMATION_STAGE_IDS := ["construction_epochs", "construction_elements", "constrained_damage", "infrastructure_hydrology", "ecological_reclamation", "utility_survival"]
+const TRANSFORMATION_STAGE_CHECKS := ["mandatory_route_preservation"]
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -217,6 +221,40 @@ static func validate_route_preservation(before: Dictionary, after: Dictionary) -
 	if not bool(validate_affordance_visibility(after).get("valid", false)):
 		issues.append("visibility_invalid_after_damage")
 	return _preservation_result(issues)
+
+static func mandatory_route_contract(descriptor: Dictionary) -> Dictionary:
+	var entry: Dictionary = descriptor.get("entry", {})
+	var required_route_ids: Array = entry.get("required_route_ids", [])
+	var routes: Array = []
+	for route_id_value: Variant in required_route_ids:
+		var route := _route_by_id(descriptor.get("routes", []), str(route_id_value))
+		routes.append({"end_anchor":route.get("end_anchor", []),"mandatory":bool(route.get("mandatory", false)),"movement_mode":str(route.get("movement_mode", "")),"route_id":str(route.get("route_id", "")),"start_anchor":route.get("start_anchor", []),"waypoints":route.get("waypoints", [])})
+	return {"required_route_ids":required_route_ids.duplicate(true),"routes":routes}
+
+static func mandatory_route_hash(descriptor: Dictionary) -> String:
+	return HASH.canonical_hash(mandatory_route_contract(descriptor))
+
+static func validate_transformation_stage(before: Dictionary, after: Dictionary, stage_id: String) -> Dictionary:
+	var issues: Array = []
+	if stage_id not in TRANSFORMATION_STAGE_IDS:
+		issues.append("transformation_stage_id_invalid")
+	if not bool(validate_route_preservation(before, after).get("valid", false)):
+		issues.append("transformation_stage_mandatory_route_changed")
+	return _transformation_stage_result(stage_id, issues)
+
+static func validate_transformation_stages(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var stages: Array = descriptor.get("route_validation_stages", [])
+	var mandatory_hash := mandatory_route_hash(descriptor)
+	if stages.size() != TRANSFORMATION_STAGE_IDS.size():
+		issues.append("transformation_stage_count_invalid")
+	for index in range(mini(stages.size(), TRANSFORMATION_STAGE_IDS.size())):
+		var stage: Dictionary = stages[index]
+		if str(stage.get("type", "")) != "route_validation_stage" or str(stage.get("stage_id", "")) != str(TRANSFORMATION_STAGE_IDS[index]) or stage.get("checks", []) != TRANSFORMATION_STAGE_CHECKS or str(stage.get("validation_schema", "")) != TRANSFORMATION_STAGE_SCHEMA:
+			issues.append("transformation_stage_contract_invalid")
+		if str(stage.get("mandatory_route_hash", "")) != mandatory_hash:
+			issues.append("transformation_stage_route_hash_invalid")
+	return _transformation_stages_result(issues)
 
 static func validate_damage_constraints(descriptor: Dictionary) -> Dictionary:
 	var issues: Array = []
@@ -459,3 +497,9 @@ static func _ecology_result(issues: Array) -> Dictionary:
 
 static func _survival_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":SURVIVAL_OPPORTUNITY_SCHEMA,"valid":issues.is_empty()}
+
+static func _transformation_stage_result(stage_id: String, issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":TRANSFORMATION_STAGE_SCHEMA,"stage_id":stage_id,"valid":issues.is_empty()}
+
+static func _transformation_stages_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":TRANSFORMATION_STAGE_SCHEMA,"valid":issues.is_empty()}

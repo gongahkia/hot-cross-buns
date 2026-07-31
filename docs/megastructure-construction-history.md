@@ -32,3 +32,7 @@ Schema v10 derives ecology from infrastructure hydrology, source-element epoch m
 ## Utility-derived survival
 
 Schema v11 binds the existing warm-utility refuge detour to the autonomous-machine epoch, its machine-clamp element, and its coolant-seep hydrology. The opportunity repeats the route's warmth recovery value, so utility history is the declared source of survival value rather than a separate random pickup.
+
+## Route validation stages
+
+Schema v12 snapshots the mandatory-route contract after construction epochs, element attachment, damage, hydrology, ecology, and utility-derived survival. Generation reruns mandatory-route preservation validation after each stage; its baseline, recovery, and visibility checks reject a changed mandatory route.

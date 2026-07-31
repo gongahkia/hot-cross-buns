@@ -23,6 +23,7 @@ func _initialize() -> void:
 	_assert_hydrology_constraint_validation()
 	_assert_ecology_constraint_validation()
 	_assert_survival_opportunity_validation()
+	_assert_transformation_stage_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -192,6 +193,18 @@ func _assert_survival_opportunity_validation() -> void:
 	var wrong_warmth := source.duplicate(true)
 	(wrong_warmth.survival_opportunities[0] as Dictionary)["warmth_recovery_basis_points"] = 0
 	_expect("survival_opportunity_source_invalid" in VALIDATOR.validate_survival_opportunities(wrong_warmth).get("issues", []), "survival opportunity disconnected from route recovery was accepted")
+
+func _assert_transformation_stage_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_transformation_stages(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.TRANSFORMATION_STAGE_SCHEMA and bool(valid.get("valid", false)), "generated transformation stages are invalid")
+	var changed_route := source.duplicate(true)
+	(changed_route.routes[0] as Dictionary)["end_anchor"] = [0, 24, 0]
+	var stage := VALIDATOR.validate_transformation_stage(source, changed_route, "constrained_damage")
+	_expect("transformation_stage_mandatory_route_changed" in stage.get("issues", []), "stage route mutation was accepted")
+	var changed_record := source.duplicate(true)
+	(changed_record.route_validation_stages[0] as Dictionary)["mandatory_route_hash"] = "invalid"
+	_expect("transformation_stage_route_hash_invalid" in VALIDATOR.validate_transformation_stages(changed_record).get("issues", []), "invalid stage route hash was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:
