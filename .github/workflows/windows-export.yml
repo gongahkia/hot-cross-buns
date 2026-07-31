@@ -32,8 +32,8 @@ jobs:
           if (-not (Test-Path $sevenZip)) { throw '7-Zip was not found on the runner.' }
           & $sevenZip e "$env:RUNNER_TEMP\templates.tpz" "-o$templateDir" templates/windows_release_x86_64.exe templates/version.txt
           if ($LASTEXITCODE -ne 0) { throw 'Godot template extraction failed.' }
-          $godot = Get-ChildItem "$env:RUNNER_TEMP\godot" -Recurse -Filter "Godot_v$env:GODOT_VERSION`_win64.exe" | Select-Object -First 1
-          if ($null -eq $godot) { throw 'Godot editor executable was not found.' }
+          $godot = Get-ChildItem "$env:RUNNER_TEMP\godot" -Recurse -Filter "Godot_v$env:GODOT_VERSION`_win64_console.exe" | Select-Object -First 1
+          if ($null -eq $godot) { throw 'Godot console executable was not found.' }
           Set-Content -LiteralPath "$env:RUNNER_TEMP\godot-path.txt" -Value $godot.FullName -NoNewline -Encoding ascii
           & $godot.FullName --version
       - name: Import project resources
