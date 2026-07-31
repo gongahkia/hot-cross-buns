@@ -87,14 +87,14 @@ Exit criteria:
 
 Goal: compile the macrostructure into existing streamed chunks.
 
-- [ ] M3.1 Implement pure chunk intersection for macro and sector descriptors.
-- [ ] M3.2 Define canonical shared-boundary keys.
-- [ ] M3.3 Generate matching traversal ports for neighboring chunks.
-- [ ] M3.4 Generate matching structural continuation ports.
-- [ ] M3.5 Add boundary-contract tests.
+- [x] M3.1 Implement pure chunk intersection for macro and sector descriptors.
+- [x] M3.2 Define canonical shared-boundary keys.
+- [x] M3.3 Generate matching traversal ports for neighboring chunks.
+- [x] M3.4 Generate matching structural continuation ports.
+- [x] M3.5 Add boundary-contract tests.
 - [ ] M3.6 Integrate megastructure intersection data into existing chunk descriptors.
-- [ ] M3.7 Confirm cache eviction does not alter results.
-- [ ] M3.8 Confirm worker completion order does not alter results.
+- [x] M3.7 Confirm cache eviction does not alter results.
+- [x] M3.8 Confirm worker completion order does not alter results.
 - [ ] M3.9 Add debug display for boundary ownership.
 - [ ] M3.10 Commit after determinism, boundary, and baseline tests pass.
 
