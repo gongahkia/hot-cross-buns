@@ -29,6 +29,8 @@ const CHUNK_MEMORY_TELEMETRY := preload("res://scripts/world_chunk_memory_teleme
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
+const ACTIVE_CHUNKS_PER_FRAME := 1
+const COLLISION_LODS_PER_FRAME := 1
 const FAR_CHUNKS_PER_FRAME := 2
 const FEATURE_BUILD_RADIUS := 1.5
 const FEATURE_CHUNKS_PER_FRAME := 1
@@ -41,6 +43,8 @@ var current_region_id := ""
 var origin
 var scheduler
 var pending_chunks: Dictionary = {}
+var queued_active_chunks: Dictionary = {}
+var pending_collision_lods: Dictionary = {}
 var chunk_cache
 var far_chunks: Dictionary = {}
 var active_ids: Dictionary = {}
@@ -59,6 +63,8 @@ func configure(next_seed: int, next_player: SpeedPlayer) -> void:
 	player = next_player
 	shelters.clear()
 	material_cache.clear()
+	queued_active_chunks.clear()
+	pending_collision_lods.clear()
 	name = "ExpeditionWorld"
 	refresh(true)
 
@@ -73,7 +79,7 @@ func _exit_tree() -> void:
 func refresh(force: bool) -> void:
 	if generator == null or player == null: return
 	var started:=Time.get_ticks_usec()
-	refresh_metrics={"active_chunk_build_ms":0.0,"far_chunk_build_ms":0.0,"feature_build_ms":0.0,"collision_lod_ms":0.0,"active_chunks_built":0,"far_chunks_built":0,"feature_chunks_built":0}
+	refresh_metrics={"active_chunk_build_ms":0.0,"far_chunk_build_ms":0.0,"feature_build_ms":0.0,"collision_lod_ms":0.0,"active_chunks_built":0,"collision_lods_built":0,"far_chunks_built":0,"feature_chunks_built":0}
 	_attach_completed(scheduler.wait_for_all() if force else scheduler.poll(),force)
 	var rebase: Vector3 = origin.rebase_delta(player.global_position)
 	if rebase != Vector3.ZERO:
@@ -82,6 +88,10 @@ func refresh(force: bool) -> void:
 		for root: Node3D in far_chunks.values(): root.global_position += rebase
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
+		_build_pending_chunks()
+		var collision_started:=Time.get_ticks_usec()
+		_update_collision_lods()
+		refresh_metrics["collision_lod_ms"]=float(Time.get_ticks_usec()-collision_started)/1000.0
 		_update_far_terrain()
 		_build_pending_features()
 		_update_region()
@@ -95,8 +105,7 @@ func refresh(force: bool) -> void:
 			wanted[id] = true
 			if not chunks.has(id) and not pending_chunks.has(id):
 				if chunk_cache and not chunk_cache.fetch(id).is_empty():
-					_remove_far_chunk(id)
-					chunks[id]=_build_chunk(x,z,force)
+					queued_active_chunks[id]=Vector2i(x,z)
 				else: pending_chunks[id] = scheduler.request(x, z, 0, _chunk_priority(center, Vector2i(x, z)))
 	active_ids=wanted.duplicate()
 	if force:
@@ -108,13 +117,16 @@ func refresh(force: bool) -> void:
 		wanted[id]=true
 	for id in pending_chunks.keys():
 		if not wanted.has(id): scheduler.cancel(int(pending_chunks[id]));pending_chunks.erase(id)
+	for id in queued_active_chunks.keys():
+		if not active_ids.has(id):queued_active_chunks.erase(id)
 	for id in chunks.keys():
 		if not active_ids.has(id):
 			var stale: Node = chunks[id]
 			chunks.erase(id)
 			stale.queue_free()
+	_build_pending_chunks(force)
 	var collision_started:=Time.get_ticks_usec()
-	_update_collision_lods()
+	_update_collision_lods(force)
 	refresh_metrics["collision_lod_ms"]=float(Time.get_ticks_usec()-collision_started)/1000.0
 	_update_far_terrain(force)
 	_build_pending_features(force)
@@ -130,9 +142,27 @@ func _attach_completed(results: Array, build_features:=false) -> void:
 		pending_chunks.erase(id)
 		if str(result.get("status", "")) == "ok" and not chunks.has(id):
 			chunk_cache.put(id,result.get("descriptor",{}))
-			if active_ids.has(id):
-				_remove_far_chunk(id)
-				chunks[id] = _build_chunk(int(key.get("chunk_x", 0)), int(key.get("chunk_z", 0)),build_features)
+			if active_ids.has(id):queued_active_chunks[id]=Vector2i(int(key.get("chunk_x",0)),int(key.get("chunk_z",0)))
+
+func _build_pending_chunks(build_all:=false)->void:
+	var candidates:Array=[]
+	for id:String in queued_active_chunks.keys():
+		if not active_ids.has(id) or chunks.has(id):
+			queued_active_chunks.erase(id)
+			continue
+		var chunk:=queued_active_chunks[id] as Vector2i
+		var distance:=Vector2(float(chunk.x-current_center.x),float(chunk.y-current_center.y)).length()
+		candidates.append({"id":id,"chunk":chunk,"distance":distance})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+	var built:=0
+	for candidate:Dictionary in candidates:
+		if not build_all and built>=ACTIVE_CHUNKS_PER_FRAME:break
+		var id:=str(candidate.id);var chunk:=candidate.chunk as Vector2i
+		if not queued_active_chunks.has(id):continue
+		queued_active_chunks.erase(id)
+		_remove_far_chunk(id)
+		chunks[id]=_build_chunk(chunk.x,chunk.y,build_all)
+		built+=1
 
 func _remove_far_chunk(id:String)->void:
 	if not far_chunks.has(id):return
@@ -142,7 +172,7 @@ func _remove_far_chunk(id:String)->void:
 
 func _streaming_context()->Dictionary:
 	var memory:=chunk_memory_snapshot()
-	return {"active":chunks.size(),"pending":pending_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size(),"minimum_payload_bytes":memory.minimum_payload_bytes,"static_memory_bytes":memory.static_memory_bytes,"phases":last_refresh_metrics.duplicate(true)}
+	return {"active":chunks.size(),"pending":pending_chunks.size(),"queued":queued_active_chunks.size(),"cached":chunk_cache.size() if chunk_cache else 0,"far":far_chunks.size(),"minimum_payload_bytes":memory.minimum_payload_bytes,"static_memory_bytes":memory.static_memory_bytes,"phases":last_refresh_metrics.duplicate(true)}
 
 func streaming_diagnostics()->Dictionary:
 	return {"refresh":last_refresh_metrics.duplicate(true),"telemetry":streaming_telemetry.summary(),"memory":chunk_memory_snapshot()}
@@ -152,6 +182,8 @@ func _finish_refresh_metrics(started:int)->void:
 	refresh_metrics["pending_features"]=0
 	for root:Node3D in chunks.values():
 		if not bool(root.get_meta("features_ready",false)):refresh_metrics["pending_features"]=int(refresh_metrics.pending_features)+1
+	refresh_metrics["queued_active_chunks"]=queued_active_chunks.size()
+	refresh_metrics["pending_collision_lods"]=pending_collision_lods.size()
 	last_refresh_metrics=refresh_metrics.duplicate(true)
 
 func chunk_memory_snapshot()->Dictionary:
@@ -347,15 +379,40 @@ func _build_pending_features(build_all:=false)->void:
 		refresh_metrics["feature_chunks_built"]=int(refresh_metrics.feature_chunks_built)+1
 		built+=1
 
-func _update_collision_lods()->void:
-	for root:Node3D in chunks.values():
+func _update_collision_lods(build_all:=false)->void:
+	for id in pending_collision_lods.keys():
+		if not chunks.has(id):pending_collision_lods.erase(id)
+	for id:String in chunks.keys():
+		var root:=chunks[id] as Node3D
 		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length();var grid:=COLLISION_LOD.grid_for_distance(distance)
-		if int(root.get_meta("collision_grid",GRID))==grid:continue
+		if int(root.get_meta("collision_grid",GRID))==grid:
+			pending_collision_lods.erase(id)
+			continue
+		pending_collision_lods[id]=grid
+	var candidates:Array=[]
+	for id:String in pending_collision_lods.keys():
+		var root:=chunks.get(id) as Node3D
+		if root==null:continue
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var distance:=Vector2(float(chunk_x-current_center.x),float(chunk_z-current_center.y)).length()
+		candidates.append({"id":id,"root":root,"distance":distance,"grid":int(pending_collision_lods[id])})
+	candidates.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return float(a.distance)<float(b.distance))
+	var built:=0
+	for candidate:Dictionary in candidates:
+		if not build_all and built>=COLLISION_LODS_PER_FRAME:break
+		var id:=str(candidate.id);var root:=candidate.root as Node3D;var grid:=int(candidate.grid)
+		if root==null or not is_instance_valid(root) or int(root.get_meta("collision_grid",GRID))==grid:
+			pending_collision_lods.erase(id)
+			continue
 		var terrain:=root.get_node_or_null("Terrain") as StaticBody3D
-		if not terrain:continue
-		var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid))
+		if terrain==null:
+			pending_collision_lods.erase(id)
+			continue
+		var chunk_x:=int(root.get_meta("chunk_x",0));var chunk_z:=int(root.get_meta("chunk_z",0));var retiring:=COLLISION_HANDOFF.install(terrain,_collision_shape(chunk_x,chunk_z,grid))
 		root.set_meta("collision_grid",grid)
+		pending_collision_lods.erase(id)
+		refresh_metrics["collision_lods_built"]=int(refresh_metrics.collision_lods_built)+1
 		if retiring:COLLISION_HANDOFF.retire_after_physics_frame(get_tree(),retiring)
+		built+=1
 
 func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
 	var collision:=CollisionShape3D.new();collision.shape=COLLISION_MESH.heightmap(generator,GENERATOR.CHUNK_SIZE,chunk_x,chunk_z,grid)
