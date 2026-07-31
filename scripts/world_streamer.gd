@@ -29,6 +29,7 @@ const CHUNK_MEMORY_TELEMETRY := preload("res://scripts/world_chunk_memory_teleme
 
 const GRID := 16
 const ACTIVE_RADIUS := 2
+const FAR_CHUNKS_PER_FRAME := 2
 
 var generator
 var player: SpeedPlayer
@@ -74,6 +75,7 @@ func refresh(force: bool) -> void:
 		for root: Node3D in far_chunks.values(): root.global_position += rebase
 	var center: Vector2i = origin.chunk_at_local(player.global_position)
 	if not force and center == current_center:
+		_update_far_terrain()
 		_update_region()
 		return
 	current_center = center
@@ -103,7 +105,7 @@ func refresh(force: bool) -> void:
 			chunks.erase(id)
 			stale.queue_free()
 	_update_collision_lods()
-	_update_far_terrain()
+	_update_far_terrain(force)
 	_update_region()
 	chunk_stats_changed.emit({"active": chunks.size(), "center": [center.x, center.y],"memory":chunk_memory_snapshot()})
 
@@ -312,16 +314,19 @@ func _collision_shape(chunk_x:int,chunk_z:int,grid:int)->CollisionShape3D:
 	var step:=GENERATOR.CHUNK_SIZE/float(grid);collision.position=Vector3(GENERATOR.CHUNK_SIZE*.5,0.0,GENERATOR.CHUNK_SIZE*.5);collision.scale=Vector3(step,step,step)
 	return collision
 
-func _update_far_terrain()->void:
+func _update_far_terrain(build_all:=false)->void:
 	var wanted:=FAR_TERRAIN.targets(current_center,ACTIVE_RADIUS)
 	for id in far_chunks.keys():
 		if not wanted.has(id) or chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)):
 			var stale:Node=far_chunks[id]
 			far_chunks.erase(id)
 			stale.queue_free()
+	var built:=0
 	for id in wanted.keys():
 		if chunks.has(id) or (active_ids.has(id) and pending_chunks.has(id)) or far_chunks.has(id):continue
+		if not build_all and built>=FAR_CHUNKS_PER_FRAME:break
 		var chunk:Vector2i=wanted[id];far_chunks[id]=_build_far_chunk(chunk.x,chunk.y)
+		built+=1
 
 func _build_far_chunk(chunk_x:int,chunk_z:int)->Node3D:
 	var descriptor:Dictionary=generator.chunk_descriptor(chunk_x,chunk_z);var root:=Node3D.new()

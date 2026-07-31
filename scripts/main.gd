@@ -14,7 +14,6 @@ const WORLD_WEATHER := preload("res://scripts/world_weather.gd")
 const WORLD_ATMOSPHERE := preload("res://scripts/world_atmosphere.gd")
 const PIXEL_PRESENTATION := preload("res://scripts/pixel_presentation.gd")
 const WEATHER_LAYERS := preload("res://scripts/weather_layers.gd")
-const WORLD_ARRIVAL_PRESENTATION := preload("res://scripts/world_arrival_presentation.gd")
 const SURVIVAL_MOVEMENT_POLICY := preload("res://scripts/survival_movement_policy.gd")
 const SURVIVAL_MOVEMENT_FEEDBACK := preload("res://scripts/survival_movement_feedback.gd")
 const SURVIVAL_TRAVERSAL_TELEMETRY := preload("res://scripts/survival_traversal_telemetry.gd")
@@ -83,11 +82,7 @@ var style_fx_layer: CanvasLayer
 var style_flash: ColorRect
 var style_flash_tween: Tween
 var timer_label: Label
-var par_label: Label
 var collect_label: Label
-var tool_label: Label
-var survival_label: Label
-var movement_feedback_label: Label
 var style_score_label: Label
 var combo_label: Label
 var style_event_label: Label
@@ -97,8 +92,6 @@ var style_meter_fill: StyleBoxFlat
 var style_award_feed: StyleAwardFeed
 var style_meter_tween: Tween
 var briefing_label: Label
-var arrival_label: Label
-var arrival_tween: Tween
 var grapple_reticle: GrappleReticle
 var debug_panel: PanelContainer
 var debug_label: Label
@@ -163,36 +156,18 @@ func _build_ui() -> void:
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(hud)
-	var top := HBoxContainer.new()
-	top.position = Vector2(22.0, 20.0)
-	top.add_theme_constant_override("separation", 16)
-	hud.add_child(top)
 	timer_label = _label("00:00.000", 32, Color("#edf3d5"))
-	par_label = _label("SANDBOX  /  FREE PLAY", 16, Color("#b5c6a5"))
 	collect_label = _label("PICKUPS 0/0", 16, Color("#f2d98c"))
-	tool_label = _label("E TETHER / F GLIDE", 16, Color("#9edbb8"))
-	survival_label = _label("SURV 100 100 100 100", 14, Color("#d8e8bf"))
-	movement_feedback_label = _label("MVT OPTIMAL 00% x1.00", 14, Color("#9edbb8"))
 	timer_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	par_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	collect_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	timer_label.position = Vector2(22.0, 20.0)
 	timer_label.custom_minimum_size = Vector2(170.0, 42.0)
-	par_label.custom_minimum_size = Vector2(170.0, 28.0)
 	collect_label.custom_minimum_size = Vector2(100.0, 28.0)
-	tool_label.custom_minimum_size = Vector2(210.0, 28.0)
-	survival_label.custom_minimum_size = Vector2(370.0, 28.0)
-	movement_feedback_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	movement_feedback_label.custom_minimum_size = Vector2(188.0, 28.0)
-	top.add_child(timer_label)
-	top.add_child(par_label)
-	top.add_child(collect_label)
-	top.add_child(tool_label)
-	top.add_child(survival_label)
-	top.add_child(movement_feedback_label)
+	hud.add_child(timer_label)
 	var style_box := VBoxContainer.new()
 	style_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	style_box.position = Vector2(22.0, -132.0)
-	style_box.custom_minimum_size = Vector2(312.0, 122.0)
+	style_box.position = Vector2(22.0, -158.0)
+	style_box.custom_minimum_size = Vector2(312.0, 148.0)
 	style_box.add_theme_constant_override("separation", 2)
 	hud.add_child(style_box)
 	style_score_label = _label("STYLE 000000  QUIET", 21, Color("#f1d477"))
@@ -213,6 +188,7 @@ func _build_ui() -> void:
 	style_meter_fill.set_corner_radius_all(2)
 	style_meter.add_theme_stylebox_override("background", meter_background)
 	style_meter.add_theme_stylebox_override("fill", style_meter_fill)
+	style_box.add_child(collect_label)
 	style_box.add_child(style_score_label)
 	style_box.add_child(combo_label)
 	style_box.add_child(style_meter)
@@ -225,14 +201,6 @@ func _build_ui() -> void:
 	briefing_label.size.x = 640.0
 	briefing_label.position.x = -320.0
 	hud.add_child(briefing_label)
-	arrival_label = _label("", 18, Color("#d8e7c2"))
-	arrival_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	arrival_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	arrival_label.position.y = 126.0
-	arrival_label.size.x = 760.0
-	arrival_label.position.x = -380.0
-	arrival_label.modulate.a = 0.0
-	hud.add_child(arrival_label)
 	grapple_reticle = GRAPPLE_RETICLE.new()
 	hud.add_child(grapple_reticle)
 	style_award_feed = STYLE_AWARD_FEED.new()
@@ -1019,21 +987,6 @@ func _on_expedition_region_changed(region: Dictionary) -> void:
 	world_journal.survey_region(region)
 	current_station = str(region.get("name", "Unknown"))
 	last_sandbox_event = "ENTERED " + current_station.to_upper()
-	var sample: Dictionary = world_streamer.sample_at(player.global_position) if world_streamer and player else {}
-	_show_region_arrival(WORLD_ARRIVAL_PRESENTATION.presentation(region, str(sample.get("biome", "unknown"))))
-
-func _show_region_arrival(presentation: Dictionary) -> void:
-	if arrival_label == null: return
-	if arrival_tween: arrival_tween.kill()
-	var lines := [str(presentation.get("title", "UNKNOWN")), str(presentation.get("subtitle", ""))]
-	if not str(presentation.get("landmark", "")).is_empty(): lines.append(str(presentation.landmark))
-	arrival_label.text = "\n".join(lines)
-	arrival_label.add_theme_color_override("font_color", presentation.get("color", Color("#d8e7c2")))
-	arrival_label.modulate.a = 0.0
-	arrival_tween = create_tween()
-	arrival_tween.tween_property(arrival_label, "modulate:a", 1.0, 0.25)
-	arrival_tween.tween_property(arrival_label, "modulate:a", 0.0, 0.45).set_delay(3.0)
-
 func _on_chunk_stats_changed(stats: Dictionary) -> void:
 	if bool(current_level.get("procedural", false)):
 		last_sandbox_event = "CHUNKS " + str(stats.get("active", 0))
@@ -1946,14 +1899,12 @@ func _make_pixel_filter_material() -> ShaderMaterial:
 shader_type canvas_item;
 uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform float pixel_size = 4.0;
-uniform float palette_steps = 8.0;
-uniform float dither_strength = 0.075;
+uniform float palette_steps = 16.0;
 void fragment() {
 	vec2 cell = SCREEN_PIXEL_SIZE * pixel_size;
 	vec2 sample_uv = (floor(SCREEN_UV / cell) + vec2(0.5)) * cell;
 	vec4 color = texture(screen_texture, sample_uv);
-	float ordered = fract(sin(dot(floor(SCREEN_UV / cell), vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-	color.rgb = floor(clamp(color.rgb + ordered*dither_strength, 0.0, 1.0)*palette_steps+0.5)/palette_steps;
+	color.rgb = floor(color.rgb * palette_steps + 0.5) / palette_steps;
 	COLOR = color;
 }
 """
@@ -1967,8 +1918,7 @@ func _apply_pixel_filter(mode: int) -> void:
 	display_filter.visible = mode != Settings.PIXEL_FILTER_OFF
 	if display_filter.visible:
 		(display_filter.material as ShaderMaterial).set_shader_parameter("pixel_size", float(mode))
-		(display_filter.material as ShaderMaterial).set_shader_parameter("palette_steps", 8.0)
-		(display_filter.material as ShaderMaterial).set_shader_parameter("dither_strength", 0.075)
+		(display_filter.material as ShaderMaterial).set_shader_parameter("palette_steps", 16.0)
 
 func _add_forest_motes() -> void:
 	var particles := GPUParticles3D.new()
@@ -2047,25 +1997,8 @@ func _refresh_hud() -> void:
 	if current_level.is_empty():
 		return
 	timer_label.text = _time_text(RunData.elapsed)
-	if bool(current_level.get("procedural", false)):
-		par_label.text = str(current_region.get("name", "UNKNOWN")) + "  /  " + str(current_region.get("family", "wilderness")).replace("_", " ").to_upper()
-	else:
-		par_label.text = "SANDBOX  /  FREE PLAY"
 	var total := _collectible_count(current_level)
 	collect_label.text = "PICKUPS %d/%d" % [RunData.collected, total]
-	if player:
-		tool_label.text = "WASD MOVE / 1 EAT / 2 SOURCE / 3 PURIFY / 4 DRINK / 5 PLACE / 6 SHELTER / 7 PLATFORM / 8 FILTER / MOUSE LOOK / " + player.tool_status()
-	if bool(current_level.get("procedural", false)):
-		var survival := Survival.snapshot()
-		survival_label.text = "H %03d  T %03d  W %03d  I %03d  F %02d  A %02d/%02d  M %02d/%02d/%02d  X %02d/%02d" % [int(survival.hunger), int(survival.thirst), int(survival.warmth), int(survival.health), int(survival.materials.get("food",0)), int(survival.materials.get("water",0)), int(survival.materials.get("dirty_water",0)), int(survival.materials.get("wood",0)), int(survival.materials.get("scrap",0)), int(survival.materials.get("fiber",0)), int(survival.wetness), int(survival.exposure * 100.0)]
-		var movement := survival_movement if not survival_movement.is_empty() else SURVIVAL_MOVEMENT_POLICY.evaluate(survival, player.survival_movement_state())
-		var feedback: Dictionary = SURVIVAL_MOVEMENT_FEEDBACK.present(movement)
-		movement_feedback_label.visible = true
-		movement_feedback_label.text = str(feedback.text)
-		movement_feedback_label.add_theme_color_override("font_color", feedback.color)
-	else:
-		survival_label.text = "P PHOTO MODE  /  F12 CAPTURE"
-		movement_feedback_label.visible = false
 	forecast_label.text = _forecast_text() if bool(current_level.get("procedural", false)) else "FORECAST --"
 	var style := RunData.style_snapshot()
 	var total_style := int(style.get("banked", 0)) + int(style.get("active", 0))
