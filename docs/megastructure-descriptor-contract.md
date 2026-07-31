@@ -4,7 +4,7 @@
 
 ## Identity and canonical form
 
-`generate(Vector3i)` accepts a canonical 4096-unit megacell. Descriptor schema v5 identity contains only:
+`generate(Vector3i)` accepts a canonical 4096-unit megacell. Descriptor schema v6 identity contains only:
 
 - decimal world seed;
 - `WorldGenerator.GENERATOR_SCHEMA_VERSION`;
@@ -29,6 +29,8 @@ Its ordered route array contains:
 - optional walk detour to a `warm_utility_refuge`, with declarative shelter, warmth, and exposure effects.
 
 The v3 grapple shortcut is one 18-unit lateral-forward commitment with its reachable anchor carried through chunk compilation to runtime attachment. It replaces the v2 long-distance placeholder, which could not be acquired within `SpeedPlayer.GRAPPLE_RANGE`. Schema v4 adds its explicit floor-supported recovery volume for route-preservation revalidation. Schema v5 adds threshold and grapple-affordance visibility distances.
+
+Schema v6 adds the ordered construction epochs consumed by M6 transformations. Their relationships are declared in [megastructure-construction-history.md](megastructure-construction-history.md).
 
 The values are planning data only. M2 owns visual realization; M3 owns chunk intersection; M5 owns analytic movement validation and survival runtime wiring.
 

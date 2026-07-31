@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 5
+const DESCRIPTOR_SCHEMA_VERSION := 6
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -58,6 +58,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var survival_detour := _survival_detour(route_prefix, post_threshold, first_goal, transverse, _stage_rng(megacell, STAGE_REFUGE))
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
+		"epochs": _construction_epochs(),
 		"entry": {
 			"approach_anchor": _point(approach),
 			"entry_id": route_prefix + ":entry",
@@ -98,6 +99,16 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_affordance_visibility(descriptor).get("valid", false)), "generated megastructure affordance visibility is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_route_preservation(descriptor, descriptor).get("valid", false)), "generated megastructure route preservation is invalid")
 	return descriptor
+
+func _construction_epochs() -> Array:
+	return [
+		{"attachment_policy":"primary_frame","damage_profile":"support_spall","epoch_id":1,"function":"transcontinental_load_bearing_spine","grammar_id":"planetary_infrastructure","hydrology_role":"sealed_utility_conduits","material_family":"precast_concrete","ordinal":1,"preferred_elevation":72,"prior_relation":"origin","reclamation_response":"lichen_on_exposed_faces","type":"construction_epoch"},
+		{"attachment_policy":"bracket_to_primary_frame","damage_profile":"facade_collapse","epoch_id":2,"function":"transit_habitation","grammar_id":"attached_habitation","hydrology_role":"roof_drainage","material_family":"weathered_cladding","ordinal":2,"preferred_elevation":52,"prior_relation":"attached_to_epoch_1","reclamation_response":"planters_and_roof_growth","type":"construction_epoch"},
+		{"attachment_policy":"cut_through_habitation","damage_profile":"emergency_breach","epoch_id":3,"function":"collapse_era_circulation","grammar_id":"emergency_expansion","hydrology_role":"overflow_channels","material_family":"patchwork_steel","ordinal":3,"preferred_elevation":32,"prior_relation":"cuts_through_epoch_2","reclamation_response":"pioneer_growth_at_breaches","type":"construction_epoch"},
+		{"attachment_policy":"clamp_to_primary_frame","damage_profile":"machine_shear","epoch_id":4,"function":"autonomous_maintenance","grammar_id":"machine_additions","hydrology_role":"coolant_recirculation","material_family":"machine_ceramic","ordinal":4,"preferred_elevation":84,"prior_relation":"attached_to_epoch_1","reclamation_response":"moss_on_coolant_leaks","type":"construction_epoch"},
+		{"attachment_policy":"reuse_existing_voids","damage_profile":"salvage_scarring","epoch_id":5,"function":"temporary_human_refuge","grammar_id":"salvage_adaptation","hydrology_role":"rainwater_collection","material_family":"salvaged_sheet_metal","ordinal":5,"preferred_elevation":28,"prior_relation":"reuses_epochs_2_and_4","reclamation_response":"food_and_shelter_gardens","type":"construction_epoch"},
+		{"attachment_policy":"occupy_exposed_surfaces","damage_profile":"root_displacement","epoch_id":6,"function":"long_abandonment_reclamation","grammar_id":"ecological_reclamation","hydrology_role":"seep_and_retention","material_family":"root_bound_debris","ordinal":6,"preferred_elevation":24,"prior_relation":"overgrows_all_prior_epochs","reclamation_response":"mature_reclaimed_ecology","type":"construction_epoch"},
+	]
 
 func _axis(megacell: Vector3i) -> Vector3i:
 	match _stage_rng(megacell, STAGE_AXIS).next_range(0, 3):
