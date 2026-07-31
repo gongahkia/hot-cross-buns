@@ -160,7 +160,7 @@ func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> D
 func _megastructure_descriptor(chunk_x: int, chunk_z: int, scale_id: String) -> Dictionary:
 	if scale_id != "local":
 		return {}
-	var current := megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
+	var current: Vector3i = megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
 	var intersections: Array = []
 	for offset_z in range(-1, 2):
 		for offset_x in range(-1, 2):
