@@ -6,11 +6,11 @@ const HASH := preload("res://scripts/world_megastructure_hash.gd")
 const SEED := 20260731
 const CELLS := [Vector3i(-2, 0, 1), Vector3i(-1, 0, -3), Vector3i(0, 0, 0), Vector3i(4, 0, -2), Vector3i(7, 0, 5)]
 const EXPECTED_HASHES := {
-	"-2:0:1": "073cad7566aedf147634c6c60c43f79e0d3f8088cf1e13ca2418c35faaaf3ce8",
-	"-1:0:-3": "fd8b8f072c0c3e9e02fd2c97865491002a443639928769b45aa86b84762a06d9",
-	"0:0:0": "cbe7e7ac866edf2559de7dd8d4db9721643c64c65821d9f1c4bf0304d388fd1e",
-	"4:0:-2": "99543cd3030cca9e109f27638f186b70c13c1fe6b64980ab5027c1e624acfba6",
-	"7:0:5": "c208bd85d03ed2977c9d4fe0c1b0f8f02a56ecb1ee2d26de5a5d6644089baa56",
+	"-2:0:1": "1c7949a2b74970c5965229e6b3f056a5a6b9edf1cb26968b259d1db41ca7291a",
+	"-1:0:-3": "6654af05e9d40378575430a2ae34858c42589507e48e1a90323f977f5ce264da",
+	"0:0:0": "6184082a2ab49c21a36fef44a7d489f0b9420980d85d9d1797523417a2039fb9",
+	"4:0:-2": "71a61bb180999c07c8e7f63f49d826f2acc98793c8601657c5096770f33acb03",
+	"7:0:5": "4d88e10401ffe78b7c6c67669fd6114b88c6ffebde2fec54010aa81e434e76e5",
 }
 var failed := false
 
@@ -47,11 +47,12 @@ func _assert_descriptor(descriptor: Dictionary, cell: Vector3i) -> void:
 	var routes: Array = descriptor.get("routes", [])
 	var reveals: Array = descriptor.get("reveals", [])
 	var interior: Dictionary = descriptor.get("interior", {})
-	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 9 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
+	_expect(str(descriptor.type) == "megastructure" and str(identity.archetype_id) == "ruined_transcontinental_spine" and int(identity.archetype_version) == 1 and int(identity.descriptor_schema_version) == 10 and str(identity.generator_schema_version) == "2.0.0" and identity.megacell == [cell.x, cell.y, cell.z] and str(identity.world_seed) == str(SEED) and str(identity.structure_id).begins_with("spine:"), "canonical structure identity drifted")
 	_assert_epochs(descriptor.get("epochs", []))
 	_assert_construction_elements(descriptor.get("construction_elements", []))
 	_assert_damage(descriptor.get("damage", []))
 	_assert_hydrology(descriptor.get("hydrology", []))
+	_assert_ecology(descriptor.get("ecology", []))
 	_expect(str(interior.terrain_mode) == "flat_enclosed_floor" and int(interior.floor_y) == 24 and int(interior.ceiling_y) == 100, "interior floor contract drifted")
 	_expect(str(entry.entry_type) == "elevated_spine_underpass" and (entry.approach_anchor as Array).size() == 3 and (entry.threshold_volume as Dictionary).has("min") and (entry.threshold_volume as Dictionary).has("max") and int(entry.threshold_visibility_distance) == 96 and (entry.post_threshold_anchor as Array).size() == 3 and (entry.first_goal_anchor as Array).size() == 3 and not str(entry.initial_reveal_id).is_empty(), "entry descriptor contract drifted")
 	_expect(routes.size() == 3 and _route_exists(routes, "baseline", "walk", true) and _route_exists(routes, "expressive", "grapple", false) and _route_exists(routes, "survival", "walk", false) and str(routes[0].sector_id).ends_with(":sector"), "opening route descriptor contract drifted")
@@ -116,6 +117,13 @@ func _assert_hydrology(hydrology: Array) -> void:
 		sources.append(str(effect.get("source_damage_id", "")))
 		_expect(str(effect.get("type", "")) == "infrastructure_hydrology" and str(effect.get("effect", "")) in ["rainwater_inflow", "coolant_seep"] and str(effect.get("water_quality", "")) in ["contaminated", "industrial"] and int(effect.get("water_level", 0)) > 0 and (effect.get("affected_route_ids", []) as Array).is_empty(), "infrastructure hydrology contract drifted")
 	_expect(sources == ["damage:attached_habitation_east", "damage:autonomous_machine_clamp"], "infrastructure hydrology source order drifted")
+
+func _assert_ecology(ecology: Array) -> void:
+	var sources: Array = []
+	for effect: Dictionary in ecology:
+		sources.append(str(effect.get("source_hydrology_id", "")))
+		_expect(str(effect.get("type", "")) == "infrastructure_ecology" and str(effect.get("light_exposure", "")) in ["breach_daylight", "utility_reflection"] and str(effect.get("exposure", "")) in ["rain_exposed", "humid_enclosure"] and str(effect.get("species_group", "")) in ["wetland_lichen", "coolant_moss"] and not str(effect.get("material_family", "")).is_empty(), "infrastructure ecology contract drifted")
+	_expect(sources == ["hydrology:damage:attached_habitation_east", "hydrology:damage:autonomous_machine_clamp"], "infrastructure ecology source order drifted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

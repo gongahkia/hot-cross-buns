@@ -11,6 +11,7 @@ const AFFORDANCE_VISIBILITY_SCHEMA := "megastructure-affordance-visibility-valid
 const ROUTE_PRESERVATION_SCHEMA := "megastructure-route-preservation-validation/v1"
 const DAMAGE_CONSTRAINT_SCHEMA := "megastructure-damage-constraint-validation/v1"
 const HYDROLOGY_CONSTRAINT_SCHEMA := "megastructure-hydrology-constraint-validation/v1"
+const ECOLOGY_CONSTRAINT_SCHEMA := "megastructure-ecology-constraint-validation/v1"
 const GRAPPLE_ANCHOR_HEIGHT := 12
 const RECOVERY_HORIZONTAL_CLEARANCE := 2.0
 const RECOVERY_HEADROOM := 2.0
@@ -267,6 +268,34 @@ static func validate_hydrology_constraints(descriptor: Dictionary) -> Dictionary
 		issues.append("hydrology_records_missing")
 	return _hydrology_result(issues)
 
+static func validate_ecology_constraints(descriptor: Dictionary) -> Dictionary:
+	var issues: Array = []
+	var hydrology_by_id := {}
+	var elements_by_id := {}
+	var epochs_by_id := {}
+	for water: Dictionary in descriptor.get("hydrology", []):
+		hydrology_by_id[str(water.get("hydrology_id", ""))] = water
+	for element: Dictionary in descriptor.get("construction_elements", []):
+		elements_by_id[str(element.get("element_id", ""))] = element
+	for epoch: Dictionary in descriptor.get("epochs", []):
+		epochs_by_id[int(epoch.get("epoch_id", 0))] = epoch
+	var baseline := _route_by_id(descriptor.get("routes", []), _required_baseline_id(descriptor.get("entry", {})))
+	var baseline_issues: Array = []
+	var baseline_path := _route_path(baseline, baseline_issues)
+	for effect: Dictionary in descriptor.get("ecology", []):
+		var water: Dictionary = hydrology_by_id.get(str(effect.get("source_hydrology_id", "")), {})
+		var element: Dictionary = elements_by_id.get(str(effect.get("source_element_id", "")), {})
+		var epoch: Dictionary = epochs_by_id.get(int(element.get("epoch_id", 0)), {})
+		var bounds: Dictionary = effect.get("bounds", {})
+		if water.is_empty() or element.is_empty() or epoch.is_empty() or str(water.get("source_element_id", "")) != str(element.get("element_id", "")) or str(effect.get("material_family", "")) != str(epoch.get("material_family", "")) or str(effect.get("light_exposure", "")) not in ["breach_daylight", "utility_reflection"] or str(effect.get("exposure", "")) not in ["rain_exposed", "humid_enclosure"] or not _valid_bounds(bounds):
+			issues.append("ecology_source_invalid")
+			continue
+		if not (effect.get("affected_route_ids", []) as Array).is_empty() or _path_intersects_bounds(baseline_path, bounds):
+			issues.append("ecology_affects_mandatory_route")
+	if (descriptor.get("ecology", []) as Array).is_empty():
+		issues.append("ecology_records_missing")
+	return _ecology_result(issues)
+
 static func _ground(id: String, max_slope_degrees: float) -> Dictionary:
 	return {"id":id,"max_drop":0.0,"max_horizontal":0.0,"max_rise":0.0,"max_slope_degrees":max_slope_degrees,"requires_ground":true,"unbounded_horizontal":true}
 
@@ -398,3 +427,6 @@ static func _damage_result(issues: Array) -> Dictionary:
 
 static func _hydrology_result(issues: Array) -> Dictionary:
 	return {"issues":issues,"schema":HYDROLOGY_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}
+
+static func _ecology_result(issues: Array) -> Dictionary:
+	return {"issues":issues,"schema":ECOLOGY_CONSTRAINT_SCHEMA,"valid":issues.is_empty()}

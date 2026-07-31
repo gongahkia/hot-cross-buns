@@ -21,6 +21,7 @@ func _initialize() -> void:
 	_assert_route_preservation_validation()
 	_assert_damage_constraint_validation()
 	_assert_hydrology_constraint_validation()
+	_assert_ecology_constraint_validation()
 	var copy := VALIDATOR.envelope("jump")
 	copy["max_horizontal"] = 999.0
 	_expect(float(VALIDATOR.envelope("jump").get("max_horizontal", 0.0)) == 6.0 and VALIDATOR.envelope("missing").is_empty(), "route envelope isolation drifted")
@@ -168,6 +169,17 @@ func _assert_hydrology_constraint_validation() -> void:
 	var bad_level := source.duplicate(true)
 	(bad_level.hydrology[0] as Dictionary)["water_level"] = 9999
 	_expect("hydrology_level_invalid" in VALIDATOR.validate_hydrology_constraints(bad_level).get("issues", []), "out-of-bounds water level was accepted")
+
+func _assert_ecology_constraint_validation() -> void:
+	var source := GENERATOR.new(20260731).generate(Vector3i.ZERO)
+	var valid := VALIDATOR.validate_ecology_constraints(source)
+	_expect(str(valid.get("schema", "")) == VALIDATOR.ECOLOGY_CONSTRAINT_SCHEMA and bool(valid.get("valid", false)), "generated ecology constraints are invalid")
+	var wrong_material := source.duplicate(true)
+	(wrong_material.ecology[0] as Dictionary)["material_family"] = "unrelated_material"
+	_expect("ecology_source_invalid" in VALIDATOR.validate_ecology_constraints(wrong_material).get("issues", []), "ecology with unrelated material was accepted")
+	var missing_water := source.duplicate(true)
+	(missing_water.ecology[0] as Dictionary)["source_hydrology_id"] = "hydrology:missing"
+	_expect("ecology_source_invalid" in VALIDATOR.validate_ecology_constraints(missing_water).get("issues", []), "ecology without infrastructure water was accepted")
 
 func _expect(condition: bool, message: String) -> void:
 	if condition:

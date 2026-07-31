@@ -24,3 +24,7 @@ Schema v8 adds deterministic damage records against habitation and machine eleme
 ## Infrastructure hydrology
 
 Schema v9 derives one hydrology record from each broken infrastructure element: a rainwater inflow at breached habitation and a coolant seep at damaged machinery. Effects retain their source damage/element IDs, bounded water level, quality, and route-safe bounds. Hydrology is therefore caused by damage rather than independent prop placement.
+
+## Ecological reclamation
+
+Schema v10 derives ecology from infrastructure hydrology, source-element epoch material, and explicit light/exposure conditions. Breach daylight plus rainwater produces wetland lichen on cladding; reflected utility light plus coolant seep produces moss on machine ceramic. Ecological records cannot name or spatially overlap mandatory routes.

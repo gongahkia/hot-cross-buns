@@ -7,7 +7,7 @@ const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd
 const ROUTE_VALIDATOR := preload("res://scripts/world_megastructure_route_validator.gd")
 
 const MEGACELL_SIZE := 4096
-const DESCRIPTOR_SCHEMA_VERSION := 9
+const DESCRIPTOR_SCHEMA_VERSION := 10
 const ARCHETYPE_ID := "ruined_transcontinental_spine"
 const ARCHETYPE_VERSION := 1
 const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
@@ -60,11 +60,14 @@ func generate(megacell: Vector3i) -> Dictionary:
 	var construction_elements := _construction_elements(center, axis, transverse)
 	var damage := _constrained_damage(megacell, construction_elements)
 	var hydrology := _hydrology(damage)
+	var epochs := _construction_epochs()
+	var ecology := _ecology(hydrology, construction_elements, epochs)
 	var descriptor := {
 		"archetype": {"id": ARCHETYPE_ID, "version": ARCHETYPE_VERSION},
 		"construction_elements": construction_elements,
 		"damage": damage,
-		"epochs": _construction_epochs(),
+		"ecology": ecology,
+		"epochs": epochs,
 		"hydrology": hydrology,
 		"entry": {
 			"approach_anchor": _point(approach),
@@ -107,6 +110,7 @@ func generate(megacell: Vector3i) -> Dictionary:
 	assert(bool(ROUTE_VALIDATOR.validate_route_preservation(descriptor, descriptor).get("valid", false)), "generated megastructure route preservation is invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_damage_constraints(descriptor).get("valid", false)), "generated megastructure damage constraints are invalid")
 	assert(bool(ROUTE_VALIDATOR.validate_hydrology_constraints(descriptor).get("valid", false)), "generated megastructure hydrology constraints are invalid")
+	assert(bool(ROUTE_VALIDATOR.validate_ecology_constraints(descriptor).get("valid", false)), "generated megastructure ecology constraints are invalid")
 	return descriptor
 
 func _construction_epochs() -> Array:
@@ -153,6 +157,21 @@ func _hydrology(damage: Array) -> Array:
 		var bounds: Dictionary = (record.get("bounds", {}) as Dictionary).duplicate(true)
 		var minimum: Array = bounds.get("min", [])
 		effects.append({"affected_route_ids":[],"bounds":bounds,"effect":"rainwater_inflow" if str(record.get("damage_type", "")) == "facade_breach" else "coolant_seep","hydrology_id":"hydrology:" + str(record.get("damage_id", "")),"source_damage_id":str(record.get("damage_id", "")),"source_element_id":str(record.get("target_element_id", "")),"type":"infrastructure_hydrology","water_level":int(minimum[1]) + 2,"water_quality":"contaminated" if str(record.get("damage_type", "")) == "facade_breach" else "industrial"})
+	return effects
+
+func _ecology(hydrology: Array, elements: Array, epochs: Array) -> Array:
+	var elements_by_id := {}
+	var epochs_by_id := {}
+	for element: Dictionary in elements:
+		elements_by_id[str(element.get("element_id", ""))] = element
+	for epoch: Dictionary in epochs:
+		epochs_by_id[int(epoch.get("epoch_id", 0))] = epoch
+	var effects: Array = []
+	for water: Dictionary in hydrology:
+		var element: Dictionary = elements_by_id[str(water.get("source_element_id", ""))]
+		var epoch: Dictionary = epochs_by_id[int(element.get("epoch_id", 0))]
+		var is_breach := str(water.get("effect", "")) == "rainwater_inflow"
+		effects.append({"affected_route_ids":[],"bounds":(water.get("bounds", {}) as Dictionary).duplicate(true),"ecology_id":"ecology:" + str(water.get("hydrology_id", "")),"exposure":"rain_exposed" if is_breach else "humid_enclosure","light_exposure":"breach_daylight" if is_breach else "utility_reflection","material_family":str(epoch.get("material_family", "")),"source_element_id":str(element.get("element_id", "")),"source_hydrology_id":str(water.get("hydrology_id", "")),"species_group":"wetland_lichen" if is_breach else "coolant_moss","type":"infrastructure_ecology"})
 	return effects
 
 func _axis(megacell: Vector3i) -> Vector3i:
