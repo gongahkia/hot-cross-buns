@@ -89,6 +89,8 @@ ApplicationWindow {
     property alias quickCaptureDurationSelector: quickCaptureDurationSelector
     property alias quickCaptureRemoveParsedTextSwitch: quickCaptureRemoveParsedTextSwitch
     property alias googleOnboarding: googleOnboarding
+    property alias invitationInbox: invitationInbox
+    property alias genericPageFallback: genericPageFallback
     property alias searchPopup: searchPopup
     property alias headerSearchButton: headerSearchButton
     property alias searchQuery: searchPopup.queryField
@@ -1204,6 +1206,7 @@ ApplicationWindow {
             }
 
             InvitationInbox {
+                id: invitationInbox
                 anchors.fill: parent
                 visible: window.currentPage === "Invitations"
                 invitations: window.appController && Array.isArray(window.appController.invitations)
@@ -2234,10 +2237,11 @@ ApplicationWindow {
             }
 
             ColumnLayout {
+                id: genericPageFallback
                 anchors.fill: parent
                 visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes" &&
                          window.currentPage !== "Calendar" && window.currentPage !== "Settings" &&
-                         window.currentPage !== "Onboarding"
+                         window.currentPage !== "Onboarding" && window.currentPage !== "Invitations"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage

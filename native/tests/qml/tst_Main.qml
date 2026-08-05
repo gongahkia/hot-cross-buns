@@ -238,6 +238,20 @@ TestCase {
         view.destroy()
     }
 
+    function test_invitationsHidesGenericPageFallback() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: true }
+        })
+        verify(mainWindow !== null)
+        mainWindow.currentPage = "Invitations"
+        verify(mainWindow.invitationInbox.visible)
+        verify(!mainWindow.genericPageFallback.visible)
+        mainWindow.destroy()
+    }
+
     function test_sidebarRoutesSelectionThroughWindow() {
         startedTransitions = []
         completedTransitions = []
