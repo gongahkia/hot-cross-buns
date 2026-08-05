@@ -1,6 +1,7 @@
 #include "core/OAuthTokenExchangeClient.h"
 
 #include "core/PkceAuthorization.h"
+#include "core/SecretRedactor.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -72,11 +73,30 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
   return validCode.match(code).hasMatch() ? std::optional<QString>(code) : std::nullopt;
 }
 
+[[nodiscard]] std::optional<QString> oauthErrorDescription(const QByteArray& responseBody) {
+  const QJsonDocument document = QJsonDocument::fromJson(responseBody);
+  if (!document.isObject()) {
+    return std::nullopt;
+  }
+  const QString description = document.object().value(QStringLiteral("error_description")).toString();
+  if (description.isEmpty() || description.size() > 500 || description.contains(QChar::Null)) {
+    return std::nullopt;
+  }
+  const QString safeDescription = SecretRedactor::redactText(description, 240);
+  return safeDescription.isEmpty() ? std::nullopt : std::optional<QString>(safeDescription);
+}
+
 [[nodiscard]] QString tokenExchangeFailureMessage(const QNetworkReply& reply,
                                                   int status,
                                                   const QByteArray& responseBody) {
   if (status >= 100 && status <= 599) {
     const std::optional<QString> code = oauthErrorCode(responseBody);
+    const std::optional<QString> description = oauthErrorDescription(responseBody);
+    if (code.has_value() && description.has_value()) {
+      return QStringLiteral("OAuth token exchange failed (HTTP %1: %2 — %3)")
+          .arg(status)
+          .arg(*code, *description);
+    }
     return code.has_value()
                ? QStringLiteral("OAuth token exchange failed (HTTP %1: %2)").arg(status).arg(*code)
                : QStringLiteral("OAuth token exchange failed (HTTP %1)").arg(status);
