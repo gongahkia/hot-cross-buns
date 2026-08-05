@@ -7,12 +7,16 @@ fn invariant_add_local_path_updates_manifest_lock_and_project_transactionally() 
     let fixture = Fixture::new();
     fixture.addon("addon", "extends Node\n");
 
-    let output = command(fixture.root())
+    let output = command(&fixture)
         .args(["addon", "--path", "addon"])
         .output()
         .expect("add should run");
 
-    assert!(output.status.success());
+    assert!(
+        output.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(fixture.manifest().contains("addon = { path = \"addon\" }"));
     assert!(fixture.root().join("wukong.lock").is_file());
     assert_eq!(
@@ -28,7 +32,7 @@ fn invariant_add_dev_marks_the_lock_and_installs_the_new_development_dependency(
     let fixture = Fixture::new();
     fixture.addon("dev-tool", "extends Node\n");
 
-    let output = command(fixture.root())
+    let output = command(&fixture)
         .args(["dev-tool", "--path", "dev-tool", "--dev"])
         .output()
         .expect("add should run");
@@ -38,7 +42,11 @@ fn invariant_add_dev_marks_the_lock_and_installs_the_new_development_dependency(
     )
     .expect("lock should parse");
 
-    assert!(output.status.success());
+    assert!(
+        output.status.success(),
+        "add failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(fixture.manifest().contains("[dev-dependencies]"));
     assert!(
         lock.packages()
@@ -61,12 +69,17 @@ fn invariant_failed_add_restores_manifest_and_removes_new_lockfile() {
     .expect("unowned file should write");
     let manifest_before = fixture.manifest();
 
-    let output = command(fixture.root())
+    let output = command(&fixture)
         .args(["addon", "--path", "addon"])
         .output()
         .expect("add should run");
 
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "add failed unexpectedly: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(fixture.manifest(), manifest_before);
     assert!(!fixture.root().join("wukong.lock").exists());
     assert_eq!(
@@ -76,9 +89,12 @@ fn invariant_failed_add_restores_manifest_and_removes_new_lockfile() {
     );
 }
 
-fn command(current_directory: &Path) -> Command {
+fn command(fixture: &Fixture) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
-    command.arg("add").current_dir(current_directory);
+    command
+        .arg("add")
+        .current_dir(fixture.root())
+        .env("WUKONG_CACHE_DIR", fixture.cache_root());
     command
 }
 
@@ -110,6 +126,10 @@ impl Fixture {
 
     fn root(&self) -> &Path {
         &self.root
+    }
+
+    fn cache_root(&self) -> std::path::PathBuf {
+        self._directory.path().join("cache")
     }
 
     fn addon(&self, name: &str, content: &str) {
