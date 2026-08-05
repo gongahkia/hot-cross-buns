@@ -88,6 +88,7 @@ ApplicationWindow {
     property alias quickCaptureCalendarDefaultSelector: quickCaptureCalendarDefaultSelector
     property alias quickCaptureDurationSelector: quickCaptureDurationSelector
     property alias quickCaptureRemoveParsedTextSwitch: quickCaptureRemoveParsedTextSwitch
+    property alias googleOnboarding: googleOnboarding
     property alias searchPopup: searchPopup
     property alias headerSearchButton: headerSearchButton
     property alias searchQuery: searchPopup.queryField
@@ -275,7 +276,11 @@ ApplicationWindow {
             return
         }
         if (!timelineProfile && appController !== null && !appController.googleConnected &&
-                pageName !== "Settings") {
+                pageName === "Settings") {
+            openGoogleOnboarding()
+            return
+        }
+        if (!timelineProfile && appController !== null && !appController.googleConnected) {
             return
         }
         const spanName = "navigation." + pageName.toLowerCase()
@@ -286,6 +291,13 @@ ApplicationWindow {
                 transitionTimings.complete(spanName)
             })
         }
+    }
+
+    function openGoogleOnboarding() {
+        if (timelineProfile || appController === null || appController.googleConnected !== false) {
+            return
+        }
+        currentPage = "Onboarding"
     }
 
     function matchingCommands(query) {
@@ -1022,6 +1034,12 @@ ApplicationWindow {
                 importDialog.open()
             }
         }
+        function onGoogleConnectedChanged() {
+            if (window.appController !== null && window.appController.googleConnected &&
+                    window.currentPage === "Onboarding") {
+                window.selectPage("Tasks")
+            }
+        }
     }
 
     header: ToolBar {
@@ -1052,6 +1070,7 @@ ApplicationWindow {
 
         NavigationSidebar {
             id: navigationSidebar
+            visible: window.currentPage !== "Onboarding"
             commandRegistry: window.navigationOnlyCommands()
             currentPage: window.currentPage
             googleConnected: window.appController === null || window.appController.googleConnected !== false
@@ -1186,6 +1205,17 @@ ApplicationWindow {
                 onResponseRequested: function(eventId, responseStatus, comment) {
                     window.controllerCall("respondToEvent", [eventId, responseStatus, comment])
                 }
+            }
+
+            GoogleOnboardingView {
+                id: googleOnboarding
+                anchors.fill: parent
+                visible: window.currentPage === "Onboarding"
+                clientId: window.controllerString("clientId", "")
+                busy: window.appController !== null && window.appController.busy === true
+                statusMessage: window.controllerString("statusMessage", "")
+                onSaveClientIdRequested: clientId => window.controllerCall("saveClientId", [clientId])
+                onConnectGoogleRequested: window.controllerCall("connectGoogle", [])
             }
 
             ColumnLayout {
@@ -2203,7 +2233,7 @@ ApplicationWindow {
     Rectangle {
         anchors.fill: parent
         visible: !timelineProfile && appController !== null && !appController.googleConnected &&
-                 currentPage !== "Settings"
+                 currentPage !== "Onboarding"
         z: 1
         color: Theme.background
 
@@ -2223,7 +2253,7 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignHCenter
                 text: "Open Google setup"
                 Accessible.name: text
-                onClicked: window.selectPage("Settings")
+                onClicked: window.openGoogleOnboarding()
             }
         }
     }

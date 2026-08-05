@@ -147,7 +147,7 @@ TestCase {
         mainWindow.destroy()
     }
 
-    function test_unconnectedGoogleRestrictsNavigationToSettings() {
+    function test_unconnectedGoogleRestrictsNavigationToOnboarding() {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
         const commands = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
@@ -174,9 +174,38 @@ TestCase {
         mainWindow.selectPage("Calendar")
         compare(mainWindow.currentPage, "Tasks")
         mainWindow.selectPage("Settings")
-        compare(mainWindow.currentPage, "Settings")
+        compare(mainWindow.currentPage, "Onboarding")
+        verify(mainWindow.googleOnboarding.visible)
+        verify(!mainWindow.navigationSidebar.visible)
         mainWindow.destroy()
         commands.destroy()
+    }
+
+    function test_googleOnboardingSavesClientIdAndConnectsGoogle() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const calls = []
+        const controller = {
+            googleConnected: false,
+            clientId: "client-id",
+            busy: false,
+            statusMessage: "",
+            saveClientId: function(clientId) { calls.push(["saveClientId", clientId]) },
+            connectGoogle: function() { calls.push(["connectGoogle"]) }
+        }
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: controller
+        })
+        verify(mainWindow !== null)
+        mainWindow.openGoogleOnboarding()
+        compare(mainWindow.currentPage, "Onboarding")
+        compare(mainWindow.googleOnboarding.clientIdField.text, "client-id")
+        mainWindow.googleOnboarding.clientIdField.text = "updated-client-id"
+        mainWindow.googleOnboarding.saveClientIdButton.click()
+        mainWindow.googleOnboarding.connectGoogleButton.click()
+        compare(calls, [["saveClientId", "updated-client-id"], ["connectGoogle"]])
+        mainWindow.destroy()
     }
 
     function test_sidebarRoutesSelectionThroughWindow() {

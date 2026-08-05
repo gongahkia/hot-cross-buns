@@ -281,6 +281,7 @@ qt_add_qml_module(hcb_native
     qml/EventColorPicker.qml
     qml/EventDeleteDialog.qml
     qml/EventEditDialog.qml
+    qml/GoogleOnboardingView.qml
     qml/HcbDialog.qml
     qml/InvitationInbox.qml
     qml/Main.qml
