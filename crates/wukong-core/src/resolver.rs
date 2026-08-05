@@ -365,15 +365,12 @@ impl DependencyProvider for ResolverProvider<'_> {
     ) -> Self::Priority {
         let candidates = match package {
             SolverPackage::Root => 1,
-            SolverPackage::Package(package) => self
-                .candidates(package)
-                .map(|candidates| {
-                    candidates
-                        .iter()
-                        .filter(|candidate| range.contains(candidate.version()))
-                        .count()
-                })
-                .unwrap_or(0),
+            SolverPackage::Package(package) => self.candidates(package).map_or(0, |candidates| {
+                candidates
+                    .iter()
+                    .filter(|candidate| range.contains(candidate.version()))
+                    .count()
+            }),
         };
         std::cmp::Reverse((candidates, package.clone()))
     }

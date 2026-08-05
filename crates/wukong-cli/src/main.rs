@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     ffi::OsString,
+    fmt::Write as _,
     fs,
     io::IsTerminal,
     path::PathBuf,
@@ -2280,7 +2281,7 @@ fn json_string(value: &str) -> String {
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
             character if character.is_control() => {
-                output.push_str(&format!("\\u{:04x}", u32::from(character)));
+                let _ = write!(output, "\\u{:04x}", u32::from(character));
             }
             character => output.push(character),
         }

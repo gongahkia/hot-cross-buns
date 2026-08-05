@@ -15,7 +15,7 @@ pub(crate) fn has_sensitive_url_query(value: &str) -> bool {
     while let Some(offset) = value[cursor..].find('?') {
         let query_start = cursor + offset + 1;
         let query_end = query_end(value, query_start);
-        if url::form_urlencoded::parse(value[query_start..query_end].as_bytes())
+        if url::form_urlencoded::parse(&value.as_bytes()[query_start..query_end])
             .any(|(key, _)| is_sensitive_query_key(&key))
         {
             return true;

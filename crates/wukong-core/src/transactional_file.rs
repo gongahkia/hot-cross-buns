@@ -140,7 +140,7 @@ fn stage(path: &Path, content: &[u8]) -> Result<PathBuf, Box<Diagnostic>> {
                 }
                 return Ok(staged);
             }
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
             Err(error) => return Err(io_error("could not create file staging", path, error)),
         }
     }

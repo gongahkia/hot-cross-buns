@@ -327,7 +327,7 @@ fn hash_file(
         return Err(changed_source_file(source));
     }
     let mut input = fs::File::open(source).map_err(|error| source_error(source, error))?;
-    tree_hasher.update([b'f']);
+    tree_hasher.update(b"f");
     update_length_prefixed(tree_hasher, relative.as_bytes());
     tree_hasher.update([u8::from(executable)]);
     tree_hasher.update(metadata.len().to_be_bytes());
@@ -373,7 +373,7 @@ fn copy_file_and_hash(
     let mut input = fs::File::open(source).map_err(|error| source_error(source, error))?;
     let mut output =
         fs::File::create(destination).map_err(|error| staging_error(destination, error))?;
-    tree_hasher.update([b'f']);
+    tree_hasher.update(b"f");
     update_length_prefixed(tree_hasher, relative.as_bytes());
     tree_hasher.update([u8::from(executable)]);
     tree_hasher.update(metadata.len().to_be_bytes());

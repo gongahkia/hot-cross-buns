@@ -8,6 +8,7 @@ use crate::{
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
     fs,
     io::Read,
     path::{Component, Path, PathBuf},
@@ -189,27 +190,27 @@ pub struct InstalledState {
 /// A non-mutating verification summary for installed state files.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct InstalledStateVerification {
-    verified_files: usize,
-    missing_files: usize,
-    modified_files: usize,
+    verified: usize,
+    missing: usize,
+    modified: usize,
 }
 impl InstalledStateVerification {
     /// Returns the number of owned files matching their recorded hashes.
     #[must_use]
     pub const fn verified_files(self) -> usize {
-        self.verified_files
+        self.verified
     }
 
     /// Returns the number of owned files that are missing.
     #[must_use]
     pub const fn missing_files(self) -> usize {
-        self.missing_files
+        self.missing
     }
 
     /// Returns the number of owned files whose hash no longer matches state.
     #[must_use]
     pub const fn modified_files(self) -> usize {
-        self.modified_files
+        self.modified
     }
 }
 impl InstalledState {
@@ -377,10 +378,10 @@ pub fn verify_installed_state(
     let mut report = InstalledStateVerification::default();
     for file in state.files().values() {
         match file_sha256(&project_root.join(file.path())) {
-            Ok(hash) if hash == file.sha256() => report.verified_files += 1,
-            Ok(_) => report.modified_files += 1,
+            Ok(hash) if hash == file.sha256() => report.verified += 1,
+            Ok(_) => report.modified += 1,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                report.missing_files += 1;
+                report.missing += 1;
             }
             Err(error) => {
                 return Err(Box::new(
@@ -710,7 +711,7 @@ fn quote(value: &str) -> String {
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
             character if character < ' ' => {
-                output.push_str(&format!("\\u{:04x}", character as u32));
+                let _ = write!(output, "\\u{:04x}", character as u32);
             }
             character => output.push(character),
         }

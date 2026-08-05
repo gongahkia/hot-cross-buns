@@ -299,7 +299,7 @@ fn hash_file(
         .metadata()
         .map_err(|error| source_path_error(path, error))?
         .len();
-    hasher.update([b'f']);
+    hasher.update(b"f");
     update_length_prefixed(hasher, relative.as_bytes());
     hasher.update(length.to_be_bytes());
     let mut buffer = [0_u8; 8192];

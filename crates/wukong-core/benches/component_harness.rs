@@ -5,7 +5,9 @@ mod fixtures;
 use fixtures::{MEDIUM_GRAPH, ONE_LARGE_ADDON, SMALL_PROJECT, SourceFixture};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     hint::black_box,
     path::{Path, PathBuf},
     time::Instant,
@@ -238,9 +240,10 @@ fn benchmark_direct_sync_aliases() {
     let manifest_path = fixture.project.join("direct-sync-aliases-wukong.toml");
     let mut input = String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dependencies]\n");
     for index in 0..DIRECT_SYNC_ALIAS_COUNT {
-        input.push_str(&format!(
-            "addon-{index} = {{ path = \"source\", target = \"addons/addon-{index}\" }}\n"
-        ));
+        let _ = writeln!(
+            input,
+            "addon-{index} = {{ path = \"source\", target = \"addons/addon-{index}\" }}"
+        );
     }
     let manifest = Manifest::parse(&manifest_path, &input).expect("benchmark aliases should parse");
     let cache = CacheLayout::for_root(fixture.root().join("direct-sync-aliases-cache"))

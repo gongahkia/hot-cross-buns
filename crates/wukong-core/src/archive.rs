@@ -15,17 +15,17 @@ static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// Non-bypassable ZIP extraction limits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExtractionLimits {
-    max_files: u64,
-    max_expanded_bytes: u64,
-    max_expansion_ratio: u64,
+    files: u64,
+    expanded_bytes: u64,
+    expansion_ratio: u64,
 }
 
 impl Default for ExtractionLimits {
     fn default() -> Self {
         Self {
-            max_files: 10_000,
-            max_expanded_bytes: 512 * 1024 * 1024,
-            max_expansion_ratio: 100,
+            files: 10_000,
+            expanded_bytes: 512 * 1024 * 1024,
+            expansion_ratio: 100,
         }
     }
 }
@@ -35,9 +35,9 @@ impl ExtractionLimits {
     #[must_use]
     pub fn tightened(max_files: u64, max_expanded_bytes: u64, max_expansion_ratio: u64) -> Self {
         Self::default().tighten(Self {
-            max_files,
-            max_expanded_bytes,
-            max_expansion_ratio,
+            files: max_files,
+            expanded_bytes: max_expanded_bytes,
+            expansion_ratio: max_expansion_ratio,
         })
     }
 
@@ -45,9 +45,9 @@ impl ExtractionLimits {
     #[must_use]
     pub fn tighten(self, requested: Self) -> Self {
         Self {
-            max_files: self.max_files.min(requested.max_files),
-            max_expanded_bytes: self.max_expanded_bytes.min(requested.max_expanded_bytes),
-            max_expansion_ratio: self.max_expansion_ratio.min(requested.max_expansion_ratio),
+            files: self.files.min(requested.files),
+            expanded_bytes: self.expanded_bytes.min(requested.expanded_bytes),
+            expansion_ratio: self.expansion_ratio.min(requested.expansion_ratio),
         }
     }
 }
@@ -143,13 +143,13 @@ fn preflight(
             file_count = file_count
                 .checked_add(1)
                 .ok_or_else(|| limit_error(archive_path, "file-count limit"))?;
-            if file_count > limits.max_files {
+            if file_count > limits.files {
                 return Err(limit_error(archive_path, "file-count limit"));
             }
             total_expanded = total_expanded
                 .checked_add(file.size())
                 .ok_or_else(|| limit_error(archive_path, "expanded-size limit"))?;
-            if total_expanded > limits.max_expanded_bytes {
+            if total_expanded > limits.expanded_bytes {
                 return Err(limit_error(archive_path, "expanded-size limit"));
             }
             if file.size() > 0
@@ -157,7 +157,7 @@ fn preflight(
                     || file.size()
                         > file
                             .compressed_size()
-                            .saturating_mul(limits.max_expansion_ratio))
+                            .saturating_mul(limits.expansion_ratio))
             {
                 return Err(limit_error(archive_path, "expansion-ratio limit"));
             }
@@ -253,7 +253,7 @@ fn create_staging_root(parent: &Path) -> Result<PathBuf, Box<Diagnostic>> {
         ));
         match fs::create_dir(&path) {
             Ok(()) => return Ok(path),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
             Err(error) => return Err(extract_error(parent, &path, error)),
         }
     }

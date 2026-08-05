@@ -74,18 +74,16 @@ pub fn assert_source_adapter_contract<F: SourceAdapterFixture>(fixture: &F) {
 
     let cancelled = CancellationToken::new();
     cancelled.cancel();
-    let error = match adapter.resolve(request, &cancelled) {
-        Ok(_) => panic!("cancelled resolution should fail"),
-        Err(error) => error,
+    let Err(error) = adapter.resolve(request, &cancelled) else {
+        panic!("cancelled resolution should fail");
     };
     assert_eq!(error.code(), ErrorCode::SourceAccess);
     fixture.assert_cancelled_cleanup();
 
     let cancelled = CancellationToken::new();
     cancelled.cancel();
-    let error = match adapter.fetch(&first_resolution, &cancelled) {
-        Ok(_) => panic!("cancelled fetch should fail"),
-        Err(error) => error,
+    let Err(error) = adapter.fetch(&first_resolution, &cancelled) else {
+        panic!("cancelled fetch should fail");
     };
     assert_eq!(error.code(), ErrorCode::SourceAccess);
     fixture.assert_cancelled_cleanup();

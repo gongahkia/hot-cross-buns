@@ -11,6 +11,7 @@ use crate::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
 use toml_edit::{Document, Item, TableLike};
@@ -918,7 +919,9 @@ fn quote(value: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if c < ' ' => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c if c < ' ' => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
             c => out.push(c),
         }
     }

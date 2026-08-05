@@ -6,6 +6,7 @@ use crate::{
     project::ProjectRoot,
 };
 use std::{
+    fmt::Write as _,
     fs::{self, OpenOptions},
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
@@ -198,7 +199,7 @@ fn escape_toml_string(value: &str) -> String {
             '\r' => escaped.push_str("\\r"),
             '\t' => escaped.push_str("\\t"),
             character if character.is_control() => {
-                escaped.push_str(&format!("\\u{:04x}", u32::from(character)));
+                let _ = write!(escaped, "\\u{:04x}", u32::from(character));
             }
             _ => escaped.push(character),
         }

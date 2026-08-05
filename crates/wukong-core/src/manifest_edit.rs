@@ -278,7 +278,7 @@ fn create_rollback_link(manifest_path: &Path) -> ManifestResult<PathBuf> {
         let rollback_path = temporary_path(directory, "rollback");
         match fs::hard_link(manifest_path, &rollback_path) {
             Ok(()) => return Ok(rollback_path),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
             Err(error) => {
                 return Err(boxed(
                     Diagnostic::new(

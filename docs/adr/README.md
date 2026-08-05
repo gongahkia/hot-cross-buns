@@ -45,6 +45,7 @@ Current records:
 - [0039: 1.0 compatibility policy](0039-one-point-zero-compatibility-policy.md)
 - [0040: direct-sync prepared-cache reuse](0040-direct-sync-prepared-cache-reuse.md)
 - [0041: CLI progress rendering](0041-cli-progress-rendering.md)
+- [0042: project source catalog](0042-project-source-catalog.md)
 
 ## When to write an ADR
 

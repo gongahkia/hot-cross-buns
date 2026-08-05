@@ -13,6 +13,7 @@ use crate::{
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -522,7 +523,7 @@ impl GitFetcher {
         })?;
         let mut output = String::from("wukong-git-versions-v1\n");
         for (version, commit) in catalog.versions() {
-            output.push_str(&format!("{version} {commit}\n"));
+            let _ = writeln!(output, "{version} {commit}");
         }
         let temporary = parent.join(format!(
             ".{}.tmp",

@@ -2,12 +2,12 @@
 
 ## Scope
 
-Work on one `TODO.md` issue per change. Do not begin later phases before their
+Work on one GitHub issue per change. Do not begin later phases before their
 listed acceptance criteria are satisfied. Preserve unrelated files.
 
 ## Requirements
 
-- Use supported Rust, currently 1.85 or newer.
+- Use the repository-pinned Rust 1.85.0 toolchain.
 - Add tests for user-visible behaviour and regression fixtures for bugs.
 - Update documentation with externally visible changes.
 - Do not execute package scripts or add unsupported source adapters.
