@@ -73,6 +73,9 @@ pub mod manifest;
 /// Project-owned source-catalog parsing.
 pub mod source_catalog;
 
+/// Git tag discovery for validated project source-catalog candidates.
+pub mod source_catalog_git;
+
 /// Transactional project source-catalog editing.
 pub mod source_catalog_edit;
 

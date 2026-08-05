@@ -747,7 +747,7 @@ fn internal(message: &str, error: impl std::fmt::Display) -> Box<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use super::{GitFetcher, GitSourceIdentity, GitTagPrefix};
+    use super::{GitFetcher, GitSourceIdentity, GitTagPrefix, GitVersionCatalog};
     use crate::{
         cache::CacheLayout,
         diagnostic::ErrorCode,
@@ -760,6 +760,8 @@ mod tests {
         package_tree::prepare_package_tree,
         semantic_version::SemanticVersion,
         source::ImmutableSourceId,
+        source_catalog::{SourceCatalog, ValidatedCatalogCandidate, ValidatedCatalogGitCandidate},
+        source_catalog_git::{CatalogGitAdapter, candidates_from_catalog},
     };
     use std::{
         collections::{BTreeMap, BTreeSet},
@@ -1067,6 +1069,83 @@ mod tests {
     }
 
     #[test]
+    fn invariant_catalog_git_candidates_are_version_ordered_and_lock_only_observed_commits() {
+        let candidate =
+            catalog_git_candidate("https://fixture.test/catalog.git", "addons/catalog", "v");
+        let catalog = GitVersionCatalog {
+            versions: BTreeMap::from([
+                (
+                    SemanticVersion::parse("1.2.0").expect("version should parse"),
+                    "2222222222222222222222222222222222222222".to_owned(),
+                ),
+                (
+                    SemanticVersion::parse("1.0.0").expect("version should parse"),
+                    "1111111111111111111111111111111111111111".to_owned(),
+                ),
+            ]),
+        };
+
+        let candidates = candidates_from_catalog(&candidate, &catalog);
+
+        assert_eq!(
+            candidates
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+            ["1.0.0", "1.2.0"]
+        );
+        let selected = candidates
+            .get(&SemanticVersion::parse("1.2.0").expect("version should parse"))
+            .expect("candidate should exist");
+        assert_eq!(
+            selected.source().as_str(),
+            "https://fixture.test/catalog.git"
+        );
+        assert_eq!(
+            selected.commit(),
+            "2222222222222222222222222222222222222222"
+        );
+        assert_eq!(selected.root(), Path::new("addons/catalog"));
+    }
+
+    #[test]
+    fn invariant_catalog_git_adapter_reads_verified_matching_metadata_offline() {
+        let fixture = Fixture::new();
+        let candidate =
+            catalog_git_candidate("https://fixture.test/catalog.git", "addons/catalog", "v");
+        let source = GitSourceIdentity::new(candidate.source().as_str().to_owned());
+        let catalog = GitVersionCatalog {
+            versions: BTreeMap::from([(
+                SemanticVersion::parse("1.0.0").expect("version should parse"),
+                fixture.commit(),
+            )]),
+        };
+        let fetcher = fixture.fetcher();
+        fetcher
+            .write_cached_versions(&source, candidate.tag_prefix(), &catalog)
+            .expect("metadata should cache");
+        fs::remove_dir_all(fixture.remote()).expect("remote should remove");
+
+        let candidates = CatalogGitAdapter::new(fetcher)
+            .discover_candidates(&candidate, true)
+            .expect("verified metadata should support offline discovery");
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            candidates
+                .values()
+                .next()
+                .expect("candidate should exist")
+                .commit(),
+            catalog
+                .versions()
+                .values()
+                .next()
+                .expect("commit should exist")
+        );
+    }
+
+    #[test]
     fn invariant_conflicting_git_tags_for_one_semantic_version_fail_before_caching() {
         let fixture = Fixture::new();
         fixture.commit_change("conflicting");
@@ -1092,6 +1171,32 @@ mod tests {
                 )
                 .exists()
         );
+    }
+
+    fn catalog_git_candidate(
+        url: &str,
+        root: &str,
+        tag_prefix: &str,
+    ) -> ValidatedCatalogGitCandidate {
+        let catalog = SourceCatalog::parse(
+            Path::new("fixture/wukong.sources.toml"),
+            &format!(
+                "schema = 1\n\n[[package]]\nname = \"catalog\"\n[package.git]\nurl = \"{url}\"\nroot = \"{root}\"\ntag-prefix = \"{tag_prefix}\"\n"
+            ),
+        )
+        .expect("catalog should parse")
+        .validate(Path::new("fixture/wukong.sources.toml"))
+        .expect("catalog should validate");
+        let candidate = catalog
+            .packages()
+            .values()
+            .next()
+            .and_then(|candidates| candidates.first())
+            .expect("candidate should exist");
+        let ValidatedCatalogCandidate::Git(candidate) = candidate else {
+            panic!("candidate should be Git");
+        };
+        candidate.clone()
     }
 
     #[test]

@@ -55,6 +55,18 @@ Validation returns typed canonical package names, Git identities, Semantic
 Versions, checksums, and normalised source-relative roots. The catalog is not
 yet consumed by lock or sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
 
+## Git tag candidates
+
+The Git catalog adapter discovers matching SemVer tags in deterministic version
+order. It returns each version with the complete commit currently named by that
+tag, the canonical repository URL, and the declared package root. Discovery
+does not fetch package content or write a lockfile; only a later lock operation
+can persist the observed complete commit as the immutable source identity.
+
+With offline discovery, Wukong accepts only verified cached tag metadata for
+the same canonical URL and `tag-prefix`. Missing or corrupt metadata fails with
+an instruction to retry online; Wukong does not guess from a mutable tag.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited
