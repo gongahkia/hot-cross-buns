@@ -57,6 +57,10 @@ requirement, source layout, target layout, and closed dependency edges.
 ```toml
 schema = 3
 
+[roots]
+runtime = ["example-addon"]
+development = []
+
 [[package]]
 name = "example-addon"
 version = "1.2.3"
@@ -76,10 +80,14 @@ url = "https://github.com/example/addon.git"
 commit = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91"
 ```
 
-Schema-three entries reject local sources, unknown versions or Godot support,
-missing catalog fingerprints, self-references, and dangling dependency edges.
-No automatic conversion is performed; migration and direct-root provenance are
-separate work. See [ADR 0044](adr/0044-catalog-graph-lockfile-schema.md).
+Schema-three roots are sorted direct package names. Every selected package must
+be reachable from at least one root. Runtime and development closure membership
+is derived from those roots; a shared member is runtime, and
+`package.development` is true only for development-only members. Schema-three
+entries reject local sources, unknown versions or Godot support, missing catalog
+fingerprints, missing or unknown roots, stale development state, self-references,
+and dangling dependency edges. No automatic conversion is performed. See
+[ADR 0045](adr/0045-catalog-graph-root-provenance.md).
 
 Package entries and their dependency lists are sorted. No timestamps, host
 paths, credentials, mutable references, or executable commands are permitted.

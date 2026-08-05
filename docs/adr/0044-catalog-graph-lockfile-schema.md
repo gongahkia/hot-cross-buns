@@ -2,8 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0024](0024-lockfile-schema-two-remote-sources.md)
-for newly written catalog-graph locks.
+Superseded by [ADR 0045](0045-catalog-graph-root-provenance.md).
 
 ## Context and constraints
 

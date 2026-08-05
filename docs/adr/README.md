@@ -48,6 +48,7 @@ Current records:
 - [0042: project source catalog](0042-project-source-catalog.md)
 - [0043: strict package metadata policy](0043-strict-package-metadata-policy.md)
 - [0044: catalog graph lockfile schema](0044-catalog-graph-lockfile-schema.md)
+- [0045: catalog graph root provenance](0045-catalog-graph-root-provenance.md)
 
 ## When to write an ADR
 

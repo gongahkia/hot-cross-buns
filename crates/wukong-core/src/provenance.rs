@@ -30,6 +30,18 @@ impl ProvenanceSourceKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProvenanceScope {
+    Runtime,
+    Development,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct ProvenanceDirectGroups {
+    runtime: bool,
+    development: bool,
+}
+
 /// Immutable provenance for one package.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvenancePackage {
@@ -40,10 +52,8 @@ pub struct ProvenancePackage {
     immutable_revision: Option<String>,
     source_sha256: Option<String>,
     package_sha256: String,
-    direct_runtime: bool,
-    direct_development: bool,
-    runtime: bool,
-    development: bool,
+    direct: ProvenanceDirectGroups,
+    scope: ProvenanceScope,
 }
 
 impl ProvenancePackage {
@@ -92,25 +102,25 @@ impl ProvenancePackage {
     /// Returns whether the package is a direct runtime root.
     #[must_use]
     pub const fn is_direct_runtime(&self) -> bool {
-        self.direct_runtime
+        self.direct.runtime
     }
 
     /// Returns whether the package is a direct development root.
     #[must_use]
     pub const fn is_direct_development(&self) -> bool {
-        self.direct_development
+        self.direct.development
     }
 
     /// Returns whether the package belongs to the runtime closure.
     #[must_use]
     pub const fn is_runtime(&self) -> bool {
-        self.runtime
+        matches!(self.scope, ProvenanceScope::Runtime)
     }
 
     /// Returns whether the package is development-only.
     #[must_use]
     pub const fn is_development(&self) -> bool {
-        self.development
+        matches!(self.scope, ProvenanceScope::Development)
     }
 }
 
@@ -159,16 +169,30 @@ impl ProvenanceReport {
                             Some(source.sha256().to_owned()),
                         ),
                     };
-                let (direct_runtime, direct_development, runtime, development) = graph
+                let (direct, scope) = graph
                     .and_then(|graph| graph.packages().get(package.name()))
                     .map_or_else(
-                        || (false, false, !package.development(), package.development()),
+                        || {
+                            (
+                                ProvenanceDirectGroups::default(),
+                                if package.development() {
+                                    ProvenanceScope::Development
+                                } else {
+                                    ProvenanceScope::Runtime
+                                },
+                            )
+                        },
                         |package| {
                             (
-                                package.is_direct_runtime(),
-                                package.is_direct_development(),
-                                package.is_runtime(),
-                                package.is_development(),
+                                ProvenanceDirectGroups {
+                                    runtime: package.is_direct_runtime(),
+                                    development: package.is_direct_development(),
+                                },
+                                if package.is_development() {
+                                    ProvenanceScope::Development
+                                } else {
+                                    ProvenanceScope::Runtime
+                                },
                             )
                         },
                     );
@@ -180,10 +204,8 @@ impl ProvenanceReport {
                     immutable_revision,
                     source_sha256,
                     package_sha256: package.package_sha256().to_owned(),
-                    direct_runtime,
-                    direct_development,
-                    runtime,
-                    development,
+                    direct,
+                    scope,
                 }
             })
             .collect();

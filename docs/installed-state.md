@@ -4,6 +4,12 @@
 materialised in the project. `wukong status --json` is the editor-facing view;
 it does not reimplement or infer package state from addon directories.
 
+When a schema-three catalog lock is present, status enriches each matching
+installed package with its persisted direct-root and derived group fields:
+`direct_runtime`, `direct_development`, `runtime`, and `development`. Missing
+or legacy lockfiles leave these JSON fields as `null`; installed state remains
+the authority for what was materialised.
+
 After transactional synchronisation, Wukong records package-owned project
 files in `.wukong/state.toml`. Schema one is deterministic TOML:
 

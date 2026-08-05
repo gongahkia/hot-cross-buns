@@ -108,7 +108,7 @@ fn invariant_schema_three_tree_and_why_use_persisted_roots_without_a_manifest() 
     assert!(tree.status.success());
     assert_eq!(
         String::from_utf8_lossy(&why.stdout),
-        "why shared:\nruntime -> shared\ndev-tool -> shared\n"
+        "why shared:\ndev-tool -> shared\nruntime -> shared\n"
     );
     let events = json_events(&tree.stdout);
     assert_eq!(

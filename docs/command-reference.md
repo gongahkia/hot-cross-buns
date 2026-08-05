@@ -15,8 +15,8 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `update [<alias>] [--dry-run]` | Re-lock selected supported dependencies and sync changes. | [update](update.md) |
 | `tree [--json]` / `why <alias> [--json]` | Inspect locked dependency paths without resolving. | [dependency views](dependency-views.md) |
 | `outdated [--offline] [--json]` | Report available Git tag updates without mutation. | [outdated](outdated.md) |
-| `audit [--json]` | Display immutable locked provenance. | [audit](audit.md) |
-| `status [--json]` | Read installed package identities from project state. | [installed state](installed-state.md) |
+| `audit [--json]` | Display immutable provenance and schema-three graph groups. | [audit](audit.md) |
+| `status [--json]` | Read installed identities and schema-three graph groups. | [installed state](installed-state.md) |
 | `source add <name> <--git\|--url> …` | Transactionally add one reviewed source candidate. | [source catalog](source-catalog.md) |
 | `source list [--json]` | Inspect canonical reviewed source candidates without fetching. | [source catalog](source-catalog.md) |
 | `source remove <name> [<candidate fields>]` | Transactionally remove one reviewed source candidate. | [source catalog](source-catalog.md) |

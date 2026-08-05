@@ -5,6 +5,11 @@ project. It reports packages in canonical name order with their source kind,
 canonical source, immutable identity, Git revision when applicable, source
 checksum when applicable, and prepared-package checksum.
 
+For schema-three catalog locks it also reports persisted direct-root provenance
+and derived runtime/development-only membership. A runtime/development shared
+package is runtime. The JSON fields are `direct_runtime`,
+`direct_development`, `runtime`, and `development`.
+
 ```sh
 wukong audit
 wukong audit --json

@@ -3,8 +3,8 @@ use tempfile::TempDir;
 use wukong_core::{
     identity::PackageName,
     lockfile::{
-        GodotCompatibility, LockedGitSource, LockedHttpSource, LockedLocalSource, LockedPackage,
-        LockedSource, Lockfile,
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedHttpSource,
+        LockedLocalSource, LockedPackage, LockedSource, Lockfile,
     },
     source::ImmutableSourceId,
 };
@@ -85,6 +85,44 @@ fn invariant_audit_requires_a_lockfile() {
             .expect("message should be a string")
             .contains("wukong.lock is required")
     );
+}
+
+#[test]
+fn invariant_schema_three_audit_uses_persisted_graph_groups() {
+    let fixture = Fixture::without_lock();
+    let lock = Lockfile::new_catalog_graph(
+        [
+            catalog_package("runtime", ["shared"], 1),
+            catalog_package("dev-tool", ["shared"], 2),
+            catalog_package("shared", [], 3),
+        ],
+        CatalogGraphRoots::new([name("runtime")], [name("dev-tool")]),
+    )
+    .expect("catalog lock should build");
+    fs::write(fixture.root().join("wukong.lock"), lock.to_toml()).expect("lock should write");
+
+    let output = command(fixture.root())
+        .arg("--json")
+        .output()
+        .expect("audit should run");
+
+    assert!(output.status.success());
+    let events = json_events(std::str::from_utf8(&output.stdout).expect("output should be UTF-8"));
+    let packages = events[3]["result"]["packages"]
+        .as_array()
+        .expect("packages should be an array");
+    let shared = packages
+        .iter()
+        .find(|package| package["name"] == "shared")
+        .expect("shared should be reported");
+    let development = packages
+        .iter()
+        .find(|package| package["name"] == "dev-tool")
+        .expect("development root should be reported");
+    assert_eq!(shared["runtime"], true);
+    assert_eq!(shared["development"], false);
+    assert_eq!(development["direct_development"], true);
+    assert_eq!(development["development"], true);
 }
 
 fn json_events(output: &str) -> Vec<serde_json::Value> {
@@ -191,4 +229,36 @@ fn package(name: &str, source: LockedSource, index: usize) -> LockedPackage {
         false,
     )
     .expect("package should lock")
+}
+
+fn catalog_package(
+    package_name: &str,
+    dependencies: impl IntoIterator<Item = &'static str>,
+    index: usize,
+) -> LockedPackage {
+    let source = LockedGitSource::new(
+        ImmutableSourceId::new(format!("git:{COMMIT}")).expect("Git identity should parse"),
+        "https://example.test/catalog.git",
+        COMMIT.to_owned(),
+    )
+    .expect("Git source should lock");
+    LockedPackage::new(
+        name(package_name),
+        Some("1.0.0".parse().expect("version should parse")),
+        source,
+        format!("{:064x}", index + 100),
+        format!("{:064x}", index + 200),
+        dependencies.into_iter().map(name).collect(),
+        format!("addons/{package_name}").into(),
+        format!("addons/{package_name}").into(),
+        GodotCompatibility::Requirement("4".parse().expect("Godot requirement should parse")),
+        false,
+    )
+    .expect("package should lock")
+    .with_catalog_sha256(format!("{index:064x}"))
+    .expect("catalog fingerprint should lock")
+}
+
+fn name(value: &str) -> PackageName {
+    PackageName::parse(value).expect("package name should parse")
 }
