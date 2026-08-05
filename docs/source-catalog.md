@@ -92,6 +92,10 @@ package tree through the existing content-addressed cache. Clones coordinate
 same-package acquisition and re-verify every cache object before returning it;
 corrupt objects therefore fail before a candidate can be reused.
 
+Before resolver selection, Wukong collapses exact immutable duplicates. A
+package version available from distinct canonical source identities is rejected
+with every conflicting source named in deterministic order.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

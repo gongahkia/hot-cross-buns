@@ -190,12 +190,7 @@ impl CatalogCandidateAcquirer {
                 }
             }
         }
-        candidates.sort_by(|left, right| {
-            left.version()
-                .cmp(right.version())
-                .then_with(|| source_key(left.source()).cmp(&source_key(right.source())))
-        });
-        Ok(candidates)
+        unique_candidates(package, candidates)
     }
 
     fn acquire_git(
@@ -298,6 +293,46 @@ fn source_key(source: &AcquiredCatalogSource) -> String {
     }
 }
 
+/// Deduplicates exact immutable candidates and rejects ambiguous versions.
+///
+/// # Errors
+///
+/// Returns an integrity diagnostic when one package version has distinct
+/// canonical source identities.
+pub fn unique_candidates(
+    package: &PackageName,
+    candidates: Vec<AcquiredCatalogCandidate>,
+) -> SourceResult<Vec<AcquiredCatalogCandidate>> {
+    let mut versions =
+        BTreeMap::<SemanticVersion, BTreeMap<String, AcquiredCatalogCandidate>>::new();
+    for candidate in candidates {
+        versions
+            .entry(candidate.version().clone())
+            .or_default()
+            .entry(source_key(candidate.source()))
+            .or_insert(candidate);
+    }
+    let mut unique = Vec::new();
+    for (version, sources) in versions {
+        if sources.len() > 1 {
+            return Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::IntegrityFailure,
+                    format!(
+                        "package {} version {version} has ambiguous catalog sources: {}",
+                        package.as_str(),
+                        sources.keys().cloned().collect::<Vec<_>>().join(", ")
+                    ),
+                )
+                .with_package(package.as_str())
+                .with_recovery("retain one reviewed immutable source for this package version"),
+            ));
+        }
+        unique.extend(sources.into_values());
+    }
+    Ok(unique)
+}
+
 fn internal(message: &str) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(ErrorCode::InternalFailure, message)
@@ -315,7 +350,7 @@ fn internal_with_cause(message: &str, cause: impl std::fmt::Display) -> Box<Diag
 
 #[cfg(test)]
 mod tests {
-    use super::CatalogCandidateAcquirer;
+    use super::{AcquiredCatalogSource, CatalogCandidateAcquirer, unique_candidates};
     use crate::{
         cache::CacheLayout, diagnostic::ErrorCode, identity::PackageName,
         source::CancellationToken, source_catalog::SourceCatalog,
@@ -397,6 +432,63 @@ mod tests {
             .expect_err("corrupt cache must fail before candidate reuse");
 
         assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    }
+
+    #[test]
+    fn invariant_catalog_candidate_identity_deduplicates_exact_sources_deterministically() {
+        let fixture = Fixture::new();
+        let candidate = fixture
+            .acquirer()
+            .acquire(&fixture.selected, &CancellationToken::new())
+            .expect("candidate should acquire")
+            .pop()
+            .expect("candidate should exist");
+
+        let unique = unique_candidates(
+            &fixture.selected,
+            vec![candidate.clone(), candidate.clone(), candidate],
+        )
+        .expect("exact source identities should deduplicate");
+
+        assert_eq!(unique.len(), 1);
+    }
+
+    #[test]
+    fn invariant_catalog_candidate_identity_rejects_ambiguous_sources_independently_of_order() {
+        let fixture = Fixture::new();
+        let candidate = fixture
+            .acquirer()
+            .acquire(&fixture.selected, &CancellationToken::new())
+            .expect("candidate should acquire")
+            .pop()
+            .expect("candidate should exist");
+        let mut mirror = candidate.clone();
+        mirror.source = AcquiredCatalogSource::Http {
+            url: "https://mirror.fixture.test/selected.zip".to_owned(),
+            sha256: match mirror.source() {
+                AcquiredCatalogSource::Http { sha256, .. } => sha256.clone(),
+                AcquiredCatalogSource::Git { .. } => panic!("fixture should be HTTP"),
+            },
+            root: Path::new("addons/selected").to_path_buf(),
+        };
+
+        let first = unique_candidates(&fixture.selected, vec![candidate.clone(), mirror.clone()])
+            .expect_err("distinct source identities must fail");
+        let second = unique_candidates(&fixture.selected, vec![mirror, candidate])
+            .expect_err("candidate order must not change ambiguity");
+
+        assert_eq!(first.code(), ErrorCode::IntegrityFailure);
+        assert_eq!(first.message(), second.message());
+        assert!(
+            first
+                .message()
+                .contains("https://fixture.test/selected.zip")
+        );
+        assert!(
+            first
+                .message()
+                .contains("https://mirror.fixture.test/selected.zip")
+        );
     }
 
     struct Fixture {
