@@ -7,6 +7,7 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | --- | --- | --- |
 | `init [--project <path>] [--non-interactive]` | Create `wukong.toml` without overwriting one. | [init](init.md) |
 | `package init [--path <directory>] [--name <name>] …` | Create valid `wukong-package.toml` without overwriting one. | [package init](package-init.md) |
+| `package validate [--path <directory>] [--json]` | Validate package metadata without mutation or network access. | [package validate](package-validate.md) |
 | `add <alias> <--path\|--git\|--url> … [--dev]` | Edit, lock, and sync one direct dependency transactionally. | [add](add.md) |
 | `remove <alias>` | Remove one direct dependency and safely reconcile owned files. | [remove](remove.md) |
 | `lock [--offline] [--locked]` | Resolve direct sources and write a deterministic lockfile. | [lockfile](lockfile.md) |

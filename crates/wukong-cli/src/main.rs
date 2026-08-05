@@ -3449,7 +3449,7 @@ fn run_package(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<
     let command = arguments.next().ok_or_else(|| {
         user_error(
             "package requires a subcommand",
-            "run wukong package init [--path <directory>]",
+            "run wukong package <init|validate> [--path <directory>]",
         )
     })?;
     match command.to_str() {

@@ -7,6 +7,8 @@ must equal the direct declaration or catalog package identity.
 
 Addon authors can create a validating schema-one file with
 [`wukong package init`](package-init.md); it never replaces existing metadata.
+[`wukong package validate`](package-validate.md) verifies an existing file
+without project mutation, cache access, source fetching, or network I/O.
 
 It is required when validating a selected Git source-catalog candidate before
 lock publication. Its canonical `package.version` must agree with the selected

@@ -72,6 +72,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Package layout](docs/package-layout.md)
 - [Package metadata](docs/package-metadata.md)
 - [`wukong package init`](docs/package-init.md)
+- [`wukong package validate`](docs/package-validate.md)
 - [Godot compatibility input](docs/godot-compatibility.md)
 - [Godot compatibility enforcement](docs/godot-compatibility-enforcement.md)
 - [Godot executable discovery](docs/godot-executable.md)
