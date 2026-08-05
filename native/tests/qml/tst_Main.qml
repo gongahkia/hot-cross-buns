@@ -190,7 +190,7 @@ TestCase {
             googleConnected: false,
             clientId: "client-id",
             busy: false,
-            statusMessage: "",
+            statusMessage: "SQLite calendar list preparation failed (1)",
             saveClientId: function(clientId) { calls.push(["saveClientId", clientId]) },
             connectGoogle: function() { calls.push(["connectGoogle"]) }
         }
@@ -202,6 +202,7 @@ TestCase {
         mainWindow.openGoogleOnboarding()
         compare(mainWindow.currentPage, "Onboarding")
         compare(mainWindow.googleOnboarding.clientIdField.text, "client-id")
+        verify(!mainWindow.googleOnboarding.statusLabel.visible)
         mainWindow.googleOnboarding.clientIdField.text = "updated-client-id"
         mainWindow.googleOnboarding.saveClientIdButton.click()
         mainWindow.googleOnboarding.connectGoogleButton.click()

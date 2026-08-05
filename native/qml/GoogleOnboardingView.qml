@@ -7,11 +7,28 @@ Pane {
     required property string clientId
     property bool busy: false
     property string statusMessage: ""
+    property string setupStatusMessage: ""
+    property string statusBeforeSetupAction: ""
+    property bool awaitingSetupStatus: false
     property alias clientIdField: clientIdField
     property alias saveClientIdButton: saveClientIdButton
     property alias connectGoogleButton: connectGoogleButton
+    property alias statusLabel: statusLabel
     signal saveClientIdRequested(string clientId)
     signal connectGoogleRequested()
+
+    function awaitSetupStatus() {
+        statusBeforeSetupAction = statusMessage
+        setupStatusMessage = ""
+        awaitingSetupStatus = true
+    }
+
+    onStatusMessageChanged: {
+        if (awaitingSetupStatus && statusMessage !== statusBeforeSetupAction) {
+            setupStatusMessage = statusMessage
+            awaitingSetupStatus = false
+        }
+    }
 
     Flickable {
         anchors.fill: parent
@@ -109,7 +126,10 @@ Pane {
                         text: "Save client ID"
                         enabled: clientIdField.text.trim().length > 0 && !root.busy
                         Accessible.name: text
-                        onClicked: root.saveClientIdRequested(clientIdField.text)
+                        onClicked: {
+                            root.awaitSetupStatus()
+                            root.saveClientIdRequested(clientIdField.text)
+                        }
                     }
                 }
             }
@@ -141,15 +161,19 @@ Pane {
                         text: "Connect Google"
                         enabled: root.clientId.trim().length > 0 && !root.busy
                         Accessible.name: text
-                        onClicked: root.connectGoogleRequested()
+                        onClicked: {
+                            root.awaitSetupStatus()
+                            root.connectGoogleRequested()
+                        }
                     }
                 }
             }
 
             Label {
+                id: statusLabel
                 Layout.fillWidth: true
-                visible: root.statusMessage.length > 0
-                text: root.statusMessage
+                visible: root.setupStatusMessage.length > 0
+                text: root.setupStatusMessage
                 wrapMode: Text.WordWrap
                 color: Theme.textSecondary
                 Accessible.name: text
