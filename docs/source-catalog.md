@@ -83,6 +83,9 @@ both the catalog package name and canonical version; build metadata does not
 affect the version comparison. No lockfile or prepared package cache entry is
 published during this validation.
 
+Catalog entries cannot use local paths. Local paths are direct development-only
+manifest declarations and never enter a portable transitive graph.
+
 ## Lazy acquisition
 
 Core callers acquire catalog candidates by package name. An unknown or

@@ -9,7 +9,7 @@ wukong init
 Add a local addon declaration to `wukong.toml`:
 
 ```toml
-[dependencies]
+[dev-dependencies]
 example-addon = { path = "../example-addon" }
 ```
 
@@ -17,7 +17,7 @@ Lock the exact local content and synchronise it into the project:
 
 ```sh
 wukong lock
-wukong sync
+wukong sync --dev
 ```
 
 Wukong writes `wukong.lock`, materialises the addon at its selected target, and

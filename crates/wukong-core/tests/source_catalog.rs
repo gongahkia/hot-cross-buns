@@ -112,6 +112,24 @@ fn invariant_catalog_rejects_unknown_and_malformed_schema_fields() {
 }
 
 #[test]
+fn invariant_catalog_rejects_local_path_sources_before_acquisition() {
+    let error = parse_error(
+        r#"
+schema = 1
+
+[[package]]
+name = "local-only"
+[package.path]
+path = "../local-only"
+root = "addons/local-only"
+"#,
+    );
+
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert_eq!(error.message(), "package[0].path is not supported");
+}
+
+#[test]
 fn invariant_catalog_syntax_and_utf8_fail_without_source_access() {
     let syntax = parse_error("schema = 1\nschema = 1\n");
     assert_eq!(syntax.code(), ErrorCode::UserInput);

@@ -5,7 +5,7 @@ use tempfile::TempDir;
 fn invariant_lock_writes_local_lock_without_materialising_packages() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
 
     let output = command(fixture.root()).output().expect("lock should run");
 
@@ -18,7 +18,7 @@ fn invariant_lock_writes_local_lock_without_materialising_packages() {
 fn invariant_repeated_offline_lock_reuses_existing_bytes_without_source_access() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let first = command(fixture.root())
         .output()
         .expect("first lock should run");
@@ -43,7 +43,7 @@ fn invariant_repeated_offline_lock_reuses_existing_bytes_without_source_access()
 fn invariant_lock_refreshes_changed_local_source() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let first = command(fixture.root())
         .output()
         .expect("first lock should run");
@@ -66,7 +66,7 @@ fn invariant_locked_refuses_manifest_lock_mismatch() {
     let fixture = Fixture::new();
     fixture.addon("first", "first");
     fixture.addon("second", "second");
-    fixture.manifest("[dependencies]\naddon = { path = \"first\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"first\" }\n");
     assert!(
         command(fixture.root())
             .output()
@@ -74,7 +74,7 @@ fn invariant_locked_refuses_manifest_lock_mismatch() {
             .status
             .success()
     );
-    fixture.manifest("[dependencies]\naddon = { path = \"second\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"second\" }\n");
 
     let output = command(fixture.root())
         .arg("--locked")

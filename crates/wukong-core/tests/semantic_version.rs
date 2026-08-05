@@ -79,15 +79,17 @@ name = "example"
 godot = "4"
 
 [dependencies]
-local = { path = "../local" }
 git = { git = "https://example.test/addon.git", rev = "0123456789abcdef0123456789abcdef01234567" }
 archive = { url = "https://example.test/addon.zip", sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" }
+
+[dev-dependencies]
+local = { path = "../local" }
 "#,
     )
     .expect("source-pinned dependencies should parse");
 
     assert!(matches!(
-        manifest.dependencies().get("local"),
+        manifest.dev_dependencies().get("local"),
         Some(Dependency::Path { .. })
     ));
     assert!(matches!(

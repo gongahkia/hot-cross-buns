@@ -65,6 +65,7 @@ impl Manifest {
             path,
             input,
             "dependencies",
+            false,
         )?;
         let dev_dependencies = parse_dependencies(
             root.get("dev-dependencies"),
@@ -72,6 +73,7 @@ impl Manifest {
             path,
             input,
             "dev-dependencies",
+            true,
         )?;
         Ok(Self {
             project,
@@ -270,6 +272,7 @@ fn parse_dependencies(
     path: &Path,
     input: &str,
     table_name: &str,
+    development: bool,
 ) -> ManifestResult<BTreeMap<DependencyAlias, Dependency>> {
     let Some(item) = item else {
         return Ok(BTreeMap::new());
@@ -305,6 +308,15 @@ fn parse_dependencies(
                 "must be a version string or inline source table",
             ));
         };
+        if !development && matches!(dependency, Dependency::Path { .. }) {
+            return Err(field_error(
+                path,
+                input,
+                &field,
+                Some(item),
+                "local paths are permitted only in [dev-dependencies]",
+            ));
+        }
         dependencies.insert(alias, dependency);
     }
     Ok(dependencies)

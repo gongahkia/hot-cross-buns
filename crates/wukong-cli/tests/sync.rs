@@ -16,7 +16,7 @@ use wukong_core::{
 fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -26,10 +26,11 @@ fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop()
     );
 
     let install = command("install", fixture.root())
-        .arg("--offline")
+        .args(["--offline", "--dev"])
         .output()
         .expect("install should run");
     let sync = command("sync", fixture.root())
+        .arg("--dev")
         .output()
         .expect("sync should run");
 
@@ -47,7 +48,7 @@ fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop()
 fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -57,7 +58,7 @@ fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
     );
 
     let output = command("sync", fixture.root())
-        .args(["--offline", "--json"])
+        .args(["--offline", "--json", "--dev"])
         .output()
         .expect("JSON sync should run");
 
@@ -90,7 +91,7 @@ fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
 fn invariant_sync_no_progress_preserves_a_plain_human_summary() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -100,7 +101,7 @@ fn invariant_sync_no_progress_preserves_a_plain_human_summary() {
     );
 
     let output = command("sync", fixture.root())
-        .arg("--no-progress")
+        .args(["--no-progress", "--dev"])
         .output()
         .expect("sync should run");
 
@@ -114,7 +115,7 @@ fn invariant_locked_and_frozen_sync_refuse_a_changed_manifest_without_project_mu
     let fixture = Fixture::new();
     fixture.addon("first", "first");
     fixture.addon("second", "second");
-    fixture.manifest("[dependencies]\naddon = { path = \"first\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"first\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -122,7 +123,7 @@ fn invariant_locked_and_frozen_sync_refuse_a_changed_manifest_without_project_mu
             .status
             .success()
     );
-    fixture.manifest("[dependencies]\naddon = { path = \"second\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"second\" }\n");
 
     for option in ["--locked", "--frozen"] {
         let output = command("sync", fixture.root())
@@ -137,10 +138,34 @@ fn invariant_locked_and_frozen_sync_refuse_a_changed_manifest_without_project_mu
 }
 
 #[test]
+fn invariant_frozen_sync_rejects_runtime_local_paths_before_project_mutation() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
+    assert!(
+        command("lock", fixture.root())
+            .output()
+            .expect("lock should run")
+            .status
+            .success()
+    );
+    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+
+    let output = command("sync", fixture.root())
+        .arg("--frozen")
+        .output()
+        .expect("frozen sync should run");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("only in [dev-dependencies]"));
+    assert!(!fixture.root().join("addons").exists());
+}
+
+#[test]
 fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -150,6 +175,7 @@ fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
     );
     assert!(
         command("sync", fixture.root())
+            .arg("--dev")
             .output()
             .expect("sync should run")
             .status
@@ -165,6 +191,7 @@ fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
     );
 
     let output = command("sync", fixture.root())
+        .arg("--dev")
         .output()
         .expect("sync should run");
 
@@ -177,7 +204,7 @@ fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
 fn invariant_explicit_godot_version_is_validated_before_lockfile_or_project_mutation() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
 
     let incompatible_lock = command("lock", fixture.root())
         .args(["--godot", "3.5.0"])
@@ -209,7 +236,7 @@ fn invariant_incompatible_package_godot_metadata_blocks_lock_publication_and_ins
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
     fixture.addon_metadata("addon", "<4");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
 
     let output = command("lock", fixture.root())
         .output()
@@ -276,7 +303,7 @@ fn invariant_offline_cli_sync_lists_missing_remote_cache_objects_before_project_
 fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_release() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -289,6 +316,7 @@ fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_rel
         .expect("fixture project lock should acquire");
 
     let blocked = command("sync", fixture.root())
+        .arg("--dev")
         .output()
         .expect("blocked sync should run");
 
@@ -302,6 +330,7 @@ fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_rel
     drop(lock);
 
     let recovered = command("sync", fixture.root())
+        .arg("--dev")
         .output()
         .expect("recovered sync should run");
 
@@ -318,7 +347,7 @@ fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_rel
 fn invariant_unknown_package_godot_metadata_is_reported_without_blocking_lock() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
 
     let output = command("lock", fixture.root())
         .output()

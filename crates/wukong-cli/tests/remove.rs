@@ -13,7 +13,7 @@ fn invariant_remove_prunes_the_direct_package_and_preserves_required_and_unrelat
         .expect("unrelated file should write");
 
     let output = command("remove", fixture.root())
-        .arg("alpha")
+        .args(["alpha", "--dev"])
         .output()
         .expect("remove should run");
     let lock = Lockfile::parse(
@@ -49,7 +49,7 @@ fn invariant_remove_preserves_modified_formerly_owned_package_files() {
         .expect("installed file should change");
 
     let output = command("remove", fixture.root())
-        .arg("alpha")
+        .args(["alpha", "--dev"])
         .output()
         .expect("remove should run");
 
@@ -73,7 +73,7 @@ fn invariant_remove_preserves_modified_formerly_owned_package_files() {
 
 fn add(fixture: &Fixture, alias: &str) {
     let output = command("add", fixture.root())
-        .args([alias, "--path", alias])
+        .args([alias, "--path", alias, "--dev"])
         .output()
         .expect("add should run");
     assert!(

@@ -3,28 +3,21 @@ use tempfile::TempDir;
 use wukong_core::lockfile::Lockfile;
 
 #[test]
-fn invariant_add_local_path_updates_manifest_lock_and_project_transactionally() {
+fn invariant_add_runtime_local_path_rolls_back_without_lock_or_project_mutation() {
     let fixture = Fixture::new();
     fixture.addon("addon", "extends Node\n");
+    let manifest_before = fixture.manifest();
 
     let output = command(&fixture)
         .args(["addon", "--path", "addon"])
         .output()
         .expect("add should run");
 
-    assert!(
-        output.status.success(),
-        "add failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(fixture.manifest().contains("addon = { path = \"addon\" }"));
-    assert!(fixture.root().join("wukong.lock").is_file());
-    assert_eq!(
-        fs::read_to_string(fixture.root().join("addons/addon/plugin.gd"))
-            .expect("addon should materialise"),
-        "extends Node\n"
-    );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("added addon; sync:"));
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("only in [dev-dependencies]"));
+    assert_eq!(fixture.manifest(), manifest_before);
+    assert!(!fixture.root().join("wukong.lock").exists());
+    assert!(!fixture.root().join("addons/addon").exists());
 }
 
 #[test]

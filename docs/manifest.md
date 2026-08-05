@@ -9,7 +9,10 @@ name = "my-game"
 godot = ">=4.5,<5"
 
 [dependencies]
-example = { path = "../example-addon" }
+example = "^1.2"
+
+[dev-dependencies]
+example-local = { path = "../example-addon" }
 ```
 
 `project.name` is a non-empty string. `project.godot` is the declared Godot
@@ -25,15 +28,18 @@ source:
 ```toml
 [dependencies]
 catalogue = "^1.2"
-local = { path = "../local-addon" }
 git-addon = { git = "https://example.test/addon", tag = "v1.2.0" }
 archive = { url = "https://example.test/addon.zip", sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
 ui = { git = "https://example.test/addons.git", rev = "0123456789abcdef0123456789abcdef01234567", root = "addons/ui", target = "addons/ui" }
+
+[dev-dependencies]
+local = { path = "../local-addon" }
 ```
 
-Local paths may be relative or absolute. Relative paths are resolved against
-the manifest directory and lexically normalised; existence, symlink handling,
-and content hashing are deferred to the local-path adapter. Git accepts HTTPS,
+Local paths are direct development dependencies only. They may be relative or
+absolute; relative paths are resolved against the manifest directory and
+lexically normalised. Existence, symlink handling, and content hashing are
+deferred to the local-path adapter. Git accepts HTTPS,
 `ssh://`, and Git's `user@host:path` SSH form, with at most one of `rev`, `tag`,
 or `branch`. `rev` must be a complete 40- or 64-character hexadecimal object
 ID. Archive sources require a 64-character hexadecimal SHA-256 value.
@@ -57,7 +63,7 @@ part of the declaration identity.
 | `project.godot` | Yes | Godot semantic-version requirement; not an installed-engine probe. |
 | `dependencies` | No | Runtime direct dependencies. |
 | `dev-dependencies` | No | Dependencies selected only with `--dev`. |
-| `path` | One source | Existing local directory, relative to the manifest when not absolute. |
+| `path` | `dev-dependencies` only | Existing direct development directory, relative to the manifest when not absolute. |
 | `git` | One source | Canonicalisable Git URL. |
 | `rev`, `tag`, `branch` | Git only | At most one selector; locks always record a complete commit. |
 | `url` | One source | Credential-free HTTPS ZIP URL. |

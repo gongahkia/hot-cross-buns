@@ -27,11 +27,11 @@ use wukong_core::{
 fn invariant_direct_sync_follows_the_lockfile_and_is_idempotent() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let lock = lock(&fixture, &manifest);
 
-    let first = sync(&fixture, &manifest, &lock, false).expect("fresh sync should work");
-    let second = sync(&fixture, &manifest, &lock, false).expect("repeat sync should work");
+    let first = sync(&fixture, &manifest, &lock, true).expect("fresh sync should work");
+    let second = sync(&fixture, &manifest, &lock, true).expect("repeat sync should work");
 
     assert_eq!(first.written, 1);
     assert_eq!(second.written, 0);
@@ -47,7 +47,7 @@ fn invariant_direct_sync_follows_the_lockfile_and_is_idempotent() {
 fn invariant_direct_sync_reports_deterministic_package_progress() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let lock = lock(&fixture, &manifest);
     let cache = CacheLayout::for_root(fixture.project().join("cache"))
         .expect("cache layout should be valid");
@@ -59,7 +59,7 @@ fn invariant_direct_sync_reports_deterministic_package_progress() {
         fixture.manifest_path(),
         &manifest,
         &lock,
-        false,
+        true,
         &cache,
         true,
         &cancellation,
@@ -91,7 +91,7 @@ fn invariant_direct_sync_reports_deterministic_package_progress() {
 fn invariant_direct_sync_uses_a_verified_source_tree_when_cache_object_is_busy() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let cache = CacheLayout::for_root(fixture.project().join("cache"))
         .expect("cache layout should be valid");
     let lock = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
@@ -110,7 +110,7 @@ fn invariant_direct_sync_uses_a_verified_source_tree_when_cache_object_is_busy()
         fixture.manifest_path(),
         &manifest,
         &lock,
-        false,
+        true,
         &cache,
         true,
     )
@@ -130,7 +130,7 @@ fn invariant_multi_addon_source_layout_overrides_lock_and_sync_each_selected_tre
     fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
     fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
     let manifest = fixture.manifest(
-        "[dependencies]\nalpha = { path = \"multi-addon-source\", root = \"addons/alpha\", target = \"addons/alpha\" }\nbeta = { path = \"multi-addon-source\", root = \"addons/beta\", target = \"addons/beta\" }\n",
+        "[dev-dependencies]\nalpha = { path = \"multi-addon-source\", root = \"addons/alpha\", target = \"addons/alpha\" }\nbeta = { path = \"multi-addon-source\", root = \"addons/beta\", target = \"addons/beta\" }\n",
     );
     let lock = lock(&fixture, &manifest);
 
@@ -148,8 +148,8 @@ fn invariant_multi_addon_source_layout_overrides_lock_and_sync_each_selected_tre
             .source_subdirectory(),
         Path::new("addons/beta")
     );
-    sync(&fixture, &manifest, &lock, false).expect("selected trees should sync");
-    let noop = sync(&fixture, &manifest, &lock, false).expect("repeat sync should work");
+    sync(&fixture, &manifest, &lock, true).expect("selected trees should sync");
+    let noop = sync(&fixture, &manifest, &lock, true).expect("repeat sync should work");
 
     assert_eq!(noop.written, 0);
     assert_eq!(
@@ -176,10 +176,10 @@ fn invariant_native_extension_files_materialise_as_opaque_package_content() {
     .expect("native extension descriptor should write");
     fs::write(native.join("bin/native.macos.debug"), [0_u8, 1, 2, 3])
         .expect("native binary fixture should write");
-    let manifest = fixture.manifest("[dependencies]\nnative = { path = \"native\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\nnative = { path = \"native\" }\n");
     let lock = lock(&fixture, &manifest);
 
-    sync(&fixture, &manifest, &lock, false).expect("native package should sync");
+    sync(&fixture, &manifest, &lock, true).expect("native package should sync");
 
     assert!(
         fixture
@@ -202,11 +202,11 @@ fn invariant_native_extension_files_materialise_as_opaque_package_content() {
 fn invariant_direct_sync_rejects_changed_locked_content_before_project_mutation() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let lock = lock(&fixture, &manifest);
     fs::write(addon.join("plugin.gd"), "changed").expect("source should change");
 
-    assert!(sync(&fixture, &manifest, &lock, false).is_err());
+    assert!(sync(&fixture, &manifest, &lock, true).is_err());
     assert!(!fixture.project().join("addons").exists());
     assert!(!fixture.project().join(".wukong/state.toml").exists());
 }
@@ -215,7 +215,7 @@ fn invariant_direct_sync_rejects_changed_locked_content_before_project_mutation(
 fn invariant_cancelled_sync_leaves_project_unmodified() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let lock = lock(&fixture, &manifest);
     let cache = CacheLayout::for_root(fixture.project().join("cache"))
         .expect("cache layout should be valid");
@@ -227,7 +227,7 @@ fn invariant_cancelled_sync_leaves_project_unmodified() {
         fixture.manifest_path(),
         &manifest,
         &lock,
-        false,
+        true,
         &cache,
         true,
         &cancellation,
@@ -242,16 +242,13 @@ fn invariant_cancelled_sync_leaves_project_unmodified() {
 #[test]
 fn invariant_direct_sync_selects_development_dependencies_only_with_dev_enabled() {
     let fixture = Fixture::new();
-    fixture.addon("runtime", "runtime");
     fixture.addon("development", "development");
-    let manifest = fixture.manifest(
-        "[dependencies]\nruntime = { path = \"runtime\" }\n\n[dev-dependencies]\ndevelopment = { path = \"development\" }\n",
-    );
+    let manifest =
+        fixture.manifest("[dev-dependencies]\ndevelopment = { path = \"development\" }\n");
     let lock = lock(&fixture, &manifest);
 
-    sync(&fixture, &manifest, &lock, false).expect("runtime sync should work");
+    sync(&fixture, &manifest, &lock, false).expect("runtime-only sync should work");
 
-    assert!(fixture.project().join("addons/runtime/plugin.gd").is_file());
     assert!(
         !fixture
             .project()

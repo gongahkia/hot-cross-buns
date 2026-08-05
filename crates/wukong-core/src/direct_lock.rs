@@ -516,6 +516,19 @@ fn insert_declarations(
     development: bool,
 ) -> Result<(), Box<Diagnostic>> {
     for (alias, dependency) in dependencies {
+        if !development && matches!(dependency, Dependency::Path { .. }) {
+            return Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::UserInput,
+                    format!(
+                        "runtime dependency {} must not use a local path",
+                        alias.as_str()
+                    ),
+                )
+                .with_package(alias.as_str())
+                .with_recovery("move the local path dependency to [dev-dependencies]"),
+            ));
+        }
         let (source, layout) = declaration_source(dependency)?;
         let name = PackageName::parse(alias.as_str()).map_err(|error| {
             Box::new(

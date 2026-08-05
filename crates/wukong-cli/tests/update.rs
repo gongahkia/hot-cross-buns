@@ -131,7 +131,7 @@ fn invariant_version_only_update_fails_before_lockfile_or_project_mutation() {
 
 fn add(fixture: &Fixture, alias: &str) {
     let output = Command::new(env!("CARGO_BIN_EXE_wukong"))
-        .args(["add", alias, "--path", alias])
+        .args(["add", alias, "--path", alias, "--dev"])
         .current_dir(fixture.root())
         .output()
         .expect("add should run");

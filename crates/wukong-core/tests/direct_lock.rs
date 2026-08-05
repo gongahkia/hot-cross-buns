@@ -21,8 +21,9 @@ fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
     let fixture = Fixture::new();
     fixture.addon("alpha", "alpha");
     fixture.addon("zebra", "zebra");
-    let manifest = fixture
-        .manifest("[dependencies]\nzebra = { path = \"zebra\" }\nalpha = { path = \"alpha\" }\n");
+    let manifest = fixture.manifest(
+        "[dev-dependencies]\nzebra = { path = \"zebra\" }\nalpha = { path = \"alpha\" }\n",
+    );
 
     let first = lock(&fixture, &manifest, None);
     let second = lock(&fixture, &manifest, None);
@@ -49,7 +50,7 @@ fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
 fn invariant_lock_publishes_a_verified_prepared_package_cache_object() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let cache =
         CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
 
@@ -61,6 +62,25 @@ fn invariant_lock_publishes_a_verified_prepared_package_cache_object() {
 
     assert_eq!(object.sha256(), package.package_sha256());
     assert_eq!(object.prepared().files().len(), 1);
+}
+
+#[test]
+fn invariant_runtime_local_paths_fail_before_cache_or_lock_publication() {
+    let fixture = Fixture::new();
+    fixture.addon("addon", "first");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let error = Manifest::parse(
+        fixture.manifest_path(),
+        "[project]\nname=\"fixture\"\ngodot=\"4\"\n\n[dependencies]\naddon = { path = \"addon\" }\n",
+    )
+    .expect_err("runtime local path must be rejected");
+
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert!(error.message().contains("dependencies.addon"));
+    assert!(error.message().contains("only in [dev-dependencies]"));
+    assert!(!cache.packages().exists());
 }
 
 #[test]
@@ -128,7 +148,7 @@ fn invariant_offline_lock_reports_every_missing_remote_cache_object() {
     let git_commit = "1".repeat(40);
     let archive_sha256 = "2".repeat(64);
     let manifest = fixture.manifest(&format!(
-        "[dependencies]\ngit-addon = {{ git = \"https://fixture.test/git-addon.git\", rev = \"{git_commit}\" }}\nhttp-addon = {{ url = \"https://fixture.test/http-addon.zip\", sha256 = \"{archive_sha256}\" }}\n"
+        "[dev-dependencies]\ngit-addon = {{ git = \"https://fixture.test/git-addon.git\", rev = \"{git_commit}\" }}\nhttp-addon = {{ url = \"https://fixture.test/http-addon.zip\", sha256 = \"{archive_sha256}\" }}\n"
     ));
     let cache =
         CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should work");
@@ -151,7 +171,7 @@ fn invariant_offline_lock_reports_every_missing_remote_cache_object() {
 fn invariant_changed_local_content_changes_the_direct_lock() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let first = lock(&fixture, &manifest, None);
     fs::write(addon.join("plugin.gd"), "second").expect("fixture addon should change");
 
@@ -169,11 +189,11 @@ fn invariant_changed_layout_override_relocks_the_same_source() {
     fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
     fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
     let alpha = fixture.manifest(
-        "[dependencies]\naddon = { path = \"suite\", root = \"addons/alpha\", target = \"addons/alpha\" }\n",
+        "[dev-dependencies]\naddon = { path = \"suite\", root = \"addons/alpha\", target = \"addons/alpha\" }\n",
     );
     let first = lock(&fixture, &alpha, None);
     let beta = fixture.manifest(
-        "[dependencies]\naddon = { path = \"suite\", root = \"addons/beta\", target = \"addons/beta\" }\n",
+        "[dev-dependencies]\naddon = { path = \"suite\", root = \"addons/beta\", target = \"addons/beta\" }\n",
     );
 
     let second = lock(&fixture, &beta, Some(&first));
@@ -193,7 +213,7 @@ fn invariant_changed_layout_override_relocks_the_same_source() {
 fn invariant_parallel_lock_failures_are_reported_in_package_order() {
     let fixture = Fixture::new();
     let manifest = fixture.manifest(
-        "[dependencies]\nzebra = { path = \"missing-zebra\" }\nalpha = { path = \"missing-alpha\" }\n",
+        "[dev-dependencies]\nzebra = { path = \"missing-zebra\" }\nalpha = { path = \"missing-alpha\" }\n",
     );
     let cache =
         CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
@@ -208,7 +228,7 @@ fn invariant_parallel_lock_failures_are_reported_in_package_order() {
 fn invariant_cancelled_lock_reads_no_source_content() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let cache =
         CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
     let cancellation = CancellationToken::new();
@@ -233,7 +253,7 @@ fn invariant_cancelled_lock_reads_no_source_content() {
 fn invariant_existing_matching_lock_reuses_without_source_access() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
-    let manifest = fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     let existing = lock(&fixture, &manifest, None);
     fs::remove_dir_all(addon).expect("fixture source should be removable");
 
@@ -248,7 +268,7 @@ fn invariant_selected_update_changes_only_the_selected_direct_lock_entry() {
     let alpha = fixture.addon("alpha", "first");
     let beta = fixture.addon("beta", "first");
     let manifest = fixture
-        .manifest("[dependencies]\nalpha = { path = \"alpha\" }\nbeta = { path = \"beta\" }\n");
+        .manifest("[dev-dependencies]\nalpha = { path = \"alpha\" }\nbeta = { path = \"beta\" }\n");
     let existing = lock(&fixture, &manifest, None);
     fs::write(alpha.join("plugin.gd"), "second").expect("selected source should change");
     fs::write(beta.join("plugin.gd"), "second").expect("unselected source should change");

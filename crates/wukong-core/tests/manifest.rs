@@ -35,16 +35,16 @@ godot = "4"
 dialogic = "^2.0"
 terrain3d = {{ git = "https://example.test/terrain3d.git", tag = "v1.0.0" }}
 custom-ui = {{ url = "https://example.test/custom-ui.zip", sha256 = "{SHA256_EMPTY_FILE}" }}
-shared-tools = {{ path = "shared-tools" }}
 
 [dev-dependencies]
+shared-tools = {{ path = "shared-tools" }}
 test-tools = {{ path = "test-tools" }}
 "#,
     ));
 
     assert_eq!(manifest.project().name(), "my-game");
-    assert_eq!(manifest.dependencies().len(), 4);
-    assert_eq!(manifest.dev_dependencies().len(), 1);
+    assert_eq!(manifest.dependencies().len(), 3);
+    assert_eq!(manifest.dev_dependencies().len(), 2);
     assert!(matches!(
         manifest.dependencies().get("dialogic"),
         Some(Dependency::Version(_))
@@ -61,7 +61,7 @@ test-tools = {{ path = "test-tools" }}
         Some(Dependency::Url { sha256, .. }) if sha256 == SHA256_EMPTY_FILE
     ));
     assert!(matches!(
-        manifest.dependencies().get("shared-tools"),
+        manifest.dev_dependencies().get("shared-tools"),
         Some(Dependency::Path { path, layout })
             if path == &PathBuf::from("fixture").join("shared-tools")
                 && layout == &DependencyLayout::default()
@@ -98,14 +98,14 @@ fn invariant_relative_paths_are_resolved_and_lexically_normalised() {
 name = "my-game"
 godot = "4"
 
-[dependencies]
+[dev-dependencies]
 example = { path = "./addons/../addons/example" }
 "#;
     let manifest = Manifest::parse(Path::new("fixtures/project/wukong.toml"), input)
         .expect("manifest should parse");
 
     assert!(matches!(
-        manifest.dependencies().get("example"),
+        manifest.dev_dependencies().get("example"),
         Some(Dependency::Path { path, .. })
             if path == &PathBuf::from("fixtures").join("project/addons/example")
     ));
@@ -119,12 +119,12 @@ fn invariant_direct_source_layout_overrides_are_safe_and_typed() {
 name = "my-game"
 godot = "4"
 
-[dependencies]
+[dev-dependencies]
 alpha = { path = "../multi-addon", root = "3d/alpha", target = "addons/alpha" }
 "#,
     );
 
-    let Some(Dependency::Path { layout, .. }) = manifest.dependencies().get("alpha") else {
+    let Some(Dependency::Path { layout, .. }) = manifest.dev_dependencies().get("alpha") else {
         panic!("path dependency should retain layout overrides");
     };
     assert_eq!(layout.root(), Some(Path::new("3d/alpha")));
@@ -136,7 +136,7 @@ alpha = { path = "../multi-addon", root = "3d/alpha", target = "addons/alpha" }
 name = "my-game"
 godot = "4"
 
-[dependencies]
+[dev-dependencies]
 alpha = { path = "../multi-addon", root = "C:\\escape" }
 "#,
     );
@@ -235,7 +235,7 @@ fn invariant_invalid_relative_paths_are_rejected() {
 name = "my-game"
 godot = "4"
 
-[dependencies]
+[dev-dependencies]
 example = { path = "\u0000" }
 "#,
     );

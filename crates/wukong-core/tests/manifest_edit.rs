@@ -14,11 +14,12 @@ godot = "4"
 [dependencies]
 # zebra comment
 zebra = "^1"
-alpha = { path = "../alpha" }
+alpha = "^1"
 
 [dev-dependencies]
 # developer tool comment
 tool = "^2"
+local-tool = { path = "../local-tool" }
 "#;
 
 #[test]
@@ -29,7 +30,7 @@ fn invariant_add_preserves_unrelated_fields_and_comments() {
         fixture.manifest_path(),
         DependencySection::Runtime,
         "beta",
-        &DependencyDeclaration::Path(PathBuf::from("../beta")),
+        &DependencyDeclaration::Version("^3".to_owned()),
     )
     .expect("dependency should be added");
     let content = fixture.content();
@@ -39,7 +40,7 @@ fn invariant_add_preserves_unrelated_fields_and_comments() {
     assert!(content.contains("# zebra comment"));
     assert!(content.contains("# developer tool comment"));
     assert!(content.contains("tool = \"^2\""));
-    assert!(content.contains("beta = { path = \"../beta\" }"));
+    assert!(content.contains("beta = \"^3\""));
     assert!(parsed.dependencies().contains_key("beta"));
 }
 
@@ -90,10 +91,28 @@ fn invariant_remove_only_changes_the_requested_dependency() {
     let parsed = Manifest::parse(fixture.manifest_path(), &content).expect("manifest should parse");
 
     assert!(!content.contains("zebra"));
-    assert!(content.contains("alpha = { path = \"../alpha\" }"));
+    assert!(content.contains("alpha = \"^1\""));
     assert!(content.contains("# developer tool comment"));
     assert!(parsed.dependencies().contains_key("alpha"));
     assert!(parsed.dev_dependencies().contains_key("tool"));
+}
+
+#[test]
+fn invariant_runtime_local_path_edit_leaves_the_manifest_unchanged() {
+    let fixture = Fixture::new(INITIAL_MANIFEST);
+    let before = fixture.content();
+
+    let error = add_dependency(
+        fixture.manifest_path(),
+        DependencySection::Runtime,
+        "beta",
+        &DependencyDeclaration::Path(PathBuf::from("../beta")),
+    )
+    .expect_err("runtime local paths must be rejected");
+
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert!(error.message().contains("only in [dev-dependencies]"));
+    assert_eq!(fixture.content(), before);
 }
 
 #[test]

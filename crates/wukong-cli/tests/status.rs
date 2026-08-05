@@ -5,7 +5,7 @@ use tempfile::TempDir;
 fn invariant_status_json_reports_only_installed_package_identities() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
-    fixture.manifest("[dependencies]\naddon = { path = \"addon\" }\n");
+    fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
     assert!(
         command("lock", fixture.root())
             .output()
@@ -15,6 +15,7 @@ fn invariant_status_json_reports_only_installed_package_identities() {
     );
     assert!(
         command("sync", fixture.root())
+            .arg("--dev")
             .output()
             .expect("sync should run")
             .status

@@ -147,7 +147,7 @@ impl Fixture {
         .expect("project marker should write");
         fs::write(
             root.join("wukong.toml"),
-            "[project]\nname=\"fixture\"\ngodot=\"4\"\n\n[dependencies]\nalpha = { path = \"alpha\" }\nbeta = { path = \"beta\" }\n\n[dev-dependencies]\ndev-tool = { path = \"dev-tool\" }\n",
+            "[project]\nname=\"fixture\"\ngodot=\"4\"\n\n[dependencies]\nalpha = \"^1\"\nbeta = \"^1\"\n\n[dev-dependencies]\ndev-tool = { path = \"dev-tool\" }\n",
         )
         .expect("manifest should write");
         let lock = Lockfile::new([

@@ -19,7 +19,7 @@ produces the same addon state without changing unrelated project files.
 
 ## Reproducibility is the product
 
-`wukong.toml` declares direct local-path, Git, and HTTPS archive sources.
+`wukong.toml` declares direct development local-path, Git, and HTTPS archive sources.
 `wukong.lock` records the resulting immutable source identity, selected source
 directory, target path, declaration fingerprint, and prepared-tree SHA-256.
 Git tags and branches are convenient inputs, but the lock records a complete

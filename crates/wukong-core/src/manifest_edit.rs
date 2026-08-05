@@ -72,6 +72,14 @@ pub fn add_dependency(
     alias: &str,
     declaration: &DependencyDeclaration,
 ) -> ManifestResult<()> {
+    if section == DependencySection::Runtime
+        && matches!(declaration, DependencyDeclaration::Path(_))
+    {
+        return Err(user_error(
+            "local paths are permitted only in [dev-dependencies]",
+            "add the local path with --dev",
+        ));
+    }
     edit_manifest(
         manifest_path,
         |dependencies| {

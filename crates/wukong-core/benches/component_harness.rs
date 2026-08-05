@@ -59,7 +59,7 @@ fn main() {
 }
 
 fn benchmark_manifest_parsing() {
-    let input = "[project]\nname = \"benchmark\"\ngodot = \"4\"\n\n[dependencies]\naddon = { path = \"addons/addon\" }\n";
+    let input = "[project]\nname = \"benchmark\"\ngodot = \"4\"\n\n[dev-dependencies]\naddon = { path = \"addons/addon\" }\n";
     benchmark("manifest-parse", "minimal-manifest", ITERATIONS, || {
         black_box(
             Manifest::parse(Path::new("fixture/wukong.toml"), input)
@@ -197,7 +197,7 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
     let manifest_path = fixture.project.join("direct-sync-wukong.toml");
     let manifest = Manifest::parse(
         &manifest_path,
-        "[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dependencies]\nbenchmark-addon = { path = \"source\" }\n",
+        "[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\nbenchmark-addon = { path = \"source\" }\n",
     )
     .expect("benchmark manifest should parse");
     let cache = CacheLayout::for_root(fixture.root().join("direct-sync-cache"))
@@ -209,7 +209,7 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
         &manifest_path,
         &manifest,
         &lock,
-        false,
+        true,
         &cache,
         true,
     )
@@ -225,7 +225,7 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
                     &manifest_path,
                     &manifest,
                     &lock,
-                    false,
+                    true,
                     &cache,
                     true,
                 )
@@ -238,7 +238,8 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
 fn benchmark_direct_sync_aliases() {
     let fixture = LocalFixture::new(SMALL_PROJECT);
     let manifest_path = fixture.project.join("direct-sync-aliases-wukong.toml");
-    let mut input = String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dependencies]\n");
+    let mut input =
+        String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\n");
     for index in 0..DIRECT_SYNC_ALIAS_COUNT {
         let _ = writeln!(
             input,
@@ -255,7 +256,7 @@ fn benchmark_direct_sync_aliases() {
         &manifest_path,
         &manifest,
         &lock,
-        false,
+        true,
         &cache,
         true,
     )
@@ -267,7 +268,7 @@ fn benchmark_direct_sync_aliases() {
                 &manifest_path,
                 &manifest,
                 &lock,
-                false,
+                true,
                 &cache,
                 true,
             )

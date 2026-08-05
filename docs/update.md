@@ -20,7 +20,7 @@ run `wukong lock` first so it cannot silently retain stale state. It also rolls
 back its new lockfile when synchronisation detects a changed unrelated local
 source.
 
-Supported declarations are local paths, Git sources, and checksum-pinned HTTPS
+Supported declarations are development local paths, Git sources, and checksum-pinned HTTPS
 archives. A version-only declaration remains unsupported until a package
 catalogue source is available; Wukong rejects it before lockfile or project
 mutation. Package scripts are never executed.

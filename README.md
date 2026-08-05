@@ -29,7 +29,7 @@ catalog candidates, while `wukong source list` inspects them without fetching.
 
 ```sh
 wukong lock
-wukong install
+wukong install --dev
 ```
 
 `install`/`sync` reconcile the existing lockfile through a rollback transaction
