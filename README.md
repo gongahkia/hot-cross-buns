@@ -57,6 +57,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [`wukong doctor`](docs/doctor.md)
 - [Project discovery](docs/project-discovery.md)
 - [Manifest schema](docs/manifest.md)
+- [Source catalog schema](docs/source-catalog.md)
 - [Package identity](docs/package-identity.md)
 - [Source adapters](docs/source-adapters.md)
 - [Local paths](docs/local-paths.md)

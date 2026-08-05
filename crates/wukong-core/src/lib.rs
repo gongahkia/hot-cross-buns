@@ -70,6 +70,9 @@ pub mod package_metadata;
 /// Project-manifest parsing and validation.
 pub mod manifest;
 
+/// Project-owned source-catalog parsing.
+pub mod source_catalog;
+
 /// Transactional manifest editing.
 pub mod manifest_edit;
 

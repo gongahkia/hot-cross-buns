@@ -1,0 +1,42 @@
+# Source catalog
+
+`wukong.sources.toml` is a committed UTF-8 TOML catalog of project-reviewed
+package source locations. It does not fetch sources while parsing and it is not
+a hosted registry or user-scoped configuration.
+
+Schema one uses a required `schema` value and one `[[package]]` candidate per
+declared source:
+
+```toml
+schema = 1
+
+[[package]]
+name = "terrain3d"
+[package.git]
+url = "https://example.test/terrain3d.git"
+root = "addons/terrain3d"
+tag-prefix = "v"
+
+[[package]]
+name = "theme"
+[package.http]
+version = "1.2.3"
+url = "https://example.test/theme-1.2.3.zip"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+root = "addons/theme"
+```
+
+Each `[[package]]` entry has a `name` and exactly one source table:
+
+| Source table | Required fields | Optional fields |
+| --- | --- | --- |
+| `[package.git]` | `url`, `root` | `tag-prefix` |
+| `[package.http]` | `version`, `url`, `sha256`, `root` | None |
+
+Schema parsing rejects unknown fields, missing required fields, incorrect TOML
+types, unsupported schemas, invalid UTF-8, and invalid TOML syntax. It groups
+entries by package name and orders package names and candidates deterministically.
+
+Source, package-name, path, SemVer, checksum, and duplicate-identity validation
+are separate catalog-validation work. The catalog is not yet consumed by lock or
+sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
