@@ -2059,7 +2059,7 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    text: "Hold Command or Ctrl while clicking an HTTP or HTTPS link to open it."
+                    text: "Enter Safari, Google Chrome, Firefox, or another macOS browser. Leave blank for the system default; hold Command or Ctrl while clicking an HTTP or HTTPS link to open it."
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }
