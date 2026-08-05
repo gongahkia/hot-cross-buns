@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::BTreeMap, fs};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    fs,
+};
 use tempfile::TempDir;
 use wukong_core::{
     identity::PackageName,
@@ -130,6 +134,56 @@ fn invariant_valid_lock_is_preferred_and_avoids_an_unnecessary_update() {
             .version()
             .to_string(),
         "1.0.0"
+    );
+}
+
+#[test]
+fn invariant_runtime_closure_promotes_shared_packages_and_excludes_development_only_packages() {
+    let mut universe = InMemoryPackageUniverse::new();
+    add(
+        &mut universe,
+        "runtime-root",
+        candidate("1.0.0", &[("shared", "^1")]),
+    );
+    add(
+        &mut universe,
+        "dev-root",
+        candidate("1.0.0", &[("shared", "^1"), ("dev-only", "^1")]),
+    );
+    add(&mut universe, "shared", candidate("1.0.0", &[]));
+    add(&mut universe, "dev-only", candidate("1.0.0", &[]));
+    let mut request = ResolutionRequest::new();
+    request.require_runtime(name("runtime-root"), requirement("^1"));
+    request.require_development(name("dev-root"), requirement("^1"));
+
+    let graph = resolve_dependencies(&universe, &request, &CancellationToken::new())
+        .expect("grouped graph should resolve");
+
+    assert_eq!(
+        graph.runtime_roots(),
+        &BTreeSet::from([name("runtime-root")])
+    );
+    assert_eq!(
+        graph.development_roots(),
+        &BTreeSet::from([name("dev-root")])
+    );
+    assert!(!graph.packages()[&name("shared")].is_development());
+    assert!(graph.packages()[&name("dev-only")].is_development());
+    assert_eq!(
+        graph
+            .package_names(false)
+            .into_iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["runtime-root", "shared"]
+    );
+    assert_eq!(
+        graph
+            .package_names(true)
+            .into_iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["dev-only", "dev-root", "runtime-root", "shared"]
     );
 }
 

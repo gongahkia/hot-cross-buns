@@ -173,6 +173,8 @@ impl PackageUniverse for InMemoryPackageUniverse {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ResolutionRequest {
     direct_dependencies: BTreeMap<PackageName, VersionRequirement>,
+    runtime_roots: BTreeSet<PackageName>,
+    development_roots: BTreeSet<PackageName>,
     locked: BTreeMap<PackageName, SemanticVersion>,
 }
 
@@ -185,6 +187,18 @@ impl ResolutionRequest {
 
     /// Adds a direct requirement.
     pub fn require(&mut self, package: PackageName, requirement: VersionRequirement) {
+        self.require_runtime(package, requirement);
+    }
+
+    /// Adds a direct runtime requirement.
+    pub fn require_runtime(&mut self, package: PackageName, requirement: VersionRequirement) {
+        self.runtime_roots.insert(package.clone());
+        self.direct_dependencies.insert(package, requirement);
+    }
+
+    /// Adds a direct development requirement.
+    pub fn require_development(&mut self, package: PackageName, requirement: VersionRequirement) {
+        self.development_roots.insert(package.clone());
         self.direct_dependencies.insert(package, requirement);
     }
 
@@ -200,6 +214,18 @@ impl ResolutionRequest {
         &self.direct_dependencies
     }
 
+    /// Returns direct runtime package roots in deterministic name order.
+    #[must_use]
+    pub const fn runtime_roots(&self) -> &BTreeSet<PackageName> {
+        &self.runtime_roots
+    }
+
+    /// Returns direct development package roots in deterministic name order.
+    #[must_use]
+    pub const fn development_roots(&self) -> &BTreeSet<PackageName> {
+        &self.development_roots
+    }
+
     /// Returns preferred locked versions in deterministic name order.
     #[must_use]
     pub const fn locked(&self) -> &BTreeMap<PackageName, SemanticVersion> {
@@ -207,11 +233,21 @@ impl ResolutionRequest {
     }
 }
 
+/// The selected group closure for a resolved package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ResolvedDependencyGroup {
+    /// Reachable from at least one direct runtime root.
+    Runtime,
+    /// Reachable only from direct development roots.
+    Development,
+}
+
 /// One selected package in a resolved graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedPackage {
     version: SemanticVersion,
     dependencies: BTreeMap<PackageName, VersionRequirement>,
+    group: ResolvedDependencyGroup,
 }
 
 impl ResolvedPackage {
@@ -226,12 +262,26 @@ impl ResolvedPackage {
     pub const fn dependencies(&self) -> &BTreeMap<PackageName, VersionRequirement> {
         &self.dependencies
     }
+
+    /// Returns the package's deterministic runtime or development-only group.
+    #[must_use]
+    pub const fn group(&self) -> ResolvedDependencyGroup {
+        self.group
+    }
+
+    /// Returns whether the package belongs only to the development closure.
+    #[must_use]
+    pub const fn is_development(&self) -> bool {
+        matches!(self.group, ResolvedDependencyGroup::Development)
+    }
 }
 
 /// A complete deterministic selection of transitive packages.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedGraph {
     packages: BTreeMap<PackageName, ResolvedPackage>,
+    runtime_roots: BTreeSet<PackageName>,
+    development_roots: BTreeSet<PackageName>,
 }
 
 impl ResolvedGraph {
@@ -239,6 +289,28 @@ impl ResolvedGraph {
     #[must_use]
     pub const fn packages(&self) -> &BTreeMap<PackageName, ResolvedPackage> {
         &self.packages
+    }
+
+    /// Returns selected direct runtime roots in deterministic name order.
+    #[must_use]
+    pub const fn runtime_roots(&self) -> &BTreeSet<PackageName> {
+        &self.runtime_roots
+    }
+
+    /// Returns selected direct development roots in deterministic name order.
+    #[must_use]
+    pub const fn development_roots(&self) -> &BTreeSet<PackageName> {
+        &self.development_roots
+    }
+
+    /// Returns selected package names for runtime-only or development-inclusive work.
+    #[must_use]
+    pub fn package_names(&self, include_development: bool) -> Vec<&PackageName> {
+        self.packages
+            .iter()
+            .filter(|(_, package)| include_development || !package.is_development())
+            .map(|(name, _)| name)
+            .collect()
     }
 }
 
@@ -281,11 +353,62 @@ pub fn resolve_dependencies(
             ResolvedPackage {
                 version,
                 dependencies: candidate.dependencies,
+                group: ResolvedDependencyGroup::Runtime,
             },
         );
     }
     detect_cycle(&packages)?;
-    Ok(ResolvedGraph { packages })
+    let runtime_roots = request
+        .runtime_roots()
+        .iter()
+        .filter(|name| packages.contains_key(*name))
+        .cloned()
+        .collect();
+    let development_roots = request
+        .development_roots()
+        .iter()
+        .filter(|name| packages.contains_key(*name))
+        .cloned()
+        .collect();
+    classify_groups(&mut packages, &runtime_roots, &development_roots);
+    Ok(ResolvedGraph {
+        packages,
+        runtime_roots,
+        development_roots,
+    })
+}
+
+fn classify_groups(
+    packages: &mut BTreeMap<PackageName, ResolvedPackage>,
+    runtime_roots: &BTreeSet<PackageName>,
+    development_roots: &BTreeSet<PackageName>,
+) {
+    let runtime = reachable_packages(packages, runtime_roots);
+    let development = reachable_packages(packages, development_roots);
+    for (name, package) in packages {
+        package.group = if development.contains(name) && !runtime.contains(name) {
+            ResolvedDependencyGroup::Development
+        } else {
+            ResolvedDependencyGroup::Runtime
+        };
+    }
+}
+
+fn reachable_packages(
+    packages: &BTreeMap<PackageName, ResolvedPackage>,
+    roots: &BTreeSet<PackageName>,
+) -> BTreeSet<PackageName> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = roots.iter().cloned().collect::<Vec<_>>();
+    while let Some(name) = pending.pop() {
+        if !reachable.insert(name.clone()) {
+            continue;
+        }
+        if let Some(package) = packages.get(&name) {
+            pending.extend(package.dependencies.keys().cloned());
+        }
+    }
+    reachable
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

@@ -119,6 +119,12 @@ catalog acquisition. This core API may populate and verify the shared cache,
 but never reads or mutates a Godot project, manifest, lockfile, or installed
 state. CLI lock/sync publication is later graph integration work.
 
+Resolver requests classify direct roots as runtime or development. The resolved
+graph derives the complete closures: development-only packages are excluded
+from runtime selection, while any package also reachable from a runtime root is
+promoted to runtime and selected once. The current direct-source sync remains
+separate until catalog graph integration.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited
