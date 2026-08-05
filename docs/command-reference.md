@@ -15,6 +15,7 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `outdated [--offline] [--json]` | Report available Git tag updates without mutation. | [outdated](outdated.md) |
 | `audit [--json]` | Display immutable locked provenance. | [audit](audit.md) |
 | `status [--json]` | Read installed package identities from project state. | [installed state](installed-state.md) |
+| `source add <name> <--git\|--url> …` | Transactionally add one reviewed source candidate. | [source catalog](source-catalog.md) |
 | `source list [--json]` | Inspect canonical reviewed source candidates without fetching. | [source catalog](source-catalog.md) |
 | `source validate [--json]` | Report every invalid catalog declaration without fetching. | [source catalog](source-catalog.md) |
 | `cache <dir\|status\|clean\|verify>` | Inspect, verify, or conservatively clean managed cache entries. | [cache](cache.md) |

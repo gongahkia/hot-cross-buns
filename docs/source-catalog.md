@@ -60,6 +60,16 @@ per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited
 candidate remains unchanged.
 
+`wukong source add` adds one reviewed candidate without fetching it:
+
+```sh
+wukong source add terrain3d --git https://example.test/terrain3d.git --root addons/terrain3d --tag-prefix v
+wukong source add theme --url https://example.test/theme.zip --version 1.2.3 --sha256 <64-lowercase-hex> --root addons/theme
+```
+
+The command accepts `--project <path>`, creates a schema-one catalog when it
+is absent, and rejects unsafe or duplicate declarations before publication.
+
 ## Inspecting sources
 
 `wukong source list` reads and validates the project catalog without fetching

@@ -52,6 +52,7 @@ use wukong_core::{
         SOURCE_CATALOG_FILE_NAME, SOURCE_CATALOG_SCHEMA, SourceCatalog, ValidatedCatalogCandidate,
         ValidatedSourceCatalog,
     },
+    source_catalog_edit::{CatalogEditEntry, add_entry as add_catalog_entry},
     transactional_file::{FileSnapshot, write_atomic},
 };
 
@@ -1288,13 +1289,16 @@ fn run_source(
             run_source_list(arguments).map(|()| ProcessExit::Success)
         }
         Some(command) if command == "validate" => run_source_validate(arguments),
+        Some(command) if command == "add" => {
+            run_source_add(arguments).map(|()| ProcessExit::Success)
+        }
         Some(command) => Err(user_error(
             format!("unsupported source command {}", command.to_string_lossy()),
-            "run wukong source <list|validate> [--json] [--project <path>]",
+            "run wukong source <add|list|validate> [options]",
         )),
         None => Err(user_error(
             "source requires a subcommand",
-            "run wukong source <list|validate> [--json] [--project <path>]",
+            "run wukong source <add|list|validate> [options]",
         )),
     }
 }
@@ -1378,6 +1382,150 @@ fn run_source_validate(
             Ok(ProcessExit::User)
         }
     }
+}
+
+struct SourceAddOptions {
+    name: String,
+    entry: CatalogEditEntry,
+    project: Option<PathBuf>,
+}
+
+fn run_source_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_source_add_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    add_catalog_entry(&path, &options.entry)?;
+    println!("added source candidate {}", options.name);
+    Ok(())
+}
+
+fn parse_source_add_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<SourceAddOptions, Box<Diagnostic>> {
+    let name = arguments.next().ok_or_else(|| {
+        user_error(
+            "source add requires a package name",
+            "run wukong source add <name> --git <url> --root <path> or --url <url> --version <version> --sha256 <hash> --root <path>",
+        )
+    })?;
+    let name = name.to_string_lossy().into_owned();
+    let mut git = None;
+    let mut url = None;
+    let mut root = None;
+    let mut version = None;
+    let mut sha256 = None;
+    let mut tag_prefix = None;
+    let mut project = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--git" {
+            set_source_add_value(&mut git, &mut arguments, "--git")?;
+            continue;
+        }
+        if argument == "--url" {
+            set_source_add_value(&mut url, &mut arguments, "--url")?;
+            continue;
+        }
+        if argument == "--root" {
+            set_source_add_value(&mut root, &mut arguments, "--root")?;
+            continue;
+        }
+        if argument == "--version" {
+            set_source_add_value(&mut version, &mut arguments, "--version")?;
+            continue;
+        }
+        if argument == "--sha256" {
+            set_source_add_value(&mut sha256, &mut arguments, "--sha256")?;
+            continue;
+        }
+        if argument == "--tag-prefix" {
+            set_source_add_value(&mut tag_prefix, &mut arguments, "--tag-prefix")?;
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported source add argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+        ));
+    }
+    let root = root.ok_or_else(|| {
+        user_error(
+            "source add requires --root",
+            "provide a safe source-relative package root",
+        )
+    })?;
+    let entry = match (git, url) {
+        (Some(url), None) if version.is_none() && sha256.is_none() => CatalogEditEntry::Git {
+            name: name.clone(),
+            url,
+            root: PathBuf::from(root),
+            tag_prefix,
+        },
+        (None, Some(url)) if tag_prefix.is_none() => CatalogEditEntry::Http {
+            name: name.clone(),
+            version: version.ok_or_else(|| {
+                user_error(
+                    "--url requires --version",
+                    "provide the complete archive semantic version",
+                )
+            })?,
+            url,
+            sha256: sha256.ok_or_else(|| {
+                user_error(
+                    "--url requires --sha256",
+                    "provide the expected 64-character SHA-256 checksum",
+                )
+            })?,
+            root: PathBuf::from(root),
+        },
+        _ => {
+            return Err(user_error(
+                "source add requires exactly one complete source declaration",
+                "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+            ));
+        }
+    };
+    Ok(SourceAddOptions {
+        name,
+        entry,
+        project,
+    })
+}
+
+fn set_source_add_value(
+    destination: &mut Option<String>,
+    arguments: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<(), Box<Diagnostic>> {
+    let value = required_add_value(arguments, option)?;
+    if destination.replace(value).is_some() {
+        return Err(user_error(
+            format!("{option} may be supplied only once"),
+            "remove the repeated option",
+        ));
+    }
+    Ok(())
 }
 
 fn parse_source_read_arguments(
@@ -3111,7 +3259,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <list|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
