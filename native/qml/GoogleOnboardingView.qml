@@ -97,7 +97,7 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: "For an External app, open Data Access → Add or Remove Scopes and add: tasks, calendar, and drive.metadata.readonly."
+                        text: "For an External app, open Data Access → Add or Remove Scopes and add: https://www.googleapis.com/auth/tasks, https://www.googleapis.com/auth/calendar, and https://www.googleapis.com/auth/drive.metadata.readonly."
                         wrapMode: Text.WordWrap
                         color: Theme.textSecondary
                     }
