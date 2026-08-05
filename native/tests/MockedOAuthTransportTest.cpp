@@ -32,6 +32,7 @@ class MockedOAuthTransportTest final : public QObject {
 
 private slots:
   void exchangesAuthorizationCodeThroughMock();
+  void reportsTokenExchangeHttpErrorCode();
   void refreshesAccessTokenThroughMock();
   void revokesTokenThroughMock();
   void sendsGoogleTransportRequestThroughMock();
@@ -68,6 +69,28 @@ void MockedOAuthTransportTest::exchangesAuthorizationCodeThroughMock() {
   QCOMPARE(form.queryItemValue(QStringLiteral("code")), QStringLiteral("authorization-code"));
   QCOMPARE(form.queryItemValue(QStringLiteral("code_verifier")), validVerifier());
   QCOMPARE(form.queryItemValue(QStringLiteral("client_secret")), QStringLiteral("client-secret"));
+}
+
+void MockedOAuthTransportTest::reportsTokenExchangeHttpErrorCode() {
+  MockNetworkAccessManager manager;
+  manager.enqueue({.status = 400,
+                   .body = QByteArray("{\"error\":\"invalid_grant\",\"error_description\":\"ignored\"}"),
+                   .error = QNetworkReply::ContentAccessDenied});
+  hcb::OAuthTokenExchangeClient client(
+      nullptr, hcb::OAuthTokenExchangeClient::defaultTokenEndpoint(), &manager);
+
+  std::future<hcb::OAuthTokenExchangeResult> future =
+      client.exchange({.code = QStringLiteral("authorization-code"),
+                       .codeVerifier = validVerifier(),
+                       .redirectUri = loopbackRedirectUri(),
+                       .clientId = QStringLiteral("client-id-12345")});
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::OAuthTokenExchangeResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::AppError>(result));
+  QCOMPARE(std::get<hcb::AppError>(result).message(),
+           QStringLiteral("OAuth token exchange failed (HTTP 400: invalid_grant)"));
 }
 
 void MockedOAuthTransportTest::refreshesAccessTokenThroughMock() {

@@ -210,6 +210,19 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_googleOnboardingShowsSavedClientIdIndicator() {
+        const component = Qt.createComponent("../../qml/GoogleOnboardingView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const view = component.createObject(null, { clientId: "client-id" })
+        verify(view !== null)
+        view.saveClientIdButton.click()
+        view.statusMessage = "Google client ID saved"
+        verify(view.clientIdSaved)
+        verify(view.clientIdSavedIndicator.visible)
+        verify(!view.statusLabel.visible)
+        view.destroy()
+    }
+
     function test_sidebarRoutesSelectionThroughWindow() {
         startedTransitions = []
         completedTransitions = []

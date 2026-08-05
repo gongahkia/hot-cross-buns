@@ -9,24 +9,34 @@ Pane {
     property string statusMessage: ""
     property string setupStatusMessage: ""
     property string statusBeforeSetupAction: ""
+    property string setupAction: ""
     property bool awaitingSetupStatus: false
+    property bool clientIdSaved: false
     property alias clientIdField: clientIdField
+    property alias clientIdSavedIndicator: clientIdSavedIndicator
     property alias saveClientIdButton: saveClientIdButton
     property alias connectGoogleButton: connectGoogleButton
     property alias statusLabel: statusLabel
     signal saveClientIdRequested(string clientId)
     signal connectGoogleRequested()
 
-    function awaitSetupStatus() {
+    function awaitSetupStatus(action) {
         statusBeforeSetupAction = statusMessage
         setupStatusMessage = ""
+        setupAction = action
         awaitingSetupStatus = true
+        if (action === "save")
+            clientIdSaved = false
     }
 
     onStatusMessageChanged: {
         if (awaitingSetupStatus && statusMessage !== statusBeforeSetupAction) {
-            setupStatusMessage = statusMessage
             awaitingSetupStatus = false
+            if (setupAction === "save" && statusMessage === "Google client ID saved") {
+                clientIdSaved = true
+                return
+            }
+            setupStatusMessage = statusMessage
         }
     }
 
@@ -112,13 +122,28 @@ Pane {
                         color: Theme.textSecondary
                     }
 
-                    TextField {
-                        id: clientIdField
+                    RowLayout {
                         Layout.fillWidth: true
-                        text: root.clientId
-                        placeholderText: "Desktop OAuth client ID"
-                        Accessible.name: placeholderText
-                        selectByMouse: true
+
+                        TextField {
+                            id: clientIdField
+                            Layout.fillWidth: true
+                            text: root.clientId
+                            placeholderText: "Desktop OAuth client ID"
+                            Accessible.name: placeholderText
+                            selectByMouse: true
+                            onTextEdited: root.clientIdSaved = false
+                        }
+
+                        Label {
+                            id: clientIdSavedIndicator
+                            visible: root.clientIdSaved
+                            text: "✓"
+                            color: "#16803c"
+                            font.pixelSize: Theme.labelFontSize
+                            font.bold: true
+                            Accessible.name: "Google client ID saved"
+                        }
                     }
 
                     Button {
@@ -127,7 +152,7 @@ Pane {
                         enabled: clientIdField.text.trim().length > 0 && !root.busy
                         Accessible.name: text
                         onClicked: {
-                            root.awaitSetupStatus()
+                            root.awaitSetupStatus("save")
                             root.saveClientIdRequested(clientIdField.text)
                         }
                     }
@@ -162,7 +187,7 @@ Pane {
                         enabled: root.clientId.trim().length > 0 && !root.busy
                         Accessible.name: text
                         onClicked: {
-                            root.awaitSetupStatus()
+                            root.awaitSetupStatus("connect")
                             root.connectGoogleRequested()
                         }
                     }

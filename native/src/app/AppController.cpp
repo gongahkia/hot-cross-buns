@@ -11,6 +11,7 @@
 #include "core/NotesModel.h"
 #include "core/SearchResultsModel.h"
 #include "core/ReminderService.h"
+#include "core/SecretRedactor.h"
 #include "core/TaskListModel.h"
 #include "core/TaskModel.h"
 #include "core/TaskRecurrenceMarker.h"
@@ -18,6 +19,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QDebug>
 #include <QColor>
 #include <QFile>
 #include <QFileDialog>
@@ -3045,10 +3047,13 @@ void AppController::handleOAuthCallback(OAuthLoopbackCallback callback) {
                                             .clientId = clientId_}),
         [this, requestId = callback.requestId](OAuthTokenExchangeResult result) {
           if (std::holds_alternative<AppError>(result)) {
+            const QString diagnostic =
+                SecretRedactor::redactText(errorMessage(std::get<AppError>(result)), 240);
+            qWarning().noquote() << "oauth.token_exchange_failed" << diagnostic;
             static_cast<void>(oauthLoopbackListener_.respond(
-                requestId, 500, QStringLiteral("Google authorization could not be completed.")));
+                requestId, 500, diagnostic));
             oauthLoopbackListener_.stop();
-            setStatus(errorMessage(std::get<AppError>(result)));
+            setStatus(diagnostic);
             return;
           }
           finishOAuthConnection(requestId, std::get<OAuthTokenSet>(std::move(result)));

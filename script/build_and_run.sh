@@ -6,6 +6,7 @@ app_name="Hot Cross Buns"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_bundle="$root_dir/build/macos-debug-xcode/native/Debug/$app_name.app"
 app_binary="$app_bundle/Contents/MacOS/$app_name"
+log_file="$root_dir/build/macos-debug-xcode/hcb-debug.log"
 
 pkill -x "$app_name" >/dev/null 2>&1 || true
 cmake --preset macos-debug
@@ -24,8 +25,8 @@ case "$mode" in
     lldb -- "$app_binary"
     ;;
   --logs|logs)
-    /usr/bin/open -n "$app_bundle"
-    /usr/bin/log stream --info --style compact --predicate "process == \"$app_name\""
+    echo "writing logs to $log_file"
+    QT_LOGGING_TO_CONSOLE=1 "$app_binary" 2>&1 | tee -a "$log_file"
     ;;
   --telemetry|telemetry)
     /usr/bin/open -n "$app_bundle"

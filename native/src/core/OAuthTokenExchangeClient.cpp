@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrlQuery>
 
 #include <future>
@@ -60,6 +61,30 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
           isValidText(*request.clientSecret, kMaximumTokenLength));
 }
 
+[[nodiscard]] std::optional<QString> oauthErrorCode(const QByteArray& responseBody) {
+  const QJsonDocument document = QJsonDocument::fromJson(responseBody);
+  if (!document.isObject()) {
+    return std::nullopt;
+  }
+  const QString code = document.object().value(QStringLiteral("error")).toString();
+  static const QRegularExpression validCode(
+      QStringLiteral("^[A-Za-z][A-Za-z0-9_-]{0,79}$"));
+  return validCode.match(code).hasMatch() ? std::optional<QString>(code) : std::nullopt;
+}
+
+[[nodiscard]] QString tokenExchangeFailureMessage(const QNetworkReply& reply,
+                                                  int status,
+                                                  const QByteArray& responseBody) {
+  if (status >= 100 && status <= 599) {
+    const std::optional<QString> code = oauthErrorCode(responseBody);
+    return code.has_value()
+               ? QStringLiteral("OAuth token exchange failed (HTTP %1: %2)").arg(status).arg(*code)
+               : QStringLiteral("OAuth token exchange failed (HTTP %1)").arg(status);
+  }
+  return QStringLiteral("OAuth token exchange failed (network error %1)")
+      .arg(static_cast<int>(reply.error()));
+}
+
 } // namespace
 
 OAuthTokenExchangeClient::OAuthTokenExchangeClient(QObject* parent,
@@ -98,7 +123,8 @@ OAuthTokenExchangeClient::exchange(OAuthTokenExchangeRequest request) {
     const OAuthTokenExchangeResult result =
         reply->error() == QNetworkReply::NoError && status >= 200 && status <= 299
             ? OAuthTokenExchangeClient::decodeTokenResponse(responseBody)
-            : OAuthTokenExchangeResult(networkError(QStringLiteral("OAuth token exchange failed")));
+            : OAuthTokenExchangeResult(
+                  networkError(tokenExchangeFailureMessage(*reply, status, responseBody)));
     completion->set_value(result);
     reply->deleteLater();
   });
