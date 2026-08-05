@@ -3227,7 +3227,9 @@ void AppController::requestGoogleSync(SyncScheduleTrigger trigger) {
       const AppError& error = std::get<AppError>(result);
       setSyncStatus(error.code() == AppErrorCode::Configuration ? QStringLiteral("auth-required")
                                                                 : QStringLiteral("retrying"));
-      setStatus(errorMessage(error));
+      const QString diagnostic = SecretRedactor::redactText(errorMessage(error), 240);
+      qWarning().noquote() << "google.sync_failed" << diagnostic;
+      setStatus(diagnostic);
       return;
     }
     if (syncStatus_ == QStringLiteral("pulling") || syncStatus_ == QStringLiteral("pushing")) {

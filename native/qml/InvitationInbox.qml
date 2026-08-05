@@ -19,13 +19,6 @@ Pane {
             Accessible.name: text
         }
 
-        Label {
-            Layout.fillWidth: true
-            text: "Respond to Google Calendar invitations. Responses are synced to Google."
-            color: Theme.textSecondary
-            wrapMode: Text.WordWrap
-        }
-
         ListView {
             id: invitationRows
             Layout.fillWidth: true

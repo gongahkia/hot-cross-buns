@@ -1,10 +1,14 @@
 #include "core/OAuthTokenRefreshClient.h"
 
 #include "core/OAuthTokenExchangeClient.h"
+#include "core/SecretRedactor.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMetaObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrlQuery>
 
 #include <atomic>
@@ -56,6 +60,49 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
           isValidText(*request.clientSecret, kMaximumTokenLength));
 }
 
+[[nodiscard]] std::optional<QString> oauthErrorCode(const QByteArray& responseBody) {
+  const QJsonDocument document = QJsonDocument::fromJson(responseBody);
+  if (!document.isObject()) {
+    return std::nullopt;
+  }
+  const QString code = document.object().value(QStringLiteral("error")).toString();
+  static const QRegularExpression validCode(
+      QStringLiteral("^[A-Za-z][A-Za-z0-9_-]{0,79}$"));
+  return validCode.match(code).hasMatch() ? std::optional<QString>(code) : std::nullopt;
+}
+
+[[nodiscard]] std::optional<QString> oauthErrorDescription(const QByteArray& responseBody) {
+  const QJsonDocument document = QJsonDocument::fromJson(responseBody);
+  if (!document.isObject()) {
+    return std::nullopt;
+  }
+  const QString description = document.object().value(QStringLiteral("error_description")).toString();
+  if (description.isEmpty() || description.size() > 500 || description.contains(QChar::Null)) {
+    return std::nullopt;
+  }
+  const QString safeDescription = SecretRedactor::redactText(description, 240);
+  return safeDescription.isEmpty() ? std::nullopt : std::optional<QString>(safeDescription);
+}
+
+[[nodiscard]] QString tokenRefreshFailureMessage(const QNetworkReply& reply,
+                                                 int status,
+                                                 const QByteArray& responseBody) {
+  if (status >= 100 && status <= 599) {
+    const std::optional<QString> code = oauthErrorCode(responseBody);
+    const std::optional<QString> description = oauthErrorDescription(responseBody);
+    if (code.has_value() && description.has_value()) {
+      return QStringLiteral("OAuth token refresh failed (HTTP %1: %2 — %3)")
+          .arg(status)
+          .arg(*code, *description);
+    }
+    return code.has_value()
+               ? QStringLiteral("OAuth token refresh failed (HTTP %1: %2)").arg(status).arg(*code)
+               : QStringLiteral("OAuth token refresh failed (HTTP %1)").arg(status);
+  }
+  return QStringLiteral("OAuth token refresh failed (network error %1)")
+      .arg(static_cast<int>(reply.error()));
+}
+
 } // namespace
 
 OAuthTokenRefreshClient::OAuthTokenRefreshClient(QObject* parent, QNetworkAccessManager* manager)
@@ -103,7 +150,7 @@ OAuthTokenRefreshClient::refresh(OAuthTokenRefreshRequest request) {
                   reply->error() == QNetworkReply::NoError && status >= 200 && status <= 299
                       ? OAuthTokenRefreshClient::decodeTokenResponse(responseBody)
                       : OAuthTokenRefreshResult(
-                            networkError(QStringLiteral("OAuth token refresh failed")));
+                            networkError(tokenRefreshFailureMessage(*reply, status, responseBody)));
               complete(completion, result);
               reply->deleteLater();
             });

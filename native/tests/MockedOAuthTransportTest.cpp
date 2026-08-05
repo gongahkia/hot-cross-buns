@@ -34,6 +34,7 @@ private slots:
   void exchangesAuthorizationCodeThroughMock();
   void reportsTokenExchangeHttpErrorCode();
   void refreshesAccessTokenThroughMock();
+  void reportsTokenRefreshHttpErrorCode();
   void revokesTokenThroughMock();
   void sendsGoogleTransportRequestThroughMock();
 };
@@ -114,6 +115,25 @@ void MockedOAuthTransportTest::refreshesAccessTokenThroughMock() {
   const QUrlQuery form(QString::fromUtf8(request.body));
   QCOMPARE(form.queryItemValue(QStringLiteral("grant_type")), QStringLiteral("refresh_token"));
   QCOMPARE(form.queryItemValue(QStringLiteral("refresh_token")), QStringLiteral("refresh"));
+}
+
+void MockedOAuthTransportTest::reportsTokenRefreshHttpErrorCode() {
+  MockNetworkAccessManager manager;
+  manager.enqueue({.status = 400,
+                   .body = QByteArray("{\"error\":\"invalid_client\",\"error_description\":\"Client secret is invalid\"}"),
+                   .error = QNetworkReply::ContentAccessDenied});
+  hcb::OAuthTokenRefreshClient client(nullptr, &manager);
+
+  std::future<hcb::OAuthTokenRefreshResult> future = client.refresh(
+      {.clientId = QStringLiteral("client-id-12345"), .refreshToken = QStringLiteral("refresh")});
+
+  QTRY_VERIFY_WITH_TIMEOUT(
+      future.wait_for(std::chrono::milliseconds::zero()) == std::future_status::ready, 1'000);
+  const hcb::OAuthTokenRefreshResult result = future.get();
+  QVERIFY(std::holds_alternative<hcb::AppError>(result));
+  QCOMPARE(std::get<hcb::AppError>(result).message(),
+           QStringLiteral(
+               "OAuth token refresh failed (HTTP 400: invalid_client — Client secret is invalid)"));
 }
 
 void MockedOAuthTransportTest::revokesTokenThroughMock() {
