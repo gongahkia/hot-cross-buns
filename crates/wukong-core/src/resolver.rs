@@ -390,13 +390,24 @@ impl<'a> ResolverProvider<'a> {
     {
         let mut constraints = DependencyConstraints::default();
         for (package, requirement) in dependencies {
-            let range = self
-                .candidates(package)?
-                .into_iter()
-                .filter(|candidate| requirement.matches(candidate.version()))
-                .fold(Ranges::empty(), |range, candidate| {
-                    range.union(&Ranges::singleton(candidate.version().clone()))
-                });
+            let candidates = self.candidates(package)?;
+            let mut matching = candidates
+                .iter()
+                .filter(|candidate| requirement.matches(candidate.version()));
+            let Some(first) = matching.next() else {
+                return Err(ResolverProviderError::from_diagnostic(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::UserInput,
+                        format!("package {package} has no candidate satisfying {requirement}"),
+                    )
+                    .with_package(package.as_str())
+                    .with_recovery("add a reviewed compatible candidate or adjust the requirement"),
+                )));
+            };
+            let range = matching.fold(
+                Ranges::singleton(first.version().clone()),
+                |range, candidate| range.union(&Ranges::singleton(candidate.version().clone())),
+            );
             constraints.insert(SolverPackage::Package(package.clone()), range);
         }
         Ok(constraints)

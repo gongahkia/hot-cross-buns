@@ -104,6 +104,21 @@ Before resolver selection, Wukong collapses exact immutable duplicates. A
 package version available from distinct canonical source identities is rejected
 with every conflicting source named in deterministic order.
 
+## Resolver universe
+
+`CatalogUniverse` adapts lazy catalog acquisition to the source-neutral
+resolver. The resolver asks only for direct roots and their transitive package
+names; each request exposes canonical versions and package-owned dependency
+requirements, without exposing Git or HTTP fields to resolver logic.
+
+It selects the highest compatible new candidate and retains a valid locked
+selection when requested. If no reviewed candidate satisfies a requirement,
+the diagnostic names that package and requirement; incompatible non-empty
+constraints retain the resolver derivation. Cancellation is checked before
+catalog acquisition. This core API may populate and verify the shared cache,
+but never reads or mutates a Godot project, manifest, lockfile, or installed
+state. CLI lock/sync publication is later graph integration work.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

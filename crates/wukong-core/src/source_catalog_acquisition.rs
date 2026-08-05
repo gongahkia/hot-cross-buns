@@ -9,6 +9,7 @@ use crate::{
     manifest::GitReference,
     package_metadata::PackageMetadata,
     package_tree::prepare_package_tree,
+    resolver::{PackageCandidate, PackageUniverse, ResolverResult},
     semantic_version::SemanticVersion,
     source::{CancellationToken, SourceResult},
     source_catalog::{ValidatedCatalogCandidate, ValidatedSourceCatalog},
@@ -90,6 +91,44 @@ pub struct CatalogCandidateAcquirer {
     offline: bool,
     package_locks: Arc<Mutex<BTreeMap<PackageName, Arc<Mutex<()>>>>>,
     acquired: Arc<Mutex<BTreeMap<PackageName, Vec<AcquiredCatalogCandidate>>>>,
+}
+
+/// A cancellable source-neutral resolver universe backed by one source catalog.
+///
+/// Candidate acquisition may populate the content-addressed cache, but it never
+/// reads or mutates a Godot project, manifest, lockfile, or installed state.
+#[derive(Clone, Debug)]
+pub struct CatalogUniverse {
+    acquirer: CatalogCandidateAcquirer,
+    cancellation: CancellationToken,
+}
+
+impl CatalogUniverse {
+    /// Creates a resolver universe over lazy catalog candidate acquisition.
+    #[must_use]
+    pub const fn new(acquirer: CatalogCandidateAcquirer, cancellation: CancellationToken) -> Self {
+        Self {
+            acquirer,
+            cancellation,
+        }
+    }
+}
+
+impl PackageUniverse for CatalogUniverse {
+    fn candidates(&self, package: &PackageName) -> ResolverResult<Vec<PackageCandidate>> {
+        self.cancellation.check()?;
+        self.acquirer
+            .acquire(package, &self.cancellation)?
+            .into_iter()
+            .map(|candidate| {
+                Ok(PackageCandidate::for_package(
+                    package.clone(),
+                    candidate.version(),
+                    candidate.metadata().dependencies().clone(),
+                ))
+            })
+            .collect()
+    }
 }
 
 impl CatalogCandidateAcquirer {
@@ -350,13 +389,20 @@ fn internal_with_cause(message: &str, cause: impl std::fmt::Display) -> Box<Diag
 
 #[cfg(test)]
 mod tests {
-    use super::{AcquiredCatalogSource, CatalogCandidateAcquirer, unique_candidates};
+    use super::{
+        AcquiredCatalogSource, CatalogCandidateAcquirer, CatalogUniverse, unique_candidates,
+    };
     use crate::{
-        cache::CacheLayout, diagnostic::ErrorCode, identity::PackageName,
-        source::CancellationToken, source_catalog::SourceCatalog,
+        cache::CacheLayout,
+        diagnostic::ErrorCode,
+        identity::PackageName,
+        resolver::{PackageUniverse, ResolutionRequest, resolve_dependencies},
+        semantic_version::{SemanticVersion, VersionRequirement},
+        source::CancellationToken,
+        source_catalog::SourceCatalog,
     };
     use sha2::{Digest, Sha256};
-    use std::{fs, io::Write, net::TcpListener, path::Path, thread};
+    use std::{fmt::Write as _, fs, io::Write, net::TcpListener, path::Path, thread};
     use tempfile::TempDir;
     use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
@@ -491,8 +537,75 @@ mod tests {
         );
     }
 
+    #[test]
+    fn invariant_catalog_universe_resolves_highest_candidates_and_retains_valid_locks() {
+        let fixture = Fixture::new();
+        let cancellation = CancellationToken::new();
+        let universe = CatalogUniverse::new(fixture.acquirer(), cancellation.clone());
+        let mut fresh = ResolutionRequest::new();
+        fresh.require(fixture.selected.clone(), requirement("^1"));
+
+        let latest = resolve_dependencies(&universe, &fresh, &cancellation)
+            .expect("catalog graph should resolve");
+
+        assert_eq!(
+            latest.packages()[&fixture.selected].version().to_string(),
+            "1.2.3"
+        );
+        assert_eq!(
+            latest.packages()[&name("helper")].version().to_string(),
+            "1.4.0"
+        );
+
+        let mut locked = fresh;
+        locked.prefer_locked(name("helper"), &version("1.0.0"));
+        let retained = resolve_dependencies(&universe, &locked, &cancellation)
+            .expect("valid helper lock should resolve");
+
+        assert_eq!(
+            retained.packages()[&name("helper")].version().to_string(),
+            "1.0.0"
+        );
+        assert_no_connection(&fixture.unselected_listener);
+        assert_eq!(
+            fixture
+                .directory
+                .path()
+                .read_dir()
+                .expect("fixture should read")
+                .filter_map(Result::ok)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn invariant_catalog_universe_reports_incompatibility_and_honours_cancellation() {
+        let fixture = Fixture::new();
+        let cancellation = CancellationToken::new();
+        let universe = CatalogUniverse::new(fixture.acquirer(), cancellation.clone());
+        let mut incompatible = ResolutionRequest::new();
+        incompatible.require(fixture.selected.clone(), requirement("=1.2.3"));
+        incompatible.require(name("helper"), requirement("=2.0.0"));
+
+        let error = resolve_dependencies(&universe, &incompatible, &cancellation)
+            .expect_err("incompatible catalog graph should fail");
+
+        assert!(error.message().contains("helper"), "{error}");
+        assert!(error.message().contains("2.0.0"), "{error}");
+        let cancelled = CancellationToken::new();
+        cancelled.cancel();
+        let cancelled_universe = CatalogUniverse::new(fixture.acquirer(), cancelled);
+        let error = cancelled_universe
+            .candidates(&fixture.unselected)
+            .expect_err("cancelled catalog universe must not acquire sources");
+
+        assert_eq!(error.code(), ErrorCode::SourceAccess);
+        assert_no_connection(&fixture.unselected_listener);
+    }
+
     struct Fixture {
-        _directory: TempDir,
+        directory: TempDir,
         cache: CacheLayout,
         catalog: crate::source_catalog::ValidatedSourceCatalog,
         selected: PackageName,
@@ -510,16 +623,15 @@ mod tests {
             unselected_listener
                 .set_nonblocking(true)
                 .expect("listener should become nonblocking");
-            let selected_archive = archive();
+            let selected_archive = archive("selected", "1.2.3", [("helper", "^1")]);
             let selected_sha256 = checksum(&selected_archive);
-            let selected_archive_path = cache.downloads().join("sha256").join(&selected_sha256);
-            fs::create_dir_all(
-                selected_archive_path
-                    .parent()
-                    .expect("archive parent should exist"),
-            )
-            .expect("archive parent should create");
-            fs::write(selected_archive_path, selected_archive).expect("archive should write");
+            write_cached_archive(&cache, &selected_sha256, &selected_archive);
+            let helper_one_archive = archive("helper", "1.0.0", []);
+            let helper_one_sha256 = checksum(&helper_one_archive);
+            write_cached_archive(&cache, &helper_one_sha256, &helper_one_archive);
+            let helper_latest_archive = archive("helper", "1.4.0", []);
+            let helper_latest_sha256 = checksum(&helper_latest_archive);
+            write_cached_archive(&cache, &helper_latest_sha256, &helper_latest_archive);
             let unselected_url = format!(
                 "https://127.0.0.1:{}/unselected.zip",
                 unselected_listener
@@ -530,7 +642,7 @@ mod tests {
             let catalog = SourceCatalog::parse(
                 Path::new("fixture/wukong.sources.toml"),
                 &format!(
-                    "schema = 1\n\n[[package]]\nname = \"selected\"\n[package.http]\nversion = \"1.2.3\"\nurl = \"https://fixture.test/selected.zip\"\nsha256 = \"{selected_sha256}\"\nroot = \"addons/selected\"\n\n[[package]]\nname = \"unselected\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"{unselected_url}\"\nsha256 = \"{}\"\nroot = \"addons/unselected\"\n",
+                    "schema = 1\n\n[[package]]\nname = \"selected\"\n[package.http]\nversion = \"1.2.3\"\nurl = \"https://fixture.test/selected.zip\"\nsha256 = \"{selected_sha256}\"\nroot = \"addons/selected\"\n\n[[package]]\nname = \"helper\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/helper-1.0.0.zip\"\nsha256 = \"{helper_one_sha256}\"\nroot = \"addons/helper\"\n\n[[package]]\nname = \"helper\"\n[package.http]\nversion = \"1.4.0\"\nurl = \"https://fixture.test/helper-1.4.0.zip\"\nsha256 = \"{helper_latest_sha256}\"\nroot = \"addons/helper\"\n\n[[package]]\nname = \"unselected\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"{unselected_url}\"\nsha256 = \"{}\"\nroot = \"addons/unselected\"\n",
                     "0".repeat(64)
                 ),
             )
@@ -538,7 +650,7 @@ mod tests {
             .validate(Path::new("fixture/wukong.sources.toml"))
             .expect("catalog should validate");
             Self {
-                _directory: directory,
+                directory,
                 cache,
                 catalog,
                 selected: PackageName::parse("selected").expect("package should parse"),
@@ -552,26 +664,61 @@ mod tests {
         }
     }
 
-    fn archive() -> Vec<u8> {
+    fn archive<'a>(
+        name: &str,
+        version: &str,
+        dependencies: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) -> Vec<u8> {
         let mut output = Vec::new();
         let mut archive = ZipWriter::new(std::io::Cursor::new(&mut output));
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let mut dependency_lines = String::new();
+        for (name, requirement) in dependencies {
+            writeln!(&mut dependency_lines, "{name} = \"{requirement}\"")
+                .expect("dependency metadata should format");
+        }
+        let metadata = if dependency_lines.is_empty() {
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"{version}\"\ngodot = \"4\"\n"
+            )
+        } else {
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"{version}\"\ngodot = \"4\"\n\n[dependencies]\n{dependency_lines}"
+            )
+        };
         archive
-            .start_file("addons/selected/wukong-package.toml", options)
+            .start_file(format!("addons/{name}/wukong-package.toml"), options)
             .expect("metadata entry should start");
         archive
-            .write_all(
-                b"[package]\nschema = 1\nname = \"selected\"\nversion = \"1.2.3\"\ngodot = \"4\"\n",
-            )
+            .write_all(metadata.as_bytes())
             .expect("metadata should write");
         archive
-            .start_file("addons/selected/plugin.gd", options)
+            .start_file(format!("addons/{name}/plugin.gd"), options)
             .expect("plugin entry should start");
         archive
             .write_all(b"extends Node\n")
             .expect("plugin should write");
         archive.finish().expect("archive should finish");
         output
+    }
+
+    fn write_cached_archive(cache: &CacheLayout, sha256: &str, archive: &[u8]) {
+        let path = cache.downloads().join("sha256").join(sha256);
+        fs::create_dir_all(path.parent().expect("archive parent should exist"))
+            .expect("archive parent should create");
+        fs::write(path, archive).expect("archive should write");
+    }
+
+    fn name(value: &str) -> PackageName {
+        PackageName::parse(value).expect("package name should parse")
+    }
+
+    fn requirement(value: &str) -> VersionRequirement {
+        VersionRequirement::parse(value).expect("requirement should parse")
+    }
+
+    fn version(value: &str) -> SemanticVersion {
+        SemanticVersion::parse(value).expect("version should parse")
     }
 
     fn checksum(bytes: &[u8]) -> String {
