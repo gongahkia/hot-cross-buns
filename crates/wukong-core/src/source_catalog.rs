@@ -8,6 +8,7 @@ use crate::{
     identity::{GitSourceIdentity, PackageName},
     semantic_version::SemanticVersion,
 };
+use sha2::{Digest, Sha256};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
@@ -274,6 +275,41 @@ pub enum ValidatedCatalogCandidate {
     Git(ValidatedCatalogGitCandidate),
     /// A checksum-pinned HTTPS archive with a safe package root.
     Http(ValidatedCatalogHttpCandidate),
+}
+
+impl ValidatedCatalogCandidate {
+    /// Returns the deterministic SHA-256 fingerprint for this package's
+    /// reviewed catalog declaration.
+    #[must_use]
+    pub fn fingerprint(&self, package: &PackageName) -> String {
+        let mut hasher = Sha256::new();
+        fingerprint_part(&mut hasher, "wukong-catalog-candidate-v1");
+        fingerprint_part(&mut hasher, package.as_str());
+        match self {
+            Self::Git(candidate) => {
+                fingerprint_part(&mut hasher, "git");
+                fingerprint_part(&mut hasher, candidate.source().as_str());
+                fingerprint_part(&mut hasher, &path_string(candidate.root()));
+                fingerprint_part(
+                    &mut hasher,
+                    candidate.tag_prefix().map_or("", GitTagPrefix::as_str),
+                );
+            }
+            Self::Http(candidate) => {
+                fingerprint_part(&mut hasher, "http");
+                fingerprint_part(&mut hasher, &candidate.version().to_string());
+                fingerprint_part(&mut hasher, candidate.url());
+                fingerprint_part(&mut hasher, candidate.sha256());
+                fingerprint_part(&mut hasher, &path_string(candidate.root()));
+            }
+        }
+        format!("{:x}", hasher.finalize())
+    }
+}
+
+fn fingerprint_part(hasher: &mut Sha256, value: &str) {
+    hasher.update((value.len() as u64).to_be_bytes());
+    hasher.update(value.as_bytes());
 }
 
 /// A validated Git source-catalog candidate.

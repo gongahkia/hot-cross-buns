@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0044](0044-catalog-graph-lockfile-schema.md).
 
 ## Context
 

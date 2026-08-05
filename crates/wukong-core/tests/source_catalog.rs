@@ -30,6 +30,29 @@ proptest! {
 }
 
 #[test]
+fn invariant_catalog_candidate_fingerprints_are_deterministic_and_declaration_specific() {
+    let catalog = parse(&format!(
+        "schema = 1\n\n[[package]]\nname = \"alpha\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://example.test/alpha-1.0.0.zip\"\nsha256 = \"{SHA256}\"\nroot = \"addons/alpha\"\n\n[[package]]\nname = \"alpha\"\n[package.http]\nversion = \"2.0.0\"\nurl = \"https://example.test/alpha-2.0.0.zip\"\nsha256 = \"{SHA256}\"\nroot = \"addons/alpha\"\n"
+    ));
+    let validated = catalog
+        .validate(Path::new(CATALOG_PATH))
+        .expect("catalog should validate");
+    let name = wukong_core::identity::PackageName::parse("alpha").expect("name should parse");
+    let candidates = validated
+        .packages()
+        .get("alpha")
+        .expect("alpha candidates should exist");
+
+    let first = candidates[0].fingerprint(&name);
+    let second = candidates[1].fingerprint(&name);
+
+    assert_eq!(first.len(), 64);
+    assert!(first.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_eq!(first, candidates[0].fingerprint(&name));
+    assert_ne!(first, second);
+}
+
+#[test]
 fn invariant_catalog_parses_typed_git_and_http_candidates_in_deterministic_order() {
     let catalog = parse(
         r#"

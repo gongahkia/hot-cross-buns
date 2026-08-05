@@ -55,6 +55,11 @@ Validation returns typed canonical package names, Git identities, Semantic
 Versions, checksums, and normalised source-relative roots. The catalog is not
 yet consumed by lock or sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
 
+Each validated package candidate has a deterministic SHA-256 fingerprint of its
+canonical reviewed declaration. Schema-three catalog graph locks record that
+per-package fingerprint as `catalog_sha256`, without persisting credentials or
+mutable selectors. See [catalog graph lockfiles](lockfile.md#schema-three-catalog-graphs).
+
 ## Git tag candidates
 
 The Git catalog adapter discovers matching SemVer tags in deterministic version

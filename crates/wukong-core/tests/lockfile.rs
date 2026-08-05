@@ -42,7 +42,7 @@ proptest! {
     }
 
     #[test]
-    fn invariant_unknown_schema_versions_fail(schema in 3i64..1000) {
+    fn invariant_unknown_schema_versions_fail(schema in 4i64..1000) {
         let error = Lockfile::parse(Path::new(PATH), &format!("schema = {schema}\n")).expect_err("unknown schema should fail");
         prop_assert!(error.message().contains("schema"));
     }
@@ -90,6 +90,59 @@ fn invariant_schema_two_round_trips_immutable_git_and_http_sources() {
     assert!(output.contains("kind = \"git\""));
     assert!(output.contains("kind = \"http\""));
     assert!(!output.contains("branch ="));
+}
+
+#[test]
+fn invariant_schema_three_serializes_a_complete_catalog_graph_deterministically() {
+    let lock = catalog_graph();
+    let output = lock.to_toml();
+    let parsed = Lockfile::parse(Path::new(PATH), &output).expect("catalog graph should parse");
+
+    assert_eq!(lock.schema(), 3);
+    assert_eq!(parsed, lock);
+    assert!(output.starts_with("schema = 3\n"));
+    assert!(output.contains("catalog_sha256"));
+    assert!(output.contains("dependencies = [\"beta\"]"));
+    assert!(output.contains("source_subdirectory = \"addons/alpha\""));
+    assert!(!output.contains("user:"));
+}
+
+#[test]
+fn invariant_schema_three_rejects_malformed_catalog_graph_state() {
+    let output = catalog_graph().to_toml();
+    let missing_version = output.replace("version = \"1.0.0\"\n", "");
+    let invalid_fingerprint = output.replace(
+        "catalog_sha256 = \"0000000000000000000000000000000000000000000000000000000000000001\"",
+        "catalog_sha256 = \"invalid\"",
+    );
+    let dangling_edge = output.replace("dependencies = [\"beta\"]", "dependencies = [\"missing\"]");
+    let local_source = output.replace("kind = \"git\"", "kind = \"local\"");
+
+    for input in [
+        missing_version,
+        invalid_fingerprint,
+        dangling_edge,
+        local_source,
+    ] {
+        let error = Lockfile::parse(Path::new(PATH), &input)
+            .expect_err("malformed schema-three state must fail");
+
+        assert_eq!(error.code(), wukong_core::diagnostic::ErrorCode::UserInput);
+    }
+}
+
+#[test]
+fn invariant_schema_one_and_two_remain_readable_without_automatic_migration() {
+    let schema_one = "schema = 1\n";
+    let schema_two = lock(["example-addon"]).to_toml();
+
+    let first = Lockfile::parse(Path::new(PATH), schema_one).expect("schema one should parse");
+    let second = Lockfile::parse(Path::new(PATH), &schema_two).expect("schema two should parse");
+
+    assert_eq!(first.schema(), 1);
+    assert_eq!(first.to_toml(), schema_one);
+    assert_eq!(second.schema(), 2);
+    assert_eq!(second.to_toml(), schema_two);
 }
 
 #[test]
@@ -173,4 +226,57 @@ fn remote_package(name: &str, source: LockedSource, index: usize) -> LockedPacka
         false,
     )
     .expect("package should lock")
+}
+
+fn catalog_graph() -> Lockfile {
+    let git_commit = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91";
+    let archive_checksum = "77c61f3a6ace3a2b9d1729f6d52af90e6c9b6671e1db798cd91dec1ad666e91b";
+    let alpha = LockedGitSource::new(
+        ImmutableSourceId::new(format!("git:{git_commit}")).expect("identity should parse"),
+        "https://example.test/alpha.git",
+        git_commit.to_owned(),
+    )
+    .expect("Git source should lock");
+    let beta = LockedHttpSource::new(
+        ImmutableSourceId::new(format!("sha256:{archive_checksum}"))
+            .expect("identity should parse"),
+        "https://example.test/beta.zip",
+        archive_checksum.to_owned(),
+    )
+    .expect("HTTP source should lock");
+    Lockfile::new_catalog_graph([
+        catalog_package("alpha", alpha.into(), ["beta"], 1),
+        catalog_package("beta", beta.into(), [], 2),
+    ])
+    .expect("catalog graph should lock")
+}
+
+fn catalog_package(
+    name: &str,
+    source: LockedSource,
+    dependencies: impl IntoIterator<Item = &'static str>,
+    index: usize,
+) -> LockedPackage {
+    LockedPackage::new(
+        PackageName::parse(name).expect("name should parse"),
+        Some(
+            format!("{index}.0.0")
+                .parse()
+                .expect("version should parse"),
+        ),
+        source,
+        format!("{:064x}", index + 100),
+        format!("{:064x}", index + 200),
+        dependencies
+            .into_iter()
+            .map(|dependency| PackageName::parse(dependency).expect("dependency should parse"))
+            .collect(),
+        format!("addons/{name}").into(),
+        format!("addons/{name}").into(),
+        GodotCompatibility::Requirement("4".parse().expect("Godot requirement should parse")),
+        false,
+    )
+    .expect("package should lock")
+    .with_catalog_sha256(format!("{index:064x}"))
+    .expect("catalog fingerprint should validate")
 }

@@ -1,4 +1,4 @@
-//! Deterministic schema-one and schema-two `wukong.lock` parsing and serialization.
+//! Deterministic schema-one, schema-two, and catalog-graph schema-three lockfiles.
 
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
@@ -21,6 +21,8 @@ pub const LOCKFILE_FILE_NAME: &str = "wukong.lock";
 /// The schema written for new lockfiles.
 pub const LOCKFILE_SCHEMA: i64 = 2;
 const LEGACY_LOCKFILE_SCHEMA: i64 = 1;
+/// The schema written for validated catalog-selected dependency graphs.
+pub const CATALOG_GRAPH_LOCKFILE_SCHEMA: i64 = 3;
 
 /// A package's declared Godot compatibility.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -231,6 +233,7 @@ pub struct LockedPackage {
     source: LockedSource,
     package_sha256: String,
     declaration_sha256: String,
+    catalog_sha256: Option<String>,
     dependencies: BTreeSet<PackageName>,
     source_subdirectory: PathBuf,
     target_path: PathBuf,
@@ -270,6 +273,7 @@ impl LockedPackage {
             source: source.into(),
             package_sha256,
             declaration_sha256,
+            catalog_sha256: None,
             dependencies,
             source_subdirectory,
             target_path,
@@ -298,6 +302,26 @@ impl LockedPackage {
     #[must_use]
     pub fn declaration_sha256(&self) -> &str {
         &self.declaration_sha256
+    }
+    /// Adds the selected source-catalog declaration fingerprint.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the fingerprint is not lowercase SHA-256.
+    pub fn with_catalog_sha256(mut self, catalog_sha256: String) -> Result<Self, Box<Diagnostic>> {
+        valid_hex(
+            &catalog_sha256,
+            64,
+            Path::new(LOCKFILE_FILE_NAME),
+            "catalog_sha256",
+        )?;
+        self.catalog_sha256 = Some(catalog_sha256);
+        Ok(self)
+    }
+    /// Returns the selected source-catalog declaration fingerprint, if any.
+    #[must_use]
+    pub fn catalog_sha256(&self) -> Option<&str> {
+        self.catalog_sha256.as_deref()
     }
     #[must_use]
     pub fn dependencies(&self) -> &BTreeSet<PackageName> {
@@ -335,19 +359,27 @@ impl Lockfile {
     ///
     /// Returns a diagnostic when package names are duplicated.
     pub fn new(packages: impl IntoIterator<Item = LockedPackage>) -> Result<Self, Box<Diagnostic>> {
-        let mut entries = BTreeMap::new();
-        for package in packages {
-            if entries.insert(package.name.clone(), package).is_some() {
-                return Err(user(
-                    Path::new(LOCKFILE_FILE_NAME),
-                    "lockfile contains a duplicate package name",
-                    "retain one resolved entry per package",
-                ));
-            }
-        }
+        let entries = package_entries(packages)?;
         Ok(Self {
             schema: LOCKFILE_SCHEMA,
             packages: entries,
+            extensions: BTreeMap::new(),
+        })
+    }
+    /// Creates a complete schema-three catalog-selected dependency graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when an entry lacks catalog graph identity or when
+    /// dependency edges are dangling or self-referential.
+    pub fn new_catalog_graph(
+        packages: impl IntoIterator<Item = LockedPackage>,
+    ) -> Result<Self, Box<Diagnostic>> {
+        let packages = package_entries(packages)?;
+        validate_catalog_graph(&packages)?;
+        Ok(Self {
+            schema: CATALOG_GRAPH_LOCKFILE_SCHEMA,
+            packages,
             extensions: BTreeMap::new(),
         })
     }
@@ -361,7 +393,10 @@ impl Lockfile {
         let root = doc.as_table();
         let extensions = extensions(root, &["schema", "package"], path, "root")?;
         let schema = integer(root, "schema", path, "root")?;
-        if !matches!(schema, LEGACY_LOCKFILE_SCHEMA | LOCKFILE_SCHEMA) {
+        if !matches!(
+            schema,
+            LEGACY_LOCKFILE_SCHEMA | LOCKFILE_SCHEMA | CATALOG_GRAPH_LOCKFILE_SCHEMA
+        ) {
             return Err(user(
                 path,
                 "lockfile.schema is not supported",
@@ -391,6 +426,9 @@ impl Lockfile {
         let mut lock = Self::new(packages)?;
         lock.schema = schema;
         lock.extensions = extensions;
+        if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+            validate_catalog_graph(&lock.packages)?;
+        }
         Ok(lock)
     }
     /// Returns the parsed or generated lockfile schema.
@@ -442,6 +480,9 @@ impl Lockfile {
             });
             line(&mut out, "package_sha256", &package.package_sha256);
             line(&mut out, "declaration_sha256", &package.declaration_sha256);
+            if let Some(catalog_sha256) = &package.catalog_sha256 {
+                line(&mut out, "catalog_sha256", catalog_sha256);
+            }
             for (key, value) in &package.extensions {
                 line(&mut out, key, value);
             }
@@ -479,29 +520,95 @@ impl Lockfile {
     }
 }
 
+fn package_entries(
+    packages: impl IntoIterator<Item = LockedPackage>,
+) -> Result<BTreeMap<PackageName, LockedPackage>, Box<Diagnostic>> {
+    let mut entries = BTreeMap::new();
+    for package in packages {
+        if entries.insert(package.name.clone(), package).is_some() {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "lockfile contains a duplicate package name",
+                "retain one resolved entry per package",
+            ));
+        }
+    }
+    Ok(entries)
+}
+
+fn validate_catalog_graph(
+    packages: &BTreeMap<PackageName, LockedPackage>,
+) -> Result<(), Box<Diagnostic>> {
+    for (name, package) in packages {
+        if package.version.is_none() {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three package.version is required",
+                "lock a complete selected catalog version",
+            ));
+        }
+        if package.catalog_sha256.is_none() {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three package.catalog_sha256 is required",
+                "record the selected catalog declaration fingerprint",
+            ));
+        }
+        if matches!(&package.source, LockedSource::Local(_)) {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three package.source.kind must be git or http",
+                "use an immutable catalog source",
+            ));
+        }
+        if matches!(&package.godot, GodotCompatibility::Unknown) {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three package.godot must be a requirement",
+                "record the package metadata Godot requirement",
+            ));
+        }
+        for dependency in &package.dependencies {
+            if dependency == name {
+                return Err(catalog_graph_error(
+                    name,
+                    "schema-three package.dependencies must not contain itself",
+                    "remove the self-referential dependency edge",
+                ));
+            }
+            if !packages.contains_key(dependency) {
+                return Err(catalog_graph_error(
+                    name,
+                    format!(
+                        "schema-three package.dependencies contains missing package {dependency}"
+                    ),
+                    "lock every selected dependency edge",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn catalog_graph_error(
+    package: &PackageName,
+    message: impl AsRef<str>,
+    recovery: impl AsRef<str>,
+) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(ErrorCode::UserInput, message)
+            .with_package(package.as_str())
+            .with_recovery(recovery),
+    )
+}
+
 #[allow(clippy::too_many_lines)]
 fn parse_package(
     package_table: &dyn TableLike,
     path: &Path,
     schema: i64,
 ) -> Result<LockedPackage, Box<Diagnostic>> {
-    let package_extensions = extensions(
-        package_table,
-        &[
-            "name",
-            "version",
-            "dependencies",
-            "source_subdirectory",
-            "target_path",
-            "godot",
-            "development",
-            "package_sha256",
-            "declaration_sha256",
-            "source",
-        ],
-        path,
-        "package",
-    )?;
+    let package_extensions = extensions(package_table, &package_fields(schema), path, "package")?;
     let name =
         PackageName::parse(&string(package_table, "name", path, "package")?).map_err(|e| {
             user(
@@ -573,6 +680,13 @@ fn parse_package(
     valid_hex(&package_sha256, 64, path, "package.package_sha256")?;
     let declaration_sha256 = string(package_table, "declaration_sha256", path, "package")?;
     valid_hex(&declaration_sha256, 64, path, "package.declaration_sha256")?;
+    let catalog_sha256 = if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        let catalog_sha256 = string(package_table, "catalog_sha256", path, "package")?;
+        valid_hex(&catalog_sha256, 64, path, "package.catalog_sha256")?;
+        Some(catalog_sha256)
+    } else {
+        None
+    };
     let source_table = table(package_table, "source", path, "package")?;
     let source = parse_source(source_table, path, schema)?;
     let mut package = LockedPackage::new(
@@ -587,8 +701,30 @@ fn parse_package(
         godot,
         development,
     )?;
+    if let Some(catalog_sha256) = catalog_sha256 {
+        package = package.with_catalog_sha256(catalog_sha256)?;
+    }
     package.extensions = package_extensions;
     Ok(package)
+}
+
+fn package_fields(schema: i64) -> Vec<&'static str> {
+    let mut fields = vec![
+        "name",
+        "version",
+        "dependencies",
+        "source_subdirectory",
+        "target_path",
+        "godot",
+        "development",
+        "package_sha256",
+        "declaration_sha256",
+        "source",
+    ];
+    if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        fields.push("catalog_sha256");
+    }
+    fields
 }
 fn parse_source(
     table: &dyn TableLike,

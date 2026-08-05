@@ -47,6 +47,7 @@ Current records:
 - [0041: CLI progress rendering](0041-cli-progress-rendering.md)
 - [0042: project source catalog](0042-project-source-catalog.md)
 - [0043: strict package metadata policy](0043-strict-package-metadata-policy.md)
+- [0044: catalog graph lockfile schema](0044-catalog-graph-lockfile-schema.md)
 
 ## When to write an ADR
 
