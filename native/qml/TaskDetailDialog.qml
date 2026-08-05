@@ -48,7 +48,6 @@ HcbDialog {
             visible: task.notes && task.notes.length > 0
             text: task.notes || ""
             wrapMode: Text.WordWrap
-            selectable: true
         }
 
         Button {

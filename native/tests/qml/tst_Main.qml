@@ -134,7 +134,8 @@ TestCase {
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
             transitionTimings: testCase,
-            appController: { googleConnected: true, notesEnabled: true }
+            appController: { googleConnected: true, notesEnabled: true,
+                             sidebarTabIds: ["tasks", "calendar", "notes"] }
         })
         verify(mainWindow !== null)
         mainWindow.selectPage("Calendar")
@@ -287,7 +288,8 @@ TestCase {
 
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
-            appController: { googleConnected: true, notesEnabled: true }
+            appController: { googleConnected: true, notesEnabled: true,
+                             sidebarTabIds: ["tasks", "calendar", "notes"] }
         })
         verify(mainWindow !== null)
         compare(mainWindow.navigationShortcuts.count, 4)
@@ -305,7 +307,8 @@ TestCase {
 
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
-            appController: { googleConnected: true, notesEnabled: true }
+            appController: { googleConnected: true, notesEnabled: true,
+                             sidebarTabIds: ["tasks", "calendar", "notes"] }
         })
         verify(mainWindow !== null)
         mainWindow.commandPaletteShortcut.activated()
@@ -1844,6 +1847,7 @@ TestCase {
         const controller = {
             googleConnected: true,
             notesEnabled: true,
+            sidebarTabIds: ["tasks", "calendar", "notes"],
             saveNoteTask: function(taskId, taskListId, title, body) {
                 calls.push({ taskId: taskId, taskListId: taskListId, title: title, body: body })
             }
@@ -2069,6 +2073,7 @@ TestCase {
         const controller = {
             googleConnected: true,
             notesEnabled: true,
+            sidebarTabIds: ["tasks", "calendar", "notes"],
             saveNoteTask: function(taskId, taskListId, title, body) {
                 calls.push({ taskId: taskId, taskListId: taskListId, title: title, body: body })
             }

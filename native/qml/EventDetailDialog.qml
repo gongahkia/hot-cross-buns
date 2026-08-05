@@ -65,7 +65,6 @@ HcbDialog {
             visible: event.description && event.description.length > 0
             text: event.description || ""
             wrapMode: Text.WordWrap
-            selectable: true
         }
 
         Button {
