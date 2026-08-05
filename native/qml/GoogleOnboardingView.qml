@@ -5,6 +5,7 @@ import QtQuick.Layouts
 Pane {
     id: root
     required property string clientId
+    property bool hasClientSecret: false
     property bool busy: false
     property string statusMessage: ""
     property string setupStatusMessage: ""
@@ -13,11 +14,12 @@ Pane {
     property bool awaitingSetupStatus: false
     property bool clientIdSaved: false
     property alias clientIdField: clientIdField
+    property alias clientSecretField: clientSecretField
     property alias clientIdSavedIndicator: clientIdSavedIndicator
     property alias saveClientIdButton: saveClientIdButton
     property alias connectGoogleButton: connectGoogleButton
     property alias statusLabel: statusLabel
-    signal saveClientIdRequested(string clientId)
+    signal saveClientIdRequested(string clientId, string clientSecret)
     signal connectGoogleRequested()
 
     function awaitSetupStatus(action) {
@@ -32,8 +34,9 @@ Pane {
     onStatusMessageChanged: {
         if (awaitingSetupStatus && statusMessage !== statusBeforeSetupAction) {
             awaitingSetupStatus = false
-            if (setupAction === "save" && statusMessage === "Google client ID saved") {
+            if (setupAction === "save" && statusMessage === "Google client configuration saved") {
                 clientIdSaved = true
+                clientSecretField.clear()
                 return
             }
             setupStatusMessage = statusMessage
@@ -108,7 +111,7 @@ Pane {
                     spacing: Theme.spacingMedium
 
                     Label {
-                        text: "2. Add your client ID"
+                        text: "2. Add your OAuth client"
                         font.pixelSize: Theme.labelFontSize
                         font.bold: true
                         Accessible.role: Accessible.Heading
@@ -117,7 +120,9 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: "Paste only the client ID. Do not paste or share the downloaded client secret."
+                        text: root.hasClientSecret
+                              ? "Enter a replacement client ID and secret together. Leave the secret blank to keep the saved value."
+                              : "Paste the client ID and client secret from your downloaded Desktop OAuth client JSON."
                         wrapMode: Text.WordWrap
                         color: Theme.textSecondary
                     }
@@ -146,14 +151,24 @@ Pane {
                         }
                     }
 
+                    TextField {
+                        id: clientSecretField
+                        Layout.fillWidth: true
+                        placeholderText: "Desktop OAuth client secret"
+                        echoMode: TextInput.Password
+                        Accessible.name: placeholderText
+                        selectByMouse: true
+                        onTextEdited: root.clientIdSaved = false
+                    }
+
                     Button {
                         id: saveClientIdButton
-                        text: "Save client ID"
+                        text: "Save OAuth client"
                         enabled: clientIdField.text.trim().length > 0 && !root.busy
                         Accessible.name: text
                         onClicked: {
                             root.awaitSetupStatus("save")
-                            root.saveClientIdRequested(clientIdField.text)
+                            root.saveClientIdRequested(clientIdField.text, clientSecretField.text)
                         }
                     }
                 }

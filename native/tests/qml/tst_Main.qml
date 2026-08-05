@@ -191,7 +191,7 @@ TestCase {
             clientId: "client-id",
             busy: false,
             statusMessage: "SQLite calendar list preparation failed (1)",
-            saveClientId: function(clientId) { calls.push(["saveClientId", clientId]) },
+            saveClientId: function(clientId, clientSecret) { calls.push(["saveClientId", clientId, clientSecret]) },
             connectGoogle: function() { calls.push(["connectGoogle"]) }
         }
         const mainWindow = component.createObject(null, {
@@ -204,9 +204,10 @@ TestCase {
         compare(mainWindow.googleOnboarding.clientIdField.text, "client-id")
         verify(!mainWindow.googleOnboarding.statusLabel.visible)
         mainWindow.googleOnboarding.clientIdField.text = "updated-client-id"
+        mainWindow.googleOnboarding.clientSecretField.text = "updated-client-secret"
         mainWindow.googleOnboarding.saveClientIdButton.click()
         mainWindow.googleOnboarding.connectGoogleButton.click()
-        compare(calls, [["saveClientId", "updated-client-id"], ["connectGoogle"]])
+        compare(calls, [["saveClientId", "updated-client-id", "updated-client-secret"], ["connectGoogle"]])
         mainWindow.destroy()
     }
 
@@ -216,7 +217,7 @@ TestCase {
         const view = component.createObject(null, { clientId: "client-id" })
         verify(view !== null)
         view.saveClientIdButton.click()
-        view.statusMessage = "Google client ID saved"
+        view.statusMessage = "Google client configuration saved"
         verify(view.clientIdSaved)
         verify(view.clientIdSavedIndicator.visible)
         verify(!view.statusLabel.visible)

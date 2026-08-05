@@ -16,6 +16,7 @@ namespace hcb {
 
 struct OAuthClientConfiguration final {
   QString clientId;
+  QString clientSecret;
   QString updatedAt;
 };
 
@@ -37,7 +38,8 @@ public:
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] std::future<OAuthClientConfigurationReadResult> load();
-  [[nodiscard]] std::future<OAuthClientConfigurationMutationResultOrError> save(QString clientId);
+  [[nodiscard]] std::future<OAuthClientConfigurationMutationResultOrError>
+  save(QString clientId, QString clientSecret = {});
   [[nodiscard]] std::future<OAuthClientConfigurationMutationResultOrError> clear();
 
 private:

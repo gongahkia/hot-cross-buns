@@ -738,6 +738,8 @@ AppController::~AppController() {
 
 QString AppController::clientId() const { return clientId_; }
 
+bool AppController::hasClientSecret() const { return !clientSecret_.isEmpty(); }
+
 bool AppController::googleConnected() const { return googleConnected_; }
 
 QString AppController::statusMessage() const { return statusMessage_; }
@@ -1318,11 +1320,17 @@ void AppController::initialize() {
                    std::get<std::optional<OAuthClientConfiguration>>(result);
                configuration.has_value()) {
       clientId_ = configuration->clientId;
+      const bool secretChanged = clientSecret_ != configuration->clientSecret;
+      clientSecret_ = configuration->clientSecret;
       {
         std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
         syncClientId_ = clientId_;
+        syncClientSecret_ = clientSecret_;
       }
       emit clientIdChanged();
+      if (secretChanged) {
+        emit clientSecretChanged();
+      }
       if (googleConnected_) {
         requestGoogleSync(SyncScheduleTrigger::Startup);
         startPeriodicGoogleSync();
@@ -2940,8 +2948,12 @@ void AppController::deleteSavedSearch(QString savedSearchId) {
         });
 }
 
-void AppController::saveClientId(QString clientId) {
-  watch(oauthConfigurationStore_.save(std::move(clientId)),
+void AppController::saveClientId(QString clientId, QString clientSecret) {
+  clientSecret = clientSecret.trimmed();
+  if (clientSecret.isEmpty() && clientId.trimmed() == clientId_) {
+    clientSecret = clientSecret_;
+  }
+  watch(oauthConfigurationStore_.save(std::move(clientId), std::move(clientSecret)),
         [this](OAuthClientConfigurationMutationResultOrError result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
@@ -2953,13 +2965,19 @@ void AppController::saveClientId(QString clientId) {
                     } else if (const std::optional<OAuthClientConfiguration>& configuration =
                                    std::get<std::optional<OAuthClientConfiguration>>(loaded);
                                configuration.has_value()) {
+                      const bool secretChanged = clientSecret_ != configuration->clientSecret;
                       clientId_ = configuration->clientId;
+                      clientSecret_ = configuration->clientSecret;
                       {
                         std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
                         syncClientId_ = clientId_;
+                        syncClientSecret_ = clientSecret_;
                       }
                       emit clientIdChanged();
-                      setStatus(QStringLiteral("Google client ID saved"));
+                      if (secretChanged) {
+                        emit clientSecretChanged();
+                      }
+                      setStatus(QStringLiteral("Google client configuration saved"));
                     }
                   });
           }
@@ -3044,7 +3062,10 @@ void AppController::handleOAuthCallback(OAuthLoopbackCallback callback) {
   watch(oauthTokenExchangeClient_.exchange({.code = *callback.code,
                                             .codeVerifier = state.codeVerifier,
                                             .redirectUri = redirectUri,
-                                            .clientId = clientId_}),
+                                            .clientId = clientId_,
+                                            .clientSecret = clientSecret_.isEmpty()
+                                                                ? std::nullopt
+                                                                : std::optional<QString>(clientSecret_)}),
         [this, requestId = callback.requestId](OAuthTokenExchangeResult result) {
           if (std::holds_alternative<AppError>(result)) {
             const QString diagnostic =
@@ -3230,9 +3251,11 @@ std::optional<AppError> AppController::runGoogleSync(const SyncSchedulerRequest&
   };
   setSyncStatus(QStringLiteral("pulling"));
   QString clientId;
+  QString clientSecret;
   {
     std::lock_guard<std::mutex> lock(syncConfigurationMutex_);
     clientId = syncClientId_;
+    clientSecret = syncClientSecret_;
   }
   if (credentialStore_ == nullptr || clientId.isEmpty()) {
     return fail(AppError(AppErrorCode::Configuration,
@@ -3264,7 +3287,11 @@ std::optional<AppError> AppController::runGoogleSync(const SyncSchedulerRequest&
   const QString refreshToken = *stored->refreshToken;
   OAuthTokenRefreshResult refreshed =
       oauthTokenRefreshClient_
-          .refresh({.clientId = std::move(clientId), .refreshToken = refreshToken})
+          .refresh({.clientId = std::move(clientId),
+                    .refreshToken = refreshToken,
+                    .clientSecret = clientSecret.isEmpty()
+                                        ? std::nullopt
+                                        : std::optional<QString>(clientSecret)})
           .get();
   if (std::holds_alternative<AppError>(refreshed)) {
     return fail(std::get<AppError>(std::move(refreshed)));

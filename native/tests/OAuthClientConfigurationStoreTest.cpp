@@ -18,7 +18,7 @@ class OAuthClientConfigurationStoreTest final : public QObject {
   Q_OBJECT
 
 private slots:
-  void persistsAndClearsClientId();
+  void persistsAndClearsClientConfiguration();
   void rejectsInvalidClientIds();
 };
 
@@ -61,9 +61,11 @@ void verifyReady(hcb::OAuthClientConfigurationStore& store) {
   return QStringLiteral("desktop-client-id.apps.googleusercontent.com");
 }
 
+[[nodiscard]] QString clientSecret() { return QStringLiteral("desktop-client-secret"); }
+
 } // namespace
 
-void OAuthClientConfigurationStoreTest::persistsAndClearsClientId() {
+void OAuthClientConfigurationStoreTest::persistsAndClearsClientConfiguration() {
   QTemporaryDir temporaryDirectory;
   QVERIFY(temporaryDirectory.isValid());
   const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
@@ -83,7 +85,8 @@ void OAuthClientConfigurationStoreTest::persistsAndClearsClientId() {
     QVERIFY(!std::get<std::optional<hcb::OAuthClientConfiguration>>(initialResult).has_value());
 
     std::future<hcb::OAuthClientConfigurationMutationResultOrError> saved =
-        store.save(QStringLiteral("  %1  ").arg(clientId()));
+        store.save(QStringLiteral("  %1  ").arg(clientId()),
+                   QStringLiteral("  %1  ").arg(clientSecret()));
     const hcb::OAuthClientConfigurationMutationResultOrError savedResult = awaitResult(saved);
     QVERIFY(std::holds_alternative<hcb::OAuthClientConfigurationMutationResult>(savedResult));
     QCOMPARE(std::get<hcb::OAuthClientConfigurationMutationResult>(savedResult),
@@ -99,11 +102,12 @@ void OAuthClientConfigurationStoreTest::persistsAndClearsClientId() {
       return;
     }
     QCOMPARE(configuration->clientId, clientId());
+    QCOMPARE(configuration->clientSecret, clientSecret());
     firstUpdatedAt = configuration->updatedAt;
 
     clock.advance(1h);
     std::future<hcb::OAuthClientConfigurationMutationResultOrError> unchanged =
-        store.save(clientId());
+        store.save(clientId(), clientSecret());
     const hcb::OAuthClientConfigurationMutationResultOrError unchangedResult =
         awaitResult(unchanged);
     QVERIFY(std::holds_alternative<hcb::OAuthClientConfigurationMutationResult>(unchangedResult));
@@ -123,6 +127,7 @@ void OAuthClientConfigurationStoreTest::persistsAndClearsClientId() {
     return;
   }
   QCOMPARE(configuration->clientId, clientId());
+  QCOMPARE(configuration->clientSecret, clientSecret());
   QCOMPARE(configuration->updatedAt, firstUpdatedAt);
 
   std::future<hcb::OAuthClientConfigurationMutationResultOrError> cleared = reopened.clear();

@@ -258,6 +258,11 @@ ApplicationWindow {
                ? appController[propertyName] : fallback
     }
 
+    function controllerBool(propertyName, fallback) {
+        return appController !== null && typeof appController[propertyName] === "boolean"
+               ? appController[propertyName] : fallback
+    }
+
     function hasNavigationPage(pageName) {
         if (pageName === "Notes" && !notesEnabled) {
             return false
@@ -1213,9 +1218,10 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Onboarding"
                 clientId: window.controllerString("clientId", "")
+                hasClientSecret: window.controllerBool("hasClientSecret", false)
                 busy: window.appController !== null && window.appController.busy === true
                 statusMessage: window.controllerString("statusMessage", "")
-                onSaveClientIdRequested: clientId => window.controllerCall("saveClientId", [clientId])
+                onSaveClientIdRequested: (clientId, clientSecret) => window.controllerCall("saveClientId", [clientId, clientSecret])
                 onConnectGoogleRequested: window.controllerCall("connectGoogle", [])
             }
 
@@ -1510,7 +1516,7 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    text: "Enter the desktop OAuth client ID from your own Google Cloud project. Enable Google Tasks, Google Calendar, and Google Drive APIs. The app opens a local loopback callback while connecting."
+                    text: "Enter the Desktop OAuth client ID and secret from your Google Cloud project. Enable Google Tasks, Google Calendar, and Google Drive APIs. The app opens a local loopback callback while connecting."
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
                 }
@@ -1523,12 +1529,22 @@ ApplicationWindow {
                     Accessible.name: placeholderText
                 }
 
+                TextField {
+                    id: googleClientSecretField
+                    Layout.fillWidth: true
+                    placeholderText: window.controllerBool("hasClientSecret", false)
+                                     ? "Desktop OAuth client secret (leave blank to keep saved value)"
+                                     : "Desktop OAuth client secret"
+                    echoMode: TextInput.Password
+                    Accessible.name: placeholderText
+                }
+
                 Button {
-                    text: "Save client ID"
+                    text: "Save OAuth client"
                     enabled: googleClientIdField.text.trim().length > 0 &&
                              (window.appController === null || !window.appController.busy)
                     Accessible.name: text
-                    onClicked: window.controllerCall("saveClientId", [googleClientIdField.text])
+                    onClicked: window.controllerCall("saveClientId", [googleClientIdField.text, googleClientSecretField.text])
                 }
 
                 Button {

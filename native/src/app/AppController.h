@@ -79,6 +79,7 @@ class TimelineModel;
 class AppController final : public QObject {
   Q_OBJECT
   Q_PROPERTY(QString clientId READ clientId NOTIFY clientIdChanged)
+  Q_PROPERTY(bool hasClientSecret READ hasClientSecret NOTIFY clientSecretChanged)
   Q_PROPERTY(bool googleConnected READ googleConnected NOTIFY googleConnectedChanged)
   Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
   Q_PROPERTY(
@@ -173,6 +174,7 @@ public:
   AppController& operator=(const AppController&) = delete;
 
   [[nodiscard]] QString clientId() const;
+  [[nodiscard]] bool hasClientSecret() const;
   [[nodiscard]] bool googleConnected() const;
   [[nodiscard]] QString statusMessage() const;
   [[nodiscard]] QString taskListErrorMessage() const;
@@ -295,7 +297,7 @@ public:
   Q_INVOKABLE void runImport(QString defaultTaskListId, QString defaultCalendarId);
   Q_INVOKABLE void queryGoogleFreeBusy(QVariantList calendarIds, QString startAt, QString endAt);
   Q_INVOKABLE void searchGoogleDriveAttachments(QString query);
-  Q_INVOKABLE void saveClientId(QString clientId);
+  Q_INVOKABLE void saveClientId(QString clientId, QString clientSecret = {});
   Q_INVOKABLE void connectGoogle();
   Q_INVOKABLE void syncGoogle();
   Q_INVOKABLE void saveConflictPolicy(int policy);
@@ -455,6 +457,7 @@ public:
 
 signals:
   void clientIdChanged();
+  void clientSecretChanged();
   void googleConnectedChanged();
   void statusMessageChanged();
   void taskListErrorMessageChanged();
@@ -663,7 +666,9 @@ private:
   SyncScheduler syncScheduler_;
   std::mutex syncConfigurationMutex_;
   QString syncClientId_;
+  QString syncClientSecret_;
   QString clientId_;
+  QString clientSecret_;
   bool googleConnected_{false};
   QString statusMessage_;
   QString taskListErrorMessage_;

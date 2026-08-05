@@ -5,6 +5,8 @@
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 #include <QTimeZone>
 
@@ -19,6 +21,7 @@ namespace {
 
 constexpr qsizetype kMinimumClientIdLength = 10;
 constexpr qsizetype kMaximumClientIdLength = 500;
+constexpr qsizetype kMaximumClientSecretLength = 8'192;
 constexpr qsizetype kMaximumTimestampLength = 64;
 constexpr char kSettingsScope[] = "google";
 constexpr char kClientIdKey[] = "oauthClientId";
@@ -41,6 +44,10 @@ template <typename Result> [[nodiscard]] std::future<Result> readyFuture(Result 
 [[nodiscard]] bool isValidClientId(const QString& clientId) {
   return clientId.size() >= kMinimumClientIdLength && clientId.size() <= kMaximumClientIdLength &&
          !clientId.contains(QChar::Null);
+}
+
+[[nodiscard]] bool isValidClientSecret(const QString& clientSecret) {
+  return clientSecret.size() <= kMaximumClientSecretLength && !clientSecret.contains(QChar::Null);
 }
 
 [[nodiscard]] bool isValidTimestamp(const QString& updatedAt) {
@@ -87,7 +94,12 @@ readStoredConfiguration(SqliteConnection& connection) {
   sqlite3_stmt* statement = nullptr;
   const int prepareResult =
       sqlite3_prepare_v3(handle,
-                         "SELECT json_type(value_json), json_extract(value_json, '$'), updated_at "
+                         "SELECT json_type(value_json), "
+                         "CASE json_type(value_json) "
+                         "WHEN 'text' THEN json_extract(value_json, '$') "
+                         "WHEN 'object' THEN json_extract(value_json, '$.clientId') END, "
+                         "CASE json_type(value_json) "
+                         "WHEN 'object' THEN json_extract(value_json, '$.clientSecret') END, updated_at "
                          "FROM local_settings WHERE scope = ?1 AND key = ?2 LIMIT 1",
                          -1,
                          SQLITE_PREPARE_PERSISTENT,
@@ -125,23 +137,31 @@ readStoredConfiguration(SqliteConnection& connection) {
   }
   const std::optional<QString> type = textAt(statement, 0);
   const std::optional<QString> clientId = textAt(statement, 1);
-  const std::optional<QString> updatedAt = textAt(statement, 2);
+  const std::optional<QString> clientSecret = textAt(statement, 2);
+  const std::optional<QString> updatedAt = textAt(statement, 3);
   const int finalizeResult = sqlite3_finalize(statement);
   if (finalizeResult != SQLITE_OK) {
     return databaseError(QStringLiteral("SQLite OAuth configuration read finalization failed (%1)"),
                          finalizeResult);
   }
-  if (!type.has_value() || *type != QStringLiteral("text") || !clientId.has_value() ||
-      !updatedAt.has_value() || !isValidClientId(*clientId) || !isValidTimestamp(*updatedAt)) {
+  if (!type.has_value() || (*type != QStringLiteral("text") && *type != QStringLiteral("object")) ||
+      !clientId.has_value() || !updatedAt.has_value() || !isValidClientId(*clientId) ||
+      (clientSecret.has_value() && !isValidClientSecret(*clientSecret)) ||
+      !isValidTimestamp(*updatedAt)) {
     return AppError(AppErrorCode::Database,
                     QStringLiteral("Stored OAuth client configuration is invalid"));
   }
   return std::optional<OAuthClientConfiguration>(
-      OAuthClientConfiguration{.clientId = *clientId, .updatedAt = *updatedAt});
+      OAuthClientConfiguration{.clientId = *clientId,
+                               .clientSecret = clientSecret.value_or(QString()),
+                               .updatedAt = *updatedAt});
 }
 
 [[nodiscard]] OAuthClientConfigurationMutationResultOrError saveStoredConfiguration(
-    SqliteConnection& connection, const QString& clientId, const QString& updatedAt) {
+    SqliteConnection& connection,
+    const QString& clientId,
+    const QString& clientSecret,
+    const QString& updatedAt) {
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
     return AppError(AppErrorCode::Database,
@@ -151,7 +171,7 @@ readStoredConfiguration(SqliteConnection& connection) {
   const int prepareResult =
       sqlite3_prepare_v3(handle,
                          "INSERT INTO local_settings (scope, key, value_json, updated_at) "
-                         "VALUES (?1, ?2, json_quote(?3), ?4) "
+                         "VALUES (?1, ?2, json(?3), ?4) "
                          "ON CONFLICT(scope, key) DO UPDATE SET value_json = excluded.value_json, "
                          "updated_at = excluded.updated_at "
                          "WHERE local_settings.value_json IS NOT excluded.value_json",
@@ -164,9 +184,15 @@ readStoredConfiguration(SqliteConnection& connection) {
     return databaseError(QStringLiteral("SQLite OAuth configuration save preparation failed (%1)"),
                          prepareResult);
   }
+  QJsonObject configuration{{QStringLiteral("clientId"), clientId}};
+  if (!clientSecret.isEmpty()) {
+    configuration.insert(QStringLiteral("clientSecret"), clientSecret);
+  }
+  const QString valueJson =
+      QString::fromUtf8(QJsonDocument(configuration).toJson(QJsonDocument::Compact));
   for (const auto& [index, value] : {std::pair{1, QString::fromLatin1(kSettingsScope)},
                                      std::pair{2, QString::fromLatin1(kClientIdKey)},
-                                     std::pair{3, clientId},
+                                     std::pair{3, valueJson},
                                      std::pair{4, updatedAt}}) {
     if (const std::optional<AppError> error = bindText(statement, index, value);
         error.has_value()) {
@@ -261,16 +287,18 @@ std::future<OAuthClientConfigurationReadResult> OAuthClientConfigurationStore::l
 }
 
 std::future<OAuthClientConfigurationMutationResultOrError>
-OAuthClientConfigurationStore::save(QString clientId) {
+OAuthClientConfigurationStore::save(QString clientId, QString clientSecret) {
   clientId = clientId.trimmed();
-  if (!isValidClientId(clientId)) {
+  clientSecret = clientSecret.trimmed();
+  if (!isValidClientId(clientId) || !isValidClientSecret(clientSecret)) {
     return readyFuture(OAuthClientConfigurationMutationResultOrError(
         validationError(QStringLiteral("OAuth client ID is invalid"))));
   }
   const QString updatedAt = timestamp(clock_);
   return writerQueue_.enqueueResult(
-      [clientId = std::move(clientId), updatedAt](SqliteConnection& connection) {
-        return saveStoredConfiguration(connection, clientId, updatedAt);
+      [clientId = std::move(clientId), clientSecret = std::move(clientSecret), updatedAt](
+          SqliteConnection& connection) {
+        return saveStoredConfiguration(connection, clientId, clientSecret, updatedAt);
       });
 }
 
