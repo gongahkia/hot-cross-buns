@@ -37,6 +37,15 @@ Schema parsing rejects unknown fields, missing required fields, incorrect TOML
 types, unsupported schemas, invalid UTF-8, and invalid TOML syntax. It groups
 entries by package name and orders package names and candidates deterministically.
 
-Source, package-name, path, SemVer, checksum, and duplicate-identity validation
-are separate catalog-validation work. The catalog is not yet consumed by lock or
-sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
+Before resolution, validate the parsed catalog. Validation is also side-effect
+free: it does not fetch sources or access declared paths. It rejects:
+
+- non-canonical package names;
+- roots that are empty, absolute, traversal-based, or platform-prefixed;
+- Git and archive URLs containing credentials or unsupported URL forms;
+- invalid Git tag prefixes, HTTP versions, or SHA-256 checksums; and
+- duplicate candidates after URL and root canonicalisation.
+
+Validation returns typed canonical package names, Git identities, Semantic
+Versions, checksums, and normalised source-relative roots. The catalog is not
+yet consumed by lock or sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).

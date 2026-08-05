@@ -2,10 +2,11 @@ use std::{fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
     diagnostic::ErrorCode,
-    source_catalog::{CatalogCandidate, SourceCatalog},
+    source_catalog::{CatalogCandidate, SourceCatalog, ValidatedCatalogCandidate},
 };
 
 const CATALOG_PATH: &str = "fixture/wukong.sources.toml";
+const SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 #[test]
 fn invariant_catalog_parses_typed_git_and_http_candidates_in_deterministic_order() {
@@ -126,10 +127,206 @@ root = "../not-validated-until-catalog-validation"
     assert_eq!(catalog.packages().len(), 1);
 }
 
+#[test]
+fn invariant_catalog_validation_normalises_typed_safe_candidates_without_source_access() {
+    let catalog = parse(&format!(
+        r#"
+schema = 1
+
+[[package]]
+name = "zeta"
+[package.git]
+url = "https://EXAMPLE.test:443/zeta.git"
+root = "./addons/zeta"
+tag-prefix = "v"
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "1.2.3"
+url = "https://127.0.0.1:9/unreachable.zip"
+sha256 = "{SHA256}"
+root = "addons/alpha"
+"#,
+    ));
+
+    let validated = catalog
+        .validate(Path::new(CATALOG_PATH))
+        .expect("validation should not acquire a source");
+    let packages = validated.packages();
+    assert_eq!(
+        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        ["alpha", "zeta"]
+    );
+    assert!(matches!(
+        packages.get("alpha").and_then(|candidates| candidates.first()),
+        Some(ValidatedCatalogCandidate::Http(candidate))
+            if candidate.version().to_string() == "1.2.3"
+                && candidate.url() == "https://127.0.0.1:9/unreachable.zip"
+                && candidate.sha256() == SHA256
+                && candidate.root() == Path::new("addons/alpha")
+    ));
+    assert!(matches!(
+        packages.get("zeta").and_then(|candidates| candidates.first()),
+        Some(ValidatedCatalogCandidate::Git(candidate))
+            if candidate.source().as_str() == "https://example.test/zeta.git"
+                && candidate.root() == Path::new("addons/zeta")
+                && candidate.tag_prefix().is_some_and(|prefix| prefix.as_str() == "v")
+    ));
+}
+
+#[test]
+fn invariant_catalog_validation_rejects_unsafe_or_ambiguous_declarations() {
+    let cases = [
+        (
+            catalog_with_git("Bad_Name", "https://example.test/alpha.git", "addons/alpha"),
+            "package.Bad_Name.name",
+        ),
+        (
+            catalog_with_git(
+                "alpha",
+                "https://user:secret-value@example.test/alpha.git",
+                "addons/alpha",
+            ),
+            "package.alpha.git.url",
+        ),
+        (
+            catalog_with_git("alpha", "https://example.test/alpha.git", "../addons/alpha"),
+            "package.alpha.git.root",
+        ),
+        (
+            catalog_with_http(
+                "alpha",
+                "not-a-version",
+                "https://example.test/alpha.zip",
+                SHA256,
+                "addons/alpha",
+            ),
+            "package.alpha.http.version",
+        ),
+        (
+            catalog_with_http(
+                "alpha",
+                "1.0.0",
+                "https://example.test/alpha.zip?access_token=secret-value",
+                SHA256,
+                "addons/alpha",
+            ),
+            "package.alpha.http.url",
+        ),
+        (
+            catalog_with_http(
+                "alpha",
+                "1.0.0",
+                "https://example.test/alpha.zip",
+                "ABC",
+                "addons/alpha",
+            ),
+            "package.alpha.http.sha256",
+        ),
+        (
+            catalog_with_http(
+                "alpha",
+                "1.0.0",
+                "https://example.test/alpha.zip",
+                SHA256,
+                "C:\\\\addons",
+            ),
+            "package.alpha.http.root",
+        ),
+    ];
+
+    for (input, field) in cases {
+        let error = validation_error(&input);
+        assert_eq!(error.code(), ErrorCode::UserInput);
+        assert_eq!(error.message(), format!("{field} is invalid"));
+        assert!(error.recovery().is_some());
+        assert!(!error.message().contains("secret-value"));
+        assert!(!error.cause().unwrap_or_default().contains("secret-value"));
+        assert!(
+            !error
+                .source_description()
+                .expect("catalog source should be recorded")
+                .as_str()
+                .contains("secret-value")
+        );
+    }
+}
+
+#[test]
+fn invariant_catalog_validation_rejects_canonical_duplicate_candidates_deterministically() {
+    let input = format!(
+        r#"
+schema = 1
+
+[[package]]
+name = "zeta"
+[package.http]
+version = "1.0.0"
+url = "https://example.test/zeta.zip"
+sha256 = "{SHA256}"
+root = "addons/zeta"
+
+[[package]]
+name = "alpha"
+[package.git]
+url = "https://EXAMPLE.test:443/alpha.git"
+root = "./addons/alpha"
+
+[[package]]
+name = "alpha"
+[package.git]
+url = "https://example.test/alpha.git"
+root = "addons/alpha"
+"#,
+    );
+
+    let first = validation_error(&input);
+    let second = validation_error(&input);
+    assert_eq!(first, second);
+    assert_eq!(first.message(), "package.alpha.source is invalid");
+    assert_eq!(first.cause(), Some("duplicate source candidate"));
+    assert!(first.recovery().is_some());
+}
+
 fn parse(input: &str) -> SourceCatalog {
     SourceCatalog::parse(Path::new(CATALOG_PATH), input).expect("catalog should parse")
 }
 
 fn parse_error(input: &str) -> Box<wukong_core::diagnostic::Diagnostic> {
     SourceCatalog::parse(Path::new(CATALOG_PATH), input).expect_err("catalog should fail")
+}
+
+fn validation_error(input: &str) -> Box<wukong_core::diagnostic::Diagnostic> {
+    parse(input)
+        .validate(Path::new(CATALOG_PATH))
+        .expect_err("catalog validation should fail")
+}
+
+fn catalog_with_git(name: &str, url: &str, root: &str) -> String {
+    format!(
+        r#"
+schema = 1
+[[package]]
+name = "{name}"
+[package.git]
+url = "{url}"
+root = "{root}"
+"#,
+    )
+}
+
+fn catalog_with_http(name: &str, version: &str, url: &str, sha256: &str, root: &str) -> String {
+    format!(
+        r#"
+schema = 1
+[[package]]
+name = "{name}"
+[package.http]
+version = "{version}"
+url = "{url}"
+sha256 = "{sha256}"
+root = "{root}"
+"#,
+    )
 }

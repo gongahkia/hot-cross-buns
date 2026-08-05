@@ -1,11 +1,18 @@
 //! Typed parsing for the version-one project source catalog.
 
-use crate::diagnostic::{Diagnostic, ErrorCode};
+use crate::{
+    diagnostic::{Diagnostic, ErrorCode},
+    git_fetch::GitTagPrefix,
+    git_source::canonicalize_git_url,
+    http_archive::canonicalize_archive_url,
+    identity::{GitSourceIdentity, PackageName},
+    semantic_version::SemanticVersion,
+};
 use std::{
     borrow::Borrow,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 use toml_edit::{Document, Item, TableLike};
 
@@ -128,6 +135,130 @@ impl SourceCatalog {
     pub const fn packages(&self) -> &BTreeMap<CatalogPackageName, Vec<CatalogCandidate>> {
         &self.packages
     }
+
+    /// Validates source declarations without accessing the filesystem or network.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user diagnostic for invalid package names, source URLs, package
+    /// roots, versions, checksums, tag prefixes, or duplicate candidates.
+    pub fn validate(&self, path: &Path) -> SourceCatalogResult<ValidatedSourceCatalog> {
+        let mut packages = BTreeMap::new();
+        for (declared_name, candidates) in &self.packages {
+            let package = PackageName::parse(declared_name.as_str()).map_err(|error| {
+                validation_error(
+                    path,
+                    declared_name.as_str(),
+                    &field(declared_name, "name"),
+                    error,
+                    "use a lowercase ASCII package name with internal hyphens only",
+                )
+            })?;
+            let mut validated = Vec::with_capacity(candidates.len());
+            let mut identities = BTreeSet::new();
+            for candidate in candidates {
+                let (candidate, identity) = validate_candidate(path, declared_name, candidate)?;
+                if !identities.insert(identity) {
+                    return Err(validation_error(
+                        path,
+                        declared_name.as_str(),
+                        &field(declared_name, "source"),
+                        "duplicate source candidate",
+                        "remove the duplicate candidate or make its source identity distinct",
+                    ));
+                }
+                validated.push(candidate);
+            }
+            packages.insert(package, validated);
+        }
+        Ok(ValidatedSourceCatalog { packages })
+    }
+}
+
+/// A source catalog whose entries are safe for resolution without re-parsing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedSourceCatalog {
+    packages: BTreeMap<PackageName, Vec<ValidatedCatalogCandidate>>,
+}
+
+impl ValidatedSourceCatalog {
+    /// Returns validated candidates grouped by canonical package name.
+    #[must_use]
+    pub const fn packages(&self) -> &BTreeMap<PackageName, Vec<ValidatedCatalogCandidate>> {
+        &self.packages
+    }
+}
+
+/// A validated source candidate that can be resolved without re-validating input.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ValidatedCatalogCandidate {
+    /// A credential-free canonical Git repository with a safe package root.
+    Git(ValidatedCatalogGitCandidate),
+    /// A checksum-pinned HTTPS archive with a safe package root.
+    Http(ValidatedCatalogHttpCandidate),
+}
+
+/// A validated Git source-catalog candidate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedCatalogGitCandidate {
+    source: GitSourceIdentity,
+    root: PathBuf,
+    tag_prefix: Option<GitTagPrefix>,
+}
+
+impl ValidatedCatalogGitCandidate {
+    /// Returns the canonical Git repository source.
+    #[must_use]
+    pub const fn source(&self) -> &GitSourceIdentity {
+        &self.source
+    }
+
+    /// Returns the normalised source-relative package root.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Returns the validated optional semantic-version tag prefix.
+    #[must_use]
+    pub fn tag_prefix(&self) -> Option<&GitTagPrefix> {
+        self.tag_prefix.as_ref()
+    }
+}
+
+/// A validated checksum-pinned HTTP source-catalog candidate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedCatalogHttpCandidate {
+    version: SemanticVersion,
+    url: String,
+    sha256: String,
+    root: PathBuf,
+}
+
+impl ValidatedCatalogHttpCandidate {
+    /// Returns the complete semantic version selected by this archive.
+    #[must_use]
+    pub const fn version(&self) -> &SemanticVersion {
+        &self.version
+    }
+
+    /// Returns the canonical credential-free HTTPS archive URL.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Returns the validated lowercase SHA-256 checksum.
+    #[must_use]
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+
+    /// Returns the normalised source-relative package root.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
 }
 
 /// A package name declared by an unvalidated source-catalog entry.
@@ -218,6 +349,190 @@ impl CatalogHttpCandidate {
     pub fn root(&self) -> &Path {
         &self.root
     }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum CandidateIdentity {
+    Git {
+        source: String,
+        root: PathBuf,
+        tag_prefix: Option<String>,
+    },
+    Http {
+        version: String,
+        url: String,
+        sha256: String,
+        root: PathBuf,
+    },
+}
+
+fn validate_candidate(
+    path: &Path,
+    name: &CatalogPackageName,
+    candidate: &CatalogCandidate,
+) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+    match candidate {
+        CatalogCandidate::Git(candidate) => validate_git_candidate(path, name, candidate),
+        CatalogCandidate::Http(candidate) => validate_http_candidate(path, name, candidate),
+    }
+}
+
+fn validate_git_candidate(
+    path: &Path,
+    name: &CatalogPackageName,
+    candidate: &CatalogGitCandidate,
+) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+    let source = canonicalize_git_url(candidate.url()).map_err(|error| {
+        validation_error(
+            path,
+            name.as_str(),
+            &field(name, "git.url"),
+            error.message(),
+            "use a credential-free HTTPS or SSH Git repository URL",
+        )
+    })?;
+    let root = validate_root(path, name, "git.root", candidate.root())?;
+    let tag_prefix = candidate
+        .tag_prefix()
+        .map(|prefix| {
+            GitTagPrefix::parse(prefix).map_err(|error| {
+                validation_error(
+                    path,
+                    name.as_str(),
+                    &field(name, "git.tag-prefix"),
+                    error,
+                    "use a non-empty prefix that forms a safe Git tag",
+                )
+            })
+        })
+        .transpose()?;
+    let identity = CandidateIdentity::Git {
+        source: source.as_str().to_owned(),
+        root: root.clone(),
+        tag_prefix: tag_prefix.as_ref().map(|prefix| prefix.as_str().to_owned()),
+    };
+    Ok((
+        ValidatedCatalogCandidate::Git(ValidatedCatalogGitCandidate {
+            source,
+            root,
+            tag_prefix,
+        }),
+        identity,
+    ))
+}
+
+fn validate_http_candidate(
+    path: &Path,
+    name: &CatalogPackageName,
+    candidate: &CatalogHttpCandidate,
+) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+    let version = SemanticVersion::parse(candidate.version()).map_err(|error| {
+        validation_error(
+            path,
+            name.as_str(),
+            &field(name, "http.version"),
+            error,
+            "use a complete semantic version such as 1.2.3",
+        )
+    })?;
+    let url = canonicalize_archive_url(candidate.url()).map_err(|error| {
+        validation_error(
+            path,
+            name.as_str(),
+            &field(name, "http.url"),
+            error.message(),
+            "use a credential-free HTTPS archive URL without a fragment",
+        )
+    })?;
+    validate_sha256(path, name, candidate.sha256())?;
+    let root = validate_root(path, name, "http.root", candidate.root())?;
+    let identity = CandidateIdentity::Http {
+        version: version.to_string(),
+        url: url.clone(),
+        sha256: candidate.sha256().to_owned(),
+        root: root.clone(),
+    };
+    Ok((
+        ValidatedCatalogCandidate::Http(ValidatedCatalogHttpCandidate {
+            version,
+            url,
+            sha256: candidate.sha256().to_owned(),
+            root,
+        }),
+        identity,
+    ))
+}
+
+fn validate_sha256(
+    path: &Path,
+    name: &CatalogPackageName,
+    sha256: &str,
+) -> SourceCatalogResult<()> {
+    if sha256.len() == 64
+        && sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Ok(());
+    }
+    Err(validation_error(
+        path,
+        name.as_str(),
+        &field(name, "http.sha256"),
+        "archive checksum must be lowercase SHA-256",
+        "use a 64-character lowercase hexadecimal SHA-256",
+    ))
+}
+
+fn validate_root(
+    path: &Path,
+    name: &CatalogPackageName,
+    source_field: &str,
+    root: &Path,
+) -> SourceCatalogResult<PathBuf> {
+    let value = root.to_string_lossy();
+    let windows_drive = value
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_alphabetic)
+        && value.as_bytes().get(1).is_some_and(|byte| *byte == b':');
+    if value.is_empty() || value.contains(['\\', '\0']) || value.starts_with('/') || windows_drive {
+        return Err(invalid_root(path, name, source_field));
+    }
+    let mut normalised = PathBuf::new();
+    for component in root.components() {
+        match component {
+            Component::Normal(part) => normalised.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(invalid_root(path, name, source_field));
+            }
+        }
+    }
+    if normalised.as_os_str().is_empty() {
+        return Err(validation_error(
+            path,
+            name.as_str(),
+            &field(name, source_field),
+            "package root must be non-empty",
+            "use a non-empty source-relative package root",
+        ));
+    }
+    Ok(normalised)
+}
+
+fn invalid_root(path: &Path, name: &CatalogPackageName, source_field: &str) -> Box<Diagnostic> {
+    validation_error(
+        path,
+        name.as_str(),
+        &field(name, source_field),
+        "package root must be a safe relative path without traversal or a platform prefix",
+        "use a non-empty source-relative package root without traversal",
+    )
+}
+
+fn field(name: &CatalogPackageName, suffix: &str) -> String {
+    format!("package.{}.{suffix}", name.as_str())
 }
 
 fn parse_git(item: &Item, path: &Path, scope: &str) -> SourceCatalogResult<CatalogGitCandidate> {
@@ -353,6 +668,22 @@ fn user(
 ) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(ErrorCode::UserInput, message)
+            .with_source(path.display().to_string())
+            .with_cause(cause)
+            .with_recovery(recovery),
+    )
+}
+
+fn validation_error(
+    path: &Path,
+    package: &str,
+    field: &str,
+    cause: impl std::fmt::Display,
+    recovery: impl AsRef<str>,
+) -> Box<Diagnostic> {
+    Box::new(
+        Diagnostic::new(ErrorCode::UserInput, format!("{field} is invalid"))
+            .with_package(package)
             .with_source(path.display().to_string())
             .with_cause(cause)
             .with_recovery(recovery),
