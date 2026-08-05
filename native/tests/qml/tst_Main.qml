@@ -167,6 +167,10 @@ TestCase {
             verify(!mainWindow.navigationSidebar.pageButtons.itemAt(row).checked)
         }
         verify(mainWindow.navigationSidebar.pageButtons.itemAt(3).enabled)
+        verify(!mainWindow.headerSearchButton.visible)
+        verify(!mainWindow.searchShortcut.enabled)
+        mainWindow.openSearch()
+        verify(!mainWindow.searchPopup.opened)
         mainWindow.selectPage("Calendar")
         compare(mainWindow.currentPage, "Tasks")
         mainWindow.selectPage("Settings")

@@ -349,6 +349,9 @@ ApplicationWindow {
     }
 
     function openSearch() {
+        if (appController !== null && appController.googleConnected === false) {
+            return
+        }
         searchPopup.open()
     }
 
@@ -417,6 +420,7 @@ ApplicationWindow {
         id: searchShortcut
         sequence: "Ctrl+F"
         autoRepeat: false
+        enabled: window.appController === null || window.appController.googleConnected !== false
         onActivated: window.openSearch()
     }
 
@@ -1028,6 +1032,7 @@ ApplicationWindow {
 
             ToolButton {
                 id: headerSearchButton
+                visible: window.appController === null || window.appController.googleConnected !== false
                 Accessible.name: "Search"
                 Accessible.description: "Open local search"
                 ToolTip.visible: hovered
