@@ -107,6 +107,87 @@ fn invariant_metadata_name_mismatch_fails_before_cache_or_lock_publication() {
 }
 
 #[test]
+fn invariant_lock_entry_uses_the_verified_metadata_name_and_version() {
+    let fixture = Fixture::new();
+    let addon = fixture.addon("addon", "first");
+    fs::write(
+        addon.join("wukong-package.toml"),
+        "[package]\nschema = 1\nname = \"addon\"\nversion = \"2.3.4\"\ngodot = \"4\"\n",
+    )
+    .expect("metadata should write");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
+
+    let lock = lock(&fixture, &manifest, None);
+    let package = lock.packages().get("addon").expect("package should lock");
+
+    assert_eq!(package.name().as_str(), "addon");
+    assert_eq!(
+        package
+            .version()
+            .expect("verified metadata version should lock")
+            .to_string(),
+        "2.3.4"
+    );
+}
+
+#[test]
+fn invariant_same_direct_source_cannot_lock_under_incompatible_aliases() {
+    let fixture = Fixture::new();
+    fixture.addon("shared", "first");
+    let manifest = fixture.manifest(
+        "[dev-dependencies]\nalpha = { path = \"shared\" }\nbeta = { path = \"shared\" }\n",
+    );
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let error = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect_err("incompatible alias must fail");
+
+    assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    assert_eq!(error.package(), Some("alpha"));
+    assert!(error.message().contains("declared package alpha"));
+}
+
+#[test]
+fn invariant_multi_addon_repository_locks_each_selected_metadata_identity() {
+    let fixture = Fixture::new();
+    let source = fixture.directory.path().join("suite/addons");
+    fs::create_dir_all(source.join("alpha")).expect("alpha source should create");
+    fs::create_dir_all(source.join("beta")).expect("beta source should create");
+    fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
+    fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
+    Fixture::metadata(&source.join("alpha"), "alpha");
+    Fixture::metadata(&source.join("beta"), "beta");
+    let manifest = fixture.manifest(
+        "[dev-dependencies]\nalpha = { path = \"suite\", root = \"addons/alpha\", target = \"addons/alpha\" }\nbeta = { path = \"suite\", root = \"addons/beta\", target = \"addons/beta\" }\n",
+    );
+
+    let lock = lock(&fixture, &manifest, None);
+
+    assert_eq!(
+        lock.packages()
+            .keys()
+            .map(wukong_core::identity::PackageName::as_str)
+            .collect::<Vec<_>>(),
+        ["alpha", "beta"]
+    );
+    assert_eq!(
+        lock.packages()
+            .get("alpha")
+            .expect("alpha should lock")
+            .source_subdirectory(),
+        Path::new("addons/alpha")
+    );
+    assert_eq!(
+        lock.packages()
+            .get("beta")
+            .expect("beta should lock")
+            .source_subdirectory(),
+        Path::new("addons/beta")
+    );
+}
+
+#[test]
 fn invariant_runtime_local_paths_fail_before_cache_or_lock_publication() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");

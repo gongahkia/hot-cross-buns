@@ -25,18 +25,38 @@ pub type ResolverResult<T> = Result<T, Box<Diagnostic>>;
 /// A package candidate supplied by a source adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageCandidate {
+    name: Option<PackageName>,
     version: SemanticVersion,
     dependencies: BTreeMap<PackageName, VersionRequirement>,
 }
 
 impl PackageCandidate {
-    /// Creates a candidate with canonical version identity.
+    /// Creates an unbound candidate with canonical version identity.
+    ///
+    /// [`InMemoryPackageUniverse::add_candidate`] binds it to the supplied
+    /// package. Source adapters should use [`Self::for_package`] or
+    /// [`Self::load_required`] so resolver selection can verify identity.
     #[must_use]
     pub fn new(
         version: &SemanticVersion,
         dependencies: BTreeMap<PackageName, VersionRequirement>,
     ) -> Self {
         Self {
+            name: None,
+            version: version.without_build_metadata(),
+            dependencies,
+        }
+    }
+
+    /// Creates a candidate bound to one canonical package name.
+    #[must_use]
+    pub fn for_package(
+        package: PackageName,
+        version: &SemanticVersion,
+        dependencies: BTreeMap<PackageName, VersionRequirement>,
+    ) -> Self {
+        Self {
+            name: Some(package),
             version: version.without_build_metadata(),
             dependencies,
         }
@@ -46,11 +66,17 @@ impl PackageCandidate {
     ///
     /// # Errors
     ///
-    /// Returns metadata parsing or I/O diagnostics, including a user diagnostic
-    /// when package metadata is absent.
-    pub fn load_required(package_root: &Path) -> ResolverResult<Self> {
-        PackageMetadata::load_required(package_root)
-            .map(|metadata| Self::new(metadata.version(), metadata.dependencies().clone()))
+    /// Returns metadata parsing or I/O diagnostics, an integrity diagnostic for
+    /// a metadata-name mismatch, and a user diagnostic when metadata is absent.
+    pub fn load_required(package: &PackageName, package_root: &Path) -> ResolverResult<Self> {
+        let metadata = PackageMetadata::load_required(package_root)
+            .map_err(|error| Box::new((*error).with_package(package.as_str())))?;
+        let candidate = Self::for_package(
+            metadata.name().clone(),
+            metadata.version(),
+            metadata.dependencies().clone(),
+        );
+        candidate.bind_to(package)
     }
 
     /// Returns the candidate's canonical semantic version.
@@ -63,6 +89,14 @@ impl PackageCandidate {
     #[must_use]
     pub const fn dependencies(&self) -> &BTreeMap<PackageName, VersionRequirement> {
         &self.dependencies
+    }
+
+    fn bind_to(mut self, package: &PackageName) -> ResolverResult<Self> {
+        if self.name.is_none() {
+            self.name = Some(package.clone());
+        }
+        validate_candidate_identity(package, &self)?;
+        Ok(self)
     }
 }
 
@@ -104,6 +138,7 @@ impl InMemoryPackageUniverse {
         package: PackageName,
         candidate: PackageCandidate,
     ) -> ResolverResult<()> {
+        let candidate = candidate.bind_to(&package)?;
         let package_display = package.to_string();
         let candidates = self.packages.entry(package).or_default();
         if candidates
@@ -299,13 +334,26 @@ impl<'a> ResolverProvider<'a> {
         let mut candidates = self
             .universe
             .candidates(package)
-            .map_err(|error| ResolverProviderError(error.to_string()))?;
+            .map_err(ResolverProviderError::from_diagnostic)?;
+        for candidate in &candidates {
+            validate_candidate_identity(package, candidate)
+                .map_err(ResolverProviderError::from_diagnostic)?;
+        }
         candidates.sort_by(|left, right| left.version().cmp(right.version()));
         for pair in candidates.windows(2) {
             if pair[0].version() == pair[1].version() {
-                return Err(ResolverProviderError(format!(
-                    "package {package} supplies duplicate version {}",
-                    pair[0].version()
+                return Err(ResolverProviderError::from_diagnostic(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::IntegrityFailure,
+                        format!(
+                            "package {package} supplies duplicate version {}",
+                            pair[0].version()
+                        ),
+                    )
+                    .with_package(package.as_str())
+                    .with_recovery(
+                        "make each immutable source candidate use one canonical version",
+                    ),
                 )));
             }
         }
@@ -324,7 +372,14 @@ impl<'a> ResolverProvider<'a> {
             .into_iter()
             .find(|candidate| candidate.version() == version)
             .ok_or_else(|| {
-                ResolverProviderError(format!("package {package} has no version {version}"))
+                ResolverProviderError::from_diagnostic(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::SourceAccess,
+                        format!("package {package} has no version {version}"),
+                    )
+                    .with_package(package.as_str())
+                    .with_recovery("check the package source and metadata, then retry"),
+                ))
             })
     }
 
@@ -380,9 +435,16 @@ impl DependencyProvider for ResolverProvider<'_> {
         range: &Self::VS,
     ) -> Result<Option<Self::V>, Self::Err> {
         let SolverPackage::Package(package) = package else {
-            return SemanticVersion::parse("0.0.0")
-                .map(Some)
-                .map_err(|error| ResolverProviderError(error.to_string()));
+            return SemanticVersion::parse("0.0.0").map(Some).map_err(|error| {
+                ResolverProviderError::from_diagnostic(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::InternalFailure,
+                        "could not construct the root resolver version",
+                    )
+                    .with_cause(error)
+                    .with_recovery("report this as a wukong bug"),
+                ))
+            });
         };
         let candidates = self.candidates(package)?;
         if let Some(locked) = self.request.locked().get(package) {
@@ -416,16 +478,26 @@ impl DependencyProvider for ResolverProvider<'_> {
     fn should_cancel(&self) -> Result<(), Self::Err> {
         self.cancellation
             .check()
-            .map_err(|error| ResolverProviderError(error.to_string()))
+            .map_err(ResolverProviderError::from_diagnostic)
     }
 }
 
 #[derive(Debug)]
-struct ResolverProviderError(String);
+struct ResolverProviderError(Box<Diagnostic>);
+
+impl ResolverProviderError {
+    fn from_diagnostic(diagnostic: Box<Diagnostic>) -> Self {
+        Self(diagnostic)
+    }
+
+    fn into_diagnostic(self) -> Box<Diagnostic> {
+        self.0
+    }
+}
 
 impl Display for ResolverProviderError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
+        self.0.fmt(formatter)
     }
 }
 
@@ -446,7 +518,7 @@ fn provider_error(error: PubGrubError<ResolverProvider<'_>>) -> Box<Diagnostic> 
                 .with_recovery("adjust the incompatible dependency requirements and retry"),
             )
         }
-        PubGrubError::ErrorInShouldCancel(error) => Box::new(
+        PubGrubError::ErrorInShouldCancel(_) => Box::new(
             Diagnostic::new(
                 ErrorCode::SourceAccess,
                 "dependency resolution was cancelled",
@@ -459,15 +531,42 @@ fn provider_error(error: PubGrubError<ResolverProvider<'_>>) -> Box<Diagnostic> 
         }
         | PubGrubError::ErrorRetrievingDependencies {
             package, source, ..
-        } => Box::new(
+        } => package_diagnostic(&package, source.into_diagnostic()),
+    }
+}
+
+fn validate_candidate_identity(
+    package: &PackageName,
+    candidate: &PackageCandidate,
+) -> ResolverResult<()> {
+    match candidate.name.as_ref() {
+        Some(name) if name == package => Ok(()),
+        Some(name) => Err(Box::new(
             Diagnostic::new(
-                ErrorCode::SourceAccess,
-                format!("could not resolve package {package}"),
+                ErrorCode::IntegrityFailure,
+                format!(
+                    "resolver candidate metadata name {name} does not match requested package {package}"
+                ),
             )
-            .with_package(package.to_string())
-            .with_cause(source)
-            .with_recovery("check the package source and metadata, then retry"),
-        ),
+            .with_package(package.as_str())
+            .with_recovery("correct package.name before resolving"),
+        )),
+        None => Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::IntegrityFailure,
+                format!("resolver candidate for package {package} has no metadata identity"),
+            )
+            .with_package(package.as_str())
+            .with_recovery("construct candidates from validated package metadata"),
+        )),
+    }
+}
+
+fn package_diagnostic(package: &SolverPackage, diagnostic: Box<Diagnostic>) -> Box<Diagnostic> {
+    if diagnostic.package().is_some() {
+        diagnostic
+    } else {
+        Box::new((*diagnostic).with_package(package.to_string()))
     }
 }
 

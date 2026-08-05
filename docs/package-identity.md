@@ -13,3 +13,10 @@ source work begins.
 Development status is a dependency-edge property. It does not create a second
 identity for the same package. Remote source identity variants are deferred to
 their source adapters. See [ADR 0004](adr/0004-package-identity.md).
+
+Every resolved candidate retains its package-metadata identity. The metadata
+name must equal the requested catalog or direct-dependency name before resolver
+selection and lock publication. One selected package root cannot therefore be
+relabelled through a second alias. A repository may expose multiple addons only
+when each declaration selects its own root with matching metadata. See
+[ADR 0043](adr/0043-strict-package-metadata-policy.md).

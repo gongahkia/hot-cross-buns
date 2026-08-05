@@ -19,7 +19,7 @@ fn invariant_package_owned_metadata_becomes_a_transitive_candidate() {
     )
     .expect("metadata fixture should write");
 
-    let candidate = PackageCandidate::load_required(fixture.path())
+    let candidate = PackageCandidate::load_required(&name("addon"), fixture.path())
         .expect("metadata should create a candidate");
 
     assert_eq!(candidate.version().to_string(), "1.2.3");
@@ -34,14 +34,43 @@ fn invariant_package_owned_metadata_becomes_a_transitive_candidate() {
 }
 
 #[test]
+fn invariant_package_candidate_rejects_metadata_name_mismatch_before_resolution() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    fs::write(
+        fixture.path().join("wukong-package.toml"),
+        "[package]\nschema = 1\nname = \"other-addon\"\nversion = \"1.2.3\"\ngodot = \"4\"\n",
+    )
+    .expect("metadata fixture should write");
+
+    let error = PackageCandidate::load_required(&name("addon"), fixture.path())
+        .expect_err("metadata name mismatch must fail");
+
+    assert_eq!(
+        error.code(),
+        wukong_core::diagnostic::ErrorCode::IntegrityFailure
+    );
+    assert_eq!(error.package(), Some("addon"));
+    assert!(error.message().contains("metadata name other-addon"));
+}
+
+#[test]
 fn invariant_universe_is_queried_lazily_and_complete_graph_is_deterministic() {
     let mut packages = BTreeMap::new();
-    packages.insert(name("addon"), vec![candidate("1.0.0", &[("helper", "^1")])]);
+    packages.insert(
+        name("addon"),
+        vec![bound_candidate("addon", "1.0.0", &[("helper", "^1")])],
+    );
     packages.insert(
         name("helper"),
-        vec![candidate("1.0.0", &[]), candidate("1.4.0", &[])],
+        vec![
+            bound_candidate("helper", "1.0.0", &[]),
+            bound_candidate("helper", "1.4.0", &[]),
+        ],
     );
-    packages.insert(name("unrelated"), vec![candidate("9.0.0", &[])]);
+    packages.insert(
+        name("unrelated"),
+        vec![bound_candidate("unrelated", "9.0.0", &[])],
+    );
     let universe = RecordingUniverse::new(packages);
     let mut request = ResolutionRequest::new();
     request.require(name("addon"), requirement("^1"));
@@ -170,6 +199,25 @@ fn invariant_cancelled_resolution_does_not_select_packages() {
     assert_eq!(error.message(), "dependency resolution was cancelled");
 }
 
+#[test]
+fn invariant_resolver_rejects_candidate_metadata_identity_mismatch() {
+    let universe = MismatchedUniverse {
+        candidate: bound_candidate("other-addon", "1.0.0", &[]),
+    };
+    let mut request = ResolutionRequest::new();
+    request.require(name("addon"), requirement("=1.0.0"));
+
+    let error = resolve_dependencies(&universe, &request, &CancellationToken::new())
+        .expect_err("mismatched candidate identity must fail");
+
+    assert_eq!(
+        error.code(),
+        wukong_core::diagnostic::ErrorCode::IntegrityFailure
+    );
+    assert_eq!(error.package(), Some("addon"));
+    assert!(error.message().contains("metadata name other-addon"));
+}
+
 #[derive(Debug)]
 struct RecordingUniverse {
     packages: BTreeMap<PackageName, Vec<PackageCandidate>>,
@@ -192,6 +240,16 @@ impl PackageUniverse for RecordingUniverse {
     }
 }
 
+struct MismatchedUniverse {
+    candidate: PackageCandidate,
+}
+
+impl PackageUniverse for MismatchedUniverse {
+    fn candidates(&self, _: &PackageName) -> ResolverResult<Vec<PackageCandidate>> {
+        Ok(vec![self.candidate.clone()])
+    }
+}
+
 fn add(universe: &mut InMemoryPackageUniverse, package: &str, candidate: PackageCandidate) {
     universe
         .add_candidate(name(package), candidate)
@@ -200,6 +258,21 @@ fn add(universe: &mut InMemoryPackageUniverse, package: &str, candidate: Package
 
 fn candidate(version_raw: &str, dependencies: &[(&str, &str)]) -> PackageCandidate {
     PackageCandidate::new(
+        &version(version_raw),
+        dependencies
+            .iter()
+            .map(|(package, version_requirement)| (name(package), requirement(version_requirement)))
+            .collect(),
+    )
+}
+
+fn bound_candidate(
+    package: &str,
+    version_raw: &str,
+    dependencies: &[(&str, &str)],
+) -> PackageCandidate {
+    PackageCandidate::for_package(
+        name(package),
         &version(version_raw),
         dependencies
             .iter()

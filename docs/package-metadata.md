@@ -4,6 +4,8 @@ Every package included in `wukong.lock` requires a valid UTF-8
 `wukong-package.toml`. A missing or invalid file stops locking before cache,
 lockfile, installed-state, or project mutation. Its canonical `package.name`
 must equal the direct declaration or catalog package identity.
+Resolver candidates and lock entries preserve that verified name and version;
+an alias cannot relabel selected package content.
 
 Addon authors can create a validating schema-one file with
 [`wukong package init`](package-init.md); it never replaces existing metadata.
