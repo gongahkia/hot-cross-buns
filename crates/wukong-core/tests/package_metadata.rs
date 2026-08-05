@@ -1,8 +1,8 @@
-use std::path::Path;
+use std::{fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
     diagnostic::{ErrorCode, RedactedSource},
-    package_metadata::PackageMetadata,
+    package_metadata::{PackageMetadata, PackageMetadataInitializationOptions},
 };
 
 const PATH: &str = "fixture/wukong-package.toml";
@@ -82,6 +82,105 @@ fn invariant_absent_required_metadata_fails_with_context() {
                 .to_string_lossy()
                 .as_ref()
         )
+    );
+}
+
+#[test]
+fn invariant_package_metadata_initialization_generates_immediately_valid_defaults() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let root = fixture.path().join("example-addon");
+    fs::create_dir(&root).expect("package root should create");
+
+    let initialized =
+        PackageMetadata::initialize(&root, &PackageMetadataInitializationOptions::default())
+            .expect("metadata initialization should succeed");
+    let metadata = PackageMetadata::load_required(&root).expect("generated metadata should parse");
+
+    assert_eq!(
+        initialized.path(),
+        fs::canonicalize(&root)
+            .expect("package root should canonicalize")
+            .join("wukong-package.toml")
+    );
+    assert_eq!(initialized.metadata(), &metadata);
+    assert_eq!(metadata.name().as_str(), "example-addon");
+    assert_eq!(metadata.version().to_string(), "0.1.0");
+    assert_eq!(metadata.root(), None);
+    assert_eq!(metadata.target(), None);
+}
+
+#[test]
+fn invariant_package_metadata_initialization_validates_explicit_fields() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let root = fixture.path().join("example-addon");
+    fs::create_dir(&root).expect("package root should create");
+    let options = PackageMetadataInitializationOptions::default()
+        .with_name("custom-addon".to_owned())
+        .with_version("1.2.3".to_owned())
+        .with_godot(">=4.3,<5".to_owned())
+        .with_root("addons/custom-addon".to_owned())
+        .with_target("addons/custom-addon".to_owned());
+
+    PackageMetadata::initialize(&root, &options).expect("explicit metadata should initialize");
+    let metadata = PackageMetadata::load_required(&root).expect("metadata should parse");
+
+    assert_eq!(metadata.name().as_str(), "custom-addon");
+    assert_eq!(metadata.version().to_string(), "1.2.3");
+    assert_eq!(metadata.root(), Some(Path::new("addons/custom-addon")));
+    assert_eq!(metadata.target(), Some(Path::new("addons/custom-addon")));
+}
+
+#[test]
+fn invariant_package_metadata_initialization_rejects_invalid_fields_and_existing_files() {
+    let fixture = TempDir::new().expect("fixture directory should exist");
+    let invalid_root = fixture.path().join("invalid-root");
+    fs::create_dir(&invalid_root).expect("package root should create");
+    for (options, field) in [
+        (
+            PackageMetadataInitializationOptions::default().with_name("Invalid".to_owned()),
+            "package.name",
+        ),
+        (
+            PackageMetadataInitializationOptions::default().with_version("1.0".to_owned()),
+            "package.version",
+        ),
+        (
+            PackageMetadataInitializationOptions::default().with_godot("Godot 4".to_owned()),
+            "package.godot",
+        ),
+        (
+            PackageMetadataInitializationOptions::default().with_root("../escape".to_owned()),
+            "package.root",
+        ),
+        (
+            PackageMetadataInitializationOptions::default().with_target("../escape".to_owned()),
+            "package.target",
+        ),
+    ] {
+        let invalid_error = PackageMetadata::initialize(&invalid_root, &options)
+            .expect_err("invalid explicit metadata must fail");
+
+        assert_eq!(invalid_error.code(), ErrorCode::UserInput);
+        assert!(invalid_error.message().contains(field));
+    }
+    assert!(!invalid_root.join("wukong-package.toml").exists());
+
+    let existing_root = fixture.path().join("existing-addon");
+    fs::create_dir(&existing_root).expect("package root should create");
+    let metadata_path = existing_root.join("wukong-package.toml");
+    fs::write(&metadata_path, "existing content\n").expect("metadata should write");
+
+    let existing_error = PackageMetadata::initialize(
+        &existing_root,
+        &PackageMetadataInitializationOptions::default(),
+    )
+    .expect_err("existing metadata must not be overwritten");
+
+    assert_eq!(existing_error.code(), ErrorCode::UserInput);
+    assert!(existing_error.message().contains("already exists"));
+    assert_eq!(
+        fs::read_to_string(metadata_path).expect("metadata should remain readable"),
+        "existing content\n"
     );
 }
 

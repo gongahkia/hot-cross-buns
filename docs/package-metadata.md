@@ -5,6 +5,9 @@ Every package included in `wukong.lock` requires a valid UTF-8
 lockfile, installed-state, or project mutation. Its canonical `package.name`
 must equal the direct declaration or catalog package identity.
 
+Addon authors can create a validating schema-one file with
+[`wukong package init`](package-init.md); it never replaces existing metadata.
+
 It is required when validating a selected Git source-catalog candidate before
 lock publication. Its canonical `package.version` must agree with the selected
 Git tag version; SemVer build metadata does not affect that comparison.

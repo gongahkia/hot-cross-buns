@@ -45,6 +45,7 @@ use wukong_core::{
     manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
     operation_lock::AdvisoryLock,
     outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
+    package_metadata::{PackageMetadata, PackageMetadataInitializationOptions},
     project::ProjectRoot,
     provenance::ProvenanceReport,
     source::CancellationToken,
@@ -92,6 +93,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     }
     match command {
         Some(command) if command == "init" => match run_init(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "package" => match run_package(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -3440,6 +3445,142 @@ fn run_init(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     Ok(())
 }
 
+fn run_package(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let command = arguments.next().ok_or_else(|| {
+        user_error(
+            "package requires a subcommand",
+            "run wukong package init [--path <directory>]",
+        )
+    })?;
+    match command.to_str() {
+        Some("init") => run_package_init(arguments),
+        _ => Err(user_error(
+            format!("unsupported package command {}", command.to_string_lossy()),
+            "run wukong package init [--path <directory>]",
+        )),
+    }
+}
+
+fn run_package_init(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_package_init_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible package directory"),
+        )
+    })?;
+    let package_root = options.path.as_deref().unwrap_or(&current_directory);
+    let initialized = PackageMetadata::initialize(package_root, &options.metadata_options())?;
+    println!("created {}", initialized.path().display());
+    Ok(())
+}
+
+#[derive(Default)]
+struct PackageInitOptions {
+    path: Option<PathBuf>,
+    name: Option<String>,
+    version: Option<String>,
+    godot: Option<String>,
+    root: Option<String>,
+    target: Option<String>,
+}
+
+impl PackageInitOptions {
+    fn metadata_options(&self) -> PackageMetadataInitializationOptions {
+        let mut options = PackageMetadataInitializationOptions::default();
+        if let Some(name) = &self.name {
+            options = options.with_name(name.clone());
+        }
+        if let Some(version) = &self.version {
+            options = options.with_version(version.clone());
+        }
+        if let Some(godot) = &self.godot {
+            options = options.with_godot(godot.clone());
+        }
+        if let Some(root) = &self.root {
+            options = options.with_root(root.clone());
+        }
+        if let Some(target) = &self.target {
+            options = options.with_target(target.clone());
+        }
+        options
+    }
+}
+
+fn parse_package_init_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<PackageInitOptions, Box<Diagnostic>> {
+    let mut options = PackageInitOptions::default();
+    while let Some(argument) = arguments.next() {
+        if argument == "--path" {
+            let path = arguments.next().ok_or_else(|| {
+                user_error(
+                    "--path requires a package directory",
+                    "provide one existing package directory",
+                )
+            })?;
+            if options.path.replace(PathBuf::from(path)).is_some() {
+                return Err(user_error(
+                    "--path may be supplied only once",
+                    "provide one package directory",
+                ));
+            }
+            continue;
+        }
+        let Some(field) = package_init_field(&argument) else {
+            return Err(user_error(
+                format!(
+                    "unsupported package init argument {}",
+                    argument.to_string_lossy()
+                ),
+                "use --path, --name, --version, --godot, --root, or --target",
+            ));
+        };
+        let value = arguments.next().ok_or_else(|| {
+            user_error(
+                format!("{field} requires a value"),
+                format!("provide a value for {field}"),
+            )
+        })?;
+        let value = value.to_str().ok_or_else(|| {
+            user_error(
+                format!("{field} must be valid UTF-8"),
+                format!("provide a UTF-8 value for {field}"),
+            )
+        })?;
+        let slot = match field {
+            "--name" => &mut options.name,
+            "--version" => &mut options.version,
+            "--godot" => &mut options.godot,
+            "--root" => &mut options.root,
+            "--target" => &mut options.target,
+            _ => unreachable!("package_init_field returns supported options"),
+        };
+        if slot.replace(value.to_owned()).is_some() {
+            return Err(user_error(
+                format!("{field} may be supplied only once"),
+                format!("provide one value for {field}"),
+            ));
+        }
+    }
+    Ok(options)
+}
+
+fn package_init_field(argument: &OsString) -> Option<&'static str> {
+    match argument.to_str() {
+        Some("--name") => Some("--name"),
+        Some("--version") => Some("--version"),
+        Some("--godot") => Some("--godot"),
+        Some("--root") => Some("--root"),
+        Some("--target") => Some("--target"),
+        _ => None,
+    }
+}
+
 fn parse_init_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<PathBuf>, Box<Diagnostic>> {
@@ -3488,7 +3629,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|package <init>|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

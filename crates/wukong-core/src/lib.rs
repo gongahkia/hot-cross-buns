@@ -64,7 +64,7 @@ pub mod http_archive;
 /// Versioned content-addressed cache layout.
 pub mod cache;
 
-/// Optional package-owned metadata parsing.
+/// Required package-owned metadata parsing and authoring.
 pub mod package_metadata;
 
 /// Project-manifest parsing and validation.
