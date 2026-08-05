@@ -1,0 +1,51 @@
+name: macOS export validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install pinned Godot and macOS template
+        env:
+          GODOT_VERSION: 4.7.1-stable
+        run: |
+          set -euo pipefail
+          release_url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/godot.zip" "$release_url/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/templates.tpz" "$release_url/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          template_dir="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION/-stable/.stable}"
+          mkdir -p "$template_dir"
+          unzip -p "$RUNNER_TEMP/templates.tpz" templates/macos.zip > "$template_dir/macos.zip"
+          unzip -p "$RUNNER_TEMP/templates.tpz" templates/version.txt > "$template_dir/version.txt"
+          godot_bin="$(find "$RUNNER_TEMP/godot" -path '*/Godot.app/Contents/MacOS/Godot' -type f -print -quit)"
+          test -n "$godot_bin"
+          echo "$(dirname "$godot_bin")" >> "$GITHUB_PATH"
+          "$godot_bin" --version
+      - name: Import project resources
+        run: godot --headless --path . --import
+      - name: Export and validate app bundle
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          godot --headless --path . --export-release macOS artifacts/a-slow-walk.app
+          test -f artifacts/a-slow-walk.app/Contents/Info.plist
+          test -f artifacts/a-slow-walk.app/Contents/MacOS/a-slow-walk
+          plutil -lint artifacts/a-slow-walk.app/Contents/Info.plist
+          codesign --verify --deep --strict artifacts/a-slow-walk.app
+          ditto -c -k --keepParent artifacts/a-slow-walk.app artifacts/a-slow-walk-macos.zip
+          unzip -t artifacts/a-slow-walk-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a-slow-walk-macos
+          path: artifacts/a-slow-walk-macos.zip
+          if-no-files-found: error

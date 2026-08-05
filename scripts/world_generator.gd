@@ -1,0 +1,239 @@
+class_name WorldGenerator
+extends RefCounted
+
+const RNG := preload("res://scripts/world_rng.gd")
+const GENERATION_IDENTITY := preload("res://scripts/world_generation_identity.gd")
+const MEGASTRUCTURE_GENERATOR := preload("res://scripts/world_megastructure_generator.gd")
+const MEGASTRUCTURE_INTERSECTION := preload("res://scripts/world_megastructure_intersection.gd")
+const MEGASTRUCTURE_LOD := preload("res://scripts/world_megastructure_lod.gd")
+const SCALE := preload("res://scripts/world_scale.gd")
+const URBAN_FIELDS := preload("res://scripts/world_urban_fields.gd")
+const CITY_LAYOUT := preload("res://scripts/world_reclaimed_city_layout.gd")
+const CITY_ARTERIALS := preload("res://scripts/world_city_arterials.gd")
+const CITY_SECONDARY_ROADS := preload("res://scripts/world_city_secondary_roads.gd")
+const CITY_PARCELS := preload("res://scripts/world_city_parcels.gd")
+const CITY_MASSING := preload("res://scripts/world_city_massing.gd")
+const CITY_TRAVERSAL := preload("res://scripts/world_city_traversal.gd")
+const CITY_FAILURES := preload("res://scripts/world_city_failures.gd")
+const CITY_ROOFTOP_RESOURCES := preload("res://scripts/world_city_rooftop_resources.gd")
+const CITY_VEGETATION := preload("res://scripts/world_city_vegetation.gd")
+const FLOODED_BASIN := preload("res://scripts/world_flooded_city_basin.gd")
+const FLOODED_INUNDATION := preload("res://scripts/world_flooded_city_inundation.gd")
+const FLOODED_ROUTES := preload("res://scripts/world_flooded_city_routes.gd")
+const FLOODED_STRUCTURES := preload("res://scripts/world_flooded_city_structures.gd")
+const FLOODED_ECOLOGY := preload("res://scripts/world_flooded_city_ecology.gd")
+const INDUSTRIAL_LAYOUT := preload("res://scripts/world_industrial_layout.gd")
+const INDUSTRIAL_STRUCTURES := preload("res://scripts/world_industrial_structures.gd")
+const INDUSTRIAL_TRAVERSAL := preload("res://scripts/world_industrial_traversal.gd")
+const INDUSTRIAL_HAZARDS := preload("res://scripts/world_industrial_hazards.gd")
+const INDUSTRIAL_RESOURCES := preload("res://scripts/world_industrial_resources.gd")
+const SUBURB_ROADS := preload("res://scripts/world_suburb_roads.gd")
+const SUBURB_PARCELS := preload("res://scripts/world_suburb_parcels.gd")
+const SUBURB_TRANSITIONS := preload("res://scripts/world_suburb_transitions.gd")
+const SUBURB_TRAVERSAL := preload("res://scripts/world_suburb_traversal.gd")
+const SUBURB_RESOURCES := preload("res://scripts/world_suburb_resources.gd")
+const URBAN_CORRIDORS := preload("res://scripts/world_urban_corridors.gd")
+const CITY_CORRIDORS := preload("res://scripts/world_city_corridors.gd")
+const NATURAL_RESOURCES := preload("res://scripts/world_natural_resources.gd")
+const URBAN_RESOURCES := preload("res://scripts/world_urban_resources.gd")
+
+const CHUNK_SIZE := 64.0
+const REGION_SIZE := 512.0
+const SEA_LEVEL := 0.0
+const GENERATOR_SCHEMA_VERSION := GENERATION_IDENTITY.GENERATOR_SCHEMA_VERSION
+const URBAN_FAMILIES := ["reclaimed_city", "flooded_city", "industrial_ruin", "overgrown_suburb"]
+const NATURAL_BIOMES := ["ocean", "coast", "lake", "river", "wetland", "desert", "cold_desert", "polar_desert", "semiaird_shrubland", "playa_salt_flat", "dune_sea_erg", "badland", "oasis", "grassland", "savanna", "temperate_forest", "temperate_rainforest", "mixed_forest", "conifer_forest", "rainforest", "monsoon_forest", "dry_broadleaf", "cloud_forest", "thorn_scrub", "mediterranean_chaparral", "mangrove", "riparian_gallery_forest", "boreal_forest", "muskeg", "subalpine_krummholz", "tundra", "permafrost_polygon", "alpine", "alpine_scree", "nival_zone", "snow", "rock", "lava_flow", "shield", "karst", "reef", "lagoon", "kelp_forest_fringe", "atoll_ring", "seamount_cap", "fumarole_field", "hot_spring_travertine", "ash_plain"]
+
+var seed: int
+var megastructure_generator
+var megastructure_cache: Dictionary = {}
+
+func _init(next_seed: int) -> void:
+	seed = next_seed
+	megastructure_generator = MEGASTRUCTURE_GENERATOR.new(seed, GENERATOR_SCHEMA_VERSION)
+
+func region_at(world_position: Vector3) -> Dictionary:
+	var rx := floori(world_position.x / REGION_SIZE)
+	var rz := floori(world_position.z / REGION_SIZE)
+	var roll := RNG.unit(seed, rx, rz, 71)
+	var family := "wilderness"
+	if roll < 0.16:
+		family = "reclaimed_city"
+	elif roll < 0.30:
+		family = "flooded_city"
+	elif roll < 0.44:
+		family = "industrial_ruin"
+	elif roll < 0.58:
+		family = "overgrown_suburb"
+	var landmark_roll := RNG.unit(seed, rx, rz, 73)
+	var landmark := ""
+	if landmark_roll > 0.84:
+		landmark = ["weather station", "collapsed observatory", "radio mast", "floodgate", "wind farm", "glass conservatory"][RNG.hash_int(seed, rx, rz, 79) % 6]
+	return {"x": rx, "z": rz, "id": "%d:%d" % [rx, rz], "family": family, "landmark": landmark, "name": _region_name(rx, rz, family)}
+
+static func scale_info(scope: Variant = "local") -> Dictionary:
+	return SCALE.info(scope)
+
+func sample(world_x: float, world_z: float, scope: Variant = "local") -> Dictionary:
+	var scale: Dictionary = SCALE.info(scope)
+	var sample_x := SCALE.coordinate(world_x, scale.get("id", "local"))
+	var sample_z := SCALE.coordinate(world_z, scale.get("id", "local"))
+	var continental := RNG.fbm(seed, sample_x / 900.0, sample_z / 900.0, 5, 11) * 7.0
+	var relief := absf(RNG.fbm(seed, sample_x / 170.0, sample_z / 170.0, 4, 29)) * 15.0
+	var detail := RNG.fbm(seed, sample_x / 42.0, sample_z / 42.0, 4, 47) * 2.4
+	var plate := RNG.fbm(seed, sample_x / 1500.0, sample_z / 1500.0, 3, 61)
+	var elevation := continental + relief * smoothstep(0.08, 0.62, absf(plate)) + detail - 1.6
+	var region := region_at(Vector3(sample_x, 0.0, sample_z))
+	if region.family == "flooded_city": elevation -= 4.2
+	if region.family == "industrial_ruin": elevation += 0.5
+	var temperature := clampf(0.58 - absf(RNG.fbm(seed, sample_x / 3000.0, sample_z / 3000.0, 2, 89)) * 0.42 - elevation * 0.018, 0.0, 1.0)
+	var rainfall := clampf(0.52 + RNG.fbm(seed, sample_x / 1200.0, sample_z / 1200.0, 4, 101) * 0.38, 0.0, 1.0)
+	var biome := _biome(elevation, temperature, rainfall, region.family)
+	return {"elevation": elevation, "temperature": temperature, "rainfall": rainfall, "biome": biome, "region": region, "water": elevation <= SEA_LEVEL, "scale": scale.id, "scale_factor": scale.factor, "sample_x": sample_x, "sample_z": sample_z}
+
+func chunk_descriptor(chunk_x: int, chunk_z: int, scope: Variant = "local") -> Dictionary:
+	var scale: Dictionary = SCALE.info(scope)
+	var center := Vector3(SCALE.chunk_center(chunk_x, CHUNK_SIZE, scale.id), 0.0, SCALE.chunk_center(chunk_z, CHUNK_SIZE, scale.id))
+	var sample_data := sample(center.x, center.z, scale.id)
+	var descriptor:Dictionary={"x": chunk_x, "z": chunk_z, "id": "%d:%d" % [chunk_x, chunk_z], "center": center, "region": sample_data.region, "biome": sample_data.biome, "water": sample_data.water, "scale": scale.id, "scale_factor": scale.factor}
+	var urban_corridors:=URBAN_CORRIDORS.generate(self,chunk_x,chunk_z,sample_data)
+	if not urban_corridors.is_empty():descriptor["urban_corridors"]=urban_corridors
+	var city_corridors:=CITY_CORRIDORS.generate(self,chunk_x,chunk_z,sample_data)
+	if not city_corridors.is_empty():descriptor["city_corridors"]=city_corridors
+	var urban:=URBAN_FIELDS.sample(seed,chunk_x,chunk_z,str(sample_data.region.family))
+	if not urban.is_empty():descriptor["urban"]=urban
+	var suburb_roads:=SUBURB_ROADS.generate(seed,chunk_x,chunk_z,urban)
+	if not suburb_roads.is_empty():descriptor["suburb_roads"]=suburb_roads
+	var suburb_parcels:=SUBURB_PARCELS.generate(seed,chunk_x,chunk_z,urban,suburb_roads)
+	if not suburb_parcels.is_empty():descriptor["suburb_parcels"]=suburb_parcels
+	var suburb_transitions:=SUBURB_TRANSITIONS.generate(seed,chunk_x,chunk_z,suburb_parcels,suburb_roads)
+	if not suburb_transitions.is_empty():descriptor["suburb_transitions"]=suburb_transitions
+	var suburb_traversal:=SUBURB_TRAVERSAL.generate(seed,chunk_x,chunk_z,suburb_parcels,suburb_transitions)
+	if not suburb_traversal.is_empty():descriptor["suburb_traversal"]=suburb_traversal
+	var suburb_resources:=SUBURB_RESOURCES.generate(seed,chunk_x,chunk_z,suburb_parcels,suburb_traversal)
+	if not suburb_resources.is_empty():descriptor["suburb_resources"]=suburb_resources
+	var industrial_layout:=INDUSTRIAL_LAYOUT.generate(seed,chunk_x,chunk_z,urban)
+	if not industrial_layout.is_empty():descriptor["industrial_layout"]=industrial_layout
+	var industrial_structures:=INDUSTRIAL_STRUCTURES.generate(seed,chunk_x,chunk_z,industrial_layout)
+	if not industrial_structures.is_empty():descriptor["industrial_structures"]=industrial_structures
+	var industrial_traversal:=INDUSTRIAL_TRAVERSAL.generate(seed,chunk_x,chunk_z,industrial_layout,industrial_structures)
+	if not industrial_traversal.is_empty():descriptor["industrial_traversal"]=industrial_traversal
+	var industrial_hazards:=INDUSTRIAL_HAZARDS.generate(seed,chunk_x,chunk_z,industrial_layout,industrial_structures)
+	if not industrial_hazards.is_empty():descriptor["industrial_hazards"]=industrial_hazards
+	var industrial_resources:=INDUSTRIAL_RESOURCES.generate(seed,chunk_x,chunk_z,industrial_layout,industrial_structures)
+	if not industrial_resources.is_empty():descriptor["industrial_resources"]=industrial_resources
+	var city_layout:=CITY_LAYOUT.sample(self,chunk_x,chunk_z,sample_data)
+	if not city_layout.is_empty():descriptor["city_layout"]=city_layout
+	var city_arterials:=CITY_ARTERIALS.generate(seed,chunk_x,chunk_z,city_layout)
+	if not city_arterials.is_empty():descriptor["city_arterials"]=city_arterials
+	var city_secondary_roads:=CITY_SECONDARY_ROADS.generate(seed,chunk_x,chunk_z,city_arterials,urban)
+	if not city_secondary_roads.is_empty():descriptor["city_secondary_roads"]=city_secondary_roads
+	var city_parcels:=CITY_PARCELS.generate(seed,chunk_x,chunk_z,city_arterials,city_secondary_roads,urban)
+	if not city_parcels.is_empty():descriptor["city_parcels"]=city_parcels
+	var city_buildings:=CITY_MASSING.generate(seed,chunk_x,chunk_z,city_parcels,urban)
+	if not city_buildings.is_empty():descriptor["city_buildings"]=city_buildings
+	var city_traversal:=CITY_TRAVERSAL.generate(seed,chunk_x,chunk_z,city_buildings)
+	if not city_traversal.is_empty():descriptor["city_traversal"]=city_traversal
+	var city_failures:=CITY_FAILURES.generate(seed,chunk_x,chunk_z,city_buildings,urban)
+	if not city_failures.is_empty():descriptor["city_failures"]=city_failures
+	var city_rooftop_resources:=CITY_ROOFTOP_RESOURCES.generate(seed,chunk_x,chunk_z,city_buildings,city_failures,urban)
+	if not city_rooftop_resources.is_empty():descriptor["city_rooftop_resources"]=city_rooftop_resources
+	var city_vegetation:=CITY_VEGETATION.generate(seed,chunk_x,chunk_z,city_buildings,city_failures,urban)
+	if not city_vegetation.is_empty():descriptor["city_vegetation"]=city_vegetation
+	var flood_basin:=FLOODED_BASIN.sample(self,chunk_x,chunk_z,sample_data)
+	if not flood_basin.is_empty():descriptor["flood_basin"]=flood_basin
+	var flood_inundation:=FLOODED_INUNDATION.generate(seed,chunk_x,chunk_z,flood_basin)
+	if not flood_inundation.is_empty():descriptor["flood_inundation"]=flood_inundation
+	var flood_routes:=FLOODED_ROUTES.generate(seed,chunk_x,chunk_z,flood_basin,flood_inundation)
+	if not flood_routes.is_empty():descriptor["flood_routes"]=flood_routes
+	var flood_structures:=FLOODED_STRUCTURES.generate(seed,chunk_x,chunk_z,flood_inundation)
+	if not flood_structures.is_empty():descriptor["flood_structures"]=flood_structures
+	var flood_ecology:=FLOODED_ECOLOGY.generate(seed,chunk_x,chunk_z,flood_inundation,flood_structures)
+	if not flood_ecology.is_empty():descriptor["flood_ecology"]=flood_ecology
+	var natural_resources:=NATURAL_RESOURCES.generate(seed,chunk_x,chunk_z,sample_data)
+	if not natural_resources.is_empty():descriptor["natural_resources"]=natural_resources
+	var urban_resources:=URBAN_RESOURCES.generate(descriptor)
+	if not urban_resources.is_empty():descriptor["urban_resources"]=urban_resources
+	var megastructure := _megastructure_descriptor(chunk_x, chunk_z, str(scale.id))
+	if not megastructure.is_empty():
+		descriptor["megastructure"] = megastructure
+		descriptor["megastructure_lod"] = MEGASTRUCTURE_LOD.compile(megastructure)
+	return descriptor
+
+func megastructure_reveal_priority(chunk_x: int, chunk_z: int, scope: Variant = "local") -> float:
+	var scale: Dictionary = SCALE.info(scope)
+	if str(scale.get("id", "")) != "local":
+		return 0.0
+	var current: Vector3i = megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
+	var score := 0.0
+	for offset_z in range(-1, 2):
+		for offset_x in range(-1, 2):
+			var source := _megastructure_at(Vector3i(current.x + offset_x, 0, current.z + offset_z))
+			for reveal: Dictionary in source.get("reveals", []):
+				var bias := float(reveal.get("streaming_priority_bias", 0))
+				if _chunk_contains_point(chunk_x, chunk_z, reveal.get("recommended_view_anchor", [])) or _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("foreground_bounds", {}) as Dictionary):
+					score = maxf(score, bias * 3.0)
+				elif _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("focus_bounds", {}) as Dictionary):
+					score = maxf(score, bias * 2.0)
+				elif _chunk_intersects_bounds(chunk_x, chunk_z, reveal.get("background_bounds", {}) as Dictionary):
+					score = maxf(score, bias)
+	return score
+
+func _megastructure_descriptor(chunk_x: int, chunk_z: int, scale_id: String) -> Dictionary:
+	if scale_id != "local":
+		return {}
+	var current: Vector3i = megastructure_generator.megacell_at(Vector3i(chunk_x * int(CHUNK_SIZE), 0, chunk_z * int(CHUNK_SIZE)))
+	var intersections: Array = []
+	for offset_z in range(-1, 2):
+		for offset_x in range(-1, 2):
+			var megacell := Vector3i(current.x + offset_x, 0, current.z + offset_z)
+			var source := _megastructure_at(megacell)
+			var intersection := MEGASTRUCTURE_INTERSECTION.compile(source, Vector2i(chunk_x, chunk_z))
+			if not (intersection.get("macro", {}) as Dictionary).is_empty():
+				intersections.append(intersection)
+	intersections.sort_custom(func(first: Dictionary, second: Dictionary) -> bool: return str(first.get("structure_id", "")) < str(second.get("structure_id", "")))
+	if intersections.is_empty():
+		return {}
+	return {"intersections": intersections, "schema": "megastructure-chunk/v1"}
+
+func _megastructure_at(megacell: Vector3i) -> Dictionary:
+	var key := "%d:%d:%d" % [megacell.x, megacell.y, megacell.z]
+	if not megastructure_cache.has(key):
+		megastructure_cache[key] = megastructure_generator.generate(megacell)
+	return (megastructure_cache[key] as Dictionary).duplicate(true)
+
+func _chunk_intersects_bounds(chunk_x: int, chunk_z: int, bounds: Dictionary) -> bool:
+	var minimum: Array = bounds.get("min", [])
+	var maximum: Array = bounds.get("max", [])
+	if minimum.size() != 3 or maximum.size() != 3:
+		return false
+	var chunk_min_x := float(chunk_x) * CHUNK_SIZE
+	var chunk_min_z := float(chunk_z) * CHUNK_SIZE
+	var chunk_max_x := chunk_min_x + CHUNK_SIZE
+	var chunk_max_z := chunk_min_z + CHUNK_SIZE
+	return float(maximum[0]) >= chunk_min_x and float(minimum[0]) <= chunk_max_x and float(maximum[2]) >= chunk_min_z and float(minimum[2]) <= chunk_max_z
+
+func _chunk_contains_point(chunk_x: int, chunk_z: int, point: Variant) -> bool:
+	if not point is Array or point.size() != 3:
+		return false
+	return floori(float(point[0]) / CHUNK_SIZE) == chunk_x and floori(float(point[2]) / CHUNK_SIZE) == chunk_z
+
+func _biome(elevation: float, temperature: float, rainfall: float, family: String) -> String:
+	if family == "flooded_city": return "lagoon" if elevation < -2.5 else "wetland"
+	if family != "wilderness": return "temperate_forest" if rainfall > 0.46 else "grassland"
+	if elevation <= SEA_LEVEL - 3.0: return "ocean"
+	if elevation <= SEA_LEVEL: return "coast"
+	if elevation > 16.0: return "nival_zone" if temperature < 0.3 else "alpine"
+	if elevation > 10.0: return "alpine_scree" if rainfall < 0.38 else "subalpine_krummholz"
+	if temperature < 0.18: return "polar_desert" if rainfall < 0.30 else "tundra"
+	if temperature < 0.35: return "boreal_forest" if rainfall > 0.42 else "cold_desert"
+	if rainfall < 0.18: return "dune_sea_erg" if temperature > 0.62 else "badland"
+	if rainfall < 0.31: return "thorn_scrub" if temperature > 0.62 else "grassland"
+	if rainfall > 0.76: return "rainforest" if temperature > 0.67 else "temperate_rainforest"
+	if rainfall > 0.57: return "temperate_forest"
+	return "savanna" if temperature > 0.67 else "mixed_forest"
+
+func _region_name(rx: int, rz: int, family: String) -> String:
+	var first: String = ["Ash", "Cedar", "Glass", "Moss", "North", "Quiet", "Rust", "Tide"][RNG.hash_int(seed, rx, rz, 107) % 8]
+	var second: String = {"reclaimed_city": "District", "flooded_city": "Basin", "industrial_ruin": "Works", "overgrown_suburb": "Estate", "wilderness": "Wilds"}.get(family, "Wilds")
+	return first + " " + second

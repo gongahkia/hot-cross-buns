@@ -1,0 +1,93 @@
+{
+  "schema": "world-generation-fixtures/v1",
+  "cases": [
+    {
+      "id": "default-negative-sample",
+      "seed": 20260730,
+      "point": {"x": 128.0, "z": -384.0},
+      "sample": {
+        "elevation": -0.4274323554779,
+        "temperature": 0.261608720951351,
+        "rainfall": 0.363017484370619,
+        "biome": "grassland",
+        "water": true,
+        "region": {"family": "industrial_ruin", "id": "0:-1", "landmark": "", "name": "Moss Works", "x": 0, "z": -1}
+      },
+      "chunk": {
+        "x": 2,
+        "z": -6,
+        "id": "2:-6",
+        "center": [160.0, -352.0],
+        "biome": "grassland",
+        "water": false,
+        "region": {"family": "industrial_ruin", "id": "0:-1", "landmark": "", "name": "Moss Works", "x": 0, "z": -1}
+      }
+    },
+    {
+      "id": "default-region-boundary",
+      "seed": 20260730,
+      "point": {"x": -512.0, "z": 512.0},
+      "sample": {
+        "elevation": -1.80595926554263,
+        "temperature": 0.375000149802263,
+        "rainfall": 0.419304496738769,
+        "biome": "grassland",
+        "water": true,
+        "region": {"family": "overgrown_suburb", "id": "-1:1", "landmark": "", "name": "Quiet Estate", "x": -1, "z": 1}
+      },
+      "chunk": {
+        "x": -8,
+        "z": 8,
+        "id": "-8:8",
+        "center": [-480.0, 544.0],
+        "biome": "grassland",
+        "water": true,
+        "region": {"family": "overgrown_suburb", "id": "-1:1", "landmark": "", "name": "Quiet Estate", "x": -1, "z": 1}
+      }
+    },
+    {
+      "id": "negative-seed-negative-chunk",
+      "seed": -17,
+      "point": {"x": -64.0, "z": -64.0},
+      "sample": {
+        "elevation": 2.236242182272,
+        "temperature": 0.349537507785539,
+        "rainfall": 0.311760998681826,
+        "biome": "grassland",
+        "water": false,
+        "region": {"family": "industrial_ruin", "id": "-1:-1", "landmark": "", "name": "Cedar Works", "x": -1, "z": -1}
+      },
+      "chunk": {
+        "x": -1,
+        "z": -1,
+        "id": "-1:-1",
+        "center": [-32.0, -32.0],
+        "biome": "grassland",
+        "water": false,
+        "region": {"family": "industrial_ruin", "id": "-1:-1", "landmark": "", "name": "Cedar Works", "x": -1, "z": -1}
+      }
+    },
+    {
+      "id": "alternate-seed-positive-chunk",
+      "seed": 1,
+      "point": {"x": 1024.0, "z": 0.0},
+      "sample": {
+        "elevation": 0.75584294915115,
+        "temperature": 0.389860042226576,
+        "rainfall": 0.348165611811471,
+        "biome": "mixed_forest",
+        "water": false,
+        "region": {"family": "wilderness", "id": "2:0", "landmark": "", "name": "Rust Wilds", "x": 2, "z": 0}
+      },
+      "chunk": {
+        "x": 16,
+        "z": 0,
+        "id": "16:0",
+        "center": [1056.0, 32.0],
+        "biome": "coast",
+        "water": true,
+        "region": {"family": "wilderness", "id": "2:0", "landmark": "", "name": "Rust Wilds", "x": 2, "z": 0}
+      }
+    }
+  ]
+}
