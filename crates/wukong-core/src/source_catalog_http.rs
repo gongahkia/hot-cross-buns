@@ -9,8 +9,19 @@ use crate::{
     source::SourceResult,
     source_catalog::ValidatedCatalogHttpCandidate,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+
+pub(crate) struct CatalogHttpExtraction {
+    _staging: TempDir,
+    root: PathBuf,
+}
+
+impl CatalogHttpExtraction {
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+}
 
 /// HTTPS archive acquisition and metadata admission for source-catalog entries.
 #[derive(Clone, Debug)]
@@ -43,6 +54,16 @@ impl CatalogHttpAdapter {
         staging_parent: &Path,
         offline: bool,
     ) -> SourceResult<PackageMetadata> {
+        let extracted = self.fetch_and_extract(candidate, staging_parent, offline)?;
+        Self::verify_extracted_package_metadata(package, candidate, extracted.root())
+    }
+
+    pub(crate) fn fetch_and_extract(
+        &self,
+        candidate: &ValidatedCatalogHttpCandidate,
+        staging_parent: &Path,
+        offline: bool,
+    ) -> SourceResult<CatalogHttpExtraction> {
         let archive = self
             .fetcher
             .fetch(candidate.url(), candidate.sha256(), offline)?;
@@ -57,7 +78,18 @@ impl CatalogHttpAdapter {
             )
         })?;
         let extracted = extract_zip(archive.path(), staging.path(), ExtractionLimits::default())?;
-        let metadata_root = extracted.root().join(candidate.root());
+        Ok(CatalogHttpExtraction {
+            _staging: staging,
+            root: extracted.root().to_path_buf(),
+        })
+    }
+
+    pub(crate) fn verify_extracted_package_metadata(
+        package: &PackageName,
+        candidate: &ValidatedCatalogHttpCandidate,
+        extracted_root: &Path,
+    ) -> SourceResult<PackageMetadata> {
+        let metadata_root = extracted_root.join(candidate.root());
         let metadata = PackageMetadata::load_optional(&metadata_root)?.ok_or_else(|| {
             Box::new(
                 Diagnostic::new(

@@ -79,6 +79,9 @@ pub mod source_catalog_git;
 /// HTTPS archive acquisition for validated project source-catalog candidates.
 pub mod source_catalog_http;
 
+/// Lazy package-scoped source-catalog candidate acquisition.
+pub mod source_catalog_acquisition;
+
 /// Transactional project source-catalog editing.
 pub mod source_catalog_edit;
 

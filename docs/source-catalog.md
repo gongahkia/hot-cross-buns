@@ -83,6 +83,15 @@ both the catalog package name and canonical version; build metadata does not
 affect the version comparison. No lockfile or prepared package cache entry is
 published during this validation.
 
+## Lazy acquisition
+
+Core callers acquire catalog candidates by package name. An unknown or
+unselected package has no source access. Acquisition checks cancellation before
+each source operation, admits required metadata, and publishes the prepared
+package tree through the existing content-addressed cache. Clones coordinate
+same-package acquisition and re-verify every cache object before returning it;
+corrupt objects therefore fail before a candidate can be reused.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited
