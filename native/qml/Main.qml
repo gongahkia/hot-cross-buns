@@ -39,6 +39,8 @@ ApplicationWindow {
                                 ? appController.fontFamily : ""
     property int fontScale: appController !== null && typeof appController.fontScale === "number"
                             ? appController.fontScale : 1
+    property string externalBrowser: appController !== null && typeof appController.externalBrowser === "string"
+                                    ? appController.externalBrowser : ""
     property int bulkTextRecurrenceScope: appController !== null &&
                                           typeof appController.bulkTextRecurrenceScope === "number"
                                           ? appController.bulkTextRecurrenceScope : 2
@@ -705,6 +707,7 @@ ApplicationWindow {
         onDeleteRequested: function(taskId, title, managedRecurrence) {
             taskDeleteDialog.openForDelete(taskId, title, managedRecurrence)
         }
+        onExternalLinkRequested: function(url) { window.controllerCall("openExternalLink", [url]) }
     }
 
     TaskEditDialog {
@@ -866,6 +869,7 @@ ApplicationWindow {
         onRsvpRequested: function(eventId, responseStatus, responseComment) {
             window.controllerCall("respondToEvent", [eventId, responseStatus, responseComment])
         }
+        onExternalLinkRequested: function(url) { window.controllerCall("openExternalLink", [url]) }
         onEventDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
             eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
         }
@@ -900,6 +904,7 @@ ApplicationWindow {
         onDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
             eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
         }
+        onExternalLinkRequested: function(url) { window.controllerCall("openExternalLink", [url]) }
     }
 
     HcbDialog {
@@ -2031,6 +2036,32 @@ ApplicationWindow {
                     enabled: window.appController !== null && !window.appController.busy
                     Accessible.name: "Font size"
                     onActivated: index => window.controllerCall("saveFontScale", [index])
+                }
+
+                Label {
+                    text: "Links"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                TextField {
+                    id: externalBrowserField
+                    Layout.fillWidth: true
+                    text: window.externalBrowser
+                    placeholderText: "System default browser"
+                    enabled: window.appController !== null && !window.appController.busy
+                    Accessible.name: "Browser for external links"
+                    Accessible.description: "Enter a macOS application name, such as Safari or Google Chrome. Leave blank for the system default browser."
+                    selectByMouse: true
+                    onEditingFinished: window.controllerCall("saveExternalBrowser", [text])
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Hold Command or Ctrl while clicking an HTTP or HTTPS link to open it."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
                 }
 
                 Button {

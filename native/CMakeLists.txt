@@ -283,6 +283,7 @@ qt_add_qml_module(hcb_native
     qml/EventDeleteDialog.qml
     qml/EventDetailDialog.qml
     qml/EventEditDialog.qml
+    qml/ExternalLinkText.qml
     qml/GoogleOnboardingView.qml
     qml/HcbDialog.qml
     qml/InvitationInbox.qml

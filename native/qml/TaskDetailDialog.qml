@@ -7,9 +7,11 @@ HcbDialog {
     title: "Task"
     primaryText: "Edit task"
     secondaryText: "Close"
+    destructiveText: "Delete task"
     property var task: ({})
     signal editRequested(var task)
     signal deleteRequested(string taskId, string title, bool managedRecurrence)
+    signal externalLinkRequested(string url)
 
     function openForTask(value) {
         task = value || ({})
@@ -28,12 +30,12 @@ HcbDialog {
         Layout.fillWidth: true
         spacing: Theme.spacingMedium
 
-        Label {
+        ExternalLinkText {
             Layout.fillWidth: true
-            text: task.title || "Untitled task"
-            wrapMode: Text.WordWrap
+            plainText: task.title || "Untitled task"
             font.pixelSize: Theme.titleFontSize
             font.bold: true
+            onLinkRequested: url => root.externalLinkRequested(url)
         }
 
         Label { text: task.completed ? "Completed" : "Open"; color: Theme.textSecondary }
@@ -43,17 +45,13 @@ HcbDialog {
         Label { visible: task.recurrenceSummary && task.recurrenceSummary.length > 0; text: task.recurrenceSummary; color: Theme.textSecondary }
 
         Label { visible: task.notes && task.notes.length > 0; text: "Notes"; font.bold: true }
-        Label {
+        ExternalLinkText {
             Layout.fillWidth: true
             visible: task.notes && task.notes.length > 0
-            text: task.notes || ""
-            wrapMode: Text.WordWrap
-        }
-
-        Button {
-            text: "Delete task"
-            palette.button: Theme.destructive
-            onClicked: root.deleteRequested(task.id || "", task.title || "", task.managedRecurrence === true)
+            plainText: task.notes || ""
+            onLinkRequested: url => root.externalLinkRequested(url)
         }
     }
+
+    onDestructiveAction: root.deleteRequested(task.id || "", task.title || "", task.managedRecurrence === true)
 }

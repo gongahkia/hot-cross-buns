@@ -7,13 +7,16 @@ Dialog {
     default property alias body: bodyLayout.data
     property string primaryText: "Save"
     property string secondaryText: "Cancel"
+    property string destructiveText: ""
     property bool primaryDestructive: false
     property bool closeOnPrimaryAction: true
+    property bool closeOnDestructiveAction: true
     property alias primaryButton: primaryButton
     property alias primaryEnabled: primaryButton.enabled
     property alias secondaryButton: secondaryButton
     signal primaryAction()
     signal secondaryAction()
+    signal destructiveAction()
 
     modal: true
     focus: true
@@ -77,6 +80,18 @@ Dialog {
                 const shouldClose = root.closeOnPrimaryAction
                 root.primaryAction()
                 if (shouldClose) root.accept()
+            }
+        }
+
+        Button {
+            visible: root.destructiveText.length > 0
+            text: root.destructiveText
+            Accessible.name: text
+            Accessible.description: "Destructive action"
+            palette.button: Theme.destructive
+            onClicked: {
+                root.destructiveAction()
+                if (root.closeOnDestructiveAction) root.accept()
             }
         }
     }

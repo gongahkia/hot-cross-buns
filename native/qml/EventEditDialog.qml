@@ -48,6 +48,7 @@ HcbDialog {
     signal driveSearchRequested(string query)
     signal availabilityRequested(var calendarIds, string startAt, string endAt)
     signal rsvpRequested(string eventId, string responseStatus, string responseComment)
+    signal externalLinkRequested(string url)
     ListModel { id: attachmentModel }
 
     function recurrenceScopeOptions() {
@@ -267,7 +268,7 @@ HcbDialog {
         Layout.fillWidth: true
         visible: root.conferenceLink().length > 0
         text: "Open Google Meet"
-        onClicked: Qt.openUrlExternally(root.conferenceLink())
+        onClicked: root.externalLinkRequested(root.conferenceLink())
     }
 
     ComboBox {

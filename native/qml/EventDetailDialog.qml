@@ -7,11 +7,13 @@ HcbDialog {
     title: "Event"
     primaryText: "Edit event"
     secondaryText: "Close"
+    destructiveText: "Delete event"
     property var event: ({})
     property var calendarSourceModel: null
     signal editRequested(var event)
     signal deleteRequested(string eventId, string title, string recurrenceRule,
                            string recurringRemoteId, string originalStartAt)
+    signal externalLinkRequested(string url)
 
     function openForEvent(value) {
         event = value || ({})
@@ -44,34 +46,36 @@ HcbDialog {
         Layout.fillWidth: true
         spacing: Theme.spacingMedium
 
-        Label {
+        ExternalLinkText {
             Layout.fillWidth: true
-            text: event.title || "Untitled event"
-            wrapMode: Text.WordWrap
+            plainText: event.title || "Untitled event"
             font.pixelSize: Theme.titleFontSize
             font.bold: true
+            onLinkRequested: url => root.externalLinkRequested(url)
         }
         Label { text: root.calendarTitle(); color: Theme.textSecondary }
         Label { text: root.scheduleLabel(); color: Theme.textSecondary }
-        Label { visible: event.location && event.location.length > 0; text: event.location || ""; color: Theme.textSecondary }
+        ExternalLinkText {
+            Layout.fillWidth: true
+            visible: event.location && event.location.length > 0
+            plainText: event.location || ""
+            color: Theme.textSecondary
+            onLinkRequested: url => root.externalLinkRequested(url)
+        }
         Label { visible: event.recurrenceRule && event.recurrenceRule.length > 0; text: "Repeats"; color: Theme.textSecondary }
         Label { visible: root.attendeeCount() > 0; text: root.attendeeCount() + " guest" + (root.attendeeCount() === 1 ? "" : "s"); color: Theme.textSecondary }
         Label { visible: event.conferenceJson && event.conferenceJson.length > 2; text: "Google Meet attached"; color: Theme.textSecondary }
         Label { visible: event.attachmentsJson && event.attachmentsJson.length > 2; text: "Attachments added"; color: Theme.textSecondary }
 
         Label { visible: event.description && event.description.length > 0; text: "Description"; font.bold: true }
-        Label {
+        ExternalLinkText {
             Layout.fillWidth: true
             visible: event.description && event.description.length > 0
-            text: event.description || ""
-            wrapMode: Text.WordWrap
-        }
-
-        Button {
-            text: "Delete event"
-            palette.button: Theme.destructive
-            onClicked: root.deleteRequested(event.id || "", event.title || "", event.recurrenceRule || "",
-                                             event.recurringRemoteId || "", event.originalStartAt || "")
+            plainText: event.description || ""
+            onLinkRequested: url => root.externalLinkRequested(url)
         }
     }
+
+    onDestructiveAction: root.deleteRequested(event.id || "", event.title || "", event.recurrenceRule || "",
+                                               event.recurringRemoteId || "", event.originalStartAt || "")
 }
