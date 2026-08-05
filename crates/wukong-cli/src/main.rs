@@ -11,7 +11,7 @@ use std::{
     fmt::Write as _,
     fs,
     io::IsTerminal,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process,
     sync::OnceLock,
     time::Duration,
@@ -49,10 +49,12 @@ use wukong_core::{
     provenance::ProvenanceReport,
     source::CancellationToken,
     source_catalog::{
-        SOURCE_CATALOG_FILE_NAME, SOURCE_CATALOG_SCHEMA, SourceCatalog, ValidatedCatalogCandidate,
-        ValidatedSourceCatalog,
+        CatalogCandidate, SOURCE_CATALOG_FILE_NAME, SOURCE_CATALOG_SCHEMA, SourceCatalog,
+        ValidatedCatalogCandidate, ValidatedSourceCatalog,
     },
-    source_catalog_edit::{CatalogEditEntry, add_entry as add_catalog_entry},
+    source_catalog_edit::{
+        CatalogEditEntry, add_entry as add_catalog_entry, remove_entry as remove_catalog_entry,
+    },
     transactional_file::{FileSnapshot, write_atomic},
 };
 
@@ -1292,13 +1294,16 @@ fn run_source(
         Some(command) if command == "add" => {
             run_source_add(arguments).map(|()| ProcessExit::Success)
         }
+        Some(command) if command == "remove" => {
+            run_source_catalog_remove(arguments).map(|()| ProcessExit::Success)
+        }
         Some(command) => Err(user_error(
             format!("unsupported source command {}", command.to_string_lossy()),
-            "run wukong source <add|list|validate> [options]",
+            "run wukong source <add|list|remove|validate> [options]",
         )),
         None => Err(user_error(
             "source requires a subcommand",
-            "run wukong source <add|list|validate> [options]",
+            "run wukong source <add|list|remove|validate> [options]",
         )),
     }
 }
@@ -1526,6 +1531,230 @@ fn set_source_add_value(
         ));
     }
     Ok(())
+}
+
+struct SourceRemoveOptions {
+    name: String,
+    entry: Option<CatalogEditEntry>,
+    project: Option<PathBuf>,
+}
+
+struct SourceRemoveFields {
+    git: Option<String>,
+    url: Option<String>,
+    root: Option<String>,
+    version: Option<String>,
+    sha256: Option<String>,
+    tag_prefix: Option<String>,
+    project: Option<PathBuf>,
+}
+
+fn run_source_catalog_remove(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<(), Box<Diagnostic>> {
+    let options = parse_source_remove_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    let entry = match options.entry {
+        Some(entry) => entry,
+        None => select_single_catalog_entry(&path, &options.name)?,
+    };
+    remove_catalog_entry(&path, &entry)?;
+    println!("removed source candidate {}", options.name);
+    Ok(())
+}
+
+fn parse_source_remove_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<SourceRemoveOptions, Box<Diagnostic>> {
+    let name = arguments.next().ok_or_else(|| {
+        user_error(
+            "source remove requires a package name",
+            "run wukong source remove <name> [--git <url> --root <path> | --url <url> --version <version> --sha256 <hash> --root <path>]",
+        )
+    })?;
+    let name = name.to_string_lossy().into_owned();
+    let SourceRemoveFields {
+        git,
+        url,
+        root,
+        version,
+        sha256,
+        tag_prefix,
+        project,
+    } = parse_source_remove_fields(&mut arguments)?;
+    if git.is_none()
+        && url.is_none()
+        && root.is_none()
+        && version.is_none()
+        && sha256.is_none()
+        && tag_prefix.is_none()
+    {
+        return Ok(SourceRemoveOptions {
+            name,
+            entry: None,
+            project,
+        });
+    }
+    let root = root.ok_or_else(|| {
+        user_error(
+            "source remove requires --root for an exact candidate selection",
+            "provide every source candidate field or remove an unambiguous package name",
+        )
+    })?;
+    let entry = match (git, url) {
+        (Some(url), None) if version.is_none() && sha256.is_none() => CatalogEditEntry::Git {
+            name: name.clone(),
+            url,
+            root: PathBuf::from(root),
+            tag_prefix,
+        },
+        (None, Some(url)) if tag_prefix.is_none() => CatalogEditEntry::Http {
+            name: name.clone(),
+            version: version.ok_or_else(|| {
+                user_error(
+                    "--url requires --version",
+                    "provide the complete archive semantic version",
+                )
+            })?,
+            url,
+            sha256: sha256.ok_or_else(|| {
+                user_error(
+                    "--url requires --sha256",
+                    "provide the expected 64-character SHA-256 checksum",
+                )
+            })?,
+            root: PathBuf::from(root),
+        },
+        _ => {
+            return Err(user_error(
+                "source remove requires exactly one complete source declaration",
+                "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+            ));
+        }
+    };
+    Ok(SourceRemoveOptions {
+        name,
+        entry: Some(entry),
+        project,
+    })
+}
+
+fn parse_source_remove_fields(
+    arguments: &mut impl Iterator<Item = OsString>,
+) -> Result<SourceRemoveFields, Box<Diagnostic>> {
+    let mut git = None;
+    let mut url = None;
+    let mut root = None;
+    let mut version = None;
+    let mut sha256 = None;
+    let mut tag_prefix = None;
+    let mut project = None;
+    while let Some(argument) = arguments.next() {
+        if argument == "--git" {
+            set_source_add_value(&mut git, arguments, "--git")?;
+            continue;
+        }
+        if argument == "--url" {
+            set_source_add_value(&mut url, arguments, "--url")?;
+            continue;
+        }
+        if argument == "--root" {
+            set_source_add_value(&mut root, arguments, "--root")?;
+            continue;
+        }
+        if argument == "--version" {
+            set_source_add_value(&mut version, arguments, "--version")?;
+            continue;
+        }
+        if argument == "--sha256" {
+            set_source_add_value(&mut sha256, arguments, "--sha256")?;
+            continue;
+        }
+        if argument == "--tag-prefix" {
+            set_source_add_value(&mut tag_prefix, arguments, "--tag-prefix")?;
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(arguments, "--project")?);
+            if project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported source remove argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+        ));
+    }
+    Ok(SourceRemoveFields {
+        git,
+        url,
+        root,
+        version,
+        sha256,
+        tag_prefix,
+        project,
+    })
+}
+
+fn select_single_catalog_entry(
+    path: &Path,
+    name: &str,
+) -> Result<CatalogEditEntry, Box<Diagnostic>> {
+    let catalog = SourceCatalog::load(path)?;
+    catalog.validate(path)?;
+    let candidates = catalog.packages().get(name).ok_or_else(|| {
+        user_error(
+            format!("source catalog has no candidate for {name}"),
+            "run wukong source list to select an existing candidate",
+        )
+    })?;
+    match candidates.as_slice() {
+        [candidate] => Ok(catalog_entry_from_candidate(name, candidate)),
+        [] => Err(user_error(
+            format!("source catalog has no candidate for {name}"),
+            "run wukong source list to select an existing candidate",
+        )),
+        _ => Err(user_error(
+            format!("source catalog candidate selection for {name} is ambiguous"),
+            "specify one candidate with --git or --url and its complete fields",
+        )),
+    }
+}
+
+fn catalog_entry_from_candidate(name: &str, candidate: &CatalogCandidate) -> CatalogEditEntry {
+    match candidate {
+        CatalogCandidate::Git(candidate) => CatalogEditEntry::Git {
+            name: name.to_owned(),
+            url: candidate.url().to_owned(),
+            root: candidate.root().to_path_buf(),
+            tag_prefix: candidate.tag_prefix().map(str::to_owned),
+        },
+        CatalogCandidate::Http(candidate) => CatalogEditEntry::Http {
+            name: name.to_owned(),
+            version: candidate.version().to_owned(),
+            url: candidate.url().to_owned(),
+            sha256: candidate.sha256().to_owned(),
+            root: candidate.root().to_path_buf(),
+        },
+    }
 }
 
 fn parse_source_read_arguments(
@@ -3259,7 +3488,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

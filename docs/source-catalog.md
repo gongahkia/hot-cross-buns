@@ -70,6 +70,17 @@ wukong source add theme --url https://example.test/theme.zip --version 1.2.3 --s
 The command accepts `--project <path>`, creates a schema-one catalog when it
 is absent, and rejects unsafe or duplicate declarations before publication.
 
+`wukong source remove <name>` removes the candidate when that name has exactly
+one candidate. For packages with multiple candidates, supply every candidate
+field to make the selection exact:
+
+```sh
+wukong source remove terrain3d --git https://example.test/terrain3d.git --root addons/terrain3d --tag-prefix v
+wukong source remove theme --url https://example.test/theme.zip --version 1.2.3 --sha256 <64-lowercase-hex> --root addons/theme
+```
+
+Missing or ambiguous selections fail before the catalog changes.
+
 ## Inspecting sources
 
 `wukong source list` reads and validates the project catalog without fetching
