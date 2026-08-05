@@ -36,6 +36,7 @@ Pane {
                              int recurrenceEndKind, string recurrenceEndUntil, int recurrenceEndCount,
                              string recurrenceRule, string recurrenceExclusionDates,
                              string recurrenceAdditionDates)
+    signal taskDetailRequested(var task)
     signal taskCompletionRequested(string taskId, bool completed)
     signal taskDeleteRequested(string taskId, string taskTitle, bool managedRecurrence)
     signal taskMoveRequested(string taskId, string taskListId, string taskTitle)
@@ -77,6 +78,10 @@ Pane {
                           recurrenceSummary, recurrenceFrequency, recurrenceInterval,
                           recurrenceEndKind, recurrenceEndUntil, recurrenceEndCount,
                           recurrenceRule, recurrenceExclusionDates, recurrenceAdditionDates)
+    }
+
+    function requestTaskDetail(task) {
+        taskDetailRequested(task)
     }
 
     function requestTaskCompletion(taskId, completed) {
@@ -345,6 +350,8 @@ Pane {
                         property alias moveEarlierButton: moveEarlierButton
                         property alias moveLaterButton: moveLaterButton
 
+                        required property string taskListTitle
+
                         HoverHandler { id: taskHover }
 
                         ColumnLayout {
@@ -387,7 +394,7 @@ Pane {
                                     Layout.fillWidth: true
                                     text: title
                                     accessibleName: title
-                                    accessibleDescription: completed ? "Completed task" : "Edit task"
+                                    accessibleDescription: completed ? "Completed task" : "View task"
                                     font.strikeout: completed
                                     opacity: completed ? 0.55 : 1
                                     background: Item {}
@@ -398,7 +405,21 @@ Pane {
                                         color: Theme.textPrimary
                                         verticalAlignment: Text.AlignVCenter
                                     }
-                                    onClicked: editButton.click()
+                                    onClicked: root.requestTaskDetail({
+                                        id: id, taskListId: taskListId, taskListTitle: taskListTitle,
+                                        title: title, notes: notes, dueAt: dueAt, dueTimeZone: dueTimeZone,
+                                        priority: priority, completed: completed,
+                                        managedRecurrence: managedRecurrence,
+                                        recurrenceSummary: recurrenceSummary,
+                                        recurrenceFrequency: recurrenceFrequency,
+                                        recurrenceInterval: recurrenceInterval,
+                                        recurrenceEndKind: recurrenceEndKind,
+                                        recurrenceEndUntil: recurrenceEndUntil,
+                                        recurrenceEndCount: recurrenceEndCount,
+                                        recurrenceRule: recurrenceRule,
+                                        recurrenceExclusionDates: recurrenceExclusionDates,
+                                        recurrenceAdditionDates: recurrenceAdditionDates
+                                    })
                                 }
 
                                 Label {

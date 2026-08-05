@@ -48,6 +48,7 @@ public:
   enum Role : std::int32_t {
     IdRole = Qt::UserRole + 1,
     TaskListIdRole,
+    TaskListTitleRole,
     ParentTaskIdRole,
     TitleRole,
     NotesRole,

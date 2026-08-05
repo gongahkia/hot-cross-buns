@@ -15,6 +15,7 @@ Pane {
     property int workdayStartHour: 9
     property int timeColumnWidth: 64
     property int allDayLaneHeight: 28
+    property int allDayLaneCount: 2
     property bool timelineActive: true
     property bool bypassCalendarVisibility: false
     property var allDayEventRows: null
@@ -33,6 +34,7 @@ Pane {
                               string recurringRemoteId, string originalStartAt, string eventType,
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
+    signal eventDetailRequested(var event)
 
     function dayColumnWidth(availableWidth) {
         return (availableWidth - timeColumnWidth) / dayCount
@@ -141,6 +143,23 @@ Pane {
                            guestPermissionsJson, statusPropertiesJson)
     }
 
+    function requestDetail(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt, eventType, conferenceJson, attachmentsJson,
+                           guestPermissionsJson, statusPropertiesJson) {
+        eventDetailRequested({id: eventId, calendarId: calendarId, title: title, startAt: startAt,
+                              endAt: endAt, allDay: allDay, description: description, location: location,
+                              startTimeZone: startTimeZone, colorId: colorId, transparency: transparency,
+                              visibility: visibility, attendeeEmailsJson: attendeeEmailsJson,
+                              remindersJson: remindersJson, remindersUseDefault: remindersUseDefault,
+                              recurrenceRule: recurrenceRule, recurringRemoteId: recurringRemoteId,
+                              originalStartAt: originalStartAt, eventType: eventType,
+                              conferenceJson: conferenceJson, attachmentsJson: attachmentsJson,
+                              guestPermissionsJson: guestPermissionsJson,
+                              statusPropertiesJson: statusPropertiesJson})
+    }
+
     function isCalendarVisible(calendarId) {
         return bypassCalendarVisibility || calendarVisibility === null || calendarVisibility.isVisible(calendarId)
     }
@@ -220,7 +239,7 @@ Pane {
         Item {
             id: dayHeader
             Layout.fillWidth: true
-            Layout.preferredHeight: root.allDayLaneHeight * 2
+            Layout.preferredHeight: root.allDayLaneHeight * (root.allDayLaneCount + 1)
 
             Repeater {
                 model: root.dayCount
@@ -275,7 +294,7 @@ Pane {
                     height: root.allDayLaneHeight
                     compact: true
                     eventColor: root.eventColor(calendarId, colorId)
-                    text: title
+                    text: (startsBeforeRange ? "‹ " : "") + title + (endsAfterRange ? " ›" : "")
                     accessibleName: title
                     accessibleDescription: "All-day event, starting day " + (dayIndex + 1)
                     onClicked: {
@@ -283,7 +302,7 @@ Pane {
                             root.eventSelectionRequested(id, !root.isEventSelected(id))
                         } else {
                             root.selectEvent(id)
-                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                            root.requestDetail(id, calendarId, title, startAt, endAt, allDay, description,
                                              location, startTimeZone, colorId, transparency, visibility,
                                              attendeeEmailsJson, remindersJson, remindersUseDefault,
                                              recurrenceRule, recurringRemoteId, originalStartAt, eventType,
@@ -296,7 +315,7 @@ Pane {
 
                     DragHandler {
                         id: allDayMoveHandler
-                        enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
+                        enabled: !root.selectionMode && !endsAfterRange
                         target: null
                         onActiveChanged: {
                             const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
@@ -323,7 +342,7 @@ Pane {
 
                         DragHandler {
                             id: allDayResizeHandler
-                            enabled: !root.selectionMode
+                            enabled: !root.selectionMode && !endsAfterRange
                             target: null
                             cursorShape: Qt.SizeHorCursor
                             grabPermissions: PointerHandler.CanTakeOverFromAnything
@@ -480,7 +499,7 @@ Pane {
                                 root.eventSelectionRequested(id, !root.isEventSelected(id))
                             } else {
                                 root.selectEvent(id)
-                                root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                root.requestDetail(id, calendarId, title, startAt, endAt, allDay, description,
                                                  location, startTimeZone, colorId, transparency, visibility,
                                                  attendeeEmailsJson, remindersJson, remindersUseDefault,
                                                  recurrenceRule, recurringRemoteId, originalStartAt, eventType,

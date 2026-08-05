@@ -102,6 +102,15 @@ QStringList CalendarSourceModel::selectedCalendarIds() const {
   return ids;
 }
 
+QString CalendarSourceModel::calendarTitle(const QString& calendarId) const {
+  for (const CalendarSummary& calendar : calendars_) {
+    if (calendar.id == calendarId) {
+      return calendar.title;
+    }
+  }
+  return {};
+}
+
 QString CalendarSourceModel::calendarBackgroundColor(const QString& calendarId) const {
   for (const CalendarSummary& calendar : calendars_) {
     if (calendar.id == calendarId) {

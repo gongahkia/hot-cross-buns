@@ -81,6 +81,8 @@ QVariant TaskModel::data(const QModelIndex& index, int role) const {
     return task.id;
   case TaskListIdRole:
     return task.taskListId;
+  case TaskListTitleRole:
+    return task.taskListTitle;
   case ParentTaskIdRole:
     return task.parentTaskId.value_or(QString());
   case NotesRole:
@@ -129,6 +131,7 @@ QVariant TaskModel::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> TaskModel::roleNames() const {
   return {{IdRole, "id"},
           {TaskListIdRole, "taskListId"},
+          {TaskListTitleRole, "taskListTitle"},
           {ParentTaskIdRole, "parentTaskId"},
           {TitleRole, "title"},
           {NotesRole, "notes"},

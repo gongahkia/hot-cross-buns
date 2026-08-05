@@ -68,6 +68,14 @@ ApplicationWindow {
                                   typeof appController.calendarDate === "string" &&
                                   appController.calendarDate.length > 0
                                   ? appController.calendarDate : fallbackCalendarDate()
+    property string calendarDateLabel: appController !== null && typeof appController.calendarDateLabel === "string"
+                                      ? appController.calendarDateLabel : calendarDate
+    property string calendarDayHeading: appController !== null && typeof appController.calendarDayHeading === "string"
+                                       ? appController.calendarDayHeading : calendarDate
+    property var nativeCalendarWeekLabels: appController !== null && appController.calendarWeekLabels !== undefined
+                                           ? appController.calendarWeekLabels : []
+    property var sidebarTabIds: appController !== null && appController.sidebarTabIds !== undefined
+                                ? appController.sidebarTabIds : ["tasks", "calendar"]
     property alias navigationSidebar: navigationSidebar
     property alias navigationShortcuts: navigationShortcuts
     property alias commandPalette: commandPalette
@@ -80,6 +88,7 @@ ApplicationWindow {
     property alias eventCreateDialog: eventCreateDialog
     property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
+    property alias eventDetailDialog: eventDetailDialog
     property alias dayTimeline: dayTimeline
     property alias weekTimeline: weekTimeline
     property alias monthGrid: monthGrid
@@ -102,6 +111,7 @@ ApplicationWindow {
     property alias taskCreateDialog: taskCreateDialog
     property alias taskDeleteDialog: taskDeleteDialog
     property alias taskEditDialog: taskEditDialog
+    property alias taskDetailDialog: taskDetailDialog
     property alias taskRecurrenceActionDialog: taskRecurrenceActionDialog
     property alias taskList: taskList
     property alias taskListEditorDialog: taskListEditorDialog
@@ -206,8 +216,7 @@ ApplicationWindow {
     }
 
     function calendarDisplayDate() {
-        const parsed = new Date(calendarDate + "T12:00:00")
-        return Number.isFinite(parsed.getTime()) ? Qt.locale().toString(parsed, "d MMM yyyy") : calendarDate
+        return calendarDateLabel
     }
 
     function shiftCalendarDate(days) {
@@ -234,6 +243,9 @@ ApplicationWindow {
     }
 
     function calendarWeekLabels() {
+        if (Array.isArray(nativeCalendarWeekLabels) && nativeCalendarWeekLabels.length === 7) {
+            return nativeCalendarWeekLabels
+        }
         const start = shiftCalendarDate(-calendarWeekDayIndex())
         const labels = []
         for (let index = 0; index < 7; ++index) {
@@ -261,6 +273,29 @@ ApplicationWindow {
         controllerCall("setCalendarDate", [fallbackCalendarDate()])
     }
 
+    function sidebarHasTab(tabId) {
+        return sidebarTabIds.indexOf(tabId) >= 0
+    }
+
+    function setSidebarTab(tabId, enabled) {
+        const next = sidebarTabIds.slice()
+        const index = next.indexOf(tabId)
+        if (enabled && index < 0) next.push(tabId)
+        if (!enabled && index >= 0) next.splice(index, 1)
+        controllerCall("saveSidebarTabIds", [next])
+    }
+
+    function moveSidebarTab(tabId, direction) {
+        const next = sidebarTabIds.slice()
+        const index = next.indexOf(tabId)
+        const target = index + direction
+        if (index < 0 || target < 0 || target >= next.length) return
+        const value = next[index]
+        next[index] = next[target]
+        next[target] = value
+        controllerCall("saveSidebarTabIds", [next])
+    }
+
     function controllerString(propertyName, fallback) {
         return appController !== null && typeof appController[propertyName] === "string"
                ? appController[propertyName] : fallback
@@ -273,6 +308,9 @@ ApplicationWindow {
 
     function hasNavigationPage(pageName) {
         if (pageName === "Notes" && !notesEnabled) {
+            return false
+        }
+        if (pageName !== "Settings" && sidebarTabIds.indexOf(pageName.toLowerCase()) < 0) {
             return false
         }
         const commands = navigationOnlyCommands()
@@ -412,6 +450,14 @@ ApplicationWindow {
                                     eventType || "default", conferenceJson || "",
                                     attachmentsJson || "", guestPermissionsJson || "",
                                     statusPropertiesJson || "")
+    }
+
+    function openEventDetail(event) {
+        eventDetailDialog.openForEvent(event)
+    }
+
+    function openTaskDetail(task) {
+        taskDetailDialog.openForTask(task)
     }
 
     color: Theme.background
@@ -641,6 +687,24 @@ ApplicationWindow {
         }
     }
 
+    TaskDetailDialog {
+        id: taskDetailDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onEditRequested: function(task) {
+            taskEditDialog.openForEdit(task.id, task.title, task.notes || "", task.dueAt || "",
+                                       task.dueTimeZone || "", task.priority || 0,
+                                       task.managedRecurrence === true, task.recurrenceSummary || "",
+                                       task.recurrenceFrequency || -1, task.recurrenceInterval || 1,
+                                       task.recurrenceEndKind || 0, task.recurrenceEndUntil || "",
+                                       task.recurrenceEndCount || 0, task.recurrenceRule || "",
+                                       task.recurrenceExclusionDates || "", task.recurrenceAdditionDates || "")
+        }
+        onDeleteRequested: function(taskId, title, managedRecurrence) {
+            taskDeleteDialog.openForDelete(taskId, title, managedRecurrence)
+        }
+    }
+
     TaskEditDialog {
         id: taskEditDialog
         parent: Overlay.overlay
@@ -812,6 +876,27 @@ ApplicationWindow {
         onEventDeleteRequested: function(eventId, recurrenceScope) {
             window.eventDeleteRequested(eventId)
             window.controllerCall("deleteEvent", [eventId, recurrenceScope])
+        }
+    }
+
+    EventDetailDialog {
+        id: eventDetailDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        calendarSourceModel: window.calendarSourceModel
+        onEditRequested: function(event) {
+            window.openEventEdit(event.id, event.calendarId, event.title, event.startAt, event.endAt,
+                                 event.allDay, event.description || "", event.location || "",
+                                 event.startTimeZone || "", event.colorId || "", event.transparency || "",
+                                 event.visibility || "", event.attendeeEmailsJson || "[]",
+                                 event.remindersJson || "[]", event.remindersUseDefault === true,
+                                 event.recurrenceRule || "", event.recurringRemoteId || "",
+                                 event.originalStartAt || "", event.eventType || "default",
+                                 event.conferenceJson || "", event.attachmentsJson || "[]",
+                                 event.guestPermissionsJson || "{}", event.statusPropertiesJson || "{}")
+        }
+        onDeleteRequested: function(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt) {
+            eventDeleteDialog.openForDelete(eventId, title, recurrenceRule, recurringRemoteId, originalStartAt)
         }
     }
 
@@ -1089,6 +1174,7 @@ ApplicationWindow {
             currentPage: window.currentPage
             googleConnected: window.appController === null || window.appController.googleConnected !== false
             notesEnabled: window.notesEnabled
+            sidebarTabIds: window.sidebarTabIds
             pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
                                     ? window.appController.pendingInvitationCount : 0
             onPageSelected: pageName => window.selectPage(pageName)
@@ -1150,6 +1236,7 @@ ApplicationWindow {
                                                recurrenceEndCount, recurrenceRule,
                                                recurrenceExclusionDates, recurrenceAdditionDates)
                 }
+                onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                 onTaskDeleteRequested: function(taskId, taskTitle, managedRecurrence) {
                     taskDeleteDialog.openForDelete(taskId, taskTitle, managedRecurrence)
                 }
@@ -1407,6 +1494,7 @@ ApplicationWindow {
                                                  recurringRemoteId, originalStartAt, eventType, conferenceJson,
                                                  attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
+                        onEventDetailRequested: function(event) { window.openEventDetail(event) }
                     }
 
                     DayTimelineView {
@@ -1416,7 +1504,7 @@ ApplicationWindow {
                         selectedEventIds: window.selectedCalendarEventIds
                         selectionMode: window.calendarSelectionMode
                         dayIndex: window.calendarWeekDayIndex()
-                        dateLabel: window.calendarDate
+                        dateLabel: window.calendarDayHeading
                         timelineActive: calendarViews.currentIndex === 1
                         bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
@@ -1447,6 +1535,7 @@ ApplicationWindow {
                                                  recurringRemoteId, originalStartAt, eventType, conferenceJson,
                                                  attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
+                        onEventDetailRequested: function(event) { window.openEventDetail(event) }
                     }
 
                     WeekTimelineView {
@@ -1486,6 +1575,7 @@ ApplicationWindow {
                                                  recurringRemoteId, originalStartAt, eventType, conferenceJson,
                                                  attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
+                        onEventDetailRequested: function(event) { window.openEventDetail(event) }
                     }
 
                     MonthGridView {
@@ -1516,6 +1606,7 @@ ApplicationWindow {
                                                  event.conferenceJson, event.attachmentsJson,
                                                  event.guestPermissionsJson, event.statusPropertiesJson)
                         }
+                        onEventDetailRequested: function(event) { window.openEventDetail(event) }
                     }
                 }
             }
@@ -1820,6 +1911,49 @@ ApplicationWindow {
                           : "Notes are disabled. Every Google Task remains in Tasks."
                     wrapMode: Text.WordWrap
                     color: Theme.textSecondary
+                }
+
+                Label {
+                    text: "Sidebar"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Choose and order tabs. Settings always stays last."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
+                Repeater {
+                    model: [{id: "tasks", title: "Tasks"}, {id: "calendar", title: "Calendar"},
+                            {id: "notes", title: "Notes"}, {id: "invitations", title: "Invitations"}]
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Switch {
+                            checked: window.sidebarHasTab(modelData.id)
+                            text: modelData.title
+                            enabled: window.appController !== null && !window.appController.busy
+                            onToggled: window.setSidebarTab(modelData.id, checked)
+                        }
+                        Item { Layout.fillWidth: true }
+                        Button {
+                            text: "↑"
+                            enabled: window.sidebarTabIds.indexOf(modelData.id) > 0
+                            Accessible.name: "Move " + modelData.title + " earlier"
+                            onClicked: window.moveSidebarTab(modelData.id, -1)
+                        }
+                        Button {
+                            text: "↓"
+                            enabled: window.sidebarTabIds.indexOf(modelData.id) >= 0 &&
+                                     window.sidebarTabIds.indexOf(modelData.id) < window.sidebarTabIds.length - 1
+                            Accessible.name: "Move " + modelData.title + " later"
+                            onClicked: window.moveSidebarTab(modelData.id, 1)
+                        }
+                    }
                 }
 
                 Label {

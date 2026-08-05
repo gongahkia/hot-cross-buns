@@ -8,6 +8,7 @@ class MonthGridModelTest final : public QObject {
 private slots:
   void buildsSundayFirstGridAndAssignsEndExclusiveEventSpans();
   void keepsAllDayDatesStableAcrossDisplayTimeZones();
+  void createsWeeklySegmentsForMultiWeekAllDayEvents();
   void clearsForInvalidMonthOrTimeZone();
 };
 
@@ -85,6 +86,28 @@ void MonthGridModelTest::keepsAllDayDatesStableAcrossDisplayTimeZones() {
   QCOMPARE(model.data(august1, hcb::MonthGridModel::DateRole).toString(),
            QStringLiteral("2026-08-01"));
   QCOMPARE(model.data(august1, hcb::MonthGridModel::EventCountRole).toInt(), 1);
+}
+
+void MonthGridModelTest::createsWeeklySegmentsForMultiWeekAllDayEvents() {
+  hcb::MonthGridModel model;
+  model.setMonth(QDate(2026, 8, 1),
+                 {{.id = QStringLiteral("span"),
+                   .calendarId = QStringLiteral("calendar-a"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Trip"),
+                   .startAt = QStringLiteral("2026-08-01T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-12T00:00:00.000Z"),
+                   .allDay = true,
+                   .updatedAt = QStringLiteral("2026-07-25T00:00:00.000Z")}},
+                 QTimeZone::utc());
+
+  const QVariantList spans = model.allDaySpans();
+  QCOMPARE(spans.size(), 3);
+  QCOMPARE(spans.at(0).toMap().value(QStringLiteral("daySpan")).toInt(), 1);
+  QCOMPARE(spans.at(1).toMap().value(QStringLiteral("daySpan")).toInt(), 7);
+  QCOMPARE(spans.at(2).toMap().value(QStringLiteral("daySpan")).toInt(), 3);
+  QCOMPARE(spans.at(1).toMap().value(QStringLiteral("startsBeforeRange")).toBool(), true);
+  QCOMPARE(spans.at(1).toMap().value(QStringLiteral("endsAfterRange")).toBool(), true);
 }
 
 void MonthGridModelTest::clearsForInvalidMonthOrTimeZone() {

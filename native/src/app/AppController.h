@@ -109,6 +109,9 @@ class AppController final : public QObject {
   Q_PROPERTY(int bulkTextRecurrenceScope READ bulkTextRecurrenceScope NOTIFY
                  bulkTextRecurrenceScopeChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
+  Q_PROPERTY(QString calendarDateLabel READ calendarDateLabel NOTIFY calendarLabelsChanged)
+  Q_PROPERTY(QString calendarDayHeading READ calendarDayHeading NOTIFY calendarLabelsChanged)
+  Q_PROPERTY(QVariantList calendarWeekLabels READ calendarWeekLabels NOTIFY calendarLabelsChanged)
   Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
   Q_PROPERTY(int visualDensity READ visualDensity NOTIFY visualDensityChanged)
   Q_PROPERTY(int paletteMode READ paletteMode NOTIFY paletteModeChanged)
@@ -150,6 +153,7 @@ class AppController final : public QObject {
   Q_PROPERTY(bool importReadyToCommit READ importReadyToCommit NOTIFY importReadyToCommitChanged)
   Q_PROPERTY(bool notesEnabled READ notesEnabled NOTIFY notesEnabledChanged)
   Q_PROPERTY(int notesProjectionMode READ notesProjectionMode NOTIFY notesProjectionModeChanged)
+  Q_PROPERTY(QVariantList sidebarTabIds READ sidebarTabIds NOTIFY sidebarTabIdsChanged)
   Q_PROPERTY(QVariantList freeBusyIntervals READ freeBusyIntervals NOTIFY freeBusyIntervalsChanged)
   Q_PROPERTY(QVariantList driveAttachmentCandidates READ driveAttachmentCandidates NOTIFY
                  driveAttachmentCandidatesChanged)
@@ -195,6 +199,9 @@ public:
   [[nodiscard]] int bulkEventPreviewRequestToken() const;
   [[nodiscard]] int bulkTextRecurrenceScope() const;
   [[nodiscard]] QString calendarDate() const;
+  [[nodiscard]] QString calendarDateLabel() const;
+  [[nodiscard]] QString calendarDayHeading() const;
+  [[nodiscard]] QVariantList calendarWeekLabels() const;
   [[nodiscard]] int appearanceMode() const;
   [[nodiscard]] int visualDensity() const;
   [[nodiscard]] int paletteMode() const;
@@ -225,6 +232,7 @@ public:
   [[nodiscard]] bool importReadyToCommit() const;
   [[nodiscard]] bool notesEnabled() const;
   [[nodiscard]] int notesProjectionMode() const;
+  [[nodiscard]] QVariantList sidebarTabIds() const;
   [[nodiscard]] QVariantList freeBusyIntervals() const;
   [[nodiscard]] QVariantList driveAttachmentCandidates() const;
   [[nodiscard]] QVariantList invitations() const;
@@ -303,6 +311,7 @@ public:
   Q_INVOKABLE void saveConflictPolicy(int policy);
   Q_INVOKABLE void saveNotesEnabled(bool enabled);
   Q_INVOKABLE void saveNotesProjectionMode(int mode);
+  Q_INVOKABLE void saveSidebarTabIds(QVariantList ids);
   Q_INVOKABLE void resolveSyncConflict(QString conflictId, bool keepLocal);
   Q_INVOKABLE void setSearchQuery(QString query);
   Q_INVOKABLE void applySavedSearch(QString savedSearchId);
@@ -478,6 +487,7 @@ signals:
   void bulkEventPreviewRequestTokenChanged();
   void bulkTextRecurrenceScopeChanged();
   void calendarDateChanged();
+  void calendarLabelsChanged();
   void appearanceModeChanged();
   void visualDensityChanged();
   void paletteModeChanged();
@@ -502,6 +512,7 @@ signals:
   void importReadyToCommitChanged();
   void notesEnabledChanged();
   void notesProjectionModeChanged();
+  void sidebarTabIdsChanged();
   void freeBusyIntervalsChanged();
   void driveAttachmentCandidatesChanged();
   void invitationsChanged();
@@ -725,6 +736,7 @@ private:
   bool importReadyToCommit_{false};
   bool notesEnabled_{false};
   int notesProjectionMode_{0};
+  QStringList sidebarTabIds_{QStringLiteral("tasks"), QStringLiteral("calendar")};
   QVariantList freeBusyIntervals_;
   QVariantList driveAttachmentCandidates_;
   QVariantList invitations_;

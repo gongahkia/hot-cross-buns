@@ -1,9 +1,12 @@
 #include "core/MonthGridModel.h"
 
+#include "core/CalendarLayoutEngine.h"
+
 #include <QDateTime>
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 
@@ -79,6 +82,17 @@ namespace {
           {QStringLiteral("eventType"), event.eventType.value_or(QStringLiteral("default"))}};
 }
 
+[[nodiscard]] QVariantMap allDaySpanMap(const MonthGridModel::AllDaySpan& span) {
+  QVariantMap result = eventMap(span.event);
+  result.insert(QStringLiteral("weekIndex"), span.weekIndex);
+  result.insert(QStringLiteral("startColumn"), span.startColumn);
+  result.insert(QStringLiteral("daySpan"), span.daySpan);
+  result.insert(QStringLiteral("laneIndex"), span.laneIndex);
+  result.insert(QStringLiteral("startsBeforeRange"), span.startsBeforeRange);
+  result.insert(QStringLiteral("endsAfterRange"), span.endsAfterRange);
+  return result;
+}
+
 } // namespace
 
 MonthGridModel::MonthGridModel(QObject* parent) : QAbstractTableModel(parent) {}
@@ -115,6 +129,8 @@ QVariant MonthGridModel::data(const QModelIndex& index, int role) const {
     }
     return events;
   }
+  case AllDayOverflowCountRole:
+    return allDayOverflowCounts_.value(index.row() * columnCount() + index.column());
   default:
     return {};
   }
@@ -125,7 +141,17 @@ QHash<int, QByteArray> MonthGridModel::roleNames() const {
           {DayRole, "day"},
           {OutsideMonthRole, "outsideMonth"},
           {EventCountRole, "eventCount"},
-          {EventsRole, "events"}};
+          {EventsRole, "events"},
+          {AllDayOverflowCountRole, "allDayOverflowCount"}};
+}
+
+QVariantList MonthGridModel::allDaySpans() const {
+  QVariantList spans;
+  spans.reserve(allDaySpans_.size());
+  for (const AllDaySpan& span : allDaySpans_) {
+    spans.append(allDaySpanMap(span));
+  }
+  return spans;
 }
 
 MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
@@ -133,6 +159,8 @@ MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
                                                    const QTimeZone& displayTimeZone,
                                                    int weekStartDay) {
   QList<Cell> cells;
+  QList<AllDaySpan> allDaySpans;
+  QList<int> allDayOverflowCounts;
   if (month.isValid() && displayTimeZone.isValid() && (weekStartDay == 0 || weekStartDay == 1)) {
     const QDate firstDay(month.year(), month.month(), 1);
     const int firstQtDay = weekStartDay == 0 ? 7 : 1;
@@ -152,15 +180,66 @@ MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
         }
       }
     }
+    QList<CalendarAllDayLayoutEvent> allDayEvents;
+    QList<CalendarEventSummary> allDaySources;
+    for (const CalendarEventSummary& event : events) {
+      if (!event.allDay) {
+        continue;
+      }
+      const std::optional<QPair<QDate, QDate>> dates = eventDateRange(event, displayTimeZone);
+      if (!dates.has_value()) {
+        continue;
+      }
+      allDayEvents.append({.id = QString::number(allDaySources.size()),
+                           .startDayIndex = gridStart.daysTo(dates->first),
+                           .endDayIndex = gridStart.daysTo(dates->second)});
+      allDaySources.append(event);
+    }
+    const CalendarAllDayLayout layout = CalendarLayoutEngine::layoutAllDay(
+        allDayEvents, 42, std::max(1, static_cast<int>(allDayEvents.size())));
+    allDayOverflowCounts.fill(0, 42);
+    for (const CalendarAllDaySegment& segment : layout.segments) {
+      bool validIndex = false;
+      const int sourceIndex = segment.id.toInt(&validIndex);
+      if (!validIndex || sourceIndex < 0 || sourceIndex >= allDaySources.size()) {
+        continue;
+      }
+      const int segmentEnd = segment.startDayIndex + segment.daySpan - 1;
+      for (int start = segment.startDayIndex; start <= segmentEnd;) {
+        const int weekEnd = (start / 7) * 7 + 6;
+        const int end = std::min(segmentEnd, weekEnd);
+        const bool startsBeforeRange = segment.startsBeforeRange || start > segment.startDayIndex;
+        const bool endsAfterRange = segment.endsAfterRange || end < segmentEnd;
+        allDaySpans.append({.event = allDaySources.at(sourceIndex),
+                            .weekIndex = start / 7,
+                            .startColumn = start % 7,
+                            .daySpan = end - start + 1,
+                            .laneIndex = segment.laneIndex,
+                            .startsBeforeRange = startsBeforeRange,
+                            .endsAfterRange = endsAfterRange});
+        if (segment.laneIndex >= 3) {
+          for (int day = start; day <= end; ++day) {
+            ++allDayOverflowCounts[day];
+          }
+        }
+        start = end + 1;
+      }
+    }
   }
-  return {.month = month, .cells = std::move(cells)};
+  return {.month = month,
+          .cells = std::move(cells),
+          .allDaySpans = std::move(allDaySpans),
+          .allDayOverflowCounts = std::move(allDayOverflowCounts)};
 }
 
 void MonthGridModel::applyLayout(Layout layout) {
   beginResetModel();
   month_ = layout.month;
   cells_ = std::move(layout.cells);
+  allDaySpans_ = std::move(layout.allDaySpans);
+  allDayOverflowCounts_ = std::move(layout.allDayOverflowCounts);
   endResetModel();
+  emit allDaySpansChanged();
 }
 
 void MonthGridModel::setMonth(QDate month,

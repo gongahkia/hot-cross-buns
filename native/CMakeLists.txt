@@ -281,6 +281,7 @@ qt_add_qml_module(hcb_native
     qml/EventCreateDialog.qml
     qml/EventColorPicker.qml
     qml/EventDeleteDialog.qml
+    qml/EventDetailDialog.qml
     qml/EventEditDialog.qml
     qml/GoogleOnboardingView.qml
     qml/HcbDialog.qml
@@ -296,6 +297,7 @@ qt_add_qml_module(hcb_native
     qml/StatusEventPropertiesEditor.qml
     qml/TaskCreateDialog.qml
     qml/TaskDeleteDialog.qml
+    qml/TaskDetailDialog.qml
     qml/TaskBulkDeleteDialog.qml
     qml/TaskBulkEditDialog.qml
     qml/TaskBulkMoveDialog.qml
@@ -1049,6 +1051,8 @@ if(BUILD_TESTING)
 
   qt_add_executable(hcb_month_grid_model_tests
     tests/MonthGridModelTest.cpp
+    src/core/CalendarLayoutEngine.cpp
+    src/core/CalendarLayoutEngine.h
     src/core/MonthGridModel.cpp
     src/core/MonthGridModel.h
     src/core/AppError.h

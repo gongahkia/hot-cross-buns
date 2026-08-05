@@ -161,12 +161,12 @@ TestCase {
             appController: { googleConnected: false }
         })
         verify(mainWindow !== null)
-        compare(mainWindow.navigationSidebar.pageButtons.count, 4)
-        for (let row = 0; row < 3; ++row) {
+        compare(mainWindow.navigationSidebar.pageButtons.count, 3)
+        for (let row = 0; row < 2; ++row) {
             verify(!mainWindow.navigationSidebar.pageButtons.itemAt(row).enabled)
             verify(!mainWindow.navigationSidebar.pageButtons.itemAt(row).checked)
         }
-        verify(mainWindow.navigationSidebar.pageButtons.itemAt(3).enabled)
+        verify(mainWindow.navigationSidebar.pageButtons.itemAt(2).enabled)
         verify(!mainWindow.headerSearchButton.visible)
         verify(!mainWindow.searchShortcut.enabled)
         mainWindow.openSearch()
@@ -261,7 +261,8 @@ TestCase {
         const mainWindow = component.createObject(null, {
             navigationCommands: navigationCommands,
             transitionTimings: testCase,
-            appController: { googleConnected: true, notesEnabled: true }
+            appController: { googleConnected: true, notesEnabled: true,
+                             sidebarTabIds: ["tasks", "calendar", "notes"] }
         })
         verify(mainWindow !== null)
         compare(mainWindow.navigationSidebar.currentPage, "Tasks")
@@ -558,8 +559,8 @@ TestCase {
         compare(component.status, Component.Ready, component.errorString())
 
         const taskModel = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        taskModel.append({ id: "inbox-1", taskListId: "list-active", title: "Plan release", notes: "Prepare checklist", dueAt: "2026-07-26", dueTimeZone: "Asia/Singapore", priority: 2, completed: false, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
-        taskModel.append({ id: "inbox-2", taskListId: "list-active", title: "Review sync", notes: "", dueAt: "", dueTimeZone: "", priority: 0, completed: true, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
+        taskModel.append({ id: "inbox-1", taskListId: "list-active", taskListTitle: "Active", title: "Plan release", notes: "Prepare checklist", dueAt: "2026-07-26", dueTimeZone: "Asia/Singapore", priority: 2, completed: false, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
+        taskModel.append({ id: "inbox-2", taskListId: "list-active", taskListTitle: "Active", title: "Review sync", notes: "", dueAt: "", dueTimeZone: "", priority: 0, completed: true, managedRecurrence: false, recurrenceSummary: "", recurrenceFrequency: -1, recurrenceInterval: 1, recurrenceEndKind: 0, recurrenceEndUntil: "", recurrenceEndCount: 0 })
         const taskList = component.createObject(null, {
             taskModel: taskModel,
             width: 480,
@@ -1710,6 +1711,7 @@ TestCase {
             taskModel.append({
                 id: "task-" + index,
                 taskListId: "list-active",
+                taskListTitle: "Active",
                 title: "Task " + index,
                 notes: "",
                 dueAt: "",

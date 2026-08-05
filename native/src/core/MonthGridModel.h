@@ -5,6 +5,7 @@
 #include <QAbstractTableModel>
 #include <QDate>
 #include <QTimeZone>
+#include <QVariantList>
 
 #include <cstdint>
 
@@ -12,6 +13,7 @@ namespace hcb {
 
 class MonthGridModel final : public QAbstractTableModel {
   Q_OBJECT
+  Q_PROPERTY(QVariantList allDaySpans READ allDaySpans NOTIFY allDaySpansChanged)
 
 public:
   enum Role : std::int32_t {
@@ -19,7 +21,8 @@ public:
     DayRole,
     OutsideMonthRole,
     EventCountRole,
-    EventsRole
+    EventsRole,
+    AllDayOverflowCountRole
   };
   Q_ENUM(Role)
 
@@ -29,15 +32,28 @@ public:
   [[nodiscard]] int columnCount(const QModelIndex& parent = QModelIndex()) const override;
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+  [[nodiscard]] QVariantList allDaySpans() const;
 
   struct Cell final {
     QDate date;
     QList<CalendarEventSummary> events;
   };
 
+  struct AllDaySpan final {
+    CalendarEventSummary event;
+    int weekIndex{0};
+    int startColumn{0};
+    int daySpan{1};
+    int laneIndex{0};
+    bool startsBeforeRange{false};
+    bool endsAfterRange{false};
+  };
+
   struct Layout final {
     QDate month;
     QList<Cell> cells;
+    QList<AllDaySpan> allDaySpans;
+    QList<int> allDayOverflowCounts;
   };
 
   [[nodiscard]] static Layout buildLayout(QDate month,
@@ -51,9 +67,14 @@ public:
                 const QTimeZone& displayTimeZone,
                 int weekStartDay = 0);
 
+signals:
+  void allDaySpansChanged();
+
 private:
   QDate month_;
   QList<Cell> cells_;
+  QList<AllDaySpan> allDaySpans_;
+  QList<int> allDayOverflowCounts_;
 };
 
 } // namespace hcb

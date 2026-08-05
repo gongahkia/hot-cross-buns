@@ -27,6 +27,7 @@
 #include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QLocale>
 #include <QMetaType>
 #include <QRegularExpression>
 #include <QSet>
@@ -77,6 +78,7 @@ constexpr char kDisplayTimeZoneSettingsKey[] = "display_time_zone";
 constexpr char kWorkdayStartHourSettingsKey[] = "workday_start_hour";
 constexpr char kWorkdayEndHourSettingsKey[] = "workday_end_hour";
 constexpr char kCalendarVisibilitySettingsKey[] = "calendar_visibility";
+constexpr char kSidebarTabIdsSettingsKey[] = "sidebar_tab_ids";
 constexpr int kNotesOnlyProjection = 0;
 constexpr int kMirrorNotesProjection = 1;
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
@@ -242,6 +244,35 @@ constexpr int kSearchDebounceMilliseconds = 180;
     array.append(value);
   }
   return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+
+[[nodiscard]] bool isValidSidebarTabId(const QString& value) {
+  return value == QStringLiteral("tasks") || value == QStringLiteral("calendar") ||
+         value == QStringLiteral("invitations") || value == QStringLiteral("notes");
+}
+
+[[nodiscard]] std::optional<QStringList> sidebarTabIdsFromJson(const QString& value) {
+  QJsonParseError error;
+  const QJsonDocument document = QJsonDocument::fromJson(value.toUtf8(), &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray() ||
+      document.array().size() > 4) {
+    return std::nullopt;
+  }
+  QStringList ids;
+  QSet<QString> seen;
+  for (const QJsonValue& item : document.array()) {
+    if (!item.isString() || !isValidSidebarTabId(item.toString()) ||
+        seen.contains(item.toString())) {
+      return std::nullopt;
+    }
+    seen.insert(item.toString());
+    ids.append(item.toString());
+  }
+  return ids;
+}
+
+[[nodiscard]] QString localizedCalendarDate(const QDate& date, const QString& format) {
+  return date.isValid() ? QLocale().toString(date, format) : QString();
 }
 
 [[nodiscard]] std::optional<TaskPriority> priorityForValue(int value) {
@@ -780,6 +811,29 @@ int AppController::bulkTextRecurrenceScope() const { return bulkTextRecurrenceSc
 
 QString AppController::calendarDate() const { return calendarDate_.toString(Qt::ISODate); }
 
+QString AppController::calendarDateLabel() const {
+  return localizedCalendarDate(calendarDate_, QStringLiteral("d MMM yyyy"));
+}
+
+QString AppController::calendarDayHeading() const {
+  return localizedCalendarDate(calendarDate_, QStringLiteral("dddd, d MMMM"));
+}
+
+QVariantList AppController::calendarWeekLabels() const {
+  QVariantList labels;
+  if (!calendarDate_.isValid()) {
+    return labels;
+  }
+  const int firstQtDay = weekStartDay_ == 0 ? 7 : 1;
+  const QDate start =
+      calendarDate_.addDays(-(calendarDate_.dayOfWeek() - firstQtDay + 7) % 7);
+  labels.reserve(7);
+  for (int offset = 0; offset < 7; ++offset) {
+    labels.append(localizedCalendarDate(start.addDays(offset), QStringLiteral("ddd d MMM")));
+  }
+  return labels;
+}
+
 int AppController::appearanceMode() const { return appearanceMode_; }
 
 int AppController::visualDensity() const { return visualDensity_; }
@@ -869,6 +923,15 @@ bool AppController::notesEnabled() const { return notesEnabled_; }
 
 int AppController::notesProjectionMode() const { return notesProjectionMode_; }
 
+QVariantList AppController::sidebarTabIds() const {
+  QVariantList ids;
+  ids.reserve(sidebarTabIds_.size());
+  for (const QString& id : sidebarTabIds_) {
+    ids.append(id);
+  }
+  return ids;
+}
+
 QVariantList AppController::freeBusyIntervals() const { return freeBusyIntervals_; }
 
 QVariantList AppController::driveAttachmentCandidates() const { return driveAttachmentCandidates_; }
@@ -956,6 +1019,27 @@ void AppController::initialize() {
             applyTaskProjections(taskProjectionTasks_);
             refreshSearchProjection();
             emit notesProjectionModeChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kSidebarTabIdsSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<QStringList> ids = sidebarTabIdsFromJson(*stored);
+          if (!ids.has_value()) {
+            setStatus(QStringLiteral("Stored sidebar tabs are invalid"));
+            return;
+          }
+          if (sidebarTabIds_ != *ids) {
+            sidebarTabIds_ = *ids;
+            emit sidebarTabIdsChanged();
           }
         });
   const auto loadPresentationInt = [this](const char* key,
@@ -1199,6 +1283,7 @@ void AppController::initialize() {
                         if (weekStartDay_ != value) {
                           weekStartDay_ = value;
                           emit weekStartDayChanged();
+                          emit calendarLabelsChanged();
                           refreshCalendar();
                         }
                       },
@@ -1393,6 +1478,7 @@ void AppController::setCalendarDate(QString date) {
   }
   calendarDate_ = parsed;
   emit calendarDateChanged();
+  emit calendarLabelsChanged();
   refreshCalendar();
 }
 
@@ -1811,7 +1897,34 @@ void AppController::saveWeekStartDay(int day) {
           } else if (weekStartDay_ != day) {
             weekStartDay_ = day;
             emit weekStartDayChanged();
+            emit calendarLabelsChanged();
             refreshCalendar();
+          }
+        });
+}
+
+void AppController::saveSidebarTabIds(QVariantList ids) {
+  QStringList parsed;
+  QSet<QString> seen;
+  parsed.reserve(ids.size());
+  for (const QVariant& value : ids) {
+    if (value.metaType().id() != QMetaType::QString || !isValidSidebarTabId(value.toString()) ||
+        seen.contains(value.toString())) {
+      setStatus(QStringLiteral("Sidebar tabs are invalid"));
+      return;
+    }
+    seen.insert(value.toString());
+    parsed.append(value.toString());
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kSidebarTabIdsSettingsKey),
+                                   jsonStringList(parsed)),
+        [this, parsed = std::move(parsed)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (sidebarTabIds_ != parsed) {
+            sidebarTabIds_ = parsed;
+            emit sidebarTabIdsChanged();
           }
         });
 }

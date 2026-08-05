@@ -9,6 +9,7 @@ Pane {
     property bool googleConnected: true
     property bool notesEnabled: false
     property int pendingInvitationCount: 0
+    property var sidebarTabIds: ["tasks", "calendar"]
     property alias pageButtons: pageButtons
     signal pageSelected(string pageName)
 
@@ -37,13 +38,35 @@ Pane {
         }
     }
 
+    function tabIdForLabel(label) {
+        return label.toLowerCase()
+    }
+
+    function navigationCommands() {
+        const commands = Array.isArray(commandRegistry) ? commandRegistry : []
+        const result = []
+        sidebarTabIds.forEach(function(tabId) {
+            commands.forEach(function(command) {
+                if (command.commandId.startsWith("navigation.") &&
+                        tabIdForLabel(command.commandLabel) === tabId &&
+                        (command.commandLabel !== "Notes" || root.notesEnabled)) {
+                    result.push(command)
+                }
+            })
+        })
+        commands.forEach(function(command) {
+            if (command.commandId === "navigation.settings") result.push(command)
+        })
+        return result
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingSmall
 
         Repeater {
             id: pageButtons
-            model: root.commandRegistry
+            model: root.navigationCommands()
 
             delegate: AccessibleNavigationButton {
                 required property string commandId
@@ -54,8 +77,7 @@ Pane {
                            ? String(root.pendingInvitationCount) : ""
                 currentPage: root.currentPage === commandLabel
                 enabled: root.googleConnected || commandLabel === "Settings"
-                visible: commandId.startsWith("navigation.") &&
-                         (commandLabel !== "Notes" || root.notesEnabled)
+                visible: commandId.startsWith("navigation.")
                 onPageSelected: pageName => root.selectPage(pageName)
             }
         }

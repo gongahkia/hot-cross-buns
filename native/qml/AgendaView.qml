@@ -19,6 +19,7 @@ Pane {
                               string recurringRemoteId, string originalStartAt, string eventType,
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
+    signal eventDetailRequested(var event)
 
     function scheduleLabel(startAt, allDay) {
         if (allDay) return "All day"
@@ -47,6 +48,23 @@ Pane {
                            remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
                            originalStartAt, eventType, conferenceJson, attachmentsJson,
                            guestPermissionsJson, statusPropertiesJson)
+    }
+
+    function requestDetail(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt, eventType, conferenceJson, attachmentsJson,
+                           guestPermissionsJson, statusPropertiesJson) {
+        eventDetailRequested({id: eventId, calendarId: calendarId, title: title, startAt: startAt,
+                              endAt: endAt, allDay: allDay, description: description, location: location,
+                              startTimeZone: startTimeZone, colorId: colorId, transparency: transparency,
+                              visibility: visibility, attendeeEmailsJson: attendeeEmailsJson,
+                              remindersJson: remindersJson, remindersUseDefault: remindersUseDefault,
+                              recurrenceRule: recurrenceRule, recurringRemoteId: recurringRemoteId,
+                              originalStartAt: originalStartAt, eventType: eventType,
+                              conferenceJson: conferenceJson, attachmentsJson: attachmentsJson,
+                              guestPermissionsJson: guestPermissionsJson,
+                              statusPropertiesJson: statusPropertiesJson})
     }
 
     function isCalendarVisible(calendarId) {
@@ -114,7 +132,7 @@ Pane {
                         root.eventSelectionRequested(id, !root.isEventSelected(id))
                     } else {
                         root.selectEvent(id)
-                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location,
+                        root.requestDetail(id, calendarId, title, startAt, endAt, allDay, description, location,
                                          startTimeZone, colorId, transparency, visibility,
                                          attendeeEmailsJson, remindersJson, remindersUseDefault,
                                          recurrenceRule, recurringRemoteId, originalStartAt, eventType,

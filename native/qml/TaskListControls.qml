@@ -141,13 +141,5 @@ Pane {
             Accessible.name: text
         }
 
-        Label {
-            Layout.fillWidth: true
-            visible: taskListRows.count > 1
-            text: "Google Tasks keeps task-list order."
-            color: Theme.textSecondary
-            wrapMode: Text.WordWrap
-            Accessible.name: text
-        }
     }
 }

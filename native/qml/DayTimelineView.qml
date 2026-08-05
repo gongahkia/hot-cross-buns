@@ -32,6 +32,7 @@ Pane {
                               string recurringRemoteId, string originalStartAt, string eventType,
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
+    signal eventDetailRequested(var event)
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -52,11 +53,6 @@ Pane {
         const end = new Date(endAt)
         if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return ""
         return Qt.locale().toString(start, "HH:mm") + "–" + Qt.locale().toString(end, "HH:mm")
-    }
-
-    function heading() {
-        const parsed = new Date(dateLabel + "T12:00:00")
-        return Number.isFinite(parsed.getTime()) ? Qt.locale().toString(parsed, "dddd, d MMMM") : dateLabel
     }
 
     function hourLabel(hour) {
@@ -111,6 +107,23 @@ Pane {
                            remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
                            originalStartAt, eventType, conferenceJson, attachmentsJson,
                            guestPermissionsJson, statusPropertiesJson)
+    }
+
+    function requestDetail(eventId, calendarId, title, startAt, endAt, allDay, description, location,
+                           startTimeZone, colorId, transparency, visibility, attendeeEmailsJson,
+                           remindersJson, remindersUseDefault, recurrenceRule, recurringRemoteId,
+                           originalStartAt, eventType, conferenceJson, attachmentsJson,
+                           guestPermissionsJson, statusPropertiesJson) {
+        eventDetailRequested({id: eventId, calendarId: calendarId, title: title, startAt: startAt,
+                              endAt: endAt, allDay: allDay, description: description, location: location,
+                              startTimeZone: startTimeZone, colorId: colorId, transparency: transparency,
+                              visibility: visibility, attendeeEmailsJson: attendeeEmailsJson,
+                              remindersJson: remindersJson, remindersUseDefault: remindersUseDefault,
+                              recurrenceRule: recurrenceRule, recurringRemoteId: recurringRemoteId,
+                              originalStartAt: originalStartAt, eventType: eventType,
+                              conferenceJson: conferenceJson, attachmentsJson: attachmentsJson,
+                              guestPermissionsJson: guestPermissionsJson,
+                              statusPropertiesJson: statusPropertiesJson})
     }
 
     function isCalendarVisible(calendarId) {
@@ -183,7 +196,7 @@ Pane {
         spacing: Theme.spacingMedium
 
         Label {
-            text: root.dateLabel.length > 0 ? root.heading() : "Day"
+            text: root.dateLabel.length > 0 ? root.dateLabel : "Day"
             font.pixelSize: Theme.titleFontSize
             Accessible.role: Accessible.Heading
             Accessible.name: text
@@ -233,7 +246,7 @@ Pane {
                             root.eventSelectionRequested(id, !root.isEventSelected(id))
                         } else {
                             root.selectEvent(id)
-                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                            root.requestDetail(id, calendarId, title, startAt, endAt, allDay, description,
                                              location, startTimeZone, colorId, transparency, visibility,
                                              attendeeEmailsJson, remindersJson, remindersUseDefault,
                                              recurrenceRule, recurringRemoteId, originalStartAt, eventType,
@@ -381,7 +394,7 @@ Pane {
                                 root.eventSelectionRequested(id, !root.isEventSelected(id))
                             } else {
                                 root.selectEvent(id)
-                                root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                root.requestDetail(id, calendarId, title, startAt, endAt, allDay, description,
                                                  location, startTimeZone, colorId, transparency, visibility,
                                                  attendeeEmailsJson, remindersJson, remindersUseDefault,
                                                  recurrenceRule, recurringRemoteId, originalStartAt, eventType,
