@@ -21,6 +21,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QColor>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -29,6 +30,7 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <QMetaType>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
 #include <QTimeZone>
@@ -79,6 +81,7 @@ constexpr char kWorkdayStartHourSettingsKey[] = "workday_start_hour";
 constexpr char kWorkdayEndHourSettingsKey[] = "workday_end_hour";
 constexpr char kCalendarVisibilitySettingsKey[] = "calendar_visibility";
 constexpr char kSidebarTabIdsSettingsKey[] = "sidebar_tab_ids";
+constexpr char kExternalBrowserSettingsKey[] = "external_browser";
 constexpr int kNotesOnlyProjection = 0;
 constexpr int kMirrorNotesProjection = 1;
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
@@ -118,6 +121,23 @@ constexpr int kSearchDebounceMilliseconds = 180;
 [[nodiscard]] bool isValidPaletteMode(int value) { return value >= 0 && value <= 5; }
 
 [[nodiscard]] bool isValidFontScale(int value) { return value >= 0 && value <= 3; }
+
+[[nodiscard]] bool isValidExternalBrowser(const QString& browser) {
+  return browser.size() <= 128 && !browser.contains(QChar::Null);
+}
+
+[[nodiscard]] bool openExternalUrl(const QUrl& url, const QString& browser) {
+  if (browser.isEmpty()) {
+    return QDesktopServices::openUrl(url);
+  }
+#if defined(Q_OS_MACOS)
+  return QProcess::startDetached(QStringLiteral("/usr/bin/open"),
+                                 {QStringLiteral("-a"), browser,
+                                  url.toString(QUrl::FullyEncoded)});
+#else
+  return QDesktopServices::openUrl(url);
+#endif
+}
 
 [[nodiscard]] bool isValidBulkTextRecurrenceScope(int value) { return value >= 0 && value <= 3; }
 
@@ -861,6 +881,8 @@ QVariantList AppController::availableFontFamilies() const {
 
 int AppController::fontScale() const { return fontScale_; }
 
+QString AppController::externalBrowser() const { return externalBrowser_; }
+
 QString AppController::quickCaptureDefaultTaskListId() const { return quickCaptureDefaultTaskListId_; }
 
 QString AppController::quickCaptureDefaultCalendarId() const { return quickCaptureDefaultCalendarId_; }
@@ -1045,6 +1067,27 @@ void AppController::initialize() {
           if (sidebarTabIds_ != *ids) {
             sidebarTabIds_ = *ids;
             emit sidebarTabIdsChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kExternalBrowserSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          const std::optional<QString> browser = jsonArrayString(*stored);
+          if (!browser.has_value() || !isValidExternalBrowser(*browser)) {
+            setStatus(QStringLiteral("Stored external browser is invalid"));
+            return;
+          }
+          if (externalBrowser_ != *browser) {
+            externalBrowser_ = *browser;
+            emit externalBrowserChanged();
           }
         });
   const auto loadPresentationInt = [this](const char* key,
@@ -1613,6 +1656,38 @@ void AppController::saveBulkTextRecurrenceScope(int scope) {
             emit bulkTextRecurrenceScopeChanged();
           }
         });
+}
+
+void AppController::saveExternalBrowser(QString browser) {
+  browser = browser.trimmed();
+  if (!isValidExternalBrowser(browser)) {
+    setStatus(QStringLiteral("External browser is invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kExternalBrowserSettingsKey),
+                                   jsonStringArray(browser)),
+        [this, browser = std::move(browser)](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (externalBrowser_ != browser) {
+            externalBrowser_ = browser;
+            emit externalBrowserChanged();
+          }
+        });
+}
+
+void AppController::openExternalLink(QString value) {
+  const QUrl url = QUrl::fromUserInput(value.trimmed());
+  if (!url.isValid() || url.host().isEmpty() ||
+      (url.scheme() != QStringLiteral("https") && url.scheme() != QStringLiteral("http"))) {
+    setStatus(QStringLiteral("Only valid HTTP and HTTPS links can be opened"));
+    return;
+  }
+  if (!openExternalUrl(url, externalBrowser_)) {
+    setStatus(externalBrowser_.isEmpty() ? QStringLiteral("System browser could not be opened")
+                                         : QStringLiteral("Configured browser could not be opened"));
+  }
 }
 
 void AppController::resetVisualPreferences() {

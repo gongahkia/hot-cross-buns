@@ -120,6 +120,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
   Q_PROPERTY(QVariantList availableFontFamilies READ availableFontFamilies CONSTANT)
   Q_PROPERTY(int fontScale READ fontScale NOTIFY fontScaleChanged)
+  Q_PROPERTY(QString externalBrowser READ externalBrowser NOTIFY externalBrowserChanged)
   Q_PROPERTY(QString quickCaptureDefaultTaskListId READ quickCaptureDefaultTaskListId NOTIFY
                  quickCaptureDefaultTaskListIdChanged)
   Q_PROPERTY(QString quickCaptureDefaultCalendarId READ quickCaptureDefaultCalendarId NOTIFY
@@ -211,6 +212,7 @@ public:
   [[nodiscard]] QString fontFamily() const;
   [[nodiscard]] QVariantList availableFontFamilies() const;
   [[nodiscard]] int fontScale() const;
+  [[nodiscard]] QString externalBrowser() const;
   [[nodiscard]] QString quickCaptureDefaultTaskListId() const;
   [[nodiscard]] QString quickCaptureDefaultCalendarId() const;
   [[nodiscard]] int quickCaptureEventDurationMinutes() const;
@@ -253,6 +255,8 @@ public:
   Q_INVOKABLE void saveAccentColor(QString color);
   Q_INVOKABLE void saveFontFamily(QString family);
   Q_INVOKABLE void saveFontScale(int scale);
+  Q_INVOKABLE void saveExternalBrowser(QString browser);
+  Q_INVOKABLE void openExternalLink(QString url);
   Q_INVOKABLE void saveBulkTextRecurrenceScope(int scope);
   Q_INVOKABLE void resetVisualPreferences();
   Q_INVOKABLE QVariantMap previewQuickCapture(QString text, int kind, QVariantList disabledRecognitionIds) const;
@@ -496,6 +500,7 @@ signals:
   void accentColorChanged();
   void fontFamilyChanged();
   void fontScaleChanged();
+  void externalBrowserChanged();
   void quickCaptureDefaultTaskListIdChanged();
   void quickCaptureDefaultCalendarIdChanged();
   void quickCaptureEventDurationMinutesChanged();
@@ -711,6 +716,7 @@ private:
   QString accentColor_;
   QString fontFamily_;
   int fontScale_{1};
+  QString externalBrowser_;
   QString quickCaptureDefaultTaskListId_;
   QString quickCaptureDefaultCalendarId_;
   int quickCaptureEventDurationMinutes_{30};
