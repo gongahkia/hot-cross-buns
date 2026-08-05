@@ -4,6 +4,10 @@
 installable using its project declaration and inferred layout; an absent file
 is treated as no package metadata.
 
+It is required when validating a selected Git source-catalog candidate before
+lock publication. Its canonical `package.version` must agree with the selected
+Git tag version; SemVer build metadata does not affect that comparison.
+
 When present, schema one requires:
 
 ```toml

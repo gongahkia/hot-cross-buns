@@ -67,6 +67,11 @@ With offline discovery, Wukong accepts only verified cached tag metadata for
 the same canonical URL and `tag-prefix`. Missing or corrupt metadata fails with
 an instruction to retry online; Wukong does not guess from a mutable tag.
 
+Before lock publication, a selected Git candidate must contain valid
+`wukong-package.toml` below its declared root. Wukong compares the selected tag
+version with `package.version` after removing SemVer build metadata. A mismatch
+diagnostic identifies the package, selected tag, and observed metadata version.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

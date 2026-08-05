@@ -1105,6 +1105,7 @@ mod tests {
             selected.commit(),
             "2222222222222222222222222222222222222222"
         );
+        assert_eq!(selected.tag(), "v1.2.0");
         assert_eq!(selected.root(), Path::new("addons/catalog"));
     }
 
