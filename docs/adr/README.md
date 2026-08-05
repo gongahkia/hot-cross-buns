@@ -46,6 +46,7 @@ Current records:
 - [0040: direct-sync prepared-cache reuse](0040-direct-sync-prepared-cache-reuse.md)
 - [0041: CLI progress rendering](0041-cli-progress-rendering.md)
 - [0042: project source catalog](0042-project-source-catalog.md)
+- [0043: strict package metadata policy](0043-strict-package-metadata-policy.md)
 
 ## When to write an ADR
 

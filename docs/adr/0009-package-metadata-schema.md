@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0043](0043-strict-package-metadata-policy.md).
 
 ## Context
 
