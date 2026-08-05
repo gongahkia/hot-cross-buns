@@ -11,6 +11,7 @@ use crate::{
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -18,6 +19,9 @@ use toml_edit::{Document, Item, TableLike};
 
 /// The project source-catalog filename.
 pub const SOURCE_CATALOG_FILE_NAME: &str = "wukong.sources.toml";
+
+/// The only source-catalog schema supported by this Wukong version.
+pub const SOURCE_CATALOG_SCHEMA: i64 = 1;
 
 /// The result type returned by source-catalog parsing.
 pub type SourceCatalogResult<T> = Result<T, Box<Diagnostic>>;
@@ -75,7 +79,7 @@ impl SourceCatalog {
         })?;
         let root = document.as_table();
         reject_unknown(root, &["schema", "package"], path, "root")?;
-        if integer(root, "schema", path, "root")? != 1 {
+        if integer(root, "schema", path, "root")? != SOURCE_CATALOG_SCHEMA {
             return Err(user(
                 path,
                 "schema must be 1",
@@ -136,6 +140,15 @@ impl SourceCatalog {
         &self.packages
     }
 
+    /// Validates and serializes canonical schema-one TOML without source access.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user diagnostic when a declaration is unsafe or ambiguous.
+    pub fn to_toml(&self, path: &Path) -> SourceCatalogResult<String> {
+        self.validate(path).map(|catalog| catalog.to_toml())
+    }
+
     /// Validates source declarations without accessing the filesystem or network.
     ///
     /// # Errors
@@ -186,6 +199,36 @@ impl ValidatedSourceCatalog {
     #[must_use]
     pub const fn packages(&self) -> &BTreeMap<PackageName, Vec<ValidatedCatalogCandidate>> {
         &self.packages
+    }
+
+    /// Serializes canonical schema-one TOML in package and candidate order.
+    #[must_use]
+    pub fn to_toml(&self) -> String {
+        let mut output = format!("schema = {SOURCE_CATALOG_SCHEMA}\n");
+        for (name, candidates) in &self.packages {
+            for candidate in candidates {
+                output.push_str("\n[[package]]\n");
+                line(&mut output, "name", name.as_str());
+                match candidate {
+                    ValidatedCatalogCandidate::Git(candidate) => {
+                        output.push_str("[package.git]\n");
+                        line(&mut output, "url", candidate.source().as_str());
+                        line(&mut output, "root", path_string(candidate.root()));
+                        if let Some(prefix) = candidate.tag_prefix() {
+                            line(&mut output, "tag-prefix", prefix.as_str());
+                        }
+                    }
+                    ValidatedCatalogCandidate::Http(candidate) => {
+                        output.push_str("[package.http]\n");
+                        line(&mut output, "version", candidate.version().to_string());
+                        line(&mut output, "url", candidate.url());
+                        line(&mut output, "sha256", candidate.sha256());
+                        line(&mut output, "root", path_string(candidate.root()));
+                    }
+                }
+            }
+        }
+        output
     }
 }
 
@@ -533,6 +576,36 @@ fn invalid_root(path: &Path, name: &CatalogPackageName, source_field: &str) -> B
 
 fn field(name: &CatalogPackageName, suffix: &str) -> String {
     format!("package.{}.{suffix}", name.as_str())
+}
+
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn line(output: &mut String, key: &str, value: impl AsRef<str>) {
+    output.push_str(key);
+    output.push_str(" = ");
+    output.push_str(&quote(value.as_ref()));
+    output.push('\n');
+}
+
+fn quote(value: &str) -> String {
+    let mut output = String::from("\"");
+    for character in value.chars() {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '\"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character < ' ' => {
+                let _ = write!(output, "\\u{:04x}", character as u32);
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('\"');
+    output
 }
 
 fn parse_git(item: &Item, path: &Path, scope: &str) -> SourceCatalogResult<CatalogGitCandidate> {

@@ -37,6 +37,11 @@ Schema parsing rejects unknown fields, missing required fields, incorrect TOML
 types, unsupported schemas, invalid UTF-8, and invalid TOML syntax. It groups
 entries by package name and orders package names and candidates deterministically.
 
+Schema one has no extension fields. Canonical serialization emits only its
+declared fields, sorted by package and candidate, with normalised validated
+values; comments and formatting are not retained. Future fields require a
+schema change.
+
 Before resolution, validate the parsed catalog. Validation is also side-effect
 free: it does not fetch sources or access declared paths. It rejects:
 

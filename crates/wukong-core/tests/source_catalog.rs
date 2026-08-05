@@ -1,3 +1,4 @@
+use proptest::{collection, prelude::*};
 use std::{fs, path::Path};
 use tempfile::TempDir;
 use wukong_core::{
@@ -7,6 +8,26 @@ use wukong_core::{
 
 const CATALOG_PATH: &str = "fixture/wukong.sources.toml";
 const SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+proptest! {
+    #[test]
+    fn invariant_catalog_serialization_is_order_independent_and_idempotent(
+        names in collection::btree_set("[a-z][a-z0-9]{0,5}", 1..8),
+    ) {
+        let entries = names.iter().enumerate().map(|(index, name)| {
+            format!(
+                "[[package]]\nname = \"{name}\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://example.test/{name}.zip\"\nsha256 = \"{index:064x}\"\nroot = \"addons/{name}\"\n"
+            )
+        }).collect::<Vec<_>>();
+        let first = canonical(&format!("schema = 1\n\n{}", entries.concat()));
+        let mut reverse = entries;
+        reverse.reverse();
+        let second = canonical(&format!("schema = 1\n\n{}", reverse.concat()));
+
+        prop_assert_eq!(&first, &second);
+        prop_assert_eq!(canonical(&first), first);
+    }
+}
 
 #[test]
 fn invariant_catalog_parses_typed_git_and_http_candidates_in_deterministic_order() {
@@ -289,6 +310,73 @@ root = "addons/alpha"
     assert!(first.recovery().is_some());
 }
 
+#[test]
+fn invariant_catalog_serialization_emits_only_canonical_validated_schema_one_fields() {
+    let catalog = parse(&format!(
+        r#"
+schema = 1
+
+[[package]]
+name = "zeta"
+[package.git]
+url = "https://EXAMPLE.test:443/zeta.git"
+root = "./addons/zeta"
+tag-prefix = "v"
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "1.2.3"
+url = "https://example.test/alpha-1.2.3.zip"
+sha256 = "{SHA256}"
+root = "addons/alpha"
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "1.0.0"
+url = "https://example.test/alpha-1.0.0.zip"
+sha256 = "{SHA256}"
+root = "./addons/alpha"
+"#,
+    ));
+
+    let output = catalog
+        .to_toml(Path::new(CATALOG_PATH))
+        .expect("validated catalog should serialize");
+    assert_eq!(
+        output,
+        format!(
+            r#"schema = 1
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "1.0.0"
+url = "https://example.test/alpha-1.0.0.zip"
+sha256 = "{SHA256}"
+root = "addons/alpha"
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "1.2.3"
+url = "https://example.test/alpha-1.2.3.zip"
+sha256 = "{SHA256}"
+root = "addons/alpha"
+
+[[package]]
+name = "zeta"
+[package.git]
+url = "https://example.test/zeta.git"
+root = "addons/zeta"
+tag-prefix = "v"
+"#,
+        )
+    );
+    assert_eq!(canonical(&output), output);
+}
+
 fn parse(input: &str) -> SourceCatalog {
     SourceCatalog::parse(Path::new(CATALOG_PATH), input).expect("catalog should parse")
 }
@@ -301,6 +389,12 @@ fn validation_error(input: &str) -> Box<wukong_core::diagnostic::Diagnostic> {
     parse(input)
         .validate(Path::new(CATALOG_PATH))
         .expect_err("catalog validation should fail")
+}
+
+fn canonical(input: &str) -> String {
+    parse(input)
+        .to_toml(Path::new(CATALOG_PATH))
+        .expect("valid catalog should serialize")
 }
 
 fn catalog_with_git(name: &str, url: &str, root: &str) -> String {
