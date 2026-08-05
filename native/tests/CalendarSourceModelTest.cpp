@@ -50,6 +50,8 @@ void CalendarSourceModelTest::exposesCalendarSourceRolesAndResets() {
   QCOMPARE(revisions.count(), 1);
   QCOMPARE(model.calendarIds(), QStringList({QStringLiteral("calendar-a")}));
   QCOMPARE(model.selectedCalendarIds(), QStringList({QStringLiteral("calendar-a")}));
+  QCOMPARE(model.calendarBackgroundColor(QStringLiteral("calendar-a")), QStringLiteral("#0b57d0"));
+  QCOMPARE(model.calendarBackgroundColor(QStringLiteral("missing")), QString());
 
   model.setCalendars({});
   QCOMPARE(model.rowCount(), 0);

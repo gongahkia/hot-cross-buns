@@ -7,6 +7,7 @@ Pane {
     property var agendaModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property bool selectionMode: false
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -20,7 +21,16 @@ Pane {
                               string guestPermissionsJson, string statusPropertiesJson)
 
     function scheduleLabel(startAt, allDay) {
-        return allDay ? "All day" : startAt
+        if (allDay) return "All day"
+        const parsed = new Date(startAt)
+        if (!Number.isFinite(parsed.getTime())) return "Time unavailable"
+        return Qt.locale().toString(parsed, "ddd, d MMM · HH:mm")
+    }
+
+    function eventColor(calendarId, colorId) {
+        const fallback = calendarVisibility !== null && typeof calendarVisibility.calendarColor === "function"
+                       ? calendarVisibility.calendarColor(calendarId) : Theme.calendarFallback
+        return Theme.calendarColor(colorId, fallback)
     }
 
     function selectEvent(eventId) {
@@ -66,7 +76,7 @@ Pane {
             model: root.agendaModel
             spacing: Theme.spacingSmall
 
-            delegate: AccessibleButton {
+            delegate: CalendarEventButton {
                 required property string id
                 required property string calendarId
                 required property string title
@@ -94,17 +104,23 @@ Pane {
                 visible: root.isCalendarVisible(calendarId)
                 height: visible ? implicitHeight : 0
                 enabled: visible
-                text: title + "\n" + root.scheduleLabel(startAt, allDay)
+                eventColor: root.eventColor(calendarId, colorId)
+                text: title + "\n" + root.scheduleLabel(startAt, allDay) +
+                      (location.length > 0 ? " · " + location : "")
                 accessibleName: title
                 accessibleDescription: root.scheduleLabel(startAt, allDay) + ". Calendar " + calendarId
                 onClicked: {
-                    root.selectEvent(id)
-                    root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location,
-                                     startTimeZone, colorId, transparency, visibility,
-                                     attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                     recurrenceRule, recurringRemoteId, originalStartAt, eventType,
-                                     conferenceJson, attachmentsJson, guestPermissionsJson,
-                                     statusPropertiesJson)
+                    if (root.selectionMode) {
+                        root.eventSelectionRequested(id, !root.isEventSelected(id))
+                    } else {
+                        root.selectEvent(id)
+                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description, location,
+                                         startTimeZone, colorId, transparency, visibility,
+                                         attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                         recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                         conferenceJson, attachmentsJson, guestPermissionsJson,
+                                         statusPropertiesJson)
+                    }
                 }
 
                 CheckBox {
@@ -112,6 +128,7 @@ Pane {
                     anchors.right: parent.right
                     anchors.margins: Theme.spacingSmall
                     z: 1
+                    visible: root.selectionMode
                     checked: root.isEventSelected(id)
                     Accessible.name: "Select " + title
                     Accessible.description: checked ? "Event selected" : "Event not selected"

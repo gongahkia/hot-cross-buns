@@ -76,6 +76,23 @@ Pane {
         return visibleCalendarIds.length > 0 ? visibleCalendarIds[0] : calendarIds()[0] || ""
     }
 
+    function calendarColor(calendarId) {
+        if (calendarSourceModel === null) {
+            return Theme.calendarFallback
+        }
+        if (typeof calendarSourceModel.calendarBackgroundColor === "function") {
+            const color = calendarSourceModel.calendarBackgroundColor(calendarId)
+            return color.length > 0 ? color : Theme.calendarFallback
+        }
+        if (typeof calendarSourceModel.get === "function") {
+            for (let index = 0; index < calendarSourceModel.count; ++index) {
+                const calendar = calendarSourceModel.get(index)
+                if (calendar.id === calendarId) return calendar.backgroundColor || Theme.calendarFallback
+            }
+        }
+        return Theme.calendarFallback
+    }
+
     function setCalendarVisible(calendarId, visible) {
         const next = visibleCalendarIds.filter(function(currentId) {
             return currentId !== calendarId
@@ -103,18 +120,18 @@ Pane {
         }
     }
 
-    padding: Theme.spacingMedium
+    padding: Theme.spacingSmall
     implicitHeight: controlsRow.implicitHeight + topPadding + bottomPadding
     visible: sourceRows.count > 0
 
     RowLayout {
         id: controlsRow
         anchors.fill: parent
-        spacing: Theme.spacingMedium
+        spacing: Theme.spacingSmall
 
         Label {
-            text: "Calendar visibility"
-            font.pixelSize: Theme.labelFontSize
+            text: "Calendars"
+            font.pixelSize: Theme.bodyFontSize
             Accessible.role: Accessible.Heading
             Accessible.name: text
         }
@@ -132,6 +149,15 @@ Pane {
                     required property string title
                     checked: root.isVisible(id)
                     text: title
+                    indicator: Rectangle {
+                        implicitWidth: 12
+                        implicitHeight: 12
+                        radius: 6
+                        color: root.calendarColor(id)
+                        border.width: checked ? 0 : 1
+                        border.color: Theme.textSecondary
+                        opacity: checked ? 1 : 0.35
+                    }
                     Accessible.name: title
                     Accessible.description: checked ? "Calendar visible" : "Calendar hidden"
                     onToggled: root.setCalendarVisible(id, checked)

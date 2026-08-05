@@ -7,7 +7,9 @@ Pane {
     property var monthGridModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property bool selectionMode: false
     property int weekStartDay: 0
+    property string monthLabel: ""
     property alias cells: cells
     signal dateSelected(string date)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -46,12 +48,23 @@ Pane {
         return selectedEventIds.indexOf(eventId) >= 0
     }
 
+    function eventColor(calendarId, colorId) {
+        const fallback = calendarVisibility !== null && typeof calendarVisibility.calendarColor === "function"
+                       ? calendarVisibility.calendarColor(calendarId) : Theme.calendarFallback
+        return Theme.calendarColor(colorId, fallback)
+    }
+
+    function isContinuation(event, date) {
+        return event.allDay === true && typeof event.startAt === "string" &&
+               event.startAt.slice(0, 10) !== date
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingMedium
 
         Label {
-            text: "Month"
+            text: root.monthLabel.length > 0 ? root.monthLabel : "Month"
             font.pixelSize: Theme.titleFontSize
             Accessible.role: Accessible.Heading
             Accessible.name: text
@@ -115,32 +128,7 @@ Pane {
                         accessibleName: date
                         accessibleDescription: events.length === 0 ? "No events" : root.eventSummary(events)
                         onClicked: root.selectDate(date)
-                    }
-
-                    AccessibleButton {
-                        width: 24
-                        height: 24
-                        padding: 0
-                        text: "+"
-                        accessibleName: "New event on " + date
-                        onClicked: root.eventCreateRequested(date)
-                    }
-
-                    CheckBox {
-                        property var selectableEventIds: root.eventIds(events)
-                        width: 24
-                        height: 24
-                        visible: selectableEventIds.length > 0
-                        checked: selectableEventIds.length > 0 && selectableEventIds.every(function(eventId) {
-                            return root.isEventSelected(eventId)
-                        })
-                        Accessible.name: "Select events on " + date
-                        Accessible.description: checked ? "All visible events selected" : "Visible events not selected"
-                        onClicked: {
-                            for (let index = 0; index < selectableEventIds.length; ++index) {
-                                root.eventSelectionRequested(selectableEventIds[index], checked)
-                            }
-                        }
+                        background: Item {}
                     }
                 }
 
@@ -154,17 +142,26 @@ Pane {
                     clip: true
 
                     Repeater {
-                        model: root.visibleEvents(events).slice(0, 2)
+                        model: root.visibleEvents(events).slice(0, 3)
 
-                        delegate: AccessibleButton {
+                        delegate: CalendarEventButton {
                             required property var modelData
                             width: parent.width
                             height: 22
                             padding: 2
-                            text: modelData.title
+                            compact: true
+                            eventColor: root.eventColor(modelData.calendarId, modelData.colorId || "")
+                            text: root.isContinuation(modelData, date) ? "↳" : modelData.title
                             accessibleName: modelData.title
                             accessibleDescription: "Edit event on " + date
-                            onClicked: root.eventEditRequested(modelData)
+                            onClicked: {
+                                if (root.selectionMode) {
+                                    root.eventSelectionRequested(modelData.id,
+                                                                 !root.isEventSelected(modelData.id))
+                                } else {
+                                    root.eventEditRequested(modelData)
+                                }
+                            }
                         }
                     }
 
@@ -174,8 +171,8 @@ Pane {
                         width: parent.width
                         height: 22
                         padding: 2
-                        visible: visibleEventRows.length > 2
-                        text: "+" + (visibleEventRows.length - 2) + " more"
+                        visible: visibleEventRows.length > 3
+                        text: "+" + (visibleEventRows.length - 3) + " more"
                         accessibleName: "More events on " + date
                         onClicked: overflowMenu.open()
 
@@ -188,7 +185,7 @@ Pane {
                             }
 
                             Repeater {
-                                model: moreEventsButton.visibleEventRows.slice(2)
+                                model: moreEventsButton.visibleEventRows.slice(3)
 
                                 delegate: MenuItem {
                                     required property var modelData

@@ -17,17 +17,17 @@ Pane {
     signal taskListDeleteRequested(string taskListId, string title, int taskCount, var taskTitles)
     signal taskListSelectionRequested(string taskListId, bool selected)
 
-    padding: Theme.spacingMedium
+    padding: Theme.spacingSmall
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: Theme.spacingSmall
+            spacing: Theme.spacingSmall
 
         RowLayout {
             Layout.fillWidth: true
 
             Label {
-                text: "Task lists"
+                text: "Lists"
                 font.pixelSize: Theme.labelFontSize
                 Accessible.role: Accessible.Heading
                 Accessible.name: text
@@ -66,35 +66,55 @@ Pane {
         ListView {
             id: taskListRows
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 220)
+            Layout.preferredHeight: Math.min(contentHeight, 360)
             clip: true
             visible: count > 0
             model: root.taskListModel
 
-            delegate: RowLayout {
+            delegate: Item {
                 required property string id
                 required property string title
                 required property bool selected
                 required property int taskCount
                 required property var taskTitles
                 width: taskListRows.width
+                height: listRow.implicitHeight + Theme.spacingSmall
                 property alias selectionCheck: selectionCheck
                 property alias renameButton: renameButton
                 property alias deleteButton: deleteButton
 
-                CheckBox {
-                    id: selectionCheck
-                    checked: selected
-                    text: title + " (" + taskCount + ")"
-                    Accessible.name: title
-                    Accessible.description: checked ? "Task list selected" : "Task list deselected"
-                    onToggled: root.taskListSelectionRequested(id, checked)
-                }
+                RowLayout {
+                    id: listRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
 
-                Item { Layout.fillWidth: true }
+                    CheckBox {
+                        id: selectionCheck
+                        checked: selected
+                        text: title + " (" + taskCount + ")"
+                        Layout.fillWidth: true
+                        Accessible.name: title
+                        Accessible.description: checked ? "Task list selected" : "Task list deselected"
+                        onToggled: root.taskListSelectionRequested(id, checked)
+                    }
+
+                    ToolButton {
+                        text: "⋯"
+                        Accessible.name: "List actions for " + title
+                        onClicked: listMenu.open()
+
+                        Menu {
+                            id: listMenu
+                            MenuItem { text: "Rename"; onTriggered: renameButton.click() }
+                            MenuItem { text: "Delete"; onTriggered: deleteButton.click() }
+                        }
+                    }
+                }
 
                 Button {
                     id: renameButton
+                    visible: false
                     text: "Rename"
                     Accessible.name: text + " " + title
                     onClicked: root.taskListRenameRequested(id, title)
@@ -102,6 +122,7 @@ Pane {
 
                 Button {
                     id: deleteButton
+                    visible: false
                     text: "Delete"
                     Accessible.name: text + " " + title
                     Accessible.description: "Delete this Google Task list and its tasks"
@@ -123,7 +144,7 @@ Pane {
         Label {
             Layout.fillWidth: true
             visible: taskListRows.count > 1
-            text: "Google Tasks does not support custom task-list ordering."
+            text: "Google Tasks keeps task-list order."
             color: Theme.textSecondary
             wrapMode: Text.WordWrap
             Accessible.name: text

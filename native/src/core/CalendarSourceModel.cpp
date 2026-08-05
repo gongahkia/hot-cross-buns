@@ -102,6 +102,15 @@ QStringList CalendarSourceModel::selectedCalendarIds() const {
   return ids;
 }
 
+QString CalendarSourceModel::calendarBackgroundColor(const QString& calendarId) const {
+  for (const CalendarSummary& calendar : calendars_) {
+    if (calendar.id == calendarId) {
+      return calendar.backgroundColor.value_or(QString());
+    }
+  }
+  return {};
+}
+
 void CalendarSourceModel::setCalendars(QList<CalendarSummary> calendars) {
   const ModelDiffPlan plan = ModelDiffPolicy::plan(
       calendars_,

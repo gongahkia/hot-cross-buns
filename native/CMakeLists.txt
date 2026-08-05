@@ -269,6 +269,7 @@ qt_add_qml_module(hcb_native
     qml/AccessibleNavigationButton.qml
     qml/AgendaView.qml
     qml/CalendarBulkControls.qml
+    qml/CalendarEventButton.qml
     qml/CalendarSourceControls.qml
     qml/BulkTextReplaceDialog.qml
     qml/DayTimelineView.qml

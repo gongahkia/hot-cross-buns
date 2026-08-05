@@ -7,6 +7,7 @@ Pane {
     property var timelineModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property bool selectionMode: false
     property var dayLabels: []
     property int dayCount: 7
     property int hourHeight: 48
@@ -43,6 +44,19 @@ Pane {
 
     function timePosition(minute) {
         return minute * hourHeight / 60
+    }
+
+    function eventColor(calendarId, colorId) {
+        const fallback = calendarVisibility !== null && typeof calendarVisibility.calendarColor === "function"
+                       ? calendarVisibility.calendarColor(calendarId) : Theme.calendarFallback
+        return Theme.calendarColor(colorId, fallback)
+    }
+
+    function timeRange(startAt, endAt) {
+        const start = new Date(startAt)
+        const end = new Date(endAt)
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return ""
+        return Qt.locale().toString(start, "HH:mm") + "–" + Qt.locale().toString(end, "HH:mm")
     }
 
     function hourLabel(hour) {
@@ -225,7 +239,7 @@ Pane {
             Repeater {
                 model: allDayEventRows
 
-                delegate: AccessibleButton {
+                delegate: CalendarEventButton {
                     required property string id
                     required property string calendarId
                     required property string title
@@ -259,22 +273,30 @@ Pane {
                     y: root.allDayLaneHeight + laneIndex * root.allDayLaneHeight
                     width: daySpan * root.dayColumnWidth(dayHeader.width)
                     height: root.allDayLaneHeight
+                    compact: true
+                    eventColor: root.eventColor(calendarId, colorId)
                     text: title
                     accessibleName: title
                     accessibleDescription: "All-day event, starting day " + (dayIndex + 1)
                     onClicked: {
-                        root.selectEvent(id)
-                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
-                                         location, startTimeZone, colorId, transparency, visibility,
-                                         attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                         recurrenceRule, recurringRemoteId, originalStartAt, eventType,
-                                         conferenceJson, attachmentsJson, guestPermissionsJson,
-                                         statusPropertiesJson)
+                        if (root.selectionMode) {
+                            root.eventSelectionRequested(id, !root.isEventSelected(id))
+                        } else {
+                            root.selectEvent(id)
+                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                             location, startTimeZone, colorId, transparency, visibility,
+                                             attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                             recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                             conferenceJson, attachmentsJson, guestPermissionsJson,
+                                             statusPropertiesJson)
+                        }
                     }
+
+                    HoverHandler { id: allDayHover }
 
                     DragHandler {
                         id: allDayMoveHandler
-                        enabled: !startsBeforeRange && !endsAfterRange
+                        enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
                         target: null
                         onActiveChanged: {
                             const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
@@ -291,15 +313,17 @@ Pane {
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         width: 14
+                        visible: allDayHover.hovered || allDayResizeHandler.active
                         padding: 0
                         text: ""
-                        enabled: !startsBeforeRange && !endsAfterRange
+                        enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
                         accessibleName: "Resize " + title + " end"
                         accessibleDescription: "Drag to change the all-day end date"
                         onClicked: root.requestAllDayResize(id, dayIndex + daySpan)
 
                         DragHandler {
                             id: allDayResizeHandler
+                            enabled: !root.selectionMode
                             target: null
                             cursorShape: Qt.SizeHorCursor
                             grabPermissions: PointerHandler.CanTakeOverFromAnything
@@ -320,6 +344,7 @@ Pane {
                         anchors.right: parent.right
                         anchors.margins: 2
                         z: 1
+                        visible: root.selectionMode
                         checked: root.isEventSelected(id)
                         Accessible.name: "Select " + title
                         Accessible.description: checked ? "Event selected" : "Event not selected"
@@ -410,7 +435,7 @@ Pane {
                     id: eventRows
                     model: timedEventRows
 
-                    delegate: AccessibleButton {
+                    delegate: CalendarEventButton {
                         required property string id
                         required property string calendarId
                         required property string title
@@ -441,25 +466,34 @@ Pane {
                         property string statusPropertiesJson: "{}"
                         visible: root.isCalendarVisible(calendarId)
                         x: root.dayPosition(dayIndex, timelineCanvas.width) + laneIndex *
-                           root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
+                           root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount) + 2
                         y: root.timePosition(startMinute)
-                        width: root.dayColumnWidth(timelineCanvas.width) / Math.max(1, laneCount)
+                        width: Math.max(1, root.dayColumnWidth(timelineCanvas.width) /
+                                        Math.max(1, laneCount) - 4)
                         height: Math.max(24, durationMinutes * root.hourHeight / 60)
-                        text: title
+                        eventColor: root.eventColor(calendarId, colorId)
+                        text: title + (height >= 42 ? "\n" + root.timeRange(startAt, endAt) : "")
                         accessibleName: title
                         accessibleDescription: "Timed event, day " + (dayIndex + 1)
                         onClicked: {
-                            root.selectEvent(id)
-                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
-                                             location, startTimeZone, colorId, transparency, visibility,
-                                             attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                             recurrenceRule, recurringRemoteId, originalStartAt, eventType,
-                                             conferenceJson, attachmentsJson, guestPermissionsJson,
-                                             statusPropertiesJson)
+                            if (root.selectionMode) {
+                                root.eventSelectionRequested(id, !root.isEventSelected(id))
+                            } else {
+                                root.selectEvent(id)
+                                root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                                 location, startTimeZone, colorId, transparency, visibility,
+                                                 attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                                 recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                                 conferenceJson, attachmentsJson, guestPermissionsJson,
+                                                 statusPropertiesJson)
+                            }
                         }
+
+                        HoverHandler { id: eventHover }
 
                         DragHandler {
                             id: moveHandler
+                            enabled: !root.selectionMode
                             target: null
                             onActiveChanged: {
                                 const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
@@ -479,6 +513,7 @@ Pane {
                             anchors.right: parent.right
                             anchors.margins: 2
                             z: 1
+                            visible: root.selectionMode
                             checked: root.isEventSelected(id)
                             Accessible.name: "Select " + title
                             Accessible.description: checked ? "Event selected" : "Event not selected"
@@ -491,6 +526,7 @@ Pane {
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             height: 14
+                            visible: eventHover.hovered || resizeHandler.active
                             padding: 0
                             text: ""
                             accessibleName: "Resize " + title + " end"
@@ -500,13 +536,14 @@ Pane {
                                                                    startMinute + durationMinutes + 15))
 
                             background: Rectangle {
-                                color: Theme.accent
+                                color: root.eventColor(calendarId, colorId)
                                 opacity: resizeHandler.active ? 1 : 0.65
                                 radius: 1
                             }
 
                             DragHandler {
                                 id: resizeHandler
+                                enabled: !root.selectionMode
                                 target: null
                                 cursorShape: Qt.SizeVerCursor
                                 grabPermissions: PointerHandler.CanTakeOverFromAnything

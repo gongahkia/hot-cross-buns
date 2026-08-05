@@ -41,6 +41,7 @@ public:
 
   Q_INVOKABLE QStringList calendarIds() const;
   Q_INVOKABLE QStringList selectedCalendarIds() const;
+  Q_INVOKABLE QString calendarBackgroundColor(const QString& calendarId) const;
 
   void setCalendars(QList<CalendarSummary> calendars);
 

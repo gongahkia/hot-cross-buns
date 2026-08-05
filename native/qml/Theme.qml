@@ -63,6 +63,7 @@ QtObject {
         return luminance > 0.179 ? "#1d1b20" : "#ffffff"
     }
     readonly property color destructive: "#b3261e"
+    readonly property color calendarFallback: darkPalette ? "#8ab4f8" : "#0b57d0"
     readonly property int navigationWidth: 220
     readonly property real densityScale: visualDensity === 0 ? 0.82 : visualDensity === 2 ? 1.18 : 1
     readonly property real fontScaleFactor: fontScale === 0 ? 0.9 : fontScale === 2 ? 1.12
@@ -74,4 +75,13 @@ QtObject {
     readonly property int labelFontSize: Math.round(16 * densityScale * fontScaleFactor)
     readonly property int bodyFontSize: Math.round(14 * densityScale * fontScaleFactor)
     readonly property int timelineHourHeight: Math.round(48 * densityScale)
+
+    function calendarColor(colorId, fallback) {
+        const colors = {
+            "1": "#7986cb", "2": "#33b679", "3": "#8e24aa", "4": "#e67c73",
+            "5": "#f6bf26", "6": "#f4511e", "7": "#039be5", "8": "#616161",
+            "9": "#3f51b5", "10": "#0b8043", "11": "#d50000"
+        }
+        return colors[colorId] || fallback || calendarFallback
+    }
 }

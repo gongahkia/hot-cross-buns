@@ -7,6 +7,7 @@ Pane {
     property var timelineModel: null
     property var calendarVisibility: null
     property var selectedEventIds: []
+    property bool selectionMode: false
     property int dayIndex: 0
     property string dateLabel: ""
     property int hourHeight: 64
@@ -38,6 +39,24 @@ Pane {
 
     function eventHeight(durationMinutes) {
         return Math.max(24, durationMinutes * hourHeight / 60)
+    }
+
+    function eventColor(calendarId, colorId) {
+        const fallback = calendarVisibility !== null && typeof calendarVisibility.calendarColor === "function"
+                       ? calendarVisibility.calendarColor(calendarId) : Theme.calendarFallback
+        return Theme.calendarColor(colorId, fallback)
+    }
+
+    function timeRange(startAt, endAt) {
+        const start = new Date(startAt)
+        const end = new Date(endAt)
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return ""
+        return Qt.locale().toString(start, "HH:mm") + "–" + Qt.locale().toString(end, "HH:mm")
+    }
+
+    function heading() {
+        const parsed = new Date(dateLabel + "T12:00:00")
+        return Number.isFinite(parsed.getTime()) ? Qt.locale().toString(parsed, "dddd, d MMMM") : dateLabel
     }
 
     function hourLabel(hour) {
@@ -164,7 +183,7 @@ Pane {
         spacing: Theme.spacingMedium
 
         Label {
-            text: root.dateLabel.length > 0 ? "Day — " + root.dateLabel : "Day"
+            text: root.dateLabel.length > 0 ? root.heading() : "Day"
             font.pixelSize: Theme.titleFontSize
             Accessible.role: Accessible.Heading
             Accessible.name: text
@@ -177,7 +196,7 @@ Pane {
             Repeater {
                 model: allDayEventRows
 
-                delegate: AccessibleButton {
+                delegate: CalendarEventButton {
                     required property string id
                     required property string calendarId
                     required property string title
@@ -204,17 +223,23 @@ Pane {
                     property string statusPropertiesJson: "{}"
                     visible: root.isCalendarVisible(calendarId)
                     width: parent.width
+                    compact: true
+                    eventColor: root.eventColor(calendarId, colorId)
                     text: title + " — All day"
                     accessibleName: title
                     accessibleDescription: "All-day event"
                     onClicked: {
-                        root.selectEvent(id)
-                        root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
-                                         location, startTimeZone, colorId, transparency, visibility,
-                                         attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                         recurrenceRule, recurringRemoteId, originalStartAt, eventType,
-                                         conferenceJson, attachmentsJson, guestPermissionsJson,
-                                         statusPropertiesJson)
+                        if (root.selectionMode) {
+                            root.eventSelectionRequested(id, !root.isEventSelected(id))
+                        } else {
+                            root.selectEvent(id)
+                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                             location, startTimeZone, colorId, transparency, visibility,
+                                             attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                             recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                             conferenceJson, attachmentsJson, guestPermissionsJson,
+                                             statusPropertiesJson)
+                        }
                     }
 
                     CheckBox {
@@ -222,6 +247,7 @@ Pane {
                         anchors.right: parent.right
                         anchors.margins: Theme.spacingSmall
                         z: 1
+                        visible: root.selectionMode
                         checked: root.isEventSelected(id)
                         Accessible.name: "Select " + title
                         Accessible.description: checked ? "Event selected" : "Event not selected"
@@ -310,7 +336,7 @@ Pane {
                     id: eventRows
                     model: timedEventRows
 
-                    delegate: AccessibleButton {
+                    delegate: CalendarEventButton {
                         required property string id
                         required property string calendarId
                         required property string title
@@ -341,25 +367,34 @@ Pane {
                         property string statusPropertiesJson: "{}"
                         visible: root.isCalendarVisible(calendarId)
                         x: root.timeColumnWidth + laneIndex *
-                           (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount)
+                           (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount) + 2
                         y: root.timePosition(startMinute)
-                        width: (timelineCanvas.width - root.timeColumnWidth) / Math.max(1, laneCount)
+                        width: Math.max(1, (timelineCanvas.width - root.timeColumnWidth) /
+                                        Math.max(1, laneCount) - 4)
                         height: root.eventHeight(durationMinutes)
-                        text: title
+                        eventColor: root.eventColor(calendarId, colorId)
+                        text: title + (height >= 42 ? "\n" + root.timeRange(startAt, endAt) : "")
                         accessibleName: title
                         accessibleDescription: "Timed event"
                         onClicked: {
-                            root.selectEvent(id)
-                            root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
-                                             location, startTimeZone, colorId, transparency, visibility,
-                                             attendeeEmailsJson, remindersJson, remindersUseDefault,
-                                             recurrenceRule, recurringRemoteId, originalStartAt, eventType,
-                                             conferenceJson, attachmentsJson, guestPermissionsJson,
-                                             statusPropertiesJson)
+                            if (root.selectionMode) {
+                                root.eventSelectionRequested(id, !root.isEventSelected(id))
+                            } else {
+                                root.selectEvent(id)
+                                root.requestEdit(id, calendarId, title, startAt, endAt, allDay, description,
+                                                 location, startTimeZone, colorId, transparency, visibility,
+                                                 attendeeEmailsJson, remindersJson, remindersUseDefault,
+                                                 recurrenceRule, recurringRemoteId, originalStartAt, eventType,
+                                                 conferenceJson, attachmentsJson, guestPermissionsJson,
+                                                 statusPropertiesJson)
+                            }
                         }
+
+                        HoverHandler { id: eventHover }
 
                         DragHandler {
                             id: moveHandler
+                            enabled: !root.selectionMode
                             target: null
                             onActiveChanged: {
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
@@ -376,6 +411,7 @@ Pane {
                             anchors.right: parent.right
                             anchors.margins: Theme.spacingSmall
                             z: 1
+                            visible: root.selectionMode
                             checked: root.isEventSelected(id)
                             Accessible.name: "Select " + title
                             Accessible.description: checked ? "Event selected" : "Event not selected"
@@ -388,6 +424,7 @@ Pane {
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             height: 14
+                            visible: eventHover.hovered || resizeHandler.active
                             padding: 0
                             text: ""
                             accessibleName: "Resize " + title + " end"
@@ -396,13 +433,14 @@ Pane {
                                                           Math.min(24 * 60, startMinute + durationMinutes + 15))
 
                             background: Rectangle {
-                                color: Theme.accent
+                                color: root.eventColor(calendarId, colorId)
                                 opacity: resizeHandler.active ? 1 : 0.65
                                 radius: 1
                             }
 
                             DragHandler {
                                 id: resizeHandler
+                                enabled: !root.selectionMode
                                 target: null
                                 cursorShape: Qt.SizeVerCursor
                                 grabPermissions: PointerHandler.CanTakeOverFromAnything

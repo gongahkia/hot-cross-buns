@@ -13,6 +13,8 @@ Pane {
     property int bulkTaskPreviewRequestToken: -1
     property int bulkTextRecurrenceScope: 2
     property var selectedTaskIds: []
+    property bool selectionMode: false
+    readonly property string preferredTaskListId: root.selectedTaskListId()
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
     property alias importButton: importButton
@@ -122,11 +124,36 @@ Pane {
         selectedTaskIds = []
     }
 
+    function taskHeading() {
+        if (taskListModel !== null && typeof taskListModel.selectedTaskLists === "function") {
+            const selected = taskListModel.selectedTaskLists()
+            if (selected.length === 1) return selected[0].title
+        }
+        return "All Tasks"
+    }
+
+    function selectedTaskListId() {
+        if (taskListModel !== null && typeof taskListModel.selectedTaskLists === "function") {
+            const selected = taskListModel.selectedTaskLists()
+            if (selected.length === 1) return selected[0].id
+        }
+        return ""
+    }
+
+    function formatDueDate(value) {
+        if (value.length === 0) return ""
+        const parsed = new Date(value.length === 10 ? value + "T12:00:00" : value)
+        return Number.isFinite(parsed.getTime()) ? Qt.locale().toString(parsed, "d MMM") : value
+    }
+
     Shortcut {
         sequence: "Ctrl+A"
         autoRepeat: false
         enabled: root.visible
-        onActivated: root.selectAllTasks()
+        onActivated: {
+            root.selectionMode = true
+            root.selectAllTasks()
+        }
     }
 
     Connections {
@@ -144,7 +171,7 @@ Pane {
             Layout.fillWidth: true
 
             Label {
-                text: "Inbox"
+                text: root.taskHeading()
                 font.pixelSize: Theme.titleFontSize
                 Accessible.role: Accessible.Heading
                 Accessible.name: text
@@ -170,134 +197,106 @@ Pane {
 
             Button {
                 id: bulkSelectAllButton
-                text: "Select all"
-                Accessible.name: "Select all tasks in current view"
+                text: root.selectionMode ? "Done" : "Select"
+                Accessible.name: root.selectionMode ? "Exit task selection" : "Select tasks"
                 enabled: !root.taskListLoading && root.taskModel !== null
-                onClicked: root.selectAllTasks()
+                onClicked: {
+                    if (root.selectionMode) {
+                        root.clearTaskSelection()
+                        root.selectionMode = false
+                    } else {
+                        root.selectionMode = true
+                    }
+                }
             }
         }
 
-        TaskListControls {
-            id: taskListControls
+        RowLayout {
             Layout.fillWidth: true
-            taskListModel: root.taskListModel
-            loading: root.taskListLoading
-            errorMessage: root.taskListErrorMessage
-            onTaskListCreateRequested: root.taskListCreateRequested()
-            onTaskListRenameRequested: function(taskListId, title) {
-                root.taskListRenameRequested(taskListId, title)
-            }
-            onTaskListDeleteRequested: function(taskListId, title, taskCount, taskTitles) {
-                root.taskListDeleteRequested(taskListId, title, taskCount, taskTitles)
-            }
-            onTaskListSelectionRequested: function(taskListId, selected) {
-                root.taskListSelectionRequested(taskListId, selected)
-            }
-        }
+            Layout.fillHeight: true
+            spacing: Theme.spacingLarge
 
-        Flow {
-            Layout.fillWidth: true
-            spacing: Theme.spacingSmall
-            visible: selectedTaskIds.length > 0
-
-            Label {
-                id: bulkSelectionStatus
-                text: selectedTaskIds.length + " selected · eligibility checked before queueing"
-                color: Theme.textSecondary
-                Accessible.name: text
+            TaskListControls {
+                id: taskListControls
+                Layout.preferredWidth: 260
+                Layout.fillHeight: true
+                taskListModel: root.taskListModel
+                loading: root.taskListLoading
+                errorMessage: root.taskListErrorMessage
+                onTaskListCreateRequested: root.taskListCreateRequested()
+                onTaskListRenameRequested: function(taskListId, title) {
+                    root.taskListRenameRequested(taskListId, title)
+                }
+                onTaskListDeleteRequested: function(taskListId, title, taskCount, taskTitles) {
+                    root.taskListDeleteRequested(taskListId, title, taskCount, taskTitles)
+                }
+                onTaskListSelectionRequested: function(taskListId, selected) {
+                    root.taskListSelectionRequested(taskListId, selected)
+                }
             }
 
-            Button {
-                text: "Select all again"
-                Accessible.name: "Select all tasks in current view"
-                enabled: !root.taskListLoading
-                onClicked: root.selectAllTasks()
-            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: Theme.spacingSmall
 
-            Button {
-                text: "Clear selection"
-                Accessible.name: text
-                enabled: !root.taskListLoading
-                onClicked: root.clearTaskSelection()
-            }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+                    visible: root.selectionMode
 
-            Button {
-                id: bulkCompleteButton
-                text: "Complete"
-                Accessible.name: text + " " + root.selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, true)
-            }
+                    Label {
+                        id: bulkSelectionStatus
+                        text: selectedTaskIds.length + " selected · eligibility checked before queueing"
+                        color: Theme.textSecondary
+                        Accessible.name: text
+                    }
 
-            Button {
-                text: "Reopen"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, false)
-            }
+                    Button { text: "Select all"; enabled: !root.taskListLoading; onClicked: root.selectAllTasks() }
+                    Button { text: "Clear"; enabled: !root.taskListLoading; onClicked: root.clearTaskSelection() }
+                    Button {
+                        id: bulkCompleteButton
+                        text: "Complete"
+                        Accessible.name: text + " " + root.selectedTaskIds.length + " tasks"
+                        enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                        onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, true)
+                    }
+                    Button { text: "Reopen"; enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                             onClicked: root.bulkTaskCompletionRequested(selectedTaskIds, false) }
+                    Button {
+                        id: bulkDeleteButton
+                        text: "Delete"
+                        Accessible.name: text + " " + root.selectedTaskIds.length + " tasks"
+                        enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                        onClicked: bulkDeleteDialog.openForDelete(selectedTaskIds)
+                    }
+                    Button { text: "Move"; enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                             onClicked: bulkMoveDialog.openForMove(selectedTaskIds) }
+                    Button { text: "Set due"; enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                             onClicked: bulkEditDialog.openForDue(selectedTaskIds) }
+                    Button { text: "Set priority"; enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                             onClicked: bulkEditDialog.openForPriority(selectedTaskIds) }
+                    Button { text: "More"; enabled: !root.taskListLoading && root.selectedTaskIds.length > 0
+                             onClicked: bulkMenu.open()
+                        Menu {
+                            id: bulkMenu
+                            MenuItem { text: "Clear due"; onTriggered: root.bulkTaskClearDueRequested(root.selectedTaskIds) }
+                            MenuItem { text: "Reparent"; onTriggered: bulkEditDialog.openForReparent(root.selectedTaskIds) }
+                            MenuItem { text: "Find and replace"; onTriggered: bulkTextReplaceDialog.openFor(root.selectedTaskIds, root.bulkTextRecurrenceScope) }
+                        }
+                    }
+                }
 
-            Button {
-                id: bulkDeleteButton
-                text: "Delete"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkDeleteDialog.openForDelete(selectedTaskIds)
-            }
+                Label {
+                    Layout.fillWidth: true
+                    visible: bulkTaskStatusMessage.length > 0
+                    text: bulkTaskStatusMessage
+                    color: Theme.textSecondary
+                    wrapMode: Text.WordWrap
+                    Accessible.name: text
+                }
 
-            Button {
-                text: "Move"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkMoveDialog.openForMove(selectedTaskIds)
-            }
-
-            Button {
-                text: "Set due"
-                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkEditDialog.openForDue(selectedTaskIds)
-            }
-
-            Button {
-                text: "Clear due"
-                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: root.bulkTaskClearDueRequested(selectedTaskIds)
-            }
-
-            Button {
-                text: "Set priority"
-                Accessible.name: text + " for " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkEditDialog.openForPriority(selectedTaskIds)
-            }
-
-            Button {
-                text: "Reparent"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkEditDialog.openForReparent(selectedTaskIds)
-            }
-
-            Button {
-                text: "Find and replace"
-                Accessible.name: text + " " + selectedTaskIds.length + " tasks"
-                enabled: !root.taskListLoading
-                onClicked: bulkTextReplaceDialog.openFor(root.selectedTaskIds,
-                                                         root.bulkTextRecurrenceScope)
-            }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            visible: bulkTaskStatusMessage.length > 0
-            text: bulkTaskStatusMessage
-            color: Theme.textSecondary
-            wrapMode: Text.WordWrap
-            Accessible.name: text
-        }
-
-        TreeView {
+                TreeView {
             id: taskRows
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -306,182 +305,174 @@ Pane {
             reuseItems: true
             columnWidthProvider: function() { return width }
 
-            delegate: Item {
-                implicitWidth: taskRows.width
-                implicitHeight: taskRow.implicitHeight
-                required property TreeView treeView
-                required property bool expanded
-                required property bool hasChildren
-                required property bool isTreeNode
-                required property int column
-                required property int depth
-                required property int row
-                required property string id
-                required property string taskListId
-                required property string title
-                required property string notes
-                required property string dueAt
-                required property string dueTimeZone
-                required property int priority
-                required property bool completed
-                required property bool managedRecurrence
-                required property string recurrenceSummary
-                required property int recurrenceFrequency
-                required property int recurrenceInterval
-                required property int recurrenceEndKind
-                required property string recurrenceEndUntil
-                required property int recurrenceEndCount
-                property string recurrenceRule: ""
-                property string recurrenceExclusionDates: ""
-                property string recurrenceAdditionDates: ""
-                property string recurrenceDiagnostic: ""
+                    delegate: Item {
+                        implicitWidth: taskRows.width
+                        implicitHeight: taskRow.implicitHeight + Theme.spacingSmall
+                        required property TreeView treeView
+                        required property bool expanded
+                        required property bool hasChildren
+                        required property bool isTreeNode
+                        required property int column
+                        required property int depth
+                        required property int row
+                        required property string id
+                        required property string taskListId
+                        required property string title
+                        required property string notes
+                        required property string dueAt
+                        required property string dueTimeZone
+                        required property int priority
+                        required property bool completed
+                        required property bool managedRecurrence
+                        required property string recurrenceSummary
+                        required property int recurrenceFrequency
+                        required property int recurrenceInterval
+                        required property int recurrenceEndKind
+                        required property string recurrenceEndUntil
+                        required property int recurrenceEndCount
+                        property string recurrenceRule: ""
+                        property string recurrenceExclusionDates: ""
+                        property string recurrenceAdditionDates: ""
+                        property string recurrenceDiagnostic: ""
 
-                property alias completionButton: completionButton
-                property alias expandButton: expandButton
-                property alias deleteButton: deleteButton
-                property alias editButton: editButton
-                property alias moveButton: moveButton
-                property alias promoteButton: promoteButton
-                property alias subtaskButton: subtaskButton
-                property alias moveEarlierButton: moveEarlierButton
-                property alias moveLaterButton: moveLaterButton
+                        property alias completionButton: completionButton
+                        property alias expandButton: expandButton
+                        property alias deleteButton: deleteButton
+                        property alias editButton: editButton
+                        property alias moveButton: moveButton
+                        property alias promoteButton: promoteButton
+                        property alias subtaskButton: subtaskButton
+                        property alias moveEarlierButton: moveEarlierButton
+                        property alias moveLaterButton: moveLaterButton
 
-                ColumnLayout {
-                    id: taskRow
-                    anchors.fill: parent
-                    anchors.leftMargin: depth * Theme.spacingLarge
-                    spacing: Theme.spacingSmall
+                        HoverHandler { id: taskHover }
 
-                    RowLayout {
-                        Layout.fillWidth: true
+                        ColumnLayout {
+                            id: taskRow
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.leftMargin: depth * Theme.spacingLarge
+                            spacing: 2
 
-                        CheckBox {
-                            id: taskSelectionCheck
-                            checked: root.isTaskSelected(id)
-                            Accessible.name: "Select " + title
-                            onToggled: root.setTaskSelected(id, checked)
-                        }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Theme.spacingSmall
 
-                        Button {
-                            id: expandButton
-                            visible: isTreeNode && hasChildren
-                            text: expanded ? "Collapse" : "Expand"
-                            Accessible.name: text + " subtasks for " + title
-                            onClicked: treeView.toggleExpanded(row)
-                        }
+                                CheckBox {
+                                    id: taskSelectionCheck
+                                    visible: root.selectionMode
+                                    checked: root.isTaskSelected(id)
+                                    Accessible.name: "Select " + title
+                                    onToggled: root.setTaskSelected(id, checked)
+                                }
 
-                        Item {
-                            Layout.preferredWidth: !expandButton.visible ? expandButton.implicitWidth : 0
-                            Layout.preferredHeight: 1
-                        }
+                                ToolButton {
+                                    id: completionButton
+                                    text: completed ? "✓" : "○"
+                                    Accessible.name: (completed ? "Reopen " : "Complete ") + title
+                                    Accessible.description: completed ? "Mark task active" : "Mark task completed"
+                                    onClicked: root.requestTaskCompletion(id, !completed)
+                                }
 
-                        Button {
-                            id: completionButton
-                            text: completed ? "Reopen" : "Complete"
-                            Accessible.name: text + " " + title
-                            Accessible.description: completed ? "Mark task active" : "Mark task completed"
-                            onClicked: root.requestTaskCompletion(id, !completed)
-                        }
+                                ToolButton {
+                                    id: expandButton
+                                    visible: isTreeNode && hasChildren
+                                    text: expanded ? "⌄" : "›"
+                                    Accessible.name: (expanded ? "Collapse" : "Expand") + " subtasks for " + title
+                                    onClicked: treeView.toggleExpanded(row)
+                                }
 
-                        Button {
-                            id: deleteButton
-                            text: "Delete"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Delete this task"
-                            onClicked: root.requestTaskDelete(id, title, managedRecurrence)
+                                AccessibleButton {
+                                    Layout.fillWidth: true
+                                    text: title
+                                    accessibleName: title
+                                    accessibleDescription: completed ? "Completed task" : "Edit task"
+                                    font.strikeout: completed
+                                    opacity: completed ? 0.55 : 1
+                                    background: Item {}
+                                    contentItem: Label {
+                                        text: parent.text
+                                        elide: Text.ElideRight
+                                        font: parent.font
+                                        color: Theme.textPrimary
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    onClicked: editButton.click()
+                                }
+
+                                Label {
+                                    visible: dueAt.length > 0
+                                    text: "Due " + root.formatDueDate(dueAt)
+                                    color: Theme.textSecondary
+                                    elide: Text.ElideRight
+                                }
+
+                                ToolButton {
+                                    visible: taskHover.hovered || activeFocus
+                                    text: "⋯"
+                                    Accessible.name: "Task actions for " + title
+                                    onClicked: taskMenu.open()
+                                }
+                            }
+
+                            Label {
+                                Layout.leftMargin: root.selectionMode ? 44 : 28
+                                visible: managedRecurrence
+                                text: recurrenceSummary
+                                color: Theme.textSecondary
+                                Accessible.name: "Task recurrence: " + recurrenceSummary
+                            }
+                            Label {
+                                Layout.leftMargin: root.selectionMode ? 44 : 28
+                                visible: recurrenceDiagnostic.length > 0
+                                text: recurrenceDiagnostic
+                                color: Theme.destructive
+                                wrapMode: Text.WordWrap
+                                Accessible.name: "Task recurrence warning: " + recurrenceDiagnostic
+                            }
                         }
 
                         Button {
                             id: editButton
+                            visible: false
                             text: "Edit"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Edit this task"
                             onClicked: root.requestTaskEdit(id, title, notes, dueAt, dueTimeZone, priority,
                                                             managedRecurrence, recurrenceSummary,
                                                             recurrenceFrequency, recurrenceInterval,
                                                             recurrenceEndKind, recurrenceEndUntil,
                                                             recurrenceEndCount, recurrenceRule,
-                                                            recurrenceExclusionDates,
-                                                            recurrenceAdditionDates)
+                                                            recurrenceExclusionDates, recurrenceAdditionDates)
                         }
+                        Button { id: deleteButton; visible: false; text: "Delete"; onClicked: root.requestTaskDelete(id, title, managedRecurrence) }
+                        Button { id: moveButton; visible: false; text: "Move"; onClicked: root.requestTaskMove(id, taskListId, title) }
+                        Button { id: subtaskButton; visible: false; text: "Add subtask"; onClicked: root.requestSubtaskCreate(id, taskListId) }
+                        Button { id: promoteButton; visible: false; text: "Promote"; onClicked: root.requestTaskReparent(id, "") }
+                        Button { id: moveEarlierButton; visible: false; text: "Move earlier"; onClicked: root.requestTaskReorder(id, true) }
+                        Button { id: moveLaterButton; visible: false; text: "Move later"; onClicked: root.requestTaskReorder(id, false) }
 
-                        Button {
-                            id: moveButton
-                            text: "Move"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Move this task to another task list"
-                            onClicked: root.requestTaskMove(id, taskListId, title)
+                        Menu {
+                            id: taskMenu
+                            MenuItem { text: "Edit"; onTriggered: editButton.click() }
+                            MenuItem { text: "Move"; onTriggered: moveButton.click() }
+                            MenuItem { text: depth === 0 ? "Add subtask" : "Promote"; onTriggered: depth === 0 ? subtaskButton.click() : promoteButton.click() }
+                            MenuSeparator {}
+                            MenuItem { text: "Move earlier"; onTriggered: moveEarlierButton.click() }
+                            MenuItem { text: "Move later"; onTriggered: moveLaterButton.click() }
+                            MenuSeparator {}
+                            MenuItem { text: "Delete"; onTriggered: deleteButton.click() }
                         }
-
-                        Button {
-                            id: subtaskButton
-                            visible: depth === 0
-                            text: "Add subtask"
-                            Accessible.name: text + " to " + title
-                            onClicked: root.requestSubtaskCreate(id, taskListId)
-                        }
-
-                        Button {
-                            id: promoteButton
-                            visible: depth > 0
-                            text: "Promote"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Move this subtask to the top level"
-                            onClicked: root.requestTaskReparent(id, "")
-                        }
-
-                        Button {
-                            id: moveEarlierButton
-                            text: "Move earlier"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Move this task earlier among its siblings"
-                            onClicked: root.requestTaskReorder(id, true)
-                        }
-
-                        Button {
-                            id: moveLaterButton
-                            text: "Move later"
-                            Accessible.name: text + " " + title
-                            Accessible.description: "Move this task later among its siblings"
-                            onClicked: root.requestTaskReorder(id, false)
-                        }
-
-                        AccessibleButton {
-                            Layout.fillWidth: true
-                            text: (completed ? "✓ " : "") + title
-                            accessibleName: title
-                            accessibleDescription: completed ? "Completed task" : "Open task"
-                            onClicked: root.selectTask(id)
-                        }
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        visible: managedRecurrence
-                        text: recurrenceSummary
-                        color: Theme.textSecondary
-                        wrapMode: Text.WordWrap
-                        Accessible.name: "Task recurrence: " + recurrenceSummary
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        visible: recurrenceDiagnostic.length > 0
-                        text: recurrenceDiagnostic
-                        color: Theme.destructive
-                        wrapMode: Text.WordWrap
-                        Accessible.name: "Task recurrence warning: " + recurrenceDiagnostic
                     }
                 }
-            }
-        }
 
-        Label {
-            Layout.fillWidth: true
-            visible: taskRows.rows === 0
-            text: "Your inbox is clear."
-            color: Theme.textSecondary
-            horizontalAlignment: Text.AlignHCenter
+                Label {
+                    Layout.fillWidth: true
+                    visible: taskRows.rows === 0
+                    text: "No tasks in this view."
+                    color: Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
         }
     }
 

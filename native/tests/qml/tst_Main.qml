@@ -689,8 +689,7 @@ TestCase {
         })
         verify(agenda !== null)
         tryCompare(agenda.eventRows, "count", 2)
-        compare(agenda.scheduleLabel("2026-07-26T10:00:00.000Z", false),
-                "2026-07-26T10:00:00.000Z")
+        verify(agenda.scheduleLabel("2026-07-26T10:00:00.000Z", false).indexOf("T") === -1)
         compare(agenda.scheduleLabel("2026-07-27", true), "All day")
         let selectedId = ""
         agenda.eventSelected.connect(function(eventId) { selectedId = eventId })

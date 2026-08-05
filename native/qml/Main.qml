@@ -63,6 +63,7 @@ ApplicationWindow {
                                  ? appController.workdayEndHour : 17
     property var transitionTimings: null
     property var selectedCalendarEventIds: []
+    property bool calendarSelectionMode: false
     property string calendarDate: appController !== null &&
                                   typeof appController.calendarDate === "string" &&
                                   appController.calendarDate.length > 0
@@ -202,6 +203,11 @@ ApplicationWindow {
 
     function fallbackCalendarDate() {
         return new Date().toISOString().slice(0, 10)
+    }
+
+    function calendarDisplayDate() {
+        const parsed = new Date(calendarDate + "T12:00:00")
+        return Number.isFinite(parsed.getTime()) ? Qt.locale().toString(parsed, "d MMM yyyy") : calendarDate
     }
 
     function shiftCalendarDate(days) {
@@ -1116,7 +1122,7 @@ ApplicationWindow {
                 onTaskListSelectionRequested: function(taskListId, selected) {
                     window.controllerCall("setTaskListSelected", [taskListId, selected])
                 }
-                onTaskCreateRequested: taskCreateDialog.openForCreate("", "")
+                onTaskCreateRequested: taskCreateDialog.openForCreate(taskList.preferredTaskListId, "")
                 onImportRequested: importDialog.open()
                 onTaskSubtaskCreateRequested: function(parentTaskId, taskListId) {
                     taskCreateDialog.openForCreate(taskListId, parentTaskId)
@@ -1277,7 +1283,7 @@ ApplicationWindow {
                     }
 
                     Label {
-                        text: window.calendarDate
+                        text: window.calendarDisplayDate()
                         Accessible.name: "Selected calendar date " + text
                     }
 
@@ -1301,6 +1307,20 @@ ApplicationWindow {
                         enabled: window.appController === null || !window.appController.busy
                         onClicked: importDialog.open()
                     }
+
+                    Button {
+                        text: window.calendarSelectionMode ? "Done" : "Select"
+                        Accessible.name: window.calendarSelectionMode
+                                         ? "Exit event selection" : "Select events"
+                        onClicked: {
+                            if (window.calendarSelectionMode) {
+                                window.clearCalendarEventSelection()
+                                window.calendarSelectionMode = false
+                            } else {
+                                window.calendarSelectionMode = true
+                            }
+                        }
+                    }
                 }
 
                 TabBar {
@@ -1322,7 +1342,10 @@ ApplicationWindow {
                     previewMessage: window.controllerString("bulkEventPreviewMessage", "")
                     previewRequestToken: window.bulkEventPreviewRequestToken
                     bulkTextRecurrenceScope: window.bulkTextRecurrenceScope
-                    onClearSelectionRequested: window.clearCalendarEventSelection()
+                    onClearSelectionRequested: {
+                        window.clearCalendarEventSelection()
+                        window.calendarSelectionMode = false
+                    }
                     onBulkDeleteRequested: function(eventIds) {
                         window.controllerCall("bulkDeleteEvents", [eventIds])
                         window.clearCalendarEventSelection()
@@ -1367,6 +1390,7 @@ ApplicationWindow {
                         agendaModel: window.agendaModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        selectionMode: window.calendarSelectionMode
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
                         }
@@ -1390,6 +1414,7 @@ ApplicationWindow {
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        selectionMode: window.calendarSelectionMode
                         dayIndex: window.calendarWeekDayIndex()
                         dateLabel: window.calendarDate
                         timelineActive: calendarViews.currentIndex === 1
@@ -1429,6 +1454,7 @@ ApplicationWindow {
                         timelineModel: window.timelineModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        selectionMode: window.calendarSelectionMode
                         dayLabels: window.calendarWeekLabels()
                         timelineActive: calendarViews.currentIndex === 2
                         bypassCalendarVisibility: window.timelineProfile
@@ -1467,6 +1493,8 @@ ApplicationWindow {
                         monthGridModel: window.monthGridModel
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
+                        selectionMode: window.calendarSelectionMode
+                        monthLabel: window.calendarDisplayDate()
                         weekStartDay: window.weekStartDay
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
