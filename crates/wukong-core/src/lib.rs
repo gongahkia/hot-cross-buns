@@ -73,6 +73,9 @@ pub mod manifest;
 /// Project-owned source-catalog parsing.
 pub mod source_catalog;
 
+/// Transactional project source-catalog editing.
+pub mod source_catalog_edit;
+
 /// Transactional manifest editing.
 pub mod manifest_edit;
 

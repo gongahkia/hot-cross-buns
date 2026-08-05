@@ -54,3 +54,8 @@ free: it does not fetch sources or access declared paths. It rejects:
 Validation returns typed canonical package names, Git identities, Semantic
 Versions, checksums, and normalised source-relative roots. The catalog is not
 yet consumed by lock or sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
+
+Core callers can add or remove one candidate transactionally. The edit holds a
+per-catalog advisory lock, validates the complete output before publication,
+and atomically replaces the catalog. Existing TOML content outside the edited
+candidate remains unchanged.
