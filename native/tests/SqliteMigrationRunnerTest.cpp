@@ -21,6 +21,7 @@ private slots:
   void rollsBackFailedMigrationWithoutRecordingIt();
   void rejectsInvalidMigrationChecksumBeforeCreatingMetadata();
   void rejectsModifiedMigrationChecksum();
+  void acceptsDocumentedLegacyChecksum();
   void upgradesLegacyMigrationHistory();
   void rejectsMismatchedLegacyHistoryAtomically();
   void rejectsMalformedOrDiscontinuousHistory();
@@ -251,6 +252,35 @@ void SqliteMigrationRunnerTest::rejectsModifiedMigrationChecksum() {
   const hcb::SqliteMigrationRunResultOrError result =
       hcb::SqliteMigrationRunner::run(*connection, catalogue);
   QVERIFY(std::holds_alternative<hcb::AppError>(result));
+  QCOMPARE(scalar(connection->nativeHandle(), "SELECT COUNT(*) FROM entries"), 2);
+}
+
+void SqliteMigrationRunnerTest::acceptsDocumentedLegacyChecksum() {
+  QTemporaryDir temporaryDirectory;
+  QVERIFY(temporaryDirectory.isValid());
+  const std::optional<hcb::FilePath> databasePath = databasePathFor(temporaryDirectory);
+  QVERIFY(databasePath.has_value());
+  if (!databasePath.has_value()) {
+    return;
+  }
+  std::optional<hcb::SqliteConnection> connection = openConnection(*databasePath);
+  QVERIFY(connection.has_value());
+  if (!connection.has_value()) {
+    return;
+  }
+  std::vector<hcb::SqliteMigration> catalogue = migrations();
+  catalogue[0].acceptedLegacyChecksum = checksum(QLatin1Char('c'));
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(
+      hcb::SqliteMigrationRunner::run(*connection, catalogue)));
+  QVERIFY(!execute(connection->nativeHandle(),
+                   "UPDATE local_schema_migrations SET checksum = "
+                   "'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' "
+                   "WHERE version = 1")
+               .has_value());
+
+  const hcb::SqliteMigrationRunResultOrError result =
+      hcb::SqliteMigrationRunner::run(*connection, catalogue);
+  QVERIFY(std::holds_alternative<hcb::SqliteMigrationRunResult>(result));
   QCOMPARE(scalar(connection->nativeHandle(), "SELECT COUNT(*) FROM entries"), 2);
 }
 

@@ -54,6 +54,8 @@ validateMigrations(std::span<const SqliteMigration> migrations) {
   for (const SqliteMigration& migration : migrations) {
     if (migration.version <= previousVersion || migration.name.trimmed().isEmpty() ||
         migration.name.contains(QChar::Null) || !isChecksum(migration.checksum) ||
+        (migration.acceptedLegacyChecksum.has_value() &&
+         !isChecksum(*migration.acceptedLegacyChecksum)) ||
         !migration.apply) {
       return AppError(AppErrorCode::Database,
                       QStringLiteral("SQLite migration catalogue is invalid"));
@@ -197,8 +199,13 @@ validateAppliedHistory(const std::vector<AppliedMigration>& applied,
       return AppError(AppErrorCode::Database,
                       QStringLiteral("SQLite migration history name does not match"));
     }
+    const bool checksumMatches =
+        recorded.checksum.has_value() &&
+        (*recorded.checksum == expected.checksum ||
+         (expected.acceptedLegacyChecksum.has_value() &&
+          *recorded.checksum == *expected.acceptedLegacyChecksum));
     if (recorded.checksum.has_value() &&
-        (!isChecksum(*recorded.checksum) || *recorded.checksum != expected.checksum)) {
+        (!isChecksum(*recorded.checksum) || !checksumMatches)) {
       return AppError(AppErrorCode::Database,
                       QStringLiteral("SQLite migration history checksum does not match"));
     }

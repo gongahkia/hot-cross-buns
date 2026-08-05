@@ -18,6 +18,7 @@ struct SqliteMigration final {
   QString name;
   QString checksum;
   SqliteMigrationApply apply;
+  std::optional<QString> acceptedLegacyChecksum;
 };
 
 struct SqliteMigrationRunResult final {
