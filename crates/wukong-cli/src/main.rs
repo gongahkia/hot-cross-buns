@@ -842,7 +842,11 @@ fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagno
             "run wukong lock before wukong audit",
         )
     })?;
-    let report = ProvenanceReport::from_lockfile(&lock);
+    let graph = LockedDependencyGraph::from_catalog_lockfile(&lock)?;
+    let report = graph.as_ref().map_or_else(
+        || ProvenanceReport::from_lockfile(&lock),
+        |graph| ProvenanceReport::from_graph(&lock, graph),
+    );
     if options.json {
         emit_json_progress("audit", "report-ready");
         emit_json_result(&render_audit_json(&report));
@@ -1205,18 +1209,28 @@ fn run_status(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         emit_json_progress("status", "reading-installed-state");
     }
     let packages = read_installed_packages(project.path())?;
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let graph = read_lockfile(&lock_path)?
+        .map(|lock| LockedDependencyGraph::from_catalog_lockfile(&lock))
+        .transpose()?
+        .flatten();
     if options.json {
-        emit_json_result(&render_status_json(&packages));
+        emit_json_result(&render_status_json(&packages, graph.as_ref()));
     } else if packages.is_empty() {
         println!("installed packages: none");
     } else {
         println!("installed packages:");
         for package in packages.values() {
+            let groups = graph
+                .as_ref()
+                .and_then(|graph| graph.packages().get(package.name()))
+                .map_or("", status_groups);
             println!(
-                "{} {} sha256:{}",
+                "{} {} sha256:{}{}",
                 package.name(),
                 package.source_immutable_id(),
-                package.package_sha256()
+                package.package_sha256(),
+                groups,
             );
         }
     }
@@ -1276,16 +1290,34 @@ fn read_installed_packages(
 
 fn render_status_json(
     packages: &BTreeMap<PackageName, wukong_core::installed_state::InstalledPackage>,
+    graph: Option<&LockedDependencyGraph>,
 ) -> String {
     json!({
         "schema": 1,
-        "packages": packages.values().map(|package| json!({
-            "name": package.name().as_str(),
-            "immutable_id": package.source_immutable_id().as_str(),
-            "package_checksum": package.package_sha256(),
-        })).collect::<Vec<_>>(),
+        "packages": packages.values().map(|package| {
+            let graph_package = graph.and_then(|graph| graph.packages().get(package.name()));
+            json!({
+                "name": package.name().as_str(),
+                "immutable_id": package.source_immutable_id().as_str(),
+                "package_checksum": package.package_sha256(),
+                "direct_runtime": graph_package.map(wukong_core::dependency_graph::GraphPackage::is_direct_runtime),
+                "direct_development": graph_package.map(wukong_core::dependency_graph::GraphPackage::is_direct_development),
+                "runtime": graph_package.map(wukong_core::dependency_graph::GraphPackage::is_runtime),
+                "development": graph_package.map(wukong_core::dependency_graph::GraphPackage::is_development),
+            })
+        }).collect::<Vec<_>>(),
     })
     .to_string()
+}
+
+fn status_groups(package: &wukong_core::dependency_graph::GraphPackage) -> &'static str {
+    if package.is_development() {
+        " [development]"
+    } else if package.is_runtime() {
+        " [runtime]"
+    } else {
+        ""
+    }
 }
 
 fn run_source(
@@ -2267,6 +2299,13 @@ fn render_audit(report: &ProvenanceReport) -> String {
             package.source_sha256().unwrap_or("unavailable")
         ));
         lines.push(format!("  package checksum: {}", package.package_sha256()));
+        lines.push(format!("  direct runtime: {}", package.is_direct_runtime()));
+        lines.push(format!(
+            "  direct development: {}",
+            package.is_direct_development()
+        ));
+        lines.push(format!("  runtime: {}", package.is_runtime()));
+        lines.push(format!("  development: {}", package.is_development()));
     }
     lines.join("\n")
 }
@@ -2283,12 +2322,16 @@ fn render_audit_json(report: &ProvenanceReport) -> String {
                 .source_sha256()
                 .map_or_else(|| "null".to_owned(), json_string);
             format!(
-                "{{\"name\":{},\"source_kind\":{},\"canonical_source\":{},\"immutable_id\":{},\"immutable_revision\":{revision},\"source_checksum\":{source_checksum},\"package_checksum\":{}}}",
+                "{{\"name\":{},\"source_kind\":{},\"canonical_source\":{},\"immutable_id\":{},\"immutable_revision\":{revision},\"source_checksum\":{source_checksum},\"package_checksum\":{},\"direct_runtime\":{},\"direct_development\":{},\"runtime\":{},\"development\":{}}}",
                 json_string(&package.name().to_string()),
                 json_string(package.source_kind().as_str()),
                 json_string(package.canonical_source()),
                 json_string(package.immutable_id().as_str()),
                 json_string(package.package_sha256()),
+                package.is_direct_runtime(),
+                package.is_direct_development(),
+                package.is_runtime(),
+                package.is_development(),
             )
         })
         .collect::<Vec<_>>()
@@ -2592,7 +2635,6 @@ fn load_dependency_graph(
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, project_path)?;
-    let manifest = read_manifest(&project.path().join(MANIFEST_FILE_NAME))?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
     let lock = read_lockfile(&lock_path)?.ok_or_else(|| {
         user_error(
@@ -2600,6 +2642,10 @@ fn load_dependency_graph(
             "run wukong lock before wukong tree or wukong why",
         )
     })?;
+    if let Some(graph) = LockedDependencyGraph::from_catalog_lockfile(&lock)? {
+        return Ok(graph);
+    }
+    let manifest = read_manifest(&project.path().join(MANIFEST_FILE_NAME))?;
     let runtime = manifest_dependency_names(manifest.dependencies())?;
     let development = manifest_dependency_names(manifest.dev_dependencies())?;
     LockedDependencyGraph::new(&lock, &runtime, &development)
@@ -2719,7 +2765,7 @@ fn package_label(package: &wukong_core::dependency_graph::GraphPackage) -> Strin
     } else {
         "transitive"
     };
-    if package.is_development() || package.is_direct_development() {
+    if package.is_development() {
         format!("{label} [{kind}, development]")
     } else {
         format!("{label} [{kind}]")
@@ -2756,10 +2802,13 @@ fn render_tree_json(graph: &LockedDependencyGraph) -> String {
                 .collect::<Vec<_>>()
                 .join(",");
             format!(
-                "{{\"name\":{},\"version\":{version},\"direct\":{},\"development\":{},\"dependencies\":[{dependencies}]}}",
+                "{{\"name\":{},\"version\":{version},\"direct\":{},\"direct_runtime\":{},\"direct_development\":{},\"runtime\":{},\"development\":{},\"dependencies\":[{dependencies}]}}",
                 json_string(&package.name().to_string()),
                 package.is_direct(),
-                package.is_development() || package.is_direct_development(),
+                package.is_direct_runtime(),
+                package.is_direct_development(),
+                package.is_runtime(),
+                package.is_development(),
             )
         })
         .collect::<Vec<_>>()

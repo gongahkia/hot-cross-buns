@@ -3,8 +3,8 @@ use std::{collections::BTreeSet, path::Path};
 use wukong_core::{
     identity::PackageName,
     lockfile::{
-        GodotCompatibility, LockedGitSource, LockedHttpSource, LockedLocalSource, LockedPackage,
-        LockedSource, Lockfile,
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedHttpSource,
+        LockedLocalSource, LockedPackage, LockedSource, Lockfile,
     },
     source::ImmutableSourceId,
 };
@@ -101,6 +101,7 @@ fn invariant_schema_three_serializes_a_complete_catalog_graph_deterministically(
     assert_eq!(lock.schema(), 3);
     assert_eq!(parsed, lock);
     assert!(output.starts_with("schema = 3\n"));
+    assert!(output.contains("[roots]\nruntime = [\"alpha\"]\ndevelopment = []"));
     assert!(output.contains("catalog_sha256"));
     assert!(output.contains("dependencies = [\"beta\"]"));
     assert!(output.contains("source_subdirectory = \"addons/alpha\""));
@@ -117,12 +118,18 @@ fn invariant_schema_three_rejects_malformed_catalog_graph_state() {
     );
     let dangling_edge = output.replace("dependencies = [\"beta\"]", "dependencies = [\"missing\"]");
     let local_source = output.replace("kind = \"git\"", "kind = \"local\"");
+    let missing_roots = output.replace("[roots]\nruntime = [\"alpha\"]\ndevelopment = []\n\n", "");
+    let missing_root = output.replace("runtime = [\"alpha\"]", "runtime = [\"missing\"]");
+    let stale_development = output.replace("development = false", "development = true");
 
     for input in [
         missing_version,
         invalid_fingerprint,
         dangling_edge,
         local_source,
+        missing_roots,
+        missing_root,
+        stale_development,
     ] {
         let error = Lockfile::parse(Path::new(PATH), &input)
             .expect_err("malformed schema-three state must fail");
@@ -244,11 +251,18 @@ fn catalog_graph() -> Lockfile {
         archive_checksum.to_owned(),
     )
     .expect("HTTP source should lock");
-    Lockfile::new_catalog_graph([
-        catalog_package("alpha", alpha.into(), ["beta"], 1),
-        catalog_package("beta", beta.into(), [], 2),
-    ])
+    Lockfile::new_catalog_graph(
+        [
+            catalog_package("alpha", alpha.into(), ["beta"], 1),
+            catalog_package("beta", beta.into(), [], 2),
+        ],
+        CatalogGraphRoots::new([name("alpha")], []),
+    )
     .expect("catalog graph should lock")
+}
+
+fn name(value: &str) -> PackageName {
+    PackageName::parse(value).expect("name should parse")
 }
 
 fn catalog_package(

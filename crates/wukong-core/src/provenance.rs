@@ -1,6 +1,7 @@
 //! Deterministic dependency provenance derived from immutable lockfile entries.
 
 use crate::{
+    dependency_graph::LockedDependencyGraph,
     identity::PackageName,
     lockfile::{LockedSource, Lockfile},
     source::ImmutableSourceId,
@@ -39,6 +40,10 @@ pub struct ProvenancePackage {
     immutable_revision: Option<String>,
     source_sha256: Option<String>,
     package_sha256: String,
+    direct_runtime: bool,
+    direct_development: bool,
+    runtime: bool,
+    development: bool,
 }
 
 impl ProvenancePackage {
@@ -83,6 +88,30 @@ impl ProvenancePackage {
     pub fn package_sha256(&self) -> &str {
         &self.package_sha256
     }
+
+    /// Returns whether the package is a direct runtime root.
+    #[must_use]
+    pub const fn is_direct_runtime(&self) -> bool {
+        self.direct_runtime
+    }
+
+    /// Returns whether the package is a direct development root.
+    #[must_use]
+    pub const fn is_direct_development(&self) -> bool {
+        self.direct_development
+    }
+
+    /// Returns whether the package belongs to the runtime closure.
+    #[must_use]
+    pub const fn is_runtime(&self) -> bool {
+        self.runtime
+    }
+
+    /// Returns whether the package is development-only.
+    #[must_use]
+    pub const fn is_development(&self) -> bool {
+        self.development
+    }
 }
 
 /// A deterministic read-only report over every locked package.
@@ -95,6 +124,16 @@ impl ProvenanceReport {
     /// Derives provenance from a validated lockfile in package-name order.
     #[must_use]
     pub fn from_lockfile(lockfile: &Lockfile) -> Self {
+        Self::build(lockfile, None)
+    }
+
+    /// Derives provenance and canonical group state from a locked graph.
+    #[must_use]
+    pub fn from_graph(lockfile: &Lockfile, graph: &LockedDependencyGraph) -> Self {
+        Self::build(lockfile, Some(graph))
+    }
+
+    fn build(lockfile: &Lockfile, graph: Option<&LockedDependencyGraph>) -> Self {
         let packages = lockfile
             .packages()
             .values()
@@ -120,6 +159,19 @@ impl ProvenanceReport {
                             Some(source.sha256().to_owned()),
                         ),
                     };
+                let (direct_runtime, direct_development, runtime, development) = graph
+                    .and_then(|graph| graph.packages().get(package.name()))
+                    .map_or_else(
+                        || (false, false, !package.development(), package.development()),
+                        |package| {
+                            (
+                                package.is_direct_runtime(),
+                                package.is_direct_development(),
+                                package.is_runtime(),
+                                package.is_development(),
+                            )
+                        },
+                    );
                 ProvenancePackage {
                     name: package.name().clone(),
                     source_kind,
@@ -128,6 +180,10 @@ impl ProvenanceReport {
                     immutable_revision,
                     source_sha256,
                     package_sha256: package.package_sha256().to_owned(),
+                    direct_runtime,
+                    direct_development,
+                    runtime,
+                    development,
                 }
             })
             .collect();

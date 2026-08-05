@@ -20,15 +20,26 @@ pub enum DependencyGroup {
     Development,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PackageScope {
+    Runtime,
+    Development,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct DirectGroups {
+    runtime: bool,
+    development: bool,
+}
+
 /// One package in a locked dependency graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GraphPackage {
     name: PackageName,
     version: Option<SemanticVersion>,
     dependencies: BTreeSet<PackageName>,
-    direct_runtime: bool,
-    direct_development: bool,
-    development: bool,
+    direct: DirectGroups,
+    scope: PackageScope,
 }
 
 impl GraphPackage {
@@ -53,25 +64,31 @@ impl GraphPackage {
     /// Returns whether the package is a direct runtime dependency.
     #[must_use]
     pub const fn is_direct_runtime(&self) -> bool {
-        self.direct_runtime
+        self.direct.runtime
     }
 
     /// Returns whether the package is a direct development dependency.
     #[must_use]
     pub const fn is_direct_development(&self) -> bool {
-        self.direct_development
+        self.direct.development
+    }
+
+    /// Returns whether the package is in the runtime closure.
+    #[must_use]
+    pub const fn is_runtime(&self) -> bool {
+        matches!(self.scope, PackageScope::Runtime)
     }
 
     /// Returns whether the package is development-only in the lockfile.
     #[must_use]
     pub const fn is_development(&self) -> bool {
-        self.development
+        matches!(self.scope, PackageScope::Development)
     }
 
     /// Returns whether the package has any direct manifest declaration.
     #[must_use]
     pub const fn is_direct(&self) -> bool {
-        self.direct_runtime || self.direct_development
+        self.direct.runtime || self.direct.development
     }
 }
 
@@ -108,9 +125,15 @@ impl LockedDependencyGraph {
                     name: name.clone(),
                     version: package.version().cloned(),
                     dependencies: package.dependencies().clone(),
-                    direct_runtime: direct_runtime.contains(name),
-                    direct_development: direct_development.contains(name),
-                    development: package.development(),
+                    direct: DirectGroups {
+                        runtime: direct_runtime.contains(name),
+                        development: direct_development.contains(name),
+                    },
+                    scope: if package.development() {
+                        PackageScope::Development
+                    } else {
+                        PackageScope::Runtime
+                    },
                 },
             );
         }
@@ -154,6 +177,51 @@ impl LockedDependencyGraph {
             runtime_roots: runtime_roots.into_iter().collect(),
             development_roots: development_roots.into_iter().collect(),
         })
+    }
+
+    /// Builds the persisted canonical view of a schema-three catalog graph.
+    ///
+    /// Returns `None` for legacy lockfiles, which do not persist direct roots.
+    /// Shared runtime and development closure members are runtime packages.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the graph has a missing dependency entry.
+    pub fn from_catalog_lockfile(lockfile: &Lockfile) -> DependencyGraphResult<Option<Self>> {
+        let Some(roots) = lockfile.catalog_graph_roots() else {
+            return Ok(None);
+        };
+        let mut packages = BTreeMap::new();
+        for (name, package) in lockfile.packages() {
+            packages.insert(
+                name.clone(),
+                GraphPackage {
+                    name: name.clone(),
+                    version: package.version().cloned(),
+                    dependencies: package.dependencies().clone(),
+                    direct: DirectGroups {
+                        runtime: roots.runtime().contains(name),
+                        development: roots.development().contains(name),
+                    },
+                    scope: PackageScope::Runtime,
+                },
+            );
+        }
+        validate_dependencies(&packages)?;
+        let runtime = reachable_packages(&packages, roots.runtime());
+        let development = reachable_packages(&packages, roots.development());
+        for (name, package) in &mut packages {
+            package.scope = if development.contains(name) && !runtime.contains(name) {
+                PackageScope::Development
+            } else {
+                PackageScope::Runtime
+            };
+        }
+        Ok(Some(Self {
+            packages,
+            runtime_roots: roots.runtime().iter().cloned().collect(),
+            development_roots: roots.development().iter().cloned().collect(),
+        }))
     }
 
     /// Returns every package in deterministic name order.
@@ -212,4 +280,44 @@ impl LockedDependencyGraph {
         path.pop();
         active.remove(current);
     }
+}
+
+fn validate_dependencies(
+    packages: &BTreeMap<PackageName, GraphPackage>,
+) -> DependencyGraphResult<()> {
+    for package in packages.values() {
+        for dependency in package.dependencies() {
+            if !packages.contains_key(dependency) {
+                return Err(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::UserInput,
+                        format!(
+                            "lockfile package {} depends on missing package {dependency}",
+                            package.name()
+                        ),
+                    )
+                    .with_package(package.name().to_string())
+                    .with_recovery("regenerate wukong.lock before inspecting dependencies"),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reachable_packages(
+    packages: &BTreeMap<PackageName, GraphPackage>,
+    roots: &BTreeSet<PackageName>,
+) -> BTreeSet<PackageName> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = roots.iter().cloned().collect::<Vec<_>>();
+    while let Some(name) = pending.pop() {
+        if !reachable.insert(name.clone()) {
+            continue;
+        }
+        if let Some(package) = packages.get(&name) {
+            pending.extend(package.dependencies().iter().cloned());
+        }
+    }
+    reachable
 }

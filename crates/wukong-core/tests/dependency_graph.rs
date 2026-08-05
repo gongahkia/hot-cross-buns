@@ -2,7 +2,10 @@ use std::collections::BTreeSet;
 use wukong_core::{
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     identity::PackageName,
-    lockfile::{GodotCompatibility, LockedLocalSource, LockedPackage, Lockfile},
+    lockfile::{
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedLocalSource, LockedPackage,
+        Lockfile,
+    },
     semantic_version::SemanticVersion,
     source::ImmutableSourceId,
 };
@@ -80,6 +83,59 @@ fn invariant_graph_rejects_missing_locked_dependency_entries() {
     assert!(error.message().contains("missing package missing"));
 }
 
+#[test]
+fn invariant_catalog_graph_derives_roots_and_promotes_shared_runtime_dependencies() {
+    let lock = catalog_lock(
+        [
+            catalog_package("runtime", ["shared"], 1),
+            catalog_package("dev-tool", ["shared"], 2),
+            catalog_package("shared", [], 3),
+        ],
+        CatalogGraphRoots::new([name("runtime")], [name("dev-tool")]),
+    );
+
+    let graph = LockedDependencyGraph::from_catalog_lockfile(&lock)
+        .expect("catalog graph should build")
+        .expect("schema-three roots should be available");
+
+    assert_eq!(graph.roots(DependencyGroup::Runtime), &[name("runtime")]);
+    assert_eq!(
+        graph.roots(DependencyGroup::Development),
+        &[name("dev-tool")]
+    );
+    assert!(graph.packages()[&name("runtime")].is_direct_runtime());
+    assert!(graph.packages()[&name("dev-tool")].is_direct_development());
+    assert!(graph.packages()[&name("shared")].is_runtime());
+    assert!(!graph.packages()[&name("shared")].is_development());
+    assert!(graph.packages()[&name("dev-tool")].is_development());
+    assert!(!lock.packages()[&name("shared")].development());
+    assert!(lock.packages()[&name("dev-tool")].development());
+}
+
+#[test]
+fn invariant_catalog_graph_serialization_is_stable_across_equivalent_root_order() {
+    let base = catalog_lock(
+        [
+            catalog_package("alpha", [], 1),
+            catalog_package("beta", [], 2),
+        ],
+        CatalogGraphRoots::new([name("alpha"), name("beta")], []),
+    );
+    let packages = base.packages().values().cloned().collect::<Vec<_>>();
+    let first = Lockfile::new_catalog_graph(
+        packages.clone(),
+        CatalogGraphRoots::new([name("beta"), name("alpha")], []),
+    )
+    .expect("first catalog lock should build");
+    let second = Lockfile::new_catalog_graph(
+        packages.into_iter().rev(),
+        CatalogGraphRoots::new([name("alpha"), name("beta")], []),
+    )
+    .expect("second catalog lock should build");
+
+    assert_eq!(first.to_toml(), second.to_toml());
+}
+
 fn lock(packages: impl IntoIterator<Item = LockedPackage>) -> Lockfile {
     Lockfile::new(packages).expect("lock should build")
 }
@@ -109,6 +165,42 @@ fn package(
         development,
     )
     .expect("package should build")
+}
+
+fn catalog_lock(
+    packages: impl IntoIterator<Item = LockedPackage>,
+    roots: CatalogGraphRoots,
+) -> Lockfile {
+    Lockfile::new_catalog_graph(packages, roots).expect("catalog graph should build")
+}
+
+fn catalog_package(
+    package_name: &str,
+    dependencies: impl IntoIterator<Item = &'static str>,
+    index: usize,
+) -> LockedPackage {
+    let commit = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91";
+    let source = LockedGitSource::new(
+        ImmutableSourceId::new(format!("git:{commit}")).expect("identity should parse"),
+        "https://example.test/catalog.git",
+        commit.to_owned(),
+    )
+    .expect("source should build");
+    LockedPackage::new(
+        name(package_name),
+        Some(version("1.0.0")),
+        source,
+        format!("{:064x}", index + 100),
+        format!("{:064x}", index + 200),
+        dependencies.into_iter().map(name).collect(),
+        format!("addons/{package_name}").into(),
+        format!("addons/{package_name}").into(),
+        GodotCompatibility::Requirement("4".parse().expect("Godot requirement should parse")),
+        false,
+    )
+    .expect("package should build")
+    .with_catalog_sha256(format!("{index:064x}"))
+    .expect("catalog fingerprint should build")
 }
 
 fn names(values: impl IntoIterator<Item = &'static str>) -> BTreeSet<PackageName> {

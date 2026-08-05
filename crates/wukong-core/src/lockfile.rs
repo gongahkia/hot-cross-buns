@@ -24,6 +24,41 @@ const LEGACY_LOCKFILE_SCHEMA: i64 = 1;
 /// The schema written for validated catalog-selected dependency graphs.
 pub const CATALOG_GRAPH_LOCKFILE_SCHEMA: i64 = 3;
 
+/// Canonical direct roots for a schema-three catalog graph.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CatalogGraphRoots {
+    runtime: BTreeSet<PackageName>,
+    development: BTreeSet<PackageName>,
+    extensions: BTreeMap<String, String>,
+}
+
+impl CatalogGraphRoots {
+    /// Creates deterministic runtime and development root sets.
+    #[must_use]
+    pub fn new(
+        runtime: impl IntoIterator<Item = PackageName>,
+        development: impl IntoIterator<Item = PackageName>,
+    ) -> Self {
+        Self {
+            runtime: runtime.into_iter().collect(),
+            development: development.into_iter().collect(),
+            extensions: BTreeMap::new(),
+        }
+    }
+
+    /// Returns direct runtime roots in canonical name order.
+    #[must_use]
+    pub const fn runtime(&self) -> &BTreeSet<PackageName> {
+        &self.runtime
+    }
+
+    /// Returns direct development roots in canonical name order.
+    #[must_use]
+    pub const fn development(&self) -> &BTreeSet<PackageName> {
+        &self.development
+    }
+}
+
 /// A package's declared Godot compatibility.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GodotCompatibility {
@@ -350,6 +385,7 @@ impl LockedPackage {
 pub struct Lockfile {
     schema: i64,
     packages: BTreeMap<PackageName, LockedPackage>,
+    catalog_roots: Option<CatalogGraphRoots>,
     extensions: BTreeMap<String, String>,
 }
 impl Lockfile {
@@ -363,6 +399,7 @@ impl Lockfile {
         Ok(Self {
             schema: LOCKFILE_SCHEMA,
             packages: entries,
+            catalog_roots: None,
             extensions: BTreeMap::new(),
         })
     }
@@ -374,12 +411,14 @@ impl Lockfile {
     /// dependency edges are dangling or self-referential.
     pub fn new_catalog_graph(
         packages: impl IntoIterator<Item = LockedPackage>,
+        roots: CatalogGraphRoots,
     ) -> Result<Self, Box<Diagnostic>> {
-        let packages = package_entries(packages)?;
-        validate_catalog_graph(&packages)?;
+        let mut packages = package_entries(packages)?;
+        normalize_catalog_graph_development(&mut packages, &roots)?;
         Ok(Self {
             schema: CATALOG_GRAPH_LOCKFILE_SCHEMA,
             packages,
+            catalog_roots: Some(roots),
             extensions: BTreeMap::new(),
         })
     }
@@ -391,7 +430,6 @@ impl Lockfile {
     pub fn parse(path: &Path, input: &str) -> Result<Self, Box<Diagnostic>> {
         let doc = Document::parse(input.to_owned()).map_err(|e| syntax(path, e))?;
         let root = doc.as_table();
-        let extensions = extensions(root, &["schema", "package"], path, "root")?;
         let schema = integer(root, "schema", path, "root")?;
         if !matches!(
             schema,
@@ -403,6 +441,7 @@ impl Lockfile {
                 "regenerate with a supported wukong version",
             ));
         }
+        let extensions = extensions(root, &root_fields(schema), path, "root")?;
         let packages = root
             .get("package")
             .map(|item| {
@@ -423,11 +462,29 @@ impl Lockfile {
             })
             .transpose()?
             .unwrap_or_default();
-        let mut lock = Self::new(packages)?;
-        lock.schema = schema;
-        lock.extensions = extensions;
+        let catalog_roots = if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+            Some(parse_catalog_roots(
+                table(root, "roots", path, "root")?,
+                path,
+            )?)
+        } else {
+            None
+        };
+        let lock = Self {
+            schema,
+            packages: package_entries(packages)?,
+            catalog_roots,
+            extensions,
+        };
         if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
-            validate_catalog_graph(&lock.packages)?;
+            let roots = lock.catalog_roots.as_ref().ok_or_else(|| {
+                user(
+                    path,
+                    "schema-three roots are required",
+                    "add sorted runtime and development root arrays",
+                )
+            })?;
+            validate_catalog_graph(&lock.packages, roots)?;
         }
         Ok(lock)
     }
@@ -441,12 +498,34 @@ impl Lockfile {
     pub fn packages(&self) -> &BTreeMap<PackageName, LockedPackage> {
         &self.packages
     }
+
+    /// Returns persisted direct roots when this is a schema-three catalog graph.
+    #[must_use]
+    pub const fn catalog_graph_roots(&self) -> Option<&CatalogGraphRoots> {
+        self.catalog_roots.as_ref()
+    }
     /// Serializes canonical TOML for the lockfile's schema.
     #[must_use]
     pub fn to_toml(&self) -> String {
         let mut out = format!("schema = {}\n", self.schema);
         for (key, value) in &self.extensions {
             line(&mut out, key, value);
+        }
+        if let Some(roots) = &self.catalog_roots {
+            out.push_str("\n[roots]\n");
+            array(
+                &mut out,
+                "runtime",
+                roots.runtime.iter().map(PackageName::as_str),
+            );
+            array(
+                &mut out,
+                "development",
+                roots.development.iter().map(PackageName::as_str),
+            );
+            for (key, value) in &roots.extensions {
+                line(&mut out, key, value);
+            }
         }
         for package in self.packages.values() {
             out.push_str("\n[[package]]\n");
@@ -536,9 +615,39 @@ fn package_entries(
     Ok(entries)
 }
 
+fn normalize_catalog_graph_development(
+    packages: &mut BTreeMap<PackageName, LockedPackage>,
+    roots: &CatalogGraphRoots,
+) -> Result<(), Box<Diagnostic>> {
+    let (runtime, development) = catalog_graph_membership(packages, roots)?;
+    for (name, package) in packages {
+        package.development = development.contains(name) && !runtime.contains(name);
+    }
+    Ok(())
+}
+
 fn validate_catalog_graph(
     packages: &BTreeMap<PackageName, LockedPackage>,
+    roots: &CatalogGraphRoots,
 ) -> Result<(), Box<Diagnostic>> {
+    let (runtime, development) = catalog_graph_membership(packages, roots)?;
+    for (name, package) in packages {
+        let expected_development = development.contains(name) && !runtime.contains(name);
+        if package.development != expected_development {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three package.development does not match root reachability",
+                "regenerate wukong.lock from the selected catalog graph",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn catalog_graph_membership(
+    packages: &BTreeMap<PackageName, LockedPackage>,
+    roots: &CatalogGraphRoots,
+) -> Result<(BTreeSet<PackageName>, BTreeSet<PackageName>), Box<Diagnostic>> {
     for (name, package) in packages {
         if package.version.is_none() {
             return Err(catalog_graph_error(
@@ -587,7 +696,48 @@ fn validate_catalog_graph(
             }
         }
     }
-    Ok(())
+    for (group, group_roots) in [
+        ("runtime", &roots.runtime),
+        ("development", &roots.development),
+    ] {
+        for root in group_roots {
+            if !packages.contains_key(root) {
+                return Err(catalog_roots_error(
+                    format!("schema-three roots.{group} contains missing package {root}"),
+                    "retain only selected package names as direct roots",
+                ));
+            }
+        }
+    }
+    let runtime = reachable_packages(packages, &roots.runtime);
+    let development = reachable_packages(packages, &roots.development);
+    for name in packages.keys() {
+        if !runtime.contains(name) && !development.contains(name) {
+            return Err(catalog_graph_error(
+                name,
+                "schema-three graph contains a package unreachable from all direct roots",
+                "retain only the selected root closure",
+            ));
+        }
+    }
+    Ok((runtime, development))
+}
+
+fn reachable_packages(
+    packages: &BTreeMap<PackageName, LockedPackage>,
+    roots: &BTreeSet<PackageName>,
+) -> BTreeSet<PackageName> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = roots.iter().cloned().collect::<Vec<_>>();
+    while let Some(name) = pending.pop() {
+        if !reachable.insert(name.clone()) {
+            continue;
+        }
+        if let Some(package) = packages.get(&name) {
+            pending.extend(package.dependencies.iter().cloned());
+        }
+    }
+    reachable
 }
 
 fn catalog_graph_error(
@@ -600,6 +750,10 @@ fn catalog_graph_error(
             .with_package(package.as_str())
             .with_recovery(recovery),
     )
+}
+
+fn catalog_roots_error(message: impl AsRef<str>, recovery: impl AsRef<str>) -> Box<Diagnostic> {
+    Box::new(Diagnostic::new(ErrorCode::UserInput, message).with_recovery(recovery))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -726,6 +880,80 @@ fn package_fields(schema: i64) -> Vec<&'static str> {
     }
     fields
 }
+
+fn root_fields(schema: i64) -> Vec<&'static str> {
+    let mut fields = vec!["schema", "package"];
+    if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        fields.push("roots");
+    }
+    fields
+}
+
+fn parse_catalog_roots(
+    root_table: &dyn TableLike,
+    path: &Path,
+) -> Result<CatalogGraphRoots, Box<Diagnostic>> {
+    let extensions = extensions(root_table, &["runtime", "development"], path, "roots")?;
+    Ok(CatalogGraphRoots {
+        runtime: root_names(root_table.get("runtime"), path, "roots.runtime")?,
+        development: root_names(root_table.get("development"), path, "roots.development")?,
+        extensions,
+    })
+}
+
+fn root_names(
+    item: Option<&Item>,
+    path: &Path,
+    field: &str,
+) -> Result<BTreeSet<PackageName>, Box<Diagnostic>> {
+    let array = item.and_then(Item::as_array).ok_or_else(|| {
+        user(
+            path,
+            format!("{field} must be an array"),
+            "use a sorted package-name array",
+        )
+    })?;
+    let mut names = BTreeSet::new();
+    for item in array {
+        let value = item.as_str().ok_or_else(|| {
+            user(
+                path,
+                format!("{field} entries must be strings"),
+                "use canonical package names",
+            )
+        })?;
+        let name = PackageName::parse(value).map_err(|error| {
+            user(
+                path,
+                format!("{field} {error}"),
+                "use canonical package names",
+            )
+        })?;
+        if !names.insert(name) {
+            return Err(user(
+                path,
+                format!("{field} must not contain duplicates"),
+                "remove duplicate roots",
+            ));
+        }
+    }
+    if array.len() != names.len()
+        || !array
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>()
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+    {
+        return Err(user(
+            path,
+            format!("{field} must be sorted"),
+            "sort root package names ascending",
+        ));
+    }
+    Ok(names)
+}
+
 fn parse_source(
     table: &dyn TableLike,
     path: &Path,

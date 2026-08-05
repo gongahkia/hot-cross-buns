@@ -2,7 +2,10 @@ use std::{collections::BTreeSet, fs, path::Path, process::Command};
 use tempfile::TempDir;
 use wukong_core::{
     identity::PackageName,
-    lockfile::{GodotCompatibility, LockedLocalSource, LockedPackage, Lockfile},
+    lockfile::{
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedLocalSource, LockedPackage,
+        Lockfile,
+    },
     semantic_version::SemanticVersion,
     source::ImmutableSourceId,
 };
@@ -76,6 +79,50 @@ fn invariant_why_reports_all_root_paths_and_json_is_deterministic() {
         events[3]["result"]["paths"],
         serde_json::json!([["alpha", "shared"], ["beta", "shared"]])
     );
+}
+
+#[test]
+fn invariant_schema_three_tree_and_why_use_persisted_roots_without_a_manifest() {
+    let fixture = Fixture::new();
+    let lock = Lockfile::new_catalog_graph(
+        [
+            catalog_package("runtime", ["shared"], 1),
+            catalog_package("dev-tool", ["shared"], 2),
+            catalog_package("shared", [], 3),
+        ],
+        CatalogGraphRoots::new([name("runtime")], [name("dev-tool")]),
+    )
+    .expect("catalog graph should build");
+    fs::write(fixture.root().join("wukong.lock"), lock.to_toml()).expect("lock should write");
+    fs::remove_file(fixture.root().join("wukong.toml")).expect("manifest should remove");
+
+    let tree = command("tree", fixture.root())
+        .arg("--json")
+        .output()
+        .expect("tree should run");
+    let why = command("why", fixture.root())
+        .arg("shared")
+        .output()
+        .expect("why should run");
+
+    assert!(tree.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&why.stdout),
+        "why shared:\nruntime -> shared\ndev-tool -> shared\n"
+    );
+    let events = json_events(&tree.stdout);
+    assert_eq!(
+        events[3]["result"]["roots"],
+        serde_json::json!({"runtime":["runtime"],"development":["dev-tool"]})
+    );
+    let shared = events[3]["result"]["packages"]
+        .as_array()
+        .expect("packages should be an array")
+        .iter()
+        .find(|package| package["name"] == "shared")
+        .expect("shared should be reported");
+    assert_eq!(shared["runtime"], true);
+    assert_eq!(shared["development"], false);
 }
 
 fn json_events(output: &[u8]) -> Vec<serde_json::Value> {
@@ -194,6 +241,35 @@ fn package(
         development,
     )
     .expect("package should build")
+}
+
+fn catalog_package(
+    package_name: &str,
+    dependencies: impl IntoIterator<Item = &'static str>,
+    index: usize,
+) -> LockedPackage {
+    let commit = "4ab90a80b815bc1ad4a8d7eea92c785e654bfd91";
+    let source = LockedGitSource::new(
+        ImmutableSourceId::new(format!("git:{commit}")).expect("identity should parse"),
+        "https://example.test/catalog.git",
+        commit.to_owned(),
+    )
+    .expect("source should build");
+    LockedPackage::new(
+        name(package_name),
+        Some(SemanticVersion::parse("1.0.0").expect("version should parse")),
+        source,
+        format!("{:064x}", index + 100),
+        format!("{:064x}", index + 200),
+        dependencies.into_iter().map(name).collect(),
+        format!("addons/{package_name}").into(),
+        format!("addons/{package_name}").into(),
+        GodotCompatibility::Requirement("4".parse().expect("Godot requirement should parse")),
+        false,
+    )
+    .expect("package should build")
+    .with_catalog_sha256(format!("{index:064x}"))
+    .expect("catalog fingerprint should build")
 }
 
 fn name(value: &str) -> PackageName {
