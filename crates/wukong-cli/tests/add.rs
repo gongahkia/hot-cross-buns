@@ -99,7 +99,7 @@ fn command(fixture: &Fixture) -> Command {
 }
 
 struct Fixture {
-    _directory: TempDir,
+    directory: TempDir,
     root: std::path::PathBuf,
 }
 
@@ -118,10 +118,7 @@ impl Fixture {
             "[project]\nname=\"fixture\"\ngodot=\"4\"\n",
         )
         .expect("manifest should write");
-        Self {
-            _directory: directory,
-            root,
-        }
+        Self { directory, root }
     }
 
     fn root(&self) -> &Path {
@@ -129,7 +126,7 @@ impl Fixture {
     }
 
     fn cache_root(&self) -> std::path::PathBuf {
-        self._directory.path().join("cache")
+        self.directory.path().join("cache")
     }
 
     fn addon(&self, name: &str, content: &str) {
