@@ -74,7 +74,7 @@ Pane {
                     spacing: Theme.spacingSmall
 
                     Label {
-                        text: "1. Prepare Google Cloud"
+                        text: "1. Configure Google Cloud"
                         font.pixelSize: Theme.labelFontSize
                         font.bold: true
                         Accessible.role: Accessible.Heading
@@ -83,7 +83,35 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: "Configure OAuth consent, enable Google Tasks, Google Calendar, and Google Drive APIs, then create a Desktop app OAuth client."
+                        text: "Create or select a project at console.cloud.google.com."
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "In Google Auth platform, select Get Started. Set an app name and support email, then choose an audience. For a personal account, choose External and add your Google account under Audience → Test users."
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "For an External app, open Data Access → Add or Remove Scopes and add: tasks, calendar, and drive.metadata.readonly."
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Open APIs & Services → Library. Search for and enable Google Tasks API, Google Calendar API, and Google Drive API."
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Open Google Auth platform → Clients → Create client. Choose Desktop app, create it, then copy its client ID. Hot Cross Buns supplies the local callback."
                         wrapMode: Text.WordWrap
                         color: Theme.textSecondary
                     }
@@ -151,7 +179,7 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: "After saving, continue in your browser. Hot Cross Buns uses a temporary local callback to finish connecting."
+                        text: "After saving, select Connect Google and finish consent in your browser. Hot Cross Buns uses a temporary local callback; return to the app after the browser confirms connection."
                         wrapMode: Text.WordWrap
                         color: Theme.textSecondary
                     }
