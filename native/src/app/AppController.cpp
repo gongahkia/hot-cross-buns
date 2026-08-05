@@ -1271,24 +1271,25 @@ void AppController::initialize() {
           }
           QVariantList values;
           const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
-          if (stored.has_value()) {
-            QJsonParseError error;
-            const QJsonDocument document = QJsonDocument::fromJson(stored->toUtf8(), &error);
-            if (error.error != QJsonParseError::NoError || !document.isArray() ||
-                document.array().size() > 20'000) {
+          if (!stored.has_value()) {
+            return;
+          }
+          QJsonParseError error;
+          const QJsonDocument document = QJsonDocument::fromJson(stored->toUtf8(), &error);
+          if (error.error != QJsonParseError::NoError || !document.isArray() ||
+              document.array().size() > 20'000) {
+            setStatus(QStringLiteral("Stored calendar visibility is invalid"));
+            return;
+          }
+          QSet<QString> seen;
+          for (const QJsonValue& item : document.array()) {
+            if (!item.isString() || item.toString().isEmpty() || item.toString().size() > 256 ||
+                item.toString() != item.toString().trimmed() || seen.contains(item.toString())) {
               setStatus(QStringLiteral("Stored calendar visibility is invalid"));
               return;
             }
-            QSet<QString> seen;
-            for (const QJsonValue& item : document.array()) {
-              if (!item.isString() || item.toString().isEmpty() || item.toString().size() > 256 ||
-                  item.toString() != item.toString().trimmed() || seen.contains(item.toString())) {
-                setStatus(QStringLiteral("Stored calendar visibility is invalid"));
-                return;
-              }
-              seen.insert(item.toString());
-              values.append(item.toString());
-            }
+            seen.insert(item.toString());
+            values.append(item.toString());
           }
           if (visibleCalendarIds_ != values) {
             visibleCalendarIds_ = std::move(values);

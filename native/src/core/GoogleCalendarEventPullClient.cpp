@@ -4,6 +4,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -154,9 +155,16 @@ optionalString(const QJsonObject& object, QStringView key, qsizetype maximumLeng
   if (title.trimmed().isEmpty()) {
     return QStringLiteral("Untitled event");
   }
-  return title.size() <= kMaximumTitleLength && !title.contains(QChar::Null)
-             ? std::optional<QString>(title)
-             : std::nullopt;
+  if (title.contains(QChar::Null)) {
+    return std::nullopt;
+  }
+  if (title.size() > kMaximumTitleLength) {
+    qWarning().noquote() << "google.calendar_event_title_truncated"
+                          << "length" << title.size()
+                          << "limit" << kMaximumTitleLength;
+    return title.first(kMaximumTitleLength);
+  }
+  return title;
 }
 
 [[nodiscard]] std::optional<GoogleCalendarEventStatus> eventStatus(const QJsonObject& object) {
@@ -515,7 +523,8 @@ decodedObject(const QJsonObject& source, QStringView key, qsizetype maximumBytes
   QSet<QString> seenIds;
   QList<GoogleCalendarEventMirror> events;
   events.reserve(items.size());
-  for (const auto& itemValue : items) {
+  for (qsizetype itemIndex = 0; itemIndex < items.size(); ++itemIndex) {
+    const QJsonValue itemValue = items.at(itemIndex);
     if (!itemValue.isObject()) {
       return invalidPayloadError();
     }
@@ -584,6 +593,23 @@ decodedObject(const QJsonObject& source, QStringView key, qsizetype maximumBytes
         !eventReminders.has_value() || !conferenceData.has_value() || !attachments.has_value() ||
         !guestPermissions.has_value() || !statusProperties.has_value();
     if (malformed) {
+      qWarning().noquote()
+          << "google.calendar_event_payload_invalid"
+          << "item_index" << itemIndex
+          << "status" << status.has_value()
+          << "title" << title.has_value()
+          << "updated" << updatedAt.has_value()
+          << "recurrence" << recurrence.has_value()
+          << "sequence" << eventSequence.has_value()
+          << "start" << start.has_value()
+          << "end" << end.has_value()
+          << "event_type" << isKnownEventType(eventType)
+          << "attendees" << eventAttendees.has_value()
+          << "reminders" << eventReminders.has_value()
+          << "conference" << conferenceData.has_value()
+          << "attachments" << attachments.has_value()
+          << "permissions" << guestPermissions.has_value()
+          << "properties" << statusProperties.has_value();
       return invalidPayloadError();
     }
     seenIds.insert(idValue.toString());
