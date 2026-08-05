@@ -72,6 +72,17 @@ Before lock publication, a selected Git candidate must contain valid
 version with `package.version` after removing SemVer build metadata. A mismatch
 diagnostic identifies the package, selected tag, and observed metadata version.
 
+## HTTPS archive candidates
+
+The HTTPS catalog adapter accepts only validated candidates, so each candidate
+has an explicit URL, SHA-256 checksum, version, and safe package root. It
+reuses the archive fetcher's HTTPS-only redirect, TLS, checksum, and verified
+warm/offline-cache behaviour, then extracts the ZIP into disposable staging.
+Before admission, `wukong-package.toml` below the declared root must agree with
+both the catalog package name and canonical version; build metadata does not
+affect the version comparison. No lockfile or prepared package cache entry is
+published during this validation.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

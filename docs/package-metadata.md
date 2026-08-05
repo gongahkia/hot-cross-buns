@@ -8,6 +8,10 @@ It is required when validating a selected Git source-catalog candidate before
 lock publication. Its canonical `package.version` must agree with the selected
 Git tag version; SemVer build metadata does not affect that comparison.
 
+It is also required for an HTTPS source-catalog candidate before admission. Its
+`package.name` and canonical `package.version` must agree with the project
+catalog declaration.
+
 When present, schema one requires:
 
 ```toml
