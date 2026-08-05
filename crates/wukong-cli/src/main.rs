@@ -3454,9 +3454,10 @@ fn run_package(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<
     })?;
     match command.to_str() {
         Some("init") => run_package_init(arguments),
+        Some("validate") => run_package_validate(arguments),
         _ => Err(user_error(
             format!("unsupported package command {}", command.to_string_lossy()),
-            "run wukong package init [--path <directory>]",
+            "run wukong package <init|validate> [--path <directory>]",
         )),
     }
 }
@@ -3581,6 +3582,84 @@ fn package_init_field(argument: &OsString) -> Option<&'static str> {
     }
 }
 
+fn run_package_validate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_package_validate_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible package directory"),
+        )
+    })?;
+    let package_root = options.path.as_deref().unwrap_or(&current_directory);
+    let metadata = PackageMetadata::load_required(package_root)?;
+    let path = package_root.join(wukong_core::package_metadata::PACKAGE_METADATA_FILE_NAME);
+    if options.json {
+        emit_json_result(
+            &json!({
+                "path": path.display().to_string(),
+                "name": metadata.name().as_str(),
+                "version": metadata.version().to_string(),
+                "godot": metadata.godot().as_semver().to_string(),
+            })
+            .to_string(),
+        );
+    } else {
+        println!("validated {}", path.display());
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct PackageValidateOptions {
+    path: Option<PathBuf>,
+    json: bool,
+}
+
+fn parse_package_validate_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<PackageValidateOptions, Box<Diagnostic>> {
+    let mut options = PackageValidateOptions::default();
+    while let Some(argument) = arguments.next() {
+        if argument == "--path" {
+            let path = arguments.next().ok_or_else(|| {
+                user_error(
+                    "--path requires a package directory",
+                    "provide one existing package directory",
+                )
+            })?;
+            if options.path.replace(PathBuf::from(path)).is_some() {
+                return Err(user_error(
+                    "--path may be supplied only once",
+                    "provide one package directory",
+                ));
+            }
+            continue;
+        }
+        if argument == "--json" {
+            if options.json {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong package validate --json",
+                ));
+            }
+            options.json = true;
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported package validate argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --path <directory> or --json",
+        ));
+    }
+    Ok(options)
+}
+
 fn parse_init_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<PathBuf>, Box<Diagnostic>> {
@@ -3629,7 +3708,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|package <init>|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|package <init|validate>|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
