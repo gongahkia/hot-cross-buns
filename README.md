@@ -22,6 +22,8 @@ sources are available only through the opt-in AssetLib feature; package scripts
 are not implemented. `wukong outdated` reports
 Git tag updates without changing the project. `wukong doctor` checks local
 project, cache, executable, network-configuration, and lock health.
+`wukong source list` inspects reviewed catalog candidates without fetching
+sources or changing project files.
 
 ## Local-path workflow
 

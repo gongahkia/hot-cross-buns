@@ -59,3 +59,15 @@ Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited
 candidate remains unchanged.
+
+## Inspecting sources
+
+`wukong source list` reads and validates the project catalog without fetching
+sources or changing project files. It prints canonical package and candidate
+data in deterministic order. `--json` emits protocol-v1 JSON Lines; use
+`--project <path>` to select a project explicitly.
+
+Its terminal JSON result has `schema: 1` and `packages` in canonical name
+order. Each package contains `name` and `candidates`; Git candidates expose
+`kind`, `url`, `root`, and nullable `tag_prefix`, while HTTP candidates expose
+`kind`, `version`, `url`, `sha256`, and `root`.

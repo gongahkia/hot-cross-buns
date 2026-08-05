@@ -48,6 +48,10 @@ use wukong_core::{
     project::ProjectRoot,
     provenance::ProvenanceReport,
     source::CancellationToken,
+    source_catalog::{
+        SOURCE_CATALOG_FILE_NAME, SOURCE_CATALOG_SCHEMA, SourceCatalog, ValidatedCatalogCandidate,
+        ValidatedSourceCatalog,
+    },
     transactional_file::{FileSnapshot, write_atomic},
 };
 
@@ -121,6 +125,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "status" => match run_status(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "source" => match run_source(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -1267,6 +1275,149 @@ fn render_status_json(
             "name": package.name().as_str(),
             "immutable_id": package.source_immutable_id().as_str(),
             "package_checksum": package.package_sha256(),
+        })).collect::<Vec<_>>(),
+    })
+    .to_string()
+}
+
+fn run_source(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    match arguments.next().as_deref() {
+        Some(command) if command == "list" => run_source_list(arguments),
+        Some(command) => Err(user_error(
+            format!("unsupported source command {}", command.to_string_lossy()),
+            "run wukong source list [--json] [--project <path>]",
+        )),
+        None => Err(user_error(
+            "source requires a subcommand",
+            "run wukong source list [--json] [--project <path>]",
+        )),
+    }
+}
+
+struct SourceListOptions {
+    project: Option<PathBuf>,
+    json: bool,
+}
+
+fn run_source_list(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_source_list_arguments(arguments)?;
+    if options.json {
+        emit_json_started("source-list");
+    }
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    if options.json {
+        emit_json_progress("source-list", "reading-catalog");
+    }
+    let catalog = SourceCatalog::load(&path)?.validate(&path)?;
+    if options.json {
+        emit_json_result(&render_source_list_json(&catalog));
+    } else {
+        render_source_list_human(&catalog);
+    }
+    Ok(())
+}
+
+fn parse_source_list_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<SourceListOptions, Box<Diagnostic>> {
+    let mut options = SourceListOptions {
+        project: None,
+        json: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong source list --json",
+                ));
+            }
+            continue;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported source list argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --json or --project <path>",
+        ));
+    }
+    Ok(options)
+}
+
+fn render_source_list_human(catalog: &ValidatedSourceCatalog) {
+    if catalog.packages().is_empty() {
+        println!("source catalog: no candidates");
+        return;
+    }
+    for (name, candidates) in catalog.packages() {
+        println!("{name}:");
+        for candidate in candidates {
+            match candidate {
+                ValidatedCatalogCandidate::Git(candidate) => {
+                    print!(
+                        "  git url={} root={}",
+                        candidate.source().as_str(),
+                        candidate.root().display()
+                    );
+                    if let Some(prefix) = candidate.tag_prefix() {
+                        print!(" tag-prefix={}", prefix.as_str());
+                    }
+                    println!();
+                }
+                ValidatedCatalogCandidate::Http(candidate) => println!(
+                    "  http version={} url={} sha256={} root={}",
+                    candidate.version(),
+                    candidate.url(),
+                    candidate.sha256(),
+                    candidate.root().display(),
+                ),
+            }
+        }
+    }
+}
+
+fn render_source_list_json(catalog: &ValidatedSourceCatalog) -> String {
+    json!({
+        "schema": SOURCE_CATALOG_SCHEMA,
+        "packages": catalog.packages().iter().map(|(name, candidates)| json!({
+            "name": name.as_str(),
+            "candidates": candidates.iter().map(|candidate| match candidate {
+                ValidatedCatalogCandidate::Git(candidate) => json!({
+                    "kind": "git",
+                    "url": candidate.source().as_str(),
+                    "root": candidate.root().to_string_lossy(),
+                    "tag_prefix": candidate.tag_prefix().map(wukong_core::git_fetch::GitTagPrefix::as_str),
+                }),
+                ValidatedCatalogCandidate::Http(candidate) => json!({
+                    "kind": "http",
+                    "version": candidate.version().to_string(),
+                    "url": candidate.url(),
+                    "sha256": candidate.sha256(),
+                    "root": candidate.root().to_string_lossy(),
+                }),
+            }).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
     })
     .to_string()
@@ -2907,7 +3058,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source list|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
