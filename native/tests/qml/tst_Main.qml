@@ -224,6 +224,20 @@ TestCase {
         view.destroy()
     }
 
+    function test_googleOnboardingMasksSavedClientSecret() {
+        const component = Qt.createComponent("../../qml/GoogleOnboardingView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const view = component.createObject(null, { clientId: "client-id" })
+        verify(view !== null)
+        view.clientSecretField.text = "client-secret"
+        view.saveClientIdButton.click()
+        view.statusMessage = "Google client configuration saved"
+        verify(view.clientSecretSavedIndicator.visible)
+        compare(view.clientSecretField.text, "")
+        compare(view.clientSecretField.placeholderText, "••••••••••••")
+        view.destroy()
+    }
+
     function test_sidebarRoutesSelectionThroughWindow() {
         startedTransitions = []
         completedTransitions = []

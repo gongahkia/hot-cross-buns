@@ -13,22 +13,31 @@ Pane {
     property string setupAction: ""
     property bool awaitingSetupStatus: false
     property bool clientIdSaved: false
+    property bool clientSecretSaved: false
+    property bool savingClientSecret: false
     property alias clientIdField: clientIdField
     property alias clientSecretField: clientSecretField
     property alias clientIdSavedIndicator: clientIdSavedIndicator
+    property alias clientSecretSavedIndicator: clientSecretSavedIndicator
     property alias saveClientIdButton: saveClientIdButton
     property alias connectGoogleButton: connectGoogleButton
     property alias statusLabel: statusLabel
     signal saveClientIdRequested(string clientId, string clientSecret)
     signal connectGoogleRequested()
 
+    Component.onCompleted: clientSecretSaved = hasClientSecret
+
+    onHasClientSecretChanged: clientSecretSaved = hasClientSecret
+
     function awaitSetupStatus(action) {
         statusBeforeSetupAction = statusMessage
         setupStatusMessage = ""
         setupAction = action
         awaitingSetupStatus = true
-        if (action === "save")
+        if (action === "save") {
             clientIdSaved = false
+            clientSecretSaved = false
+        }
     }
 
     onStatusMessageChanged: {
@@ -36,6 +45,7 @@ Pane {
             awaitingSetupStatus = false
             if (setupAction === "save" && statusMessage === "Google client configuration saved") {
                 clientIdSaved = true
+                clientSecretSaved = savingClientSecret
                 clientSecretField.clear()
                 return
             }
@@ -137,7 +147,10 @@ Pane {
                             placeholderText: "Desktop OAuth client ID"
                             Accessible.name: placeholderText
                             selectByMouse: true
-                            onTextEdited: root.clientIdSaved = false
+                            onTextEdited: {
+                                root.clientIdSaved = false
+                                root.clientSecretSaved = false
+                            }
                         }
 
                         Label {
@@ -151,14 +164,28 @@ Pane {
                         }
                     }
 
-                    TextField {
-                        id: clientSecretField
+                    RowLayout {
                         Layout.fillWidth: true
-                        placeholderText: "Desktop OAuth client secret"
-                        echoMode: TextInput.Password
-                        Accessible.name: placeholderText
-                        selectByMouse: true
-                        onTextEdited: root.clientIdSaved = false
+
+                        TextField {
+                            id: clientSecretField
+                            Layout.fillWidth: true
+                            placeholderText: root.clientSecretSaved ? "••••••••••••" : "Desktop OAuth client secret"
+                            echoMode: TextInput.Password
+                            Accessible.name: "Desktop OAuth client secret"
+                            selectByMouse: true
+                            onTextEdited: root.clientSecretSaved = false
+                        }
+
+                        Label {
+                            id: clientSecretSavedIndicator
+                            visible: root.clientSecretSaved
+                            text: "✓"
+                            color: "#16803c"
+                            font.pixelSize: Theme.labelFontSize
+                            font.bold: true
+                            Accessible.name: "Google client secret saved"
+                        }
                     }
 
                     Button {
@@ -167,6 +194,9 @@ Pane {
                         enabled: clientIdField.text.trim().length > 0 && !root.busy
                         Accessible.name: text
                         onClicked: {
+                            root.savingClientSecret = clientSecretField.text.trim().length > 0
+                                                       || (root.hasClientSecret
+                                                           && clientIdField.text.trim() === root.clientId)
                             root.awaitSetupStatus("save")
                             root.saveClientIdRequested(clientIdField.text, clientSecretField.text)
                         }

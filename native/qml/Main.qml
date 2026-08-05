@@ -1529,14 +1529,37 @@ ApplicationWindow {
                     Accessible.name: placeholderText
                 }
 
-                TextField {
-                    id: googleClientSecretField
+                RowLayout {
                     Layout.fillWidth: true
-                    placeholderText: window.controllerBool("hasClientSecret", false)
-                                     ? "Desktop OAuth client secret (leave blank to keep saved value)"
-                                     : "Desktop OAuth client secret"
-                    echoMode: TextInput.Password
-                    Accessible.name: placeholderText
+
+                    TextField {
+                        id: googleClientSecretField
+                        Layout.fillWidth: true
+                        placeholderText: window.controllerBool("hasClientSecret", false)
+                                         ? "••••••••••••"
+                                         : "Desktop OAuth client secret"
+                        echoMode: TextInput.Password
+                        Accessible.name: "Desktop OAuth client secret"
+                    }
+
+                    Label {
+                        visible: googleClientSecretField.text.length === 0
+                                 && window.controllerBool("hasClientSecret", false)
+                        text: "✓"
+                        color: "#16803c"
+                        font.pixelSize: Theme.labelFontSize
+                        font.bold: true
+                        Accessible.name: "Google client secret saved"
+                    }
+                }
+
+                Connections {
+                    target: window.appController
+
+                    function onStatusMessageChanged() {
+                        if (window.controllerString("statusMessage", "") === "Google client configuration saved")
+                            googleClientSecretField.clear()
+                    }
                 }
 
                 Button {
