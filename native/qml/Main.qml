@@ -1071,6 +1071,7 @@ ApplicationWindow {
         NavigationSidebar {
             id: navigationSidebar
             visible: window.currentPage !== "Onboarding"
+            SplitView.preferredWidth: visible ? Theme.navigationWidth : 0
             commandRegistry: window.navigationOnlyCommands()
             currentPage: window.currentPage
             googleConnected: window.appController === null || window.appController.googleConnected !== false
@@ -2196,7 +2197,8 @@ ApplicationWindow {
             ColumnLayout {
                 anchors.fill: parent
                 visible: window.currentPage !== "Tasks" && window.currentPage !== "Notes" &&
-                         window.currentPage !== "Calendar" && window.currentPage !== "Settings"
+                         window.currentPage !== "Calendar" && window.currentPage !== "Settings" &&
+                         window.currentPage !== "Onboarding"
                 spacing: Theme.spacingMedium
                 Label {
                     text: window.currentPage

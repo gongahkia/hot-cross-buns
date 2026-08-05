@@ -177,6 +177,7 @@ TestCase {
         compare(mainWindow.currentPage, "Onboarding")
         verify(mainWindow.googleOnboarding.visible)
         verify(!mainWindow.navigationSidebar.visible)
+        compare(mainWindow.navigationSidebar.SplitView.preferredWidth, 0)
         mainWindow.destroy()
         commands.destroy()
     }
