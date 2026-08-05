@@ -311,6 +311,56 @@ root = "addons/alpha"
 }
 
 #[test]
+fn invariant_catalog_complete_validation_reports_every_declaration_failure_in_order() {
+    let catalog = parse(
+        r#"
+schema = 1
+
+[[package]]
+name = "Bad_Name"
+[package.git]
+url = "https://user:secret-value@example.test/alpha.git"
+root = "../addons/alpha"
+tag-prefix = ""
+
+[[package]]
+name = "alpha"
+[package.http]
+version = "not-a-version"
+url = "https://example.test/alpha.zip?access_token=secret-value"
+sha256 = "ABC"
+root = "/addons/alpha"
+"#,
+    );
+
+    let errors = catalog
+        .validate_all(Path::new(CATALOG_PATH))
+        .expect_err("invalid declarations should fail");
+    assert_eq!(
+        errors
+            .iter()
+            .map(|error| error.message())
+            .collect::<Vec<_>>(),
+        [
+            "package.Bad_Name.name is invalid",
+            "package.Bad_Name.git.url is invalid",
+            "package.Bad_Name.git.root is invalid",
+            "package.Bad_Name.git.tag-prefix is invalid",
+            "package.alpha.http.version is invalid",
+            "package.alpha.http.url is invalid",
+            "package.alpha.http.sha256 is invalid",
+            "package.alpha.http.root is invalid",
+        ]
+    );
+    for error in errors {
+        assert_eq!(error.code(), ErrorCode::UserInput);
+        assert!(error.recovery().is_some());
+        assert!(!error.message().contains("secret-value"));
+        assert!(!error.cause().unwrap_or_default().contains("secret-value"));
+    }
+}
+
+#[test]
 fn invariant_catalog_serialization_emits_only_canonical_validated_schema_one_fields() {
     let catalog = parse(&format!(
         r#"

@@ -26,6 +26,9 @@ pub const SOURCE_CATALOG_SCHEMA: i64 = 1;
 /// The result type returned by source-catalog parsing.
 pub type SourceCatalogResult<T> = Result<T, Box<Diagnostic>>;
 
+/// The result type returned by complete source-catalog validation.
+pub type SourceCatalogValidationResult<T> = Result<T, Vec<Box<Diagnostic>>>;
+
 /// A parsed source catalog with package names and candidates in deterministic order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceCatalog {
@@ -156,35 +159,67 @@ impl SourceCatalog {
     /// Returns a user diagnostic for invalid package names, source URLs, package
     /// roots, versions, checksums, tag prefixes, or duplicate candidates.
     pub fn validate(&self, path: &Path) -> SourceCatalogResult<ValidatedSourceCatalog> {
+        self.validate_all(path)
+            .map_err(|mut errors| errors.remove(0))
+    }
+
+    /// Validates every declaration without accessing the filesystem or network.
+    ///
+    /// # Errors
+    ///
+    /// Returns deterministic user diagnostics for every invalid declaration.
+    pub fn validate_all(
+        &self,
+        path: &Path,
+    ) -> SourceCatalogValidationResult<ValidatedSourceCatalog> {
         let mut packages = BTreeMap::new();
+        let mut errors = Vec::new();
         for (declared_name, candidates) in &self.packages {
-            let package = PackageName::parse(declared_name.as_str()).map_err(|error| {
-                validation_error(
-                    path,
-                    declared_name.as_str(),
-                    &field(declared_name, "name"),
-                    error,
-                    "use a lowercase ASCII package name with internal hyphens only",
-                )
-            })?;
+            let package = match PackageName::parse(declared_name.as_str()) {
+                Ok(package) => Some(package),
+                Err(error) => {
+                    errors.push(validation_error(
+                        path,
+                        declared_name.as_str(),
+                        &field(declared_name, "name"),
+                        error,
+                        "use a lowercase ASCII package name with internal hyphens only",
+                    ));
+                    None
+                }
+            };
             let mut validated = Vec::with_capacity(candidates.len());
             let mut identities = BTreeSet::new();
             for candidate in candidates {
-                let (candidate, identity) = validate_candidate(path, declared_name, candidate)?;
+                let (candidate, identity) =
+                    match validate_candidate_all(path, declared_name, candidate) {
+                        Ok(candidate) => candidate,
+                        Err(candidate_errors) => {
+                            errors.extend(candidate_errors);
+                            continue;
+                        }
+                    };
                 if !identities.insert(identity) {
-                    return Err(validation_error(
+                    errors.push(validation_error(
                         path,
                         declared_name.as_str(),
                         &field(declared_name, "source"),
                         "duplicate source candidate",
                         "remove the duplicate candidate or make its source identity distinct",
                     ));
+                    continue;
                 }
                 validated.push(candidate);
             }
-            packages.insert(package, validated);
+            if let Some(package) = package {
+                packages.insert(package, validated);
+            }
         }
-        Ok(ValidatedSourceCatalog { packages })
+        if errors.is_empty() {
+            Ok(ValidatedSourceCatalog { packages })
+        } else {
+            Err(errors)
+        }
     }
 }
 
@@ -409,46 +444,62 @@ enum CandidateIdentity {
     },
 }
 
-fn validate_candidate(
+fn validate_candidate_all(
     path: &Path,
     name: &CatalogPackageName,
     candidate: &CatalogCandidate,
-) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+) -> SourceCatalogValidationResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
     match candidate {
-        CatalogCandidate::Git(candidate) => validate_git_candidate(path, name, candidate),
-        CatalogCandidate::Http(candidate) => validate_http_candidate(path, name, candidate),
+        CatalogCandidate::Git(candidate) => validate_git_candidate_all(path, name, candidate),
+        CatalogCandidate::Http(candidate) => validate_http_candidate_all(path, name, candidate),
     }
 }
 
-fn validate_git_candidate(
+fn validate_git_candidate_all(
     path: &Path,
     name: &CatalogPackageName,
     candidate: &CatalogGitCandidate,
-) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
-    let source = canonicalize_git_url(candidate.url()).map_err(|error| {
-        validation_error(
-            path,
-            name.as_str(),
-            &field(name, "git.url"),
-            error.message(),
-            "use a credential-free HTTPS or SSH Git repository URL",
-        )
-    })?;
-    let root = validate_root(path, name, "git.root", candidate.root())?;
-    let tag_prefix = candidate
-        .tag_prefix()
-        .map(|prefix| {
-            GitTagPrefix::parse(prefix).map_err(|error| {
-                validation_error(
+) -> SourceCatalogValidationResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+    let mut errors = Vec::new();
+    let source = match canonicalize_git_url(candidate.url()) {
+        Ok(source) => Some(source),
+        Err(error) => {
+            errors.push(validation_error(
+                path,
+                name.as_str(),
+                &field(name, "git.url"),
+                error.message(),
+                "use a credential-free HTTPS or SSH Git repository URL",
+            ));
+            None
+        }
+    };
+    let root = match validate_root(path, name, "git.root", candidate.root()) {
+        Ok(root) => Some(root),
+        Err(error) => {
+            errors.push(error);
+            None
+        }
+    };
+    let tag_prefix = match candidate.tag_prefix() {
+        Some(prefix) => match GitTagPrefix::parse(prefix) {
+            Ok(prefix) => Some(Some(prefix)),
+            Err(error) => {
+                errors.push(validation_error(
                     path,
                     name.as_str(),
                     &field(name, "git.tag-prefix"),
                     error,
                     "use a non-empty prefix that forms a safe Git tag",
-                )
-            })
-        })
-        .transpose()?;
+                ));
+                None
+            }
+        },
+        None => Some(None),
+    };
+    let (Some(source), Some(root), Some(tag_prefix)) = (source, root, tag_prefix) else {
+        return Err(errors);
+    };
     let identity = CandidateIdentity::Git {
         source: source.as_str().to_owned(),
         root: root.clone(),
@@ -464,31 +515,54 @@ fn validate_git_candidate(
     ))
 }
 
-fn validate_http_candidate(
+fn validate_http_candidate_all(
     path: &Path,
     name: &CatalogPackageName,
     candidate: &CatalogHttpCandidate,
-) -> SourceCatalogResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
-    let version = SemanticVersion::parse(candidate.version()).map_err(|error| {
-        validation_error(
-            path,
-            name.as_str(),
-            &field(name, "http.version"),
-            error,
-            "use a complete semantic version such as 1.2.3",
-        )
-    })?;
-    let url = canonicalize_archive_url(candidate.url()).map_err(|error| {
-        validation_error(
-            path,
-            name.as_str(),
-            &field(name, "http.url"),
-            error.message(),
-            "use a credential-free HTTPS archive URL without a fragment",
-        )
-    })?;
-    validate_sha256(path, name, candidate.sha256())?;
-    let root = validate_root(path, name, "http.root", candidate.root())?;
+) -> SourceCatalogValidationResult<(ValidatedCatalogCandidate, CandidateIdentity)> {
+    let mut errors = Vec::new();
+    let version = match SemanticVersion::parse(candidate.version()) {
+        Ok(version) => Some(version),
+        Err(error) => {
+            errors.push(validation_error(
+                path,
+                name.as_str(),
+                &field(name, "http.version"),
+                error,
+                "use a complete semantic version such as 1.2.3",
+            ));
+            None
+        }
+    };
+    let url = match canonicalize_archive_url(candidate.url()) {
+        Ok(url) => Some(url),
+        Err(error) => {
+            errors.push(validation_error(
+                path,
+                name.as_str(),
+                &field(name, "http.url"),
+                error.message(),
+                "use a credential-free HTTPS archive URL without a fragment",
+            ));
+            None
+        }
+    };
+    if let Err(error) = validate_sha256(path, name, candidate.sha256()) {
+        errors.push(error);
+    }
+    let root = match validate_root(path, name, "http.root", candidate.root()) {
+        Ok(root) => Some(root),
+        Err(error) => {
+            errors.push(error);
+            None
+        }
+    };
+    let (Some(version), Some(url), Some(root)) = (version, url, root) else {
+        return Err(errors);
+    };
+    if !errors.is_empty() {
+        return Err(errors);
+    }
     let identity = CandidateIdentity::Http {
         version: version.to_string(),
         url: url.clone(),

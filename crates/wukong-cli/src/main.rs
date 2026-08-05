@@ -129,7 +129,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "source" => match run_source(arguments) {
-            Ok(()) => ProcessExit::Success,
+            Ok(exit) => exit,
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "lock" => match run_lock(arguments) {
@@ -1280,27 +1280,32 @@ fn render_status_json(
     .to_string()
 }
 
-fn run_source(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+fn run_source(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<ProcessExit, Box<Diagnostic>> {
     match arguments.next().as_deref() {
-        Some(command) if command == "list" => run_source_list(arguments),
+        Some(command) if command == "list" => {
+            run_source_list(arguments).map(|()| ProcessExit::Success)
+        }
+        Some(command) if command == "validate" => run_source_validate(arguments),
         Some(command) => Err(user_error(
             format!("unsupported source command {}", command.to_string_lossy()),
-            "run wukong source list [--json] [--project <path>]",
+            "run wukong source <list|validate> [--json] [--project <path>]",
         )),
         None => Err(user_error(
             "source requires a subcommand",
-            "run wukong source list [--json] [--project <path>]",
+            "run wukong source <list|validate> [--json] [--project <path>]",
         )),
     }
 }
 
-struct SourceListOptions {
+struct SourceReadOptions {
     project: Option<PathBuf>,
     json: bool,
 }
 
 fn run_source_list(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
-    let options = parse_source_list_arguments(arguments)?;
+    let options = parse_source_read_arguments(arguments, "list")?;
     if options.json {
         emit_json_started("source-list");
     }
@@ -1328,10 +1333,58 @@ fn run_source_list(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<
     Ok(())
 }
 
-fn parse_source_list_arguments(
+fn run_source_validate(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ProcessExit, Box<Diagnostic>> {
+    let options = parse_source_read_arguments(arguments, "validate")?;
+    if options.json {
+        emit_json_started("source-validate");
+    }
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    if options.json {
+        emit_json_progress("source-validate", "validating-catalog");
+    }
+    let catalog = SourceCatalog::load(&path)?;
+    match catalog.validate_all(&path) {
+        Ok(_) => {
+            if options.json {
+                emit_json_result(
+                    &json!({"schema": SOURCE_CATALOG_SCHEMA, "valid": true}).to_string(),
+                );
+            } else {
+                println!("source catalog: valid");
+            }
+            Ok(ProcessExit::Success)
+        }
+        Err(errors) => {
+            for error in errors {
+                if options.json {
+                    eprintln!("{}", render_json(&error));
+                } else {
+                    eprintln!("{}", render_human(&error, false));
+                }
+            }
+            Ok(ProcessExit::User)
+        }
+    }
+}
+
+fn parse_source_read_arguments(
     mut arguments: impl Iterator<Item = OsString>,
-) -> Result<SourceListOptions, Box<Diagnostic>> {
-    let mut options = SourceListOptions {
+    command: &str,
+) -> Result<SourceReadOptions, Box<Diagnostic>> {
+    let mut options = SourceReadOptions {
         project: None,
         json: false,
     };
@@ -1340,7 +1393,7 @@ fn parse_source_list_arguments(
             if std::mem::replace(&mut options.json, true) {
                 return Err(user_error(
                     "--json may be supplied only once",
-                    "run wukong source list --json",
+                    format!("run wukong source {command} --json"),
                 ));
             }
             continue;
@@ -1357,7 +1410,7 @@ fn parse_source_list_arguments(
         }
         return Err(user_error(
             format!(
-                "unsupported source list argument {}",
+                "unsupported source {command} argument {}",
                 argument.to_string_lossy()
             ),
             "use --json or --project <path>",
@@ -3058,7 +3111,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source list|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <list|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

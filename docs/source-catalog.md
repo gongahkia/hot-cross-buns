@@ -71,3 +71,9 @@ Its terminal JSON result has `schema: 1` and `packages` in canonical name
 order. Each package contains `name` and `candidates`; Git candidates expose
 `kind`, `url`, `root`, and nullable `tag_prefix`, while HTTP candidates expose
 `kind`, `version`, `url`, `sha256`, and `root`.
+
+`wukong source validate` reports every semantic declaration failure in a stable
+order without fetching sources or changing project files. On success it prints
+`source catalog: valid`; `--json` emits protocol-v1 start/progress events and a
+terminal success result. A validation failure exits with code 2 and emits one
+protocol-v1 diagnostic line per failed declaration field.
