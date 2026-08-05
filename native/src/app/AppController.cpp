@@ -815,6 +815,11 @@ QString AppController::calendarDateLabel() const {
   return localizedCalendarDate(calendarDate_, QStringLiteral("d MMM yyyy"));
 }
 
+QString AppController::calendarMonthLabel() const {
+  return calendarDate_.isValid() ? QLocale::c().toString(calendarDate_, QStringLiteral("MMMM yyyy"))
+                                 : QString();
+}
+
 QString AppController::calendarDayHeading() const {
   return localizedCalendarDate(calendarDate_, QStringLiteral("dddd, d MMMM"));
 }

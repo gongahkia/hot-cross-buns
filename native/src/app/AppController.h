@@ -110,6 +110,7 @@ class AppController final : public QObject {
                  bulkTextRecurrenceScopeChanged)
   Q_PROPERTY(QString calendarDate READ calendarDate NOTIFY calendarDateChanged)
   Q_PROPERTY(QString calendarDateLabel READ calendarDateLabel NOTIFY calendarLabelsChanged)
+  Q_PROPERTY(QString calendarMonthLabel READ calendarMonthLabel NOTIFY calendarLabelsChanged)
   Q_PROPERTY(QString calendarDayHeading READ calendarDayHeading NOTIFY calendarLabelsChanged)
   Q_PROPERTY(QVariantList calendarWeekLabels READ calendarWeekLabels NOTIFY calendarLabelsChanged)
   Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
@@ -200,6 +201,7 @@ public:
   [[nodiscard]] int bulkTextRecurrenceScope() const;
   [[nodiscard]] QString calendarDate() const;
   [[nodiscard]] QString calendarDateLabel() const;
+  [[nodiscard]] QString calendarMonthLabel() const;
   [[nodiscard]] QString calendarDayHeading() const;
   [[nodiscard]] QVariantList calendarWeekLabels() const;
   [[nodiscard]] int appearanceMode() const;

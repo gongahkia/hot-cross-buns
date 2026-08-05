@@ -7,6 +7,7 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -182,6 +183,12 @@ MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
     }
     QList<CalendarAllDayLayoutEvent> allDayEvents;
     QList<CalendarEventSummary> allDaySources;
+    const auto gridDayIndex = [&gridStart](const QDate& date) {
+      const qint64 index = gridStart.daysTo(date);
+      return static_cast<int>(std::clamp(index,
+                                         static_cast<qint64>(std::numeric_limits<int>::min()),
+                                         static_cast<qint64>(std::numeric_limits<int>::max())));
+    };
     for (const CalendarEventSummary& event : events) {
       if (!event.allDay) {
         continue;
@@ -191,8 +198,8 @@ MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
         continue;
       }
       allDayEvents.append({.id = QString::number(allDaySources.size()),
-                           .startDayIndex = gridStart.daysTo(dates->first),
-                           .endDayIndex = gridStart.daysTo(dates->second)});
+                           .startDayIndex = gridDayIndex(dates->first),
+                           .endDayIndex = gridDayIndex(dates->second)});
       allDaySources.append(event);
     }
     const CalendarAllDayLayout layout = CalendarLayoutEngine::layoutAllDay(

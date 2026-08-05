@@ -70,6 +70,8 @@ ApplicationWindow {
                                   ? appController.calendarDate : fallbackCalendarDate()
     property string calendarDateLabel: appController !== null && typeof appController.calendarDateLabel === "string"
                                       ? appController.calendarDateLabel : calendarDate
+    property string calendarMonthLabel: appController !== null && typeof appController.calendarMonthLabel === "string"
+                                       ? appController.calendarMonthLabel : calendarDate.slice(0, 7)
     property string calendarDayHeading: appController !== null && typeof appController.calendarDayHeading === "string"
                                        ? appController.calendarDayHeading : calendarDate
     property var nativeCalendarWeekLabels: appController !== null && appController.calendarWeekLabels !== undefined
@@ -1584,7 +1586,7 @@ ApplicationWindow {
                         calendarVisibility: calendarVisibility
                         selectedEventIds: window.selectedCalendarEventIds
                         selectionMode: window.calendarSelectionMode
-                        monthLabel: window.calendarDisplayDate()
+                        monthLabel: window.calendarMonthLabel
                         weekStartDay: window.weekStartDay
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
