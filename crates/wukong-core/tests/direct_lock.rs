@@ -11,7 +11,7 @@ use wukong_core::{
         update_direct_dependencies,
     },
     direct_sync::sync_direct_dependencies,
-    lockfile::LockedSource,
+    lockfile::{GodotCompatibility, LockedSource},
     manifest::Manifest,
     source::CancellationToken,
 };
@@ -44,6 +44,9 @@ fn invariant_multiple_direct_local_dependencies_produce_a_deterministic_lock() {
             .as_str()
             .starts_with("sha256:")
     }));
+    assert!(first.packages().values().all(|package| {
+        package.version().is_some() && matches!(package.godot(), GodotCompatibility::Requirement(_))
+    }));
 }
 
 #[test]
@@ -61,7 +64,46 @@ fn invariant_lock_publishes_a_verified_prepared_package_cache_object() {
         .expect("lock should publish a verified cache object");
 
     assert_eq!(object.sha256(), package.package_sha256());
-    assert_eq!(object.prepared().files().len(), 1);
+    assert_eq!(object.prepared().files().len(), 2);
+}
+
+#[test]
+fn invariant_missing_metadata_fails_before_cache_or_lock_publication() {
+    let fixture = Fixture::new();
+    fixture.addon_without_metadata("addon", "first");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let error = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect_err("missing metadata must fail");
+
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert_eq!(error.package(), Some("addon"));
+    assert!(error.message().contains("wukong-package.toml is required"));
+    assert!(!cache.packages().exists());
+}
+
+#[test]
+fn invariant_metadata_name_mismatch_fails_before_cache_or_lock_publication() {
+    let fixture = Fixture::new();
+    let addon = fixture.addon("addon", "first");
+    Fixture::metadata(&addon, "other");
+    let manifest = fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
+    let cache =
+        CacheLayout::for_root(fixture.directory.path().join("cache")).expect("cache should create");
+
+    let error = lock_direct_dependencies(fixture.manifest_path(), &manifest, None, &cache, true)
+        .expect_err("metadata name mismatch must fail");
+
+    assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+    assert_eq!(error.package(), Some("addon"));
+    assert!(
+        error
+            .message()
+            .contains("does not match declared package addon")
+    );
+    assert!(!cache.packages().exists());
 }
 
 #[test]
@@ -188,6 +230,8 @@ fn invariant_changed_layout_override_relocks_the_same_source() {
     fs::create_dir_all(source.join("beta")).expect("beta source should create");
     fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
     fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
+    Fixture::metadata(&source.join("alpha"), "addon");
+    Fixture::metadata(&source.join("beta"), "addon");
     let alpha = fixture.manifest(
         "[dev-dependencies]\naddon = { path = \"suite\", root = \"addons/alpha\", target = \"addons/alpha\" }\n",
     );
@@ -332,7 +376,25 @@ impl Fixture {
         let addon = self.directory.path().join(name);
         fs::create_dir_all(&addon).expect("addon should create");
         fs::write(addon.join("plugin.gd"), contents).expect("addon should write");
+        Self::metadata(&addon, name);
         addon
+    }
+
+    fn addon_without_metadata(&self, name: &str, contents: &str) -> PathBuf {
+        let addon = self.directory.path().join(name);
+        fs::create_dir_all(&addon).expect("addon should create");
+        fs::write(addon.join("plugin.gd"), contents).expect("addon should write");
+        addon
+    }
+
+    fn metadata(root: &Path, name: &str) {
+        fs::write(
+            root.join("wukong-package.toml"),
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"
+            ),
+        )
+        .expect("package metadata should write");
     }
     fn manifest_path(&self) -> &Path {
         &self.manifest_path

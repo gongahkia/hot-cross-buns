@@ -19,8 +19,7 @@ fn invariant_package_owned_metadata_becomes_a_transitive_candidate() {
     )
     .expect("metadata fixture should write");
 
-    let candidate = PackageCandidate::load_optional(fixture.path())
-        .expect("metadata should load")
+    let candidate = PackageCandidate::load_required(fixture.path())
         .expect("metadata should create a candidate");
 
     assert_eq!(candidate.version().to_string(), "1.2.3");

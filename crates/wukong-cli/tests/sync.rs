@@ -41,7 +41,7 @@ fn invariant_install_materialises_locked_local_dependencies_and_sync_is_a_noop()
             .expect("addon should materialise"),
         "first"
     );
-    assert!(String::from_utf8_lossy(&sync.stdout).contains("0 written, 1 unchanged, 0 removed"));
+    assert!(String::from_utf8_lossy(&sync.stdout).contains("0 written, 2 unchanged, 0 removed"));
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn invariant_sync_json_streams_a_terminal_materialisation_summary() {
     assert_eq!(package_ready["total"], 1);
     assert_eq!(events[0]["command"], "sync");
     let result = &events.last().expect("result event")["result"];
-    assert_eq!(result["written"], 1);
+    assert_eq!(result["written"], 2);
     assert_eq!(result["unchanged"], 0);
     assert_eq!(result["removed"], 0);
 }
@@ -106,7 +106,7 @@ fn invariant_sync_no_progress_preserves_a_plain_human_summary() {
         .expect("sync should run");
 
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("sync: 1 written"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("sync: 2 written"));
     assert!(!String::from_utf8_lossy(&output.stderr).contains('\u{1b}'));
 }
 
@@ -115,6 +115,16 @@ fn invariant_locked_and_frozen_sync_refuse_a_changed_manifest_without_project_mu
     let fixture = Fixture::new();
     fixture.addon("first", "first");
     fixture.addon("second", "second");
+    fs::write(
+        fixture.root().join("first/wukong-package.toml"),
+        "[package]\nschema=1\nname=\"addon\"\nversion=\"1.0.0\"\ngodot=\"4\"\n",
+    )
+    .expect("first package metadata should write");
+    fs::write(
+        fixture.root().join("second/wukong-package.toml"),
+        "[package]\nschema=1\nname=\"addon\"\nversion=\"1.0.0\"\ngodot=\"4\"\n",
+    )
+    .expect("second package metadata should write");
     fixture.manifest("[dev-dependencies]\naddon = { path = \"first\" }\n");
     assert!(
         command("lock", fixture.root())
@@ -197,7 +207,7 @@ fn invariant_sync_removes_an_unmodified_package_absent_from_the_new_lockfile() {
 
     assert!(output.status.success());
     assert!(!fixture.root().join("addons/addon/plugin.gd").exists());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("0 written, 0 unchanged, 1 removed"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("0 written, 0 unchanged, 2 removed"));
 }
 
 #[test]
@@ -344,7 +354,7 @@ fn invariant_project_mutation_lock_blocks_another_process_and_recovers_after_rel
 }
 
 #[test]
-fn invariant_unknown_package_godot_metadata_is_reported_without_blocking_lock() {
+fn invariant_required_package_godot_metadata_avoids_unknown_compatibility() {
     let fixture = Fixture::new();
     fixture.addon("addon", "first");
     fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
@@ -354,7 +364,7 @@ fn invariant_unknown_package_godot_metadata_is_reported_without_blocking_lock() 
         .expect("lock should run");
 
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("unknown for addon"));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("unknown for addon"));
 }
 
 fn command(subcommand: &str, current_directory: &Path) -> Command {
@@ -412,6 +422,7 @@ impl Fixture {
         let addon = self.root.join(name);
         fs::create_dir(&addon).expect("addon should create");
         fs::write(addon.join("plugin.gd"), contents).expect("addon should write");
+        self.addon_metadata(name, "4");
     }
 
     fn addon_metadata(&self, name: &str, godot: &str) {

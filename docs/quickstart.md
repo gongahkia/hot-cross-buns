@@ -13,6 +13,17 @@ Add a local addon declaration to `wukong.toml`:
 example-addon = { path = "../example-addon" }
 ```
 
+The addon directory must contain self-describing package metadata:
+
+```toml
+# ../example-addon/wukong-package.toml
+[package]
+schema = 1
+name = "example-addon"
+version = "1.0.0"
+godot = "4"
+```
+
 Lock the exact local content and synchronise it into the project:
 
 ```sh

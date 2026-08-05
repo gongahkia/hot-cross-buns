@@ -33,9 +33,9 @@ fn invariant_direct_sync_follows_the_lockfile_and_is_idempotent() {
     let first = sync(&fixture, &manifest, &lock, true).expect("fresh sync should work");
     let second = sync(&fixture, &manifest, &lock, true).expect("repeat sync should work");
 
-    assert_eq!(first.written, 1);
+    assert_eq!(first.written, 2);
     assert_eq!(second.written, 0);
-    assert_eq!(second.unchanged, 1);
+    assert_eq!(second.unchanged, 2);
     assert_eq!(
         fs::read_to_string(fixture.project().join("addons/addon/plugin.gd"))
             .expect("locked file should materialise"),
@@ -116,7 +116,7 @@ fn invariant_direct_sync_uses_a_verified_source_tree_when_cache_object_is_busy()
     )
     .expect("busy cache object should not block a verified source sync");
 
-    assert_eq!(summary.written, 1);
+    assert_eq!(summary.written, 2);
     assert!(fixture.project().join("addons/addon/plugin.gd").is_file());
     drop(held);
 }
@@ -129,6 +129,8 @@ fn invariant_multi_addon_source_layout_overrides_lock_and_sync_each_selected_tre
     fs::create_dir_all(source.join("beta")).expect("beta source should create");
     fs::write(source.join("alpha/plugin.gd"), "alpha").expect("alpha source should write");
     fs::write(source.join("beta/plugin.gd"), "beta").expect("beta source should write");
+    Fixture::metadata(&source.join("alpha"), "alpha");
+    Fixture::metadata(&source.join("beta"), "beta");
     let manifest = fixture.manifest(
         "[dev-dependencies]\nalpha = { path = \"multi-addon-source\", root = \"addons/alpha\", target = \"addons/alpha\" }\nbeta = { path = \"multi-addon-source\", root = \"addons/beta\", target = \"addons/beta\" }\n",
     );
@@ -422,6 +424,17 @@ impl Fixture {
         let addon = self.project.join(name);
         fs::create_dir(&addon).expect("addon should create");
         fs::write(addon.join("plugin.gd"), content).expect("addon should write");
+        Self::metadata(&addon, name);
         addon
+    }
+
+    fn metadata(root: &Path, name: &str) {
+        fs::write(
+            root.join("wukong-package.toml"),
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"
+            ),
+        )
+        .expect("package metadata should write");
     }
 }

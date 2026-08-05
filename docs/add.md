@@ -11,7 +11,8 @@ wukong add archive-addon --url https://example.test/archive-addon.zip --sha256 0
 
 Local paths require `--dev`; this adds the entry to `[dev-dependencies]` and
 includes it in the same synchronisation. `--project <path>` selects a Godot
-project directory or `project.godot` file.
+project directory or `project.godot` file. Every selected source requires valid
+`wukong-package.toml` with a matching package name.
 
 The command validates and transactionally edits `wukong.toml`, constructs a
 deterministic lockfile, and synchronises package files without running scripts.

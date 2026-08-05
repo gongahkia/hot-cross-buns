@@ -1,11 +1,14 @@
 use std::path::Path;
 use tempfile::TempDir;
-use wukong_core::{diagnostic::ErrorCode, package_metadata::PackageMetadata};
+use wukong_core::{
+    diagnostic::{ErrorCode, RedactedSource},
+    package_metadata::PackageMetadata,
+};
 
 const PATH: &str = "fixture/wukong-package.toml";
 
 #[test]
-fn invariant_valid_optional_metadata_parses_all_declared_fields() {
+fn invariant_valid_required_metadata_parses_all_declared_fields() {
     let metadata = parse(
         r#"
 [package]
@@ -43,13 +46,43 @@ fn invariant_unknown_schema_and_unsafe_layout_paths_are_rejected() {
 }
 
 #[test]
-fn invariant_absent_metadata_does_not_block_direct_package_installation() {
+fn invariant_metadata_rejects_scripts_and_source_specific_dependency_fields() {
+    let script = parse_error(
+        "[package]\nschema = 1\nname = \"example\"\nversion = \"1.0.0\"\ngodot = \"4\"\nscript = \"install.sh\"\n",
+    );
+    let source = parse_error(
+        "[package]\nschema = 1\nname = \"example\"\nversion = \"1.0.0\"\ngodot = \"4\"\n\n[dependencies]\nhelper = { path = \"../helper\" }\n",
+    );
+
+    assert_eq!(script.code(), ErrorCode::UserInput);
+    assert!(script.message().contains("package.script is not supported"));
+    assert_eq!(source.code(), ErrorCode::UserInput);
+    assert!(
+        source
+            .message()
+            .contains("dependency requirement must be a string")
+    );
+}
+
+#[test]
+fn invariant_absent_required_metadata_fails_with_context() {
     let fixture = TempDir::new().expect("fixture directory should exist");
 
-    let metadata = PackageMetadata::load_optional(fixture.path())
-        .expect("an absent optional metadata file should not fail");
+    let error = PackageMetadata::load_required(fixture.path())
+        .expect_err("absent required metadata must fail");
 
-    assert!(metadata.is_none());
+    assert_eq!(error.code(), ErrorCode::UserInput);
+    assert!(error.message().contains("wukong-package.toml is required"));
+    assert_eq!(
+        error.source_description().map(RedactedSource::as_str),
+        Some(
+            fixture
+                .path()
+                .join("wukong-package.toml")
+                .to_string_lossy()
+                .as_ref()
+        )
+    );
 }
 
 fn parse(input: &str) -> PackageMetadata {

@@ -1,4 +1,4 @@
-//! Typed parsing for optional package-owned metadata.
+//! Typed parsing for package-owned metadata.
 
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
@@ -13,10 +13,10 @@ use std::{
 };
 use toml_edit::{Document, Item, TableLike};
 
-/// The optional package metadata filename.
+/// The package metadata filename.
 pub const PACKAGE_METADATA_FILE_NAME: &str = "wukong-package.toml";
 
-/// A validated optional package manifest.
+/// A validated package manifest.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackageMetadata {
     name: PackageName,
@@ -28,13 +28,40 @@ pub struct PackageMetadata {
 }
 
 impl PackageMetadata {
+    /// Reads required metadata from a package root.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user diagnostic when metadata is absent or invalid, and a
+    /// source-access diagnostic when the existing file cannot be read.
+    pub fn load_required(package_root: &Path) -> Result<Self, Box<Diagnostic>> {
+        let path = package_root.join(PACKAGE_METADATA_FILE_NAME);
+        match fs::read_to_string(&path) {
+            Ok(input) => Self::parse(&path, &input),
+            Err(error) if error.kind() == ErrorKind::NotFound => Err(user(
+                &path,
+                "wukong-package.toml is required",
+                "add valid package metadata before locking",
+            )),
+            Err(error) => Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    format!("could not read package metadata {}", path.display()),
+                )
+                .with_cause(error)
+                .with_source(path.display().to_string())
+                .with_recovery("check that the metadata file is readable"),
+            )),
+        }
+    }
+
     /// Reads metadata when the package supplies it.
     ///
     /// # Errors
     ///
     /// Returns a diagnostic when an existing metadata file cannot be read or
-    /// does not satisfy schema one. A missing file is valid for direct package
-    /// installation and returns `Ok(None)`.
+    /// does not satisfy schema one. This helper is for callers that explicitly
+    /// allow absence; lock and resolver admission use [`Self::load_required`].
     pub fn load_optional(package_root: &Path) -> Result<Option<Self>, Box<Diagnostic>> {
         let path = package_root.join(PACKAGE_METADATA_FILE_NAME);
         match fs::read_to_string(&path) {

@@ -92,6 +92,23 @@ impl CatalogGitVersionCandidate {
                 .with_recovery("add valid package metadata before locking"),
             )
         })?;
+        if metadata.name() != package {
+            return Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::IntegrityFailure,
+                    format!(
+                        "package {} selected by Git tag {} has metadata name {}, expected {}",
+                        package.as_str(),
+                        self.tag,
+                        metadata.name(),
+                        package.as_str()
+                    ),
+                )
+                .with_package(package.as_str())
+                .with_source(self.source.as_str())
+                .with_recovery("correct package.name before locking"),
+            ));
+        }
         if metadata.version().without_build_metadata() != self.version {
             return Err(Box::new(
                 Diagnostic::new(
@@ -190,7 +207,7 @@ mod tests {
     fn invariant_catalog_git_metadata_rejects_tag_version_mismatch_before_locking() {
         let fixture = TempDir::new().expect("fixture should exist");
         let candidate = candidate("1.2.3", "release-1.2.3");
-        write_metadata(fixture.path(), "1.2.4");
+        write_metadata(fixture.path(), "catalog", "1.2.4");
 
         let error = candidate
             .verify_package_metadata(&package(), fixture.path())
@@ -211,7 +228,7 @@ mod tests {
     fn invariant_catalog_git_metadata_accepts_prefixed_prerelease_tag_versions() {
         let fixture = TempDir::new().expect("fixture should exist");
         let candidate = candidate("1.2.3-rc.1", "release-1.2.3-rc.1");
-        write_metadata(fixture.path(), "1.2.3-rc.1");
+        write_metadata(fixture.path(), "catalog", "1.2.3-rc.1");
 
         let metadata = candidate
             .verify_package_metadata(&package(), fixture.path())
@@ -225,7 +242,7 @@ mod tests {
     fn invariant_catalog_git_metadata_compares_versions_without_build_metadata() {
         let fixture = TempDir::new().expect("fixture should exist");
         let candidate = candidate("1.2.3", "v1.2.3");
-        write_metadata(fixture.path(), "1.2.3+build.7");
+        write_metadata(fixture.path(), "catalog", "1.2.3+build.7");
 
         let metadata = candidate
             .verify_package_metadata(&package(), fixture.path())
@@ -250,6 +267,21 @@ mod tests {
         assert!(error.message().contains("v1.2.3"));
     }
 
+    #[test]
+    fn invariant_catalog_git_metadata_rejects_package_name_mismatch_before_locking() {
+        let fixture = TempDir::new().expect("fixture should exist");
+        let candidate = candidate("1.2.3", "v1.2.3");
+        write_metadata(fixture.path(), "other", "1.2.3");
+
+        let error = candidate
+            .verify_package_metadata(&package(), fixture.path())
+            .expect_err("mismatched metadata name must fail");
+
+        assert_eq!(error.code(), ErrorCode::IntegrityFailure);
+        assert_eq!(error.package(), Some("catalog"));
+        assert!(error.message().contains("metadata name other"));
+    }
+
     fn candidate(version: &str, tag: &str) -> CatalogGitVersionCandidate {
         CatalogGitVersionCandidate {
             version: SemanticVersion::parse(version).expect("version should parse"),
@@ -264,13 +296,13 @@ mod tests {
         PackageName::parse("catalog").expect("package name should parse")
     }
 
-    fn write_metadata(root: &std::path::Path, version: &str) {
+    fn write_metadata(root: &std::path::Path, name: &str, version: &str) {
         let package_root = root.join("addons/catalog");
         fs::create_dir_all(&package_root).expect("package root should create");
         fs::write(
             package_root.join("wukong-package.toml"),
             format!(
-                "[package]\nschema = 1\nname = \"catalog\"\nversion = \"{version}\"\ngodot = \"4\"\n"
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"{version}\"\ngodot = \"4\"\n"
             ),
         )
         .expect("metadata should write");

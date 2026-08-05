@@ -351,31 +351,42 @@ fn lock_package(
 ) -> Result<LockedPackage, Box<Diagnostic>> {
     let source_root = std::fs::canonicalize(source_root)
         .map_err(|error| internal("could not canonicalize source root for locking", error))?;
-    let metadata = PackageMetadata::load_optional(&source_root)?;
-    let layout =
-        detect_package_layout(
-            &source_root,
-            &LayoutOptions {
-                source_subdirectory: declaration.layout.root().map(Path::to_path_buf).or_else(
-                    || {
-                        metadata
-                            .as_ref()
-                            .and_then(|metadata| metadata.root())
-                            .map(Path::to_path_buf)
-                    },
+    let metadata_root = declaration
+        .layout
+        .root()
+        .map_or_else(|| source_root.clone(), |root| source_root.join(root));
+    let metadata = PackageMetadata::load_required(&metadata_root)
+        .map_err(|error| Box::new((*error).with_package(declaration.name.as_str())))?;
+    if metadata.name() != &declaration.name {
+        return Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::IntegrityFailure,
+                format!(
+                    "package metadata name {} does not match declared package {}",
+                    metadata.name(),
+                    declaration.name
                 ),
-                target_path: declaration
-                    .layout
-                    .target()
-                    .map(Path::to_path_buf)
-                    .or_else(|| {
-                        metadata
-                            .as_ref()
-                            .and_then(|metadata| metadata.target())
-                            .map(Path::to_path_buf)
-                    }),
-            },
-        )?;
+            )
+            .with_package(declaration.name.as_str())
+            .with_source(metadata_root.display().to_string())
+            .with_recovery("correct package.name before locking"),
+        ));
+    }
+    let layout = detect_package_layout(
+        &source_root,
+        &LayoutOptions {
+            source_subdirectory: declaration
+                .layout
+                .root()
+                .map(Path::to_path_buf)
+                .or_else(|| metadata.root().map(Path::to_path_buf)),
+            target_path: declaration
+                .layout
+                .target()
+                .map(Path::to_path_buf)
+                .or_else(|| metadata.target().map(Path::to_path_buf)),
+        },
+    )?;
     let source_subdirectory = layout
         .source_root()
         .strip_prefix(&source_root)
@@ -386,7 +397,7 @@ fn lock_package(
     )?;
     let package = LockedPackage::new(
         declaration.name.clone(),
-        metadata.as_ref().map(|metadata| metadata.version().clone()),
+        Some(metadata.version().clone()),
         source,
         prepared.sha256().to_owned(),
         declaration.fingerprint.clone(),
@@ -400,9 +411,7 @@ fn lock_package(
             || PathBuf::from("addons").join(declaration.name.as_str()),
             Path::to_path_buf,
         ),
-        metadata.map_or(GodotCompatibility::Unknown, |metadata| {
-            GodotCompatibility::Requirement(metadata.godot().clone())
-        }),
+        GodotCompatibility::Requirement(metadata.godot().clone()),
         declaration.development,
     )?;
     if let Err(error) = publish_prepared_package(cache, &prepared) {
@@ -678,6 +687,8 @@ fn reusable(lock: &Lockfile, declarations: &BTreeMap<PackageName, Declaration>) 
             lock.packages().get(name).is_some_and(|package| {
                 package.declaration_sha256() == declaration.fingerprint
                     && package.development() == declaration.development
+                    && package.version().is_some()
+                    && matches!(package.godot(), GodotCompatibility::Requirement(_))
             })
         })
 }

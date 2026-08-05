@@ -123,6 +123,17 @@ impl Fixture {
         let path = self.root.join(name);
         fs::create_dir(&path).expect("addon should create");
         fs::write(path.join("plugin.gd"), content).expect("addon should write");
+        Self::metadata(&path, name);
+    }
+
+    fn metadata(root: &Path, name: &str) {
+        fs::write(
+            root.join("wukong-package.toml"),
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"
+            ),
+        )
+        .expect("package metadata should write");
     }
 
     fn manifest(&self) -> String {

@@ -42,16 +42,15 @@ impl PackageCandidate {
         }
     }
 
-    /// Reads a candidate from package-owned metadata.
+    /// Reads a required candidate from package-owned metadata.
     ///
     /// # Errors
     ///
-    /// Returns metadata parsing or I/O diagnostics. A package without metadata
-    /// returns `Ok(None)` because it cannot declare transitive dependencies.
-    pub fn load_optional(package_root: &Path) -> ResolverResult<Option<Self>> {
-        PackageMetadata::load_optional(package_root).map(|metadata| {
-            metadata.map(|metadata| Self::new(metadata.version(), metadata.dependencies().clone()))
-        })
+    /// Returns metadata parsing or I/O diagnostics, including a user diagnostic
+    /// when package metadata is absent.
+    pub fn load_required(package_root: &Path) -> ResolverResult<Self> {
+        PackageMetadata::load_required(package_root)
+            .map(|metadata| Self::new(metadata.version(), metadata.dependencies().clone()))
     }
 
     /// Returns the candidate's canonical semantic version.

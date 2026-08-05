@@ -1,8 +1,9 @@
 # Package metadata
 
-`wukong-package.toml` is optional. A package without it remains directly
-installable using its project declaration and inferred layout; an absent file
-is treated as no package metadata.
+Every package included in `wukong.lock` requires a valid UTF-8
+`wukong-package.toml`. A missing or invalid file stops locking before cache,
+lockfile, installed-state, or project mutation. Its canonical `package.name`
+must equal the direct declaration or catalog package identity.
 
 It is required when validating a selected Git source-catalog candidate before
 lock publication. Its canonical `package.version` must agree with the selected
@@ -12,7 +13,7 @@ It is also required for an HTTPS source-catalog candidate before admission. Its
 `package.name` and canonical `package.version` must agree with the project
 catalog declaration.
 
-When present, schema one requires:
+Schema one requires:
 
 ```toml
 [package]
@@ -29,6 +30,6 @@ other-addon = "^2"
 
 `root` and `target` must be safe relative paths. Dependencies use canonical
 names and the [versioning policy](versioning.md). Metadata cannot declare sources or
-scripts. See [ADR 0009](adr/0009-package-metadata-schema.md). Known package
+scripts. See [ADR 0043](adr/0043-strict-package-metadata-policy.md). Known package
 Godot requirements are validated before lockfile or project mutation; see
 [Godot compatibility enforcement](godot-compatibility-enforcement.md).

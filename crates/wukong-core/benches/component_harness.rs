@@ -241,9 +241,14 @@ fn benchmark_direct_sync_aliases() {
     let mut input =
         String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\n");
     for index in 0..DIRECT_SYNC_ALIAS_COUNT {
+        let name = format!("addon-{index}");
+        let source = fixture.project.join(format!("source-{index}"));
+        fs::create_dir(&source).expect("benchmark alias source should create");
+        fixtures::write_source_tree(&source, SMALL_PROJECT);
+        write_package_metadata(&source, &name);
         let _ = writeln!(
             input,
-            "addon-{index} = {{ path = \"source\", target = \"addons/addon-{index}\" }}"
+            "{name} = {{ path = \"source-{index}\", target = \"addons/{name}\" }}"
         );
     }
     let manifest = Manifest::parse(&manifest_path, &input).expect("benchmark aliases should parse");
@@ -462,6 +467,7 @@ impl LocalFixture {
         )
         .expect("benchmark manifest should write");
         fixtures::write_source_tree(&source, definition);
+        write_package_metadata(&source, "benchmark-addon");
         let prepared = prepare_package_tree(&source, &directory.path().join("prepared"))
             .expect("benchmark package should prepare");
         let archive = directory.path().join("fixture.zip");
@@ -482,4 +488,12 @@ impl LocalFixture {
     fn root(&self) -> &Path {
         self.directory.path()
     }
+}
+
+fn write_package_metadata(root: &Path, name: &str) {
+    fs::write(
+        root.join("wukong-package.toml"),
+        format!("[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"),
+    )
+    .expect("benchmark package metadata should write");
 }

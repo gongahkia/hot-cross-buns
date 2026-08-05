@@ -93,5 +93,16 @@ impl Fixture {
         let addon = self.root.join(name);
         fs::create_dir(&addon).expect("addon should create");
         fs::write(addon.join("plugin.gd"), contents).expect("addon should write");
+        Self::metadata(&addon, name);
+    }
+
+    fn metadata(root: &Path, name: &str) {
+        fs::write(
+            root.join("wukong-package.toml"),
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"
+            ),
+        )
+        .expect("package metadata should write");
     }
 }
