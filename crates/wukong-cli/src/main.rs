@@ -2065,10 +2065,8 @@ fn parse_godot_inspect_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
         } else if argument == "--json" {
             if std::mem::replace(&mut options.json, true) {
@@ -2119,10 +2117,8 @@ fn parse_godot_install_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
         } else if argument == "--templates" {
             if std::mem::replace(&mut options.templates, true) {
@@ -2179,10 +2175,8 @@ fn parse_godot_remove_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
         } else if argument == "--json" {
             if std::mem::replace(&mut options.json, true) {
@@ -2226,10 +2220,8 @@ fn parse_godot_pin_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
         } else if argument == "--project" {
             if options
@@ -2883,10 +2875,8 @@ fn parse_project_action_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
             continue;
         }
@@ -3174,10 +3164,8 @@ fn parse_validate_arguments(
                     "provide standard or dotnet once",
                 ));
             }
-            options.flavor = parse_flavor(
-                &required_add_value(&mut arguments, "--flavor")?,
-                "--flavor",
-            )?;
+            options.flavor =
+                parse_flavor(&required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
             flavor_set = true;
             continue;
         }
