@@ -817,7 +817,10 @@ fn corrupt_removed(expected: &str) -> Box<Diagnostic> {
 
 fn sync_staged_tree(tree: &PreparedPackageTree) -> Result<(), Box<Diagnostic>> {
     for file in tree.files() {
-        fs::File::open(tree.root().join(file.path()))
+        fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(tree.root().join(file.path()))
             .and_then(|file| file.sync_all())
             .map_err(|error| internal("could not flush cache staging file", error))?;
     }
