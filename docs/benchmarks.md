@@ -156,6 +156,12 @@ The component harness uses the small-project and medium-graph fixtures; the
 resolver baseline uses the large graph. Run each cache and concurrency scenario
 as a distinct workload; do not merge their timings.
 
+The stress_harness integration test exercises real local lock and sync
+transactions at 1, 10, 100, and 500 package roots. It verifies the lockfile,
+installed state, fresh materialisation, and no-op state for each count. This
+is a correctness harness, not a scale claim or a substitute for recorded
+stress results.
+
 ## Reporting
 
 State the fixture, cache state, hardware, operating system, filesystem,
