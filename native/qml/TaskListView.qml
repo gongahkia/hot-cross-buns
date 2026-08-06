@@ -14,6 +14,7 @@ Pane {
     property int bulkTextRecurrenceScope: 2
     property int listPaneWidth: 260
     property bool listPaneWidthInitialized: false
+    property bool synchronizingListPaneWidth: false
     property var selectedTaskIds: []
     property bool selectionMode: false
     readonly property string preferredTaskListId: root.selectedTaskListId()
@@ -69,11 +70,23 @@ Pane {
         onTriggered: root.listPaneWidthPersistenceRequested(root.listPaneWidth)
     }
 
+    function applyListPaneWidth() {
+        if (taskListControls === null || taskListSplitView === null) return
+        synchronizingListPaneWidth = true
+        taskListControls.SplitView.preferredWidth = listPaneWidth
+        taskListSplitView.forceLayout()
+        synchronizingListPaneWidth = false
+    }
+
     onListPaneWidthChanged: {
+        applyListPaneWidth()
         if (listPaneWidthInitialized) listPaneWidthSaveTimer.restart()
     }
 
-    Component.onCompleted: listPaneWidthInitialized = true
+    Component.onCompleted: {
+        listPaneWidthInitialized = true
+        applyListPaneWidth()
+    }
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -190,6 +203,7 @@ Pane {
         spacing: Theme.spacingMedium
 
         RowLayout {
+            id: taskToolbar
             Layout.fillWidth: true
 
             Label {
@@ -237,6 +251,8 @@ Pane {
             id: taskListSplitView
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: 1
+            Layout.preferredHeight: Math.max(1, root.height - taskToolbar.implicitHeight - Theme.spacingMedium)
             orientation: Qt.Horizontal
 
             TaskListControls {
@@ -245,12 +261,14 @@ Pane {
                 SplitView.maximumWidth: 480
                 SplitView.preferredWidth: root.listPaneWidth
                 SplitView.fillHeight: true
+                SplitView.minimumHeight: 1
                 taskListModel: root.taskListModel
                 loading: root.taskListLoading
                 errorMessage: root.taskListErrorMessage
                 onWidthChanged: {
                     const nextWidth = Math.round(width)
-                    if (nextWidth >= 200 && nextWidth <= 480 && root.listPaneWidth !== nextWidth)
+                    if (!root.synchronizingListPaneWidth && nextWidth >= 200 && nextWidth <= 480 &&
+                            root.listPaneWidth !== nextWidth)
                         root.listPaneWidth = nextWidth
                 }
                 onTaskListCreateRequested: root.taskListCreateRequested()
@@ -268,6 +286,7 @@ Pane {
             ColumnLayout {
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
+                SplitView.minimumHeight: 1
                 spacing: Theme.spacingSmall
 
                 Flow {

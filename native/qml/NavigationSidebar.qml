@@ -79,7 +79,7 @@ Pane {
                 required property string commandLabel
                 property alias enabled: navigationButton.enabled
                 property alias checked: navigationButton.checked
-                property alias navigationButton: navigationButton
+                property alias button: navigationButton
                 Layout.fillWidth: true
                 spacing: Theme.spacingSmall
 
@@ -105,7 +105,7 @@ Pane {
                     id: calendarVisibility
                     Layout.fillWidth: true
                     Layout.preferredHeight: visible ? implicitHeight : 0
-                    visible: commandLabel === "Calendar" && root.calendarControlsExpanded && sourceRows.count > 0
+                    visible: commandLabel === "Calendar" && root.calendarControlsExpanded
                     calendarSourceModel: root.calendarSourceModel
                     persistedVisibleCalendarIds: root.persistedVisibleCalendarIds
                     calendarVisibilityConfigured: root.calendarVisibilityConfigured

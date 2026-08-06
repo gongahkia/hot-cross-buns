@@ -982,12 +982,12 @@ TestCase {
         verify(!mainWindow.navigationSidebar.calendarControlsExpanded)
 
         const calendarEntry = mainWindow.navigationSidebar.pageButtons.itemAt(1)
-        calendarEntry.navigationButton.secondaryActivated()
+        calendarEntry.button.secondaryActivated()
         verify(mainWindow.navigationSidebar.calendarControlsExpanded)
         tryVerify(function() { return mainWindow.calendarVisibility.visible })
         compare(mainWindow.currentPage, "Tasks")
 
-        calendarEntry.navigationButton.click()
+        calendarEntry.button.click()
         compare(mainWindow.currentPage, "Calendar")
         mainWindow.destroy()
         calendars.destroy()
