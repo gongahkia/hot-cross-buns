@@ -44,3 +44,12 @@ packaging script, verifies that the ZIP contains only its expected executable,
 checks the sibling SHA-256 file, extracts the archive, and smoke-tests the
 extracted native executable. The verified ZIP and checksum are retained as a
 seven-day workflow artifact only; CI neither signs nor publishes a release.
+
+The Tier-1 test matrix uses Ubuntu 24.04, macOS 15, and Windows Server 2025
+with Rust 1.85.0 and the committed dependency lockfile. Temporary fixtures use
+Rust's OS-native tempfile support; there are no platform-specific skips.
+Ignored tests require external network access, supplied consented credentials,
+or manually checked-out public sources, and each declares that reason beside
+the ignore marker. On a workspace-test failure, CI retains only the test log
+from repository fixtures for seven days. It does not upload project inputs,
+cache directories, manifests, lockfiles, or environment dumps.
