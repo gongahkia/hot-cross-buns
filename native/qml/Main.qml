@@ -43,6 +43,8 @@ ApplicationWindow {
                                  ? appController.appearanceMode : 0
     property int visualDensity: appController !== null && typeof appController.visualDensity === "number"
                                 ? appController.visualDensity : 1
+    property int taskListPaneWidth: appController !== null && typeof appController.taskListPaneWidth === "number"
+                                    ? appController.taskListPaneWidth : 260
     property int paletteMode: appController !== null && typeof appController.paletteMode === "number"
                               ? appController.paletteMode : 0
     property string accentColor: appController !== null && typeof appController.accentColor === "string"
@@ -98,7 +100,7 @@ ApplicationWindow {
     property alias commandPaletteQuery: commandPaletteQuery
     property alias commandPaletteResults: commandPaletteResults
     property alias commandPaletteShortcut: commandPaletteShortcut
-    property alias calendarVisibility: calendarVisibility
+    property var calendarVisibility: navigationSidebar.calendarVisibility
     property alias calendarViews: calendarViews
     property alias calendarBulkControls: calendarBulkControls
     property alias eventCreateDialog: eventCreateDialog
@@ -196,6 +198,21 @@ ApplicationWindow {
         target: Theme
         property: "fontScale"
         value: window.fontScale
+    }
+
+    palette: Palette {
+        window: Theme.background
+        windowText: Theme.textPrimary
+        base: Theme.surface
+        alternateBase: Theme.background
+        text: Theme.textPrimary
+        placeholderText: Theme.textSecondary
+        button: Theme.surface
+        buttonText: Theme.textPrimary
+        highlight: Theme.accent
+        highlightedText: Theme.onAccent
+        toolTipBase: Theme.surface
+        toolTipText: Theme.textPrimary
     }
 
     function controllerCall(method, args) {
@@ -1318,9 +1335,19 @@ ApplicationWindow {
             googleConnected: window.appController === null || window.appController.googleConnected !== false
             notesEnabled: window.notesEnabled
             sidebarTabIds: window.sidebarTabIds
+            calendarSourceModel: window.calendarSourceModel
+            persistedVisibleCalendarIds: window.appController !== null &&
+                                         window.appController.visibleCalendarIds !== undefined
+                                         ? window.appController.visibleCalendarIds : []
+            calendarVisibilityConfigured: window.appController !== null &&
+                                           window.appController.calendarVisibilityConfigured === true
             pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
                                     ? window.appController.pendingInvitationCount : 0
             onPageSelected: pageName => window.selectPage(pageName)
+            onCalendarVisibilityChanged: function(visibleCalendarIds) {
+                window.clearCalendarEventSelection()
+                window.controllerCall("saveCalendarVisibility", [visibleCalendarIds])
+            }
         }
 
         Pane {
@@ -1331,6 +1358,7 @@ ApplicationWindow {
                 visible: window.currentPage === "Tasks"
                 taskListModel: window.taskListModel
                 taskModel: window.taskModel
+                listPaneWidth: window.taskListPaneWidth
                 taskListLoading: window.appController !== null && window.appController.busy === true
                 taskListErrorMessage: window.appController !== null &&
                                       typeof window.appController.taskListErrorMessage === "string"
@@ -1350,6 +1378,9 @@ ApplicationWindow {
                 }
                 onTaskListSelectionRequested: function(taskListId, selected) {
                     window.controllerCall("setTaskListSelected", [taskListId, selected])
+                }
+                onListPaneWidthPersistenceRequested: function(width) {
+                    window.controllerCall("saveTaskListPaneWidth", [width])
                 }
                 onTaskCreateRequested: taskCreateDialog.openForCreate(taskList.preferredTaskListId, "")
                 onImportRequested: importDialog.open()
@@ -1468,23 +1499,6 @@ ApplicationWindow {
                 anchors.fill: parent
                 visible: window.currentPage === "Calendar"
                 spacing: 0
-
-                CalendarSourceControls {
-                    id: calendarVisibility
-                    Layout.fillWidth: true
-                    calendarSourceModel: window.calendarSourceModel
-                    persistedVisibleCalendarIds: window.appController !== null &&
-                                                 window.appController.visibleCalendarIds !== undefined
-                                                 ? window.appController.visibleCalendarIds : []
-                    calendarVisibilityConfigured: window.appController !== null &&
-                                                   window.appController.calendarVisibilityConfigured === true
-                    onVisibleCalendarIdsChanged: {
-                        window.clearCalendarEventSelection()
-                        if (visibilityInitialized) {
-                            window.controllerCall("saveCalendarVisibility", [visibleCalendarIds])
-                        }
-                    }
-                }
 
                 RowLayout {
                     Layout.fillWidth: true

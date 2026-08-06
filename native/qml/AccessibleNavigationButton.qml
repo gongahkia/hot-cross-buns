@@ -6,6 +6,7 @@ AccessibleButton {
     required property bool currentPage
     property string badgeText: ""
     signal pageSelected(string pageName)
+    signal secondaryActivated()
 
     text: pageName + (badgeText.length > 0 ? " (" + badgeText + ")" : "")
     checkable: true
@@ -16,4 +17,10 @@ AccessibleButton {
     Accessible.checkable: true
     Accessible.checked: root.checked
     onClicked: pageSelected(pageName)
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: function(mouse) { root.secondaryActivated() }
+    }
 }

@@ -10,8 +10,14 @@ Pane {
     property bool notesEnabled: false
     property int pendingInvitationCount: 0
     property var sidebarTabIds: ["tasks", "calendar"]
+    property var calendarSourceModel: null
+    property var persistedVisibleCalendarIds: []
+    property bool calendarVisibilityConfigured: false
+    property bool calendarControlsExpanded: false
+    property var calendarVisibility: null
     property alias pageButtons: pageButtons
     signal pageSelected(string pageName)
+    signal calendarVisibilityChanged(var visibleCalendarIds)
 
     SplitView.preferredWidth: Theme.navigationWidth
 
@@ -68,17 +74,45 @@ Pane {
             id: pageButtons
             model: root.navigationCommands()
 
-            delegate: AccessibleNavigationButton {
+            delegate: ColumnLayout {
                 required property string commandId
                 required property string commandLabel
+                property alias enabled: navigationButton.enabled
+                property alias checked: navigationButton.checked
                 Layout.fillWidth: true
-                pageName: commandLabel
-                badgeText: commandLabel === "Invitations" && root.pendingInvitationCount > 0
-                           ? String(root.pendingInvitationCount) : ""
-                currentPage: root.currentPage === commandLabel
-                enabled: root.googleConnected || commandLabel === "Settings"
-                visible: commandId.startsWith("navigation.")
-                onPageSelected: pageName => root.selectPage(pageName)
+                spacing: Theme.spacingSmall
+
+                AccessibleNavigationButton {
+                    id: navigationButton
+                    Layout.fillWidth: true
+                    pageName: commandLabel
+                    badgeText: commandLabel === "Invitations" && root.pendingInvitationCount > 0
+                               ? String(root.pendingInvitationCount) : ""
+                    currentPage: root.currentPage === commandLabel
+                    enabled: root.googleConnected || commandLabel === "Settings"
+                    visible: commandId.startsWith("navigation.")
+                    accessibleDescription: commandLabel === "Calendar"
+                                           ? "Calendar page. Right-click to show or hide calendar visibility controls."
+                                           : ""
+                    onPageSelected: pageName => root.selectPage(pageName)
+                    onSecondaryActivated: {
+                        if (commandLabel === "Calendar") root.calendarControlsExpanded = !root.calendarControlsExpanded
+                    }
+                }
+
+                CalendarSourceControls {
+                    id: calendarVisibility
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    visible: commandLabel === "Calendar" && root.calendarControlsExpanded && sourceRows.count > 0
+                    calendarSourceModel: root.calendarSourceModel
+                    persistedVisibleCalendarIds: root.persistedVisibleCalendarIds
+                    calendarVisibilityConfigured: root.calendarVisibilityConfigured
+                    Component.onCompleted: root.calendarVisibility = calendarVisibility
+                    onVisibleCalendarIdsChanged: {
+                        if (visibilityInitialized) root.calendarVisibilityChanged(visibleCalendarIds)
+                    }
+                }
             }
         }
 

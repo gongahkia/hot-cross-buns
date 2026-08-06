@@ -12,6 +12,8 @@ Pane {
     property string bulkTaskPreviewMessage: ""
     property int bulkTaskPreviewRequestToken: -1
     property int bulkTextRecurrenceScope: 2
+    property int listPaneWidth: 260
+    property bool listPaneWidthInitialized: false
     property var selectedTaskIds: []
     property bool selectionMode: false
     readonly property string preferredTaskListId: root.selectedTaskListId()
@@ -26,6 +28,7 @@ Pane {
     property alias bulkDeleteDialog: bulkDeleteDialog
     property alias bulkMoveDialog: bulkMoveDialog
     property alias bulkEditDialog: bulkEditDialog
+    property alias taskListSplitView: taskListSplitView
     signal taskSelected(string taskId)
     signal taskCreateRequested()
     signal importRequested()
@@ -57,6 +60,20 @@ Pane {
                                         int requestToken)
     signal bulkTaskTextReplaceRequested(var taskIds, string findText, string replaceText, int fields,
                                         int recurrenceScope)
+    signal listPaneWidthPersistenceRequested(int width)
+
+    Timer {
+        id: listPaneWidthSaveTimer
+        interval: 180
+        repeat: false
+        onTriggered: root.listPaneWidthPersistenceRequested(root.listPaneWidth)
+    }
+
+    onListPaneWidthChanged: {
+        if (listPaneWidthInitialized) listPaneWidthSaveTimer.restart()
+    }
+
+    Component.onCompleted: listPaneWidthInitialized = true
 
     function selectTask(taskId) {
         taskSelected(taskId)
@@ -216,18 +233,26 @@ Pane {
             }
         }
 
-        RowLayout {
+        SplitView {
+            id: taskListSplitView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Theme.spacingLarge
+            orientation: Qt.Horizontal
 
             TaskListControls {
                 id: taskListControls
-                Layout.preferredWidth: 260
-                Layout.fillHeight: true
+                SplitView.minimumWidth: 200
+                SplitView.maximumWidth: 480
+                SplitView.preferredWidth: root.listPaneWidth
+                SplitView.fillHeight: true
                 taskListModel: root.taskListModel
                 loading: root.taskListLoading
                 errorMessage: root.taskListErrorMessage
+                onWidthChanged: {
+                    const nextWidth = Math.round(width)
+                    if (nextWidth >= 200 && nextWidth <= 480 && root.listPaneWidth !== nextWidth)
+                        root.listPaneWidth = nextWidth
+                }
                 onTaskListCreateRequested: root.taskListCreateRequested()
                 onTaskListRenameRequested: function(taskListId, title) {
                     root.taskListRenameRequested(taskListId, title)
@@ -241,8 +266,9 @@ Pane {
             }
 
             ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                SplitView.fillWidth: true
+                SplitView.fillHeight: true
+                SplitView.minimumWidth: 320
                 spacing: Theme.spacingSmall
 
                 Flow {
