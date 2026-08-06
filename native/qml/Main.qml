@@ -23,6 +23,8 @@ ApplicationWindow {
     property var taskListModel: null
     property var taskModel: null
     property var timelineModel: null
+    property var scheduledTasks: appController !== null && appController.scheduledTasks !== undefined
+                                 ? appController.scheduledTasks : []
     property bool notesEnabled: appController !== null && appController.notesEnabled === true
     property int notesProjectionMode: appController !== null &&
                                       typeof appController.notesProjectionMode === "number"
@@ -90,6 +92,8 @@ ApplicationWindow {
     property alias calendarViews: calendarViews
     property alias calendarBulkControls: calendarBulkControls
     property alias eventCreateDialog: eventCreateDialog
+    property alias calendarQuickCreateDialog: calendarQuickCreateDialog
+    property alias eventMutationScopeDialog: eventMutationScopeDialog
     property alias eventDeleteDialog: eventDeleteDialog
     property alias eventEditDialog: eventEditDialog
     property alias eventDetailDialog: eventDetailDialog
@@ -440,6 +444,34 @@ ApplicationWindow {
 
     function openEventCreate(date) {
         eventCreateDialog.openForCreate(calendarVisibility.preferredCalendarId(), date || calendarDate)
+    }
+
+    function openCalendarQuickCreate(startAt, endAt, allDay) {
+        calendarQuickCreateDialog.openForRange(calendarVisibility.preferredCalendarId(), startAt, endAt,
+                                               allDay)
+    }
+
+    function isRecurringEvent(event) {
+        return event !== null && event !== undefined &&
+               ((event.recurrenceRule || "").length > 0 || (event.recurringRemoteId || "").length > 0)
+    }
+
+    function requestScopedEventMove(event, startAt, endAt, allDay) {
+        if (isRecurringEvent(event)) {
+            eventMutationScopeDialog.openForMutation("move", event, startAt, endAt, allDay)
+            return
+        }
+        eventMoveRequested(event.id, startAt, endAt, allDay)
+        controllerCall("moveEvent", [event.id, startAt, endAt, allDay])
+    }
+
+    function requestScopedEventResize(event, endAt) {
+        if (isRecurringEvent(event)) {
+            eventMutationScopeDialog.openForMutation("resize", event, "", endAt, event.allDay === true)
+            return
+        }
+        eventResizeRequested(event.id, endAt)
+        controllerCall("resizeEvent", [event.id, endAt])
     }
 
     function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
@@ -797,6 +829,39 @@ ApplicationWindow {
         anchors.centerIn: parent
         onTaskListDeleteRequested: function(taskListId) {
             window.controllerCall("deleteTaskList", [taskListId])
+        }
+    }
+
+    CalendarQuickCreateDialog {
+        id: calendarQuickCreateDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        taskListModel: window.taskListModel
+        onEventCreateRequested: function(title, startAt, endAt, allDay) {
+            const calendarId = calendarVisibility.preferredCalendarId()
+            window.eventCreateRequested(calendarId, title, startAt, endAt, allDay, "", "")
+            window.controllerCall("createEvent", [calendarId, title, startAt, endAt, allDay, "", ""])
+        }
+        onTaskCreateRequested: function(taskListId, title, dueDate) {
+            window.taskCreateRequested(taskListId, "", title)
+            window.controllerCall("createTaskDetailed", [taskListId, "", title, "", dueDate, "", 0,
+                                                            false, -1, 1, 0, "", 0, "", "", ""])
+        }
+    }
+
+    EventMutationScopeDialog {
+        id: eventMutationScopeDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        onMutationConfirmed: function(operation, event, startAt, endAt, allDay, recurrenceScope) {
+            if (operation === "move") {
+                window.eventMoveRequested(event.id, startAt, endAt, allDay)
+                window.controllerCall("moveEventScoped", [event.id, startAt, endAt, allDay,
+                                                            recurrenceScope])
+            } else {
+                window.eventResizeRequested(event.id, endAt)
+                window.controllerCall("resizeEventScoped", [event.id, endAt, recurrenceScope])
+            }
         }
     }
 
@@ -1512,6 +1577,8 @@ ApplicationWindow {
                         selectionMode: window.calendarSelectionMode
                         dayIndex: window.calendarWeekDayIndex()
                         dateLabel: window.calendarDayHeading
+                        dateIso: window.calendarDate
+                        scheduledTasks: window.scheduledTasks
                         timelineActive: calendarViews.currentIndex === 1
                         bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
@@ -1528,6 +1595,16 @@ ApplicationWindow {
                             window.eventResizeRequested(eventId, endAt)
                             window.controllerCall("resizeEvent", [eventId, endAt])
                         }
+                        onEventMoveScopeRequested: function(event, startAt, endAt, allDay) {
+                            window.requestScopedEventMove(event, startAt, endAt, allDay)
+                        }
+                        onEventResizeScopeRequested: function(event, endAt) {
+                            window.requestScopedEventResize(event, endAt)
+                        }
+                        onQuickCreateRequested: function(startAt, endAt, allDay) {
+                            window.openCalendarQuickCreate(startAt, endAt, allDay)
+                        }
+                        onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
@@ -1552,6 +1629,8 @@ ApplicationWindow {
                         selectedEventIds: window.selectedCalendarEventIds
                         selectionMode: window.calendarSelectionMode
                         dayLabels: window.calendarWeekLabels()
+                        weekStartDate: window.shiftCalendarDate(-window.calendarWeekDayIndex())
+                        scheduledTasks: window.scheduledTasks
                         timelineActive: calendarViews.currentIndex === 2
                         bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
@@ -1568,6 +1647,19 @@ ApplicationWindow {
                             window.eventResizeRequested(eventId, endAt)
                             window.controllerCall("resizeEvent", [eventId, endAt])
                         }
+                        onEventMoveScopeRequested: function(event, startAt, endAt, allDay) {
+                            window.requestScopedEventMove(event, startAt, endAt, allDay)
+                        }
+                        onEventResizeScopeRequested: function(event, endAt) {
+                            window.requestScopedEventResize(event, endAt)
+                        }
+                        onQuickCreateRequested: function(startAt, endAt, allDay) {
+                            window.openCalendarQuickCreate(startAt, endAt, allDay)
+                        }
+                        onTaskMoveRequested: function(taskId, dueDate) {
+                            window.controllerCall("bulkSetTaskDue", [[taskId], dueDate])
+                        }
+                        onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
                                                         description, location, startTimeZone, colorId,
                                                         transparency, visibility, attendeeEmailsJson,
@@ -1592,6 +1684,8 @@ ApplicationWindow {
                         selectedEventIds: window.selectedCalendarEventIds
                         selectionMode: window.calendarSelectionMode
                         monthLabel: window.calendarMonthLabel
+                        calendarDate: window.calendarDate
+                        scheduledTasks: window.scheduledTasks
                         weekStartDay: window.weekStartDay
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)
@@ -1603,6 +1697,16 @@ ApplicationWindow {
                         onEventCreateRequested: function(date) {
                             window.openEventCreate(date)
                         }
+                        onQuickCreateRequested: function(startAt, endAt, allDay) {
+                            window.openCalendarQuickCreate(startAt, endAt, allDay)
+                        }
+                        onEventMoveScopeRequested: function(event, startAt, endAt, allDay) {
+                            window.requestScopedEventMove(event, startAt, endAt, allDay)
+                        }
+                        onTaskMoveRequested: function(taskId, dueDate) {
+                            window.controllerCall("bulkSetTaskDue", [[taskId], dueDate])
+                        }
+                        onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                         onEventEditRequested: function(event) {
                             window.openEventEdit(event.id, event.calendarId, event.title, event.startAt,
                                                  event.endAt, event.allDay, event.description, event.location,

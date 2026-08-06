@@ -270,7 +270,9 @@ qt_add_qml_module(hcb_native
     qml/AgendaView.qml
     qml/CalendarBulkControls.qml
     qml/CalendarEventButton.qml
+    qml/CalendarQuickCreateDialog.qml
     qml/CalendarSourceControls.qml
+    qml/CalendarTaskButton.qml
     qml/BulkTextReplaceDialog.qml
     qml/DayTimelineView.qml
     qml/DateEditor.qml
@@ -283,6 +285,7 @@ qt_add_qml_module(hcb_native
     qml/EventDeleteDialog.qml
     qml/EventDetailDialog.qml
     qml/EventEditDialog.qml
+    qml/EventMutationScopeDialog.qml
     qml/ExternalLinkText.qml
     qml/GoogleOnboardingView.qml
     qml/HcbDialog.qml

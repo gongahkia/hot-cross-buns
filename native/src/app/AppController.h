@@ -161,6 +161,7 @@ class AppController final : public QObject {
                  driveAttachmentCandidatesChanged)
   Q_PROPERTY(QVariantList invitations READ invitations NOTIFY invitationsChanged)
   Q_PROPERTY(int pendingInvitationCount READ pendingInvitationCount NOTIFY invitationsChanged)
+  Q_PROPERTY(QVariantList scheduledTasks READ scheduledTasks NOTIFY scheduledTasksChanged)
   Q_PROPERTY(QString reminderStatusMessage READ reminderStatusMessage NOTIFY reminderStatusMessageChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
@@ -241,6 +242,7 @@ public:
   [[nodiscard]] QVariantList driveAttachmentCandidates() const;
   [[nodiscard]] QVariantList invitations() const;
   [[nodiscard]] int pendingInvitationCount() const;
+  [[nodiscard]] QVariantList scheduledTasks() const;
   [[nodiscard]] QString reminderStatusMessage() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
@@ -453,6 +455,12 @@ public:
   Q_INVOKABLE void respondToEvent(QString eventId, QString responseStatus, QString responseComment = {});
   Q_INVOKABLE void moveEvent(QString eventId, QString startAt, QString endAt, bool allDay);
   Q_INVOKABLE void resizeEvent(QString eventId, QString endAt);
+  Q_INVOKABLE void moveEventScoped(QString eventId,
+                                   QString startAt,
+                                   QString endAt,
+                                   bool allDay,
+                                   int recurrenceScope);
+  Q_INVOKABLE void resizeEventScoped(QString eventId, QString endAt, int recurrenceScope);
   Q_INVOKABLE void bulkDeleteEvents(QVariantList eventIds);
   Q_INVOKABLE void bulkMoveEvents(QVariantList eventIds, QString calendarId);
   Q_INVOKABLE void bulkSetEventColor(QVariantList eventIds, QString colorId);
@@ -523,6 +531,7 @@ signals:
   void freeBusyIntervalsChanged();
   void driveAttachmentCandidatesChanged();
   void invitationsChanged();
+  void scheduledTasksChanged();
   void reminderStatusMessageChanged();
   void busyChanged();
 

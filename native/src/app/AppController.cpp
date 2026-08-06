@@ -967,6 +967,31 @@ QVariantList AppController::invitations() const { return invitations_; }
 
 int AppController::pendingInvitationCount() const { return static_cast<int>(invitations_.size()); }
 
+QVariantList AppController::scheduledTasks() const {
+  QVariantList result;
+  for (const TaskModelTask& task : taskProjectionTasks_) {
+    if (task.completed || !task.due.has_value() || !task.due->at.has_value()) {
+      continue;
+    }
+    const QString dueAt = *task.due->at;
+    if (dueAt.size() < 10) {
+      continue;
+    }
+    result.append(QVariantMap{{QStringLiteral("id"), task.id},
+                              {QStringLiteral("taskListId"), task.taskListId},
+                              {QStringLiteral("taskListTitle"), task.taskListTitle},
+                              {QStringLiteral("title"), task.title},
+                              {QStringLiteral("notes"), task.notes.value_or(QString())},
+                              {QStringLiteral("dueAt"), dueAt},
+                              {QStringLiteral("dueTimeZone"),
+                               task.due->timeZone.value_or(QString())},
+                              {QStringLiteral("priority"), static_cast<int>(task.priority)},
+                              {QStringLiteral("managedRecurrence"), task.managedRecurrence},
+                              {QStringLiteral("recurrenceSummary"), task.recurrenceSummary}});
+  }
+  return result;
+}
+
 QString AppController::reminderStatusMessage() const { return reminderStatusMessage_; }
 
 bool AppController::busy() const { return busy_; }
@@ -4365,6 +4390,52 @@ void AppController::resizeEvent(QString eventId, QString endAt) {
         });
 }
 
+void AppController::moveEventScoped(QString eventId,
+                                    QString startAt,
+                                    QString endAt,
+                                    bool allDay,
+                                    int recurrenceScope) {
+  if (recurrenceScope < 0 || recurrenceScope > 2) {
+    setStatus(QStringLiteral("Calendar recurrence scope is invalid"));
+    return;
+  }
+  const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
+                     : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
+                                            : CalendarEventRecurrenceScope::FullSeries;
+  watch(calendarMutationService_.updateScoped(
+            {.update = {.eventId = std::move(eventId),
+                        .startAt = std::move(startAt),
+                        .endAt = std::move(endAt),
+                        .allDay = allDay},
+             .scope = scope}),
+        [this](CalendarEventMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshCalendar();
+          }
+        });
+}
+
+void AppController::resizeEventScoped(QString eventId, QString endAt, int recurrenceScope) {
+  if (recurrenceScope < 0 || recurrenceScope > 2) {
+    setStatus(QStringLiteral("Calendar recurrence scope is invalid"));
+    return;
+  }
+  const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
+                     : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
+                                            : CalendarEventRecurrenceScope::FullSeries;
+  watch(calendarMutationService_.updateScoped(
+            {.update = {.eventId = std::move(eventId), .endAt = std::move(endAt)}, .scope = scope}),
+        [this](CalendarEventMutationResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else {
+            refreshCalendar();
+          }
+        });
+}
+
 void AppController::bulkDeleteEvents(QVariantList eventIds) {
   const std::optional<QList<QString>> ids = taskIdsFromVariantList(eventIds);
   if (!ids.has_value()) {
@@ -4646,6 +4717,7 @@ void AppController::applyTaskProjections(QList<TaskModelTask> tasks) {
   taskModel_.setTasks(taskPresentation(
       taskProjectionTasks_, notesEnabled_ && notesProjectionMode_ == kNotesOnlyProjection));
   notesModel_.setTasks(taskProjectionTasks_);
+  emit scheduledTasksChanged();
 }
 
 void AppController::reorderTask(QString taskId, bool earlier) {

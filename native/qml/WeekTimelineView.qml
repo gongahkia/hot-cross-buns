@@ -9,6 +9,8 @@ Pane {
     property var selectedEventIds: []
     property bool selectionMode: false
     property var dayLabels: []
+    property string weekStartDate: ""
+    property var scheduledTasks: []
     property int dayCount: 7
     property int hourHeight: 48
     property bool use24HourTime: true
@@ -26,6 +28,11 @@ Pane {
     signal eventSelectionRequested(string eventId, bool selected)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
+    signal eventMoveScopeRequested(var event, string startAt, string endAt, bool allDay)
+    signal eventResizeScopeRequested(var event, string endAt)
+    signal quickCreateRequested(string startAt, string endAt, bool allDay)
+    signal taskMoveRequested(string taskId, string dueDate)
+    signal taskDetailRequested(var task)
     signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
                               string endAt, bool allDay, string description, string location,
                               string startTimeZone, string colorId, string transparency,
@@ -74,14 +81,50 @@ Pane {
     }
 
     function dropMinute(y) {
-        return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
+        return Math.max(0, Math.min(24 * 60 - 15, Math.round(y * 60 / hourHeight / 15) * 15))
     }
 
     function dropEndMinute(y) {
-        return Math.max(0, Math.min(24 * 60, Math.round(y * 60 / hourHeight)))
+        return Math.max(15, Math.min(24 * 60, Math.round(y * 60 / hourHeight / 15) * 15))
     }
 
-    function requestMove(eventId, targetDayIndex, targetMinute) {
+    function dateForDayIndex(index) {
+        const date = new Date(weekStartDate + "T00:00:00")
+        if (!Number.isFinite(date.getTime())) return ""
+        date.setDate(date.getDate() + index)
+        return date.toISOString().slice(0, 10)
+    }
+
+    function dateTimeFor(dayIndex, minute) {
+        const date = new Date(dateForDayIndex(dayIndex) + "T00:00:00")
+        if (!Number.isFinite(date.getTime())) return ""
+        date.setMinutes(minute, 0, 0)
+        return date.toISOString()
+    }
+
+    function quickCreateTimed(dayIndex, startMinute, endMinute) {
+        const start = Math.min(startMinute, endMinute)
+        const end = Math.max(start + 15, endMinute)
+        quickCreateRequested(dateTimeFor(dayIndex, start),
+                             dateTimeFor(dayIndex, Math.min(24 * 60, end)), false)
+    }
+
+    function quickCreateAllDay(firstDay, lastDay) {
+        const start = Math.min(firstDay, lastDay)
+        const end = Math.max(firstDay, lastDay)
+        const startDate = dateForDayIndex(start)
+        const endDate = new Date(dateForDayIndex(end) + "T00:00:00")
+        if (!Number.isFinite(endDate.getTime())) return
+        endDate.setDate(endDate.getDate() + 1)
+        quickCreateRequested(startDate + "T00:00:00.000Z", endDate.toISOString(), true)
+    }
+
+    function tasksForDate(date) {
+        if (!Array.isArray(scheduledTasks)) return []
+        return scheduledTasks.filter(function(task) { return (task.dueAt || "").slice(0, 10) === date })
+    }
+
+    function requestMove(eventId, targetDayIndex, targetMinute, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
             return
         }
@@ -90,10 +133,11 @@ Pane {
                 typeof move.endAt !== "string" || typeof move.allDay !== "boolean") {
             return
         }
-        eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
+        if (sourceEvent !== undefined) eventMoveScopeRequested(sourceEvent, move.startAt, move.endAt, move.allDay)
+        else eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
     }
 
-    function requestAllDayMove(eventId, targetDayIndex) {
+    function requestAllDayMove(eventId, targetDayIndex, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.moveAllDayInput !== "function") {
             return
         }
@@ -102,10 +146,11 @@ Pane {
                 typeof move.endAt !== "string" || move.allDay !== true) {
             return
         }
-        eventMoveRequested(move.id, move.startAt, move.endAt, true)
+        if (sourceEvent !== undefined) eventMoveScopeRequested(sourceEvent, move.startAt, move.endAt, true)
+        else eventMoveRequested(move.id, move.startAt, move.endAt, true)
     }
 
-    function requestResize(eventId, targetEndDayIndex, targetEndMinute) {
+    function requestResize(eventId, targetEndDayIndex, targetEndMinute, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.resizeInput !== "function") {
             return
         }
@@ -113,10 +158,11 @@ Pane {
         if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
             return
         }
-        eventResizeRequested(resize.id, resize.endAt)
+        if (sourceEvent !== undefined) eventResizeScopeRequested(sourceEvent, resize.endAt)
+        else eventResizeRequested(resize.id, resize.endAt)
     }
 
-    function requestAllDayResize(eventId, targetEndDayIndex) {
+    function requestAllDayResize(eventId, targetEndDayIndex, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.resizeAllDayInput !== "function") {
             return
         }
@@ -124,7 +170,8 @@ Pane {
         if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
             return
         }
-        eventResizeRequested(resize.id, resize.endAt)
+        if (sourceEvent !== undefined) eventResizeScopeRequested(sourceEvent, resize.endAt)
+        else eventResizeRequested(resize.id, resize.endAt)
     }
 
     function selectEvent(eventId) {
@@ -239,7 +286,7 @@ Pane {
         Item {
             id: dayHeader
             Layout.fillWidth: true
-            Layout.preferredHeight: root.allDayLaneHeight * (root.allDayLaneCount + 1)
+            Layout.preferredHeight: root.allDayLaneHeight * (root.allDayLaneCount + 2)
 
             Repeater {
                 model: root.dayCount
@@ -321,7 +368,11 @@ Pane {
                             const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                 dayHeader.width)
                             if (!active && !allDayResizeHandler.active && targetDay !== dayIndex) {
-                                root.requestAllDayMove(id, targetDay)
+                                root.requestAllDayMove(id, targetDay,
+                                                       {id: id, title: title, allDay: allDay,
+                                                        recurrenceRule: recurrenceRule,
+                                                        recurringRemoteId: recurringRemoteId,
+                                                        originalStartAt: originalStartAt})
                             }
                         }
                     }
@@ -338,7 +389,11 @@ Pane {
                         enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
                         accessibleName: "Resize " + title + " end"
                         accessibleDescription: "Drag to change the all-day end date"
-                        onClicked: root.requestAllDayResize(id, dayIndex + daySpan)
+                        onClicked: root.requestAllDayResize(id, dayIndex + daySpan,
+                                                            {id: id, title: title, allDay: allDay,
+                                                             recurrenceRule: recurrenceRule,
+                                                             recurringRemoteId: recurringRemoteId,
+                                                             originalStartAt: originalStartAt})
 
                         DragHandler {
                             id: allDayResizeHandler
@@ -352,7 +407,11 @@ Pane {
                                             dayHeader.width)
                                 const initialEndDay = dayIndex + daySpan - 1
                                 if (!active && targetDay !== initialEndDay) {
-                                    root.requestAllDayResize(id, targetDay)
+                                    root.requestAllDayResize(id, targetDay,
+                                                              {id: id, title: title, allDay: allDay,
+                                                               recurrenceRule: recurrenceRule,
+                                                               recurringRemoteId: recurringRemoteId,
+                                                               originalStartAt: originalStartAt})
                                 }
                             }
                         }
@@ -369,6 +428,54 @@ Pane {
                         Accessible.description: checked ? "Event selected" : "Event not selected"
                         onClicked: root.eventSelectionRequested(id, checked)
                     }
+                }
+            }
+
+            Repeater {
+                model: root.scheduledTasks
+
+                delegate: CalendarTaskButton {
+                    required property var modelData
+                    property int taskDayIndex: root.dateForDayIndex(0) === "" ? -1 :
+                                               Math.round((new Date(modelData.dueAt.slice(0, 10) + "T00:00:00") -
+                                                           new Date(root.weekStartDate + "T00:00:00")) / 86400000)
+                    visible: !root.selectionMode && taskDayIndex >= 0 && taskDayIndex < root.dayCount
+                    x: root.dayPosition(taskDayIndex, dayHeader.width) + 2
+                    y: root.allDayLaneHeight * (root.allDayLaneCount + 1)
+                    width: Math.max(1, root.dayColumnWidth(dayHeader.width) - 4)
+                    height: root.allDayLaneHeight - 1
+                    compact: true
+                    text: modelData.title
+                    accessibleName: "Task: " + modelData.title
+                    onClicked: root.taskDetailRequested(modelData)
+
+                    DragHandler {
+                        enabled: !root.selectionMode
+                        target: null
+                        onActiveChanged: {
+                            const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                dayHeader.width)
+                            if (!active && targetDay !== taskDayIndex) {
+                                root.taskMoveRequested(modelData.id, root.dateForDayIndex(targetDay))
+                            }
+                        }
+                    }
+                }
+            }
+
+            MouseArea {
+                id: allDayQuickCreateArea
+                x: root.timeColumnWidth
+                width: dayHeader.width - root.timeColumnWidth
+                height: dayHeader.height
+                z: -1
+                property int pressDay: 0
+                preventStealing: true
+                cursorShape: Qt.CrossCursor
+                onPressed: function(mouse) { pressDay = root.dropDayIndex(mouse.x + x, dayHeader.width) }
+                onReleased: function(mouse) {
+                    if (!root.selectionMode) root.quickCreateAllDay(pressDay,
+                                                                    root.dropDayIndex(mouse.x + x, dayHeader.width))
                 }
             }
         }
@@ -450,6 +557,25 @@ Pane {
                     }
                 }
 
+                MouseArea {
+                    id: timedQuickCreateArea
+                    x: root.timeColumnWidth
+                    width: timelineCanvas.width - root.timeColumnWidth
+                    height: timelineCanvas.height
+                    property int pressDay: 0
+                    property int pressMinute: 0
+                    preventStealing: true
+                    cursorShape: Qt.CrossCursor
+                    onPressed: function(mouse) {
+                        pressDay = root.dropDayIndex(mouse.x + x, timelineCanvas.width)
+                        pressMinute = root.dropMinute(mouse.y)
+                    }
+                    onReleased: function(mouse) {
+                        if (!root.selectionMode) root.quickCreateTimed(pressDay, pressMinute,
+                                                                        root.dropEndMinute(mouse.y))
+                    }
+                }
+
                 Repeater {
                     id: eventRows
                     model: timedEventRows
@@ -520,7 +646,11 @@ Pane {
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
                                 if (!active && !resizeHandler.active &&
                                         (targetDay !== dayIndex || targetMinute !== startMinute)) {
-                                    root.requestMove(id, targetDay, targetMinute)
+                                    root.requestMove(id, targetDay, targetMinute,
+                                                     {id: id, title: title, allDay: allDay,
+                                                      recurrenceRule: recurrenceRule,
+                                                      recurringRemoteId: recurringRemoteId,
+                                                      originalStartAt: originalStartAt})
                                 }
                             }
                         }
@@ -552,7 +682,11 @@ Pane {
                             accessibleDescription: "Drag to change the end time"
                             onClicked: root.requestResize(id, dayIndex,
                                                           Math.min(24 * 60,
-                                                                   startMinute + durationMinutes + 15))
+                                                                   startMinute + durationMinutes + 15),
+                                                          {id: id, title: title, allDay: allDay,
+                                                           recurrenceRule: recurrenceRule,
+                                                           recurringRemoteId: recurringRemoteId,
+                                                           originalStartAt: originalStartAt})
 
                             background: Rectangle {
                                 color: root.eventColor(calendarId, colorId)
@@ -576,7 +710,11 @@ Pane {
                                                                       startMinute + durationMinutes)
                                     if (!active && (targetEndDay !== dayIndex ||
                                                     targetEndMinute !== initialEndMinute)) {
-                                        root.requestResize(id, targetEndDay, targetEndMinute)
+                                        root.requestResize(id, targetEndDay, targetEndMinute,
+                                                           {id: id, title: title, allDay: allDay,
+                                                            recurrenceRule: recurrenceRule,
+                                                            recurringRemoteId: recurringRemoteId,
+                                                            originalStartAt: originalStartAt})
                                     }
                                 }
                             }

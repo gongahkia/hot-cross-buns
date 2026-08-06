@@ -10,6 +10,8 @@ Pane {
     property bool selectionMode: false
     property int dayIndex: 0
     property string dateLabel: ""
+    property string dateIso: ""
+    property var scheduledTasks: []
     property int hourHeight: 64
     property bool use24HourTime: true
     property int workdayStartHour: 9
@@ -24,6 +26,10 @@ Pane {
     signal eventSelectionRequested(string eventId, bool selected)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
+    signal eventMoveScopeRequested(var event, string startAt, string endAt, bool allDay)
+    signal eventResizeScopeRequested(var event, string endAt)
+    signal quickCreateRequested(string startAt, string endAt, bool allDay)
+    signal taskDetailRequested(var task)
     signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
                               string endAt, bool allDay, string description, string location,
                               string startTimeZone, string colorId, string transparency,
@@ -63,14 +69,32 @@ Pane {
     }
 
     function dropMinute(y) {
-        return Math.max(0, Math.min(24 * 60 - 1, Math.round(y * 60 / hourHeight)))
+        return Math.max(0, Math.min(24 * 60 - 15, Math.round(y * 60 / hourHeight / 15) * 15))
     }
 
     function dropEndMinute(y) {
-        return Math.max(0, Math.min(24 * 60, Math.round(y * 60 / hourHeight)))
+        return Math.max(15, Math.min(24 * 60, Math.round(y * 60 / hourHeight / 15) * 15))
     }
 
-    function requestMove(eventId, targetDayIndex, targetMinute) {
+    function dateTimeForMinute(minute) {
+        const date = new Date(dateIso + "T00:00:00")
+        if (!Number.isFinite(date.getTime())) return ""
+        date.setMinutes(minute, 0, 0)
+        return date.toISOString()
+    }
+
+    function quickCreateAt(startMinute, endMinute) {
+        const start = Math.min(startMinute, endMinute)
+        const end = Math.max(start + 15, endMinute)
+        quickCreateRequested(dateTimeForMinute(start), dateTimeForMinute(Math.min(24 * 60, end)), false)
+    }
+
+    function tasksForDate(date) {
+        if (!Array.isArray(scheduledTasks)) return []
+        return scheduledTasks.filter(function(task) { return (task.dueAt || "").slice(0, 10) === date })
+    }
+
+    function requestMove(eventId, targetDayIndex, targetMinute, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.moveInput !== "function") {
             return
         }
@@ -79,10 +103,11 @@ Pane {
                 typeof move.endAt !== "string" || typeof move.allDay !== "boolean") {
             return
         }
-        eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
+        if (sourceEvent !== undefined) eventMoveScopeRequested(sourceEvent, move.startAt, move.endAt, move.allDay)
+        else eventMoveRequested(move.id, move.startAt, move.endAt, move.allDay)
     }
 
-    function requestResize(eventId, targetEndDayIndex, targetEndMinute) {
+    function requestResize(eventId, targetEndDayIndex, targetEndMinute, sourceEvent) {
         if (timelineModel === null || typeof timelineModel.resizeInput !== "function") {
             return
         }
@@ -90,7 +115,8 @@ Pane {
         if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
             return
         }
-        eventResizeRequested(resize.id, resize.endAt)
+        if (sourceEvent !== undefined) eventResizeScopeRequested(sourceEvent, resize.endAt)
+        else eventResizeRequested(resize.id, resize.endAt)
     }
 
     function selectEvent(eventId) {
@@ -268,6 +294,20 @@ Pane {
                     }
                 }
             }
+
+            Repeater {
+                model: root.tasksForDate(root.dateIso)
+
+                delegate: CalendarTaskButton {
+                    required property var modelData
+                    visible: !root.selectionMode
+                    width: parent.width
+                    compact: true
+                    text: modelData.title
+                    accessibleName: "Task: " + modelData.title
+                    onClicked: root.taskDetailRequested(modelData)
+                }
+            }
         }
 
         Flickable {
@@ -345,6 +385,20 @@ Pane {
                     }
                 }
 
+                MouseArea {
+                    id: quickCreateArea
+                    x: root.timeColumnWidth
+                    width: timelineCanvas.width - root.timeColumnWidth
+                    height: timelineCanvas.height
+                    property int pressMinute: 0
+                    preventStealing: true
+                    cursorShape: Qt.CrossCursor
+                    onPressed: function(mouse) { pressMinute = root.dropMinute(mouse.y) }
+                    onReleased: function(mouse) {
+                        if (!root.selectionMode) root.quickCreateAt(pressMinute, root.dropEndMinute(mouse.y))
+                    }
+                }
+
                 Repeater {
                     id: eventRows
                     model: timedEventRows
@@ -412,7 +466,11 @@ Pane {
                             onActiveChanged: {
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
                                 if (!active && !resizeHandler.active && targetMinute !== startMinute) {
-                                    root.requestMove(id, root.dayIndex, targetMinute)
+                                    root.requestMove(id, root.dayIndex, targetMinute,
+                                                     {id: id, title: title, allDay: allDay,
+                                                      recurrenceRule: recurrenceRule,
+                                                      recurringRemoteId: recurringRemoteId,
+                                                      originalStartAt: originalStartAt})
                                 }
                             }
                         }
@@ -463,7 +521,11 @@ Pane {
                                     const initialEndMinute = Math.min(24 * 60,
                                                                       startMinute + durationMinutes)
                                     if (!active && targetEndMinute !== initialEndMinute) {
-                                        root.requestResize(id, root.dayIndex, targetEndMinute)
+                                        root.requestResize(id, root.dayIndex, targetEndMinute,
+                                                           {id: id, title: title, allDay: allDay,
+                                                            recurrenceRule: recurrenceRule,
+                                                            recurringRemoteId: recurringRemoteId,
+                                                            originalStartAt: originalStartAt})
                                     }
                                 }
                             }

@@ -1508,7 +1508,7 @@ TestCase {
         compare(request.endAt, "2026-07-26T11:00:00.000Z")
         compare(request.allDay, false)
         compare(timeline.dropMinute(-1), 0)
-        compare(timeline.dropMinute(99999), 1439)
+        compare(timeline.dropMinute(99999), 1425)
         timeline.destroy()
         timelineModel.destroy()
     }
@@ -1527,10 +1527,38 @@ TestCase {
         timeline.requestResize("event-1", 0, 720)
         compare(request.eventId, "event-1")
         compare(request.endAt, "2026-07-26T12:00:00.000Z")
-        compare(timeline.dropEndMinute(-1), 0)
+        compare(timeline.dropEndMinute(-1), 15)
         compare(timeline.dropEndMinute(99999), 1440)
         timeline.destroy()
         timelineModel.destroy()
+    }
+
+    function test_calendarQuickCreateDefaultsToEvent() {
+        const component = Qt.createComponent("../../qml/CalendarQuickCreateDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const dialog = component.createObject(testCase, {
+            calendarId: "calendar-1",
+            startAt: "2026-08-05T09:00:00.000Z",
+            endAt: "2026-08-05T10:00:00.000Z"
+        })
+        verify(dialog !== null)
+        compare(dialog.createKind, 0)
+        compare(dialog.dateOnly(dialog.startAt), "2026-08-05")
+        dialog.destroy()
+    }
+
+    function test_recurringMoveScopeOffersInstanceChoices() {
+        const component = Qt.createComponent("../../qml/EventMutationScopeDialog.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const dialog = component.createObject(testCase, {
+            event: { id: "event-1", title: "Standup", recurringRemoteId: "series-1" }
+        })
+        verify(dialog !== null)
+        const options = dialog.scopeOptions()
+        compare(options.length, 3)
+        compare(options[0].value, 0)
+        compare(options[2].value, 2)
+        dialog.destroy()
     }
 
     function test_weekTimelinePresentsAndSelectsEvents() {
@@ -1642,7 +1670,7 @@ TestCase {
         compare(resize.endAt, "2026-07-31T00:00:00.000Z")
         compare(timeline.dropDayIndex(-1, 764), 0)
         compare(timeline.dropDayIndex(99999, 764), 6)
-        compare(timeline.dropMinute(99999), 1439)
+        compare(timeline.dropMinute(99999), 1425)
         compare(timeline.dropEndMinute(99999), 1440)
         timeline.destroy()
         timelineModel.destroy()
@@ -1674,6 +1702,36 @@ TestCase {
         monthGrid.eventEditRequested.connect(function(event) { edited = event })
         monthGrid.eventEditRequested({ id: "event-1", title: "Release review" })
         compare(edited.id, "event-1")
+        monthGrid.destroy()
+    }
+
+    function test_monthGridCreatesRangesAndMovesMultiDayEvents() {
+        const component = Qt.createComponent("../../qml/MonthGridView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const monthGrid = component.createObject(null, {
+            width: 700,
+            height: 480,
+            calendarDate: "2026-08-05"
+        })
+        verify(monthGrid !== null)
+        let create = null
+        monthGrid.quickCreateRequested.connect(function(startAt, endAt, allDay) {
+            create = { startAt, endAt, allDay }
+        })
+        monthGrid.quickCreateForRange("2026-08-05", "2026-08-07")
+        compare(create.startAt, "2026-08-05T00:00:00.000Z")
+        compare(create.endAt, "2026-08-08T00:00:00.000Z")
+        compare(create.allDay, true)
+        let move = null
+        monthGrid.eventMoveScopeRequested.connect(function(event, startAt, endAt, allDay) {
+            move = { event, startAt, endAt, allDay }
+        })
+        monthGrid.requestEventMove({ id: "event-1", title: "Trip", allDay: true,
+                                     startAt: "2026-08-05T00:00:00.000Z",
+                                     endAt: "2026-08-08T00:00:00.000Z" }, "2026-08-07")
+        compare(move.startAt, "2026-08-07T00:00:00.000Z")
+        compare(move.endAt, "2026-08-10T00:00:00.000Z")
+        compare(move.allDay, true)
         monthGrid.destroy()
     }
 
