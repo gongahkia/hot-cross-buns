@@ -50,6 +50,59 @@ TestCase {
         mainWindow.destroy()
     }
 
+    function test_emojiAutocompleteFindsSlackStyleAliases() {
+        const component = Qt.createComponent("../../qml/EmojiAutocomplete.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const autocomplete = component.createObject(testCase)
+        verify(autocomplete !== null)
+        const rocket = autocomplete.search("rocket")
+        verify(rocket.length > 0)
+        compare(rocket[0].emoji, "🚀")
+        const thumbsUp = autocomplete.search("thumb_up")
+        verify(thumbsUp.length > 0)
+        compare(thumbsUp[0].emoji, "👍")
+        autocomplete.destroy()
+    }
+
+    function test_emojiAutocompleteOnlyTriggersAtTokenBoundary() {
+        const component = Qt.createComponent("../../qml/EmojiAutocomplete.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const autocomplete = component.createObject(testCase)
+        verify(autocomplete !== null)
+        const trigger = autocomplete.triggerAt("Ship :rocket", 12)
+        verify(trigger !== null)
+        compare(trigger.start, 5)
+        compare(trigger.query, "rocket")
+        compare(autocomplete.triggerAt("https://example.test", 20), null)
+        autocomplete.destroy()
+    }
+
+    function test_emojiAutocompleteReplacesTheTypedCode() {
+        const component = Qt.createComponent("../../qml/EmojiAutocomplete.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const autocomplete = component.createObject(testCase)
+        verify(autocomplete !== null)
+        const input = {
+            text: "Ship :rocket",
+            cursorPosition: 12,
+            remove: function(start, end) {
+                this.text = this.text.slice(0, start) + this.text.slice(end)
+                this.cursorPosition = start
+            },
+            insert: function(start, value) {
+                this.text = this.text.slice(0, start) + value + this.text.slice(start)
+                this.cursorPosition = start + value.length
+            },
+            forceActiveFocus: function() {}
+        }
+        autocomplete.target = input
+        autocomplete.tokenStart = 5
+        autocomplete.results = autocomplete.search("rocket")
+        verify(autocomplete.choose(0))
+        compare(input.text, "Ship 🚀 ")
+        autocomplete.destroy()
+    }
+
     function test_dateTimeEditorUsesUtcDatesForAllDayEvents() {
         const component = Qt.createComponent("../../qml/DateTimeEditor.qml")
         compare(component.status, Component.Ready, component.errorString())

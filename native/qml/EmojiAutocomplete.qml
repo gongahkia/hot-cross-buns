@@ -46,6 +46,18 @@ Popup {
         y = below + height <= parent.height ? below : Math.max(Theme.spacingSmall, above)
     }
 
+    function triggerAt(text, cursor) {
+        const source = String(text || "")
+        if (!Number.isInteger(cursor) || cursor < 0 || cursor > source.length) return null
+        const match = /(^|[\s([{\"'])(:[A-Za-z0-9_+-]*)$/.exec(source.slice(0, cursor))
+        if (!match || match[2].length > 49) return null
+        return { start: cursor - match[2].length, query: match[2].slice(1) }
+    }
+
+    function search(query) {
+        return EmojiCatalog.search(query, maxResults)
+    }
+
     function refresh() {
         if (suppressRefresh || !target || !target.activeFocus || target.inputMethodComposing === true ||
                 target.selectionStart !== target.selectionEnd) {
@@ -58,15 +70,14 @@ Popup {
             clear()
             return
         }
-        const beforeCursor = text.slice(0, cursor)
-        const match = /(^|[\s([{\"'])(:[A-Za-z0-9_+-]*)$/.exec(beforeCursor)
-        if (!match || match[2].length > 49) {
+        const trigger = triggerAt(text, cursor)
+        if (trigger === null) {
             clear()
             return
         }
-        tokenStart = cursor - match[2].length
-        triggerQuery = match[2].slice(1)
-        results = EmojiCatalog.search(triggerQuery, maxResults)
+        tokenStart = trigger.start
+        triggerQuery = trigger.query
+        results = search(triggerQuery)
         selectedIndex = 0
         if (!hasResults) {
             if (opened) close()
@@ -84,7 +95,7 @@ Popup {
         if (!Number.isInteger(cursor) || cursor < tokenStart) return false
         const suffix = text.slice(cursor, cursor + 1)
         suppressRefresh = true
-        target.remove(tokenStart, cursor - tokenStart)
+        target.remove(tokenStart, cursor)
         target.insert(tokenStart, choice.emoji)
         target.cursorPosition = tokenStart + choice.emoji.length
         if (suffix.length === 0 || /\s/.test(suffix)) {
