@@ -123,3 +123,73 @@ jobs:
         run: rustup toolchain install 1.85.0 --profile minimal
       - name: Run native transaction fixtures
         run: cargo +1.85.0 test -p wukong-core --test native_transaction_fixtures -- --test-threads=1
+
+  release-artifacts:
+    name: release artifact (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: wukong
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            binary: wukong
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: wukong
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            binary: wukong.exe
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Install Rust target
+        shell: bash
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          rustup target add ${{ matrix.target }} --toolchain 1.85.0
+      - name: Configure Windows GNU linker
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        shell: pwsh
+        run: |
+          $linker = (Get-Command gcc -ErrorAction Stop).Source
+          if ((& $linker -dumpmachine) -ne 'x86_64-w64-mingw32') {
+            throw "Windows runner gcc is not an x86_64 MinGW linker: $linker"
+          }
+          "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$linker" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build native release archive
+        shell: bash
+        run: |
+          version="$(cargo +1.85.0 run --quiet --package wukong-cli -- --version | sed -n 's/^wukong //p')"
+          test -n "$version"
+          scripts/package-release.sh "$version" "${{ matrix.target }}" release-artifacts
+      - name: Verify archive contents, checksum, and native executable
+        shell: bash
+        run: |
+          version="$(cargo +1.85.0 run --quiet --package wukong-cli -- --version | sed -n 's/^wukong //p')"
+          archive="release-artifacts/wukong-$version-${{ matrix.target }}.zip"
+          test -s "$archive"
+          test "$(unzip -Z1 "$archive")" = "${{ matrix.binary }}"
+          unzip -t "$archive"
+          (
+            cd release-artifacts
+            if command -v shasum >/dev/null 2>&1; then
+              shasum -a 256 -c "$(basename "$archive").sha256"
+            else
+              sha256sum -c "$(basename "$archive").sha256"
+            fi
+          )
+          stage="$(mktemp -d)"
+          unzip -q "$archive" -d "$stage"
+          test "$("$stage/${{ matrix.binary }}" --version)" = "wukong $version"
+      - name: Upload verified archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wukong-${{ matrix.target }}
+          path: |
+            release-artifacts/wukong-*.zip
+            release-artifacts/wukong-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 7

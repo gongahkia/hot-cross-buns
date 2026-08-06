@@ -36,3 +36,11 @@ fixtures separately on Linux, macOS, and Windows. It covers stale transaction
 recovery, conflict rollback, safe removal, Unicode preservation, portable case
 conflicts, and advisory lock contention. Fixtures use only temporary local
 paths and do not place credentials in output or retained artifacts.
+
+The release artifacts matrix builds the four native targets declared in the
+[release artifact layout ADR](adr/0037-release-artifact-layout.md): macOS
+arm64/x64, Linux x64, and Windows GNU x64. Each job invokes the checked-in
+packaging script, verifies that the ZIP contains only its expected executable,
+checks the sibling SHA-256 file, extracts the archive, and smoke-tests the
+extracted native executable. The verified ZIP and checksum are retained as a
+seven-day workflow artifact only; CI neither signs nor publishes a release.
