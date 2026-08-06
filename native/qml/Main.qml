@@ -23,10 +23,8 @@ ApplicationWindow {
     property var taskListModel: null
     property var taskModel: null
     property var timelineModel: null
-    property var scheduledTasks: appController !== null && appController.scheduledTasks !== undefined
-                                 ? appController.scheduledTasks : []
     property var unscheduledTasks: appController !== null && appController.unscheduledTasks !== undefined
-                                   ? appController.unscheduledTasks : []
+                                  ? appController.unscheduledTasks : []
     property string undoLabel: appController !== null && typeof appController.undoLabel === "string"
                                ? appController.undoLabel : ""
     property string redoLabel: appController !== null && typeof appController.redoLabel === "string"
@@ -519,7 +517,7 @@ ApplicationWindow {
     }
 
     color: Theme.background
-    font.family: Theme.fontFamily
+    font.family: Theme.fontFamily.length > 0 ? Theme.fontFamily : "Helvetica Neue"
     font.pixelSize: Theme.bodyFontSize
     palette.window: Theme.background
     palette.windowText: Theme.textPrimary
@@ -1656,7 +1654,8 @@ ApplicationWindow {
                         dayIndex: window.calendarWeekDayIndex()
                         dateLabel: window.calendarDayHeading
                         dateIso: window.calendarDate
-                        scheduledTasks: window.scheduledTasks
+                        scheduledTaskIndex: window.appController !== null
+                                            ? window.appController.scheduledTaskDateIndex : null
                         timelineActive: calendarViews.currentIndex === 1
                         bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
@@ -1711,7 +1710,8 @@ ApplicationWindow {
                         selectionMode: window.calendarSelectionMode
                         dayLabels: window.calendarWeekLabels()
                         weekStartDate: window.shiftCalendarDate(-window.calendarWeekDayIndex())
-                        scheduledTasks: window.scheduledTasks
+                        scheduledTaskIndex: window.appController !== null
+                                            ? window.appController.scheduledTaskDateIndex : null
                         timelineActive: calendarViews.currentIndex === 2
                         bypassCalendarVisibility: window.timelineProfile
                         use24HourTime: window.use24HourTime
@@ -1769,7 +1769,8 @@ ApplicationWindow {
                         selectionMode: window.calendarSelectionMode
                         monthLabel: window.calendarMonthLabel
                         calendarDate: window.calendarDate
-                        scheduledTasks: window.scheduledTasks
+                        scheduledTaskIndex: window.appController !== null
+                                            ? window.appController.scheduledTaskDateIndex : null
                         weekStartDay: window.weekStartDay
                         onEventSelectionRequested: function(eventId, selected) {
                             window.setCalendarEventSelected(eventId, selected)

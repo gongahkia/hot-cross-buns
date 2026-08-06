@@ -1744,19 +1744,20 @@ TestCase {
         compare(resize.event.id, "event-1")
         compare(resize.startAt, "2026-08-06T00:00:00.000Z")
         compare(resize.endAt, "2026-08-10T00:00:00.000Z")
-        monthGrid.scheduledTasks = [{ id: "task-1", dueAt: "2026-08-05", title: "First" },
-                                    { id: "task-2", dueAt: "2026-08-05", title: "Second" }]
-        const hidden = monthGrid.moreCount("2026-08-05", [
+        const scheduledTaskIndex = Qt.createQmlObject('import QtQml; QtObject { property int revision: 1; function tasksForDate(date) { return date === "2026-08-05" ? [{ id: "task-1", dueAt: date, title: "First" }, { id: "task-2", dueAt: date, title: "Second" }] : [] } }', testCase)
+        monthGrid.scheduledTaskIndex = scheduledTaskIndex
+        const hidden = monthGrid.moreCount(0, [
             { id: "all-day", allDay: true, calendarId: "calendar-1", title: "All day" },
             { id: "timed-1", allDay: false, calendarId: "calendar-1", title: "First" },
             { id: "timed-2", allDay: false, calendarId: "calendar-1", title: "Second" },
             { id: "timed-3", allDay: false, calendarId: "calendar-1", title: "Third" }
-        ])
+        ], "2026-08-05")
         compare(hidden, 3)
         monthGrid.showPreview("New event", "2026-08-07", "2026-08-10")
         compare(monthGrid.previewSegments().length, 2)
         monthGrid.clearPreview()
         monthGrid.destroy()
+        scheduledTaskIndex.destroy()
         model.destroy()
     }
 

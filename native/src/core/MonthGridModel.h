@@ -4,6 +4,7 @@
 
 #include <QAbstractTableModel>
 #include <QDate>
+#include <QStringList>
 #include <QTimeZone>
 #include <QVariantList>
 
@@ -14,6 +15,11 @@ namespace hcb {
 class MonthGridModel final : public QAbstractTableModel {
   Q_OBJECT
   Q_PROPERTY(QVariantList allDaySpans READ allDaySpans NOTIFY allDaySpansChanged)
+  Q_PROPERTY(QVariantList visibleAllDaySpans READ visibleAllDaySpans NOTIFY presentationChanged)
+  Q_PROPERTY(QStringList visibleCalendarIds READ visibleCalendarIds WRITE setVisibleCalendarIds NOTIFY
+                 presentationChanged)
+  Q_PROPERTY(int visibleAllDayLanes READ visibleAllDayLanes WRITE setVisibleAllDayLanes NOTIFY
+                 presentationChanged)
 
 public:
   enum Role : std::int32_t {
@@ -22,7 +28,10 @@ public:
     OutsideMonthRole,
     EventCountRole,
     EventsRole,
-    AllDayOverflowCountRole
+    AllDayOverflowCountRole,
+    VisibleTimedEventsRole,
+    VisibleAllDayEventsRole,
+    HiddenAllDayCountRole
   };
   Q_ENUM(Role)
 
@@ -33,6 +42,11 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
   [[nodiscard]] QVariantList allDaySpans() const;
+  [[nodiscard]] QVariantList visibleAllDaySpans() const;
+  [[nodiscard]] QStringList visibleCalendarIds() const;
+  void setVisibleCalendarIds(QStringList visibleCalendarIds);
+  [[nodiscard]] int visibleAllDayLanes() const;
+  void setVisibleAllDayLanes(int visibleAllDayLanes);
   Q_INVOKABLE QString dateForPoint(double x, double y, double width, double height) const;
   Q_INVOKABLE int dateIndex(const QString& date) const;
   Q_INVOKABLE QString dateForIndex(int dayIndex) const;
@@ -78,12 +92,23 @@ public:
 
 signals:
   void allDaySpansChanged();
+  void presentationChanged();
 
 private:
+  [[nodiscard]] bool isCalendarVisible(const QString& calendarId) const;
+  void rebuildPresentation(bool notifyViews);
+
   QDate month_;
   QList<Cell> cells_;
   QList<AllDaySpan> allDaySpans_;
   QList<int> allDayOverflowCounts_;
+  QList<QVariantList> visibleTimedEvents_;
+  QList<QVariantList> visibleAllDayEvents_;
+  QList<int> hiddenAllDayCounts_;
+  QVariantList visibleAllDaySpanMaps_;
+  QStringList visibleCalendarIds_;
+  int visibleAllDayLanes_{3};
+  bool filterCalendarVisibility_{false};
   QTimeZone displayTimeZone_;
 };
 

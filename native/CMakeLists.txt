@@ -143,6 +143,8 @@ set(HCB_NATIVE_SOURCES
   src/core/LocalSearchQuery.h
   src/core/MonthGridModel.cpp
   src/core/MonthGridModel.h
+  src/core/ScheduledTaskDateIndex.cpp
+  src/core/ScheduledTaskDateIndex.h
   src/core/ModelDiffPolicy.h
   src/core/MutationTelemetryStore.cpp
   src/core/MutationTelemetryStore.h
@@ -1072,6 +1074,17 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_month_grid_model_tests)
   hcb_enable_sanitizers(hcb_month_grid_model_tests)
   add_test(NAME hcb_month_grid_model_tests COMMAND hcb_month_grid_model_tests)
+
+  qt_add_executable(hcb_scheduled_task_date_index_tests
+    tests/ScheduledTaskDateIndexTest.cpp
+    src/core/ScheduledTaskDateIndex.cpp
+    src/core/ScheduledTaskDateIndex.h
+  )
+  target_link_libraries(hcb_scheduled_task_date_index_tests PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(hcb_scheduled_task_date_index_tests PRIVATE src tests)
+  hcb_enable_warnings(hcb_scheduled_task_date_index_tests)
+  hcb_enable_sanitizers(hcb_scheduled_task_date_index_tests)
+  add_test(NAME hcb_scheduled_task_date_index_tests COMMAND hcb_scheduled_task_date_index_tests)
 
   qt_add_executable(hcb_timeline_model_tests
     tests/TimelineModelTest.cpp
@@ -2790,6 +2803,7 @@ if(BUILD_TESTING)
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
     hcb_month_grid_model_tests
+    hcb_scheduled_task_date_index_tests
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_notes_model_tests
@@ -2897,6 +2911,7 @@ if(BUILD_TESTING)
     hcb_calendar_source_model_tests
     hcb_agenda_model_tests
     hcb_month_grid_model_tests
+    hcb_scheduled_task_date_index_tests
     hcb_timeline_model_tests
     hcb_calendar_mutation_service_tests
     hcb_notes_model_tests

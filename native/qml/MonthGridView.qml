@@ -10,7 +10,7 @@ Pane {
     property bool selectionMode: false
     property int weekStartDay: 0
     property string calendarDate: ""
-    property var scheduledTasks: []
+    property var scheduledTaskIndex: null
     property string monthLabel: ""
     property int visibleAllDayLanes: 3
     property int allDayLaneHeight: 22
@@ -63,18 +63,6 @@ Pane {
         return Theme.calendarColor(colorId, fallback)
     }
 
-    function visibleTimedEvents(events) {
-        return events.filter(function(event) {
-            return root.isCalendarVisible(event.calendarId) && event.allDay !== true
-        })
-    }
-
-    function visibleAllDayEvents(events) {
-        return events.filter(function(event) {
-            return root.isCalendarVisible(event.calendarId) && event.allDay === true
-        })
-    }
-
     function dateForGridPoint(x, y) {
         return monthGridModel !== null && typeof monthGridModel.dateForPoint === "function"
              ? monthGridModel.dateForPoint(x, y, gridArea.width, gridArea.height) : ""
@@ -115,8 +103,13 @@ Pane {
     }
 
     function tasksForDate(date) {
-        if (!Array.isArray(scheduledTasks)) return []
-        return scheduledTasks.filter(function(task) { return (task.dueAt || "").slice(0, 10) === date })
+        const revision = scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+                       typeof scheduledTaskIndex.revision === "number"
+                       ? scheduledTaskIndex.revision : 0
+        if (revision < 0) return []
+        return scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+               typeof scheduledTaskIndex.tasksForDate === "function"
+               ? scheduledTaskIndex.tasksForDate(date) : []
     }
 
     function quickCreateForRange(firstDate, lastDate) {
@@ -127,41 +120,15 @@ Pane {
         }
     }
 
-    function visibleAllDaySpans() {
-        const source = monthGridModel !== null && monthGridModel.allDaySpans !== undefined
-                     ? monthGridModel.allDaySpans : []
-        return source.filter(function(event) {
-            return root.isCalendarVisible(event.calendarId) && event.laneIndex < root.visibleAllDayLanes
-        })
-    }
-
-    function spanCoversDate(span, date) {
-        const index = dateIndex(date)
-        const first = span.weekIndex * 7 + span.startColumn
-        return index >= first && index < first + span.daySpan
-    }
-
-    function visibleAllDayIdsForDate(date) {
-        return visibleAllDaySpans().filter(function(span) { return root.spanCoversDate(span, date) })
-                                  .map(function(span) { return span.id })
-    }
-
-    function hiddenAllDayEvents(date, events) {
-        const visibleIds = visibleAllDayIdsForDate(date)
-        return visibleAllDayEvents(events).filter(function(event) {
-            return visibleIds.indexOf(event.id) < 0
-        })
-    }
-
-    function moreCount(date, events) {
-        return hiddenAllDayEvents(date, events).length + Math.max(0, visibleTimedEvents(events).length - 2) +
+    function moreCount(hiddenAllDayCount, visibleTimedEvents, date) {
+        return hiddenAllDayCount + Math.max(0, visibleTimedEvents.length - 2) +
                Math.max(0, tasksForDate(date).length - 1)
     }
 
-    function openOverflow(date, events, x, y) {
+    function openOverflow(date, visibleAllDayEvents, visibleTimedEvents, x, y) {
         overflowDate = date
-        overflowAllDayEvents = visibleAllDayEvents(events)
-        overflowTimedEvents = visibleTimedEvents(events)
+        overflowAllDayEvents = visibleAllDayEvents
+        overflowTimedEvents = visibleTimedEvents
         overflowTasks = tasksForDate(date)
         overflowPopup.x = Math.max(0, Math.min(gridArea.width - overflowPopup.width, x))
         overflowPopup.y = Math.max(0, Math.min(gridArea.height - overflowPopup.height, y))
@@ -196,6 +163,26 @@ Pane {
         dragPreviewTitle = ""
         dragPreviewStartDate = ""
         dragPreviewEndDate = ""
+    }
+
+    function syncPresentationIndex() {
+        if (monthGridModel === null) return
+        if (typeof monthGridModel.visibleAllDayLanes === "number") {
+            monthGridModel.visibleAllDayLanes = visibleAllDayLanes
+        }
+        if (calendarVisibility !== null && calendarVisibility.visibleCalendarIds !== undefined) {
+            monthGridModel.visibleCalendarIds = calendarVisibility.visibleCalendarIds
+        }
+    }
+
+    onMonthGridModelChanged: syncPresentationIndex()
+    onCalendarVisibilityChanged: syncPresentationIndex()
+    onVisibleAllDayLanesChanged: syncPresentationIndex()
+    Component.onCompleted: syncPresentationIndex()
+
+    Connections {
+        target: root.calendarVisibility
+        function onVisibleCalendarIdsChanged() { root.syncPresentationIndex() }
     }
 
     ColumnLayout {
@@ -257,6 +244,7 @@ Pane {
                 clip: true
                 columnSpacing: 1
                 rowSpacing: 1
+                acceptedButtons: Qt.NoButton
                 model: root.monthGridModel
                 columnWidthProvider: function() { return width / 7 }
                 rowHeightProvider: function() { return height / 6 }
@@ -265,8 +253,9 @@ Pane {
                     required property string date
                     required property int day
                     required property bool outsideMonth
-                    required property var events
-                    required property int allDayOverflowCount
+                    required property var visibleTimedEvents
+                    required property var visibleAllDayEvents
+                    required property int hiddenAllDayCount
                     opacity: outsideMonth ? 0.5 : 1
 
                     Rectangle {
@@ -289,36 +278,63 @@ Pane {
                         radius: 4
                     }
 
-                    MouseArea {
+                    Item {
                         id: cellQuickCreateArea
                         objectName: "monthCellQuickCreate:" + date
                         anchors.fill: parent
                         z: -1
-                        property string firstDate: ""
-                        property real pressX: 0
-                        property real pressY: 0
-                        preventStealing: true
-                        cursorShape: Qt.CrossCursor
-                        onPressed: function(mouse) {
-                            firstDate = date
-                            pressX = mouse.x
-                            pressY = mouse.y
+
+                        HoverHandler { cursorShape: Qt.CrossCursor }
+
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            onTapped: root.selectedDate = date
+                            onDoubleTapped: function() {
+                                if (!root.selectionMode) root.quickCreateForRange(date, date)
+                            }
                         }
-                        onPositionChanged: function(mouse) {
-                            if (pressed) root.showPreview("New event", firstDate,
-                                                          root.dateForGridPoint(mapToItem(gridArea, mouse.x, mouse.y).x,
-                                                                                mapToItem(gridArea, mouse.x, mouse.y).y))
-                        }
-                        onReleased: function(mouse) {
-                            const point = mapToItem(gridArea, mouse.x, mouse.y)
-                            const lastDate = root.dateForGridPoint(point.x, point.y)
-                            const moved = Math.abs(mouse.x - pressX) > 6 || Math.abs(mouse.y - pressY) > 6
-                            if (!root.selectionMode && moved) root.quickCreateForRange(firstDate, lastDate)
-                            else root.selectedDate = date
-                            root.clearPreview()
-                        }
-                        onDoubleClicked: function(mouse) {
-                            if (!root.selectionMode) root.quickCreateForRange(date, date)
+
+                        DragHandler {
+                            id: monthCreateDrag
+                            enabled: !root.selectionMode
+                            target: null
+                            acceptedButtons: Qt.LeftButton
+                            cursorShape: Qt.CrossCursor
+                            grabPermissions: PointerHandler.CanTakeOverFromItems |
+                                             PointerHandler.ApprovesTakeOverByAnything
+                            property bool creating: false
+                            property string firstDate: ""
+                            onActiveChanged: {
+                                if (active) {
+                                    creating = true
+                                    const start = parent.mapToItem(gridArea, centroid.pressPosition.x,
+                                                                   centroid.pressPosition.y)
+                                    const current = parent.mapToItem(gridArea, centroid.position.x,
+                                                                     centroid.position.y)
+                                    firstDate = root.dateForGridPoint(start.x, start.y)
+                                    root.showPreview("New event", firstDate,
+                                                     root.dateForGridPoint(current.x, current.y))
+                                } else if (creating) {
+                                    const point = parent.mapToItem(gridArea, centroid.position.x,
+                                                                   centroid.position.y)
+                                    root.quickCreateForRange(firstDate,
+                                                             root.dateForGridPoint(point.x, point.y))
+                                    root.clearPreview()
+                                    creating = false
+                                }
+                            }
+                            onTranslationChanged: {
+                                if (active) {
+                                    const point = parent.mapToItem(gridArea, centroid.position.x,
+                                                                   centroid.position.y)
+                                    root.showPreview("New event", firstDate,
+                                                     root.dateForGridPoint(point.x, point.y))
+                                }
+                            }
+                            onCanceled: function() {
+                                creating = false
+                                root.clearPreview()
+                            }
                         }
                     }
 
@@ -347,7 +363,7 @@ Pane {
                         clip: true
 
                         Repeater {
-                            model: root.visibleTimedEvents(events).slice(0, 2)
+                            model: visibleTimedEvents.slice(0, 2)
                             delegate: CalendarEventButton {
                                 required property var modelData
                                 width: parent.width
@@ -413,7 +429,7 @@ Pane {
 
                         AccessibleButton {
                             id: moreButton
-                            property int hiddenCount: root.moreCount(date, events)
+                            property int hiddenCount: root.moreCount(hiddenAllDayCount, visibleTimedEvents, date)
                             width: parent.width
                             height: root.allDayLaneHeight
                             visible: hiddenCount > 0
@@ -421,7 +437,7 @@ Pane {
                             text: "+" + hiddenCount + " more"
                             onClicked: {
                                 const point = mapToItem(gridArea, x, y + height)
-                                root.openOverflow(date, events, point.x, point.y)
+                                root.openOverflow(date, visibleAllDayEvents, visibleTimedEvents, point.x, point.y)
                             }
                         }
                     }
@@ -446,7 +462,8 @@ Pane {
             }
 
             Repeater {
-                model: root.visibleAllDaySpans()
+                model: root.monthGridModel !== null && root.monthGridModel.visibleAllDaySpans !== undefined
+                       ? root.monthGridModel.visibleAllDaySpans : []
                 delegate: CalendarEventButton {
                     required property var modelData
                     x: modelData.startColumn * gridArea.width / 7 + Theme.spacingSmall

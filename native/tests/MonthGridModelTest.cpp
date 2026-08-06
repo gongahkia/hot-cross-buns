@@ -9,6 +9,7 @@ private slots:
   void buildsSundayFirstGridAndAssignsEndExclusiveEventSpans();
   void keepsAllDayDatesStableAcrossDisplayTimeZones();
   void createsWeeklySegmentsForMultiWeekAllDayEvents();
+  void indexesVisibleMonthPresentationByCalendarAndLane();
   void mapsGridCoordinatesAndMovesMultiDayEventsInDisplayTimeZone();
   void clearsForInvalidMonthOrTimeZone();
 };
@@ -109,6 +110,59 @@ void MonthGridModelTest::createsWeeklySegmentsForMultiWeekAllDayEvents() {
   QCOMPARE(spans.at(2).toMap().value(QStringLiteral("daySpan")).toInt(), 3);
   QCOMPARE(spans.at(1).toMap().value(QStringLiteral("startsBeforeRange")).toBool(), true);
   QCOMPARE(spans.at(1).toMap().value(QStringLiteral("endsAfterRange")).toBool(), true);
+}
+
+void MonthGridModelTest::indexesVisibleMonthPresentationByCalendarAndLane() {
+  hcb::MonthGridModel model;
+  model.setMonth(QDate(2026, 8, 1),
+                 {{.id = QStringLiteral("visible-all-day"),
+                   .calendarId = QStringLiteral("calendar-visible"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Visible all-day"),
+                   .startAt = QStringLiteral("2026-08-05T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-06T00:00:00.000Z"),
+                   .allDay = true},
+                  {.id = QStringLiteral("hidden-all-day"),
+                   .calendarId = QStringLiteral("calendar-hidden"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Hidden all-day"),
+                   .startAt = QStringLiteral("2026-08-05T00:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-06T00:00:00.000Z"),
+                   .allDay = true},
+                  {.id = QStringLiteral("visible-timed"),
+                   .calendarId = QStringLiteral("calendar-visible"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Visible timed"),
+                   .startAt = QStringLiteral("2026-08-05T10:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-05T11:00:00.000Z"),
+                   .allDay = false},
+                  {.id = QStringLiteral("hidden-timed"),
+                   .calendarId = QStringLiteral("calendar-hidden"),
+                   .status = QStringLiteral("confirmed"),
+                   .title = QStringLiteral("Hidden timed"),
+                   .startAt = QStringLiteral("2026-08-05T12:00:00.000Z"),
+                   .endAt = QStringLiteral("2026-08-05T13:00:00.000Z"),
+                   .allDay = false}},
+                 QTimeZone::utc());
+  model.setVisibleCalendarIds({QStringLiteral("calendar-visible")});
+  model.setVisibleAllDayLanes(0);
+
+  const QModelIndex august5 = model.index(1, 3);
+  const QVariantList timed =
+      model.data(august5, hcb::MonthGridModel::VisibleTimedEventsRole).toList();
+  QCOMPARE(timed.size(), 1);
+  QCOMPARE(timed.front().toMap().value(QStringLiteral("id")).toString(),
+           QStringLiteral("visible-timed"));
+  QCOMPARE(model.data(august5, hcb::MonthGridModel::HiddenAllDayCountRole).toInt(), 1);
+  QVERIFY(model.visibleAllDaySpans().isEmpty());
+
+  model.setVisibleAllDayLanes(1);
+  QCOMPARE(model.visibleAllDaySpans().size(), 1);
+  const QVariantList allDay =
+      model.data(august5, hcb::MonthGridModel::VisibleAllDayEventsRole).toList();
+  QCOMPARE(allDay.size(), 1);
+  QCOMPARE(allDay.front().toMap().value(QStringLiteral("id")).toString(),
+           QStringLiteral("visible-all-day"));
 }
 
 void MonthGridModelTest::mapsGridCoordinatesAndMovesMultiDayEventsInDisplayTimeZone() {

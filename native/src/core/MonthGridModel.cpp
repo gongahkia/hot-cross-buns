@@ -3,6 +3,7 @@
 #include "core/CalendarLayoutEngine.h"
 
 #include <QDateTime>
+#include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -138,6 +139,12 @@ QVariant MonthGridModel::data(const QModelIndex& index, int role) const {
   }
   case AllDayOverflowCountRole:
     return allDayOverflowCounts_.value(index.row() * columnCount() + index.column());
+  case VisibleTimedEventsRole:
+    return visibleTimedEvents_.value(index.row() * columnCount() + index.column());
+  case VisibleAllDayEventsRole:
+    return visibleAllDayEvents_.value(index.row() * columnCount() + index.column());
+  case HiddenAllDayCountRole:
+    return hiddenAllDayCounts_.value(index.row() * columnCount() + index.column());
   default:
     return {};
   }
@@ -149,7 +156,10 @@ QHash<int, QByteArray> MonthGridModel::roleNames() const {
           {OutsideMonthRole, "outsideMonth"},
           {EventCountRole, "eventCount"},
           {EventsRole, "events"},
-          {AllDayOverflowCountRole, "allDayOverflowCount"}};
+          {AllDayOverflowCountRole, "allDayOverflowCount"},
+          {VisibleTimedEventsRole, "visibleTimedEvents"},
+          {VisibleAllDayEventsRole, "visibleAllDayEvents"},
+          {HiddenAllDayCountRole, "hiddenAllDayCount"}};
 }
 
 QVariantList MonthGridModel::allDaySpans() const {
@@ -159,6 +169,32 @@ QVariantList MonthGridModel::allDaySpans() const {
     spans.append(allDaySpanMap(span));
   }
   return spans;
+}
+
+QVariantList MonthGridModel::visibleAllDaySpans() const { return visibleAllDaySpanMaps_; }
+
+QStringList MonthGridModel::visibleCalendarIds() const { return visibleCalendarIds_; }
+
+void MonthGridModel::setVisibleCalendarIds(QStringList visibleCalendarIds) {
+  visibleCalendarIds.removeDuplicates();
+  std::sort(visibleCalendarIds.begin(), visibleCalendarIds.end());
+  if (filterCalendarVisibility_ && visibleCalendarIds_ == visibleCalendarIds) {
+    return;
+  }
+  filterCalendarVisibility_ = true;
+  visibleCalendarIds_ = std::move(visibleCalendarIds);
+  rebuildPresentation(true);
+}
+
+int MonthGridModel::visibleAllDayLanes() const { return visibleAllDayLanes_; }
+
+void MonthGridModel::setVisibleAllDayLanes(int visibleAllDayLanes) {
+  const int normalized = std::max(0, visibleAllDayLanes);
+  if (visibleAllDayLanes_ == normalized) {
+    return;
+  }
+  visibleAllDayLanes_ = normalized;
+  rebuildPresentation(true);
 }
 
 QString MonthGridModel::dateForPoint(double x, double y, double width, double height) const {
@@ -348,6 +384,7 @@ void MonthGridModel::applyLayout(Layout layout) {
   allDayOverflowCounts_ = std::move(layout.allDayOverflowCounts);
   displayTimeZone_ = std::move(layout.displayTimeZone);
   endResetModel();
+  rebuildPresentation(false);
   emit allDaySpansChanged();
 }
 
@@ -356,6 +393,60 @@ void MonthGridModel::setMonth(QDate month,
                               const QTimeZone& displayTimeZone,
                               int weekStartDay) {
   applyLayout(buildLayout(month, events, displayTimeZone, weekStartDay));
+}
+
+bool MonthGridModel::isCalendarVisible(const QString& calendarId) const {
+  return !filterCalendarVisibility_ || visibleCalendarIds_.contains(calendarId);
+}
+
+void MonthGridModel::rebuildPresentation(bool notifyViews) {
+  visibleTimedEvents_.clear();
+  visibleAllDayEvents_.clear();
+  hiddenAllDayCounts_.clear();
+  visibleAllDaySpanMaps_.clear();
+  visibleTimedEvents_.reserve(cells_.size());
+  visibleAllDayEvents_.reserve(cells_.size());
+  hiddenAllDayCounts_.fill(0, cells_.size());
+
+  for (const Cell& cell : cells_) {
+    QVariantList timed;
+    QVariantList allDay;
+    for (const CalendarEventSummary& event : cell.events) {
+      if (!isCalendarVisible(event.calendarId)) {
+        continue;
+      }
+      (event.allDay ? allDay : timed).append(eventMap(event));
+    }
+    visibleTimedEvents_.append(std::move(timed));
+    visibleAllDayEvents_.append(std::move(allDay));
+  }
+
+  QList<QSet<QString>> visibleSpanIds;
+  visibleSpanIds.resize(cells_.size());
+  for (const AllDaySpan& span : allDaySpans_) {
+    if (!isCalendarVisible(span.event.calendarId) || span.laneIndex >= visibleAllDayLanes_) {
+      continue;
+    }
+    visibleAllDaySpanMaps_.append(allDaySpanMap(span));
+    const int first = span.weekIndex * 7 + span.startColumn;
+    const int last = std::min(static_cast<int>(cells_.size()) - 1, first + span.daySpan - 1);
+    for (int day = std::max(0, first); day <= last; ++day) {
+      visibleSpanIds[day].insert(span.event.id);
+    }
+  }
+  for (int row = 0; row < visibleAllDayEvents_.size(); ++row) {
+    for (const QVariant& event : visibleAllDayEvents_.at(row)) {
+      if (!visibleSpanIds.at(row).contains(event.toMap().value(QStringLiteral("id")).toString())) {
+        ++hiddenAllDayCounts_[row];
+      }
+    }
+  }
+
+  if (notifyViews && !cells_.isEmpty()) {
+    emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1),
+                     {VisibleTimedEventsRole, VisibleAllDayEventsRole, HiddenAllDayCountRole});
+  }
+  emit presentationChanged();
 }
 
 } // namespace hcb

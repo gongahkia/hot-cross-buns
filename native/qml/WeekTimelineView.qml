@@ -10,7 +10,7 @@ Pane {
     property bool selectionMode: false
     property var dayLabels: []
     property string weekStartDate: ""
-    property var scheduledTasks: []
+    property var scheduledTaskIndex: null
     property int dayCount: 7
     property int hourHeight: 48
     property bool use24HourTime: true
@@ -132,8 +132,23 @@ Pane {
     }
 
     function tasksForDate(date) {
-        if (!Array.isArray(scheduledTasks)) return []
-        return scheduledTasks.filter(function(task) { return (task.dueAt || "").slice(0, 10) === date })
+        const revision = scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+                       typeof scheduledTaskIndex.revision === "number"
+                       ? scheduledTaskIndex.revision : 0
+        if (revision < 0) return []
+        return scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+               typeof scheduledTaskIndex.tasksForDate === "function"
+               ? scheduledTaskIndex.tasksForDate(date) : []
+    }
+
+    function tasksForWeek() {
+        const revision = scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+                       typeof scheduledTaskIndex.revision === "number"
+                       ? scheduledTaskIndex.revision : 0
+        if (revision < 0) return []
+        return scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+               typeof scheduledTaskIndex.tasksForRange === "function"
+               ? scheduledTaskIndex.tasksForRange(weekStartDate, dateForTimelineDay(dayCount - 1)) : []
     }
 
     function requestMove(eventId, targetDayIndex, targetMinute, sourceEvent) {
@@ -567,7 +582,7 @@ Pane {
             }
 
             Repeater {
-                model: root.scheduledTasks
+                model: root.tasksForWeek()
 
                 delegate: CalendarTaskButton {
                     required property var modelData
@@ -596,28 +611,59 @@ Pane {
                 }
             }
 
-            MouseArea {
+            Item {
                 id: allDayQuickCreateArea
                 objectName: "weekAllDayQuickCreateArea"
                 x: root.timeColumnWidth
                 width: dayHeader.width - root.timeColumnWidth
                 height: dayHeader.height
                 z: -1
-                property int pressDay: 0
-                preventStealing: true
-                cursorShape: Qt.CrossCursor
-                onPressed: function(mouse) {
-                    pressDay = root.dropDayIndex(mouse.x + x, dayHeader.width)
-                    root.showAllDayPreview("New event", pressDay, pressDay)
+
+                HoverHandler { cursorShape: Qt.CrossCursor }
+
+                TapHandler {
+                    enabled: !root.selectionMode
+                    acceptedButtons: Qt.LeftButton
+                    onTapped: function(eventPoint) {
+                        const day = root.dropDayIndex(eventPoint.position.x + parent.x, dayHeader.width)
+                        root.quickCreateAllDay(day, day)
+                    }
                 }
-                onPositionChanged: function(mouse) {
-                    if (pressed) root.showAllDayPreview("New event", pressDay,
-                                                        root.dropDayIndex(mouse.x + x, dayHeader.width))
-                }
-                onReleased: function(mouse) {
-                    if (!root.selectionMode) root.quickCreateAllDay(pressDay,
-                                                                    root.dropDayIndex(mouse.x + x, dayHeader.width))
-                    root.clearDragPreview()
+
+                DragHandler {
+                    id: weekAllDayCreateDrag
+                    enabled: !root.selectionMode
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: Qt.CrossCursor
+                    grabPermissions: PointerHandler.CanTakeOverFromItems |
+                                     PointerHandler.ApprovesTakeOverByAnything
+                    property bool creating: false
+                    property int pressDay: 0
+                    onActiveChanged: {
+                        if (active) {
+                            creating = true
+                            pressDay = root.dropDayIndex(centroid.pressPosition.x + parent.x, dayHeader.width)
+                            root.showAllDayPreview("New event", pressDay,
+                                                   root.dropDayIndex(centroid.position.x + parent.x,
+                                                                     dayHeader.width))
+                        } else if (creating) {
+                            root.quickCreateAllDay(pressDay,
+                                                   root.dropDayIndex(centroid.position.x + parent.x,
+                                                                     dayHeader.width))
+                            root.clearDragPreview()
+                            creating = false
+                        }
+                    }
+                    onTranslationChanged: {
+                        if (active) root.showAllDayPreview("New event", pressDay,
+                                                           root.dropDayIndex(centroid.position.x + parent.x,
+                                                                             dayHeader.width))
+                    }
+                    onCanceled: function() {
+                        creating = false
+                        root.clearDragPreview()
+                    }
                 }
             }
         }
@@ -629,6 +675,7 @@ Pane {
             clip: true
             contentWidth: width
             contentHeight: timelineCanvas.height
+            acceptedButtons: Qt.NoButton
 
             function revealWorkday() {
                 contentY = Math.max(0, Math.min(contentHeight - height,
@@ -712,29 +759,59 @@ Pane {
                     }
                 }
 
-                MouseArea {
+                Item {
                     id: timedQuickCreateArea
                     objectName: "weekTimedQuickCreateArea"
                     x: root.timeColumnWidth
                     width: timelineCanvas.width - root.timeColumnWidth
                     height: timelineCanvas.height
-                    property int pressDay: 0
-                    property int pressMinute: 0
-                    preventStealing: true
-                    cursorShape: Qt.CrossCursor
-                    onPressed: function(mouse) {
-                        pressDay = root.dropDayIndex(mouse.x + x, timelineCanvas.width)
-                        pressMinute = root.dropMinute(mouse.y)
-                        root.showTimedPreview("New event", pressDay, pressMinute, pressMinute + 15)
+
+                    HoverHandler { cursorShape: Qt.CrossCursor }
+
+                    TapHandler {
+                        enabled: !root.selectionMode
+                        acceptedButtons: Qt.LeftButton
+                        onTapped: function(eventPoint) {
+                            const day = root.dropDayIndex(eventPoint.position.x + parent.x, timelineCanvas.width)
+                            const minute = root.dropMinute(eventPoint.position.y)
+                            root.quickCreateTimed(day, minute, minute + 15)
+                        }
                     }
-                    onPositionChanged: function(mouse) {
-                        if (pressed) root.showTimedPreview("New event", pressDay, pressMinute,
-                                                           root.dropEndMinute(mouse.y))
-                    }
-                    onReleased: function(mouse) {
-                        if (!root.selectionMode) root.quickCreateTimed(pressDay, pressMinute,
-                                                                        root.dropEndMinute(mouse.y))
-                        root.clearDragPreview()
+
+                    DragHandler {
+                        id: weekTimedCreateDrag
+                        enabled: !root.selectionMode
+                        target: null
+                        acceptedButtons: Qt.LeftButton
+                        cursorShape: Qt.CrossCursor
+                        grabPermissions: PointerHandler.CanTakeOverFromItems |
+                                         PointerHandler.ApprovesTakeOverByAnything
+                        property bool creating: false
+                        property int pressDay: 0
+                        property int pressMinute: 0
+                        onActiveChanged: {
+                            if (active) {
+                                creating = true
+                                pressDay = root.dropDayIndex(centroid.pressPosition.x + parent.x,
+                                                             timelineCanvas.width)
+                                pressMinute = root.dropMinute(centroid.pressPosition.y)
+                                root.showTimedPreview("New event", pressDay, pressMinute,
+                                                      root.dropEndMinute(centroid.position.y))
+                            } else if (creating) {
+                                root.quickCreateTimed(pressDay, pressMinute,
+                                                      root.dropEndMinute(centroid.position.y))
+                                root.clearDragPreview()
+                                creating = false
+                            }
+                        }
+                        onTranslationChanged: {
+                            if (active) root.showTimedPreview("New event", pressDay, pressMinute,
+                                                              root.dropEndMinute(centroid.position.y))
+                        }
+                        onCanceled: function() {
+                            creating = false
+                            root.clearDragPreview()
+                        }
                     }
                 }
 

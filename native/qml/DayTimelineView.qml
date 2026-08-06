@@ -11,7 +11,7 @@ Pane {
     property int dayIndex: 0
     property string dateLabel: ""
     property string dateIso: ""
-    property var scheduledTasks: []
+    property var scheduledTaskIndex: null
     property int hourHeight: 64
     property bool use24HourTime: true
     property int workdayStartHour: 9
@@ -110,8 +110,13 @@ Pane {
     }
 
     function tasksForDate(date) {
-        if (!Array.isArray(scheduledTasks)) return []
-        return scheduledTasks.filter(function(task) { return (task.dueAt || "").slice(0, 10) === date })
+        const revision = scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+                       typeof scheduledTaskIndex.revision === "number"
+                       ? scheduledTaskIndex.revision : 0
+        if (revision < 0) return []
+        return scheduledTaskIndex !== null && scheduledTaskIndex !== undefined &&
+               typeof scheduledTaskIndex.tasksForDate === "function"
+               ? scheduledTaskIndex.tasksForDate(date) : []
     }
 
     function requestMove(eventId, targetDayIndex, targetMinute, sourceEvent) {
@@ -348,6 +353,7 @@ Pane {
             clip: true
             contentWidth: width
             contentHeight: timelineCanvas.height
+            acceptedButtons: Qt.NoButton
 
             function revealWorkday() {
                 contentY = Math.max(0, Math.min(contentHeight - height,
@@ -428,23 +434,54 @@ Pane {
                     }
                 }
 
-                MouseArea {
+                Item {
                     id: quickCreateArea
                     objectName: "dayTimedQuickCreateArea"
                     x: root.timeColumnWidth
                     width: timelineCanvas.width - root.timeColumnWidth
                     height: timelineCanvas.height
-                    property int pressMinute: 0
-                    preventStealing: true
-                    cursorShape: Qt.CrossCursor
-                    onPressed: function(mouse) { pressMinute = root.dropMinute(mouse.y) }
-                    onPositionChanged: function(mouse) {
-                        if (pressed) root.showTimedPreview("New event", pressMinute,
-                                                           root.dropEndMinute(mouse.y))
+
+                    HoverHandler { cursorShape: Qt.CrossCursor }
+
+                    TapHandler {
+                        enabled: !root.selectionMode
+                        acceptedButtons: Qt.LeftButton
+                        onTapped: function(eventPoint) {
+                            const minute = root.dropMinute(eventPoint.position.y)
+                            root.quickCreateAt(minute, minute + 15)
+                        }
                     }
-                    onReleased: function(mouse) {
-                        if (!root.selectionMode) root.quickCreateAt(pressMinute, root.dropEndMinute(mouse.y))
-                        root.clearDragPreview()
+
+                    DragHandler {
+                        id: dayTimedCreateDrag
+                        enabled: !root.selectionMode
+                        target: null
+                        acceptedButtons: Qt.LeftButton
+                        cursorShape: Qt.CrossCursor
+                        grabPermissions: PointerHandler.CanTakeOverFromItems |
+                                         PointerHandler.ApprovesTakeOverByAnything
+                        property bool creating: false
+                        property int pressMinute: 0
+                        onActiveChanged: {
+                            if (active) {
+                                creating = true
+                                pressMinute = root.dropMinute(centroid.pressPosition.y)
+                                root.showTimedPreview("New event", pressMinute,
+                                                      root.dropEndMinute(centroid.position.y))
+                            } else if (creating) {
+                                root.quickCreateAt(pressMinute, root.dropEndMinute(centroid.position.y))
+                                root.clearDragPreview()
+                                creating = false
+                            }
+                        }
+                        onTranslationChanged: {
+                            if (active) root.showTimedPreview("New event", pressMinute,
+                                                              root.dropEndMinute(centroid.position.y))
+                        }
+                        onCanceled: function() {
+                            creating = false
+                            root.clearDragPreview()
+                        }
                     }
                 }
 

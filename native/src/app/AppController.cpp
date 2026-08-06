@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -216,6 +217,15 @@ constexpr int kSearchDebounceMilliseconds = 180;
     return left.compare(right, Qt::CaseInsensitive) < 0;
   });
   return families;
+}
+
+[[nodiscard]] bool isUsableTextFontFamily(const QString& family) {
+  if (family.isEmpty()) {
+    return true;
+  }
+  const QFontMetrics metrics{QFont(family)};
+  return metrics.inFont(QChar::fromLatin1('A')) && metrics.inFont(QChar::fromLatin1('a')) &&
+         metrics.inFont(QChar::fromLatin1('0'));
 }
 
 [[nodiscard]] bool isValidWeekStartDay(int value) { return value == 0 || value == 1; }
@@ -792,7 +802,7 @@ AppController::AppController(FilePath databasePath,
     : QObject(parent), clock_(clock), agendaModel_(agendaModel),
       calendarSourceModel_(calendarSourceModel), monthGridModel_(monthGridModel),
       notesModel_(notesModel), taskListModel_(taskListModel), taskModel_(taskModel),
-      timelineModel_(timelineModel), oauthConfigurationStore_(databasePath, clock),
+      timelineModel_(timelineModel), scheduledTaskDateIndex_(this), oauthConfigurationStore_(databasePath, clock),
       accountStatusService_(databasePath, clock), credentialStore_(makeCredentialStore()),
       oauthLoopbackListener_(this), oauthTokenExchangeClient_(this), oauthTokenRefreshClient_(this),
       pkceStateRegistry_(clock), googleHttpClient_(this),
@@ -952,7 +962,9 @@ QVariantList AppController::availableFontFamilies() const {
   const QStringList installed = installedFontFamilies();
   families.reserve(installed.size());
   for (const QString& family : installed) {
-    families.append(family);
+    if (isUsableTextFontFamily(family)) {
+      families.append(family);
+    }
   }
   return families;
 }
@@ -1046,8 +1058,16 @@ QVariantList AppController::invitations() const { return invitations_; }
 int AppController::pendingInvitationCount() const { return static_cast<int>(invitations_.size()); }
 
 QVariantList AppController::scheduledTasks() const {
+  return scheduledTaskRows_;
+}
+
+QObject* AppController::scheduledTaskDateIndex() { return &scheduledTaskDateIndex_; }
+
+namespace {
+
+[[nodiscard]] QVariantList scheduledTaskRows(const QList<TaskModelTask>& tasks) {
   QVariantList result;
-  for (const TaskModelTask& task : taskProjectionTasks_) {
+  for (const TaskModelTask& task : tasks) {
     if (task.completed || !task.due.has_value() || !task.due->at.has_value()) {
       continue;
     }
@@ -1069,6 +1089,8 @@ QVariantList AppController::scheduledTasks() const {
   }
   return result;
 }
+
+} // namespace
 
 QVariantList AppController::unscheduledTasks() const {
   QVariantList result;
@@ -1365,7 +1387,9 @@ void AppController::initialize() {
             return;
           }
           const std::optional<QString> value = jsonArrayString(*stored);
-          if (!value.has_value() || (!value->isEmpty() && !installedFontFamilies().contains(*value))) {
+          if (!value.has_value() ||
+              (!value->isEmpty() && (!installedFontFamilies().contains(*value) ||
+                                     !isUsableTextFontFamily(*value)))) {
             setStatus(QStringLiteral("Stored font family is unavailable"));
             return;
           }
@@ -1797,7 +1821,8 @@ void AppController::saveAccentColor(QString color) {
 
 void AppController::saveFontFamily(QString family) {
   family = family.trimmed();
-  if (!family.isEmpty() && !installedFontFamilies().contains(family)) {
+  if (!family.isEmpty() &&
+      (!installedFontFamilies().contains(family) || !isUsableTextFontFamily(family))) {
     setStatus(QStringLiteral("Font family is unavailable"));
     return;
   }
@@ -5116,6 +5141,8 @@ void AppController::applyTaskProjections(QList<TaskModelTask> tasks) {
   taskModel_.setTasks(taskPresentation(
       taskProjectionTasks_, notesEnabled_ && notesProjectionMode_ == kNotesOnlyProjection));
   notesModel_.setTasks(taskProjectionTasks_);
+  scheduledTaskRows_ = scheduledTaskRows(taskProjectionTasks_);
+  scheduledTaskDateIndex_.setTasks(scheduledTaskRows_);
   emit scheduledTasksChanged();
   emit unscheduledTasksChanged();
 }

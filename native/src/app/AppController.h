@@ -40,6 +40,7 @@
 #include "core/SyncConflictStore.h"
 #include "core/SettingsService.h"
 #include "core/SavedSearchStore.h"
+#include "core/ScheduledTaskDateIndex.h"
 #include "core/SyncScheduler.h"
 #include "core/TaskListReadService.h"
 #include "core/TaskListMutationService.h"
@@ -164,6 +165,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList invitations READ invitations NOTIFY invitationsChanged)
   Q_PROPERTY(int pendingInvitationCount READ pendingInvitationCount NOTIFY invitationsChanged)
   Q_PROPERTY(QVariantList scheduledTasks READ scheduledTasks NOTIFY scheduledTasksChanged)
+  Q_PROPERTY(QObject* scheduledTaskDateIndex READ scheduledTaskDateIndex CONSTANT)
   Q_PROPERTY(QVariantList unscheduledTasks READ unscheduledTasks NOTIFY unscheduledTasksChanged)
   Q_PROPERTY(QString undoLabel READ undoLabel NOTIFY undoStateChanged)
   Q_PROPERTY(QString redoLabel READ redoLabel NOTIFY undoStateChanged)
@@ -253,6 +255,7 @@ public:
   [[nodiscard]] QVariantList invitations() const;
   [[nodiscard]] int pendingInvitationCount() const;
   [[nodiscard]] QVariantList scheduledTasks() const;
+  [[nodiscard]] QObject* scheduledTaskDateIndex();
   [[nodiscard]] QVariantList unscheduledTasks() const;
   [[nodiscard]] QString undoLabel() const;
   [[nodiscard]] QString redoLabel() const;
@@ -690,6 +693,7 @@ private:
   TaskListModel& taskListModel_;
   TaskModel& taskModel_;
   TimelineModel& timelineModel_;
+  ScheduledTaskDateIndex scheduledTaskDateIndex_;
   OAuthClientConfigurationStore oauthConfigurationStore_;
   AccountStatusService accountStatusService_;
   std::unique_ptr<OAuthCredentialStore> credentialStore_;
@@ -799,6 +803,7 @@ private:
   QVariantList freeBusyIntervals_;
   QVariantList driveAttachmentCandidates_;
   QVariantList invitations_;
+  QVariantList scheduledTaskRows_;
   std::uint64_t invitationRefreshGeneration_{0};
   ReminderService* reminderService_{nullptr};
   QString reminderStatusMessage_{QStringLiteral("Calendar reminders are initializing")};
