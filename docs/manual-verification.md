@@ -16,6 +16,7 @@ real-project row identifies only a public project or a redacted project class.
 | real-project | `<public id or redacted class>` | `<os>/<fs>` | `<version>` | `<commit>` | sequence below | `<pass/fail>` | `<none/describe>` | not-run |
 | 2026-08-06 synthetic-local | disposable local-addon fixture | macOS 26.5.2/APFS | 4.7.1.stable | `33327cdac1bf05c1631e6151d4e2b268156617b3` | `init`, `add`, `lock`, sync, frozen sync, `status`, `doctor`, cache verify, headless validate, `remove` | baseline editor run, materialisation tree, and post-removal tree inspected; headless validation passed in 1839 ms | Godot migrated `project.godot` from 4.0 input; `.godot/` and `scripts/main.gd.uid` observed after editor use, but sync-specific causality was not isolated | pass; numeric shell exits not captured |
 | 2026-08-06 synthetic-rollback | disposable conflict-fixture clone | macOS 26.5.2/APFS | not opened | `33327cdac1bf05c1631e6151d4e2b268156617b3` | `init`, create project-owned target, `add --dev` | expected WUK001 conflict; project-owned file retained; manifest rolled back and lockfile absent | not applicable: Godot was not opened | pass; numeric shell exit not captured |
+| 2026-08-06 real-project | public `godotengine/godot-demo-projects` `4.3` at `52e30044658448149b04e8f69b475eebbfbd8f6e`, `2d/dodge_the_creeps` | macOS 26.5.2/APFS | 4.7.1.stable | `33327cdac1bf05c1631e6151d4e2b268156617b3` | `init`, `add`, `lock`, sync, frozen sync, `status`, `doctor`, cache verify, headless validate, `remove` | baseline and post-removal start screens ran; materialisation tree inspected; headless validation passed in 1546 ms | `project.godot`, 12 asset import files, four script UID sidecars, and `.godot/` changed or appeared after editor use; sync-specific causality was not isolated | pass; numeric shell exits not captured |
 
 Run each available row on macOS APFS, Linux, and Windows filesystems for every
 reviewed Godot release. Add a dated row rather than overwriting an observation.
@@ -40,6 +41,21 @@ reviewed Godot release. Add a dated row rather than overwriting an observation.
 - The conflict fixture used the same package target. `add` returned WUK001 with
   `modified: none` and `rollback: not required`; the project-owned script was
   unchanged, no lockfile existed, and the manifest contained no dependency.
+
+### 2026-08-06 macOS public project
+
+- The public project was cloned at its recorded `4.3` branch revision, opened
+  in Godot 4.7.1, and reached its start screen before Wukong changes. The
+  package target was absent before `add`, present after materialisation, and
+  empty after `remove`; the project returned to the start screen after removal.
+- `add` wrote two files. `lock` was unchanged; ordinary and frozen sync each
+  reported zero written, two unchanged, and zero removed. `status`, `doctor`,
+  and cache verification reported the expected installed package, successful
+  local checks, and 22 verified cache objects. Headless validation passed in
+  1546 ms.
+- After removal, the manifest retained an empty `[dev-dependencies]` table and
+  the lockfile was schema two with no package entries. Numerical shell exit
+  statuses were not separately captured; outcomes are from command diagnostics.
 
 ## Reproducible sequence
 
