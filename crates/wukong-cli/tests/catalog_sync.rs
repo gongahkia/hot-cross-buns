@@ -240,6 +240,100 @@ fn invariant_catalog_update_dry_run_does_not_publish_cache_or_change_project_sta
     assert!(stdout.contains("would update helper: 1.0.0 -> 1.1.0"));
 }
 
+#[test]
+fn invariant_catalog_add_and_remove_reconcile_graph_state_offline() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    let catalog_before = fixture.catalog();
+
+    let added = fixture
+        .command("add")
+        .args(["extra", "--version", "^1", "--dev", "--offline"])
+        .output()
+        .expect("catalog add should run");
+    let added_lock = fixture.parsed_lock();
+
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    assert!(fixture.manifest().contains("extra = \"^1\""));
+    assert!(added_lock.packages().contains_key("extra"));
+    assert!(fixture.installed_content("extra").contains("extra-1.0.0"));
+    assert_eq!(fixture.catalog(), catalog_before);
+
+    let removed = fixture
+        .command("remove")
+        .args(["extra", "--dev", "--offline"])
+        .output()
+        .expect("catalog remove should run");
+    let removed_lock = fixture.parsed_lock();
+
+    assert!(
+        removed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&removed.stderr)
+    );
+    assert!(!fixture.manifest().contains("extra ="));
+    assert!(!removed_lock.packages().contains_key("extra"));
+    assert!(!fixture.root().join("addons/extra/plugin.gd").exists());
+    assert_eq!(fixture.catalog(), catalog_before);
+}
+
+#[test]
+fn invariant_catalog_add_failure_restores_manifest_catalog_lock_and_project_state() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    let manifest_before = fixture.manifest();
+    let catalog_before = fixture.catalog();
+    let lock_before = fs::read(fixture.root().join("wukong.lock")).expect("lock should read");
+
+    let output = fixture
+        .command("add")
+        .args(["missing", "--version", "^1", "--offline"])
+        .output()
+        .expect("catalog add should run");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(fixture.manifest(), manifest_before);
+    assert_eq!(fixture.catalog(), catalog_before);
+    assert_eq!(
+        fs::read(fixture.root().join("wukong.lock")).expect("lock should read"),
+        lock_before
+    );
+    assert_eq!(fixture.installed_content("root"), "root-1.0.0");
+    assert_eq!(fixture.installed_content("helper"), "helper-1.0.0");
+    assert_eq!(fixture.installed_content("dev-tool"), "dev-tool-1.0.0");
+}
+
+#[test]
+fn invariant_catalog_remove_failure_restores_manifest_catalog_lock_and_project_state() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    fixture.remove_catalog_candidate("dev-tool");
+    let manifest_before = fixture.manifest();
+    let catalog_before = fixture.catalog();
+    let lock_before = fs::read(fixture.root().join("wukong.lock")).expect("lock should read");
+
+    let output = fixture
+        .command("remove")
+        .args(["root", "--offline"])
+        .output()
+        .expect("catalog remove should run");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(fixture.manifest(), manifest_before);
+    assert_eq!(fixture.catalog(), catalog_before);
+    assert_eq!(
+        fs::read(fixture.root().join("wukong.lock")).expect("lock should read"),
+        lock_before
+    );
+    assert_eq!(fixture.installed_content("root"), "root-1.0.0");
+    assert_eq!(fixture.installed_content("helper"), "helper-1.0.0");
+    assert_eq!(fixture.installed_content("dev-tool"), "dev-tool-1.0.0");
+}
+
 struct Fixture {
     _directory: TempDir,
     project: PathBuf,
@@ -271,10 +365,11 @@ impl Fixture {
         let root_update_sha256 =
             cache_archive(&cache, &archive("root", "1.1.0", [("helper", "^1.1")]));
         let helper_update_sha256 = cache_archive(&cache, &archive("helper", "1.1.0", []));
+        let extra_sha256 = cache_archive(&cache, &archive("extra", "1.0.0", []));
         fs::write(
             root.join("wukong.sources.toml"),
             format!(
-                "schema = 1\n\n[[package]]\nname = \"root\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/root.zip\"\nsha256 = \"{root_sha256}\"\nroot = \"addons/root\"\n\n[[package]]\nname = \"helper\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/helper.zip\"\nsha256 = \"{helper_sha256}\"\nroot = \"addons/helper\"\n\n[[package]]\nname = \"dev-tool\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/dev-tool.zip\"\nsha256 = \"{dev_tool_sha256}\"\nroot = \"addons/dev-tool\"\n"
+                "schema = 1\n\n[[package]]\nname = \"root\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/root.zip\"\nsha256 = \"{root_sha256}\"\nroot = \"addons/root\"\n\n[[package]]\nname = \"helper\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/helper.zip\"\nsha256 = \"{helper_sha256}\"\nroot = \"addons/helper\"\n\n[[package]]\nname = \"dev-tool\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/dev-tool.zip\"\nsha256 = \"{dev_tool_sha256}\"\nroot = \"addons/dev-tool\"\n\n[[package]]\nname = \"extra\"\n[package.http]\nversion = \"1.0.0\"\nurl = \"https://fixture.test/extra.zip\"\nsha256 = \"{extra_sha256}\"\nroot = \"addons/extra\"\n"
             ),
         )
         .expect("catalog should write");
@@ -338,6 +433,28 @@ impl Fixture {
         let path = self.root().join("wukong.lock");
         Lockfile::parse(&path, &fs::read_to_string(&path).expect("lock should read"))
             .expect("lock should parse")
+    }
+
+    fn manifest(&self) -> String {
+        fs::read_to_string(self.root().join("wukong.toml")).expect("manifest should read")
+    }
+
+    fn catalog(&self) -> String {
+        fs::read_to_string(self.root().join("wukong.sources.toml")).expect("catalog should read")
+    }
+
+    fn remove_catalog_candidate(&self, name: &str) {
+        let mut catalog = self.catalog();
+        let marker = format!("\n\n[[package]]\nname = \"{name}\"");
+        let start = catalog
+            .find(&marker)
+            .expect("catalog candidate should exist");
+        let remainder = &catalog[start + marker.len()..];
+        let end = remainder
+            .find("\n\n[[package]]")
+            .map_or(catalog.len(), |offset| start + marker.len() + offset);
+        catalog.replace_range(start..end, "");
+        fs::write(self.root().join("wukong.sources.toml"), catalog).expect("catalog should write");
     }
 
     fn installed_content(&self, package: &str) -> String {

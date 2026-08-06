@@ -8,8 +8,8 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `init [--project <path>] [--non-interactive]` | Create `wukong.toml` without overwriting one. | [init](init.md) |
 | `package init [--path <directory>] [--name <name>] …` | Create valid `wukong-package.toml` without overwriting one. | [package init](package-init.md) |
 | `package validate [--path <directory>] [--json]` | Validate package metadata without mutation or network access. | [package validate](package-validate.md) |
-| `add <alias> <--path\|--git\|--url> … [--dev]` | Edit, lock, and sync one direct dependency transactionally. | [add](add.md) |
-| `remove <alias>` | Remove one direct dependency and safely reconcile owned files. | [remove](remove.md) |
+| `add <alias> <--version\|--path\|--git\|--url> … [--offline]` | Edit, lock, and sync one direct or catalog dependency transactionally. | [add](add.md) |
+| `remove <alias> [--offline]` | Remove one direct or catalog dependency and safely reconcile owned files. | [add](add.md) |
 | `lock [--offline] [--locked]` | Resolve direct sources or version-only catalog graphs into a deterministic lockfile. | [lockfile](lockfile.md) |
 | `install` / `sync` | Reconcile the project from `wukong.lock`. | [sync](sync.md) |
 | `update [<alias>] [--dry-run]` | Refresh direct sources or one catalog-root closure, then sync changes. | [update](update.md) |

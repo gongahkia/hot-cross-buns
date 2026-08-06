@@ -139,6 +139,12 @@ Existing direct remote projects can use [`wukong migrate`](migrate.md) to
 create their initial catalog and schema-three lock only when the conversion is
 lossless. It never overwrites an existing catalog.
 
+After reviewing a candidate with `wukong source add`, use
+`wukong add <name> --version <requirement>` to add it as a catalog root.
+`wukong add` and `wukong remove` re-resolve the complete graph transactionally
+but never modify the catalog; use `--offline` when every selected source
+artifact is already cached.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

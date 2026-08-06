@@ -195,8 +195,10 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
     let manifest_snapshot = FileSnapshot::capture(&manifest_path)?;
     let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    let existing = parse_lock_snapshot(&lock_path, &lock_snapshot)?;
     let section = if options.development {
         DependencySection::Development
     } else {
@@ -266,12 +268,13 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             ));
         }
     };
-    let lock = match lock_direct_dependencies_with_cancellation(
+    let lock = match lock_manifest_state(
         &manifest_path,
         &manifest,
-        None,
+        existing.as_ref(),
+        &catalog_path,
         &cache,
-        false,
+        options.offline,
         &cancellation,
     ) {
         Ok(lock) => lock,
@@ -322,7 +325,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         &lock,
         options.development,
         &cache,
-        false,
+        options.offline,
         &cancellation,
     ) {
         Ok(summary) => summary,
@@ -374,6 +377,62 @@ fn rollback_add(
     }
 }
 
+fn parse_lock_snapshot(
+    path: &Path,
+    snapshot: &FileSnapshot,
+) -> Result<Option<Lockfile>, Box<Diagnostic>> {
+    snapshot
+        .content()
+        .map(|content| {
+            std::str::from_utf8(content)
+                .map_err(|error| {
+                    boxed(
+                        Diagnostic::new(ErrorCode::UserInput, "wukong.lock must be UTF-8")
+                            .with_cause(error)
+                            .with_recovery("regenerate wukong.lock before retrying"),
+                    )
+                })
+                .and_then(|input| Lockfile::parse(path, input))
+        })
+        .transpose()
+}
+
+#[allow(clippy::too_many_arguments)] // keeps graph/direct lock boundaries explicit
+fn lock_manifest_state(
+    manifest_path: &Path,
+    manifest: &Manifest,
+    existing: Option<&Lockfile>,
+    catalog_path: &Path,
+    cache: &CacheLayout,
+    offline: bool,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    if manifest_uses_catalog(manifest)
+        || existing.is_some_and(|lock| {
+            lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA
+        })
+    {
+        let catalog = SourceCatalog::load(catalog_path)?.validate(catalog_path)?;
+        lock_catalog_dependencies(
+            manifest,
+            catalog,
+            existing,
+            cache.clone(),
+            offline,
+            cancellation,
+        )
+    } else {
+        lock_direct_dependencies_with_cancellation(
+            manifest_path,
+            manifest,
+            None,
+            cache,
+            offline,
+            cancellation,
+        )
+    }
+}
+
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
 fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_remove_arguments(arguments)?;
@@ -391,6 +450,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
     let current_manifest = read_manifest(&manifest_path)?;
     let section = options.section.unwrap_or_else(|| {
         if current_manifest
@@ -404,6 +464,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     });
     let manifest_snapshot = FileSnapshot::capture(&manifest_path)?;
     let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    let existing = parse_lock_snapshot(&lock_path, &lock_snapshot)?;
     remove_dependency(&manifest_path, section, &options.alias)?;
     let manifest_bytes = match fs::read(&manifest_path) {
         Ok(content) => content,
@@ -463,12 +524,13 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             ));
         }
     };
-    let lock = match lock_direct_dependencies_with_cancellation(
+    let lock = match lock_manifest_state(
         &manifest_path,
         &manifest,
-        None,
+        existing.as_ref(),
+        &catalog_path,
         &cache,
-        false,
+        options.offline,
         &cancellation,
     ) {
         Ok(lock) => lock,
@@ -519,7 +581,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         &lock,
         true,
         &cache,
-        false,
+        options.offline,
         &cancellation,
     ) {
         Ok(summary) => summary,
@@ -2548,6 +2610,7 @@ struct RemoveOptions {
     alias: String,
     section: Option<DependencySection>,
     project: Option<PathBuf>,
+    offline: bool,
 }
 
 fn parse_remove_arguments(
@@ -2561,6 +2624,7 @@ fn parse_remove_arguments(
     })?;
     let mut section = None;
     let mut project = None;
+    let mut offline = false;
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
             if section.replace(DependencySection::Development).is_some() {
@@ -2581,15 +2645,26 @@ fn parse_remove_arguments(
             }
             continue;
         }
+        if argument == "--offline" {
+            if offline {
+                return Err(user_error(
+                    "--offline may be supplied only once",
+                    "run wukong remove --offline once",
+                ));
+            }
+            offline = true;
+            continue;
+        }
         return Err(user_error(
             format!("unsupported remove argument {}", argument.to_string_lossy()),
-            "use --dev or --project <path>",
+            "use --dev, --offline, or --project <path>",
         ));
     }
     Ok(RemoveOptions {
         alias: alias.to_string_lossy().into_owned(),
         section,
         project,
+        offline,
     })
 }
 
@@ -2599,15 +2674,17 @@ struct AddOptions {
     declaration: DependencyDeclaration,
     development: bool,
     project: Option<PathBuf>,
+    offline: bool,
 }
 
+#[allow(clippy::too_many_lines)] // keeps add option validation colocated
 fn parse_add_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<AddOptions, Box<Diagnostic>> {
     let alias = arguments.next().ok_or_else(|| {
         user_error(
             "add requires a package alias",
-            "run wukong add <alias> --path <directory>, --git <url>, or --url <url> --sha256 <hash>",
+            "run wukong add <alias> --version <requirement>, --path <directory>, --git <url>, or --url <url> --sha256 <hash>",
         )
     })?;
     let alias = alias.to_string_lossy().into_owned();
@@ -2616,8 +2693,10 @@ fn parse_add_arguments(
     let mut git_revision = None;
     let mut url = None;
     let mut sha256 = None;
+    let mut version = None;
     let mut development = false;
     let mut project = None;
+    let mut offline = false;
     while let Some(argument) = arguments.next() {
         if argument == "--dev" {
             development = true;
@@ -2643,6 +2722,20 @@ fn parse_add_arguments(
             sha256 = Some(required_add_value(&mut arguments, "--sha256")?);
             continue;
         }
+        if argument == "--version" {
+            version = Some(required_add_value(&mut arguments, "--version")?);
+            continue;
+        }
+        if argument == "--offline" {
+            if offline {
+                return Err(user_error(
+                    "--offline may be supplied only once",
+                    "run wukong add --offline once",
+                ));
+            }
+            offline = true;
+            continue;
+        }
         if argument == "--project" {
             let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
             if project.replace(path).is_some() {
@@ -2655,18 +2748,21 @@ fn parse_add_arguments(
         }
         return Err(user_error(
             format!("unsupported add argument {}", argument.to_string_lossy()),
-            "use --path, --git [--rev], or --url --sha256",
+            "use --version, --path, --git [--rev], or --url --sha256",
         ));
     }
-    let declaration = match (path, git, url) {
-        (Some(path), None, None) if git_revision.is_none() && sha256.is_none() => {
+    let declaration = match (path, git, url, version) {
+        (None, None, None, Some(version)) if git_revision.is_none() && sha256.is_none() => {
+            DependencyDeclaration::Version(version)
+        }
+        (Some(path), None, None, None) if git_revision.is_none() && sha256.is_none() => {
             DependencyDeclaration::Path(path)
         }
-        (None, Some(url), None) if sha256.is_none() => DependencyDeclaration::Git {
+        (None, Some(url), None, None) if sha256.is_none() => DependencyDeclaration::Git {
             url,
             reference: git_revision.map(GitReference::Rev),
         },
-        (None, None, Some(url)) if git_revision.is_none() => {
+        (None, None, Some(url), None) if git_revision.is_none() => {
             let sha256 = sha256.ok_or_else(|| {
                 user_error(
                     "--url requires --sha256",
@@ -2678,7 +2774,7 @@ fn parse_add_arguments(
         _ => {
             return Err(user_error(
                 "add requires exactly one source declaration",
-                "use --path, --git [--rev], or --url --sha256",
+                "use --version, --path, --git [--rev], or --url --sha256",
             ));
         }
     };
@@ -2687,6 +2783,7 @@ fn parse_add_arguments(
         declaration,
         development,
         project,
+        offline,
     })
 }
 
@@ -4070,6 +4167,7 @@ mod tests {
                 },
                 development: false,
                 project: None,
+                offline: false,
             }
         );
     }
@@ -4106,6 +4204,28 @@ mod tests {
                 declaration: DependencyDeclaration::Path(PathBuf::from("../tool")),
                 development: true,
                 project: None,
+                offline: false,
+            }
+        );
+    }
+
+    #[test]
+    fn add_parser_accepts_an_offline_catalog_version_requirement() {
+        let options = parse_add_arguments(
+            ["catalog", "--version", "^1", "--dev", "--offline"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("catalog add specification should parse");
+
+        assert_eq!(
+            options,
+            AddOptions {
+                alias: "catalog".to_owned(),
+                declaration: DependencyDeclaration::Version("^1".to_owned()),
+                development: true,
+                project: None,
+                offline: true,
             }
         );
     }
