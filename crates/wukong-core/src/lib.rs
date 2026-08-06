@@ -85,6 +85,9 @@ pub mod source_catalog_acquisition;
 /// Catalog-backed immutable graph-lock construction.
 pub mod catalog_lock;
 
+/// Previewable conversion from direct remote locks to catalog graph state.
+pub mod migration;
+
 /// Transactional project source-catalog editing.
 pub mod source_catalog_edit;
 

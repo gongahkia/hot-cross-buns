@@ -135,6 +135,10 @@ locked; if that cannot be preserved, the update fails rather than broadening
 its scope. `wukong update --dry-run` uses only cached source artifacts and
 disposable staging, and never publishes a cache object.
 
+Existing direct remote projects can use [`wukong migrate`](migrate.md) to
+create their initial catalog and schema-three lock only when the conversion is
+lossless. It never overwrites an existing catalog.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

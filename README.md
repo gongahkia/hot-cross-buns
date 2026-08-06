@@ -18,7 +18,8 @@ dependencies, plus complete catalog-selected graphs for version-only manifests.
 sources transactionally; `wukong tree`/`wukong why` inspect the resolved lock
 graph. `wukong update [package]` re-locks direct sources or refreshes a
 catalog-root closure and synchronises changes transactionally, with a dry-run
-preview. Official asset
+preview. `wukong migrate [--dry-run]` converts a verified, lossless direct
+remote lock into catalog graph state. Official asset
 sources are available only through the opt-in AssetLib feature; package scripts
 are not implemented. `wukong outdated` reports
 Git tag updates without changing the project. `wukong doctor` checks local
@@ -95,6 +96,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Dependency views](docs/dependency-views.md)
 - [`wukong add`](docs/add.md)
 - [`wukong update`](docs/update.md)
+- [`wukong migrate`](docs/migrate.md)
 - [`wukong outdated`](docs/outdated.md)
 - [`wukong audit`](docs/audit.md)
 - [Materialisation](docs/materialization.md)

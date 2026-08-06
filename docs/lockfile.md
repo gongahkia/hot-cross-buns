@@ -115,7 +115,9 @@ lockfile with exit code 2. An unchanged valid lockfile is not rewritten.
 [`wukong install` and `wukong sync`](sync.md) apply both supported lock shapes
 transactionally. [`wukong tree` and `wukong why`](dependency-views.md) read
 this lockfile without resolving, fetching, or modifying project files.
-[`wukong update`](update.md) still supports direct-source locks only.
+[`wukong update`](update.md) refreshes both direct-source locks and
+schema-three catalog root closures. [`wukong migrate`](migrate.md) converts a
+preflighted lossless direct remote lock into catalog graph state.
 
 ## Policy
 

@@ -71,6 +71,30 @@ pub fn lock_catalog_dependencies(
     lock_resolved_graph(&graph, &acquirer, &BTreeMap::new(), cancellation)
 }
 
+/// Resolves catalog dependencies without downloading or publishing cache data.
+///
+/// This is intended for previews that must prove a candidate graph from already
+/// verified cached source artifacts while leaving both project and cache state
+/// unchanged.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the manifest is not catalog-only, cached source
+/// artifacts are unavailable, resolution fails, or a candidate is invalid.
+pub fn lock_catalog_dependencies_read_only(
+    manifest: &Manifest,
+    catalog: ValidatedSourceCatalog,
+    cache: CacheLayout,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    let request = catalog_request(manifest)?;
+    cancellation.check()?;
+    let acquirer = CatalogCandidateAcquirer::new_read_only(catalog, cache);
+    let universe = CatalogUniverse::new(acquirer.clone(), cancellation.clone());
+    let graph = resolve_dependencies(&universe, &request, cancellation)?;
+    lock_resolved_graph(&graph, &acquirer, &BTreeMap::new(), cancellation)
+}
+
 /// Refreshes one catalog direct root and its closure, or every root when omitted.
 ///
 /// A selected update treats every package outside the prior selected closure as

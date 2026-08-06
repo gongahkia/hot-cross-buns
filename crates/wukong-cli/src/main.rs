@@ -47,6 +47,7 @@ use wukong_core::{
     lockfile::{LOCKFILE_FILE_NAME, Lockfile},
     manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
     manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
+    migration::plan_catalog_migration,
     operation_lock::AdvisoryLock,
     outdated::{OutdatedPackage, OutdatedStatus, report_outdated},
     package_metadata::{PackageMetadata, PackageMetadataInitializationOptions},
@@ -72,6 +73,7 @@ fn main() {
     process::exit(i32::from(run(env::args_os()).code()));
 }
 
+#[allow(clippy::too_many_lines)] // dispatches every top-level command
 fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     let mut arguments = arguments.into_iter();
     let _program = arguments.next();
@@ -113,6 +115,10 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Err(diagnostic) => render_error(&diagnostic),
         },
         Some(command) if command == "update" => match run_update(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "migrate" => match run_migrate(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
@@ -636,6 +642,132 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)] // coordinates preflighted cross-file migration publication
+fn run_migrate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_migrate_arguments(arguments)?;
+    let cancellation = cli_cancellation()?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let manifest_snapshot = FileSnapshot::capture(&manifest_path)?;
+    let catalog_snapshot = FileSnapshot::capture(&catalog_path)?;
+    let lock_snapshot = FileSnapshot::capture(&lock_path)?;
+    if catalog_snapshot.content().is_some() {
+        return Err(user_error(
+            "wukong.sources.toml already exists",
+            "review the catalog manually; migration will not overwrite a project-owned catalog",
+        ));
+    }
+    let manifest_input = std::str::from_utf8(manifest_snapshot.content().ok_or_else(|| {
+        user_error(
+            "wukong.toml is required for migration",
+            "run wukong init or provide an existing project manifest",
+        )
+    })?)
+    .map_err(|error| {
+        boxed(
+            Diagnostic::new(ErrorCode::UserInput, "wukong.toml must be UTF-8")
+                .with_cause(error)
+                .with_recovery("save wukong.toml as UTF-8 and retry migration"),
+        )
+    })?;
+    let manifest = Manifest::parse(&manifest_path, manifest_input)?;
+    let lock_input = std::str::from_utf8(lock_snapshot.content().ok_or_else(|| {
+        user_error(
+            "wukong.lock is required for migration",
+            "run wukong lock before migrating direct dependencies",
+        )
+    })?)
+    .map_err(|error| {
+        boxed(
+            Diagnostic::new(ErrorCode::UserInput, "wukong.lock must be UTF-8")
+                .with_cause(error)
+                .with_recovery("regenerate wukong.lock before migration"),
+        )
+    })?;
+    let lock = Lockfile::parse(&lock_path, lock_input)?;
+    let migration = plan_catalog_migration(
+        &manifest_path,
+        manifest_input,
+        &manifest,
+        &lock,
+        &catalog_path,
+        CacheLayout::from_environment()?,
+        options.dry_run,
+        &cancellation,
+    )?;
+    if options.dry_run {
+        println!(
+            "migration dry-run: would write {}, {}, and {}",
+            manifest_path.display(),
+            catalog_path.display(),
+            lock_path.display(),
+        );
+        return Ok(());
+    }
+    let manifest_output = migration.manifest().as_bytes();
+    let catalog_output = migration.catalog().as_bytes();
+    let lock_output = migration.lock().to_toml().into_bytes();
+    write_atomic(&manifest_path, manifest_output)?;
+    if let Err(error) = write_atomic(&catalog_path, catalog_output) {
+        return Err(rollback_migration(
+            error,
+            &[("manifest", &manifest_snapshot, manifest_output)],
+        ));
+    }
+    if let Err(error) = write_atomic(&lock_path, &lock_output) {
+        return Err(rollback_migration(
+            error,
+            &[
+                ("catalog", &catalog_snapshot, catalog_output),
+                ("manifest", &manifest_snapshot, manifest_output),
+            ],
+        ));
+    }
+    println!(
+        "migrated direct remote dependencies to catalog graph schema {}",
+        migration.lock().schema()
+    );
+    Ok(())
+}
+
+fn rollback_migration(
+    original: Box<Diagnostic>,
+    written: &[(&str, &FileSnapshot, &[u8])],
+) -> Box<Diagnostic> {
+    let mut failures = Vec::new();
+    for (name, snapshot, expected) in written {
+        if let Err(error) = snapshot.restore_if_current(Some(expected)) {
+            failures.push(format!("{name}: {error}"));
+        }
+    }
+    if failures.is_empty() {
+        original
+    } else {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "migration failed and rollback was incomplete",
+            )
+            .with_cause(format!("operation: {original}; {}", failures.join("; ")))
+            .with_recovery(
+                "inspect wukong.toml, wukong.sources.toml, and wukong.lock before retrying",
+            ),
+        )
+    }
+}
+
 fn rollback_update(
     original: Box<Diagnostic>,
     lock_snapshot: &FileSnapshot,
@@ -741,6 +873,55 @@ struct UpdateOptions {
     dry_run: bool,
     offline: bool,
     project: Option<PathBuf>,
+}
+
+struct MigrateOptions {
+    project: Option<PathBuf>,
+    dry_run: bool,
+}
+
+fn parse_migrate_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<MigrateOptions, Box<Diagnostic>> {
+    let mut options = MigrateOptions {
+        project: None,
+        dry_run: false,
+    };
+    while let Some(argument) = arguments.next() {
+        if argument == "--dry-run" {
+            if options.dry_run {
+                return Err(user_error(
+                    "--dry-run may be supplied only once",
+                    "run wukong migrate --dry-run",
+                ));
+            }
+            options.dry_run = true;
+            continue;
+        }
+        if argument == "--project" {
+            let path = arguments.next().ok_or_else(|| {
+                user_error(
+                    "--project requires a path",
+                    "provide a project directory or project.godot file",
+                )
+            })?;
+            if options.project.replace(PathBuf::from(path)).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project directory or project.godot file",
+                ));
+            }
+            continue;
+        }
+        return Err(user_error(
+            format!(
+                "unsupported migrate argument {}",
+                argument.to_string_lossy()
+            ),
+            "use --dry-run or --project <path>",
+        ));
+    }
+    Ok(options)
 }
 
 fn parse_update_arguments(
@@ -3814,7 +3995,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|package <init|validate>|add|remove|update|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--version] <init|package <init|validate>|add|remove|update|migrate|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
@@ -3855,8 +4036,9 @@ fn cli_cancellation() -> Result<CancellationToken, Box<Diagnostic>> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AddOptions, parse_add_arguments, parse_godot_path_arguments, parse_outdated_arguments,
-        parse_sync_arguments, parse_update_arguments, parse_validate_arguments,
+        AddOptions, parse_add_arguments, parse_godot_path_arguments, parse_migrate_arguments,
+        parse_outdated_arguments, parse_sync_arguments, parse_update_arguments,
+        parse_validate_arguments,
     };
     use std::{ffi::OsString, path::PathBuf};
     use wukong_core::{manifest::GitReference, manifest_edit::DependencyDeclaration};
@@ -3952,6 +4134,19 @@ mod tests {
             .expect("multiple selected packages should fail");
 
         assert!(error.message().contains("at most one package"));
+    }
+
+    #[test]
+    fn migrate_parser_accepts_preview_and_explicit_project() {
+        let options = parse_migrate_arguments(
+            ["--dry-run", "--project", "game"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("migration arguments should parse");
+
+        assert!(options.dry_run);
+        assert_eq!(options.project, Some(PathBuf::from("game")));
     }
 
     #[test]
