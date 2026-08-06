@@ -14,9 +14,31 @@ real-project row identifies only a public project or a redacted project class.
 | synthetic-local | `fixtures/validation/minimal` plus local addon | `<os>/<fs>` | `<version>` | `<commit>` | sequence below | `<pass/fail>` | `<none/describe>` | not-run |
 | synthetic-rollback | disposable conflict fixture | `<os>/<fs>` | `<version>` | `<commit>` | rollback sequence below | `<pass/fail>` | `<none/describe>` | not-run |
 | real-project | `<public id or redacted class>` | `<os>/<fs>` | `<version>` | `<commit>` | sequence below | `<pass/fail>` | `<none/describe>` | not-run |
+| 2026-08-06 synthetic-local | disposable local-addon fixture | macOS 26.5.2/APFS | 4.7.1.stable | `33327cdac1bf05c1631e6151d4e2b268156617b3` | `init`, `add`, `lock`, sync, frozen sync, `status`, `doctor`, cache verify, headless validate, `remove` | baseline editor run, materialisation tree, and post-removal tree inspected; headless validation passed in 1839 ms | Godot migrated `project.godot` from 4.0 input; `.godot/` and `scripts/main.gd.uid` observed after editor use, but sync-specific causality was not isolated | pass, local fixture only |
+| 2026-08-06 synthetic-rollback | disposable conflict-fixture clone | macOS 26.5.2/APFS | not opened | `33327cdac1bf05c1631e6151d4e2b268156617b3` | `init`, create project-owned target, `add --dev` | expected WUK001 conflict; project-owned file retained; manifest rolled back and lockfile absent | not applicable: Godot was not opened | pass |
 
 Run each available row on macOS APFS, Linux, and Windows filesystems for every
 reviewed Godot release. Add a dated row rather than overwriting an observation.
+
+## Recorded details
+
+### 2026-08-06 macOS local fixture
+
+- The local package was validated before `init`. `add` completed with two files
+  written; `lock` was unchanged; ordinary and frozen sync each reported zero
+  written, two unchanged, and zero removed.
+- `status` reported the selected local package with SHA-256 source and package
+  identities. `doctor` passed project, manifest, lockfile, installed-state,
+  cache, filesystem, Godot-discovery, network-configuration, and lock checks.
+  Cache verification reported 22 verified and zero corrupt objects.
+- After materialisation, Godot showed `plugin.cfg` and `plugin.gd`. After a
+  user comment was added to `plugin.gd`, `remove` removed only `plugin.cfg`;
+  the edited script remained and the editor showed that remaining file. The
+  final manifest retained an empty `[dev-dependencies]` table and the final
+  lockfile was schema two with no package entries.
+- The conflict fixture used the same package target. `add` returned WUK001 with
+  `modified: none` and `rollback: not required`; the project-owned script was
+  unchanged, no lockfile existed, and the manifest contained no dependency.
 
 ## Reproducible sequence
 
@@ -55,5 +77,4 @@ a security-sensitive defect and add a minimal fixture before retrying.
 Each completed row records the exact Wukong commit, Godot version, operating
 system, filesystem, manifest/lockfile shape, command exit status, observed
 diagnostic, rollback result, and editor result. Failed rows require a focused
-follow-up issue with redacted diagnostics. This document intentionally contains
-no completed rows yet.
+follow-up issue with redacted diagnostics.
