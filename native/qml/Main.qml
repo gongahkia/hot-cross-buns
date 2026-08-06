@@ -200,21 +200,6 @@ ApplicationWindow {
         value: window.fontScale
     }
 
-    palette: Palette {
-        window: Theme.background
-        windowText: Theme.textPrimary
-        base: Theme.surface
-        alternateBase: Theme.background
-        text: Theme.textPrimary
-        placeholderText: Theme.textSecondary
-        button: Theme.surface
-        buttonText: Theme.textPrimary
-        highlight: Theme.accent
-        highlightedText: Theme.onAccent
-        toolTipBase: Theme.surface
-        toolTipText: Theme.textPrimary
-    }
-
     function controllerCall(method, args) {
         if (appController !== null && typeof appController[method] === "function") {
             appController[method].apply(appController, args)
@@ -539,12 +524,15 @@ ApplicationWindow {
     palette.window: Theme.background
     palette.windowText: Theme.textPrimary
     palette.base: Theme.surface
+    palette.alternateBase: Theme.background
     palette.text: Theme.textPrimary
     palette.highlight: Theme.accent
     palette.highlightedText: Theme.onAccent
     palette.button: Theme.surface
     palette.buttonText: Theme.textPrimary
     palette.placeholderText: Theme.textSecondary
+    palette.toolTipBase: Theme.surface
+    palette.toolTipText: Theme.textPrimary
 
     Shortcut {
         id: commandPaletteShortcut
@@ -1344,7 +1332,7 @@ ApplicationWindow {
             pendingInvitationCount: window.appController && typeof window.appController.pendingInvitationCount === "number"
                                     ? window.appController.pendingInvitationCount : 0
             onPageSelected: pageName => window.selectPage(pageName)
-            onCalendarVisibilityChanged: function(visibleCalendarIds) {
+            onCalendarVisibilitySaveRequested: function(visibleCalendarIds) {
                 window.clearCalendarEventSelection()
                 window.controllerCall("saveCalendarVisibility", [visibleCalendarIds])
             }
@@ -1570,11 +1558,60 @@ ApplicationWindow {
                 TabBar {
                     id: calendarViews
                     Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
 
-                    TabButton { text: "Agenda" }
-                    TabButton { text: "Day" }
-                    TabButton { text: "Week" }
-                    TabButton { text: "Month" }
+                    background: Rectangle {
+                        color: "transparent"
+                    }
+
+                    TabButton {
+                        text: "Agenda"
+                        padding: Theme.spacingMedium
+                        implicitHeight: 42
+                        palette.buttonText: checked ? Theme.onAccent : Theme.textPrimary
+                        background: Rectangle {
+                            radius: Theme.spacingSmall
+                            color: parent.checked ? Theme.accent : Theme.surface
+                            border.color: parent.checked ? Theme.accent : Theme.textSecondary
+                            border.width: parent.checked ? 0 : 1
+                        }
+                    }
+                    TabButton {
+                        text: "Day"
+                        padding: Theme.spacingMedium
+                        implicitHeight: 42
+                        palette.buttonText: checked ? Theme.onAccent : Theme.textPrimary
+                        background: Rectangle {
+                            radius: Theme.spacingSmall
+                            color: parent.checked ? Theme.accent : Theme.surface
+                            border.color: parent.checked ? Theme.accent : Theme.textSecondary
+                            border.width: parent.checked ? 0 : 1
+                        }
+                    }
+                    TabButton {
+                        text: "Week"
+                        padding: Theme.spacingMedium
+                        implicitHeight: 42
+                        palette.buttonText: checked ? Theme.onAccent : Theme.textPrimary
+                        background: Rectangle {
+                            radius: Theme.spacingSmall
+                            color: parent.checked ? Theme.accent : Theme.surface
+                            border.color: parent.checked ? Theme.accent : Theme.textSecondary
+                            border.width: parent.checked ? 0 : 1
+                        }
+                    }
+                    TabButton {
+                        text: "Month"
+                        padding: Theme.spacingMedium
+                        implicitHeight: 42
+                        palette.buttonText: checked ? Theme.onAccent : Theme.textPrimary
+                        background: Rectangle {
+                            radius: Theme.spacingSmall
+                            color: parent.checked ? Theme.accent : Theme.surface
+                            border.color: parent.checked ? Theme.accent : Theme.textSecondary
+                            border.width: parent.checked ? 0 : 1
+                        }
+                    }
                 }
 
                 CalendarBulkControls {

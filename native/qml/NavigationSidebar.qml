@@ -17,7 +17,7 @@ Pane {
     property var calendarVisibility: null
     property alias pageButtons: pageButtons
     signal pageSelected(string pageName)
-    signal calendarVisibilityChanged(var visibleCalendarIds)
+    signal calendarVisibilitySaveRequested(var visibleCalendarIds)
 
     SplitView.preferredWidth: Theme.navigationWidth
 
@@ -110,7 +110,7 @@ Pane {
                     calendarVisibilityConfigured: root.calendarVisibilityConfigured
                     Component.onCompleted: root.calendarVisibility = calendarVisibility
                     onVisibleCalendarIdsChanged: {
-                        if (visibilityInitialized) root.calendarVisibilityChanged(visibleCalendarIds)
+                        if (visibilityInitialized) root.calendarVisibilitySaveRequested(visibleCalendarIds)
                     }
                 }
             }
