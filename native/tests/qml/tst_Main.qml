@@ -1740,6 +1740,34 @@ TestCase {
         timelineModel.destroy()
     }
 
+    function test_weekTimelineCreatesNormalizedMultiDayTimedRanges() {
+        const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const timelineModel = Qt.createQmlObject('import QtQml; QtObject { function timedRangeInput(firstDay, firstMinute, lastDay, lastMinute) { return { startAt: firstDay + ":" + firstMinute, endAt: lastDay + ":" + lastMinute, allDay: false } } }', testCase)
+        const timeline = component.createObject(null, { timelineModel: timelineModel, width: 764 })
+        verify(timeline !== null)
+        let request = null
+        timeline.quickCreateRequested.connect(function(startAt, endAt, allDay) {
+            request = { startAt: startAt, endAt: endAt, allDay: allDay }
+        })
+        timeline.quickCreateTimed(3, 12 * 60, 1, 10 * 60)
+        compare(request.startAt, "1:600")
+        compare(request.endAt, "3:720")
+        verify(!request.allDay)
+
+        timeline.showTimedPreview("New event", 3, 12 * 60, 1, 10 * 60)
+        const segments = timeline.timedPreviewSegments()
+        compare(segments.length, 3)
+        compare(segments[0].dayIndex, 1)
+        compare(segments[0].startMinute, 10 * 60)
+        compare(segments[0].endMinute, 24 * 60)
+        compare(segments[2].dayIndex, 3)
+        compare(segments[2].startMinute, 0)
+        compare(segments[2].endMinute, 12 * 60)
+        timeline.destroy()
+        timelineModel.destroy()
+    }
+
     function test_monthGridFormatsCellsAndSelection() {
         const component = Qt.createComponent("../../qml/MonthGridView.qml")
         compare(component.status, Component.Ready, component.errorString())

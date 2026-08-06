@@ -103,11 +103,31 @@ Pane {
         return point !== null && typeof point.minute === "number" ? point.minute : 15
     }
 
-    function quickCreateTimed(dayIndex, startMinute, endMinute) {
+    function normalisedTimedRange(firstDay, firstMinute, lastDay, lastMinute) {
+        let startDay = Math.max(0, Math.min(dayCount - 1, firstDay))
+        let endDay = Math.max(0, Math.min(dayCount - 1, lastDay))
+        let startMinute = Math.max(0, Math.min(24 * 60 - 15, firstMinute))
+        let endMinute = Math.max(0, Math.min(24 * 60, lastMinute))
+        if (endDay < startDay || (endDay === startDay && endMinute < startMinute)) {
+            const day = startDay
+            const minute = startMinute
+            startDay = endDay
+            startMinute = endMinute
+            endDay = day
+            endMinute = minute
+        }
+        if (endDay === startDay && endMinute === startMinute) {
+            endMinute = Math.min(24 * 60, startMinute + 15)
+        }
+        return { startDay: startDay, startMinute: startMinute, endDay: endDay,
+                 endMinute: endMinute }
+    }
+
+    function quickCreateTimed(firstDay, firstMinute, lastDay, lastMinute) {
         if (timelineModel === null || typeof timelineModel.timedRangeInput !== "function") return
-        const start = Math.min(startMinute, endMinute)
-        const input = timelineModel.timedRangeInput(dayIndex, start, dayIndex,
-                                                    Math.max(start + 15, endMinute))
+        const range = normalisedTimedRange(firstDay, firstMinute, lastDay, lastMinute)
+        const input = timelineModel.timedRangeInput(range.startDay, range.startMinute,
+                                                    range.endDay, range.endMinute)
         if (typeof input.startAt === "string" && typeof input.endAt === "string") {
             quickCreateRequested(input.startAt, input.endAt, false)
         }
@@ -214,15 +234,28 @@ Pane {
         dragPreviewEndDay = Math.max(dragPreviewStartDay, Math.min(dayCount - 1, endDay))
     }
 
-    function showTimedPreview(title, day, startMinute, endMinute) {
+    function showTimedPreview(title, firstDay, firstMinute, lastDay, lastMinute) {
+        const range = normalisedTimedRange(firstDay, firstMinute, lastDay, lastMinute)
         dragPreviewActive = true
         dragPreviewAllDay = false
         dragPreviewTitle = title
-        dragPreviewStartDay = Math.max(0, Math.min(dayCount - 1, day))
-        dragPreviewEndDay = dragPreviewStartDay
-        dragPreviewStartMinute = Math.max(0, Math.min(24 * 60 - 15, startMinute))
-        dragPreviewEndMinute = Math.max(dragPreviewStartMinute + 15,
-                                        Math.min(24 * 60, endMinute))
+        dragPreviewStartDay = range.startDay
+        dragPreviewEndDay = range.endDay
+        dragPreviewStartMinute = range.startMinute
+        dragPreviewEndMinute = range.endMinute
+    }
+
+    function timedPreviewSegments() {
+        if (!dragPreviewActive || dragPreviewAllDay) return []
+        const segments = []
+        for (let day = dragPreviewStartDay; day <= dragPreviewEndDay; ++day) {
+            const startMinute = day === dragPreviewStartDay ? dragPreviewStartMinute : 0
+            const endMinute = day === dragPreviewEndDay ? dragPreviewEndMinute : 24 * 60
+            if (endMinute > startMinute) {
+                segments.push({ dayIndex: day, startMinute: startMinute, endMinute: endMinute })
+            }
+        }
+        return segments
     }
 
     function clearDragPreview() {
@@ -774,7 +807,7 @@ Pane {
                         onTapped: function(eventPoint) {
                             const day = root.dropDayIndex(eventPoint.position.x + parent.x, timelineCanvas.width)
                             const minute = root.dropMinute(eventPoint.position.y)
-                            root.quickCreateTimed(day, minute, minute + 15)
+                            root.quickCreateTimed(day, minute, day, minute + 15)
                         }
                     }
 
@@ -796,17 +829,24 @@ Pane {
                                                              timelineCanvas.width)
                                 pressMinute = root.dropMinute(centroid.pressPosition.y)
                                 root.showTimedPreview("New event", pressDay, pressMinute,
+                                                      root.dropDayIndex(centroid.position.x + parent.x,
+                                                                        timelineCanvas.width),
                                                       root.dropEndMinute(centroid.position.y))
                             } else if (creating) {
                                 root.quickCreateTimed(pressDay, pressMinute,
+                                                      root.dropDayIndex(centroid.position.x + parent.x,
+                                                                        timelineCanvas.width),
                                                       root.dropEndMinute(centroid.position.y))
                                 root.clearDragPreview()
                                 creating = false
                             }
                         }
                         onTranslationChanged: {
-                            if (active) root.showTimedPreview("New event", pressDay, pressMinute,
-                                                              root.dropEndMinute(centroid.position.y))
+                            if (active) root.showTimedPreview(
+                                            "New event", pressDay, pressMinute,
+                                            root.dropDayIndex(centroid.position.x + parent.x,
+                                                              timelineCanvas.width),
+                                            root.dropEndMinute(centroid.position.y))
                         }
                         onCanceled: function() {
                             creating = false
@@ -815,31 +855,37 @@ Pane {
                     }
                 }
 
-                Rectangle {
-                    visible: root.dragPreviewActive && !root.dragPreviewAllDay
-                    x: root.dayPosition(root.dragPreviewStartDay, timelineCanvas.width)
-                    y: root.timePosition(root.dragPreviewStartMinute)
-                    width: root.dayColumnWidth(timelineCanvas.width)
-                    height: Math.max(15, root.timePosition(root.dragPreviewEndMinute) - y)
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-                    border.color: Theme.accent
-                    border.width: 1
-                    radius: 4
-                    z: 1
+                Repeater {
+                    model: root.timedPreviewSegments()
+                    delegate: Rectangle {
+                        required property var modelData
+                        x: root.dayPosition(modelData.dayIndex, timelineCanvas.width)
+                        y: root.timePosition(modelData.startMinute)
+                        width: root.dayColumnWidth(timelineCanvas.width)
+                        height: Math.max(15, root.timePosition(modelData.endMinute) - y)
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                        border.color: Theme.accent
+                        border.width: 1
+                        radius: 4
+                        z: 1
+                    }
                 }
 
-                CalendarEventButton {
-                    visible: root.dragPreviewActive && !root.dragPreviewAllDay
-                    x: root.dayPosition(root.dragPreviewStartDay, timelineCanvas.width) + 2
-                    y: root.timePosition(root.dragPreviewStartMinute) + 2
-                    width: Math.max(1, root.dayColumnWidth(timelineCanvas.width) - 4)
-                    height: Math.max(20, root.timePosition(root.dragPreviewEndMinute) -
-                                     root.timePosition(root.dragPreviewStartMinute) - 4)
-                    z: 4
-                    enabled: false
-                    opacity: 0.48
-                    eventColor: Theme.accent
-                    text: root.dragPreviewTitle
+                Repeater {
+                    model: root.timedPreviewSegments()
+                    delegate: CalendarEventButton {
+                        required property var modelData
+                        x: root.dayPosition(modelData.dayIndex, timelineCanvas.width) + 2
+                        y: root.timePosition(modelData.startMinute) + 2
+                        width: Math.max(1, root.dayColumnWidth(timelineCanvas.width) - 4)
+                        height: Math.max(20, root.timePosition(modelData.endMinute) -
+                                         root.timePosition(modelData.startMinute) - 4)
+                        z: 4
+                        enabled: false
+                        opacity: 0.48
+                        eventColor: Theme.accent
+                        text: root.dragPreviewTitle
+                    }
                 }
 
                 Repeater {
@@ -910,7 +956,7 @@ Pane {
                                 const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                     timelineCanvas.width)
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
-                                root.showTimedPreview(title, targetDay, targetMinute,
+                                root.showTimedPreview(title, targetDay, targetMinute, targetDay,
                                                       targetMinute + durationMinutes)
                             }
                             onActiveChanged: {
@@ -980,8 +1026,8 @@ Pane {
                                                 timelineCanvas.width)
                                     const targetEndMinute = root.dropEndMinute(
                                                 parent.parent.y + parent.parent.height + activeTranslation.y)
-                                    root.showTimedPreview(title, dayIndex, startMinute,
-                                                          targetDay === dayIndex ? targetEndMinute : 24 * 60)
+                                    root.showTimedPreview(title, dayIndex, startMinute, targetDay,
+                                                          targetEndMinute)
                                 }
                                 onActiveChanged: {
                                     const targetEndDay = root.dropDayIndex(
