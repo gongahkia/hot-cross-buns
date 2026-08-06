@@ -120,10 +120,132 @@ fn invariant_frozen_catalog_sync_rejects_changed_roots_before_project_mutation()
     assert!(!fixture.root().join(".wukong/state.toml").exists());
 }
 
+#[test]
+fn invariant_selected_catalog_update_refreshes_only_its_reachable_closure() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    let before = fixture.parsed_lock();
+    fixture.add_update_candidates();
+
+    let output = fixture
+        .command("update")
+        .args(["root", "--offline"])
+        .output()
+        .expect("selected catalog update should run");
+    let after = fixture.parsed_lock();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        after.packages()["root"]
+            .version()
+            .expect("root version")
+            .to_string(),
+        "1.1.0"
+    );
+    assert_eq!(
+        after.packages()["helper"]
+            .version()
+            .expect("helper version")
+            .to_string(),
+        "1.1.0"
+    );
+    assert_eq!(
+        before.packages().get("dev-tool"),
+        after.packages().get("dev-tool")
+    );
+    assert_eq!(fixture.installed_content("root"), "root-1.1.0");
+    assert_eq!(fixture.installed_content("helper"), "helper-1.1.0");
+    assert_eq!(fixture.installed_content("dev-tool"), "dev-tool-1.0.0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("updated root: 1.0.0 -> 1.1.0"));
+    assert!(stdout.contains("updated helper: 1.0.0 -> 1.1.0"));
+    assert!(stdout.contains(before.packages()["root"].source().immutable_id().as_str()));
+    assert!(stdout.contains(after.packages()["root"].source().immutable_id().as_str()));
+}
+
+#[test]
+fn invariant_catalog_update_without_a_target_refreshes_all_roots() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    fixture.add_update_candidates();
+
+    let output = fixture
+        .command("update")
+        .arg("--offline")
+        .output()
+        .expect("catalog update should run");
+    let lock = fixture.parsed_lock();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        lock.packages()["root"]
+            .version()
+            .expect("root version")
+            .to_string(),
+        "1.1.0"
+    );
+    assert_eq!(
+        lock.packages()["helper"]
+            .version()
+            .expect("helper version")
+            .to_string(),
+        "1.1.0"
+    );
+    assert_eq!(
+        lock.packages()["dev-tool"]
+            .version()
+            .expect("development root version")
+            .to_string(),
+        "1.0.0"
+    );
+}
+
+#[test]
+fn invariant_catalog_update_dry_run_does_not_publish_cache_or_change_project_state() {
+    let fixture = Fixture::new();
+    fixture.lock_and_sync();
+    let lock_before = fs::read(fixture.root().join("wukong.lock")).expect("lock should read");
+    let package_count_before = fixture.cached_package_count();
+    fixture.add_update_candidates();
+
+    let output = fixture
+        .command("update")
+        .args(["root", "--dry-run"])
+        .output()
+        .expect("catalog dry-run should run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read(fixture.root().join("wukong.lock")).expect("lock should read"),
+        lock_before
+    );
+    assert_eq!(fixture.cached_package_count(), package_count_before);
+    assert_eq!(fixture.installed_content("root"), "root-1.0.0");
+    assert_eq!(fixture.installed_content("helper"), "helper-1.0.0");
+    assert_eq!(fixture.installed_content("dev-tool"), "dev-tool-1.0.0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("would update root: 1.0.0 -> 1.1.0"));
+    assert!(stdout.contains("would update helper: 1.0.0 -> 1.1.0"));
+}
+
 struct Fixture {
     _directory: TempDir,
     project: PathBuf,
     cache: CacheLayout,
+    root_update_sha256: String,
+    helper_update_sha256: String,
 }
 
 impl Fixture {
@@ -143,9 +265,12 @@ impl Fixture {
         .expect("manifest should write");
         let cache = CacheLayout::for_root(directory.path().join("cache"))
             .expect("cache layout should create");
-        let root_sha256 = cache_archive(&cache, &archive("root", [("helper", "^1")]));
-        let helper_sha256 = cache_archive(&cache, &archive("helper", []));
-        let dev_tool_sha256 = cache_archive(&cache, &archive("dev-tool", []));
+        let root_sha256 = cache_archive(&cache, &archive("root", "1.0.0", [("helper", "^1")]));
+        let helper_sha256 = cache_archive(&cache, &archive("helper", "1.0.0", []));
+        let dev_tool_sha256 = cache_archive(&cache, &archive("dev-tool", "1.0.0", []));
+        let root_update_sha256 =
+            cache_archive(&cache, &archive("root", "1.1.0", [("helper", "^1.1")]));
+        let helper_update_sha256 = cache_archive(&cache, &archive("helper", "1.1.0", []));
         fs::write(
             root.join("wukong.sources.toml"),
             format!(
@@ -157,6 +282,8 @@ impl Fixture {
             _directory: directory,
             project: root,
             cache,
+            root_update_sha256,
+            helper_update_sha256,
         }
     }
 
@@ -172,10 +299,63 @@ impl Fixture {
             .env("WUKONG_CACHE_DIR", self.cache.root());
         command
     }
+
+    fn lock_and_sync(&self) {
+        let lock = self
+            .command("lock")
+            .arg("--offline")
+            .output()
+            .expect("catalog lock should run");
+        assert!(
+            lock.status.success(),
+            "{}",
+            String::from_utf8_lossy(&lock.stderr)
+        );
+        let sync = self
+            .command("sync")
+            .args(["--frozen", "--dev"])
+            .output()
+            .expect("catalog sync should run");
+        assert!(
+            sync.status.success(),
+            "{}",
+            String::from_utf8_lossy(&sync.stderr)
+        );
+    }
+
+    fn add_update_candidates(&self) {
+        let mut catalog = fs::read_to_string(self.root().join("wukong.sources.toml"))
+            .expect("catalog should read");
+        catalog.push_str(&format!(
+            "\n[[package]]\nname = \"root\"\n[package.http]\nversion = \"1.1.0\"\nurl = \"https://fixture.test/root-1.1.zip\"\nsha256 = \"{}\"\nroot = \"addons/root\"\n\n[[package]]\nname = \"helper\"\n[package.http]\nversion = \"1.1.0\"\nurl = \"https://fixture.test/helper-1.1.zip\"\nsha256 = \"{}\"\nroot = \"addons/helper\"\n",
+            self.root_update_sha256, self.helper_update_sha256
+        ));
+        fs::write(self.root().join("wukong.sources.toml"), catalog)
+            .expect("updated catalog should write");
+    }
+
+    fn parsed_lock(&self) -> Lockfile {
+        let path = self.root().join("wukong.lock");
+        Lockfile::parse(&path, &fs::read_to_string(&path).expect("lock should read"))
+            .expect("lock should parse")
+    }
+
+    fn installed_content(&self, package: &str) -> String {
+        fs::read_to_string(self.root().join("addons").join(package).join("plugin.gd"))
+            .expect("installed package file should read")
+    }
+
+    fn cached_package_count(&self) -> usize {
+        fs::read_dir(self.cache.packages())
+            .expect("prepared package cache should exist")
+            .filter_map(Result::ok)
+            .count()
+    }
 }
 
 fn archive(
     name: &str,
+    version: &str,
     dependencies: impl IntoIterator<Item = (&'static str, &'static str)>,
 ) -> Vec<u8> {
     let mut output = Vec::new();
@@ -192,7 +372,7 @@ fn archive(
         format!("\n[dependencies]\n{dependencies}\n")
     };
     let metadata = format!(
-        "[package]\nschema = 1\nname = {name:?}\nversion = \"1.0.0\"\ngodot = \"4\"{dependencies}"
+        "[package]\nschema = 1\nname = {name:?}\nversion = {version:?}\ngodot = \"4\"{dependencies}"
     );
     archive
         .start_file(format!("addons/{name}/wukong-package.toml"), options)
@@ -204,7 +384,7 @@ fn archive(
         .start_file(format!("addons/{name}/plugin.gd"), options)
         .expect("plugin entry should start");
     archive
-        .write_all(name.as_bytes())
+        .write_all(format!("{name}-{version}").as_bytes())
         .expect("plugin should write");
     archive.finish().expect("archive should finish");
     output

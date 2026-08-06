@@ -22,7 +22,8 @@ use wukong_core::{
         verify_cached_packages,
     },
     catalog_lock::{
-        lock_catalog_dependencies, manifest_uses_catalog, validate_catalog_lock_manifest,
+        lock_catalog_dependencies, manifest_uses_catalog, update_catalog_dependencies,
+        validate_catalog_lock_manifest,
     },
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
@@ -572,15 +573,30 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             )
         })?;
     let cache = CacheLayout::from_environment()?;
-    let updated = update_direct_dependencies_with_cancellation(
-        &manifest_path,
-        &manifest,
-        &existing,
-        selected.as_ref(),
-        &cache,
-        options.offline,
-        &cancellation,
-    )?;
+    let updated = if existing.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+        let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
+        update_catalog_dependencies(
+            &manifest,
+            catalog,
+            &existing,
+            selected.as_ref(),
+            cache.clone(),
+            options.offline,
+            options.dry_run,
+            &cancellation,
+        )?
+    } else {
+        update_direct_dependencies_with_cancellation(
+            &manifest_path,
+            &manifest,
+            &existing,
+            selected.as_ref(),
+            &cache,
+            options.offline,
+            &cancellation,
+        )?
+    };
     let compatibility = resolve_project_godot_compatibility(&manifest, None)?;
     let godot_report = validate_locked_package_godot_compatibility(&updated, &compatibility)?;
     let changes = update_changes(&existing, &updated);
@@ -648,38 +664,41 @@ fn update_changes(existing: &Lockfile, updated: &Lockfile) -> Vec<String> {
         .into_iter()
         .filter_map(
             |name| match (existing.packages().get(name), updated.packages().get(name)) {
-                (Some(old), Some(new)) if old != new => Some(format!(
-                    "{}: {} -> {}",
-                    name.as_str(),
-                    update_value(old, new),
-                    update_value(new, old),
-                )),
-                (None, Some(new)) => Some(format!(
-                    "{}: added {}",
-                    name.as_str(),
-                    update_value(new, new)
-                )),
-                (Some(old), None) => Some(format!(
-                    "{}: removed {}",
-                    name.as_str(),
-                    update_value(old, old)
-                )),
+                (Some(old), Some(new)) if old != new => {
+                    let source_change = (old.source().immutable_id()
+                        != new.source().immutable_id())
+                    .then(|| {
+                        format!(
+                            "; source {} -> {}",
+                            old.source().immutable_id().as_str(),
+                            new.source().immutable_id().as_str(),
+                        )
+                    })
+                    .unwrap_or_default();
+                    Some(format!(
+                        "{}: {} -> {}{source_change}",
+                        name.as_str(),
+                        update_value(old),
+                        update_value(new),
+                    ))
+                }
+                (None, Some(new)) => {
+                    Some(format!("{}: added {}", name.as_str(), update_value(new)))
+                }
+                (Some(old), None) => {
+                    Some(format!("{}: removed {}", name.as_str(), update_value(old)))
+                }
                 _ => None,
             },
         )
         .collect()
 }
 
-fn update_value(
-    package: &wukong_core::lockfile::LockedPackage,
-    other: &wukong_core::lockfile::LockedPackage,
-) -> String {
-    if package.version() != other.version() {
-        return package
-            .version()
-            .map_or_else(|| "no version".to_owned(), ToString::to_string);
-    }
-    package.source().immutable_id().as_str().to_owned()
+fn update_value(package: &wukong_core::lockfile::LockedPackage) -> String {
+    package.version().map_or_else(
+        || package.source().immutable_id().as_str().to_owned(),
+        ToString::to_string,
+    )
 }
 
 fn print_update_changes(prefix: &str, changes: &[String]) {

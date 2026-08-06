@@ -8,7 +8,7 @@ use crate::{
     identity::{GitSourceIdentity, PackageName},
     manifest::GitReference,
     package_metadata::PackageMetadata,
-    package_tree::prepare_package_tree,
+    package_tree::{PreparedPackageTree, inspect_package_tree, prepare_package_tree},
     resolver::{PackageCandidate, PackageUniverse, ResolverResult},
     semantic_version::SemanticVersion,
     source::{CancellationToken, SourceResult},
@@ -46,14 +46,39 @@ pub enum AcquiredCatalogSource {
     },
 }
 
-/// One catalog candidate with verified metadata and a verified package cache object.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// One catalog candidate with verified metadata and package content.
+#[derive(Clone, Debug)]
 pub struct AcquiredCatalogCandidate {
     version: SemanticVersion,
     metadata: PackageMetadata,
     source: AcquiredCatalogSource,
-    cache_object: CacheObject,
+    package: AcquiredCatalogPackage,
     catalog_sha256: String,
+}
+
+#[derive(Clone, Debug)]
+enum AcquiredCatalogPackage {
+    Cached(CacheObject),
+    Prepared {
+        tree: PreparedPackageTree,
+        _staging: Arc<TempDir>,
+    },
+}
+
+impl AcquiredCatalogPackage {
+    fn prepared(&self) -> &PreparedPackageTree {
+        match self {
+            Self::Cached(object) => object.prepared(),
+            Self::Prepared { tree, .. } => tree,
+        }
+    }
+
+    fn cache_object(&self) -> Option<&CacheObject> {
+        match self {
+            Self::Cached(object) => Some(object),
+            Self::Prepared { .. } => None,
+        }
+    }
 }
 
 impl AcquiredCatalogCandidate {
@@ -75,10 +100,19 @@ impl AcquiredCatalogCandidate {
         &self.source
     }
 
-    /// Returns the verified content-addressed prepared package object.
+    /// Returns the verified canonical package tree checksum.
     #[must_use]
-    pub const fn cache_object(&self) -> &CacheObject {
-        &self.cache_object
+    pub fn package_sha256(&self) -> &str {
+        self.package.prepared().sha256()
+    }
+
+    /// Returns the verified cache object when acquisition published one.
+    ///
+    /// Read-only acquisition returns `None` because its temporary prepared tree
+    /// must not be published into the shared cache.
+    #[must_use]
+    pub fn cache_object(&self) -> Option<&CacheObject> {
+        self.package.cache_object()
     }
 
     /// Returns the fingerprint of the reviewed catalog declaration selected.
@@ -96,6 +130,7 @@ pub struct CatalogCandidateAcquirer {
     git: GitFetcher,
     http: CatalogHttpAdapter,
     offline: bool,
+    read_only: bool,
     package_locks: Arc<Mutex<BTreeMap<PackageName, Arc<Mutex<()>>>>>,
     acquired: Arc<Mutex<BTreeMap<PackageName, Vec<AcquiredCatalogCandidate>>>>,
 }
@@ -142,6 +177,24 @@ impl CatalogCandidateAcquirer {
     /// Creates a lazy acquirer for one validated catalog and cache layout.
     #[must_use]
     pub fn new(catalog: ValidatedSourceCatalog, cache: CacheLayout, offline: bool) -> Self {
+        Self::with_mode(catalog, cache, offline, false)
+    }
+
+    /// Creates an offline, cache-read-only candidate acquirer.
+    ///
+    /// This mode may create disposable staging trees but never downloads,
+    /// updates Git metadata, or publishes a package cache object.
+    #[must_use]
+    pub fn new_read_only(catalog: ValidatedSourceCatalog, cache: CacheLayout) -> Self {
+        Self::with_mode(catalog, cache, true, true)
+    }
+
+    fn with_mode(
+        catalog: ValidatedSourceCatalog,
+        cache: CacheLayout,
+        offline: bool,
+        read_only: bool,
+    ) -> Self {
         let git = GitFetcher::new(cache.clone());
         Self {
             catalog,
@@ -149,6 +202,7 @@ impl CatalogCandidateAcquirer {
             git,
             http: CatalogHttpAdapter::new(crate::http_archive::HttpArchiveFetcher::new(cache)),
             offline,
+            read_only,
             package_locks: Arc::default(),
             acquired: Arc::default(),
         }
@@ -157,8 +211,8 @@ impl CatalogCandidateAcquirer {
     /// Acquires every reviewed candidate for `package` in deterministic order.
     ///
     /// Unknown package names return an empty set without source access. Clones
-    /// share per-package acquisition state; every returned cached package object
-    /// is re-verified before use.
+    /// share per-package acquisition state; every returned package tree is
+    /// re-verified before use.
     ///
     /// # Errors
     ///
@@ -271,7 +325,7 @@ impl CatalogCandidateAcquirer {
                 commit: candidate.commit().to_owned(),
                 root: candidate.root().to_owned(),
             },
-            cache_object,
+            package: cache_object,
             catalog_sha256: ValidatedCatalogCandidate::Git(declaration.clone())
                 .fingerprint(package),
         })
@@ -306,7 +360,7 @@ impl CatalogCandidateAcquirer {
                 sha256: candidate.sha256().to_owned(),
                 root: candidate.root().to_owned(),
             },
-            cache_object,
+            package: cache_object,
             catalog_sha256: ValidatedCatalogCandidate::Http(candidate.clone()).fingerprint(package),
         })
     }
@@ -315,19 +369,35 @@ impl CatalogCandidateAcquirer {
         &self,
         source_root: &Path,
         cancellation: &CancellationToken,
-    ) -> SourceResult<CacheObject> {
+    ) -> SourceResult<AcquiredCatalogPackage> {
         cancellation.check()?;
-        let staging = TempDir::new().map_err(|error| {
+        let staging = Arc::new(TempDir::new().map_err(|error| {
             internal_with_cause("could not create catalog package staging", error)
-        })?;
+        })?);
         let prepared = prepare_package_tree(source_root, &staging.path().join("prepared"))?;
         cancellation.check()?;
-        publish_prepared_package(&self.cache, &prepared)
+        if self.read_only {
+            Ok(AcquiredCatalogPackage::Prepared {
+                tree: prepared,
+                _staging: staging,
+            })
+        } else {
+            publish_prepared_package(&self.cache, &prepared).map(AcquiredCatalogPackage::Cached)
+        }
     }
 
     fn verify_candidates(&self, candidates: &[AcquiredCatalogCandidate]) -> SourceResult<()> {
         for candidate in candidates {
-            verify_package_object(&self.cache, candidate.cache_object().sha256())?;
+            if let Some(object) = candidate.cache_object() {
+                verify_package_object(&self.cache, object.sha256())?;
+            } else {
+                let verified = inspect_package_tree(candidate.package.prepared().root())?;
+                if verified.sha256() != candidate.package_sha256() {
+                    return Err(internal(
+                        "read-only catalog package tree changed during verification",
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -450,6 +520,22 @@ mod tests {
     }
 
     #[test]
+    fn invariant_read_only_catalog_acquisition_never_publishes_a_package_cache_object() {
+        let fixture = Fixture::new();
+        let acquirer =
+            CatalogCandidateAcquirer::new_read_only(fixture.catalog.clone(), fixture.cache.clone());
+
+        let candidates = acquirer
+            .acquire(&fixture.selected, &CancellationToken::new())
+            .expect("cached source should acquire read-only");
+
+        assert_eq!(candidates.len(), 1);
+        assert!(candidates[0].cache_object().is_none());
+        assert!(!fixture.cache.packages().exists());
+        assert_no_connection(&fixture.unselected_listener);
+    }
+
+    #[test]
     fn invariant_concurrent_catalog_acquisition_converges_on_one_verified_cache_object() {
         let fixture = Fixture::new();
         let acquirer = fixture.acquirer();
@@ -474,8 +560,14 @@ mod tests {
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].cache_object(), second[0].cache_object());
         assert_eq!(
-            first[0].cache_object().path(),
-            second[0].cache_object().path()
+            first[0]
+                .cache_object()
+                .expect("normal acquisition should publish a cache object")
+                .path(),
+            second[0]
+                .cache_object()
+                .expect("normal acquisition should publish a cache object")
+                .path()
         );
     }
 
@@ -486,8 +578,15 @@ mod tests {
         let first = acquirer
             .acquire(&fixture.selected, &CancellationToken::new())
             .expect("initial acquisition should work");
-        fs::write(first[0].cache_object().path().join("plugin.gd"), "corrupt")
-            .expect("cache object should become corrupt");
+        fs::write(
+            first[0]
+                .cache_object()
+                .expect("normal acquisition should publish a cache object")
+                .path()
+                .join("plugin.gd"),
+            "corrupt",
+        )
+        .expect("cache object should become corrupt");
 
         let error = acquirer
             .acquire(&fixture.selected, &CancellationToken::new())

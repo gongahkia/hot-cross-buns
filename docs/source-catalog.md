@@ -129,6 +129,12 @@ promoted to runtime and selected once. Sync materialises that persisted closure
 through the same ownership preflight and transaction boundary as direct locks.
 It never resolves a catalog during materialisation.
 
+`wukong update <root>` refreshes one persisted direct root and its reachable
+closure. Packages outside both the previous and new closure remain byte-for-byte
+locked; if that cannot be preserved, the update fails rather than broadening
+its scope. `wukong update --dry-run` uses only cached source artifacts and
+disposable staging, and never publishes a cache object.
+
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,
 and atomically replaces the catalog. Existing TOML content outside the edited

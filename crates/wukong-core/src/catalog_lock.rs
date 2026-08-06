@@ -2,6 +2,7 @@
 
 use crate::{
     cache::CacheLayout,
+    dependency_graph::LockedDependencyGraph,
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
     lockfile::{
@@ -9,14 +10,21 @@ use crate::{
         LockedHttpSource, LockedPackage, LockedSource, Lockfile,
     },
     manifest::{Dependency, DependencyAlias, Manifest},
-    resolver::{ResolutionRequest, resolve_dependencies},
+    resolver::{
+        PackageCandidate, PackageUniverse, ResolutionRequest, ResolvedGraph, ResolverResult,
+        resolve_dependencies,
+    },
+    semantic_version::VersionRequirement,
     source::{CancellationToken, ImmutableSourceId},
     source_catalog::ValidatedSourceCatalog,
     source_catalog_acquisition::{
         AcquiredCatalogCandidate, AcquiredCatalogSource, CatalogCandidateAcquirer, CatalogUniverse,
     },
 };
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
 /// Returns whether the manifest contains version-only catalog roots.
 #[must_use]
@@ -60,23 +68,61 @@ pub fn lock_catalog_dependencies(
     let acquirer = CatalogCandidateAcquirer::new(catalog, cache, offline);
     let universe = CatalogUniverse::new(acquirer.clone(), cancellation.clone());
     let graph = resolve_dependencies(&universe, &request, cancellation)?;
-    let mut packages = Vec::with_capacity(graph.packages().len());
-    for (name, resolved) in graph.packages() {
-        cancellation.check()?;
-        let candidate = acquirer
-            .acquire(name, cancellation)?
-            .into_iter()
-            .find(|candidate| candidate.version() == resolved.version())
-            .ok_or_else(|| selected_candidate_missing(name, resolved.version()))?;
-        packages.push(locked_package(name, resolved, &candidate)?);
+    lock_resolved_graph(&graph, &acquirer, &BTreeMap::new(), cancellation)
+}
+
+/// Refreshes one catalog direct root and its closure, or every root when omitted.
+///
+/// A selected update treats every package outside the prior selected closure as
+/// an exact locked candidate. This prevents an intentional update from
+/// refreshing unrelated roots or their dependencies. A dry run uses only
+/// existing cache data and disposable staging, so it does not publish cache
+/// objects or change project files.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the schema-three lock no longer matches manifest
+/// roots, the selected package is not a direct root, cached data is unavailable
+/// for a dry run, resolution cannot preserve unrelated selections, or a source
+/// candidate cannot be verified.
+#[allow(clippy::too_many_arguments)] // public operation inputs mirror lock/update command boundaries
+pub fn update_catalog_dependencies(
+    manifest: &Manifest,
+    catalog: ValidatedSourceCatalog,
+    existing: &Lockfile,
+    selected: Option<&PackageName>,
+    cache: CacheLayout,
+    offline: bool,
+    dry_run: bool,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    validate_catalog_lock_manifest(manifest, existing)?;
+    let selected_closure = selected
+        .map(|selected| catalog_root_closure(existing, selected))
+        .transpose()?;
+    let retained = retained_packages(existing, selected_closure.as_ref());
+    let request = catalog_request(manifest)?;
+    cancellation.check()?;
+    let acquirer = if dry_run {
+        CatalogCandidateAcquirer::new_read_only(catalog, cache)
+    } else {
+        CatalogCandidateAcquirer::new(catalog, cache, offline)
+    };
+    let universe = UpdateUniverse {
+        catalog: CatalogUniverse::new(acquirer.clone(), cancellation.clone()),
+        retained: retained_candidates(&retained, existing)?,
+    };
+    let graph = resolve_dependencies(&universe, &request, cancellation)?;
+    let updated = lock_resolved_graph(&graph, &acquirer, &retained, cancellation)?;
+    let mut affected = selected_closure.unwrap_or_default();
+    if let Some(selected) = selected {
+        affected.extend(resolved_closure(&graph, selected)?);
+    } else {
+        affected.extend(existing.packages().keys().cloned());
+        affected.extend(updated.packages().keys().cloned());
     }
-    Lockfile::new_catalog_graph(
-        packages,
-        CatalogGraphRoots::new(
-            graph.runtime_roots().iter().cloned(),
-            graph.development_roots().iter().cloned(),
-        ),
-    )
+    preserve_unrelated_packages(existing, &updated, &affected)?;
+    Ok(updated)
 }
 
 /// Verifies that version-only manifest roots match a schema-three lock.
@@ -178,6 +224,195 @@ fn catalog_request(manifest: &Manifest) -> Result<ResolutionRequest, Box<Diagnos
     Ok(request)
 }
 
+struct UpdateUniverse {
+    catalog: CatalogUniverse,
+    retained: BTreeMap<PackageName, PackageCandidate>,
+}
+
+impl PackageUniverse for UpdateUniverse {
+    fn candidates(&self, package: &PackageName) -> ResolverResult<Vec<PackageCandidate>> {
+        if let Some(candidate) = self.retained.get(package) {
+            Ok(vec![candidate.clone()])
+        } else {
+            self.catalog.candidates(package)
+        }
+    }
+}
+
+fn catalog_root_closure(
+    lock: &Lockfile,
+    selected: &PackageName,
+) -> Result<BTreeSet<PackageName>, Box<Diagnostic>> {
+    let graph = LockedDependencyGraph::from_catalog_lockfile(lock)?.ok_or_else(|| {
+        Box::new(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "catalog update received a lockfile without persisted roots",
+            )
+            .with_recovery("regenerate wukong.lock"),
+        )
+    })?;
+    let roots = graph
+        .roots(crate::dependency_graph::DependencyGroup::Runtime)
+        .iter()
+        .chain(
+            graph
+                .roots(crate::dependency_graph::DependencyGroup::Development)
+                .iter(),
+        );
+    if !roots.clone().any(|root| root == selected) {
+        return Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::UserInput,
+                format!("package {selected} is not a direct catalog root"),
+            )
+            .with_package(selected.as_str())
+            .with_recovery("select a direct dependency from wukong.toml or run wukong update"),
+        ));
+    }
+    let mut closure = BTreeSet::new();
+    let mut pending = vec![selected.clone()];
+    while let Some(name) = pending.pop() {
+        if !closure.insert(name.clone()) {
+            continue;
+        }
+        let package = graph.packages().get(&name).ok_or_else(|| {
+            Box::new(
+                Diagnostic::new(
+                    ErrorCode::InternalFailure,
+                    format!("catalog root {name} disappeared from the locked graph"),
+                )
+                .with_recovery("regenerate wukong.lock"),
+            )
+        })?;
+        pending.extend(package.dependencies().iter().cloned());
+    }
+    Ok(closure)
+}
+
+fn resolved_closure(
+    graph: &ResolvedGraph,
+    selected: &PackageName,
+) -> Result<BTreeSet<PackageName>, Box<Diagnostic>> {
+    let mut closure = BTreeSet::new();
+    let mut pending = vec![selected.clone()];
+    while let Some(name) = pending.pop() {
+        if !closure.insert(name.clone()) {
+            continue;
+        }
+        let package = graph.packages().get(&name).ok_or_else(|| {
+            Box::new(
+                Diagnostic::new(
+                    ErrorCode::InternalFailure,
+                    format!("selected catalog package {name} disappeared during resolution"),
+                )
+                .with_recovery("retry the update and report this as a wukong bug if it persists"),
+            )
+        })?;
+        pending.extend(package.dependencies().keys().cloned());
+    }
+    Ok(closure)
+}
+
+fn retained_packages(
+    existing: &Lockfile,
+    selected_closure: Option<&BTreeSet<PackageName>>,
+) -> BTreeMap<PackageName, LockedPackage> {
+    if selected_closure.is_none() {
+        return BTreeMap::new();
+    }
+    existing
+        .packages()
+        .iter()
+        .filter(|(name, _)| !selected_closure.is_some_and(|closure| closure.contains(*name)))
+        .map(|(name, package)| (name.clone(), package.clone()))
+        .collect()
+}
+
+fn retained_candidates(
+    retained: &BTreeMap<PackageName, LockedPackage>,
+    existing: &Lockfile,
+) -> Result<BTreeMap<PackageName, PackageCandidate>, Box<Diagnostic>> {
+    retained
+        .iter()
+        .map(|(name, package)| {
+            let version = package.version().ok_or_else(|| {
+                Box::new(
+                    Diagnostic::new(
+                        ErrorCode::IntegrityFailure,
+                        format!("retained catalog package {name} has no version"),
+                    )
+                    .with_package(name.as_str())
+                    .with_recovery("regenerate wukong.lock"),
+                )
+            })?;
+            let dependencies = package
+                .dependencies()
+                .iter()
+                .map(|dependency| {
+                    let version = retained
+                        .get(dependency)
+                        .or_else(|| existing.packages().get(dependency))
+                        .and_then(LockedPackage::version)
+                        .ok_or_else(|| {
+                            Box::new(
+                                Diagnostic::new(
+                                    ErrorCode::IntegrityFailure,
+                                    format!(
+                                        "retained catalog package {name} depends on refreshable package {dependency}"
+                                    ),
+                                )
+                                .with_package(name.as_str())
+                                .with_recovery("run wukong update without selecting one package"),
+                            )
+                        })?;
+                    VersionRequirement::parse(&format!("={version}"))
+                        .map(|requirement| (dependency.clone(), requirement))
+                        .map_err(|error| {
+                            Box::new(
+                                Diagnostic::new(
+                                    ErrorCode::InternalFailure,
+                                    "could not construct retained dependency requirement",
+                                )
+                                .with_cause(error)
+                                .with_recovery(
+                                    "retry the update and report this as a wukong bug if it persists",
+                                ),
+                            )
+                        })
+                })
+                .collect::<Result<BTreeMap<_, _>, Box<Diagnostic>>>()?;
+            Ok((
+                name.clone(),
+                PackageCandidate::for_package(name.clone(), version, dependencies),
+            ))
+        })
+        .collect()
+}
+
+fn preserve_unrelated_packages(
+    existing: &Lockfile,
+    updated: &Lockfile,
+    affected: &BTreeSet<PackageName>,
+) -> Result<(), Box<Diagnostic>> {
+    for (name, package) in existing.packages() {
+        if affected.contains(name) {
+            continue;
+        }
+        if updated.packages().get(name) != Some(package) {
+            return Err(Box::new(
+                Diagnostic::new(
+                    ErrorCode::UserInput,
+                    format!("selected update would change unrelated package {name}"),
+                )
+                .with_package(name.as_str())
+                .with_recovery("run wukong update without selecting one package"),
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 enum RootGroup {
     Runtime,
@@ -232,6 +467,35 @@ fn add_roots(
     Ok(())
 }
 
+fn lock_resolved_graph(
+    graph: &ResolvedGraph,
+    acquirer: &CatalogCandidateAcquirer,
+    retained: &BTreeMap<PackageName, LockedPackage>,
+    cancellation: &CancellationToken,
+) -> Result<Lockfile, Box<Diagnostic>> {
+    let mut packages = Vec::with_capacity(graph.packages().len());
+    for (name, resolved) in graph.packages() {
+        cancellation.check()?;
+        if let Some(package) = retained.get(name) {
+            packages.push(package.clone());
+            continue;
+        }
+        let candidate = acquirer
+            .acquire(name, cancellation)?
+            .into_iter()
+            .find(|candidate| candidate.version() == resolved.version())
+            .ok_or_else(|| selected_candidate_missing(name, resolved.version()))?;
+        packages.push(locked_package(name, resolved, &candidate)?);
+    }
+    Lockfile::new_catalog_graph(
+        packages,
+        CatalogGraphRoots::new(
+            graph.runtime_roots().iter().cloned(),
+            graph.development_roots().iter().cloned(),
+        ),
+    )
+}
+
 fn locked_package(
     name: &PackageName,
     resolved: &crate::resolver::ResolvedPackage,
@@ -247,7 +511,7 @@ fn locked_package(
         name.clone(),
         Some(resolved.version().clone()),
         source,
-        candidate.cache_object().sha256().to_owned(),
+        candidate.package_sha256().to_owned(),
         catalog_sha256.clone(),
         resolved.dependencies().keys().cloned().collect(),
         source_subdirectory,

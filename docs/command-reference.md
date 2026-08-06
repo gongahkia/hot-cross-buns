@@ -12,7 +12,7 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `remove <alias>` | Remove one direct dependency and safely reconcile owned files. | [remove](remove.md) |
 | `lock [--offline] [--locked]` | Resolve direct sources or version-only catalog graphs into a deterministic lockfile. | [lockfile](lockfile.md) |
 | `install` / `sync` | Reconcile the project from `wukong.lock`. | [sync](sync.md) |
-| `update [<alias>] [--dry-run]` | Re-lock selected supported dependencies and sync changes. | [update](update.md) |
+| `update [<alias>] [--dry-run]` | Refresh direct sources or one catalog-root closure, then sync changes. | [update](update.md) |
 | `tree [--json]` / `why <alias> [--json]` | Inspect locked dependency paths without resolving. | [dependency views](dependency-views.md) |
 | `outdated [--offline] [--json]` | Report available Git tag updates without mutation. | [outdated](outdated.md) |
 | `audit [--json]` | Display immutable provenance and schema-three graph groups. | [audit](audit.md) |

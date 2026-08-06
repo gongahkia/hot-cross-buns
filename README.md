@@ -16,8 +16,9 @@ are implemented in the core. `wukong lock` supports direct path, Git, and HTTP
 dependencies, plus complete catalog-selected graphs for version-only manifests.
 `wukong add` resolves and synchronises direct path, Git, and HTTPS archive
 sources transactionally; `wukong tree`/`wukong why` inspect the resolved lock
-graph. `wukong update [package]` re-locks supported direct sources and
-synchronises changes transactionally, with a dry-run preview. Official asset
+graph. `wukong update [package]` re-locks direct sources or refreshes a
+catalog-root closure and synchronises changes transactionally, with a dry-run
+preview. Official asset
 sources are available only through the opt-in AssetLib feature; package scripts
 are not implemented. `wukong outdated` reports
 Git tag updates without changing the project. `wukong doctor` checks local
