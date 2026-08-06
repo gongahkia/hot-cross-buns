@@ -11,6 +11,8 @@ fn invariant_benchmark_methodology_requires_comparable_raw_measurements() {
         "15 independent times",
         "standard deviation",
         "raw/01.stdout",
+        "WUKONG_BENCH_FIXTURE",
+        "direct-sync-frozen-noop",
     ] {
         assert!(
             BENCHMARKS.contains(required),

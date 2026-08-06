@@ -54,6 +54,6 @@ the ignore marker. On a workspace-test failure, CI retains only the test log
 from repository fixtures for seven days. It does not upload project inputs,
 cache directories, manifests, lockfiles, or environment dumps.
 
-The audit action receives only the workflow's ephemeral read-only GitHub token
-as its required action input. CI does not require a repository secret or broader
-workflow permissions for auditing.
+The audit job installs the Rust-1.85-compatible `cargo-audit` 0.22.1 and audits
+the committed lockfile. It requires no repository secret or workflow permission
+beyond the workflow's read-only checkout permission.

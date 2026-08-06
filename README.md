@@ -51,6 +51,8 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Internal security review](docs/security-review-2026-07.md)
 - [Fuzzing](docs/fuzzing.md)
 - [Benchmark methodology](docs/benchmarks.md)
+- [Stress-test ledger](docs/stress-testing.md)
+- [Manual verification matrix](docs/manual-verification.md)
 - [Installation](docs/installation.md)
 - [60-second quick start](docs/quickstart.md)
 - [Command reference](docs/command-reference.md)

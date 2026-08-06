@@ -18,6 +18,8 @@ toml_escape() {
 [[ $# -ge 1 ]] || { usage; exit 2; }
 readonly result_directory="$1"
 shift
+readonly fixture="${WUKONG_BENCH_FIXTURE:?set WUKONG_BENCH_FIXTURE for this workload}"
+readonly cache_state="${WUKONG_BENCH_CACHE_STATE:?set WUKONG_BENCH_CACHE_STATE for this workload}"
 [[ ! -e "$result_directory" ]] || {
   printf 'error: result directory already exists: %s\n' "$result_directory" >&2
   exit 2
@@ -37,6 +39,8 @@ printf '%s\n' "$command_display" > "$result_directory/command.sh"
   printf 'schema = 1\n'
   printf 'wukong_revision = "%s"\n' "$(git rev-parse HEAD)"
   printf 'fixture_revision = "wukong-111-v1"\n'
+  printf 'fixture = %s\n' "$(printf '%s' "$fixture" | toml_escape)"
+  printf 'cache_state = %s\n' "$(printf '%s' "$cache_state" | toml_escape)"
   printf 'command = %s\n' "$(printf '%s' "$command_display" | toml_escape)"
   printf 'repetitions = %s\n' "$repetitions"
   printf 'rustc = "environment/rustc.txt"\n'
@@ -70,3 +74,11 @@ for run in $(seq -w 1 "$repetitions"); do
   printf '%s\n' "$status" > "$result_directory/raw/$run.status"
   printf '%s\n' "$((ended - started))" > "$result_directory/raw/$run.wall_ns"
 done
+
+{
+  printf '# Raw benchmark record\n\n'
+  printf 'Fixture: `%s`  \n' "$fixture"
+  printf 'Cache state: `%s`  \n' "$cache_state"
+  printf 'Runs: `%s`  \n\n' "$repetitions"
+  printf 'This file is an index only. Derive statistics from the immutable `raw/` observations.\n'
+} > "$result_directory/summary.md"

@@ -50,7 +50,13 @@ pub fn materialize_file(
 
 fn copy(source: &Path, destination: &Path) -> Result<MaterializationStrategy, Box<Diagnostic>> {
     fs::copy(source, destination)
-        .and_then(|_| fs::File::open(destination).and_then(|file| file.sync_all()))
+        .and_then(|_| {
+            fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(destination)
+        })
+        .and_then(|file| file.sync_all())
         .map_err(|error| materialization_error("could not copy package file", error))?;
     Ok(MaterializationStrategy::Copy)
 }

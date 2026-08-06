@@ -26,6 +26,25 @@ checksum() {
   fi
 }
 
+create_archive() {
+  rm -f "$archive_path"
+  if command -v zip >/dev/null 2>&1; then
+    (
+      cd "$stage_directory"
+      zip -X -q "$archive_path" "$binary_name"
+    )
+    return
+  fi
+  if [[ "$target" == *windows* ]] && command -v powershell.exe >/dev/null 2>&1; then
+    WUKONG_ARCHIVE_STAGE="$stage_directory" \
+      WUKONG_ARCHIVE_PATH="$archive_path" \
+      powershell.exe -NoProfile -NonInteractive -Command \
+      'Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory($env:WUKONG_ARCHIVE_STAGE, $env:WUKONG_ARCHIVE_PATH, [IO.Compression.CompressionLevel]::Optimal, $false)'
+    return
+  fi
+  fail 'zip is required; Windows may use powershell.exe instead'
+}
+
 [[ $# -eq 3 ]] || { usage; exit 2; }
 readonly version="$1"
 readonly target="$2"
@@ -35,8 +54,6 @@ case "$target" in
   aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu|x86_64-pc-windows-gnu) ;;
   *) fail "unsupported release target: $target" ;;
 esac
-command -v zip >/dev/null 2>&1 || fail 'zip is required'
-
 readonly binary_name=$([[ "$target" == *windows* ]] && printf 'wukong.exe' || printf 'wukong')
 readonly target_directory="${CARGO_TARGET_DIR:-target}"
 readonly binary_path="$target_directory/$target/release/$binary_name"
@@ -56,8 +73,7 @@ if [[ "$target" != *windows* ]]; then
 fi
 touch -t 198001010000 "$stage_directory/$binary_name"
 (
-  cd "$stage_directory"
-  zip -X -q "$archive_path" "$binary_name"
+  create_archive
 )
 (
   cd "$output_directory"

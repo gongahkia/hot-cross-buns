@@ -60,9 +60,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: RustSec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998
-        with:
-          token: ${{ github.token }}
+      - name: Install compatible cargo-audit
+        run: cargo +1.85.0 install cargo-audit --version 0.22.1 --locked
+      - name: Audit locked dependencies
+        run: cargo +1.85.0 audit --file Cargo.lock
 
   release-smoke:
     name: release-smoke
@@ -185,18 +186,25 @@ jobs:
           version="$(cargo +1.85.0 run --quiet --package wukong-cli -- --version | sed -n 's/^wukong //p')"
           archive="release-artifacts/wukong-$version-${{ matrix.target }}.zip"
           test -s "$archive"
-          test "$(unzip -Z1 "$archive")" = "${{ matrix.binary }}"
-          unzip -t "$archive"
-          (
-            cd release-artifacts
-            if command -v shasum >/dev/null 2>&1; then
-              shasum -a 256 -c "$(basename "$archive").sha256"
-            else
-              sha256sum -c "$(basename "$archive").sha256"
-            fi
-          )
           stage="$(mktemp -d)"
-          unzip -q "$archive" -d "$stage"
+          python - "$archive" "$archive.sha256" "${{ matrix.binary }}" "$stage" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+          import zipfile
+
+          archive, checksum, expected_entry, destination = map(pathlib.Path, sys.argv[1:])
+          expected_checksum = checksum.read_text(encoding="utf-8").split()[0]
+          actual_checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+          if actual_checksum != expected_checksum:
+              raise SystemExit("archive checksum does not match sibling checksum file")
+          with zipfile.ZipFile(archive) as source:
+              if source.namelist() != [expected_entry.as_posix()]:
+                  raise SystemExit(f"unexpected archive entries: {source.namelist()!r}")
+              if source.testzip() is not None:
+                  raise SystemExit("archive integrity check failed")
+              source.extractall(destination)
+          PY
           test "$("$stage/${{ matrix.binary }}" --version)" = "wukong $version"
       - name: Upload verified archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

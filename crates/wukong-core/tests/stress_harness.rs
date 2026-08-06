@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 use wukong_core::{
     direct_lock::lock_direct_local_dependencies,
@@ -8,6 +11,9 @@ use wukong_core::{
 };
 
 const PACKAGE_COUNTS: [usize; 4] = [1, 10, 100, 500];
+const MANY_FILE_COUNT: usize = 512;
+const LARGE_FILE_BYTES: usize = 8 * 1024 * 1024;
+const SHARED_SOURCE_ALIAS_COUNT: usize = 16;
 
 #[test]
 fn invariant_stress_local_dependency_counts_are_transactional_and_idempotent() {
@@ -99,6 +105,115 @@ fn invariant_stress_deep_unicode_package_tree_materialises_without_path_loss() {
     );
 }
 
+#[test]
+fn invariant_stress_large_and_many_file_packages_are_idempotent() {
+    let fixture = Fixture::new();
+    let large = fixture.project().join("large");
+    fixture.write_package_file(
+        &large,
+        "large",
+        Path::new("plugin.gd"),
+        &vec![0xA5; LARGE_FILE_BYTES],
+    );
+
+    let many = fixture.project().join("many");
+    for index in 0..MANY_FILE_COUNT {
+        fixture.write_package_file(
+            &many,
+            "many",
+            &PathBuf::from(format!("scripts/file-{index:04}.gd")),
+            format!("extends Node\n# {index}\n").as_bytes(),
+        );
+    }
+    fixture.write_metadata(&many, "many");
+    let manifest_text = "[project]\nname = \"stress\"\ngodot = \"4\"\n\n[dev-dependencies]\nlarge = { path = \"large\" }\nmany = { path = \"many\" }\n";
+    fs::write(fixture.manifest_path(), manifest_text).expect("shape manifest should write");
+    let manifest = Manifest::parse(fixture.manifest_path(), manifest_text)
+        .expect("shape manifest should parse");
+    let lock = lock_direct_local_dependencies(fixture.manifest_path(), &manifest, None)
+        .expect("shape packages should lock");
+
+    let first = sync_direct_local_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        true,
+    )
+    .expect("shape packages should synchronise");
+    let second = sync_direct_local_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        true,
+    )
+    .expect("shape package no-op should synchronise");
+
+    assert_eq!(first.written, MANY_FILE_COUNT + 3);
+    assert_eq!(second.written, 0);
+    assert_eq!(second.unchanged, MANY_FILE_COUNT + 3);
+    assert_eq!(
+        fs::metadata(fixture.project().join("addons/large/plugin.gd"))
+            .expect("large output should exist")
+            .len(),
+        u64::try_from(LARGE_FILE_BYTES).expect("large fixture size should fit")
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.project().join("addons/many/scripts/file-0511.gd"))
+            .expect("last small output should read"),
+        "extends Node\n# 511\n"
+    );
+}
+
+#[test]
+fn invariant_stress_shared_source_aliases_lock_and_materialise_independently() {
+    let fixture = Fixture::new();
+    let shared = fixture.project().join("shared");
+    let mut manifest_text =
+        String::from("[project]\nname = \"stress\"\ngodot = \"4\"\n\n[dev-dependencies]\n");
+    for index in 0..SHARED_SOURCE_ALIAS_COUNT {
+        let alias = format!("alias-{index:02}");
+        let root = shared.join("addons").join(&alias);
+        fixture.write_package_file(&root, &alias, Path::new("plugin.gd"), alias.as_bytes());
+        fixture.write_metadata(&root, &alias);
+        manifest_text.push_str(&format!(
+            "{alias} = {{ path = \"shared\", root = \"addons/{alias}\", target = \"addons/{alias}\" }}\n"
+        ));
+    }
+    fs::write(fixture.manifest_path(), &manifest_text).expect("alias manifest should write");
+    let manifest = Manifest::parse(fixture.manifest_path(), &manifest_text)
+        .expect("alias manifest should parse");
+    let lock = lock_direct_local_dependencies(fixture.manifest_path(), &manifest, None)
+        .expect("shared aliases should lock");
+
+    sync_direct_local_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        true,
+    )
+    .expect("shared aliases should synchronise");
+    let no_op = sync_direct_local_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        true,
+    )
+    .expect("shared aliases should no-op");
+
+    assert_eq!(lock.packages().len(), SHARED_SOURCE_ALIAS_COUNT);
+    assert_eq!(no_op.written, 0);
+    assert_eq!(no_op.unchanged, SHARED_SOURCE_ALIAS_COUNT * 2);
+    assert_eq!(
+        fs::read_to_string(fixture.project().join("addons/alias-15/plugin.gd"))
+            .expect("last alias output should read"),
+        "alias-15"
+    );
+}
+
 struct Fixture {
     _directory: TempDir,
     project: std::path::PathBuf,
@@ -149,5 +264,28 @@ impl Fixture {
         }
         fs::write(&self.manifest_path, &input).expect("stress manifest should write");
         Manifest::parse(&self.manifest_path, &input).expect("stress manifest should parse")
+    }
+
+    fn write_package_file(&self, root: &Path, name: &str, relative: &Path, bytes: &[u8]) {
+        fs::create_dir_all(root).expect("shape source should create");
+        let destination = root.join(relative);
+        fs::create_dir_all(
+            destination
+                .parent()
+                .expect("shape package path should have a parent"),
+        )
+        .expect("shape package parent should create");
+        fs::write(destination, bytes).expect("shape package file should write");
+        self.write_metadata(root, name);
+    }
+
+    fn write_metadata(&self, root: &Path, name: &str) {
+        fs::write(
+            root.join("wukong-package.toml"),
+            format!(
+                "[package]\nschema = 1\nname = \"{name}\"\nversion = \"1.0.0\"\ngodot = \"4\"\n"
+            ),
+        )
+        .expect("shape package metadata should write");
     }
 }

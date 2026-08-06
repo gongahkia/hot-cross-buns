@@ -40,6 +40,7 @@ const ITERATIONS: usize = 20;
 const NETWORK_COLD_ITERATIONS: usize = 3;
 const NETWORK_WARM_ITERATIONS: usize = 20;
 const DIRECT_SYNC_ALIAS_COUNT: usize = 64;
+const DIRECT_SYNC_MANY_LOCAL_COUNT: usize = 100;
 
 fn main() {
     let fixture = LocalFixture::new(SMALL_PROJECT);
@@ -52,8 +53,11 @@ fn main() {
     benchmark_materialization(&fixture);
     benchmark_ownership_map();
     benchmark_noop_sync(&fixture);
+    benchmark_direct_sync_cold();
     benchmark_direct_sync_warm(&fixture);
+    benchmark_direct_sync_frozen_noop(&fixture);
     benchmark_direct_sync_aliases();
+    benchmark_direct_sync_many_local();
     benchmark_git_fetch_from_environment();
     benchmark_http_fetch_from_environment();
 }
@@ -202,7 +206,7 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
     .expect("benchmark manifest should parse");
     let cache = CacheLayout::for_root(fixture.root().join("direct-sync-cache"))
         .expect("benchmark cache should configure");
-    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, true)
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false)
         .expect("benchmark package should lock");
     sync_direct_dependencies(
         &fixture.project,
@@ -211,7 +215,7 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
         &lock,
         true,
         &cache,
-        true,
+        false,
     )
     .expect("benchmark initial direct sync should complete");
     benchmark(
@@ -227,9 +231,79 @@ fn benchmark_direct_sync_warm(fixture: &LocalFixture) {
                     &lock,
                     true,
                     &cache,
-                    true,
+                    false,
                 )
                 .expect("benchmark warm direct sync should complete"),
+            );
+        },
+    );
+}
+
+fn benchmark_direct_sync_cold() {
+    benchmark("direct-sync-cold", SMALL_PROJECT.id, ITERATIONS, || {
+        let fixture = LocalFixture::new(SMALL_PROJECT);
+        let manifest_path = fixture.project.join("direct-sync-cold-wukong.toml");
+        let manifest = Manifest::parse(
+            &manifest_path,
+            "[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\nbenchmark-addon = { path = \"source\" }\n",
+        )
+        .expect("benchmark cold manifest should parse");
+        let cache = CacheLayout::for_root(fixture.root().join("direct-sync-cold-cache"))
+            .expect("benchmark cold cache should configure");
+        let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false)
+            .expect("benchmark cold package should lock");
+        black_box(
+            sync_direct_dependencies(
+                &fixture.project,
+                &manifest_path,
+                &manifest,
+                &lock,
+                true,
+                &cache,
+                false,
+            )
+            .expect("benchmark cold direct sync should complete"),
+        );
+    });
+}
+
+fn benchmark_direct_sync_frozen_noop(fixture: &LocalFixture) {
+    let manifest_path = fixture.project.join("direct-sync-frozen-wukong.toml");
+    let manifest = Manifest::parse(
+        &manifest_path,
+        "[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\nbenchmark-addon = { path = \"source\" }\n",
+    )
+    .expect("benchmark frozen manifest should parse");
+    let cache = CacheLayout::for_root(fixture.root().join("direct-sync-frozen-cache"))
+        .expect("benchmark frozen cache should configure");
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false)
+        .expect("benchmark frozen package should lock");
+    sync_direct_dependencies(
+        &fixture.project,
+        &manifest_path,
+        &manifest,
+        &lock,
+        true,
+        &cache,
+        false,
+    )
+    .expect("benchmark frozen initial sync should complete");
+    benchmark(
+        "direct-sync-frozen-noop",
+        fixture.definition.id,
+        ITERATIONS,
+        || {
+            black_box(
+                sync_direct_dependencies(
+                    &fixture.project,
+                    &manifest_path,
+                    &manifest,
+                    &lock,
+                    true,
+                    &cache,
+                    true,
+                )
+                .expect("benchmark frozen no-op should complete"),
             );
         },
     );
@@ -254,7 +328,7 @@ fn benchmark_direct_sync_aliases() {
     let manifest = Manifest::parse(&manifest_path, &input).expect("benchmark aliases should parse");
     let cache = CacheLayout::for_root(fixture.root().join("direct-sync-aliases-cache"))
         .expect("benchmark cache should configure");
-    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, true)
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false)
         .expect("benchmark aliases should lock");
     sync_direct_dependencies(
         &fixture.project,
@@ -263,7 +337,7 @@ fn benchmark_direct_sync_aliases() {
         &lock,
         true,
         &cache,
-        true,
+        false,
     )
     .expect("benchmark aliases should synchronise");
     benchmark("direct-sync-warm", "local-aliases-64", ITERATIONS, || {
@@ -275,11 +349,64 @@ fn benchmark_direct_sync_aliases() {
                 &lock,
                 true,
                 &cache,
-                true,
+                false,
             )
             .expect("benchmark warm alias sync should complete"),
         );
     });
+}
+
+fn benchmark_direct_sync_many_local() {
+    let fixture = LocalFixture::new(SMALL_PROJECT);
+    let manifest_path = fixture.project.join("direct-sync-many-local-wukong.toml");
+    let mut input =
+        String::from("[project]\nname=\"benchmark\"\ngodot=\"4\"\n\n[dev-dependencies]\n");
+    for index in 0..DIRECT_SYNC_MANY_LOCAL_COUNT {
+        let name = format!("addon-{index}");
+        let source = fixture.project.join(format!("many-local-{index}"));
+        fs::create_dir(&source).expect("benchmark local source should create");
+        fixtures::write_source_tree(&source, SMALL_PROJECT);
+        write_package_metadata(&source, &name);
+        let _ = writeln!(
+            input,
+            "{name} = {{ path = \"many-local-{index}\", target = \"addons/{name}\" }}"
+        );
+    }
+    let manifest = Manifest::parse(&manifest_path, &input)
+        .expect("benchmark many-local manifest should parse");
+    let cache = CacheLayout::for_root(fixture.root().join("direct-sync-many-local-cache"))
+        .expect("benchmark many-local cache should configure");
+    let lock = lock_direct_dependencies(&manifest_path, &manifest, None, &cache, false)
+        .expect("benchmark many-local packages should lock");
+    sync_direct_dependencies(
+        &fixture.project,
+        &manifest_path,
+        &manifest,
+        &lock,
+        true,
+        &cache,
+        false,
+    )
+    .expect("benchmark many-local packages should synchronise");
+    benchmark(
+        "direct-sync-warm",
+        "many-local-dependencies-100",
+        ITERATIONS,
+        || {
+            black_box(
+                sync_direct_dependencies(
+                    &fixture.project,
+                    &manifest_path,
+                    &manifest,
+                    &lock,
+                    true,
+                    &cache,
+                    false,
+                )
+                .expect("benchmark many-local warm sync should complete"),
+            );
+        },
+    );
 }
 
 fn benchmark_git_fetch_from_environment() {

@@ -23,9 +23,11 @@ cargo +1.85.0 bench -p wukong-core --bench component_harness
 
 It reports manifest/lockfile parsing, resolver work, ZIP extraction, local-tree
 hashing, cache lookup, ownership-map construction, copy and automatic
-materialisation, project-only no-op sync, and warm direct sync as separate
-rows. The direct-sync workload includes one package and 64 aliases sharing one
-local source, which exposes repeated canonical-tree work.
+materialisation, project-only no-op sync, cold direct sync, warm direct sync,
+and frozen no-op direct sync as separate rows. The direct-sync workloads include
+one package, 64 aliases, and 100 local dependencies.
+Their stable row names are `direct-sync-cold`, `direct-sync-warm`, and
+`direct-sync-frozen-noop`.
 It does not make performance claims or compare runs.
 
 ## Measured design decisions
@@ -84,7 +86,8 @@ published performance result or a version-solver benchmark.
    directory:
 
    ```sh
-   scripts/collect-benchmark-runs.sh benchmarks/results/<date>-component-harness
+   WUKONG_BENCH_FIXTURE=small-project WUKONG_BENCH_CACHE_STATE=cold-cache \
+     scripts/collect-benchmark-runs.sh benchmarks/results/<date>-component-harness
    ```
 
    Pass an explicit command after the directory for a distinct workload. Set
