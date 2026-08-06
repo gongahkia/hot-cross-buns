@@ -126,6 +126,8 @@ impl ProgressSession {
         let shared = Arc::new(Shared {
             finished: AtomicBool::new(false),
             cleared: AtomicBool::new(false),
+            paused: AtomicBool::new(false),
+            pause_cleared: AtomicBool::new(false),
             state: Mutex::new(State {
                 command: command.to_owned(),
                 phase: "starting".to_owned(),
@@ -205,6 +207,28 @@ pub fn finish_for_output() {
     });
 }
 
+/// Temporarily clears progress while a command writes an intermediate human line.
+///
+/// The renderer resumes afterward, unlike [`finish_for_output`], which is for
+/// a command's final result or diagnostic.
+pub fn with_intermediate_output(write: impl FnOnce()) {
+    ACTIVE_PROGRESS.with(|active| {
+        let shared = active.borrow().clone();
+        let Some(shared) = shared else {
+            write();
+            return;
+        };
+        shared.pause_cleared.store(false, Ordering::Release);
+        shared.paused.store(true, Ordering::Release);
+        let deadline = Instant::now() + FINISH_WAIT;
+        while !shared.pause_cleared.load(Ordering::Acquire) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+        write();
+        shared.paused.store(false, Ordering::Release);
+    });
+}
+
 fn progress_disabled_by_environment() -> bool {
     std::env::var_os("WUKONG_NO_PROGRESS").is_some_and(|value| value != "0")
 }
@@ -212,6 +236,8 @@ fn progress_disabled_by_environment() -> bool {
 struct Shared {
     finished: AtomicBool,
     cleared: AtomicBool,
+    paused: AtomicBool,
+    pause_cleared: AtomicBool,
     state: Mutex<State>,
 }
 
@@ -355,6 +381,18 @@ fn render_loop(shared: &Shared, spinner: SpinnerPreset, bar: BarTheme) {
     thread::sleep(RENDER_DELAY);
     let mut rendered = false;
     while !shared.finished.load(Ordering::Acquire) {
+        if shared.paused.load(Ordering::Acquire) {
+            if rendered {
+                let _ = clear_line();
+                rendered = false;
+            }
+            shared.pause_cleared.store(true, Ordering::Release);
+            while shared.paused.load(Ordering::Acquire) && !shared.finished.load(Ordering::Acquire)
+            {
+                thread::sleep(Duration::from_millis(5));
+            }
+            continue;
+        }
         let Ok(state) = shared.state.lock() else {
             break;
         };
