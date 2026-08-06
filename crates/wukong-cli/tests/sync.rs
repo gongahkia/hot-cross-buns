@@ -370,6 +370,9 @@ fn invariant_required_package_godot_metadata_avoids_unknown_compatibility() {
 fn command(subcommand: &str, current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg(subcommand).current_dir(current_directory);
+    if subcommand == "lock" {
+        command.arg("--offline");
+    }
     command
 }
 

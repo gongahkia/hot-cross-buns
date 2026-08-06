@@ -54,12 +54,34 @@ proptest! {
 #[test]
 fn invariant_schema_four_round_trips_exact_managed_godot_artifacts() {
     let hash = "a".repeat(128);
-    let editor = LockedGodotArtifact::new(
-        "Godot_v4.4.1-stable_macos.universal.zip".to_owned(),
-        "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_macos.universal.zip".to_owned(),
-        hash.clone(),
-        42,
-    ).expect("editor should lock");
+    let version = SemanticVersion::parse("4.4.1").expect("version should parse");
+    let release = "4.4.1-stable";
+    let editors = [
+        GodotPlatform::MacosUniversal,
+        GodotPlatform::LinuxX86_64,
+        GodotPlatform::LinuxArm64,
+        GodotPlatform::WindowsX86_64,
+    ]
+    .into_iter()
+    .map(|platform| {
+        let name = match platform {
+            GodotPlatform::MacosUniversal => "Godot_v4.4.1-stable_macos.universal.zip",
+            GodotPlatform::LinuxX86_64 => "Godot_v4.4.1-stable_linux.x86_64.zip",
+            GodotPlatform::LinuxArm64 => "Godot_v4.4.1-stable_linux.arm64.zip",
+            GodotPlatform::WindowsX86_64 => "Godot_v4.4.1-stable_win64.exe.zip",
+        };
+        let artifact = LockedGodotArtifact::new(
+            name.to_owned(),
+            format!(
+                "https://github.com/godotengine/godot-builds/releases/download/{release}/{name}"
+            ),
+            hash.clone(),
+            42,
+        )
+        .expect("editor should lock");
+        (platform, artifact)
+    })
+    .collect::<Vec<_>>();
     let templates = LockedGodotArtifact::new(
         "Godot_v4.4.1-stable_export_templates.tpz".to_owned(),
         "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz".to_owned(),
@@ -67,12 +89,13 @@ fn invariant_schema_four_round_trips_exact_managed_godot_artifacts() {
         24,
     ).expect("templates should lock");
     let toolchain = LockedGodotToolchain::new(
-        SemanticVersion::parse("4.4.1").expect("version should parse"),
+        version,
         GodotFlavor::Standard,
-        "4.4.1-stable".to_owned(),
-        [(GodotPlatform::MacosUniversal, editor)],
+        release.to_owned(),
+        editors,
         templates,
-    ).expect("toolchain should lock");
+    )
+    .expect("toolchain should lock");
     let lock = lock(["example-addon"]).with_toolchain(toolchain);
     let output = lock.to_toml();
     let parsed = Lockfile::parse(Path::new(PATH), &output).expect("schema four should parse");
@@ -80,6 +103,18 @@ fn invariant_schema_four_round_trips_exact_managed_godot_artifacts() {
     assert_eq!(lock.schema(), 4);
     assert!(output.contains("[toolchain]"));
     assert!(output.contains("[[toolchain.editor]]"));
+
+    let start = output
+        .find("\n[[toolchain.editor]]\nplatform = \"windows-x86_64\"")
+        .expect("Windows artifact should be serialized");
+    let end = output[start..]
+        .find("\n[[package]]")
+        .map(|offset| start + offset)
+        .expect("package should follow toolchain artifacts");
+    let incomplete = format!("{}{}", &output[..start], &output[end..]);
+    let error = Lockfile::parse(Path::new(PATH), &incomplete)
+        .expect_err("schema four requires every supported desktop artifact");
+    assert!(error.message().contains("missing required windows-x86_64"));
 }
 
 #[test]

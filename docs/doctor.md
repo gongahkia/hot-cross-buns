@@ -3,10 +3,12 @@
 `wukong doctor [--project <path>] [--godot-executable <path>] [--offline]`
 prints deterministic `ok`/`fail` checks for project discovery, manifest and
 lockfile parsing, installed-state hashes, cache permissions and corruption,
-project filesystem readability, Godot executable discovery, network proxy
+project filesystem readability, selected Godot or locked managed-toolchain
+availability, network proxy
 configuration, and the project mutation lock.
 
-It never contacts a network endpoint or executes Godot. Without `--offline`,
+It never contacts a network endpoint, downloads an editor, or executes Godot.
+Without `--offline`,
 it checks configured HTTP(S) proxy values for a scheme prefix and whitespace;
 it does not test reachability or full URL validity. `--offline` reports the
 network check as skipped.

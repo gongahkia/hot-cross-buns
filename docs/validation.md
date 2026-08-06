@@ -7,10 +7,12 @@
 wukong validate
 wukong validate --project path/to/project
 wukong validate --godot-executable /path/to/godot --timeout-seconds 120 --verbose
+wukong validate --godot 4.5.3 --flavor standard
 ```
 
-Wukong discovers Godot using the same precedence as `wukong godot path` and
-starts it with the documented [Godot command-line flags](https://docs.godotengine.org/en/latest/tutorials/editor/command_line_tutorial.html):
+Wukong uses the same managed-toolchain selection order as `run`, `editor`, and
+`export`; see [Godot workflows](godot-workflows.md). It starts the selected
+editor with the documented [Godot command-line flags](https://docs.godotengine.org/en/latest/tutorials/editor/command_line_tutorial.html):
 
 ```text
 --headless --path <project> --editor --quit --recovery-mode

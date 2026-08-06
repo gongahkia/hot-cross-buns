@@ -10,7 +10,7 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `package validate [--path <directory>] [--json]` | Validate package metadata without mutation or network access. | [package validate](package-validate.md) |
 | `add <alias> <--version\|--path\|--git\|--url> … [--offline]` | Edit, lock, and sync one direct or catalog dependency transactionally. | [add](add.md) |
 | `remove <alias> [--offline]` | Remove one direct or catalog dependency and safely reconcile owned files. | [add](add.md) |
-| `lock [--offline] [--locked] [--json]` | Resolve direct sources or version-only catalog graphs into a deterministic lockfile. | [lockfile](lockfile.md) |
+| `lock [--offline] [--locked] [--json]` | Resolve packages and, online, an exact compatible managed Godot toolchain into a deterministic lockfile. | [lockfile](lockfile.md) |
 | `install` / `sync` | Reconcile the project from `wukong.lock`. | [sync](sync.md) |
 | `update [<alias>] [--dry-run] [--json]` | Refresh direct sources or one catalog-root closure, then sync changes. | [update](update.md) |
 | `migrate [--dry-run]` | Preflight and convert a lossless direct remote lock to catalog graph state. | [migrate](migrate.md) |
@@ -23,10 +23,11 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `source remove <name> [<candidate fields>] [--json]` | Transactionally remove one reviewed source candidate. | [source catalog](source-catalog.md) |
 | `source validate [--json]` | Report every invalid catalog declaration without fetching. | [source catalog](source-catalog.md) |
 | `cache <dir\|status\|clean\|verify>` | Inspect, verify, or conservatively clean managed cache entries. | [cache](cache.md) |
-| `settings <get\|set\|reset\|list-spinners\|list-bars\|path>` | Manage user-scoped presentation and selected-engine preferences. | [settings](settings.md) |
+| `settings <get\|set\|reset\|list-spinners\|list-bars\|path>` | Manage user-scoped presentation, download policy, and external-engine preferences. | [settings](settings.md) |
 | `doctor` | Check local project, cache, lock, and configuration health. | [doctor](doctor.md) |
-| `godot path` / `validate` | Discover Godot or run an explicitly requested bounded validation. | [validation](validation.md) |
-| `run` / `editor` / `export` | Launch or export a project with a selected installed Godot engine. | [Godot workflows](godot-workflows.md) |
+| `godot <list\|inspect\|install\|pin\|update\|remove\|path>` | Inspect or manage verified official Godot toolchains. | [Godot executable and toolchains](godot-executable.md) |
+| `validate` | Run a bounded headless validation using the selected managed or external editor. | [validation](validation.md) |
+| `run` / `editor` / `export` | Launch or export a project with its selected managed or external Godot engine. | [Godot workflows](godot-workflows.md) |
 
 `--project <path>` accepts a project directory or its `project.godot` file where
 supported. `--offline` prohibits source network access, `--locked` refuses

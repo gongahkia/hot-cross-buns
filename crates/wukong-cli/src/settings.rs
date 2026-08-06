@@ -124,10 +124,12 @@ impl Settings {
                 self.godot_downloads = match value {
                     "automatic" => GodotDownloads::Automatic,
                     "manual" => GodotDownloads::Manual,
-                    _ => return Err(invalid(
-                        "godot.downloads must be automatic or manual",
-                        "use automatic for Wukong-managed downloads or manual to opt out",
-                    )),
+                    _ => {
+                        return Err(invalid(
+                            "godot.downloads must be automatic or manual",
+                            "use automatic for Wukong-managed downloads or manual to opt out",
+                        ));
+                    }
                 };
             }
             "godot.engine-dir" => {

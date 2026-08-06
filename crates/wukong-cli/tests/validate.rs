@@ -70,7 +70,13 @@ impl Fixture {
 
     fn script(&self, name: &str, body: &str) -> PathBuf {
         let path = self.directory.path().join(name);
-        fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("script should write");
+        fs::write(
+            &path,
+            format!(
+                "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf '%s\\n' '4.4.1.stable.official'; exit 0; fi\n{body}\n"
+            ),
+        )
+        .expect("script should write");
         let mut permissions = fs::metadata(&path)
             .expect("script should stat")
             .permissions();

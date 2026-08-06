@@ -458,9 +458,14 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
             };
             let counts = match state.unit {
                 ProgressUnit::Items => format!("{completed}/{total}"),
-                ProgressUnit::Bytes => format!("{}/{}", format_bytes(completed), format_bytes(total)),
+                ProgressUnit::Bytes => {
+                    format!("{}/{}", format_bytes(completed), format_bytes(total))
+                }
             };
-            format!("{frame} {}: {} [{progress}] {percent:>3}% {counts} {eta}", state.command, state.phase)
+            format!(
+                "{frame} {}: {} [{progress}] {percent:>3}% {counts} {eta}",
+                state.command, state.phase
+            )
         }
         _ => format!(
             "{frame} {}: {} ({})",
@@ -478,8 +483,8 @@ fn estimated_remaining_duration(
 ) -> Option<Duration> {
     let elapsed_nanos = elapsed.as_nanos();
     let estimated_nanos = elapsed_nanos
-        .checked_mul(u128::try_from(remaining).ok()?)?
-        .checked_div(u128::try_from(completed).ok()?)?;
+        .checked_mul(u128::from(remaining))?
+        .checked_div(u128::from(completed))?;
     let seconds = u64::try_from(estimated_nanos / 1_000_000_000).ok()?;
     let nanoseconds = u32::try_from(estimated_nanos % 1_000_000_000).ok()?;
     Some(Duration::new(seconds, nanoseconds))
@@ -489,12 +494,17 @@ fn format_bytes(bytes: u64) -> String {
     const MIB: u64 = 1024 * 1024;
     const KIB: u64 = 1024;
     if bytes >= MIB {
-        format!("{:.1} MiB", bytes as f64 / MIB as f64)
+        format_binary_bytes(bytes, MIB, "MiB")
     } else if bytes >= KIB {
-        format!("{:.1} KiB", bytes as f64 / KIB as f64)
+        format_binary_bytes(bytes, KIB, "KiB")
     } else {
         format!("{bytes} B")
     }
+}
+
+fn format_binary_bytes(bytes: u64, unit: u64, suffix: &str) -> String {
+    let tenths = u128::from(bytes).saturating_mul(10) / u128::from(unit);
+    format!("{}.{:01} {suffix}", tenths / 10, tenths % 10)
 }
 
 fn format_duration(duration: Duration) -> Option<String> {

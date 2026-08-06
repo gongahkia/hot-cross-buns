@@ -126,6 +126,9 @@ fn invariant_schema_three_status_uses_persisted_graph_groups() {
 fn command(subcommand: &str, current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg(subcommand).current_dir(current_directory);
+    if subcommand == "lock" {
+        command.arg("--offline");
+    }
     command
 }
 

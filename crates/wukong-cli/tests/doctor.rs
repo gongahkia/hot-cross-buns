@@ -123,7 +123,7 @@ impl Fixture {
     }
     fn lock(&self) {
         let output = Command::new(env!("CARGO_BIN_EXE_wukong"))
-            .arg("lock")
+            .args(["lock", "--offline"])
             .current_dir(self.root())
             .env("WUKONG_CACHE_DIR", self.cache_root())
             .output()

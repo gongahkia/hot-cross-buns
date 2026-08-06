@@ -22,8 +22,10 @@ and converts their results into human or machine-readable output. The CLI owns
 interactive stderr progress through a Rattles-frame catalogue and a
 cross-platform terminal-control backend; JSON events remain terminal-neutral.
 
-User-scoped display and installed-engine preferences are parsed only by the
-CLI. They never influence reproducible project state or cross the core boundary.
+User-scoped display and external-executable preferences are parsed only by the
+CLI. An optional managed toolchain is different: the core parses and
+deterministically serializes its immutable release identities in schema-four
+locks, while the CLI owns download policy and terminal rendering.
 
 The optional Godot editor plugin is a separate, thin client of the versioned
 CLI protocol. It must never parse manifests or lockfiles to resolve packages,
@@ -38,6 +40,7 @@ modify project files directly, or duplicate core transaction logic.
 | Package identity and sources | Canonicalise identities and resolve immutable source content. |
 | Resolver | Lazily select a deterministic, compatible transitive package graph. |
 | Preparation and cache | Verify source content and produce canonical package trees. |
+| Managed Godot | Resolve, verify, stage, and own official editor/tool-template artifacts. |
 | Ownership and materialisation | Detect conflicts and reconcile only proven package-owned files. |
 | Transactions | Stage, verify, commit, and recover filesystem changes. |
 | Diagnostics | Return structured, contextual errors without exposing secrets. |

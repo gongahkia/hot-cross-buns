@@ -97,7 +97,10 @@ fn invariant_managed_godot_download_policy_is_user_scoped_and_configurable() {
         .args(["settings", "get", "godot.downloads"])
         .output()
         .expect("settings get should run");
-    assert_eq!(String::from_utf8(downloads.stdout).expect("setting should be UTF-8"), "manual\n");
+    assert_eq!(
+        String::from_utf8(downloads.stdout).expect("setting should be UTF-8"),
+        "manual\n"
+    );
     let root = command(&config)
         .args(["settings", "get", "godot.engine-dir"])
         .output()
@@ -106,7 +109,8 @@ fn invariant_managed_godot_download_policy_is_user_scoped_and_configurable() {
         String::from_utf8(root.stdout).expect("setting should be UTF-8"),
         format!("{}\n", engine_dir.display())
     );
-    let rendered = fs::read_to_string(config.join("wukong/settings.toml")).expect("settings should persist");
+    let rendered =
+        fs::read_to_string(config.join("wukong/settings.toml")).expect("settings should persist");
     assert!(rendered.contains("schema = 2"));
     assert!(rendered.contains("downloads = \"manual\""));
 }
@@ -129,7 +133,7 @@ fn invariant_run_forwards_only_explicit_godot_arguments() {
     let executable = fixture.path().join("godot-fixture");
     fs::write(
         &executable,
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$WUKONG_TEST_RECORD\"\n",
+        "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf '%s\\n' '4.4.1.stable.official'; exit 0; fi\nprintf '%s\\n' \"$@\" > \"$WUKONG_TEST_RECORD\"\n",
     )
     .expect("fixture executable should write");
     let mut permissions = fs::metadata(&executable)
@@ -195,7 +199,7 @@ fn invariant_persisted_godot_selection_launches_editor_without_project_state_cha
     let executable = fixture.path().join("godot-fixture");
     fs::write(
         &executable,
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$WUKONG_TEST_RECORD\"\n",
+        "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf '%s\\n' '4.4.1.stable.official'; exit 0; fi\nprintf '%s\\n' \"$@\" > \"$WUKONG_TEST_RECORD\"\n",
     )
     .expect("fixture executable should write");
     let mut permissions = fs::metadata(&executable)

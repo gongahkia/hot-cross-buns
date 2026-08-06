@@ -50,6 +50,7 @@ Current records:
 - [0044: catalog graph lockfile schema](0044-catalog-graph-lockfile-schema.md)
 - [0045: catalog graph root provenance](0045-catalog-graph-root-provenance.md)
 - [0046: native CLI progress and installed Godot workflows](0046-native-cli-progress-and-godot-workflows.md)
+- [0047: managed Godot toolchains](0047-managed-godot-toolchains.md)
 
 ## When to write an ADR
 

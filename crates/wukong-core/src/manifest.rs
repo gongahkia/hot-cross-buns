@@ -64,13 +64,7 @@ impl Manifest {
             .get("toolchain")
             .map(|item| {
                 let table = item.as_table_like().ok_or_else(|| {
-                    field_error(
-                        path,
-                        input,
-                        "toolchain",
-                        Some(item),
-                        "must be a table",
-                    )
+                    field_error(path, input, "toolchain", Some(item), "must be a table")
                 })?;
                 parse_toolchain(table, &project, path, input)
             })
@@ -145,11 +139,13 @@ impl Toolchain {
         project_requirement: &VersionRequirement,
     ) -> ManifestResult<Self> {
         if godot.is_prerelease() || !godot.as_semver().build.is_empty() {
-            return Err(boxed(Diagnostic::new(
-                ErrorCode::UserInput,
-                "toolchain.godot must be one exact stable semantic version",
-            )
-            .with_recovery("use a version such as 4.4.1 without prerelease or build metadata")));
+            return Err(boxed(
+                Diagnostic::new(
+                    ErrorCode::UserInput,
+                    "toolchain.godot must be one exact stable semantic version",
+                )
+                .with_recovery("use a version such as 4.4.1 without prerelease or build metadata"),
+            ));
         }
         if !project_requirement.matches(&godot) {
             return Err(boxed(Diagnostic::new(

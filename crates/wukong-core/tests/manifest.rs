@@ -52,7 +52,11 @@ godot = "4.3.0"
 flavor = "standard"
 "#,
     );
-    assert!(incompatible.message().contains("does not satisfy project.godot"));
+    assert!(
+        incompatible
+            .message()
+            .contains("does not satisfy project.godot")
+    );
 
     let prerelease = parse_error(
         r#"
@@ -65,7 +69,11 @@ godot = "4.5.0-beta.1"
 flavor = "standard"
 "#,
     );
-    assert!(prerelease.message().contains("exact stable semantic version"));
+    assert!(
+        prerelease
+            .message()
+            .contains("exact stable semantic version")
+    );
 }
 
 #[test]

@@ -49,6 +49,16 @@ lowercase SHA-256. The source URL, redirect destinations, timestamps, and
 credentials are never persisted. Every cache reuse re-hashes the archive before
 it is returned. See [HTTP archives](http-archives.md).
 
+## Managed Godot data
+
+Managed Godot editors deliberately do not share this disposable addon cache.
+They live below the platform data directory in a Wukong-owned `engines/v1/`
+root, or below `WUKONG_ENGINE_DIR` / `godot.engine-dir`. The root separates
+release metadata, SHA-512-addressed verified downloads, per-engine locks, and
+installed editors. `wukong cache clean` and `wukong cache verify` never remove
+or modify managed editors. Use `wukong godot list` and `wukong godot remove`
+for their explicit, ownership-checked lifecycle.
+
 ## Maintenance
 
 `wukong cache dir` prints the active schema root. `wukong cache status` reports

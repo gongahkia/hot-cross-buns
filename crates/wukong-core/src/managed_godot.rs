@@ -19,9 +19,10 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     str::FromStr,
-    time::Duration,
+    thread,
+    time::{Duration, Instant},
 };
 use tempfile::Builder;
 use ureq::Agent;
@@ -31,6 +32,9 @@ pub const GODOT_ENGINE_DIR_ENV: &str = "WUKONG_ENGINE_DIR";
 /// The managed-engine layout version below the data root.
 pub const MANAGED_GODOT_SCHEMA: &str = "v1";
 const GITHUB_API: &str = "https://api.github.com/repos/godotengine/godot-builds";
+/// Fixed official release-download origin for managed Godot artifacts.
+pub const OFFICIAL_GODOT_RELEASES: &str =
+    "https://github.com/godotengine/godot-builds/releases/download";
 const MAX_ENGINE_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_METADATA_BYTES: u64 = 32 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -117,12 +121,20 @@ impl GodotPlatform {
         }
     }
 
-    fn asset_component(self) -> &'static str {
-        match self {
-            Self::MacosUniversal => "macos.universal",
-            Self::LinuxX86_64 => "linux.x86_64",
-            Self::LinuxArm64 => "linux.arm64",
-            Self::WindowsX86_64 => "win64.exe",
+    fn editor_asset_component(self, flavor: GodotFlavor) -> &'static str {
+        match (flavor, self) {
+            (GodotFlavor::Standard | GodotFlavor::Dotnet, Self::MacosUniversal) => {
+                "macos.universal"
+            }
+            (GodotFlavor::Standard, Self::LinuxX86_64) => "linux.x86_64",
+            (GodotFlavor::Standard, Self::LinuxArm64) => "linux.arm64",
+            (GodotFlavor::Standard, Self::WindowsX86_64) => "win64.exe",
+            // Official .NET releases intentionally use their historic
+            // underscore names rather than the standard editor's dotted
+            // Linux names and `.exe` Windows suffix.
+            (GodotFlavor::Dotnet, Self::LinuxX86_64) => "linux_x86_64",
+            (GodotFlavor::Dotnet, Self::LinuxArm64) => "linux_arm64",
+            (GodotFlavor::Dotnet, Self::WindowsX86_64) => "win64",
         }
     }
 
@@ -211,7 +223,11 @@ impl GodotArtifact {
         sha512: String,
         bytes: u64,
     ) -> Result<Self, Box<Diagnostic>> {
-        if name.is_empty() || name.contains(['/', '\\']) || bytes == 0 || bytes > MAX_ENGINE_DOWNLOAD_BYTES {
+        if name.is_empty()
+            || name.contains(['/', '\\'])
+            || bytes == 0
+            || bytes > MAX_ENGINE_DOWNLOAD_BYTES
+        {
             return Err(source_error(
                 "locked Godot artifact identity is invalid",
                 "regenerate wukong.lock from an official stable release",
@@ -219,7 +235,12 @@ impl GodotArtifact {
         }
         verified_official_url(&url, false)?;
         validate_sha512(&sha512)?;
-        Ok(Self { name, url, sha512, bytes })
+        Ok(Self {
+            name,
+            url,
+            sha512,
+            bytes,
+        })
     }
     /// Returns the official asset name.
     #[must_use]
@@ -278,15 +299,22 @@ impl OfficialGodotRelease {
                 "regenerate wukong.lock from an official stable release",
             ));
         }
-        if editor.name != editor_asset_name(&version, flavor, platform)
-            || templates.name != template_asset_name(&version, flavor)
+        if editor.name != official_editor_asset_name(&version, flavor, platform)
+            || templates.name != official_template_asset_name(&version, flavor)
         {
             return Err(source_error(
                 "locked Godot artifact name does not match the selected release identity",
                 "regenerate wukong.lock from an official stable release",
             ));
         }
-        Ok(Self { version, flavor, platform, tag, editor, templates })
+        Ok(Self {
+            version,
+            flavor,
+            platform,
+            tag,
+            editor,
+            templates,
+        })
     }
     /// Returns the exact stable editor version.
     #[must_use]
@@ -383,8 +411,10 @@ impl OfficialGodotClient {
         }
     }
 
-    /// Reuses bounded official release metadata below a Wukong-owned data
-    /// directory. The cache stores content hashes as file names, never URLs.
+    /// Retains bounded official release metadata below a Wukong-owned data
+    /// directory for source-access fallback. Online resolution always refreshes
+    /// first, so an unpinned `godot update` can discover newer stable releases.
+    /// The cache stores content hashes as file names, never URLs.
     #[must_use]
     pub fn with_metadata_cache(mut self, directory: PathBuf) -> Self {
         self.metadata_cache = Some(directory);
@@ -392,6 +422,11 @@ impl OfficialGodotClient {
     }
 
     /// Fetches and verifies one exact official stable release for the target and flavor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when official metadata, artifact identity, or
+    /// checksums are unavailable or inconsistent.
     pub fn exact_release(
         &self,
         version: &SemanticVersion,
@@ -402,10 +437,15 @@ impl OfficialGodotClient {
         observer.on_progress(EngineProgress::Phase("resolving official Godot release"));
         let tag = stable_tag(version)?;
         let metadata = self.fetch_json(&format!("{GITHUB_API}/releases/tags/{tag}"))?;
-        self.release_from_metadata(metadata, &tag, flavor, platform, observer)
+        self.release_from_metadata(&metadata, &tag, flavor, platform, observer)
     }
 
     /// Resolves the newest official stable release permitted by `requirement`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when no compatible stable release can be verified
+    /// from official metadata.
     pub fn latest_compatible(
         &self,
         requirement: &VersionRequirement,
@@ -422,7 +462,7 @@ impl OfficialGodotClient {
         {
             if let Some(version) = stable_version_from_tag(&tag) {
                 if requirement.matches(&version) {
-                    return self.release_from_metadata(latest, &tag, flavor, platform, observer);
+                    return self.release_from_metadata(&latest, &tag, flavor, platform, observer);
                 }
             }
         }
@@ -430,18 +470,32 @@ impl OfficialGodotClient {
         // constrained below the latest stable release needs the bounded
         // historical listing.
         let metadata = self.fetch_json(&format!("{GITHUB_API}/releases?per_page=30"))?;
-        let releases = metadata.as_array().ok_or_else(|| source_error(
-            "official Godot release listing was not an array",
-            "retry later; report the release metadata shape if it persists",
-        ))?;
+        let releases = metadata.as_array().ok_or_else(|| {
+            source_error(
+                "official Godot release listing was not an array",
+                "retry later; report the release metadata shape if it persists",
+            )
+        })?;
         let mut versions = releases
             .iter()
-            .filter(|release| !release.get("draft").and_then(Value::as_bool).unwrap_or(false))
-            .filter(|release| !release.get("prerelease").and_then(Value::as_bool).unwrap_or(false))
+            .filter(|release| {
+                !release
+                    .get("draft")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .filter(|release| {
+                !release
+                    .get("prerelease")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
             .filter_map(|release| {
                 let tag = release.get("tag_name")?.as_str()?;
                 let version = stable_version_from_tag(tag)?;
-                requirement.matches(&version).then_some((version, tag.to_owned(), release))
+                requirement
+                    .matches(&version)
+                    .then_some((version, tag.to_owned(), release))
             })
             .collect::<Vec<_>>();
         versions.sort_by(|left, right| right.0.cmp(&left.0));
@@ -451,12 +505,12 @@ impl OfficialGodotClient {
                 "pin an available stable version or broaden project.godot",
             ));
         };
-        self.release_from_metadata(release.clone(), &tag, flavor, platform, observer)
+        self.release_from_metadata(release, &tag, flavor, platform, observer)
     }
 
     fn release_from_metadata(
         &self,
-        metadata: Value,
+        metadata: &Value,
         expected_tag: &str,
         flavor: GodotFlavor,
         platform: GodotPlatform,
@@ -466,23 +520,29 @@ impl OfficialGodotClient {
             .get("tag_name")
             .and_then(Value::as_str)
             .filter(|tag| *tag == expected_tag)
-            .ok_or_else(|| source_error(
-                "official Godot release tag did not match the requested stable version",
-                "retry later; report the release metadata shape if it persists",
-            ))?;
-        let version = stable_version_from_tag(tag).ok_or_else(|| source_error(
-            "official Godot release tag was not a stable semantic version",
-            "use an official stable Godot release",
-        ))?;
+            .ok_or_else(|| {
+                source_error(
+                    "official Godot release tag did not match the requested stable version",
+                    "retry later; report the release metadata shape if it persists",
+                )
+            })?;
+        let version = stable_version_from_tag(tag).ok_or_else(|| {
+            source_error(
+                "official Godot release tag was not a stable semantic version",
+                "use an official stable Godot release",
+            )
+        })?;
         let assets = metadata
             .get("assets")
             .and_then(Value::as_array)
-            .ok_or_else(|| source_error(
-                "official Godot release did not include an assets array",
-                "retry later; report the release metadata shape if it persists",
-            ))?;
-        let editor_name = editor_asset_name(&version, flavor, platform);
-        let template_name = template_asset_name(&version, flavor);
+            .ok_or_else(|| {
+                source_error(
+                    "official Godot release did not include an assets array",
+                    "retry later; report the release metadata shape if it persists",
+                )
+            })?;
+        let editor_name = official_editor_asset_name(&version, flavor, platform);
+        let template_name = official_template_asset_name(&version, flavor);
         let sums_name = "SHA512-SUMS.txt";
         let editor = release_asset(assets, &editor_name)?;
         let templates = release_asset(assets, &template_name)?;
@@ -490,14 +550,19 @@ impl OfficialGodotClient {
         observer.on_progress(EngineProgress::Phase("fetching official Godot checksums"));
         let checksums = self.fetch_small_text(&sums.url, MAX_METADATA_BYTES)?;
         let checksums = parse_sha512_sums(&checksums)?;
-        let editor = editor.with_sha512(checksums.get(&editor_name).ok_or_else(|| source_error(
-            "official SHA512-SUMS.txt did not contain the expected editor asset",
-            "retry later; do not install an unverified release artifact",
-        ))?)?;
-        let templates = templates.with_sha512(checksums.get(&template_name).ok_or_else(|| source_error(
-            "official SHA512-SUMS.txt did not contain the expected export-template asset",
-            "retry later; do not install an unverified release artifact",
-        ))?)?;
+        let editor = editor.with_sha512(checksums.get(&editor_name).ok_or_else(|| {
+            source_error(
+                "official SHA512-SUMS.txt did not contain the expected editor asset",
+                "retry later; do not install an unverified release artifact",
+            )
+        })?)?;
+        let templates =
+            templates.with_sha512(checksums.get(&template_name).ok_or_else(|| {
+                source_error(
+                    "official SHA512-SUMS.txt did not contain the expected export-template asset",
+                    "retry later; do not install an unverified release artifact",
+                )
+            })?)?;
         Ok(OfficialGodotRelease {
             version,
             flavor,
@@ -521,45 +586,50 @@ impl OfficialGodotClient {
 
     fn fetch_small_text(&self, url: &str, limit: u64) -> Result<String, Box<Diagnostic>> {
         let cached = self.metadata_cache_path(url);
-        if let Some(path) = cached.as_deref() {
-            if let Some(bytes) = read_cached_metadata(path, limit)? {
-                return String::from_utf8(bytes).map_err(|_| source_error(
-                    "cached official Godot release metadata was not UTF-8",
-                    "remove the managed Godot metadata cache and retry",
-                ));
-            }
-        }
         let _lock = cached
             .as_deref()
             .map(|path| acquire_metadata_lock(&path.with_extension("lock")))
             .transpose()?;
-        if let Some(path) = cached.as_deref() {
-            if let Some(bytes) = read_cached_metadata(path, limit)? {
-                return String::from_utf8(bytes).map_err(|_| source_error(
-                    "cached official Godot release metadata was not UTF-8",
-                    "remove the managed Godot metadata cache and retry",
-                ));
+        let fetched = (|| {
+            let mut response = self.open_official(url)?;
+            let mut reader = response.body_mut().as_reader();
+            read_limited(&mut reader, limit, "official Godot release metadata")
+        })();
+        let bytes = match fetched {
+            Ok(bytes) => bytes,
+            Err(error) if error.code() == ErrorCode::SourceAccess => {
+                let Some(path) = cached.as_deref() else {
+                    return Err(error);
+                };
+                let Some(bytes) = read_cached_metadata(path, limit)? else {
+                    return Err(error);
+                };
+                bytes
             }
-        }
-        let mut response = self.open_official(url)?;
-        let mut reader = response.body_mut().as_reader();
-        let bytes = read_limited(&mut reader, limit, "official Godot release metadata")?;
+            Err(error) => return Err(error),
+        };
         if let Some(path) = cached.as_deref() {
-            let parent = path.parent().ok_or_else(|| internal_error(
-                "official Godot metadata cache path has no parent",
-                "set WUKONG_ENGINE_DIR to a directory",
-            ))?;
-            fs::create_dir_all(parent).map_err(|error| io_error(
-                "could not create official Godot metadata cache directory",
-                parent,
-                error,
-            ))?;
+            let parent = path.parent().ok_or_else(|| {
+                internal_error(
+                    "official Godot metadata cache path has no parent",
+                    "set WUKONG_ENGINE_DIR to a directory",
+                )
+            })?;
+            fs::create_dir_all(parent).map_err(|error| {
+                io_error(
+                    "could not create official Godot metadata cache directory",
+                    parent,
+                    error,
+                )
+            })?;
             write_atomic(path, &bytes)?;
         }
-        String::from_utf8(bytes).map_err(|_| source_error(
-            "official Godot release metadata was not UTF-8",
-            "retry later; report the release metadata shape if it persists",
-        ))
+        String::from_utf8(bytes).map_err(|_| {
+            source_error(
+                "official Godot release metadata was not UTF-8",
+                "retry later; report the release metadata shape if it persists",
+            )
+        })
     }
 
     fn metadata_cache_path(&self, url: &str) -> Option<PathBuf> {
@@ -569,7 +639,10 @@ impl OfficialGodotClient {
         })
     }
 
-    fn open_official(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, Box<Diagnostic>> {
+    fn open_official(
+        &self,
+        url: &str,
+    ) -> Result<ureq::http::Response<ureq::Body>, Box<Diagnostic>> {
         let mut current = verified_official_initial_url(url)?;
         let mut redirects = 0_u8;
         loop {
@@ -579,14 +652,19 @@ impl OfficialGodotClient {
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "wukong-managed-godot")
                 .call()
-                .map_err(|_| source_error(
-                    "could not contact the official Godot release service",
-                    "check network access and retry",
-                ))?;
+                .map_err(|_| {
+                    source_error(
+                        "could not contact the official Godot release service",
+                        "check network access and retry",
+                    )
+                })?;
             if !response.status().is_redirection() {
                 if !response.status().is_success() {
                     return Err(source_error(
-                        format!("official Godot release service returned HTTP {}", response.status()),
+                        format!(
+                            "official Godot release service returned HTTP {}",
+                            response.status()
+                        ),
                         "check the requested stable version and retry",
                     ));
                 }
@@ -602,14 +680,18 @@ impl OfficialGodotClient {
                 .headers()
                 .get("location")
                 .and_then(|value| value.to_str().ok())
-                .ok_or_else(|| source_error(
-                    "official Godot release redirect did not include a valid location",
+                .ok_or_else(|| {
+                    source_error(
+                        "official Godot release redirect did not include a valid location",
+                        "retry later; do not use an untrusted release mirror",
+                    )
+                })?;
+            current = current.join(next).map_err(|_| {
+                source_error(
+                    "official Godot release redirect was invalid",
                     "retry later; do not use an untrusted release mirror",
-                ))?;
-            current = current.join(next).map_err(|_| source_error(
-                "official Godot release redirect was invalid",
-                "retry later; do not use an untrusted release mirror",
-            ))?;
+                )
+            })?;
             verified_official_redirect(&current)?;
             redirects += 1;
         }
@@ -643,6 +725,10 @@ pub struct ManagedGodotStore {
 
 impl ManagedGodotStore {
     /// Creates a managed store under an explicit root.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the root is empty.
     pub fn new(root: PathBuf) -> Result<Self, Box<Diagnostic>> {
         if root.as_os_str().is_empty() {
             return Err(internal_error(
@@ -666,6 +752,10 @@ impl ManagedGodotStore {
     }
 
     /// Resolves the platform data directory or honours `WUKONG_ENGINE_DIR`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when no usable platform data directory is known.
     pub fn from_environment(configured: Option<&Path>) -> Result<Self, Box<Diagnostic>> {
         if let Some(root) = env::var_os(GODOT_ENGINE_DIR_ENV) {
             return Self::new(PathBuf::from(root));
@@ -673,14 +763,21 @@ impl ManagedGodotStore {
         if let Some(root) = configured {
             return Self::new(root.to_path_buf());
         }
-        let root = platform_data_root().ok_or_else(|| internal_error(
-            "could not determine a platform data directory for managed Godot",
-            "set WUKONG_ENGINE_DIR or godot.engine-dir",
-        ))?;
+        let root = platform_data_root().ok_or_else(|| {
+            internal_error(
+                "could not determine a platform data directory for managed Godot",
+                "set WUKONG_ENGINE_DIR or godot.engine-dir",
+            )
+        })?;
         Self::new(root.join("wukong").join("engines"))
     }
 
     /// Installs a verified editor transactionally or reuses a valid owned install.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic for failed release verification, download,
+    /// extraction, editor inspection, or transactional publication.
     pub fn install(
         &self,
         release: &OfficialGodotRelease,
@@ -696,20 +793,26 @@ impl ManagedGodotStore {
             if include_templates && !installed.templates_installed() {
                 self.install_templates_locked(&installed, release, client, offline, observer)?;
             }
-            return self.read_installed(release)?.ok_or_else(|| internal_error(
-                "managed Godot install disappeared while completing templates",
-                "retry the installation",
-            ));
+            return self.read_installed(release)?.ok_or_else(|| {
+                internal_error(
+                    "managed Godot install disappeared while completing templates",
+                    "retry the installation",
+                )
+            });
         }
-        let parent = destination.parent().ok_or_else(|| internal_error(
-            "managed Godot installation path has no parent",
-            "set WUKONG_ENGINE_DIR to a directory",
-        ))?;
-        fs::create_dir_all(parent).map_err(|error| io_error(
-            "could not create managed Godot installation directory",
-            parent,
-            error,
-        ))?;
+        let parent = destination.parent().ok_or_else(|| {
+            internal_error(
+                "managed Godot installation path has no parent",
+                "set WUKONG_ENGINE_DIR to a directory",
+            )
+        })?;
+        fs::create_dir_all(parent).map_err(|error| {
+            io_error(
+                "could not create managed Godot installation directory",
+                parent,
+                error,
+            )
+        })?;
         observer.on_progress(EngineProgress::Phase("downloading Godot editor"));
         let archive = self.fetch_artifact(&release.editor, client, offline, observer)?;
         observer.on_progress(EngineProgress::Phase("extracting verified Godot editor"));
@@ -717,8 +820,12 @@ impl ManagedGodotStore {
             .prefix(".wukong-engine-stage-")
             .tempdir_in(parent)
             .map_err(|error| io_error("could not create managed Godot staging", parent, error))?;
-        let extracted = extract_zip(&archive, staging.path(), ExtractionLimits::default())?;
-        let editor = locate_editor(extracted.root(), release.platform)?;
+        let extracted = extract_zip(
+            &archive,
+            staging.path(),
+            ExtractionLimits::verified_engine(),
+        )?;
+        let editor = locate_editor(extracted.root(), release.flavor, release.platform)?;
         enable_self_contained_mode(&editor, release.platform)?;
         let inspected = inspect_godot_version(&editor)?;
         if &inspected != release.version() {
@@ -728,33 +835,49 @@ impl ManagedGodotStore {
             ));
         }
         let metadata = managed_metadata(release, extracted.root(), &editor, false)?;
-        write_atomic(&extracted.root().join("wukong-engine.toml"), metadata.as_bytes())?;
+        write_atomic(
+            &extracted.root().join("wukong-engine.toml"),
+            metadata.as_bytes(),
+        )?;
         if destination.exists() {
-            return self.read_installed(release)?.ok_or_else(|| internal_error(
-                "managed Godot destination exists but is not a valid Wukong install",
-                "remove only the Wukong-owned engine directory and retry",
-            ));
+            return self.read_installed(release)?.ok_or_else(|| {
+                internal_error(
+                    "managed Godot destination exists but is not a valid Wukong install",
+                    "remove only the Wukong-owned engine directory and retry",
+                )
+            });
         }
-        fs::rename(extracted.root(), &destination).map_err(|error| io_error(
-            "could not publish managed Godot installation",
-            &destination,
-            error,
-        ))?;
-        let mut installed = self.read_installed(release)?.ok_or_else(|| internal_error(
-            "managed Godot installation was not readable after publication",
-            "retry the installation",
-        ))?;
+        fs::rename(extracted.root(), &destination).map_err(|error| {
+            io_error(
+                "could not publish managed Godot installation",
+                &destination,
+                error,
+            )
+        })?;
+        let mut installed = self.read_installed(release)?.ok_or_else(|| {
+            internal_error(
+                "managed Godot installation was not readable after publication",
+                "retry the installation",
+            )
+        })?;
         if include_templates {
             self.install_templates_locked(&installed, release, client, offline, observer)?;
-            installed = self.read_installed(release)?.ok_or_else(|| internal_error(
-                "managed Godot installation disappeared while completing templates",
-                "retry the installation",
-            ))?;
+            installed = self.read_installed(release)?.ok_or_else(|| {
+                internal_error(
+                    "managed Godot installation disappeared while completing templates",
+                    "retry the installation",
+                )
+            })?;
         }
         Ok(installed)
     }
 
     /// Installs matching verified export templates for an owned managed editor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the owned editor, verified template archive,
+    /// or bounded Godot template-installation process fails.
     pub fn install_templates(
         &self,
         release: &OfficialGodotRelease,
@@ -764,18 +887,30 @@ impl ManagedGodotStore {
     ) -> Result<ManagedGodot, Box<Diagnostic>> {
         let lock_path = self.lock_path(release);
         let _lock = AdvisoryLock::try_acquire(&lock_path, "this managed Godot editor")?;
-        let installed = self.read_installed(release)?.ok_or_else(|| source_error(
-            "matching managed Godot editor is not installed",
-            format!("run wukong godot install {} --flavor {}", release.version(), release.flavor()),
-        ))?;
+        let installed = self.read_installed(release)?.ok_or_else(|| {
+            source_error(
+                "matching managed Godot editor is not installed",
+                format!(
+                    "run wukong godot install {} --flavor {}",
+                    release.version(),
+                    release.flavor()
+                ),
+            )
+        })?;
         self.install_templates_locked(&installed, release, client, offline, observer)?;
-        self.read_installed(release)?.ok_or_else(|| internal_error(
-            "managed Godot installation disappeared while installing templates",
-            "retry the template installation",
-        ))
+        self.read_installed(release)?.ok_or_else(|| {
+            internal_error(
+                "managed Godot installation disappeared while installing templates",
+                "retry the template installation",
+            )
+        })
     }
 
     /// Lists only validated Wukong-owned managed installations.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic for unreadable managed-engine metadata.
     pub fn list(&self) -> Result<Vec<ManagedGodot>, Box<Diagnostic>> {
         let root = self.root.join(MANAGED_GODOT_SCHEMA);
         let mut entries = Vec::new();
@@ -783,12 +918,18 @@ impl ManagedGodotStore {
             return Ok(entries);
         };
         for version in versions.flatten() {
-            let Ok(flavors) = fs::read_dir(version.path()) else { continue };
+            let Ok(flavors) = fs::read_dir(version.path()) else {
+                continue;
+            };
             for flavor in flavors.flatten() {
-                let Ok(platforms) = fs::read_dir(flavor.path()) else { continue };
+                let Ok(platforms) = fs::read_dir(flavor.path()) else {
+                    continue;
+                };
                 for platform in platforms.flatten() {
                     if let Some(installed) = parse_managed_metadata(&platform.path())? {
-                        entries.push(installed);
+                        if is_owned_managed_install(&installed) {
+                            entries.push(installed);
+                        }
                     }
                 }
             }
@@ -803,30 +944,45 @@ impl ManagedGodotStore {
     }
 
     /// Safely removes a validated Wukong-owned managed editor installation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the installation is not proven Wukong-owned
+    /// or cannot be removed.
     pub fn remove(
         &self,
         version: &SemanticVersion,
         flavor: GodotFlavor,
         platform: GodotPlatform,
     ) -> Result<bool, Box<Diagnostic>> {
-        let release = ReleaseIdentity { version, flavor, platform };
+        let release = ReleaseIdentity {
+            version,
+            flavor,
+            platform,
+        };
         let destination = self.installation_directory_for(&release);
         let lock_path = self.lock_path_for(&release);
         let _lock = AdvisoryLock::try_acquire(&lock_path, "this managed Godot editor")?;
         let Some(installed) = parse_managed_metadata(&destination)? else {
             return Ok(false);
         };
-        if installed.version != *version || installed.flavor != flavor || installed.platform != platform {
+        if installed.version != *version
+            || installed.flavor != flavor
+            || installed.platform != platform
+            || !is_owned_managed_install(&installed)
+        {
             return Err(source_error(
                 "refusing to remove a directory not owned by the requested managed Godot identity",
                 "inspect the managed engine directory manually",
             ));
         }
-        fs::remove_dir_all(&destination).map_err(|error| io_error(
-            "could not remove Wukong-owned managed Godot installation",
-            &destination,
-            error,
-        ))?;
+        fs::remove_dir_all(&destination).map_err(|error| {
+            io_error(
+                "could not remove Wukong-owned managed Godot installation",
+                &destination,
+                error,
+            )
+        })?;
         Ok(true)
     }
 
@@ -858,7 +1014,10 @@ impl ManagedGodotStore {
         self.root
             .join(MANAGED_GODOT_SCHEMA)
             .join("locks")
-            .join(format!("{}-{}-{}.lock", release.version, release.flavor, release.platform))
+            .join(format!(
+                "{}-{}-{}.lock",
+                release.version, release.flavor, release.platform
+            ))
     }
 
     fn artifact_path(&self, artifact: &GodotArtifact) -> PathBuf {
@@ -889,15 +1048,19 @@ impl ManagedGodotStore {
                 "run without --offline or install the selected Godot version first",
             ));
         }
-        let parent = final_path.parent().ok_or_else(|| internal_error(
-            "managed Godot download path has no parent",
-            "set WUKONG_ENGINE_DIR to a directory",
-        ))?;
-        fs::create_dir_all(parent).map_err(|error| io_error(
-            "could not create managed Godot download directory",
-            parent,
-            error,
-        ))?;
+        let parent = final_path.parent().ok_or_else(|| {
+            internal_error(
+                "managed Godot download path has no parent",
+                "set WUKONG_ENGINE_DIR to a directory",
+            )
+        })?;
+        fs::create_dir_all(parent).map_err(|error| {
+            io_error(
+                "could not create managed Godot download directory",
+                parent,
+                error,
+            )
+        })?;
         let staging = Builder::new()
             .prefix(".wukong-download-")
             .tempdir_in(parent)
@@ -929,7 +1092,7 @@ impl ManagedGodotStore {
         if installed.version != *release.version()
             || installed.flavor != release.flavor()
             || installed.platform != release.platform()
-            || !installed.executable.is_file()
+            || !is_owned_managed_install(&installed)
         {
             return Ok(None);
         }
@@ -949,22 +1112,50 @@ impl ManagedGodotStore {
         }
         observer.on_progress(EngineProgress::Phase("downloading Godot export templates"));
         let templates = self.fetch_artifact(&release.templates, client, offline, observer)?;
-        observer.on_progress(EngineProgress::Phase("installing verified Godot export templates"));
-        let output = Command::new(installed.executable())
+        observer.on_progress(EngineProgress::Phase(
+            "installing verified Godot export templates",
+        ));
+        let mut child = Command::new(installed.executable())
             .arg("--headless")
             .arg("--install-export-templates")
             .arg(&templates)
-            .output()
-            .map_err(|error| io_error(
-                "could not launch managed Godot to install export templates",
-                installed.executable(),
-                error,
-            ))?;
-        if !output.status.success() {
-            return Err(source_error(
-                "managed Godot could not install the verified export templates",
-                "remove the managed engine and retry; inspect Godot output if the failure persists",
-            ));
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|error| {
+                io_error(
+                    "could not launch managed Godot to install export templates",
+                    installed.executable(),
+                    error,
+                )
+            })?;
+        let deadline = Instant::now() + DOWNLOAD_TIMEOUT;
+        loop {
+            match child.try_wait().map_err(|error| {
+                io_error(
+                    "could not wait for managed Godot export-template installation",
+                    installed.executable(),
+                    error,
+                )
+            })? {
+                Some(status) if status.success() => break,
+                Some(_) => {
+                    return Err(source_error(
+                        "managed Godot could not install the verified export templates",
+                        "remove the managed engine and retry; inspect Godot output if the failure persists",
+                    ));
+                }
+                None if Instant::now() >= deadline => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(source_error(
+                        "managed Godot timed out while installing export templates",
+                        "retry the installation; the verified editor remains available",
+                    ));
+                }
+                None => thread::sleep(Duration::from_millis(50)),
+            }
         }
         let metadata_path = installed.root.join("wukong-engine.toml");
         let metadata = managed_metadata(release, installed.root(), installed.executable(), true)?;
@@ -1028,10 +1219,16 @@ impl ManagedGodot {
 }
 
 /// Inspects a Godot executable using its bounded `--version` output.
+///
+/// # Errors
+///
+/// Returns a diagnostic when the executable cannot run or does not report an
+/// exact stable Godot version.
 pub fn inspect_godot_version(executable: &Path) -> Result<SemanticVersion, Box<Diagnostic>> {
-    let output = Command::new(executable).arg("--version").output().map_err(|error| {
-        io_error("could not execute Godot --version", executable, error)
-    })?;
+    let output = Command::new(executable)
+        .arg("--version")
+        .output()
+        .map_err(|error| io_error("could not execute Godot --version", executable, error))?;
     if !output.status.success() {
         return Err(source_error(
             "Godot --version exited unsuccessfully",
@@ -1039,10 +1236,12 @@ pub fn inspect_godot_version(executable: &Path) -> Result<SemanticVersion, Box<D
         ));
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_godot_version_output(&stdout).ok_or_else(|| source_error(
-        "Godot --version did not report a stable semantic version",
-        "use a Godot stable editor that reports x.y.z.stable",
-    ))
+    parse_godot_version_output(&stdout).ok_or_else(|| {
+        source_error(
+            "Godot --version did not report a stable semantic version",
+            "use a Godot stable editor that reports x.y.z.stable",
+        )
+    })
 }
 
 /// Parses the stable version prefix produced by `godot --version`.
@@ -1050,13 +1249,18 @@ pub fn inspect_godot_version(executable: &Path) -> Result<SemanticVersion, Box<D
 pub fn parse_godot_version_output(output: &str) -> Option<SemanticVersion> {
     output.split_whitespace().find_map(|token| {
         let (version, suffix) = token.split_once(".stable")?;
-        if !suffix.is_empty() && !suffix.starts_with('.') { return None; }
+        if !suffix.is_empty() && !suffix.starts_with('.') {
+            return None;
+        }
         let version = SemanticVersion::parse(version).ok()?;
         (!version.is_prerelease() && version.as_semver().build.is_empty()).then_some(version)
     })
 }
 
-fn release_asset(assets: &[Value], expected: &str) -> Result<UnverifiedReleaseAsset, Box<Diagnostic>> {
+fn release_asset(
+    assets: &[Value],
+    expected: &str,
+) -> Result<UnverifiedReleaseAsset, Box<Diagnostic>> {
     let matches = assets
         .iter()
         .filter(|asset| asset.get("name").and_then(Value::as_str) == Some(expected))
@@ -1076,19 +1280,23 @@ fn release_asset(assets: &[Value], expected: &str) -> Result<UnverifiedReleaseAs
     let url = asset
         .get("browser_download_url")
         .and_then(Value::as_str)
-        .ok_or_else(|| source_error(
-            "official Godot release asset did not include a download URL",
-            "retry later; do not use an untrusted release mirror",
-        ))?;
+        .ok_or_else(|| {
+            source_error(
+                "official Godot release asset did not include a download URL",
+                "retry later; do not use an untrusted release mirror",
+            )
+        })?;
     verified_official_url(url, false)?;
     let bytes = asset
         .get("size")
         .and_then(Value::as_u64)
         .filter(|bytes| *bytes > 0 && *bytes <= MAX_ENGINE_DOWNLOAD_BYTES)
-        .ok_or_else(|| source_error(
-            "official Godot release asset has an invalid size",
-            "retry later; do not install an oversized artifact",
-        ))?;
+        .ok_or_else(|| {
+            source_error(
+                "official Godot release asset has an invalid size",
+                "retry later; do not install an oversized artifact",
+            )
+        })?;
     Ok(UnverifiedReleaseAsset {
         name: expected.to_owned(),
         url: url.to_owned(),
@@ -1112,16 +1320,33 @@ fn stable_version_from_tag(tag: &str) -> Option<SemanticVersion> {
     (!version.is_prerelease() && version.as_semver().build.is_empty()).then_some(version)
 }
 
-fn editor_asset_name(version: &SemanticVersion, flavor: GodotFlavor, platform: GodotPlatform) -> String {
+/// Returns the fixed official editor archive name for one release identity.
+#[must_use]
+pub fn official_editor_asset_name(
+    version: &SemanticVersion,
+    flavor: GodotFlavor,
+    platform: GodotPlatform,
+) -> String {
     format!(
         "Godot_v{version}-stable{}_{}.zip",
         flavor.asset_suffix(),
-        platform.asset_component()
+        platform.editor_asset_component(flavor)
     )
 }
 
-fn template_asset_name(version: &SemanticVersion, flavor: GodotFlavor) -> String {
-    format!("Godot_v{version}-stable{}_export_templates.tpz", flavor.asset_suffix())
+/// Returns the fixed official export-template archive name for one release identity.
+#[must_use]
+pub fn official_template_asset_name(version: &SemanticVersion, flavor: GodotFlavor) -> String {
+    format!(
+        "Godot_v{version}-stable{}_export_templates.tpz",
+        flavor.asset_suffix()
+    )
+}
+
+/// Returns the fixed official GitHub download URL for one release asset.
+#[must_use]
+pub fn official_release_asset_url(release: &str, name: &str) -> String {
+    format!("{OFFICIAL_GODOT_RELEASES}/{release}/{name}")
 }
 
 fn parse_sha512_sums(input: &str) -> Result<BTreeMap<String, String>, Box<Diagnostic>> {
@@ -1157,11 +1382,7 @@ fn parse_sha512_sums(input: &str) -> Result<BTreeMap<String, String>, Box<Diagno
 }
 
 fn validate_sha512(value: &str) -> Result<(), Box<Diagnostic>> {
-    if value.len() == 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-    {
+    if is_valid_sha512(value) {
         Ok(())
     } else {
         Err(source_error(
@@ -1169,6 +1390,13 @@ fn validate_sha512(value: &str) -> Result<(), Box<Diagnostic>> {
             "retry later; do not install an unverified release artifact",
         ))
     }
+}
+
+fn is_valid_sha512(value: &str) -> bool {
+    value.len() == 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 fn download_official_artifact(
@@ -1183,10 +1411,12 @@ fn download_official_artifact(
         .get("content-length")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<u64>().ok())
-        .ok_or_else(|| source_error(
-            "official Godot download did not provide content-length",
-            "retry later; do not install an unbounded artifact",
-        ))?;
+        .ok_or_else(|| {
+            source_error(
+                "official Godot download did not provide content-length",
+                "retry later; do not install an unbounded artifact",
+            )
+        })?;
     if length != artifact.bytes() {
         return Err(source_error(
             "official Godot download length did not match the release metadata",
@@ -1201,29 +1431,29 @@ fn download_official_artifact(
         .map_err(|error| io_error("could not stage verified Godot download", staged, error))?;
     let mut hasher = Sha512::new();
     let mut total = 0_u64;
-    let mut buffer = [0_u8; 64 * 1024];
+    let mut buffer = vec![0_u8; 64 * 1024];
     loop {
-        let count = input.read(&mut buffer).map_err(|error| io_error(
-            "could not read official Godot download",
-            staged,
-            error,
-        ))?;
-        if count == 0 { break; }
-        total = total.checked_add(count as u64).ok_or_else(|| source_error(
-            "official Godot download exceeds its declared size",
-            "retry later; do not install an oversized artifact",
-        ))?;
+        let count = input
+            .read(&mut buffer)
+            .map_err(|error| io_error("could not read official Godot download", staged, error))?;
+        if count == 0 {
+            break;
+        }
+        total = total.checked_add(count as u64).ok_or_else(|| {
+            source_error(
+                "official Godot download exceeds its declared size",
+                "retry later; do not install an oversized artifact",
+            )
+        })?;
         if total > artifact.bytes() || total > MAX_ENGINE_DOWNLOAD_BYTES {
             return Err(source_error(
                 "official Godot download exceeds its declared size limit",
                 "retry later; do not install an oversized artifact",
             ));
         }
-        output.write_all(&buffer[..count]).map_err(|error| io_error(
-            "could not stage verified Godot download",
-            staged,
-            error,
-        ))?;
+        output
+            .write_all(&buffer[..count])
+            .map_err(|error| io_error("could not stage verified Godot download", staged, error))?;
         hasher.update(&buffer[..count]);
         observer.on_progress(EngineProgress::Download {
             artifact: artifact.name().to_owned(),
@@ -1231,11 +1461,9 @@ fn download_official_artifact(
             total: artifact.bytes(),
         });
     }
-    output.sync_all().map_err(|error| io_error(
-        "could not flush verified Godot download",
-        staged,
-        error,
-    ))?;
+    output
+        .sync_all()
+        .map_err(|error| io_error("could not flush verified Godot download", staged, error))?;
     if total != artifact.bytes() || format!("{:x}", hasher.finalize()) != artifact.sha512() {
         return Err(source_error(
             "official Godot artifact failed checksum or size verification",
@@ -1246,31 +1474,26 @@ fn download_official_artifact(
 }
 
 fn verify_artifact_file(path: &Path, artifact: &GodotArtifact) -> Result<(), Box<Diagnostic>> {
-    let metadata = path.metadata().map_err(|error| io_error(
-        "could not inspect cached Godot artifact",
-        path,
-        error,
-    ))?;
+    let metadata = path
+        .metadata()
+        .map_err(|error| io_error("could not inspect cached Godot artifact", path, error))?;
     if !metadata.is_file() || metadata.len() != artifact.bytes() {
         return Err(source_error(
             "cached Godot artifact has an unexpected type or size",
             "remove the cached artifact and retry",
         ));
     }
-    let mut file = File::open(path).map_err(|error| io_error(
-        "could not read cached Godot artifact",
-        path,
-        error,
-    ))?;
+    let mut file = File::open(path)
+        .map_err(|error| io_error("could not read cached Godot artifact", path, error))?;
     let mut hash = Sha512::new();
-    let mut buffer = [0_u8; 64 * 1024];
+    let mut buffer = vec![0_u8; 64 * 1024];
     loop {
-        let count = file.read(&mut buffer).map_err(|error| io_error(
-            "could not verify cached Godot artifact",
-            path,
-            error,
-        ))?;
-        if count == 0 { break; }
+        let count = file
+            .read(&mut buffer)
+            .map_err(|error| io_error("could not verify cached Godot artifact", path, error))?;
+        if count == 0 {
+            break;
+        }
         hash.update(&buffer[..count]);
     }
     if format!("{:x}", hash.finalize()) != artifact.sha512() {
@@ -1282,25 +1505,37 @@ fn verify_artifact_file(path: &Path, artifact: &GodotArtifact) -> Result<(), Box
     Ok(())
 }
 
-fn locate_editor(root: &Path, platform: GodotPlatform) -> Result<PathBuf, Box<Diagnostic>> {
+fn locate_editor(
+    root: &Path,
+    flavor: GodotFlavor,
+    platform: GodotPlatform,
+) -> Result<PathBuf, Box<Diagnostic>> {
     let candidate = match platform {
-        GodotPlatform::MacosUniversal => PathBufOrOption::Path(root.join("Godot.app/Contents/MacOS/Godot")),
+        GodotPlatform::MacosUniversal => PathBufOrOption::Path(
+            root.join(macos_bundle_name(flavor))
+                .join("Contents/MacOS/Godot"),
+        ),
         GodotPlatform::WindowsX86_64 => find_child(root, |path| {
-            path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
-                && path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("Godot"))
+            path.extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with("Godot"))
         }),
         GodotPlatform::LinuxX86_64 | GodotPlatform::LinuxArm64 => find_child(root, |path| {
-            path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("Godot"))
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("Godot"))
                 && path.extension().is_none()
         }),
     };
     let candidate = match candidate {
-        PathBufOrOption::Path(path) => path,
-        PathBufOrOption::Option(Some(path)) => path,
-        PathBufOrOption::Option(None) => return Err(source_error(
-            "verified Godot archive did not contain the expected editor executable",
-            "retry later; do not install an unexpected release archive",
-        )),
+        PathBufOrOption::Path(path) | PathBufOrOption::Option(Some(path)) => path,
+        PathBufOrOption::Option(None) => {
+            return Err(source_error(
+                "verified Godot archive did not contain the expected editor executable",
+                "retry later; do not install an unexpected release archive",
+            ));
+        }
     };
     if !candidate.is_file() {
         return Err(source_error(
@@ -1312,16 +1547,31 @@ fn locate_editor(root: &Path, platform: GodotPlatform) -> Result<PathBuf, Box<Di
     {
         use std::os::unix::fs::PermissionsExt;
         let mut permissions = fs::metadata(&candidate)
-            .map_err(|error| io_error("could not inspect managed Godot executable", &candidate, error))?
+            .map_err(|error| {
+                io_error(
+                    "could not inspect managed Godot executable",
+                    &candidate,
+                    error,
+                )
+            })?
             .permissions();
         permissions.set_mode(permissions.mode() | 0o111);
-        fs::set_permissions(&candidate, permissions).map_err(|error| io_error(
-            "could not set managed Godot executable permissions",
-            &candidate,
-            error,
-        ))?;
+        fs::set_permissions(&candidate, permissions).map_err(|error| {
+            io_error(
+                "could not set managed Godot executable permissions",
+                &candidate,
+                error,
+            )
+        })?;
     }
     Ok(candidate)
+}
+
+fn macos_bundle_name(flavor: GodotFlavor) -> &'static str {
+    match flavor {
+        GodotFlavor::Standard => "Godot.app",
+        GodotFlavor::Dotnet => "Godot_mono.app",
+    }
 }
 
 enum PathBufOrOption {
@@ -1330,18 +1580,22 @@ enum PathBufOrOption {
 }
 
 impl From<PathBuf> for PathBufOrOption {
-    fn from(value: PathBuf) -> Self { Self::Path(value) }
+    fn from(value: PathBuf) -> Self {
+        Self::Path(value)
+    }
 }
 
 impl From<Option<PathBuf>> for PathBufOrOption {
-    fn from(value: Option<PathBuf>) -> Self { Self::Option(value) }
+    fn from(value: Option<PathBuf>) -> Self {
+        Self::Option(value)
+    }
 }
 
 fn find_child(root: &Path, predicate: impl Fn(&Path) -> bool) -> PathBufOrOption {
     let mut entries = fs::read_dir(root)
         .ok()
         .into_iter()
-        .flat_map(|entries| entries.flatten())
+        .flat_map(std::iter::Iterator::flatten)
         .map(|entry| entry.path())
         .filter(|path| path.is_file() && predicate(path))
         .collect::<Vec<_>>();
@@ -1349,8 +1603,11 @@ fn find_child(root: &Path, predicate: impl Fn(&Path) -> bool) -> PathBufOrOption
     PathBufOrOption::Option(entries.into_iter().next())
 }
 
-fn enable_self_contained_mode(executable: &Path, platform: GodotPlatform) -> Result<(), Box<Diagnostic>> {
-    let marker = match platform {
+fn self_contained_marker_path(
+    executable: &Path,
+    platform: GodotPlatform,
+) -> Result<PathBuf, Box<Diagnostic>> {
+    match platform {
         GodotPlatform::MacosUniversal => executable
             .parent()
             .and_then(Path::parent)
@@ -1359,16 +1616,33 @@ fn enable_self_contained_mode(executable: &Path, platform: GodotPlatform) -> Res
             executable.parent().map(|parent| parent.join("._sc_"))
         }
     }
-    .ok_or_else(|| internal_error(
-        "managed Godot executable path has no self-contained marker location",
-        "retry the managed installation",
-    ))?;
-    File::create(&marker).map_err(|error| io_error(
-        "could not enable managed Godot self-contained mode",
-        &marker,
-        error,
-    ))?;
+    .ok_or_else(|| {
+        internal_error(
+            "managed Godot executable path has no self-contained marker location",
+            "retry the managed installation",
+        )
+    })
+}
+
+fn enable_self_contained_mode(
+    executable: &Path,
+    platform: GodotPlatform,
+) -> Result<(), Box<Diagnostic>> {
+    let marker = self_contained_marker_path(executable, platform)?;
+    File::create(&marker).map_err(|error| {
+        io_error(
+            "could not enable managed Godot self-contained mode",
+            &marker,
+            error,
+        )
+    })?;
     Ok(())
+}
+
+fn is_owned_managed_install(installed: &ManagedGodot) -> bool {
+    installed.executable.is_file()
+        && self_contained_marker_path(&installed.executable, installed.platform)
+            .is_ok_and(|marker| marker.is_file())
 }
 
 fn managed_metadata(
@@ -1377,12 +1651,12 @@ fn managed_metadata(
     executable: &Path,
     templates: bool,
 ) -> Result<String, Box<Diagnostic>> {
-    let executable = executable
-        .strip_prefix(root)
-        .map_err(|_| internal_error(
+    let executable = executable.strip_prefix(root).map_err(|_| {
+        internal_error(
             "managed Godot executable is outside its installation root",
             "retry the managed installation",
-        ))?;
+        )
+    })?;
     Ok(format!(
         "schema = 1\nversion = \"{}\"\nflavor = \"{}\"\nplatform = \"{}\"\nexecutable = \"{}\"\ntemplates = {}\neditor_sha512 = \"{}\"\ntemplates_sha512 = \"{}\"\n",
         release.version(),
@@ -1400,28 +1674,65 @@ fn parse_managed_metadata(root: &Path) -> Result<Option<ManagedGodot>, Box<Diagn
     let input = match fs::read_to_string(&metadata) {
         Ok(input) => input,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(io_error("could not read managed Godot metadata", &metadata, error)),
+        Err(error) => {
+            return Err(io_error(
+                "could not read managed Godot metadata",
+                &metadata,
+                error,
+            ));
+        }
     };
-    let document = input.parse::<toml_edit::DocumentMut>().map_err(|_| source_error(
-        "managed Godot metadata is invalid",
-        "remove only this Wukong-owned engine directory and reinstall it",
-    ))?;
+    let document = input.parse::<toml_edit::DocumentMut>().map_err(|_| {
+        source_error(
+            "managed Godot metadata is invalid",
+            "remove only this Wukong-owned engine directory and reinstall it",
+        )
+    })?;
     let table = document.as_table();
     let schema = table.get("schema").and_then(toml_edit::Item::as_integer);
     if schema != Some(1) {
         return Ok(None);
     }
-    let version = table.get("version").and_then(toml_edit::Item::as_str)
+    let version = table
+        .get("version")
+        .and_then(toml_edit::Item::as_str)
         .and_then(|value| SemanticVersion::parse(value).ok());
-    let flavor = table.get("flavor").and_then(toml_edit::Item::as_str)
+    let flavor = table
+        .get("flavor")
+        .and_then(toml_edit::Item::as_str)
         .and_then(|value| value.parse().ok());
-    let platform = table.get("platform").and_then(toml_edit::Item::as_str)
+    let platform = table
+        .get("platform")
+        .and_then(toml_edit::Item::as_str)
         .and_then(|value| value.parse().ok());
-    let executable = table.get("executable").and_then(toml_edit::Item::as_str).map(PathBuf::from);
+    let executable = table
+        .get("executable")
+        .and_then(toml_edit::Item::as_str)
+        .map(PathBuf::from);
     let templates = table.get("templates").and_then(toml_edit::Item::as_bool);
+    let editor_sha512 = table.get("editor_sha512").and_then(toml_edit::Item::as_str);
+    let templates_sha512 = table
+        .get("templates_sha512")
+        .and_then(toml_edit::Item::as_str);
     let (Some(version), Some(flavor), Some(platform), Some(executable), Some(templates)) =
-        (version, flavor, platform, executable, templates) else { return Ok(None) };
-    if executable.is_absolute() || executable.components().any(|part| matches!(part, std::path::Component::ParentDir | std::path::Component::RootDir | std::path::Component::Prefix(_))) {
+        (version, flavor, platform, executable, templates)
+    else {
+        return Ok(None);
+    };
+    if !editor_sha512.is_some_and(is_valid_sha512) || !templates_sha512.is_some_and(is_valid_sha512)
+    {
+        return Ok(None);
+    }
+    if executable.is_absolute()
+        || executable.components().any(|part| {
+            matches!(
+                part,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
         return Ok(None);
     }
     Ok(Some(ManagedGodot {
@@ -1435,19 +1746,33 @@ fn parse_managed_metadata(root: &Path) -> Result<Option<ManagedGodot>, Box<Diagn
 }
 
 fn toml_path(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/").replace('"', "\\\"")
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .replace('"', "\\\"")
 }
 
-fn read_limited(input: &mut impl Read, limit: u64, description: &str) -> Result<Vec<u8>, Box<Diagnostic>> {
+fn read_limited(
+    input: &mut impl Read,
+    limit: u64,
+    description: &str,
+) -> Result<Vec<u8>, Box<Diagnostic>> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 8192];
     loop {
-        let count = input.read(&mut buffer).map_err(|_| source_error(
-            format!("could not read {description}"),
-            "check network access and retry",
-        ))?;
-        if count == 0 { break; }
-        if output.len().checked_add(count).is_none_or(|size| size as u64 > limit) {
+        let count = input.read(&mut buffer).map_err(|_| {
+            source_error(
+                format!("could not read {description}"),
+                "check network access and retry",
+            )
+        })?;
+        if count == 0 {
+            break;
+        }
+        if output
+            .len()
+            .checked_add(count)
+            .is_none_or(|size| size as u64 > limit)
+        {
             return Err(source_error(
                 format!("{description} exceeded its size limit"),
                 "retry later; do not use oversized release metadata",
@@ -1462,7 +1787,13 @@ fn read_cached_metadata(path: &Path, limit: u64) -> Result<Option<Vec<u8>>, Box<
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(io_error("could not read official Godot metadata cache", path, error)),
+        Err(error) => {
+            return Err(io_error(
+                "could not read official Godot metadata cache",
+                path,
+                error,
+            ));
+        }
     };
     if bytes.len() as u64 > limit {
         return Err(source_error(
@@ -1490,10 +1821,12 @@ fn acquire_metadata_lock(path: &Path) -> Result<AdvisoryLock, Box<Diagnostic>> {
 }
 
 fn verified_official_url(value: &str, api: bool) -> Result<url::Url, Box<Diagnostic>> {
-    let url = url::Url::parse(value).map_err(|_| source_error(
-        "official Godot release URL was invalid",
-        "retry later; do not use an untrusted release mirror",
-    ))?;
+    let url = url::Url::parse(value).map_err(|_| {
+        source_error(
+            "official Godot release URL was invalid",
+            "retry later; do not use an untrusted release mirror",
+        )
+    })?;
     let expected = if api { "api.github.com" } else { "github.com" };
     if url.scheme() != "https"
         || url.host_str() != Some(expected)
@@ -1519,7 +1852,14 @@ fn verified_official_redirect(url: &url::Url) -> Result<(), Box<Diagnostic>> {
         || !url.username().is_empty()
         || url.password().is_some()
         || url.fragment().is_some()
-        || !matches!(host, Some("github.com" | "release-assets.githubusercontent.com" | "objects.githubusercontent.com"))
+        || !matches!(
+            host,
+            Some(
+                "github.com"
+                    | "release-assets.githubusercontent.com"
+                    | "objects.githubusercontent.com"
+            )
+        )
     {
         return Err(source_error(
             "official Godot release redirect left the approved HTTPS origins",
@@ -1531,64 +1871,115 @@ fn verified_official_redirect(url: &url::Url) -> Result<(), Box<Diagnostic>> {
 
 fn platform_data_root() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
-    { env::var_os("HOME").map(PathBuf::from).map(|home| home.join("Library/Application Support")) }
+    {
+        env::var_os("HOME")
+            .map(PathBuf::from)
+            .map(|home| home.join("Library/Application Support"))
+    }
     #[cfg(target_os = "windows")]
-    { env::var_os("LOCALAPPDATA").or_else(|| env::var_os("APPDATA")).map(PathBuf::from) }
+    {
+        env::var_os("LOCALAPPDATA")
+            .or_else(|| env::var_os("APPDATA"))
+            .map(PathBuf::from)
+    }
     #[cfg(all(unix, not(target_os = "macos")))]
-    { env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share"))) }
+    {
+        env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
+    }
     #[cfg(not(any(unix, target_os = "windows")))]
-    { None }
+    {
+        None
+    }
 }
 
 fn source_error(message: impl Into<String>, recovery: impl Into<String>) -> Box<Diagnostic> {
     Box::new(
-        Diagnostic::new(ErrorCode::SourceAccess, message.into())
-            .with_recovery(recovery.into()),
+        Diagnostic::new(ErrorCode::SourceAccess, message.into()).with_recovery(recovery.into()),
     )
 }
 
 fn internal_error(message: impl Into<String>, recovery: impl Into<String>) -> Box<Diagnostic> {
     Box::new(
-        Diagnostic::new(ErrorCode::InternalFailure, message.into())
-            .with_recovery(recovery.into()),
+        Diagnostic::new(ErrorCode::InternalFailure, message.into()).with_recovery(recovery.into()),
     )
 }
 
 fn io_error(message: impl Into<String>, path: &Path, error: std::io::Error) -> Box<Diagnostic> {
     Box::new(
-        Diagnostic::new(ErrorCode::InternalFailure, format!("{} {}", message.into(), path.display()))
-            .with_cause(error)
-            .with_recovery("check filesystem permissions and retry"),
+        Diagnostic::new(
+            ErrorCode::InternalFailure,
+            format!("{} {}", message.into(), path.display()),
+        )
+        .with_cause(error)
+        .with_recovery("check filesystem permissions and retry"),
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        GodotFlavor, GodotPlatform, editor_asset_name, parse_godot_version_output,
-        parse_sha512_sums, stable_version_from_tag, template_asset_name,
+        GodotFlavor, GodotPlatform, macos_bundle_name, official_editor_asset_name,
+        official_template_asset_name, parse_godot_version_output, parse_sha512_sums,
+        stable_version_from_tag,
     };
     use crate::semantic_version::SemanticVersion;
 
     #[test]
     fn invariant_official_asset_names_are_exact_for_supported_desktop_targets() {
         let version = SemanticVersion::parse("4.4.1").expect("version should parse");
+        let expected = [
+            (
+                GodotFlavor::Standard,
+                GodotPlatform::MacosUniversal,
+                "Godot_v4.4.1-stable_macos.universal.zip",
+            ),
+            (
+                GodotFlavor::Standard,
+                GodotPlatform::LinuxX86_64,
+                "Godot_v4.4.1-stable_linux.x86_64.zip",
+            ),
+            (
+                GodotFlavor::Standard,
+                GodotPlatform::LinuxArm64,
+                "Godot_v4.4.1-stable_linux.arm64.zip",
+            ),
+            (
+                GodotFlavor::Standard,
+                GodotPlatform::WindowsX86_64,
+                "Godot_v4.4.1-stable_win64.exe.zip",
+            ),
+            (
+                GodotFlavor::Dotnet,
+                GodotPlatform::MacosUniversal,
+                "Godot_v4.4.1-stable_mono_macos.universal.zip",
+            ),
+            (
+                GodotFlavor::Dotnet,
+                GodotPlatform::LinuxX86_64,
+                "Godot_v4.4.1-stable_mono_linux_x86_64.zip",
+            ),
+            (
+                GodotFlavor::Dotnet,
+                GodotPlatform::LinuxArm64,
+                "Godot_v4.4.1-stable_mono_linux_arm64.zip",
+            ),
+            (
+                GodotFlavor::Dotnet,
+                GodotPlatform::WindowsX86_64,
+                "Godot_v4.4.1-stable_mono_win64.zip",
+            ),
+        ];
+        for (flavor, platform, name) in expected {
+            assert_eq!(official_editor_asset_name(&version, flavor, platform), name);
+        }
         assert_eq!(
-            editor_asset_name(&version, GodotFlavor::Standard, GodotPlatform::MacosUniversal),
-            "Godot_v4.4.1-stable_macos.universal.zip"
-        );
-        assert_eq!(
-            editor_asset_name(&version, GodotFlavor::Dotnet, GodotPlatform::LinuxX86_64),
-            "Godot_v4.4.1-stable_mono_linux.x86_64.zip"
-        );
-        assert_eq!(
-            editor_asset_name(&version, GodotFlavor::Standard, GodotPlatform::WindowsX86_64),
-            "Godot_v4.4.1-stable_win64.exe.zip"
-        );
-        assert_eq!(
-            template_asset_name(&version, GodotFlavor::Dotnet),
+            official_template_asset_name(&version, GodotFlavor::Dotnet),
             "Godot_v4.4.1-stable_mono_export_templates.tpz"
         );
+        assert_eq!(macos_bundle_name(GodotFlavor::Standard), "Godot.app");
+        assert_eq!(macos_bundle_name(GodotFlavor::Dotnet), "Godot_mono.app");
     }
 
     #[test]

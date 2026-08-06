@@ -1,8 +1,9 @@
 # Lockfile schema
 
 `wukong.lock` is UTF-8 TOML and machine-generated. Direct-source locks use
-schema two. Schema-three catalog graphs require a complete immutable selection;
-schema-one local-only and schema-two locks remain readable and retain their
+schema two. Schema-three catalog graphs require a complete immutable selection.
+Schema four adds an exact managed Godot toolchain to either package shape.
+Schema-one local-only and schema-two locks remain readable and retain their
 original serialization. All package fields are deterministic and source-specific
 fields are limited to safe canonical acquisition data plus immutable identities.
 
@@ -95,6 +96,42 @@ paths, credentials, mutable references, or executable commands are permitted.
 change when the manifest's `root` or `target` override changes. They are part
 of the declaration fingerprint and cannot be silently reused from a prior
 lock.
+
+## Schema four managed toolchains
+
+Schema four records a package mode (`direct` or `catalog`) plus one exact
+official stable Godot release. It includes the canonical artifact identity for
+every supported desktop editor target and matching export templates, so the
+same committed lock works on macOS, Linux, and Windows.
+
+```toml
+schema = 4
+mode = "direct"
+
+[toolchain]
+version = "4.5.3"
+flavor = "standard"
+release = "4.5.3-stable"
+templates_name = "Godot_v4.5.3-stable_export_templates.tpz"
+templates_url = "https://github.com/godotengine/godot-builds/releases/download/4.5.3-stable/Godot_v4.5.3-stable_export_templates.tpz"
+templates_sha512 = "0123456789abcdef..." # 128 lowercase hex characters
+templates_bytes = 123456789
+
+[[toolchain.editor]]
+platform = "macos-universal"
+name = "Godot_v4.5.3-stable_macos.universal.zip"
+url = "https://github.com/godotengine/godot-builds/releases/download/4.5.3-stable/Godot_v4.5.3-stable_macos.universal.zip"
+sha512 = "0123456789abcdef..." # 128 lowercase hex characters
+bytes = 123456789
+```
+
+Only credential-free official GitHub HTTPS release URLs are accepted. Artifact
+names must match the release version, flavor, and platform, and checksums are
+SHA-512 values from the official `SHA512-SUMS.txt` asset. Schema four includes
+all four `macos-universal`, `linux-x86_64`, `linux-arm64`, and `windows-x86_64`
+editor entries; the example shows one for brevity. It is written by an online
+lock when a managed toolchain is resolved. `--offline` can reuse an existing
+valid toolchain but never invents one.
 `x-` fields are reserved for preserved extensions; unknown unprefixed fields
 are errors. Parsing and re-serializing a valid schema-one or schema-two lock
 produces stable canonical bytes. Schema two supports `local`, `git`, and
@@ -104,8 +141,10 @@ produces stable canonical bytes. Schema two supports `local`, `git`, and
 
 `wukong lock` resolves direct local, Git, and HTTPS archive dependencies into
 schema two, or resolves version-only roots through `wukong.sources.toml` into a
-schema-three complete graph. Mixed catalog and direct-source declarations are
-rejected. Locking does not materialise project files. Independent direct-source
+schema-three complete graph. When it resolves a managed Godot toolchain, it
+records the same package shape in schema four. Mixed catalog and direct-source
+declarations are rejected. Locking does not materialise project files.
+Independent direct-source
 preparation uses up to four workers, while lockfile ordering and the first
 reported package error remain deterministic. `--offline` uses only verified
 cached Git checkouts and HTTP archives; an exact Git revision can reuse its

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0047](0047-managed-godot-toolchains.md).
 
 ## Context
 

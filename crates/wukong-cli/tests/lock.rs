@@ -44,13 +44,13 @@ fn invariant_lock_refreshes_changed_local_source() {
     let fixture = Fixture::new();
     let addon = fixture.addon("addon", "first");
     fixture.manifest("[dev-dependencies]\naddon = { path = \"addon\" }\n");
-    let first = command(fixture.root())
+    let first = online_command(fixture.root())
         .output()
         .expect("first lock should run");
     let initial_lock = fs::read(fixture.root().join("wukong.lock")).expect("lock should exist");
     fs::write(addon.join("plugin.gd"), "second").expect("source should change");
 
-    let refreshed = command(fixture.root())
+    let refreshed = online_command(fixture.root())
         .output()
         .expect("refreshed lock should run");
     let refreshed_lock = fs::read(fixture.root().join("wukong.lock")).expect("lock should exist");
@@ -88,6 +88,14 @@ fn invariant_locked_refuses_manifest_lock_mismatch() {
 }
 
 fn command(current_directory: &Path) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
+    command
+        .args(["lock", "--offline"])
+        .current_dir(current_directory);
+    command
+}
+
+fn online_command(current_directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.arg("lock").current_dir(current_directory);
     command

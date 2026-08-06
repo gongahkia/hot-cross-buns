@@ -1,12 +1,16 @@
 # Manifest
 
-`wukong.toml` is UTF-8 TOML. Version one permits only `[project]`,
+`wukong.toml` is UTF-8 TOML. It permits `[project]`, an optional `[toolchain]`,
 `[dependencies]`, and `[dev-dependencies]` tables. Unknown fields are errors.
 
 ```toml
 [project]
 name = "my-game"
 godot = ">=4.5,<5"
+
+[toolchain]
+godot = "4.5.3"
+flavor = "standard"
 
 [dependencies]
 example = "^1.2"
@@ -48,6 +52,24 @@ HTTPS user information and sensitive query parameters are rejected. SSH user
 names are allowed for standard Git remotes, but SSH passwords are rejected.
 Manifests declare inputs only: `wukong` does not execute package scripts.
 
+## Managed Godot toolchain
+
+`[toolchain]` is optional. When present, it pins one exact stable official
+Godot release and editor family; its version must satisfy `project.godot`.
+
+```toml
+[toolchain]
+godot = "4.5.3"
+flavor = "dotnet" # standard or dotnet
+```
+
+`wukong lock` records all supported desktop artifacts for this exact release
+in `wukong.lock`. Without the table, an online lock selects the newest
+compatible official stable `standard` release. To select or update a version
+deliberately, use `wukong godot pin <version> --flavor <standard|dotnet>`.
+The toolchain setting records only a release identity: it never stores an
+executable path, credentials, or an arbitrary download URL.
+
 `root` selects one safe directory below a source and `target` selects its safe
 project-relative destination. They allow two declarations to select different
 addons from one immutable repository. Explicit manifest layout values override
@@ -61,6 +83,8 @@ part of the declaration identity.
 | --- | --- | --- |
 | `project.name` | Yes | Non-empty project label. |
 | `project.godot` | Yes | Godot semantic-version requirement; not an installed-engine probe. |
+| `toolchain.godot` | No | Exact stable official Godot version for reproducible project actions. |
+| `toolchain.flavor` | With `toolchain.godot` | `standard` or `dotnet`. |
 | `dependencies` | No | Runtime direct dependencies. |
 | `dev-dependencies` | No | Dependencies selected only with `--dev`. |
 | `path` | `dev-dependencies` only | Existing direct development directory, relative to the manifest when not absolute. |

@@ -31,6 +31,21 @@ impl Default for ExtractionLimits {
 }
 
 impl ExtractionLimits {
+    /// Returns bounded limits for a checksum-verified official engine archive.
+    ///
+    /// Engine bundles are substantially larger than addons. Callers may use
+    /// this only after independently verifying an immutable official artifact
+    /// checksum and exact byte size; untrusted package archives must retain
+    /// [`Self::default`].
+    #[must_use]
+    pub const fn verified_engine() -> Self {
+        Self {
+            files: 20_000,
+            expanded_bytes: 2 * 1024 * 1024 * 1024,
+            expansion_ratio: 100,
+        }
+    }
+
     /// Returns caller-requested limits clamped to the secure defaults.
     #[must_use]
     pub fn tightened(max_files: u64, max_expanded_bytes: u64, max_expansion_ratio: u64) -> Self {

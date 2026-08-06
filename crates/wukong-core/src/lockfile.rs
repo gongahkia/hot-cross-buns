@@ -5,8 +5,11 @@ use crate::{
     git_source::canonicalize_git_url,
     http_archive::canonicalize_archive_url,
     identity::PackageName,
+    managed_godot::{
+        GodotFlavor, GodotPlatform, official_editor_asset_name, official_release_asset_url,
+        official_template_asset_name,
+    },
     manifest::GitReference,
-    managed_godot::{GodotFlavor, GodotPlatform},
     semantic_version::{SemanticVersion, VersionRequirement},
     source::ImmutableSourceId,
 };
@@ -60,19 +63,27 @@ impl LockedGodotArtifact {
 
     /// Returns the official release asset name.
     #[must_use]
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
     /// Returns the official HTTPS source URL.
     #[must_use]
-    pub fn url(&self) -> &str { &self.url }
+    pub fn url(&self) -> &str {
+        &self.url
+    }
 
     /// Returns the expected SHA-512 checksum.
     #[must_use]
-    pub fn sha512(&self) -> &str { &self.sha512 }
+    pub fn sha512(&self) -> &str {
+        &self.sha512
+    }
 
     /// Returns the exact release-declared byte size.
     #[must_use]
-    pub const fn bytes(&self) -> u64 { self.bytes }
+    pub const fn bytes(&self) -> u64 {
+        self.bytes
+    }
 }
 
 /// An exact official Godot toolchain selected for a project lockfile.
@@ -123,35 +134,76 @@ impl LockedGodotToolchain {
                 ));
             }
         }
-        if ordered.is_empty() {
+        let expected_platforms = [
+            GodotPlatform::MacosUniversal,
+            GodotPlatform::LinuxX86_64,
+            GodotPlatform::LinuxArm64,
+            GodotPlatform::WindowsX86_64,
+        ];
+        for platform in expected_platforms {
+            let Some(artifact) = ordered.get(&platform) else {
+                return Err(user(
+                    Path::new(LOCKFILE_FILE_NAME),
+                    format!("toolchain.editor is missing required {platform} artifact"),
+                    "regenerate the lockfile with a supported Wukong version",
+                ));
+            };
+            validate_toolchain_artifact_identity(
+                artifact,
+                &release,
+                &official_editor_asset_name(&version, flavor, platform),
+            )?;
+        }
+        validate_toolchain_artifact_identity(
+            &templates,
+            &release,
+            &official_template_asset_name(&version, flavor),
+        )?;
+        if ordered.len() != expected_platforms.len() {
             return Err(user(
                 Path::new(LOCKFILE_FILE_NAME),
-                "toolchain.editor must include at least one platform",
-                "lock one supported official desktop editor artifact",
+                "toolchain.editor contains an unsupported platform",
+                "regenerate the lockfile with supported desktop artifacts",
             ));
         }
-        Ok(Self { version, flavor, release, editors: ordered, templates })
+        Ok(Self {
+            version,
+            flavor,
+            release,
+            editors: ordered,
+            templates,
+        })
     }
 
     /// Returns the exact stable version.
     #[must_use]
-    pub const fn version(&self) -> &SemanticVersion { &self.version }
+    pub const fn version(&self) -> &SemanticVersion {
+        &self.version
+    }
 
     /// Returns the selected editor family.
     #[must_use]
-    pub const fn flavor(&self) -> GodotFlavor { self.flavor }
+    pub const fn flavor(&self) -> GodotFlavor {
+        self.flavor
+    }
 
     /// Returns the official release tag.
     #[must_use]
-    pub fn release(&self) -> &str { &self.release }
+    pub fn release(&self) -> &str {
+        &self.release
+    }
 
     /// Returns editor artifacts in canonical target order.
     #[must_use]
-    pub fn editors(&self) -> &BTreeMap<GodotPlatform, LockedGodotArtifact> { &self.editors }
+    pub fn editors(&self) -> &BTreeMap<GodotPlatform, LockedGodotArtifact> {
+        &self.editors
+    }
 
     /// Returns the matching export-template artifact.
     #[must_use]
-    pub const fn templates(&self) -> &LockedGodotArtifact { &self.templates }
+    pub const fn templates(&self) -> &LockedGodotArtifact {
+        &self.templates
+    }
 }
 
 /// Canonical direct roots for a schema-three catalog graph.
@@ -628,7 +680,10 @@ impl Lockfile {
             None
         };
         let toolchain = if schema == TOOLCHAIN_LOCKFILE_SCHEMA {
-            Some(parse_toolchain(table(root, "toolchain", path, "root")?, path)?)
+            Some(parse_toolchain(
+                table(root, "toolchain", path, "root")?,
+                path,
+            )?)
         } else {
             None
         };
@@ -681,13 +736,18 @@ impl Lockfile {
     }
     /// Serializes canonical TOML for the lockfile's schema.
     #[must_use]
+    #[allow(clippy::too_many_lines)] // schema-specific deterministic tables are clearest inline
     pub fn to_toml(&self) -> String {
         let mut out = format!("schema = {}\n", self.schema);
         if self.schema == TOOLCHAIN_LOCKFILE_SCHEMA {
             line(
                 &mut out,
                 "mode",
-                if self.catalog_roots.is_some() { "catalog" } else { "direct" },
+                if self.catalog_roots.is_some() {
+                    "catalog"
+                } else {
+                    "direct"
+                },
             );
         }
         for (key, value) in &self.extensions {
@@ -1123,12 +1183,23 @@ fn parse_toolchain(
         path,
         "toolchain",
     )?;
-    let version = SemanticVersion::parse(&string(table, "version", path, "toolchain")?).map_err(|error| {
-        user(path, format!("toolchain.version is invalid: {error}"), "use an exact stable semantic version")
-    })?;
-    let flavor = string(table, "flavor", path, "toolchain")?.parse::<GodotFlavor>().map_err(|error| {
-        user(path, format!("toolchain.flavor {error}"), "use standard or dotnet")
-    })?;
+    let version =
+        SemanticVersion::parse(&string(table, "version", path, "toolchain")?).map_err(|error| {
+            user(
+                path,
+                format!("toolchain.version is invalid: {error}"),
+                "use an exact stable semantic version",
+            )
+        })?;
+    let flavor = string(table, "flavor", path, "toolchain")?
+        .parse::<GodotFlavor>()
+        .map_err(|error| {
+            user(
+                path,
+                format!("toolchain.flavor {error}"),
+                "use standard or dotnet",
+            )
+        })?;
     let release = string(table, "release", path, "toolchain")?;
     let templates = LockedGodotArtifact::new(
         string(table, "templates_name", path, "toolchain")?,
@@ -1139,17 +1210,30 @@ fn parse_toolchain(
     let editors = table
         .get("editor")
         .and_then(Item::as_array_of_tables)
-        .ok_or_else(|| user(
-            path,
-            "toolchain.editor must be an array of tables",
-            "retain one [[toolchain.editor]] entry per platform",
-        ))?
+        .ok_or_else(|| {
+            user(
+                path,
+                "toolchain.editor must be an array of tables",
+                "retain one [[toolchain.editor]] entry per platform",
+            )
+        })?
         .iter()
         .map(|editor| {
-            extensions(editor, &["platform", "name", "url", "sha512", "bytes"], path, "toolchain.editor")?;
+            extensions(
+                editor,
+                &["platform", "name", "url", "sha512", "bytes"],
+                path,
+                "toolchain.editor",
+            )?;
             let platform = string(editor, "platform", path, "toolchain.editor")?
                 .parse::<GodotPlatform>()
-                .map_err(|error| user(path, format!("toolchain.editor.platform {error}"), "use a supported platform"))?;
+                .map_err(|error| {
+                    user(
+                        path,
+                        format!("toolchain.editor.platform {error}"),
+                        "use a supported platform",
+                    )
+                })?;
             let artifact = LockedGodotArtifact::new(
                 string(editor, "name", path, "toolchain.editor")?,
                 string(editor, "url", path, "toolchain.editor")?,
@@ -1514,13 +1598,16 @@ fn positive_integer(
     scope: &str,
 ) -> Result<u64, Box<Diagnostic>> {
     let value = integer(table, key, path, scope)?;
-    u64::try_from(value).ok().filter(|value| *value > 0).ok_or_else(|| {
-        user(
-            path,
-            format!("{scope}.{key} must be a positive integer"),
-            "use the exact positive byte size published by the official release",
-        )
-    })
+    u64::try_from(value)
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| {
+            user(
+                path,
+                format!("{scope}.{key} must be a positive integer"),
+                "use the exact positive byte size published by the official release",
+            )
+        })
 }
 
 fn validate_locked_godot_artifact(
@@ -1576,6 +1663,29 @@ fn validate_locked_godot_artifact(
     }
     Ok(())
 }
+
+fn validate_toolchain_artifact_identity(
+    artifact: &LockedGodotArtifact,
+    release: &str,
+    expected_name: &str,
+) -> Result<(), Box<Diagnostic>> {
+    if artifact.name() != expected_name {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact name does not match its version, flavor, and platform",
+            "regenerate the lockfile from an official stable release",
+        ));
+    }
+    if artifact.url() != official_release_asset_url(release, expected_name) {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact URL does not match its official release identity",
+            "regenerate the lockfile from an official stable release",
+        ));
+    }
+    Ok(())
+}
+
 fn user(path: &Path, message: impl AsRef<str>, recovery: impl AsRef<str>) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(ErrorCode::UserInput, message)
