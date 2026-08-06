@@ -55,6 +55,9 @@ pub mod godot_support_matrix;
 /// Godot executable discovery without execution.
 pub mod godot_executable;
 
+/// Official stable Godot release resolution and managed editor installations.
+pub mod managed_godot;
+
 /// Optional bounded headless Godot validation.
 pub mod godot_validation;
 

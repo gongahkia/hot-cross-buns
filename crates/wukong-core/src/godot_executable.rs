@@ -18,6 +18,8 @@ pub enum GodotExecutableSource {
     Environment,
     /// A user-selected executable in Wukong's global settings.
     Settings,
+    /// A verified Wukong-owned managed editor installation.
+    Managed,
     /// A matching executable found in `PATH`.
     Path,
     /// A conventional platform install location.
@@ -32,6 +34,7 @@ impl GodotExecutableSource {
             Self::Explicit => "explicit path",
             Self::Environment => "WUKONG_GODOT_EXECUTABLE",
             Self::Settings => "Wukong settings",
+            Self::Managed => "Wukong managed installation",
             Self::Path => "PATH",
             Self::CommonLocation => "common platform location",
         }
@@ -46,6 +49,14 @@ pub struct GodotExecutable {
 }
 
 impl GodotExecutable {
+    /// Creates an executable selected from a verified Wukong-managed install.
+    #[must_use]
+    pub fn managed(path: PathBuf) -> Self {
+        Self {
+            path,
+            source: GodotExecutableSource::Managed,
+        }
+    }
     /// Returns the executable path.
     #[must_use]
     pub fn path(&self) -> &Path {

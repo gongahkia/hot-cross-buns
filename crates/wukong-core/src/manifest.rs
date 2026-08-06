@@ -6,7 +6,8 @@ use crate::{
     credentials::has_sensitive_url_query,
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
-    semantic_version::VersionRequirement,
+    managed_godot::GodotFlavor,
+    semantic_version::{SemanticVersion, VersionRequirement},
 };
 use std::{
     borrow::Borrow,
@@ -27,6 +28,7 @@ pub type ManifestResult<T> = std::result::Result<T, Box<Diagnostic>>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Manifest {
     project: Project,
+    toolchain: Option<Toolchain>,
     dependencies: BTreeMap<DependencyAlias, Dependency>,
     dev_dependencies: BTreeMap<DependencyAlias, Dependency>,
 }
@@ -48,7 +50,7 @@ impl Manifest {
         let root = document.as_table();
         reject_unknown_fields(
             root,
-            &["project", "dependencies", "dev-dependencies"],
+            &["project", "toolchain", "dependencies", "dev-dependencies"],
             path,
             input,
             "root",
@@ -58,6 +60,21 @@ impl Manifest {
             path,
             input,
         )?;
+        let toolchain = root
+            .get("toolchain")
+            .map(|item| {
+                let table = item.as_table_like().ok_or_else(|| {
+                    field_error(
+                        path,
+                        input,
+                        "toolchain",
+                        Some(item),
+                        "must be a table",
+                    )
+                })?;
+                parse_toolchain(table, &project, path, input)
+            })
+            .transpose()?;
         let manifest_directory = path.parent().unwrap_or_else(|| Path::new("."));
         let dependencies = parse_dependencies(
             root.get("dependencies"),
@@ -77,6 +94,7 @@ impl Manifest {
         )?;
         Ok(Self {
             project,
+            toolchain,
             dependencies,
             dev_dependencies,
         })
@@ -86,6 +104,12 @@ impl Manifest {
     #[must_use]
     pub const fn project(&self) -> &Project {
         &self.project
+    }
+
+    /// Returns the optional exact managed Godot toolchain pin.
+    #[must_use]
+    pub const fn toolchain(&self) -> Option<&Toolchain> {
+        self.toolchain.as_ref()
     }
 
     /// Returns runtime dependencies in deterministic alias order.
@@ -98,6 +122,57 @@ impl Manifest {
     #[must_use]
     pub const fn dev_dependencies(&self) -> &BTreeMap<DependencyAlias, Dependency> {
         &self.dev_dependencies
+    }
+}
+
+/// An optional exact official Godot editor pin for a project.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Toolchain {
+    godot: SemanticVersion,
+    flavor: GodotFlavor,
+}
+
+impl Toolchain {
+    /// Creates an exact stable Godot toolchain after compatibility validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the version is prerelease, carries build
+    /// metadata, or does not satisfy the project requirement.
+    pub fn new(
+        godot: SemanticVersion,
+        flavor: GodotFlavor,
+        project_requirement: &VersionRequirement,
+    ) -> ManifestResult<Self> {
+        if godot.is_prerelease() || !godot.as_semver().build.is_empty() {
+            return Err(boxed(Diagnostic::new(
+                ErrorCode::UserInput,
+                "toolchain.godot must be one exact stable semantic version",
+            )
+            .with_recovery("use a version such as 4.4.1 without prerelease or build metadata")));
+        }
+        if !project_requirement.matches(&godot) {
+            return Err(boxed(Diagnostic::new(
+                ErrorCode::UserInput,
+                format!(
+                    "toolchain.godot {godot} does not satisfy project.godot {project_requirement}"
+                ),
+            )
+            .with_recovery("select an exact stable version permitted by project.godot")));
+        }
+        Ok(Self { godot, flavor })
+    }
+
+    /// Returns the exact selected Godot version.
+    #[must_use]
+    pub const fn godot(&self) -> &SemanticVersion {
+        &self.godot
+    }
+
+    /// Returns whether the standard or .NET editor is selected.
+    #[must_use]
+    pub const fn flavor(&self) -> GodotFlavor {
+        self.flavor
     }
 }
 
@@ -264,6 +339,44 @@ fn parse_project(table: &dyn TableLike, path: &Path, input: &str) -> ManifestRes
         )
     })?;
     Ok(Project { name, godot })
+}
+
+fn parse_toolchain(
+    table: &dyn TableLike,
+    project: &Project,
+    path: &Path,
+    input: &str,
+) -> ManifestResult<Toolchain> {
+    reject_unknown_fields(table, &["godot", "flavor"], path, input, "toolchain")?;
+    let version = required_string(table, "godot", path, input, "toolchain")?;
+    let godot = SemanticVersion::parse(&version).map_err(|error| {
+        field_error(
+            path,
+            input,
+            "toolchain.godot",
+            table.get("godot"),
+            &format!("must be an exact stable semantic version: {error}"),
+        )
+    })?;
+    let flavor = required_string(table, "flavor", path, input, "toolchain")?;
+    let flavor = flavor.parse::<GodotFlavor>().map_err(|error| {
+        field_error(
+            path,
+            input,
+            "toolchain.flavor",
+            table.get("flavor"),
+            &error.to_string(),
+        )
+    })?;
+    Toolchain::new(godot, flavor, project.godot()).map_err(|error| {
+        field_error(
+            path,
+            input,
+            "toolchain.godot",
+            table.get("godot"),
+            error.message(),
+        )
+    })
 }
 
 fn parse_dependencies(

@@ -13,8 +13,8 @@ use wukong_core::{
     transactional_file::write_atomic,
 };
 
-/// The only settings schema accepted by this Wukong version.
-pub const SETTINGS_SCHEMA: i64 = 1;
+/// The settings schema written by this Wukong version.
+pub const SETTINGS_SCHEMA: i64 = 2;
 /// The settings file name under the platform configuration directory.
 pub const SETTINGS_FILE_NAME: &str = "settings.toml";
 
@@ -24,6 +24,26 @@ pub struct Settings {
     spinner: String,
     bar: String,
     godot_executable: Option<PathBuf>,
+    godot_downloads: GodotDownloads,
+    godot_engine_dir: Option<PathBuf>,
+}
+
+/// Whether commands may install a missing official managed Godot editor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GodotDownloads {
+    /// Commands needing an absent selected editor download the verified official artifact.
+    Automatic,
+    /// Only explicit `wukong godot install` and `wukong godot update` may download artifacts.
+    Manual,
+}
+
+impl GodotDownloads {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Automatic => "automatic",
+            Self::Manual => "manual",
+        }
+    }
 }
 
 impl Default for Settings {
@@ -32,6 +52,8 @@ impl Default for Settings {
             spinner: DEFAULT_SPINNER.to_owned(),
             bar: DEFAULT_BAR_THEME.to_owned(),
             godot_executable: None,
+            godot_downloads: GodotDownloads::Automatic,
+            godot_engine_dir: None,
         }
     }
 }
@@ -53,6 +75,18 @@ impl Settings {
     #[must_use]
     pub fn godot_executable(&self) -> Option<&Path> {
         self.godot_executable.as_deref()
+    }
+
+    /// Returns whether missing managed editors can be acquired implicitly.
+    #[must_use]
+    pub const fn godot_downloads(&self) -> GodotDownloads {
+        self.godot_downloads
+    }
+
+    /// Returns the optional user-selected managed engine root.
+    #[must_use]
+    pub fn godot_engine_dir(&self) -> Option<&Path> {
+        self.godot_engine_dir.as_deref()
     }
 
     /// Updates one supported setting after validating its value.
@@ -86,10 +120,30 @@ impl Settings {
                 }
                 self.godot_executable = Some(path);
             }
+            "godot.downloads" => {
+                self.godot_downloads = match value {
+                    "automatic" => GodotDownloads::Automatic,
+                    "manual" => GodotDownloads::Manual,
+                    _ => return Err(invalid(
+                        "godot.downloads must be automatic or manual",
+                        "use automatic for Wukong-managed downloads or manual to opt out",
+                    )),
+                };
+            }
+            "godot.engine-dir" => {
+                let path = PathBuf::from(value);
+                if !path.is_absolute() {
+                    return Err(invalid(
+                        "godot.engine-dir must be an absolute path",
+                        "provide an absolute directory path for Wukong-managed editors",
+                    ));
+                }
+                self.godot_engine_dir = Some(path);
+            }
             _ => {
                 return Err(invalid(
                     format!("unsupported setting {key}"),
-                    "use progress.spinner, progress.bar, or godot.executable",
+                    "use progress.spinner, progress.bar, godot.executable, godot.downloads, or godot.engine-dir",
                 ));
             }
         }
@@ -102,10 +156,12 @@ impl Settings {
             "progress.spinner" => DEFAULT_SPINNER.clone_into(&mut self.spinner),
             "progress.bar" => DEFAULT_BAR_THEME.clone_into(&mut self.bar),
             "godot.executable" => self.godot_executable = None,
+            "godot.downloads" => self.godot_downloads = GodotDownloads::Automatic,
+            "godot.engine-dir" => self.godot_engine_dir = None,
             _ => {
                 return Err(invalid(
                     format!("unsupported setting {key}"),
-                    "use progress.spinner, progress.bar, or godot.executable",
+                    "use progress.spinner, progress.bar, godot.executable, godot.downloads, or godot.engine-dir",
                 ));
             }
         }
@@ -122,6 +178,11 @@ impl Settings {
         if let Some(executable) = &self.godot_executable {
             document["godot"]["executable"] =
                 toml_edit::value(executable.to_string_lossy().as_ref());
+        }
+        document["godot"]["downloads"] = toml_edit::value(self.godot_downloads.as_str());
+        if let Some(engine_dir) = &self.godot_engine_dir {
+            document["godot"]["engine-dir"] =
+                toml_edit::value(engine_dir.to_string_lossy().as_ref());
         }
         document.to_string()
     }
@@ -204,9 +265,9 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
                 "missing or invalid schema",
             )
         })?;
-    if schema != SETTINGS_SCHEMA {
+    if !matches!(schema, 1 | SETTINGS_SCHEMA) {
         return Err(invalid(
-            format!("Wukong settings schema must be {SETTINGS_SCHEMA}"),
+            format!("Wukong settings schema must be 1 or {SETTINGS_SCHEMA}"),
             "unsupported schema",
         ));
     }
@@ -228,9 +289,20 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
         let godot = godot
             .as_table_like()
             .ok_or_else(|| invalid("godot must be a table", "invalid godot setting"))?;
-        reject_unknown(path, godot, &["executable"], "godot")?;
+        let fields = if schema == 1 {
+            &["executable"][..]
+        } else {
+            &["executable", "downloads", "engine-dir"][..]
+        };
+        reject_unknown(path, godot, fields, "godot")?;
         if let Some(executable) = godot.get("executable") {
             settings.set("godot.executable", string(executable, "godot.executable")?)?;
+        }
+        if let Some(downloads) = godot.get("downloads") {
+            settings.set("godot.downloads", string(downloads, "godot.downloads")?)?;
+        }
+        if let Some(engine_dir) = godot.get("engine-dir") {
+            settings.set("godot.engine-dir", string(engine_dir, "godot.engine-dir")?)?;
         }
     }
     Ok(settings)

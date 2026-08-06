@@ -6,8 +6,8 @@ use crate::{
     diagnostic::{Diagnostic, ErrorCode},
     identity::PackageName,
     lockfile::{
-        CATALOG_GRAPH_LOCKFILE_SCHEMA, CatalogGraphRoots, GodotCompatibility, LockedGitSource,
-        LockedHttpSource, LockedPackage, LockedSource, Lockfile,
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedHttpSource, LockedPackage,
+        LockedSource, Lockfile,
     },
     manifest::{Dependency, DependencyAlias, Manifest},
     resolver::{
@@ -57,7 +57,7 @@ pub fn lock_catalog_dependencies(
     cancellation: &CancellationToken,
 ) -> Result<Lockfile, Box<Diagnostic>> {
     let mut request = catalog_request(manifest)?;
-    if let Some(existing) = existing.filter(|lock| lock.schema() == CATALOG_GRAPH_LOCKFILE_SCHEMA) {
+    if let Some(existing) = existing.filter(|lock| lock.is_catalog_graph()) {
         for (name, package) in existing.packages() {
             if let Some(version) = package.version() {
                 request.prefer_locked(name.clone(), version);
@@ -163,7 +163,7 @@ pub fn validate_catalog_lock_manifest(
     manifest: &Manifest,
     lock: &Lockfile,
 ) -> Result<(), Box<Diagnostic>> {
-    if lock.schema() != CATALOG_GRAPH_LOCKFILE_SCHEMA {
+    if !lock.is_catalog_graph() {
         return Err(Box::new(
             Diagnostic::new(
                 ErrorCode::InternalFailure,

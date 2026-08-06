@@ -45,8 +45,13 @@ use wukong_core::{
     identity::PackageName,
     init::initialize_manifest,
     installed_state::{InstalledState, create_state_directory, state_path, verify_installed_state},
-    lockfile::{LOCKFILE_FILE_NAME, Lockfile},
-    manifest::{GitReference, MANIFEST_FILE_NAME, Manifest},
+    lockfile::{LOCKFILE_FILE_NAME, LockedGodotArtifact, LockedGodotToolchain, Lockfile},
+    managed_godot::{
+        EngineProgress, EngineProgressObserver, GodotArtifact, GodotFlavor, GodotPlatform,
+        ManagedGodotStore, OfficialGodotClient, OfficialGodotRelease,
+        inspect_godot_version,
+    },
+    manifest::{GitReference, MANIFEST_FILE_NAME, Manifest, Toolchain},
     manifest_edit::{DependencyDeclaration, DependencySection, add_dependency, remove_dependency},
     migration::plan_catalog_migration,
     operation_lock::AdvisoryLock,
@@ -55,6 +60,7 @@ use wukong_core::{
     project::ProjectRoot,
     provenance::ProvenanceReport,
     source::CancellationToken,
+    semantic_version::SemanticVersion,
     source_catalog::{
         CatalogCandidate, SOURCE_CATALOG_FILE_NAME, SOURCE_CATALOG_SCHEMA, SourceCatalog,
         ValidatedCatalogCandidate, ValidatedSourceCatalog,
@@ -68,7 +74,7 @@ use wukong_core::{
 use crate::{
     diagnostics::{PROTOCOL_VERSION, ProcessExit, render_human, render_json},
     progress::{Presentation, ProgressSession},
-    settings::Settings,
+    settings::{GodotDownloads, Settings},
 };
 
 thread_local! { static JSON_MODE: Cell<bool> = const { Cell::new(false) }; }
@@ -238,6 +244,10 @@ fn command_uses_progress(command: &str) -> bool {
             | "migrate"
             | "outdated"
             | "audit"
+            | "godot"
+            | "run"
+            | "editor"
+            | "export"
             | "validate"
             | "doctor"
             | "status"
@@ -261,6 +271,8 @@ fn command_progress_phase(command: &str) -> &'static str {
         "source" => "reading source catalog",
         "install" | "sync" => "synchronising packages",
         "cache" => "checking cache",
+        "godot" => "resolving managed Godot",
+        "run" | "editor" | "export" => "selecting Godot",
         _ => "working",
     }
 }
@@ -360,6 +372,168 @@ fn discover_selected_godot(
     let configured =
         CURRENT_SETTINGS.with(|settings| settings.borrow().godot_executable().map(PathBuf::from));
     discover_godot_executable_with_configured(explicit, configured.as_deref())
+}
+
+fn managed_store() -> Result<ManagedGodotStore, Box<Diagnostic>> {
+    let configured = CURRENT_SETTINGS.with(|settings| {
+        settings
+            .borrow()
+            .godot_engine_dir()
+            .map(PathBuf::from)
+    });
+    ManagedGodotStore::from_environment(configured.as_deref())
+}
+
+fn current_managed_platform() -> Result<GodotPlatform, Box<Diagnostic>> {
+    GodotPlatform::current().ok_or_else(|| {
+        user_error(
+            "managed Godot is unsupported on this operating-system and architecture combination",
+            "configure an external Godot executable with godot.executable",
+        )
+    })
+}
+
+struct CliEngineProgress;
+
+impl EngineProgressObserver for CliEngineProgress {
+    fn on_progress(&self, event: EngineProgress) {
+        match event {
+            EngineProgress::Phase(phase) => {
+                if json_output_enabled() {
+                    emit_json_progress("godot", phase);
+                } else {
+                    progress::set_phase(phase);
+                }
+            }
+            EngineProgress::Download {
+                artifact,
+                completed,
+                total,
+            } => {
+                if json_output_enabled() {
+                    println!(
+                        "{}",
+                        json!({
+                            "version": PROTOCOL_VERSION,
+                            "event": "progress",
+                            "command": "godot",
+                            "phase": "downloading",
+                            "artifact": artifact,
+                            "completed": completed,
+                            "total": total,
+                        })
+                    );
+                } else {
+                    progress::set_byte_progress(completed, total, "downloading verified Godot");
+                }
+            }
+        }
+    }
+}
+
+fn locked_artifact(artifact: &GodotArtifact) -> Result<LockedGodotArtifact, Box<Diagnostic>> {
+    LockedGodotArtifact::new(
+        artifact.name().to_owned(),
+        artifact.url().to_owned(),
+        artifact.sha512().to_owned(),
+        artifact.bytes(),
+    )
+}
+
+fn locked_toolchain_from_releases(
+    releases: impl IntoIterator<Item = OfficialGodotRelease>,
+) -> Result<LockedGodotToolchain, Box<Diagnostic>> {
+    let mut releases = releases.into_iter();
+    let first = releases.next().ok_or_else(|| {
+        user_error(
+            "official Godot release resolution returned no supported desktop artifacts",
+            "retry later or configure an external Godot executable",
+        )
+    })?;
+    let version = first.version().clone();
+    let flavor = first.flavor();
+    let release = first.tag().to_owned();
+    let templates = locked_artifact(first.templates())?;
+    let mut editors = vec![(first.platform(), locked_artifact(first.editor())?)];
+    for candidate in releases {
+        if candidate.version() != &version
+            || candidate.flavor() != flavor
+            || candidate.tag() != release
+            || candidate.templates().sha512() != templates.sha512()
+        {
+            return Err(boxed(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    "official Godot release metadata disagreed across desktop targets",
+                )
+                .with_recovery("retry later; Wukong did not write an inconsistent lockfile"),
+            ));
+        }
+        editors.push((candidate.platform(), locked_artifact(candidate.editor())?));
+    }
+    LockedGodotToolchain::new(version, flavor, release, editors, templates)
+}
+
+fn official_toolchain_for_manifest(
+    manifest: &Manifest,
+    existing: Option<&Lockfile>,
+    offline: bool,
+    latest: bool,
+) -> Result<LockedGodotToolchain, Box<Diagnostic>> {
+    if offline {
+        let lock = existing.and_then(Lockfile::toolchain).ok_or_else(|| {
+            user_error(
+                "an exact Godot toolchain lock is required while offline",
+                "run wukong lock without --offline before offline use",
+            )
+        })?;
+        if !manifest.project().godot().matches(lock.version())
+            || manifest.toolchain().is_some_and(|pin| {
+                pin.godot() != lock.version() || pin.flavor() != lock.flavor()
+            })
+        {
+            return Err(user_error(
+                "the locked Godot toolchain does not satisfy the current manifest",
+                "run wukong lock without --offline to resolve a compatible stable release",
+            ));
+        }
+        return Ok(lock.clone());
+    }
+    if !latest {
+        if let Some(lock) = existing.and_then(Lockfile::toolchain) {
+            if manifest.project().godot().matches(lock.version())
+                && manifest.toolchain().is_none_or(|pin| {
+                    pin.godot() == lock.version() && pin.flavor() == lock.flavor()
+                })
+            {
+                return Ok(lock.clone());
+            }
+        }
+    }
+    let flavor = manifest
+        .toolchain()
+        .map_or(GodotFlavor::Standard, Toolchain::flavor);
+    let client = OfficialGodotClient::new();
+    let observer = CliEngineProgress;
+    let platforms = [
+        GodotPlatform::MacosUniversal,
+        GodotPlatform::LinuxX86_64,
+        GodotPlatform::LinuxArm64,
+        GodotPlatform::WindowsX86_64,
+    ];
+    let releases = if let Some(pin) = manifest.toolchain() {
+        platforms
+            .iter()
+            .map(|platform| client.exact_release(pin.godot(), flavor, *platform, &observer))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        let primary = client.latest_compatible(manifest.project().godot(), flavor, GodotPlatform::MacosUniversal, &observer)?;
+        platforms
+            .iter()
+            .map(|platform| client.exact_release(primary.version(), flavor, *platform, &observer))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    locked_toolchain_from_releases(releases)
 }
 
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
@@ -595,9 +769,7 @@ fn lock_manifest_state(
     cancellation: &CancellationToken,
 ) -> Result<Lockfile, Box<Diagnostic>> {
     if manifest_uses_catalog(manifest)
-        || existing.is_some_and(|lock| {
-            lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA
-        })
+        || existing.is_some_and(Lockfile::is_catalog_graph)
     {
         let catalog = SourceCatalog::load(catalog_path)?.validate(catalog_path)?;
         lock_catalog_dependencies(
@@ -618,6 +790,12 @@ fn lock_manifest_state(
             cancellation,
         )
     }
+    .map(|lock| {
+        existing
+            .and_then(Lockfile::toolchain)
+            .cloned()
+            .map_or(lock.clone(), |toolchain| lock.with_toolchain(toolchain))
+    })
 }
 
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
@@ -843,7 +1021,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     if options.json {
         emit_json_progress("update", "resolving-dependencies");
     }
-    let updated = if existing.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+    let updated = if existing.is_catalog_graph() {
         let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
         let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
         update_catalog_dependencies(
@@ -867,6 +1045,10 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             &cancellation,
         )?
     };
+    let updated = existing
+        .toolchain()
+        .cloned()
+        .map_or(updated.clone(), |toolchain| updated.with_toolchain(toolchain));
     let compatibility = resolve_project_godot_compatibility(&manifest, None)?;
     let godot_report = validate_locked_package_godot_compatibility(&updated, &compatibility)?;
     let changes = update_changes(&existing, &updated);
@@ -1408,27 +1590,541 @@ fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
     let command = arguments.next().ok_or_else(|| {
         user_error(
             "godot requires a subcommand",
-            "run wukong godot path [--godot-executable <path>] [--verbose]",
+            "run wukong godot <list|inspect|install|pin|update|remove|path>",
         )
     })?;
-    if command != "path" {
-        return Err(user_error(
-            format!("unsupported godot subcommand {}", command.to_string_lossy()),
-            "run wukong godot path",
-        ));
+    match command.to_str() {
+        Some("path") => run_godot_path(arguments),
+        Some("list") => run_godot_list(arguments),
+        Some("inspect") => run_godot_inspect(arguments),
+        Some("install") => run_godot_install(arguments),
+        Some("pin") => run_godot_pin(arguments),
+        Some("update") => run_godot_update(arguments),
+        Some("remove") => run_godot_remove(arguments),
+        Some(command) => Err(user_error(
+            format!("unsupported godot subcommand {command}"),
+            "run wukong godot <list|inspect|install|pin|update|remove|path>",
+        )),
+        None => Err(user_error(
+            "godot subcommand must be valid UTF-8",
+            "run wukong godot <list|inspect|install|pin|update|remove|path>",
+        )),
     }
+}
+
+fn run_godot_path(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_godot_path_arguments(arguments)?;
     let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
         user_error(
             "could not locate a Godot executable",
-            "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+            "set WUKONG_GODOT_EXECUTABLE, configure godot.executable, or pass --godot-executable <path>",
         )
     })?;
     progress::finish_for_output();
-    if options.verbose {
-        println!("selected from {}", executable.source().as_str());
-    }
+    if options.verbose { println!("selected from {}", executable.source().as_str()); }
     println!("{}", executable.path().display());
+    Ok(())
+}
+
+fn run_godot_list(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let mut available = false;
+    let mut json = false;
+    for argument in arguments {
+        if argument == "--available" && !available { available = true; continue; }
+        if argument == "--json" && !json { json = true; continue; }
+        return Err(user_error(
+            format!("unsupported godot list argument {}", argument.to_string_lossy()),
+            "use --available or --json",
+        ));
+    }
+    if available {
+        let version = wukong_core::semantic_version::VersionRequirement::parse(">=0")
+            .map_err(|error| boxed(Diagnostic::new(ErrorCode::InternalFailure, "built-in Godot requirement was invalid").with_cause(error)))?;
+        let client = OfficialGodotClient::new();
+        let observer = CliEngineProgress;
+        let release = client.latest_compatible(&version, GodotFlavor::Standard, current_managed_platform()?, &observer)?;
+        progress::finish_for_output();
+        if json {
+            emit_json_value_result(&json!({"latest": {"version": release.version().to_string(), "flavor": release.flavor().as_str(), "release": release.tag()}}));
+        } else {
+            println!("latest official stable: {} ({})", release.version(), release.flavor());
+        }
+        return Ok(());
+    }
+    let installed = managed_store()?.list()?;
+    progress::finish_for_output();
+    if json {
+        emit_json_value_result(&json!({"installed": installed.iter().map(|engine| json!({
+            "version": engine.version().to_string(), "flavor": engine.flavor().as_str(),
+            "platform": engine.platform().as_str(), "executable": engine.executable(),
+            "templates": engine.templates_installed(),
+        })).collect::<Vec<_>>() }));
+    } else if installed.is_empty() {
+        println!("no Wukong-managed Godot editors installed");
+    } else {
+        for engine in installed {
+            println!("{} {} {} templates={} {}", engine.version(), engine.flavor(), engine.platform(), engine.templates_installed(), engine.executable().display());
+        }
+    }
+    Ok(())
+}
+
+fn run_godot_inspect(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_godot_inspect_arguments(arguments)?;
+    let executable = if let Some(path) = options.executable {
+        discover_selected_godot(Some(&path))?.ok_or_else(|| user_error("could not locate the explicit Godot executable", "provide a usable executable path"))?
+    } else if let Some(version) = options.version {
+        let platform = current_managed_platform()?;
+        let engine = managed_store()?.list()?.into_iter().find(|engine| {
+            engine.version() == &version && engine.flavor() == options.flavor && engine.platform() == platform
+        }).ok_or_else(|| user_error(
+            "the requested managed Godot editor is not installed",
+            format!("run wukong godot install {version} --flavor {}", options.flavor),
+        ))?;
+        GodotExecutable::managed(engine.executable().to_path_buf())
+    } else {
+        discover_selected_godot(None)?.ok_or_else(|| user_error(
+            "could not locate a Godot executable",
+            "set godot.executable, use WUKONG_GODOT_EXECUTABLE, or install a managed editor",
+        ))?
+    };
+    let version = inspect_godot_version(executable.path())?;
+    progress::finish_for_output();
+    if options.json {
+        emit_json_value_result(&json!({"path": executable.path(), "source": executable.source().as_str(), "version": version.to_string()}));
+    } else {
+        println!("{} {} ({})", version, executable.path().display(), executable.source().as_str());
+    }
+    Ok(())
+}
+
+fn run_godot_install(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_godot_install_arguments(arguments)?;
+    let platform = current_managed_platform()?;
+    let observer = CliEngineProgress;
+    let client = OfficialGodotClient::new();
+    let release = client.exact_release(&options.version, options.flavor, platform, &observer)?;
+    let engine = managed_store()?.install(&release, options.templates, &client, options.offline, &observer)?;
+    progress::finish_for_output();
+    if options.json {
+        emit_json_value_result(&json!({"installed": {"version": engine.version().to_string(), "flavor": engine.flavor().as_str(), "platform": engine.platform().as_str(), "path": engine.executable(), "templates": engine.templates_installed()}}));
+    } else {
+        println!("installed Godot {} {} at {}", engine.version(), engine.flavor(), engine.executable().display());
+    }
+    Ok(())
+}
+
+fn run_godot_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_godot_remove_arguments(arguments)?;
+    let removed = managed_store()?.remove(&options.version, options.flavor, current_managed_platform()?)?;
+    progress::finish_for_output();
+    if options.json {
+        emit_json_value_result(&json!({"removed": removed, "version": options.version.to_string(), "flavor": options.flavor.as_str()}));
+    } else if removed {
+        println!("removed Wukong-managed Godot {} {}", options.version, options.flavor);
+    } else {
+        println!("managed Godot {} {} was not installed", options.version, options.flavor);
+    }
+    Ok(())
+}
+
+fn run_godot_pin(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_godot_pin_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| boxed(
+        Diagnostic::new(ErrorCode::InternalFailure, "could not determine current directory")
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+    ))?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let original = FileSnapshot::capture(&manifest_path)?;
+    let input = std::str::from_utf8(original.content().ok_or_else(|| user_error(
+        "wukong.toml is required before pinning Godot",
+        "run wukong init first",
+    ))?).map_err(|error| boxed(Diagnostic::new(ErrorCode::UserInput, "wukong.toml must be UTF-8").with_cause(error)))?;
+    let manifest = Manifest::parse(&manifest_path, input)?;
+    Toolchain::new(options.version.clone(), options.flavor, manifest.project().godot())?;
+    let updated = render_manifest_toolchain_pin(input, &options.version, options.flavor)?;
+    write_atomic(&manifest_path, updated.as_bytes())?;
+    let lock_arguments = [OsString::from("--project"), project.path().as_os_str().to_owned()];
+    if let Err(error) = run_lock(lock_arguments.into_iter()) {
+        original.restore_if_current(Some(updated.as_bytes()))?;
+        return Err(error);
+    }
+    progress::finish_for_output();
+    if options.json {
+        emit_json_value_result(&json!({"pinned": {"version": options.version.to_string(), "flavor": options.flavor.as_str()}}));
+    } else {
+        println!("pinned Godot {} {}", options.version, options.flavor);
+    }
+    Ok(())
+}
+
+fn run_godot_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let options = parse_godot_update_arguments(arguments)?;
+    let current_directory = env::current_dir().map_err(|error| boxed(
+        Diagnostic::new(ErrorCode::InternalFailure, "could not determine current directory")
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+    ))?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let manifest = read_manifest(&project.path().join(MANIFEST_FILE_NAME))?;
+    if manifest.toolchain().is_some() {
+        return Err(user_error(
+            "a manifest toolchain pin prevents automatic Godot updates",
+            "choose a new version with wukong godot pin <version> --flavor <standard|dotnet>",
+        ));
+    }
+    let lock_arguments = [OsString::from("--project"), project.path().as_os_str().to_owned()];
+    run_lock(lock_arguments.into_iter())?;
+    let lock = read_lockfile(&project.path().join(LOCKFILE_FILE_NAME))?.and_then(|lock| lock.toolchain().cloned()).ok_or_else(|| user_error(
+        "locking did not produce a managed Godot toolchain",
+        "rerun wukong lock and report this as a Wukong bug if it persists",
+    ))?;
+    let release = release_from_locked_toolchain(&lock, current_managed_platform()?)?;
+    let observer = CliEngineProgress;
+    let client = OfficialGodotClient::new();
+    let engine = managed_store()?.install(&release, false, &client, false, &observer)?;
+    progress::finish_for_output();
+    if options.json {
+        emit_json_value_result(&json!({"updated": {"version": engine.version().to_string(), "flavor": engine.flavor().as_str(), "path": engine.executable()}}));
+    } else {
+        println!("updated managed Godot to {} {}", engine.version(), engine.flavor());
+    }
+    Ok(())
+}
+
+struct GodotInspectOptions {
+    executable: Option<PathBuf>,
+    version: Option<SemanticVersion>,
+    flavor: GodotFlavor,
+    json: bool,
+}
+
+struct GodotInstallOptions {
+    version: SemanticVersion,
+    flavor: GodotFlavor,
+    templates: bool,
+    offline: bool,
+    json: bool,
+}
+
+struct GodotRemoveOptions {
+    version: SemanticVersion,
+    flavor: GodotFlavor,
+    json: bool,
+}
+
+struct GodotPinOptions {
+    version: SemanticVersion,
+    flavor: GodotFlavor,
+    project: Option<PathBuf>,
+    json: bool,
+}
+
+struct GodotUpdateOptions {
+    project: Option<PathBuf>,
+    json: bool,
+}
+
+fn parse_exact_godot_version(value: String, argument: &str) -> Result<SemanticVersion, Box<Diagnostic>> {
+    let version = SemanticVersion::parse(&value).map_err(|error| user_error(
+        format!("{argument} must be an exact stable semantic version: {error}"),
+        "use a version such as 4.4.1",
+    ))?;
+    if version.is_prerelease() || !version.as_semver().build.is_empty() {
+        return Err(user_error(
+            format!("{argument} must be an exact stable semantic version"),
+            "use a version such as 4.4.1 without prerelease or build metadata",
+        ));
+    }
+    Ok(version)
+}
+
+fn parse_flavor(value: String, argument: &str) -> Result<GodotFlavor, Box<Diagnostic>> {
+    value.parse::<GodotFlavor>().map_err(|error| user_error(
+        format!("{argument} {error}"),
+        "use standard or dotnet",
+    ))
+}
+
+fn parse_godot_inspect_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotInspectOptions, Box<Diagnostic>> {
+    let mut options = GodotInspectOptions { executable: None, version: None, flavor: GodotFlavor::Standard, json: false };
+    let mut flavor_set = false;
+    while let Some(argument) = arguments.next() {
+        if argument == "--godot-executable" {
+            if options.executable.replace(PathBuf::from(required_add_value(&mut arguments, "--godot-executable")?)).is_some() {
+                return Err(user_error("--godot-executable may be supplied only once", "provide one executable path"));
+            }
+        } else if argument == "--godot" {
+            let version = parse_exact_godot_version(required_add_value(&mut arguments, "--godot")?, "--godot")?;
+            if options.version.replace(version).is_some() { return Err(user_error("--godot may be supplied only once", "provide one version")); }
+        } else if argument == "--flavor" {
+            if flavor_set { return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once")); }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+        } else if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) { return Err(user_error("--json may be supplied only once", "omit the duplicate flag")); }
+        } else {
+            return Err(user_error(format!("unsupported godot inspect argument {}", argument.to_string_lossy()), "use --godot-executable <path>, --godot <x.y.z> [--flavor standard|dotnet], or --json"));
+        }
+    }
+    if options.executable.is_some() && options.version.is_some() {
+        return Err(user_error("--godot-executable and --godot are mutually exclusive", "inspect one explicit or managed editor"));
+    }
+    Ok(options)
+}
+
+fn parse_godot_install_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotInstallOptions, Box<Diagnostic>> {
+    let version = parse_exact_godot_version(required_add_value(&mut arguments, "godot install")?, "godot install")?;
+    let mut options = GodotInstallOptions { version, flavor: GodotFlavor::Standard, templates: false, offline: false, json: false };
+    let mut flavor_set = false;
+    while let Some(argument) = arguments.next() {
+        if argument == "--flavor" {
+            if flavor_set { return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once")); }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+        } else if argument == "--templates" {
+            if std::mem::replace(&mut options.templates, true) { return Err(user_error("--templates may be supplied only once", "omit the duplicate flag")); }
+        } else if argument == "--offline" {
+            if std::mem::replace(&mut options.offline, true) { return Err(user_error("--offline may be supplied only once", "omit the duplicate flag")); }
+        } else if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) { return Err(user_error("--json may be supplied only once", "omit the duplicate flag")); }
+        } else {
+            return Err(user_error(format!("unsupported godot install argument {}", argument.to_string_lossy()), "use <x.y.z> [--flavor standard|dotnet] [--templates] [--offline] [--json]"));
+        }
+    }
+    Ok(options)
+}
+
+fn parse_godot_remove_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotRemoveOptions, Box<Diagnostic>> {
+    let version = parse_exact_godot_version(required_add_value(&mut arguments, "godot remove")?, "godot remove")?;
+    let mut options = GodotRemoveOptions { version, flavor: GodotFlavor::Standard, json: false };
+    let mut flavor_set = false;
+    while let Some(argument) = arguments.next() {
+        if argument == "--flavor" {
+            if flavor_set { return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once")); }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+        } else if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) { return Err(user_error("--json may be supplied only once", "omit the duplicate flag")); }
+        } else {
+            return Err(user_error(format!("unsupported godot remove argument {}", argument.to_string_lossy()), "use <x.y.z> [--flavor standard|dotnet] [--json]"));
+        }
+    }
+    Ok(options)
+}
+
+fn parse_godot_pin_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotPinOptions, Box<Diagnostic>> {
+    let version = parse_exact_godot_version(required_add_value(&mut arguments, "godot pin")?, "godot pin")?;
+    let mut options = GodotPinOptions { version, flavor: GodotFlavor::Standard, project: None, json: false };
+    let mut flavor_set = false;
+    while let Some(argument) = arguments.next() {
+        if argument == "--flavor" {
+            if flavor_set { return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once")); }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+        } else if argument == "--project" {
+            if options.project.replace(PathBuf::from(required_add_value(&mut arguments, "--project")?)).is_some() { return Err(user_error("--project may be supplied only once", "provide one project path")); }
+        } else if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) { return Err(user_error("--json may be supplied only once", "omit the duplicate flag")); }
+        } else {
+            return Err(user_error(format!("unsupported godot pin argument {}", argument.to_string_lossy()), "use <x.y.z> [--flavor standard|dotnet] [--project <path>] [--json]"));
+        }
+    }
+    Ok(options)
+}
+
+fn parse_godot_update_arguments(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<GodotUpdateOptions, Box<Diagnostic>> {
+    let mut options = GodotUpdateOptions { project: None, json: false };
+    while let Some(argument) = arguments.next() {
+        if argument == "--project" {
+            if options.project.replace(PathBuf::from(required_add_value(&mut arguments, "--project")?)).is_some() { return Err(user_error("--project may be supplied only once", "provide one project path")); }
+        } else if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) { return Err(user_error("--json may be supplied only once", "omit the duplicate flag")); }
+        } else {
+            return Err(user_error(format!("unsupported godot update argument {}", argument.to_string_lossy()), "use [--project <path>] [--json]"));
+        }
+    }
+    Ok(options)
+}
+
+fn render_manifest_toolchain_pin(
+    input: &str,
+    version: &SemanticVersion,
+    flavor: GodotFlavor,
+) -> Result<String, Box<Diagnostic>> {
+    let mut document = input.parse::<toml_edit::DocumentMut>().map_err(|error| boxed(
+        Diagnostic::new(ErrorCode::UserInput, "invalid wukong.toml syntax")
+            .with_cause(error)
+            .with_recovery("fix the TOML syntax and retry"),
+    ))?;
+    document["toolchain"]["godot"] = toml_edit::value(version.to_string());
+    document["toolchain"]["flavor"] = toml_edit::value(flavor.as_str());
+    Ok(document.to_string())
+}
+
+fn release_from_locked_toolchain(
+    toolchain: &LockedGodotToolchain,
+    platform: GodotPlatform,
+) -> Result<OfficialGodotRelease, Box<Diagnostic>> {
+    let editor = toolchain.editors().get(&platform).ok_or_else(|| user_error(
+        format!("wukong.lock does not contain a managed Godot editor for {platform}"),
+        "rerun wukong lock on a supported network connection",
+    ))?;
+    let editor = GodotArtifact::from_locked(editor.name().to_owned(), editor.url().to_owned(), editor.sha512().to_owned(), editor.bytes())?;
+    let templates = toolchain.templates();
+    let templates = GodotArtifact::from_locked(templates.name().to_owned(), templates.url().to_owned(), templates.sha512().to_owned(), templates.bytes())?;
+    OfficialGodotRelease::from_locked(
+        toolchain.version().clone(), toolchain.flavor(), platform,
+        toolchain.release().to_owned(), editor, templates,
+    )
+}
+
+fn project_manifest_and_lock(
+    project: &ProjectRoot,
+) -> Result<(Option<Manifest>, Option<Lockfile>), Box<Diagnostic>> {
+    let manifest_path = project.path().join(MANIFEST_FILE_NAME);
+    let manifest = match fs::read_to_string(&manifest_path) {
+        Ok(input) => Some(Manifest::parse(&manifest_path, &input)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(boxed(
+            Diagnostic::new(ErrorCode::UserInput, format!("could not read manifest {}", manifest_path.display()))
+                .with_cause(error)
+                .with_recovery("check the manifest permissions and retry"),
+        )),
+    };
+    let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    let lock = read_lockfile(&lock_path)?;
+    Ok((manifest, lock))
+}
+
+fn configured_downloads_are_automatic() -> bool {
+    CURRENT_SETTINGS.with(|settings| settings.borrow().godot_downloads() == GodotDownloads::Automatic)
+}
+
+fn select_project_godot(
+    project: &ProjectRoot,
+    explicit_executable: Option<&Path>,
+    explicit_version: Option<&SemanticVersion>,
+    explicit_flavor: GodotFlavor,
+    allow_toolchain_override: bool,
+    templates: bool,
+) -> Result<GodotExecutable, Box<Diagnostic>> {
+    let (manifest, lock) = project_manifest_and_lock(project)?;
+    let locked = lock.as_ref().and_then(Lockfile::toolchain);
+    let environment_selected = env::var_os(wukong_core::godot_executable::GODOT_EXECUTABLE_ENV).is_some();
+    if explicit_executable.is_some() || environment_selected {
+        let executable = discover_selected_godot(explicit_executable)?.ok_or_else(|| user_error(
+            "could not locate the selected Godot executable",
+            "provide a usable --godot-executable path",
+        ))?;
+        validate_external_project_godot(&executable, manifest.as_ref(), locked, allow_toolchain_override)?;
+        return Ok(executable);
+    }
+    if let Some(version) = explicit_version {
+        if let Some(locked) = locked {
+            if (locked.version() != version || locked.flavor() != explicit_flavor)
+                && !allow_toolchain_override
+            {
+                return Err(user_error(
+                    "the explicit managed Godot selection differs from wukong.lock",
+                    "pass --allow-toolchain-override to make the intentional non-reproducible override",
+                ));
+            }
+        }
+        let platform = current_managed_platform()?;
+        let store = managed_store()?;
+        if let Some(engine) = store.list()?.into_iter().find(|engine| {
+            engine.version() == version && engine.flavor() == explicit_flavor && engine.platform() == platform
+        }) {
+            return Ok(GodotExecutable::managed(engine.executable().to_path_buf()));
+        }
+        if !configured_downloads_are_automatic() {
+            return Err(user_error(
+                "the explicit managed Godot editor is not installed and downloads are manual",
+                format!("run wukong godot install {version} --flavor {explicit_flavor}"),
+            ));
+        }
+        let client = OfficialGodotClient::new();
+        let observer = CliEngineProgress;
+        let release = client.exact_release(version, explicit_flavor, platform, &observer)?;
+        let engine = store.install(&release, templates, &client, false, &observer)?;
+        return Ok(GodotExecutable::managed(engine.executable().to_path_buf()));
+    }
+    if let Some(locked) = locked {
+        let platform = current_managed_platform()?;
+        let release = release_from_locked_toolchain(locked, platform)?;
+        let store = managed_store()?;
+        if let Some(engine) = store.list()?.into_iter().find(|engine| {
+            engine.version() == locked.version() && engine.flavor() == locked.flavor() && engine.platform() == platform
+        }) {
+            if templates && !engine.templates_installed() {
+                if !configured_downloads_are_automatic() {
+                    return Err(user_error(
+                        "matching managed Godot export templates are not installed and downloads are manual",
+                        format!("run wukong godot install {} --flavor {} --templates", locked.version(), locked.flavor()),
+                    ));
+                }
+                let client = OfficialGodotClient::new();
+                let observer = CliEngineProgress;
+                let engine = store.install_templates(&release, &client, false, &observer)?;
+                return Ok(GodotExecutable::managed(engine.executable().to_path_buf()));
+            }
+            return Ok(GodotExecutable::managed(engine.executable().to_path_buf()));
+        }
+        if !configured_downloads_are_automatic() {
+            return Err(user_error(
+                "the locked managed Godot editor is not installed and downloads are manual",
+                format!("run wukong godot install {} --flavor {}", locked.version(), locked.flavor()),
+            ));
+        }
+        let client = OfficialGodotClient::new();
+        let observer = CliEngineProgress;
+        let engine = store.install(&release, templates, &client, false, &observer)?;
+        return Ok(GodotExecutable::managed(engine.executable().to_path_buf()));
+    }
+    let executable = discover_selected_godot(None)?.ok_or_else(|| user_error(
+        "could not locate a Godot executable",
+        "install a managed editor, set godot.executable, set WUKONG_GODOT_EXECUTABLE, or pass --godot-executable",
+    ))?;
+    validate_external_project_godot(&executable, manifest.as_ref(), None, false)?;
+    Ok(executable)
+}
+
+fn validate_external_project_godot(
+    executable: &GodotExecutable,
+    manifest: Option<&Manifest>,
+    locked: Option<&LockedGodotToolchain>,
+    allow_toolchain_override: bool,
+) -> Result<(), Box<Diagnostic>> {
+    let version = inspect_godot_version(executable.path())?;
+    if let Some(manifest) = manifest {
+        if !manifest.project().godot().matches(&version) {
+            return Err(user_error(
+                format!("selected Godot {version} does not satisfy project.godot {}", manifest.project().godot()),
+                "select a compatible Godot editor or update project.godot intentionally",
+            ));
+        }
+    }
+    if let Some(locked) = locked {
+        if &version != locked.version() && !allow_toolchain_override {
+            return Err(user_error(
+                format!("selected external Godot {version} differs from locked {}", locked.version()),
+                "pass --allow-toolchain-override to make the intentional non-reproducible override",
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -1450,10 +2146,14 @@ fn run_settings(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box
                 "godot.executable" => settings
                     .godot_executable()
                     .map_or_else(|| "unset".to_owned(), |path| path.display().to_string()),
+                "godot.downloads" => settings.godot_downloads().as_str().to_owned(),
+                "godot.engine-dir" => settings
+                    .godot_engine_dir()
+                    .map_or_else(|| "unset".to_owned(), |path| path.display().to_string()),
                 _ => {
                     return Err(user_error(
                         format!("unsupported setting {key}"),
-                        "use progress.spinner, progress.bar, or godot.executable",
+                        "use progress.spinner, progress.bar, godot.executable, godot.downloads, or godot.engine-dir",
                     ));
                 }
             };
@@ -1558,6 +2258,9 @@ impl ProjectAction {
 struct ProjectActionOptions {
     project: Option<PathBuf>,
     executable: Option<PathBuf>,
+    godot_version: Option<SemanticVersion>,
+    flavor: GodotFlavor,
+    allow_toolchain_override: bool,
     scene: Option<OsString>,
     headless: bool,
     preset: Option<OsString>,
@@ -1584,12 +2287,15 @@ fn run_project_action(
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
-    let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
-        user_error(
-            "could not locate a Godot executable",
-            "set godot.executable with wukong settings, set WUKONG_GODOT_EXECUTABLE, or pass --godot-executable <path>",
-        )
-    })?;
+    let executable = select_project_godot(
+        &project,
+        options.executable.as_deref(),
+        options.godot_version.as_ref(),
+        options.flavor,
+        options.allow_toolchain_override,
+        matches!(action, ProjectAction::Export),
+    )?;
+    progress::finish_for_output();
     let mut command = Command::new(executable.path());
     command
         .current_dir(project.path())
@@ -1696,6 +2402,9 @@ fn parse_project_action_arguments(
     let mut options = ProjectActionOptions {
         project: None,
         executable: None,
+        godot_version: None,
+        flavor: GodotFlavor::Standard,
+        allow_toolchain_override: false,
         scene: None,
         headless: false,
         preset: None,
@@ -1704,6 +2413,7 @@ fn parse_project_action_arguments(
         release: false,
         passthrough: Vec::new(),
     };
+    let mut flavor_set = false;
     let mut arguments = arguments.peekable();
     while let Some(argument) = arguments.next() {
         if argument == "--" {
@@ -1727,6 +2437,27 @@ fn parse_project_action_arguments(
                     "--godot-executable may be supplied only once",
                     "provide one executable path",
                 ));
+            }
+            continue;
+        }
+        if argument == "--godot" {
+            let version = parse_exact_godot_version(required_add_value(&mut arguments, "--godot")?, "--godot")?;
+            if options.godot_version.replace(version).is_some() {
+                return Err(user_error("--godot may be supplied only once", "provide one exact stable Godot version"));
+            }
+            continue;
+        }
+        if argument == "--flavor" {
+            if flavor_set {
+                return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once"));
+            }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+            continue;
+        }
+        if argument == "--allow-toolchain-override" {
+            if std::mem::replace(&mut options.allow_toolchain_override, true) {
+                return Err(user_error("--allow-toolchain-override may be supplied only once", "omit the duplicate flag"));
             }
             continue;
         }
@@ -1850,13 +2581,13 @@ fn parse_project_action_arguments(
 fn project_action_recovery(action: ProjectAction) -> &'static str {
     match action {
         ProjectAction::Run => {
-            "use --project <path>, --godot-executable <path>, --scene <path>, --headless, or -- <Godot args>"
+            "use --project <path>, --godot-executable <path>, --godot <x.y.z>, --flavor <standard|dotnet>, --allow-toolchain-override, --scene <path>, --headless, or -- <Godot args>"
         }
         ProjectAction::Editor => {
-            "use --project <path>, --godot-executable <path>, or -- <Godot args>"
+            "use --project <path>, --godot-executable <path>, --godot <x.y.z>, --flavor <standard|dotnet>, --allow-toolchain-override, or -- <Godot args>"
         }
         ProjectAction::Export => {
-            "use --preset <name> --output <path> [--debug|--release] [--project <path>] [--godot-executable <path>] or -- <Godot args>"
+            "use --preset <name> --output <path> [--debug|--release] [--project <path>] [--godot-executable <path>] [--godot <x.y.z>] [--flavor <standard|dotnet>] [--allow-toolchain-override] or -- <Godot args>"
         }
     }
 }
@@ -1877,12 +2608,14 @@ fn run_validate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
-    let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
-        user_error(
-            "could not locate a Godot executable",
-            "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
-        )
-    })?;
+    let executable = select_project_godot(
+        &project,
+        options.executable.as_deref(),
+        options.godot_version.as_ref(),
+        options.flavor,
+        options.allow_toolchain_override,
+        false,
+    )?;
     let report = run_headless_project_check(&executable, project.path(), options.timeout)?;
     progress::finish_for_output();
     if options.verbose {
@@ -1939,6 +2672,9 @@ fn validation_output_cause(output: &str) -> &str {
 struct ValidateOptions {
     project: Option<PathBuf>,
     executable: Option<PathBuf>,
+    godot_version: Option<SemanticVersion>,
+    flavor: GodotFlavor,
+    allow_toolchain_override: bool,
     timeout: Duration,
     verbose: bool,
 }
@@ -1949,10 +2685,14 @@ fn parse_validate_arguments(
     let mut options = ValidateOptions {
         project: None,
         executable: None,
+        godot_version: None,
+        flavor: GodotFlavor::Standard,
+        allow_toolchain_override: false,
         timeout: DEFAULT_GODOT_VALIDATION_TIMEOUT,
         verbose: false,
     };
     let mut timeout_set = false;
+    let mut flavor_set = false;
     while let Some(argument) = arguments.next() {
         if argument == "--project" {
             let project = PathBuf::from(required_add_value(&mut arguments, "--project")?);
@@ -1972,6 +2712,25 @@ fn parse_validate_arguments(
                     "--godot-executable may be supplied only once",
                     "provide one executable path",
                 ));
+            }
+            continue;
+        }
+        if argument == "--godot" {
+            let version = parse_exact_godot_version(required_add_value(&mut arguments, "--godot")?, "--godot")?;
+            if options.godot_version.replace(version).is_some() {
+                return Err(user_error("--godot may be supplied only once", "provide one exact stable Godot version"));
+            }
+            continue;
+        }
+        if argument == "--flavor" {
+            if flavor_set { return Err(user_error("--flavor may be supplied only once", "provide standard or dotnet once")); }
+            options.flavor = parse_flavor(required_add_value(&mut arguments, "--flavor")?, "--flavor")?;
+            flavor_set = true;
+            continue;
+        }
+        if argument == "--allow-toolchain-override" {
+            if std::mem::replace(&mut options.allow_toolchain_override, true) {
+                return Err(user_error("--allow-toolchain-override may be supplied only once", "omit the duplicate flag"));
             }
             continue;
         }
@@ -2014,7 +2773,7 @@ fn parse_validate_arguments(
                 "unsupported validate argument {}",
                 argument.to_string_lossy()
             ),
-            "use --project <path>, --godot-executable <path>, --timeout-seconds <1-600>, or --verbose",
+            "use --project <path>, --godot-executable <path>, --godot <x.y.z>, --flavor <standard|dotnet>, --allow-toolchain-override, --timeout-seconds <1-600>, or --verbose",
         ));
     }
     Ok(options)
@@ -4031,6 +4790,10 @@ fn emit_json_result(result: &str) {
     println!("{{\"protocol\":{PROTOCOL_VERSION},\"type\":\"result\",\"result\":{result}}}");
 }
 
+fn emit_json_value_result(result: &serde_json::Value) {
+    emit_json_result(&result.to_string());
+}
+
 fn json_string(value: &str) -> String {
     let mut output = String::from('"');
     for character in value.chars() {
@@ -4247,6 +5010,7 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     if options.json {
         emit_json_progress("lock", "resolving-dependencies");
     }
+    let toolchain = official_toolchain_for_manifest(&manifest, existing.as_ref(), options.offline, true)?;
     let locked = if manifest_uses_catalog(&manifest) {
         let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
         let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
@@ -4267,7 +5031,8 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             options.offline,
             &cancellation,
         )?
-    };
+    }
+    .with_toolchain(toolchain);
     let godot_report = validate_locked_package_godot_compatibility(&locked, &compatibility)?;
     let output = locked.to_toml();
     if options.locked
@@ -4342,7 +5107,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             "run wukong lock to resolve the current manifest",
         )
     })?;
-    if lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+    if lock.is_catalog_graph() {
         validate_catalog_lock_manifest(&manifest, &lock)?;
     }
     if matches!(options.output, OutputFormat::Json) {
@@ -4352,9 +5117,9 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     let cache = CacheLayout::from_environment()?;
     if options.locked
         && (!options.frozen
-            || lock.schema() != wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA)
+            || !lock.is_catalog_graph())
     {
-        let expected = if lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        let expected = if lock.is_catalog_graph() {
             let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
             let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
             lock_catalog_dependencies(
@@ -4375,6 +5140,10 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
                 &cancellation,
             )?
         };
+        let expected = lock
+            .toolchain()
+            .cloned()
+            .map_or(expected.clone(), |toolchain| expected.with_toolchain(toolchain));
         if expected.to_toml() != lock.to_toml() {
             return Err(user_error(
                 "manifest and lockfile differ while --locked was supplied",
@@ -4931,7 +5700,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--progress-spinner <preset>] [--progress-bar <theme>] [--no-progress] [--version] <init|package <init|validate>|add|remove|update|migrate|outdated|audit|godot path|run|editor|export|settings <get|set|reset|list-spinners|list-bars|path>|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--progress-spinner <preset>] [--progress-bar <theme>] [--no-progress] [--version] <init|package <init|validate>|add|remove|update|migrate|outdated|audit|godot <list|inspect|install|pin|update|remove|path>|run|editor|export|settings <get|set|reset|list-spinners|list-bars|path>|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 

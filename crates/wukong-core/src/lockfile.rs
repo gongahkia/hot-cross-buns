@@ -1,4 +1,4 @@
-//! Deterministic schema-one, schema-two, and catalog-graph schema-three lockfiles.
+//! Deterministic package lockfiles with schema-four managed Godot toolchains.
 
 use crate::{
     diagnostic::{Diagnostic, ErrorCode},
@@ -6,6 +6,7 @@ use crate::{
     http_archive::canonicalize_archive_url,
     identity::PackageName,
     manifest::GitReference,
+    managed_godot::{GodotFlavor, GodotPlatform},
     semantic_version::{SemanticVersion, VersionRequirement},
     source::ImmutableSourceId,
 };
@@ -23,6 +24,135 @@ pub const LOCKFILE_SCHEMA: i64 = 2;
 const LEGACY_LOCKFILE_SCHEMA: i64 = 1;
 /// The schema written for validated catalog-selected dependency graphs.
 pub const CATALOG_GRAPH_LOCKFILE_SCHEMA: i64 = 3;
+/// The schema written when a lockfile records an exact managed Godot toolchain.
+pub const TOOLCHAIN_LOCKFILE_SCHEMA: i64 = 4;
+
+/// One immutable official Godot release artifact recorded in a project lock.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LockedGodotArtifact {
+    name: String,
+    url: String,
+    sha512: String,
+    bytes: u64,
+}
+
+impl LockedGodotArtifact {
+    /// Creates a validated official Godot artifact record.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic when the artifact is not a safe official HTTPS
+    /// download, does not have a SHA-512 checksum, or has no byte size.
+    pub fn new(
+        name: String,
+        url: String,
+        sha512: String,
+        bytes: u64,
+    ) -> Result<Self, Box<Diagnostic>> {
+        validate_locked_godot_artifact(&name, &url, &sha512, bytes)?;
+        Ok(Self {
+            name,
+            url,
+            sha512,
+            bytes,
+        })
+    }
+
+    /// Returns the official release asset name.
+    #[must_use]
+    pub fn name(&self) -> &str { &self.name }
+
+    /// Returns the official HTTPS source URL.
+    #[must_use]
+    pub fn url(&self) -> &str { &self.url }
+
+    /// Returns the expected SHA-512 checksum.
+    #[must_use]
+    pub fn sha512(&self) -> &str { &self.sha512 }
+
+    /// Returns the exact release-declared byte size.
+    #[must_use]
+    pub const fn bytes(&self) -> u64 { self.bytes }
+}
+
+/// An exact official Godot toolchain selected for a project lockfile.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LockedGodotToolchain {
+    version: SemanticVersion,
+    flavor: GodotFlavor,
+    release: String,
+    editors: BTreeMap<GodotPlatform, LockedGodotArtifact>,
+    templates: LockedGodotArtifact,
+}
+
+impl LockedGodotToolchain {
+    /// Creates a complete toolchain selection with deterministically ordered targets.
+    ///
+    /// # Errors
+    ///
+    /// Returns a diagnostic for an incomplete version, mismatched release tag,
+    /// absent editor target, or invalid artifact identity.
+    pub fn new(
+        version: SemanticVersion,
+        flavor: GodotFlavor,
+        release: String,
+        editors: impl IntoIterator<Item = (GodotPlatform, LockedGodotArtifact)>,
+        templates: LockedGodotArtifact,
+    ) -> Result<Self, Box<Diagnostic>> {
+        if version.is_prerelease() || !version.as_semver().build.is_empty() {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "toolchain.version must be one exact stable semantic version",
+                "use a version such as 4.4.1",
+            ));
+        }
+        if release != format!("{version}-stable") {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "toolchain.release must match toolchain.version",
+                "use the official x.y.z-stable release tag",
+            ));
+        }
+        let mut ordered = BTreeMap::new();
+        for (platform, artifact) in editors {
+            if ordered.insert(platform, artifact).is_some() {
+                return Err(user(
+                    Path::new(LOCKFILE_FILE_NAME),
+                    "toolchain.editor contains a duplicate platform",
+                    "retain one official editor artifact per platform",
+                ));
+            }
+        }
+        if ordered.is_empty() {
+            return Err(user(
+                Path::new(LOCKFILE_FILE_NAME),
+                "toolchain.editor must include at least one platform",
+                "lock one supported official desktop editor artifact",
+            ));
+        }
+        Ok(Self { version, flavor, release, editors: ordered, templates })
+    }
+
+    /// Returns the exact stable version.
+    #[must_use]
+    pub const fn version(&self) -> &SemanticVersion { &self.version }
+
+    /// Returns the selected editor family.
+    #[must_use]
+    pub const fn flavor(&self) -> GodotFlavor { self.flavor }
+
+    /// Returns the official release tag.
+    #[must_use]
+    pub fn release(&self) -> &str { &self.release }
+
+    /// Returns editor artifacts in canonical target order.
+    #[must_use]
+    pub fn editors(&self) -> &BTreeMap<GodotPlatform, LockedGodotArtifact> { &self.editors }
+
+    /// Returns the matching export-template artifact.
+    #[must_use]
+    pub const fn templates(&self) -> &LockedGodotArtifact { &self.templates }
+}
 
 /// Canonical direct roots for a schema-three catalog graph.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -386,6 +516,7 @@ pub struct Lockfile {
     schema: i64,
     packages: BTreeMap<PackageName, LockedPackage>,
     catalog_roots: Option<CatalogGraphRoots>,
+    toolchain: Option<LockedGodotToolchain>,
     extensions: BTreeMap<String, String>,
 }
 impl Lockfile {
@@ -400,6 +531,7 @@ impl Lockfile {
             schema: LOCKFILE_SCHEMA,
             packages: entries,
             catalog_roots: None,
+            toolchain: None,
             extensions: BTreeMap::new(),
         })
     }
@@ -419,8 +551,18 @@ impl Lockfile {
             schema: CATALOG_GRAPH_LOCKFILE_SCHEMA,
             packages,
             catalog_roots: Some(roots),
+            toolchain: None,
             extensions: BTreeMap::new(),
         })
+    }
+
+    /// Upgrades a newly resolved package lock to schema four with an exact
+    /// managed Godot toolchain. Existing package graph state is preserved.
+    #[must_use]
+    pub fn with_toolchain(mut self, toolchain: LockedGodotToolchain) -> Self {
+        self.schema = TOOLCHAIN_LOCKFILE_SCHEMA;
+        self.toolchain = Some(toolchain);
+        self
     }
     /// Parses a supported lockfile schema.
     ///
@@ -433,7 +575,10 @@ impl Lockfile {
         let schema = integer(root, "schema", path, "root")?;
         if !matches!(
             schema,
-            LEGACY_LOCKFILE_SCHEMA | LOCKFILE_SCHEMA | CATALOG_GRAPH_LOCKFILE_SCHEMA
+            LEGACY_LOCKFILE_SCHEMA
+                | LOCKFILE_SCHEMA
+                | CATALOG_GRAPH_LOCKFILE_SCHEMA
+                | TOOLCHAIN_LOCKFILE_SCHEMA
         ) {
             return Err(user(
                 path,
@@ -442,6 +587,18 @@ impl Lockfile {
             ));
         }
         let extensions = extensions(root, &root_fields(schema), path, "root")?;
+        let graph_mode = match schema {
+            CATALOG_GRAPH_LOCKFILE_SCHEMA => true,
+            TOOLCHAIN_LOCKFILE_SCHEMA => parse_toolchain_mode(root, path)?,
+            _ => false,
+        };
+        let package_schema = if graph_mode {
+            CATALOG_GRAPH_LOCKFILE_SCHEMA
+        } else if schema == LEGACY_LOCKFILE_SCHEMA {
+            LEGACY_LOCKFILE_SCHEMA
+        } else {
+            LOCKFILE_SCHEMA
+        };
         let packages = root
             .get("package")
             .map(|item| {
@@ -457,12 +614,12 @@ impl Lockfile {
             .map(|tables| {
                 tables
                     .iter()
-                    .map(|table| parse_package(table, path, schema))
+                    .map(|table| parse_package(table, path, package_schema))
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?
             .unwrap_or_default();
-        let catalog_roots = if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        let catalog_roots = if graph_mode {
             Some(parse_catalog_roots(
                 table(root, "roots", path, "root")?,
                 path,
@@ -470,13 +627,19 @@ impl Lockfile {
         } else {
             None
         };
+        let toolchain = if schema == TOOLCHAIN_LOCKFILE_SCHEMA {
+            Some(parse_toolchain(table(root, "toolchain", path, "root")?, path)?)
+        } else {
+            None
+        };
         let lock = Self {
             schema,
             packages: package_entries(packages)?,
             catalog_roots,
+            toolchain,
             extensions,
         };
-        if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        if graph_mode {
             let roots = lock.catalog_roots.as_ref().ok_or_else(|| {
                 user(
                     path,
@@ -504,12 +667,49 @@ impl Lockfile {
     pub const fn catalog_graph_roots(&self) -> Option<&CatalogGraphRoots> {
         self.catalog_roots.as_ref()
     }
+
+    /// Returns whether this lock records a complete catalog dependency graph.
+    #[must_use]
+    pub const fn is_catalog_graph(&self) -> bool {
+        self.catalog_roots.is_some()
+    }
+
+    /// Returns the exact managed Godot toolchain when schema four recorded one.
+    #[must_use]
+    pub const fn toolchain(&self) -> Option<&LockedGodotToolchain> {
+        self.toolchain.as_ref()
+    }
     /// Serializes canonical TOML for the lockfile's schema.
     #[must_use]
     pub fn to_toml(&self) -> String {
         let mut out = format!("schema = {}\n", self.schema);
+        if self.schema == TOOLCHAIN_LOCKFILE_SCHEMA {
+            line(
+                &mut out,
+                "mode",
+                if self.catalog_roots.is_some() { "catalog" } else { "direct" },
+            );
+        }
         for (key, value) in &self.extensions {
             line(&mut out, key, value);
+        }
+        if let Some(toolchain) = &self.toolchain {
+            out.push_str("\n[toolchain]\n");
+            line(&mut out, "version", toolchain.version.to_string());
+            line(&mut out, "flavor", toolchain.flavor.as_str());
+            line(&mut out, "release", &toolchain.release);
+            line(&mut out, "templates_name", toolchain.templates.name());
+            line(&mut out, "templates_url", toolchain.templates.url());
+            line(&mut out, "templates_sha512", toolchain.templates.sha512());
+            integer_line(&mut out, "templates_bytes", toolchain.templates.bytes());
+            for (platform, artifact) in &toolchain.editors {
+                out.push_str("\n[[toolchain.editor]]\n");
+                line(&mut out, "platform", platform.as_str());
+                line(&mut out, "name", artifact.name());
+                line(&mut out, "url", artifact.url());
+                line(&mut out, "sha512", artifact.sha512());
+                integer_line(&mut out, "bytes", artifact.bytes());
+            }
         }
         if let Some(roots) = &self.catalog_roots {
             out.push_str("\n[roots]\n");
@@ -886,7 +1086,80 @@ fn root_fields(schema: i64) -> Vec<&'static str> {
     if schema == CATALOG_GRAPH_LOCKFILE_SCHEMA {
         fields.push("roots");
     }
+    if schema == TOOLCHAIN_LOCKFILE_SCHEMA {
+        fields.extend(["mode", "toolchain", "roots"]);
+    }
     fields
+}
+
+fn parse_toolchain_mode(root: &dyn TableLike, path: &Path) -> Result<bool, Box<Diagnostic>> {
+    match string(root, "mode", path, "root")?.as_str() {
+        "direct" => Ok(false),
+        "catalog" => Ok(true),
+        _ => Err(user(
+            path,
+            "lockfile.mode must be direct or catalog in schema four",
+            "regenerate wukong.lock with a supported Wukong version",
+        )),
+    }
+}
+
+fn parse_toolchain(
+    table: &dyn TableLike,
+    path: &Path,
+) -> Result<LockedGodotToolchain, Box<Diagnostic>> {
+    extensions(
+        table,
+        &[
+            "version",
+            "flavor",
+            "release",
+            "templates_name",
+            "templates_url",
+            "templates_sha512",
+            "templates_bytes",
+            "editor",
+        ],
+        path,
+        "toolchain",
+    )?;
+    let version = SemanticVersion::parse(&string(table, "version", path, "toolchain")?).map_err(|error| {
+        user(path, format!("toolchain.version is invalid: {error}"), "use an exact stable semantic version")
+    })?;
+    let flavor = string(table, "flavor", path, "toolchain")?.parse::<GodotFlavor>().map_err(|error| {
+        user(path, format!("toolchain.flavor {error}"), "use standard or dotnet")
+    })?;
+    let release = string(table, "release", path, "toolchain")?;
+    let templates = LockedGodotArtifact::new(
+        string(table, "templates_name", path, "toolchain")?,
+        string(table, "templates_url", path, "toolchain")?,
+        string(table, "templates_sha512", path, "toolchain")?,
+        positive_integer(table, "templates_bytes", path, "toolchain")?,
+    )?;
+    let editors = table
+        .get("editor")
+        .and_then(Item::as_array_of_tables)
+        .ok_or_else(|| user(
+            path,
+            "toolchain.editor must be an array of tables",
+            "retain one [[toolchain.editor]] entry per platform",
+        ))?
+        .iter()
+        .map(|editor| {
+            extensions(editor, &["platform", "name", "url", "sha512", "bytes"], path, "toolchain.editor")?;
+            let platform = string(editor, "platform", path, "toolchain.editor")?
+                .parse::<GodotPlatform>()
+                .map_err(|error| user(path, format!("toolchain.editor.platform {error}"), "use a supported platform"))?;
+            let artifact = LockedGodotArtifact::new(
+                string(editor, "name", path, "toolchain.editor")?,
+                string(editor, "url", path, "toolchain.editor")?,
+                string(editor, "sha512", path, "toolchain.editor")?,
+                positive_integer(editor, "bytes", path, "toolchain.editor")?,
+            )?;
+            Ok((platform, artifact))
+        })
+        .collect::<Result<Vec<_>, Box<Diagnostic>>>()?;
+    LockedGodotToolchain::new(version, flavor, release, editors, templates)
 }
 
 fn parse_catalog_roots(
@@ -1233,6 +1506,76 @@ fn integer(
             )
         })
 }
+
+fn positive_integer(
+    table: &dyn TableLike,
+    key: &str,
+    path: &Path,
+    scope: &str,
+) -> Result<u64, Box<Diagnostic>> {
+    let value = integer(table, key, path, scope)?;
+    u64::try_from(value).ok().filter(|value| *value > 0).ok_or_else(|| {
+        user(
+            path,
+            format!("{scope}.{key} must be a positive integer"),
+            "use the exact positive byte size published by the official release",
+        )
+    })
+}
+
+fn validate_locked_godot_artifact(
+    name: &str,
+    url: &str,
+    sha512: &str,
+    bytes: u64,
+) -> Result<(), Box<Diagnostic>> {
+    if name.is_empty() || name.contains(['/', '\\']) {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact name must be one file name",
+            "use the official release asset name",
+        ));
+    }
+    let parsed = url::Url::parse(url).map_err(|_| {
+        user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact URL is invalid",
+            "use the official GitHub release download URL",
+        )
+    })?;
+    if parsed.scheme() != "https"
+        || parsed.host_str() != Some("github.com")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.fragment().is_some()
+        || parsed.query().is_some()
+    {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact URL must be a credential-free official GitHub HTTPS URL",
+            "regenerate the lockfile from an official stable Godot release",
+        ));
+    }
+    if sha512.len() != 128
+        || !sha512
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact SHA-512 must be lowercase hexadecimal",
+            "regenerate the lockfile from official SHA512-SUMS.txt",
+        ));
+    }
+    if bytes == 0 {
+        return Err(user(
+            Path::new(LOCKFILE_FILE_NAME),
+            "toolchain artifact bytes must be positive",
+            "regenerate the lockfile from official release metadata",
+        ));
+    }
+    Ok(())
+}
 fn user(path: &Path, message: impl AsRef<str>, recovery: impl AsRef<str>) -> Box<Diagnostic> {
     Box::new(
         Diagnostic::new(ErrorCode::UserInput, message)
@@ -1260,6 +1603,9 @@ fn line(out: &mut String, key: &str, value: impl AsRef<str>) {
     out.push_str(" = ");
     out.push_str(&quote(value.as_ref()));
     out.push('\n');
+}
+fn integer_line(out: &mut String, key: &str, value: u64) {
+    let _ = writeln!(out, "{key} = {value}");
 }
 fn array<'a>(out: &mut String, key: &str, values: impl IntoIterator<Item = &'a str>) {
     out.push_str(key);

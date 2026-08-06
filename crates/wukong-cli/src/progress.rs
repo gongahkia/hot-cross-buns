@@ -133,6 +133,7 @@ impl ProgressSession {
                 phase: "starting".to_owned(),
                 completed: None,
                 total: None,
+                unit: ProgressUnit::Items,
                 started: Instant::now(),
             }),
         });
@@ -182,8 +183,24 @@ pub fn set_progress(completed: usize, total: usize, phase: &str) {
         if let Some(shared) = shared {
             if let Ok(mut state) = shared.state.lock() {
                 phase.clone_into(&mut state.phase);
+                state.completed = Some(completed as u64);
+                state.total = Some(total as u64);
+                state.unit = ProgressUnit::Items;
+            }
+        }
+    });
+}
+
+/// Updates the active determinate progress bar with byte counts.
+pub fn set_byte_progress(completed: u64, total: u64, phase: &str) {
+    ACTIVE_PROGRESS.with(|active| {
+        let shared = active.borrow().clone();
+        if let Some(shared) = shared {
+            if let Ok(mut state) = shared.state.lock() {
+                phase.clone_into(&mut state.phase);
                 state.completed = Some(completed);
                 state.total = Some(total);
+                state.unit = ProgressUnit::Bytes;
             }
         }
     });
@@ -244,9 +261,16 @@ struct Shared {
 struct State {
     command: String,
     phase: String,
-    completed: Option<usize>,
-    total: Option<usize>,
+    completed: Option<u64>,
+    total: Option<u64>,
+    unit: ProgressUnit,
     started: Instant,
+}
+
+#[derive(Clone, Copy)]
+enum ProgressUnit {
+    Items,
+    Bytes,
 }
 
 #[derive(Clone, Copy)]
@@ -416,7 +440,8 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
     match (state.completed, state.total) {
         (Some(completed), Some(total)) if total > 0 => {
             let completed = completed.min(total);
-            let filled = completed.saturating_mul(BAR_WIDTH) / total;
+            let filled = usize::try_from(completed.saturating_mul(BAR_WIDTH as u64) / total)
+                .unwrap_or(BAR_WIDTH);
             let progress = format!(
                 "{}{}",
                 bar.complete.to_string().repeat(filled),
@@ -431,10 +456,11 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
                     .and_then(format_duration)
                     .map_or_else(|| "eta --".to_owned(), |value| format!("eta {value}"))
             };
-            format!(
-                "{frame} {}: {} [{progress}] {percent:>3}% {completed}/{total} {eta}",
-                state.command, state.phase
-            )
+            let counts = match state.unit {
+                ProgressUnit::Items => format!("{completed}/{total}"),
+                ProgressUnit::Bytes => format!("{}/{}", format_bytes(completed), format_bytes(total)),
+            };
+            format!("{frame} {}: {} [{progress}] {percent:>3}% {counts} {eta}", state.command, state.phase)
         }
         _ => format!(
             "{frame} {}: {} ({})",
@@ -447,8 +473,8 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
 
 fn estimated_remaining_duration(
     elapsed: Duration,
-    completed: usize,
-    remaining: usize,
+    completed: u64,
+    remaining: u64,
 ) -> Option<Duration> {
     let elapsed_nanos = elapsed.as_nanos();
     let estimated_nanos = elapsed_nanos
@@ -457,6 +483,18 @@ fn estimated_remaining_duration(
     let seconds = u64::try_from(estimated_nanos / 1_000_000_000).ok()?;
     let nanoseconds = u32::try_from(estimated_nanos % 1_000_000_000).ok()?;
     Some(Duration::new(seconds, nanoseconds))
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const MIB: u64 = 1024 * 1024;
+    const KIB: u64 = 1024;
+    if bytes >= MIB {
+        format!("{:.1} MiB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.1} KiB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 fn format_duration(duration: Duration) -> Option<String> {
@@ -513,6 +551,7 @@ mod tests {
             phase: "preparing addon".to_owned(),
             completed: Some(9),
             total: Some(3),
+            unit: super::ProgressUnit::Items,
             started: Instant::now()
                 .checked_sub(Duration::from_secs(3))
                 .expect("three seconds should be representable"),
