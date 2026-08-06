@@ -12,6 +12,7 @@ private slots:
   void buildsResizeInputInDisplayTimeZone();
   void movesAndResizesAllDayEventsWithoutTimezoneShift();
   void mapsCoordinatesAcrossDstAndHalfHourZones();
+  void normalizesMultiDayTimedRanges();
   void virtualizesDenseTimedRowsByViewportAndCalendar();
   void clearsInvalidRanges();
 };
@@ -210,6 +211,28 @@ void TimelineModelTest::mapsCoordinatesAcrossDstAndHalfHourZones() {
     QCOMPARE(allDay.value(QStringLiteral("endAt")).toString(),
              QStringLiteral("2026-03-10T00:00:00.000Z"));
   }
+}
+
+void TimelineModelTest::normalizesMultiDayTimedRanges() {
+  const QTimeZone timeZone(QByteArrayLiteral("Asia/Singapore"));
+  QVERIFY(timeZone.isValid());
+  hcb::TimelineModel model;
+  model.setRange(QDate(2026, 8, 2), 7, {}, timeZone, 1);
+
+  const QVariantMap forward = model.timedRangeInput(1, 10 * 60, 3, 12 * 60);
+  QCOMPARE(forward.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-08-03T02:00:00.000Z"));
+  QCOMPARE(forward.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-08-05T04:00:00.000Z"));
+
+  const QVariantMap reverse = model.timedRangeInput(3, 12 * 60, 1, 10 * 60);
+  QCOMPARE(reverse, forward);
+
+  const QVariantMap reverseSameDay = model.timedRangeInput(2, 12 * 60, 2, 10 * 60);
+  QCOMPARE(reverseSameDay.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-08-04T02:00:00.000Z"));
+  QCOMPARE(reverseSameDay.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-08-04T04:00:00.000Z"));
 }
 
 void TimelineModelTest::virtualizesDenseTimedRowsByViewportAndCalendar() {

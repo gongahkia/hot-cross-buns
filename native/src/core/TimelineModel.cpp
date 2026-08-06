@@ -361,8 +361,11 @@ QVariantMap TimelineModel::timedRangeInput(int firstDayIndex,
   firstMinute = clampMinute(firstMinute, false);
   lastMinute = clampMinute(lastMinute, true);
   if (lastDayIndex < firstDayIndex ||
-      (lastDayIndex == firstDayIndex && lastMinute <= firstMinute)) {
-    lastDayIndex = firstDayIndex;
+      (lastDayIndex == firstDayIndex && lastMinute < firstMinute)) {
+    std::swap(firstDayIndex, lastDayIndex);
+    std::swap(firstMinute, lastMinute);
+  }
+  if (lastDayIndex == firstDayIndex && lastMinute == firstMinute) {
     lastMinute = std::min(kMinutesPerDay, firstMinute + kSnapMinutes);
   }
   QDate endDate = rangeStartDate_.addDays(lastDayIndex);

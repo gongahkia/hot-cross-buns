@@ -61,6 +61,15 @@ TestCase {
         const thumbsUp = autocomplete.search("thumb_up")
         verify(thumbsUp.length > 0)
         compare(thumbsUp[0].emoji, "👍")
+        const watermelon = autocomplete.search("watermelon")
+        verify(watermelon.length > 0)
+        compare(watermelon[0].emoji, "🍉")
+        const unitedStates = autocomplete.search("flag_united_states")
+        verify(unitedStates.length > 0)
+        compare(unitedStates[0].emoji, "🇺🇸")
+        const mediumSkinTone = autocomplete.search("woman_medium_skin_tone")
+        verify(mediumSkinTone.length > 0)
+        compare(mediumSkinTone[0].emoji, "👩🏽")
         autocomplete.destroy()
     }
 
