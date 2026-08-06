@@ -57,6 +57,13 @@ reviewed Godot release. Add a dated row rather than overwriting an observation.
   the lockfile was schema two with no package entries. Numerical shell exit
   statuses were not separately captured; outcomes are from command diagnostics.
 
+### User-reported Linux and Windows coverage
+
+[Unverified] The maintainer reported successful Linux and Windows coverage of
+the manual-verification workflow. Exact operating systems, filesystems, Godot
+and Wukong revisions, raw command output, shell exit statuses, and generated
+state observations were not supplied in this session.
+
 ## Reproducible sequence
 
 From a disposable project copy with a package-free local addon at
