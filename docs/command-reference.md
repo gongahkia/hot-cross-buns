@@ -23,11 +23,17 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `source remove <name> [<candidate fields>] [--json]` | Transactionally remove one reviewed source candidate. | [source catalog](source-catalog.md) |
 | `source validate [--json]` | Report every invalid catalog declaration without fetching. | [source catalog](source-catalog.md) |
 | `cache <dir\|status\|clean\|verify>` | Inspect, verify, or conservatively clean managed cache entries. | [cache](cache.md) |
+| `settings <get\|set\|reset\|list-spinners\|list-bars\|path>` | Manage user-scoped presentation and selected-engine preferences. | [settings](settings.md) |
 | `doctor` | Check local project, cache, lock, and configuration health. | [doctor](doctor.md) |
 | `godot path` / `validate` | Discover Godot or run an explicitly requested bounded validation. | [validation](validation.md) |
+| `run` / `editor` / `export` | Launch or export a project with a selected installed Godot engine. | [Godot workflows](godot-workflows.md) |
 
 `--project <path>` accepts a project directory or its `project.godot` file where
 supported. `--offline` prohibits source network access, `--locked` refuses
 manifest/lock drift, and `--frozen` combines both for sync. `--json` is a
 versioned machine protocol only on commands that document it. `--quiet` and
 `--verbose` are command-specific; do not parse human output in automation.
+
+`--progress-spinner <preset>`, `--progress-bar <theme>`, and `--no-progress`
+are global presentation options. See [user settings](settings.md) for persistent
+defaults and environment overrides.

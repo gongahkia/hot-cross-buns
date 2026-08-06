@@ -16,6 +16,8 @@ pub enum GodotExecutableSource {
     Explicit,
     /// The `WUKONG_GODOT_EXECUTABLE` environment variable.
     Environment,
+    /// A user-selected executable in Wukong's global settings.
+    Settings,
     /// A matching executable found in `PATH`.
     Path,
     /// A conventional platform install location.
@@ -29,6 +31,7 @@ impl GodotExecutableSource {
         match self {
             Self::Explicit => "explicit path",
             Self::Environment => "WUKONG_GODOT_EXECUTABLE",
+            Self::Settings => "Wukong settings",
             Self::Path => "PATH",
             Self::CommonLocation => "common platform location",
         }
@@ -71,16 +74,52 @@ pub fn discover_godot_executable(
     explicit: Option<&Path>,
 ) -> Result<Option<GodotExecutable>, Box<Diagnostic>> {
     let configured = env::var_os(GODOT_EXECUTABLE_ENV).map(PathBuf::from);
-    discover_with(
+    discover_with_configured(
         explicit,
         configured.as_deref(),
+        None,
         path_candidates(),
         common_candidates(),
     )
 }
 
+/// Locates Godot while considering a validated user-scoped preference.
+///
+/// The explicit argument and `WUKONG_GODOT_EXECUTABLE` keep their established
+/// precedence. A configured Wukong setting is considered only before `PATH`
+/// and common platform locations, and an invalid configured path is an error.
+///
+/// # Errors
+///
+/// Returns a diagnostic when an explicit, environment, or configured path is
+/// not a usable executable file.
+pub fn discover_godot_executable_with_configured(
+    explicit: Option<&Path>,
+    configured: Option<&Path>,
+) -> Result<Option<GodotExecutable>, Box<Diagnostic>> {
+    let environment = env::var_os(GODOT_EXECUTABLE_ENV).map(PathBuf::from);
+    discover_with_configured(
+        explicit,
+        environment.as_deref(),
+        configured,
+        path_candidates(),
+        common_candidates(),
+    )
+}
+
+#[cfg(test)]
 fn discover_with(
     explicit: Option<&Path>,
+    configured: Option<&Path>,
+    path: Vec<PathBuf>,
+    common: Vec<PathBuf>,
+) -> Result<Option<GodotExecutable>, Box<Diagnostic>> {
+    discover_with_configured(explicit, configured, None, path, common)
+}
+
+fn discover_with_configured(
+    explicit: Option<&Path>,
+    environment: Option<&Path>,
     configured: Option<&Path>,
     path: Vec<PathBuf>,
     common: Vec<PathBuf>,
@@ -88,8 +127,11 @@ fn discover_with(
     if let Some(path) = explicit {
         return required(path, GodotExecutableSource::Explicit).map(Some);
     }
-    if let Some(path) = configured {
+    if let Some(path) = environment {
         return required(path, GodotExecutableSource::Environment).map(Some);
+    }
+    if let Some(path) = configured {
+        return required(path, GodotExecutableSource::Settings).map(Some);
     }
     if let Some(path) = path.into_iter().find(|path| is_executable(path)) {
         return Ok(Some(GodotExecutable {
@@ -214,7 +256,7 @@ fn is_executable(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{GodotExecutableSource, discover_with};
+    use super::{GodotExecutableSource, discover_with, discover_with_configured};
     use std::{fs, path::Path};
     use tempfile::TempDir;
 
@@ -243,6 +285,37 @@ mod tests {
             .expect_err("invalid configured path should fail");
 
         assert!(error.message().contains("WUKONG_GODOT_EXECUTABLE"));
+    }
+
+    #[test]
+    fn invariant_settings_executable_precedes_path_but_not_environment() {
+        let fixture = Fixture::new();
+        let environment = fixture.executable("environment");
+        let configured = fixture.executable("configured");
+        let path = fixture.executable("path");
+
+        let selected = discover_with_configured(
+            None,
+            Some(&environment),
+            Some(&configured),
+            vec![path],
+            Vec::new(),
+        )
+        .expect("selection should work")
+        .expect("environment executable should select");
+        assert_eq!(selected.source(), GodotExecutableSource::Environment);
+
+        let selected = discover_with_configured(
+            None,
+            None,
+            Some(&configured),
+            vec![fixture.executable("path-second")],
+            Vec::new(),
+        )
+        .expect("selection should work")
+        .expect("settings executable should select");
+        assert_eq!(selected.path(), configured);
+        assert_eq!(selected.source(), GodotExecutableSource::Settings);
     }
 
     #[test]

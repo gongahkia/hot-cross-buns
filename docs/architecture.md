@@ -18,7 +18,12 @@ wukong
 ```
 
 `wukong-core` must not depend on terminal rendering. The CLI calls core services
-and converts their results into human or machine-readable output.
+and converts their results into human or machine-readable output. The CLI owns
+interactive stderr progress through a Rattles-frame catalogue and a
+cross-platform terminal-control backend; JSON events remain terminal-neutral.
+
+User-scoped display and installed-engine preferences are parsed only by the
+CLI. They never influence reproducible project state or cross the core boundary.
 
 The optional Godot editor plugin is a separate, thin client of the versioned
 CLI protocol. It must never parse manifests or lockfiles to resolve packages,

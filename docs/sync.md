@@ -38,9 +38,11 @@ checksum still matches.
 - `--json` emits versioned JSON Lines events for editor and automation clients;
   the terminal result contains written, unchanged, removed, and Godot
   compatibility-summary fields.
-- Interactive terminals show package-level source/cache progress on stderr.
+- Interactive terminals show a selected Rattles spinner during indeterminate
+  phases and a Wukong-owned determinate bar while packages are prepared.
   `--no-progress` or `WUKONG_NO_PROGRESS=1` disables it; non-terminal and JSON
-  output never contains ANSI progress rendering.
+  output never contains terminal-control rendering. See [user settings](settings.md)
+  to select another spinner or bar theme.
 
 Without `--locked`, sync applies the existing lockfile but still verifies every
 locked source and prepared package before it changes project files. Run

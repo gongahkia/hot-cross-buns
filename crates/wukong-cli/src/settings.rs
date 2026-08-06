@@ -1,8 +1,13 @@
 //! User-scoped CLI presentation and installed-Godot preferences.
 
-use crate::progress::{DEFAULT_BAR_THEME, DEFAULT_SPINNER, is_supported_bar_theme, is_supported_spinner};
-use std::{env, fs, path::{Path, PathBuf}};
-use toml_edit::{DocumentMut, Item, TableLike, Value};
+use crate::progress::{
+    DEFAULT_BAR_THEME, DEFAULT_SPINNER, is_supported_bar_theme, is_supported_spinner,
+};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
+use toml_edit::{DocumentMut, Item, TableLike};
 use wukong_core::{
     diagnostic::{Diagnostic, ErrorCode},
     transactional_file::write_atomic,
@@ -115,7 +120,8 @@ impl Settings {
         document["progress"]["spinner"] = toml_edit::value(&self.spinner);
         document["progress"]["bar"] = toml_edit::value(&self.bar);
         if let Some(executable) = &self.godot_executable {
-            document["godot"]["executable"] = toml_edit::value(executable.to_string_lossy().as_ref());
+            document["godot"]["executable"] =
+                toml_edit::value(executable.to_string_lossy().as_ref());
         }
         document.to_string()
     }
@@ -168,7 +174,10 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), Box<Diagnostic>> {
         Box::new(
             Diagnostic::new(
                 ErrorCode::InternalFailure,
-                format!("could not create Wukong settings directory {}", directory.display()),
+                format!(
+                    "could not create Wukong settings directory {}",
+                    directory.display()
+                ),
             )
             .with_cause(error)
             .with_recovery("check configuration-directory permissions and retry"),
@@ -186,12 +195,15 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
     })?;
     let root = document.as_table();
     reject_unknown(path, root, &["schema", "progress", "godot"], "root")?;
-    let schema = root.get("schema").and_then(Item::as_integer).ok_or_else(|| {
-        invalid(
-            format!("Wukong settings {} require integer schema", path.display()),
-            "missing or invalid schema",
-        )
-    })?;
+    let schema = root
+        .get("schema")
+        .and_then(Item::as_integer)
+        .ok_or_else(|| {
+            invalid(
+                format!("Wukong settings {} require integer schema", path.display()),
+                "missing or invalid schema",
+            )
+        })?;
     if schema != SETTINGS_SCHEMA {
         return Err(invalid(
             format!("Wukong settings schema must be {SETTINGS_SCHEMA}"),
@@ -201,9 +213,9 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
 
     let mut settings = Settings::default();
     if let Some(progress) = root.get("progress") {
-        let progress = progress.as_table_like().ok_or_else(|| {
-            invalid("progress must be a table", "invalid progress setting")
-        })?;
+        let progress = progress
+            .as_table_like()
+            .ok_or_else(|| invalid("progress must be a table", "invalid progress setting"))?;
         reject_unknown(path, progress, &["spinner", "bar"], "progress")?;
         if let Some(spinner) = progress.get("spinner") {
             settings.set("progress.spinner", string(spinner, "progress.spinner")?)?;
@@ -213,9 +225,9 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
         }
     }
     if let Some(godot) = root.get("godot") {
-        let godot = godot.as_table_like().ok_or_else(|| {
-            invalid("godot must be a table", "invalid godot setting")
-        })?;
+        let godot = godot
+            .as_table_like()
+            .ok_or_else(|| invalid("godot must be a table", "invalid godot setting"))?;
         reject_unknown(path, godot, &["executable"], "godot")?;
         if let Some(executable) = godot.get("executable") {
             settings.set("godot.executable", string(executable, "godot.executable")?)?;
@@ -225,7 +237,8 @@ fn parse(path: &Path, input: &str) -> Result<Settings, Box<Diagnostic>> {
 }
 
 fn string<'a>(item: &'a Item, key: &str) -> Result<&'a str, Box<Diagnostic>> {
-    item.as_str().ok_or_else(|| invalid(format!("{key} must be a string"), "invalid setting type"))
+    item.as_str()
+        .ok_or_else(|| invalid(format!("{key} must be a string"), "invalid setting type"))
 }
 
 fn reject_unknown(
@@ -237,7 +250,10 @@ fn reject_unknown(
     for (key, _) in table.iter() {
         if !allowed.contains(&key) {
             return Err(invalid(
-                format!("unknown Wukong settings field {scope}.{key} in {}", path.display()),
+                format!(
+                    "unknown Wukong settings field {scope}.{key} in {}",
+                    path.display()
+                ),
                 "unknown setting",
             ));
         }
@@ -255,7 +271,10 @@ fn platform_config_root() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
         env::var_os("APPDATA")
-            .or_else(|| env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Roaming").into_os_string()))
+            .or_else(|| {
+                env::var_os("USERPROFILE")
+                    .map(|home| PathBuf::from(home).join("AppData/Roaming").into_os_string())
+            })
             .map(PathBuf::from)
     }
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -271,9 +290,7 @@ fn platform_config_root() -> Option<PathBuf> {
 }
 
 fn invalid(message: impl Into<String>, recovery: impl Into<String>) -> Box<Diagnostic> {
-    Box::new(
-        Diagnostic::new(ErrorCode::UserInput, message.into()).with_recovery(recovery.into()),
-    )
+    Box::new(Diagnostic::new(ErrorCode::UserInput, message.into()).with_recovery(recovery.into()))
 }
 
 #[cfg(test)]
@@ -291,14 +308,26 @@ mod tests {
     #[test]
     fn invariant_schema_one_settings_round_trip_deterministically() {
         let mut settings = Settings::default();
-        settings.set("progress.spinner", "dots").expect("preset should work");
-        settings.set("progress.bar", "rect").expect("bar should work");
         settings
-            .set("godot.executable", "/Applications/Godot.app/Contents/MacOS/Godot")
+            .set("progress.spinner", "dots")
+            .expect("preset should work");
+        settings
+            .set("progress.bar", "rect")
+            .expect("bar should work");
+        settings
+            .set(
+                "godot.executable",
+                "/Applications/Godot.app/Contents/MacOS/Godot",
+            )
             .expect("path should work");
-        let parsed = parse(Path::new("settings.toml"), &settings.to_toml()).expect("settings parse");
+        let parsed =
+            parse(Path::new("settings.toml"), &settings.to_toml()).expect("settings parse");
         assert_eq!(parsed, settings);
-        assert!(settings.to_toml().contains(&format!("schema = {SETTINGS_SCHEMA}")));
+        assert!(
+            settings
+                .to_toml()
+                .contains(&format!("schema = {SETTINGS_SCHEMA}"))
+        );
     }
 
     #[test]
@@ -311,6 +340,10 @@ mod tests {
             "schema = 1\n[progress]\nspinner = \"not-a-spinner\"\n",
         )
         .expect_err("unknown spinner must fail");
-        assert!(invalid_spinner.message().contains("unknown Rattles spinner"));
+        assert!(
+            invalid_spinner
+                .message()
+                .contains("unknown Rattles spinner")
+        );
     }
 }

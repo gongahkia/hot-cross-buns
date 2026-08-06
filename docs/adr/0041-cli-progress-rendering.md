@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0046](0046-native-cli-progress-and-godot-workflows.md).
 
 ## Context
 

@@ -1,10 +1,11 @@
 /// CLI-owned diagnostic rendering and exit-code mapping.
 pub mod diagnostics;
+mod progress;
+mod settings;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use serde_json::json;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet},
     env,
     ffi::OsString,
@@ -12,8 +13,9 @@ use std::{
     fs,
     io::IsTerminal,
     path::{Path, PathBuf},
-    process,
+    process::{self, Command, Stdio},
     sync::OnceLock,
+    thread,
     time::Duration,
 };
 use wukong_core::{
@@ -32,14 +34,13 @@ use wukong_core::{
     },
     direct_sync::{
         SyncProgress, SyncProgressObserver, SyncProgressStage,
-        sync_direct_dependencies_with_cancellation,
         sync_direct_dependencies_with_progress_and_cancellation,
     },
     godot_compatibility::{
         PackageGodotCompatibilityReport, resolve_project_godot_compatibility,
         validate_locked_package_godot_compatibility,
     },
-    godot_executable::discover_godot_executable,
+    godot_executable::{GodotExecutable, discover_godot_executable_with_configured},
     godot_validation::{HeadlessValidationOutcome, run_headless_project_check},
     identity::PackageName,
     init::initialize_manifest,
@@ -64,9 +65,14 @@ use wukong_core::{
     transactional_file::{FileSnapshot, write_atomic},
 };
 
-use crate::diagnostics::{PROTOCOL_VERSION, ProcessExit, render_human, render_json};
+use crate::{
+    diagnostics::{PROTOCOL_VERSION, ProcessExit, render_human, render_json},
+    progress::{Presentation, ProgressSession},
+    settings::Settings,
+};
 
 thread_local! { static JSON_MODE: Cell<bool> = const { Cell::new(false) }; }
+thread_local! { static CURRENT_SETTINGS: RefCell<Settings> = RefCell::new(Settings::default()); }
 static CLI_CANCELLATION: OnceLock<CancellationToken> = OnceLock::new();
 
 fn main() {
@@ -77,6 +83,11 @@ fn main() {
 fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     let mut arguments = arguments.into_iter();
     let _program = arguments.next();
+    let (global, arguments) = match parse_global_presentation_arguments(arguments.collect()) {
+        Ok(options) => options,
+        Err(diagnostic) => return render_error(&diagnostic),
+    };
+    let mut arguments = arguments.into_iter();
     let command = arguments.next();
     let arguments = arguments.collect::<Vec<_>>();
     JSON_MODE.with(|mode| mode.set(arguments.iter().any(|argument| argument == "--json")));
@@ -97,6 +108,22 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
         print_usage();
         return ProcessExit::Success;
     }
+    let (settings, _) = match settings::load() {
+        Ok(settings) => settings,
+        Err(diagnostic) => return render_error(&diagnostic),
+    };
+    CURRENT_SETTINGS.with(|current| *current.borrow_mut() = settings.clone());
+    let presentation = match presentation_from(&settings, global, json_output_enabled()) {
+        Ok(presentation) => presentation,
+        Err(diagnostic) => return render_error(&diagnostic),
+    };
+    let command_name = command.as_deref().and_then(|command| command.to_str());
+    let _progress = if matches!(command_name, Some("run" | "editor" | "export" | "settings")) {
+        None
+    } else {
+        command_name.map(|command| ProgressSession::start(command, &presentation))
+    };
+    let arguments = arguments.into_iter();
     match command {
         Some(command) if command == "init" => match run_init(arguments) {
             Ok(()) => ProcessExit::Success,
@@ -134,6 +161,28 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
         },
+        Some(command) if command == "settings" => match run_settings(arguments) {
+            Ok(()) => ProcessExit::Success,
+            Err(diagnostic) => render_error(&diagnostic),
+        },
+        Some(command) if command == "run" => {
+            match run_project_action(ProjectAction::Run, arguments) {
+                Ok(()) => ProcessExit::Success,
+                Err(diagnostic) => render_error(&diagnostic),
+            }
+        }
+        Some(command) if command == "editor" => {
+            match run_project_action(ProjectAction::Editor, arguments) {
+                Ok(()) => ProcessExit::Success,
+                Err(diagnostic) => render_error(&diagnostic),
+            }
+        }
+        Some(command) if command == "export" => {
+            match run_project_action(ProjectAction::Export, arguments) {
+                Ok(()) => ProcessExit::Success,
+                Err(diagnostic) => render_error(&diagnostic),
+            }
+        }
         Some(command) if command == "validate" => match run_validate(arguments) {
             Ok(()) => ProcessExit::Success,
             Err(diagnostic) => render_error(&diagnostic),
@@ -176,6 +225,103 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
         )),
         None => ProcessExit::Success,
     }
+}
+
+#[derive(Default)]
+struct GlobalPresentationOptions {
+    spinner: Option<String>,
+    bar: Option<String>,
+    no_progress: bool,
+}
+
+fn parse_global_presentation_arguments(
+    arguments: Vec<OsString>,
+) -> Result<(GlobalPresentationOptions, Vec<OsString>), Box<Diagnostic>> {
+    let mut options = GlobalPresentationOptions::default();
+    let mut remaining = Vec::with_capacity(arguments.len());
+    let mut arguments = arguments.into_iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "--" {
+            remaining.push(argument);
+            remaining.extend(arguments);
+            break;
+        }
+        if argument == "--progress-spinner" {
+            let value = required_add_value(&mut arguments, "--progress-spinner")?;
+            if options.spinner.replace(value).is_some() {
+                return Err(user_error(
+                    "--progress-spinner may be supplied only once",
+                    "provide one Rattles preset name",
+                ));
+            }
+            continue;
+        }
+        if argument == "--progress-bar" {
+            let value = required_add_value(&mut arguments, "--progress-bar")?;
+            if options.bar.replace(value).is_some() {
+                return Err(user_error(
+                    "--progress-bar may be supplied only once",
+                    "provide one progress bar theme name",
+                ));
+            }
+            continue;
+        }
+        if argument == "--no-progress" {
+            if std::mem::replace(&mut options.no_progress, true) {
+                return Err(user_error(
+                    "--no-progress may be supplied only once",
+                    "omit it or provide it once before the command",
+                ));
+            }
+            continue;
+        }
+        remaining.push(argument);
+    }
+    Ok((options, remaining))
+}
+
+fn presentation_from(
+    settings: &Settings,
+    options: GlobalPresentationOptions,
+    json: bool,
+) -> Result<Presentation, Box<Diagnostic>> {
+    let spinner = options
+        .spinner
+        .or_else(|| environment_text("WUKONG_PROGRESS_SPINNER"))
+        .unwrap_or_else(|| settings.spinner().to_owned());
+    if !progress::is_supported_spinner(&spinner) {
+        return Err(user_error(
+            format!("unknown Rattles spinner preset {spinner}"),
+            "run wukong settings list-spinners to inspect supported preset names",
+        ));
+    }
+    let bar = options
+        .bar
+        .or_else(|| environment_text("WUKONG_PROGRESS_BAR"))
+        .unwrap_or_else(|| settings.bar().to_owned());
+    if !progress::is_supported_bar_theme(&bar) {
+        return Err(user_error(
+            format!("unknown progress bar theme {bar}"),
+            "run wukong settings list-bars to inspect supported theme names",
+        ));
+    }
+    Ok(Presentation::new(spinner, bar, options.no_progress || json))
+}
+
+fn environment_text(variable: &str) -> Option<String> {
+    env::var_os(variable).map(|value| value.to_string_lossy().into_owned())
+}
+
+fn json_output_enabled() -> bool {
+    JSON_MODE.with(Cell::get)
+}
+
+fn discover_selected_godot(
+    explicit: Option<&Path>,
+) -> Result<Option<GodotExecutable>, Box<Diagnostic>> {
+    let configured =
+        CURRENT_SETTINGS.with(|settings| settings.borrow().godot_executable().map(PathBuf::from));
+    discover_godot_executable_with_configured(explicit, configured.as_deref())
 }
 
 #[allow(clippy::too_many_lines)] // coordinates one cross-file transaction
@@ -318,7 +464,8 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             None,
         ));
     }
-    let summary = match sync_direct_dependencies_with_cancellation(
+    let materialisation_progress = CliSyncProgress::new(OutputFormat::Human, false);
+    let summary = match sync_direct_dependencies_with_progress_and_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -327,6 +474,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         &cache,
         options.offline,
         &cancellation,
+        &materialisation_progress,
     ) {
         Ok(summary) => summary,
         Err(error) => {
@@ -574,7 +722,8 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             None,
         ));
     }
-    let summary = match sync_direct_dependencies_with_cancellation(
+    let materialisation_progress = CliSyncProgress::new(OutputFormat::Human, false);
+    let summary = match sync_direct_dependencies_with_progress_and_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -583,6 +732,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         &cache,
         options.offline,
         &cancellation,
+        &materialisation_progress,
     ) {
         Ok(summary) => summary,
         Err(error) => {
@@ -718,7 +868,15 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     if options.json {
         emit_json_progress("update", "synchronising-project");
     }
-    let summary = match sync_direct_dependencies_with_cancellation(
+    let materialisation_progress = CliSyncProgress::new(
+        if options.json {
+            OutputFormat::Json
+        } else {
+            OutputFormat::Human
+        },
+        false,
+    );
+    let summary = match sync_direct_dependencies_with_progress_and_cancellation(
         project.path(),
         &manifest_path,
         &manifest,
@@ -727,6 +885,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         &cache,
         options.offline,
         &cancellation,
+        &materialisation_progress,
     ) {
         Ok(summary) => summary,
         Err(error) => return Err(rollback_update(error, &lock_snapshot, &output)),
@@ -1205,18 +1364,413 @@ fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
         ));
     }
     let options = parse_godot_path_arguments(arguments)?;
-    let executable =
-        discover_godot_executable(options.executable.as_deref())?.ok_or_else(|| {
-            user_error(
-                "could not locate a Godot executable",
-                "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
-            )
-        })?;
+    let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
+        user_error(
+            "could not locate a Godot executable",
+            "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+        )
+    })?;
     if options.verbose {
         println!("selected from {}", executable.source().as_str());
     }
     println!("{}", executable.path().display());
     Ok(())
+}
+
+fn run_settings(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
+    let command = arguments.next().ok_or_else(|| {
+        user_error(
+            "settings requires a subcommand",
+            "run wukong settings <get|set|reset|list-spinners|list-bars|path>",
+        )
+    })?;
+    let (mut settings, path) = settings::load()?;
+    match command.to_str() {
+        Some("get") => {
+            let key = required_add_value(&mut arguments, "settings get")?;
+            reject_extra_arguments(&mut arguments, "settings get")?;
+            let value = match key.as_str() {
+                "progress.spinner" => settings.spinner().to_owned(),
+                "progress.bar" => settings.bar().to_owned(),
+                "godot.executable" => settings
+                    .godot_executable()
+                    .map_or_else(|| "unset".to_owned(), |path| path.display().to_string()),
+                _ => {
+                    return Err(user_error(
+                        format!("unsupported setting {key}"),
+                        "use progress.spinner, progress.bar, or godot.executable",
+                    ));
+                }
+            };
+            println!("{value}");
+        }
+        Some("set") => {
+            let key = required_add_value(&mut arguments, "settings set")?;
+            let value = required_add_value(&mut arguments, "settings set")?;
+            reject_extra_arguments(&mut arguments, "settings set")?;
+            settings.set(&key, &value)?;
+            if key == "godot.executable" {
+                let configured = settings.godot_executable().expect("setting just assigned");
+                discover_godot_executable_with_configured(Some(configured), None)?;
+            }
+            settings::save(&path, &settings)?;
+            CURRENT_SETTINGS.with(|current| *current.borrow_mut() = settings);
+            println!("updated {key}");
+        }
+        Some("reset") => {
+            let key = required_add_value(&mut arguments, "settings reset")?;
+            reject_extra_arguments(&mut arguments, "settings reset")?;
+            settings.reset(&key)?;
+            settings::save(&path, &settings)?;
+            CURRENT_SETTINGS.with(|current| *current.borrow_mut() = settings);
+            println!("reset {key}");
+        }
+        Some("list-spinners") => {
+            reject_extra_arguments(&mut arguments, "settings list-spinners")?;
+            for spinner in progress::spinner_names() {
+                println!("{spinner}");
+            }
+        }
+        Some("list-bars") => {
+            reject_extra_arguments(&mut arguments, "settings list-bars")?;
+            for bar in progress::bar_theme_names() {
+                println!("{bar}");
+            }
+        }
+        Some("path") => {
+            reject_extra_arguments(&mut arguments, "settings path")?;
+            println!("{}", path.display());
+        }
+        Some(command) => {
+            return Err(user_error(
+                format!("unsupported settings command {command}"),
+                "run wukong settings <get|set|reset|list-spinners|list-bars|path>",
+            ));
+        }
+        None => {
+            return Err(user_error(
+                "settings subcommand must be valid UTF-8",
+                "run wukong settings <get|set|reset|list-spinners|list-bars|path>",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn reject_extra_arguments(
+    arguments: &mut impl Iterator<Item = OsString>,
+    command: &str,
+) -> Result<(), Box<Diagnostic>> {
+    if let Some(argument) = arguments.next() {
+        return Err(user_error(
+            format!(
+                "unsupported {command} argument {}",
+                argument.to_string_lossy()
+            ),
+            format!("run wukong {command} without additional arguments"),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum ProjectAction {
+    Run,
+    Editor,
+    Export,
+}
+
+impl ProjectAction {
+    const fn command(self) -> &'static str {
+        match self {
+            Self::Run => "run",
+            Self::Editor => "editor",
+            Self::Export => "export",
+        }
+    }
+}
+
+struct ProjectActionOptions {
+    project: Option<PathBuf>,
+    executable: Option<PathBuf>,
+    scene: Option<OsString>,
+    headless: bool,
+    preset: Option<OsString>,
+    output: Option<OsString>,
+    debug: bool,
+    release: bool,
+    passthrough: Vec<OsString>,
+}
+
+fn run_project_action(
+    action: ProjectAction,
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<(), Box<Diagnostic>> {
+    let options = parse_project_action_arguments(action, arguments)?;
+    let cancellation = cli_cancellation()?;
+    let current_directory = env::current_dir().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::InternalFailure,
+                "could not determine current directory",
+            )
+            .with_cause(error)
+            .with_recovery("run wukong from an accessible directory"),
+        )
+    })?;
+    let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
+        user_error(
+            "could not locate a Godot executable",
+            "set godot.executable with wukong settings, set WUKONG_GODOT_EXECUTABLE, or pass --godot-executable <path>",
+        )
+    })?;
+    let mut command = Command::new(executable.path());
+    command
+        .current_dir(project.path())
+        .arg("--path")
+        .arg(project.path())
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    match action {
+        ProjectAction::Run => {
+            if options.headless {
+                command.arg("--headless");
+            }
+            if let Some(scene) = options.scene {
+                command.arg("--scene").arg(scene);
+            }
+        }
+        ProjectAction::Editor => {
+            command.arg("--editor");
+        }
+        ProjectAction::Export => {
+            let preset = options.preset.expect("export parser requires a preset");
+            let output = options.output.expect("export parser requires an output");
+            command.arg("--headless");
+            command.arg(if options.debug {
+                "--export-debug"
+            } else {
+                "--export-release"
+            });
+            command.arg(preset).arg(output);
+        }
+    }
+    command.args(options.passthrough);
+    let mut child = command.spawn().map_err(|error| {
+        boxed(
+            Diagnostic::new(
+                ErrorCode::SourceAccess,
+                format!("could not launch Godot for wukong {}", action.command()),
+            )
+            .with_cause(error)
+            .with_recovery("verify the selected Godot executable and project path"),
+        )
+    })?;
+    wait_for_godot_child(&mut child, &cancellation, action)
+}
+
+fn wait_for_godot_child(
+    child: &mut process::Child,
+    cancellation: &CancellationToken,
+    action: ProjectAction,
+) -> Result<(), Box<Diagnostic>> {
+    loop {
+        if cancellation.is_cancelled() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(boxed(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    format!("Godot {} was cancelled", action.command()),
+                )
+                .with_recovery("retry the command when the project is ready"),
+            ));
+        }
+        match child.try_wait().map_err(|error| {
+            boxed(
+                Diagnostic::new(
+                    ErrorCode::SourceAccess,
+                    format!("could not wait for Godot {}", action.command()),
+                )
+                .with_cause(error)
+                .with_recovery("inspect the Godot process and retry"),
+            )
+        })? {
+            Some(status) if status.success() => return Ok(()),
+            Some(status) => {
+                return Err(boxed(
+                    Diagnostic::new(
+                        ErrorCode::SourceAccess,
+                        format!("Godot {} exited with {status}", action.command()),
+                    )
+                    .with_recovery("inspect Godot output and correct the project or export preset"),
+                ));
+            }
+            None => thread::sleep(Duration::from_millis(50)),
+        }
+    }
+}
+
+fn parse_project_action_arguments(
+    action: ProjectAction,
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ProjectActionOptions, Box<Diagnostic>> {
+    let mut options = ProjectActionOptions {
+        project: None,
+        executable: None,
+        scene: None,
+        headless: false,
+        preset: None,
+        output: None,
+        debug: false,
+        release: false,
+        passthrough: Vec::new(),
+    };
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        if argument == "--" {
+            options.passthrough.extend(arguments);
+            break;
+        }
+        if argument == "--project" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
+            if options.project.replace(path).is_some() {
+                return Err(user_error(
+                    "--project may be supplied only once",
+                    "provide one project path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--godot-executable" {
+            let path = PathBuf::from(required_add_value(&mut arguments, "--godot-executable")?);
+            if options.executable.replace(path).is_some() {
+                return Err(user_error(
+                    "--godot-executable may be supplied only once",
+                    "provide one executable path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--scene" && matches!(action, ProjectAction::Run) {
+            if options
+                .scene
+                .replace(OsString::from(required_add_value(
+                    &mut arguments,
+                    "--scene",
+                )?))
+                .is_some()
+            {
+                return Err(user_error(
+                    "--scene may be supplied only once",
+                    "provide one scene path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--headless" && matches!(action, ProjectAction::Run) {
+            if std::mem::replace(&mut options.headless, true) {
+                return Err(user_error(
+                    "--headless may be supplied only once",
+                    "omit it or provide it once",
+                ));
+            }
+            continue;
+        }
+        if argument == "--preset" && matches!(action, ProjectAction::Export) {
+            if options
+                .preset
+                .replace(OsString::from(required_add_value(
+                    &mut arguments,
+                    "--preset",
+                )?))
+                .is_some()
+            {
+                return Err(user_error(
+                    "--preset may be supplied only once",
+                    "provide one export preset name",
+                ));
+            }
+            continue;
+        }
+        if argument == "--output" && matches!(action, ProjectAction::Export) {
+            if options
+                .output
+                .replace(OsString::from(required_add_value(
+                    &mut arguments,
+                    "--output",
+                )?))
+                .is_some()
+            {
+                return Err(user_error(
+                    "--output may be supplied only once",
+                    "provide one export output path",
+                ));
+            }
+            continue;
+        }
+        if argument == "--debug" && matches!(action, ProjectAction::Export) {
+            if std::mem::replace(&mut options.debug, true) || options.release {
+                return Err(user_error(
+                    "--debug may be supplied only once",
+                    "omit it or provide it once",
+                ));
+            }
+            continue;
+        }
+        if argument == "--release" && matches!(action, ProjectAction::Export) {
+            if options.debug || std::mem::replace(&mut options.release, true) {
+                return Err(user_error(
+                    "--debug and --release are mutually exclusive",
+                    "choose one export mode",
+                ));
+            }
+            continue;
+        }
+        if argument == "--json" {
+            return Err(user_error(
+                format!("wukong {} does not support --json", action.command()),
+                "Godot child output is forwarded directly; omit --json",
+            ));
+        }
+        return Err(user_error(
+            format!(
+                "unsupported {} argument {}",
+                action.command(),
+                argument.to_string_lossy()
+            ),
+            project_action_recovery(action),
+        ));
+    }
+    if matches!(action, ProjectAction::Export) && options.preset.is_none() {
+        return Err(user_error(
+            "export requires --preset <name>",
+            "provide a project export preset name",
+        ));
+    }
+    if matches!(action, ProjectAction::Export) && options.output.is_none() {
+        return Err(user_error(
+            "export requires --output <path>",
+            "provide an export output path",
+        ));
+    }
+    Ok(options)
+}
+
+fn project_action_recovery(action: ProjectAction) -> &'static str {
+    match action {
+        ProjectAction::Run => {
+            "use --project <path>, --godot-executable <path>, --scene <path>, --headless, or -- <Godot args>"
+        }
+        ProjectAction::Editor => {
+            "use --project <path>, --godot-executable <path>, or -- <Godot args>"
+        }
+        ProjectAction::Export => {
+            "use --preset <name> --output <path> [--debug|--release] [--project <path>] [--godot-executable <path>] or -- <Godot args>"
+        }
+    }
 }
 
 const DEFAULT_GODOT_VALIDATION_TIMEOUT: Duration = Duration::from_secs(60);
@@ -1235,13 +1789,12 @@ fn run_validate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
-    let executable =
-        discover_godot_executable(options.executable.as_deref())?.ok_or_else(|| {
-            user_error(
-                "could not locate a Godot executable",
-                "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
-            )
-        })?;
+    let executable = discover_selected_godot(options.executable.as_deref())?.ok_or_else(|| {
+        user_error(
+            "could not locate a Godot executable",
+            "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
+        )
+    })?;
     if options.verbose {
         println!("selected from {}", executable.source().as_str());
     }
@@ -1490,7 +2043,7 @@ fn run_doctor(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         &mut checks,
         &mut failure,
         "Godot executable availability",
-        match discover_godot_executable(options.executable.as_deref()) {
+        match discover_selected_godot(options.executable.as_deref()) {
             Ok(Some(executable)) => Ok(format!("found from {}", executable.source().as_str())),
             Ok(None) => Err(user_error(
                 "could not locate a Godot executable",
@@ -3348,6 +3901,7 @@ fn emit_json_started(command: &str) {
 }
 
 fn emit_json_progress(command: &str, phase: &str) {
+    progress::set_phase(phase);
     println!(
         "{}",
         json!({"protocol": PROTOCOL_VERSION, "type": "progress", "command": command, "phase": phase})
@@ -3740,7 +4294,6 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         &cancellation,
         &progress,
     );
-    progress.finish();
     let summary = summary?;
     if matches!(options.output, OutputFormat::Json) {
         emit_json_progress("sync", "state-written");
@@ -3843,8 +4396,7 @@ enum OutputFormat {
 
 enum SyncProgressOutput {
     Json,
-    Terminal(ProgressBar),
-    Silent,
+    Human,
 }
 
 struct CliSyncProgress {
@@ -3852,54 +4404,32 @@ struct CliSyncProgress {
 }
 impl CliSyncProgress {
     fn new(output: OutputFormat, no_progress: bool) -> Self {
+        let _ = no_progress;
         let output = match output {
             OutputFormat::Json => SyncProgressOutput::Json,
-            OutputFormat::Human
-                if !no_progress
-                    && !progress_disabled_by_environment()
-                    && std::io::stderr().is_terminal() =>
-            {
-                let bar = ProgressBar::new(0);
-                let style = ProgressStyle::with_template(
-                    "{spinner:.cyan} {wide_msg} [{bar:24.cyan/dim}] {pos}/{len}",
-                )
-                .unwrap_or_else(|_| ProgressStyle::default_spinner());
-                bar.set_style(style);
-                bar.enable_steady_tick(Duration::from_millis(80));
-                SyncProgressOutput::Terminal(bar)
-            }
-            OutputFormat::Human => SyncProgressOutput::Silent,
+            OutputFormat::Human => SyncProgressOutput::Human,
         };
         Self { output }
-    }
-
-    fn finish(&self) {
-        if let SyncProgressOutput::Terminal(bar) = &self.output {
-            bar.finish_and_clear();
-        }
     }
 }
 impl SyncProgressObserver for CliSyncProgress {
     fn report(&self, progress: &SyncProgress) {
         match &self.output {
             SyncProgressOutput::Json => emit_json_sync_package_progress(progress),
-            SyncProgressOutput::Terminal(bar) => {
-                bar.set_length(progress.total() as u64);
-                bar.set_position(progress.completed() as u64);
+            SyncProgressOutput::Human => {
                 let action = match progress.stage() {
                     SyncProgressStage::ValidatingSource => "checking",
                     SyncProgressStage::PreparingPackage => "preparing",
                     SyncProgressStage::Prepared => "ready",
                 };
-                bar.set_message(format!("{action} {}", progress.package()));
+                progress::set_progress(
+                    progress.completed(),
+                    progress.total(),
+                    &format!("{action} {}", progress.package()),
+                );
             }
-            SyncProgressOutput::Silent => {}
         }
     }
-}
-
-fn progress_disabled_by_environment() -> bool {
-    env::var_os("WUKONG_NO_PROGRESS").is_some_and(|value| value != "0")
 }
 
 fn parse_sync_arguments(
@@ -4296,7 +4826,7 @@ fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
 
 fn print_usage() {
     println!(
-        "usage: wukong [--version] <init|package <init|validate>|add|remove|update|migrate|outdated|audit|godot path|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
+        "usage: wukong [--progress-spinner <preset>] [--progress-bar <theme>] [--no-progress] [--version] <init|package <init|validate>|add|remove|update|migrate|outdated|audit|godot path|run|editor|export|settings <get|set|reset|list-spinners|list-bars|path>|validate|lock|install|sync|status|source <add|list|remove|validate>|tree|why|cache> [options]; cache <dir|status|clean|verify>"
     );
 }
 
@@ -4337,8 +4867,9 @@ fn cli_cancellation() -> Result<CancellationToken, Box<Diagnostic>> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AddOptions, parse_add_arguments, parse_godot_path_arguments, parse_migrate_arguments,
-        parse_outdated_arguments, parse_sync_arguments, parse_update_arguments,
+        AddOptions, ProjectAction, parse_add_arguments, parse_global_presentation_arguments,
+        parse_godot_path_arguments, parse_migrate_arguments, parse_outdated_arguments,
+        parse_project_action_arguments, parse_sync_arguments, parse_update_arguments,
         parse_validate_arguments,
     };
     use std::{ffi::OsString, path::PathBuf};
@@ -4559,5 +5090,80 @@ mod tests {
                 .expect_err("unbounded timeout should fail");
 
         assert!(error.message().contains("1 to 600"));
+    }
+
+    #[test]
+    fn global_progress_options_apply_to_every_command_but_never_cross_passthrough_boundary() {
+        let (options, remaining) = parse_global_presentation_arguments(
+            [
+                "sync",
+                "--progress-spinner",
+                "dots",
+                "--progress-bar",
+                "rect",
+                "--no-progress",
+                "--",
+                "--no-progress",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+        )
+        .expect("global options should parse");
+        assert_eq!(options.spinner.as_deref(), Some("dots"));
+        assert_eq!(options.bar.as_deref(), Some("rect"));
+        assert!(options.no_progress);
+        assert_eq!(
+            remaining,
+            vec![
+                OsString::from("sync"),
+                OsString::from("--"),
+                OsString::from("--no-progress")
+            ]
+        );
+    }
+
+    #[test]
+    fn project_action_parser_forwards_only_explicit_passthrough_arguments() {
+        let options = parse_project_action_arguments(
+            ProjectAction::Run,
+            [
+                "--project",
+                "game",
+                "--scene",
+                "res://scenes/main.tscn",
+                "--headless",
+                "--",
+                "--rendering-method",
+                "gl_compatibility",
+            ]
+            .into_iter()
+            .map(OsString::from),
+        )
+        .expect("run action should parse");
+        assert_eq!(options.project, Some(PathBuf::from("game")));
+        assert_eq!(
+            options.scene,
+            Some(OsString::from("res://scenes/main.tscn"))
+        );
+        assert!(options.headless);
+        assert_eq!(
+            options.passthrough,
+            vec![
+                OsString::from("--rendering-method"),
+                OsString::from("gl_compatibility")
+            ]
+        );
+
+        let export = parse_project_action_arguments(
+            ProjectAction::Export,
+            ["--preset", "Linux", "--output", "build/game", "--debug"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .expect("export action should parse");
+        assert_eq!(export.preset, Some(OsString::from("Linux")));
+        assert_eq!(export.output, Some(OsString::from("build/game")));
+        assert!(export.debug);
     }
 }

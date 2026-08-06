@@ -83,6 +83,8 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [Godot support matrix](docs/godot-support-matrix.md)
 - [Godot compatibility enforcement](docs/godot-compatibility-enforcement.md)
 - [Godot executable discovery](docs/godot-executable.md)
+- [User settings and progress display](docs/settings.md)
+- [Godot project workflows](docs/godot-workflows.md)
 - [Headless project validation](docs/validation.md)
 - [Canonical package trees](docs/canonical-package-trees.md)
 - [Compatibility fixtures](docs/compatibility-fixtures.md)
