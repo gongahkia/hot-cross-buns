@@ -53,3 +53,7 @@ or manually checked-out public sources, and each declares that reason beside
 the ignore marker. On a workspace-test failure, CI retains only the test log
 from repository fixtures for seven days. It does not upload project inputs,
 cache directories, manifests, lockfiles, or environment dumps.
+
+The audit action receives only the workflow's ephemeral read-only GitHub token
+as its required action input. CI does not require a repository secret or broader
+workflow permissions for auditing.

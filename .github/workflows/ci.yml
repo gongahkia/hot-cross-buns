@@ -61,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: RustSec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998
+        with:
+          token: ${{ github.token }}
 
   release-smoke:
     name: release-smoke
