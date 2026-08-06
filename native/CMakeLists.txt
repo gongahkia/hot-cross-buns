@@ -325,6 +325,7 @@ qt_add_qml_module(hcb_native
     qml/WeekTimelineView.qml
   RESOURCES
     qml/EmojiCatalog.js
+    qml/EmojiUnicode16.js
 )
 
 target_link_libraries(hcb_native PRIVATE

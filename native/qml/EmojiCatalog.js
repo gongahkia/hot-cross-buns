@@ -1,5 +1,7 @@
 .pragma library
 
+import "EmojiUnicode16.js" as EmojiUnicode16
+
 var rows = [
     "😀|grinning|grinning_face,grin", "😃|smiley|smiling_face", "😄|smile|smiling_face_with_smiling_eyes",
     "😁|grin|beaming_face", "😆|laughing|satisfied,squinting_face", "😅|sweat_smile|grinning_sweat",
@@ -109,10 +111,30 @@ function normalise(value) {
 
 function entries() {
     if (cachedEntries !== null) return cachedEntries
-    cachedEntries = rows.map(function(row) {
-        var parts = row.split("|")
-        return { emoji: parts[0], name: parts[1], aliases: parts.length > 2 ? parts[2].split(",") : [] }
-    })
+    const byEmoji = {}
+    cachedEntries = []
+    function append(row) {
+        const parts = typeof row === "string" ? row.split("|") : row
+        if (!parts || parts.length < 2) return
+        const emoji = parts[0]
+        const name = parts[1]
+        const aliases = typeof row === "string" && parts.length > 2 ? parts[2].split(",") : []
+        const existing = byEmoji[emoji]
+        if (existing !== undefined) {
+            if (existing.name !== name && existing.aliases.indexOf(name) < 0) existing.aliases.push(name)
+            aliases.forEach(function(alias) {
+                if (alias !== existing.name && existing.aliases.indexOf(alias) < 0) {
+                    existing.aliases.push(alias)
+                }
+            })
+            return
+        }
+        const entry = { emoji: emoji, name: name, aliases: aliases }
+        byEmoji[emoji] = entry
+        cachedEntries.push(entry)
+    }
+    rows.forEach(append)
+    if (EmojiUnicode16.rows !== undefined) EmojiUnicode16.rows.forEach(append)
     return cachedEntries
 }
 
