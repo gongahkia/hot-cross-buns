@@ -1157,13 +1157,20 @@ fn update_value(package: &wukong_core::lockfile::LockedPackage) -> String {
 }
 
 fn print_update_changes(prefix: &str, changes: &[String]) {
-    progress::finish_for_output();
-    if changes.is_empty() {
-        println!("{prefix}: no changes");
-        return;
-    }
-    for change in changes {
-        println!("{prefix} {change}");
+    let write = || {
+        if changes.is_empty() {
+            println!("{prefix}: no changes");
+            return;
+        }
+        for change in changes {
+            println!("{prefix} {change}");
+        }
+    };
+    if prefix == "updating" {
+        progress::with_intermediate_output(write);
+    } else {
+        progress::finish_for_output();
+        write();
     }
 }
 
