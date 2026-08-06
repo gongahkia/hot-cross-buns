@@ -49,6 +49,9 @@ pub mod git_source;
 /// Project-level Godot compatibility inputs.
 pub mod godot_compatibility;
 
+/// Reviewed repository configuration for supported Godot branches.
+pub mod godot_support_matrix;
+
 /// Godot executable discovery without execution.
 pub mod godot_executable;
 

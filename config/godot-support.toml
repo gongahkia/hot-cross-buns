@@ -1,0 +1,13 @@
+schema = 1
+
+[[branch]]
+series = "4.5"
+support = "partial"
+
+[[branch]]
+series = "4.6"
+support = "supported"
+
+[[branch]]
+series = "4.7"
+support = "supported"

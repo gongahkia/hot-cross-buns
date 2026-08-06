@@ -78,6 +78,7 @@ and never execute package scripts. See [local sync behaviour](docs/sync.md).
 - [`wukong package init`](docs/package-init.md)
 - [`wukong package validate`](docs/package-validate.md)
 - [Godot compatibility input](docs/godot-compatibility.md)
+- [Godot support matrix](docs/godot-support-matrix.md)
 - [Godot compatibility enforcement](docs/godot-compatibility-enforcement.md)
 - [Godot executable discovery](docs/godot-executable.md)
 - [Headless project validation](docs/validation.md)
