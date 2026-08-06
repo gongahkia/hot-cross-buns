@@ -109,9 +109,12 @@ Pane {
                     calendarSourceModel: root.calendarSourceModel
                     persistedVisibleCalendarIds: root.persistedVisibleCalendarIds
                     calendarVisibilityConfigured: root.calendarVisibilityConfigured
-                    Component.onCompleted: root.calendarVisibility = calendarVisibility
+                    Component.onCompleted: {
+                        if (commandLabel === "Calendar") root.calendarVisibility = calendarVisibility
+                    }
                     onVisibleCalendarIdsChanged: {
-                        if (visibilityInitialized) root.calendarVisibilitySaveRequested(visibleCalendarIds)
+                        if (commandLabel === "Calendar" && visibilityInitialized)
+                            root.calendarVisibilitySaveRequested(visibleCalendarIds)
                     }
                 }
             }

@@ -633,6 +633,9 @@ TestCase {
             visible: true
         })
         verify(taskList !== null)
+        console.log("task list diagnostic", taskList.taskListSplitView.height,
+                    taskList.taskListControls.width, taskList.taskListControls.height,
+                    taskList.taskRows.width, taskList.taskRows.height)
         tryCompare(taskList.taskRows, "rows", 2)
         let selectedId = ""
         taskList.taskSelected.connect(function(taskId) { selectedId = taskId })

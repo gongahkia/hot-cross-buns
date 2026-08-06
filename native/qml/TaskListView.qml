@@ -73,8 +73,7 @@ Pane {
     function applyListPaneWidth() {
         if (taskListControls === null || taskListSplitView === null) return
         synchronizingListPaneWidth = true
-        taskListControls.SplitView.preferredWidth = listPaneWidth
-        taskListSplitView.forceLayout()
+        taskListControls.width = listPaneWidth
         synchronizingListPaneWidth = false
     }
 
@@ -261,7 +260,7 @@ Pane {
                 SplitView.maximumWidth: 480
                 SplitView.preferredWidth: root.listPaneWidth
                 SplitView.fillHeight: true
-                SplitView.minimumHeight: 1
+                SplitView.preferredHeight: taskListSplitView.height
                 taskListModel: root.taskListModel
                 loading: root.taskListLoading
                 errorMessage: root.taskListErrorMessage
@@ -286,7 +285,7 @@ Pane {
             ColumnLayout {
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
-                SplitView.minimumHeight: 1
+                SplitView.preferredHeight: taskListSplitView.height
                 spacing: Theme.spacingSmall
 
                 Flow {
