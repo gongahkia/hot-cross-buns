@@ -268,7 +268,6 @@ Pane {
             ColumnLayout {
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
-                SplitView.minimumWidth: 320
                 spacing: Theme.spacingSmall
 
                 Flow {

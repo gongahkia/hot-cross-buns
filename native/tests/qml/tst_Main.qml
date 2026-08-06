@@ -966,6 +966,68 @@ TestCase {
         sourceModel.destroy()
     }
 
+    function test_calendarSidebarControlsExpandWithoutChangingNavigation() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+
+        const calendars = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
+        calendars.append({ id: "calendar-primary", title: "Primary", selected: true })
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            calendarSourceModel: calendars,
+            appController: { googleConnected: true, sidebarTabIds: ["tasks", "calendar"] }
+        })
+        verify(mainWindow !== null)
+        tryVerify(function() { return mainWindow.calendarVisibility !== null })
+        verify(!mainWindow.navigationSidebar.calendarControlsExpanded)
+
+        const calendarEntry = mainWindow.navigationSidebar.pageButtons.itemAt(1)
+        calendarEntry.navigationButton.secondaryActivated()
+        verify(mainWindow.navigationSidebar.calendarControlsExpanded)
+        tryVerify(function() { return mainWindow.calendarVisibility.visible })
+        compare(mainWindow.currentPage, "Tasks")
+
+        calendarEntry.navigationButton.click()
+        compare(mainWindow.currentPage, "Calendar")
+        mainWindow.destroy()
+        calendars.destroy()
+    }
+
+    function test_taskListPanePersistsResizedWidth() {
+        const component = Qt.createComponent("../../qml/TaskListView.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const taskList = component.createObject(testCase, { width: 760, height: 420, visible: true })
+        verify(taskList !== null)
+        let persistedWidths = []
+        taskList.listPaneWidthPersistenceRequested.connect(function(width) { persistedWidths.push(width) })
+
+        taskList.listPaneWidth = 200
+        tryCompare(taskList.taskListControls, "width", 200)
+        taskList.listPaneWidth = 480
+        tryCompare(taskList.taskListControls, "width", 480)
+        taskList.listPaneWidth = 310
+        tryCompare(taskList.taskListControls, "width", 310)
+        wait(250)
+        compare(persistedWidths[persistedWidths.length - 1], 310)
+        taskList.destroy()
+    }
+
+    function test_searchOptionsAreCollapsedUntilRequested() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: true, searchQuery: "", savedSearches: [] }
+        })
+        verify(mainWindow !== null)
+        mainWindow.openSearch()
+        tryVerify(function() { return mainWindow.searchPopup.opened })
+        verify(!mainWindow.searchPopup.optionsExpanded)
+        mainWindow.searchPopup.optionsToggleButton.click()
+        verify(mainWindow.searchPopup.optionsExpanded)
+        mainWindow.destroy()
+    }
+
     function test_eventCreateDialogEmitsCreateRequest() {
         const component = Qt.createComponent("../../qml/EventCreateDialog.qml")
         compare(component.status, Component.Ready, component.errorString())

@@ -79,6 +79,7 @@ Pane {
                 required property string commandLabel
                 property alias enabled: navigationButton.enabled
                 property alias checked: navigationButton.checked
+                property alias navigationButton: navigationButton
                 Layout.fillWidth: true
                 spacing: Theme.spacingSmall
 
