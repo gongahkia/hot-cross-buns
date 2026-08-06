@@ -32,7 +32,7 @@ pub const GODOT_ENGINE_DIR_ENV: &str = "WUKONG_ENGINE_DIR";
 pub const MANAGED_GODOT_SCHEMA: &str = "v1";
 const GITHUB_API: &str = "https://api.github.com/repos/godotengine/godot-builds";
 const MAX_ENGINE_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-const MAX_METADATA_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_METADATA_BYTES: u64 = 32 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 /// The official editor distribution family.
@@ -359,6 +359,7 @@ impl EngineProgressObserver for NoEngineProgress {
 #[derive(Clone, Debug)]
 pub struct OfficialGodotClient {
     agent: Agent,
+    metadata_cache: Option<PathBuf>,
 }
 
 impl Default for OfficialGodotClient {
@@ -378,7 +379,16 @@ impl OfficialGodotClient {
                 .timeout_global(Some(DOWNLOAD_TIMEOUT))
                 .build()
                 .into(),
+            metadata_cache: None,
         }
+    }
+
+    /// Reuses bounded official release metadata below a Wukong-owned data
+    /// directory. The cache stores content hashes as file names, never URLs.
+    #[must_use]
+    pub fn with_metadata_cache(mut self, directory: PathBuf) -> Self {
+        self.metadata_cache = Some(directory);
+        self
     }
 
     /// Fetches and verifies one exact official stable release for the target and flavor.
@@ -404,7 +414,22 @@ impl OfficialGodotClient {
         observer: &dyn EngineProgressObserver,
     ) -> Result<OfficialGodotRelease, Box<Diagnostic>> {
         observer.on_progress(EngineProgress::Phase("resolving latest compatible Godot"));
-        let metadata = self.fetch_json(&format!("{GITHUB_API}/releases?per_page=100"))?;
+        let latest = self.fetch_json(&format!("{GITHUB_API}/releases/latest"))?;
+        if let Some(tag) = latest
+            .get("tag_name")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        {
+            if let Some(version) = stable_version_from_tag(&tag) {
+                if requirement.matches(&version) {
+                    return self.release_from_metadata(latest, &tag, flavor, platform, observer);
+                }
+            }
+        }
+        // `releases/latest` is intentionally the common path. Only a project
+        // constrained below the latest stable release needs the bounded
+        // historical listing.
+        let metadata = self.fetch_json(&format!("{GITHUB_API}/releases?per_page=30"))?;
         let releases = metadata.as_array().ok_or_else(|| source_error(
             "official Godot release listing was not an array",
             "retry later; report the release metadata shape if it persists",
@@ -495,13 +520,53 @@ impl OfficialGodotClient {
     }
 
     fn fetch_small_text(&self, url: &str, limit: u64) -> Result<String, Box<Diagnostic>> {
+        let cached = self.metadata_cache_path(url);
+        if let Some(path) = cached.as_deref() {
+            if let Some(bytes) = read_cached_metadata(path, limit)? {
+                return String::from_utf8(bytes).map_err(|_| source_error(
+                    "cached official Godot release metadata was not UTF-8",
+                    "remove the managed Godot metadata cache and retry",
+                ));
+            }
+        }
+        let _lock = cached
+            .as_deref()
+            .map(|path| acquire_metadata_lock(&path.with_extension("lock")))
+            .transpose()?;
+        if let Some(path) = cached.as_deref() {
+            if let Some(bytes) = read_cached_metadata(path, limit)? {
+                return String::from_utf8(bytes).map_err(|_| source_error(
+                    "cached official Godot release metadata was not UTF-8",
+                    "remove the managed Godot metadata cache and retry",
+                ));
+            }
+        }
         let mut response = self.open_official(url)?;
         let mut reader = response.body_mut().as_reader();
         let bytes = read_limited(&mut reader, limit, "official Godot release metadata")?;
+        if let Some(path) = cached.as_deref() {
+            let parent = path.parent().ok_or_else(|| internal_error(
+                "official Godot metadata cache path has no parent",
+                "set WUKONG_ENGINE_DIR to a directory",
+            ))?;
+            fs::create_dir_all(parent).map_err(|error| io_error(
+                "could not create official Godot metadata cache directory",
+                parent,
+                error,
+            ))?;
+            write_atomic(path, &bytes)?;
+        }
         String::from_utf8(bytes).map_err(|_| source_error(
             "official Godot release metadata was not UTF-8",
             "retry later; report the release metadata shape if it persists",
         ))
+    }
+
+    fn metadata_cache_path(&self, url: &str) -> Option<PathBuf> {
+        self.metadata_cache.as_ref().map(|directory| {
+            let key = format!("{:x}", Sha512::digest(url.as_bytes()));
+            directory.join(key)
+        })
     }
 
     fn open_official(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, Box<Diagnostic>> {
@@ -592,6 +657,12 @@ impl ManagedGodotStore {
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Returns the Wukong-owned immutable release-metadata cache directory.
+    #[must_use]
+    pub fn metadata_directory(&self) -> PathBuf {
+        self.root.join(MANAGED_GODOT_SCHEMA).join("metadata")
     }
 
     /// Resolves the platform data directory or honours `WUKONG_ENGINE_DIR`.
@@ -978,8 +1049,9 @@ pub fn inspect_godot_version(executable: &Path) -> Result<SemanticVersion, Box<D
 #[must_use]
 pub fn parse_godot_version_output(output: &str) -> Option<SemanticVersion> {
     output.split_whitespace().find_map(|token| {
-        let token = token.strip_suffix(".stable")?;
-        let version = SemanticVersion::parse(token).ok()?;
+        let (version, suffix) = token.split_once(".stable")?;
+        if !suffix.is_empty() && !suffix.starts_with('.') { return None; }
+        let version = SemanticVersion::parse(version).ok()?;
         (!version.is_prerelease() && version.as_semver().build.is_empty()).then_some(version)
     })
 }
@@ -1008,7 +1080,7 @@ fn release_asset(assets: &[Value], expected: &str) -> Result<UnverifiedReleaseAs
             "official Godot release asset did not include a download URL",
             "retry later; do not use an untrusted release mirror",
         ))?;
-    verified_official_url(url, true)?;
+    verified_official_url(url, false)?;
     let bytes = asset
         .get("size")
         .and_then(Value::as_u64)
@@ -1384,6 +1456,37 @@ fn read_limited(input: &mut impl Read, limit: u64, description: &str) -> Result<
         output.extend_from_slice(&buffer[..count]);
     }
     Ok(output)
+}
+
+fn read_cached_metadata(path: &Path, limit: u64) -> Result<Option<Vec<u8>>, Box<Diagnostic>> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(io_error("could not read official Godot metadata cache", path, error)),
+    };
+    if bytes.len() as u64 > limit {
+        return Err(source_error(
+            "cached official Godot release metadata exceeded its size limit",
+            "remove the managed Godot metadata cache and retry",
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn acquire_metadata_lock(path: &Path) -> Result<AdvisoryLock, Box<Diagnostic>> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        match AdvisoryLock::try_acquire(path, "official Godot release metadata") {
+            Ok(lock) => return Ok(lock),
+            Err(error)
+                if error.code() == ErrorCode::SourceAccess
+                    && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 fn verified_official_url(value: &str, api: bool) -> Result<url::Url, Box<Diagnostic>> {

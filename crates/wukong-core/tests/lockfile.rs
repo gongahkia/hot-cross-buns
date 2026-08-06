@@ -3,9 +3,12 @@ use std::{collections::BTreeSet, path::Path};
 use wukong_core::{
     identity::PackageName,
     lockfile::{
-        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedHttpSource,
-        LockedLocalSource, LockedPackage, LockedSource, Lockfile,
+        CatalogGraphRoots, GodotCompatibility, LockedGitSource, LockedGodotArtifact,
+        LockedGodotToolchain, LockedHttpSource, LockedLocalSource, LockedPackage, LockedSource,
+        Lockfile,
     },
+    managed_godot::{GodotFlavor, GodotPlatform},
+    semantic_version::SemanticVersion,
     source::ImmutableSourceId,
 };
 
@@ -42,10 +45,41 @@ proptest! {
     }
 
     #[test]
-    fn invariant_unknown_schema_versions_fail(schema in 4i64..1000) {
+    fn invariant_unknown_schema_versions_fail(schema in 5i64..1000) {
         let error = Lockfile::parse(Path::new(PATH), &format!("schema = {schema}\n")).expect_err("unknown schema should fail");
         prop_assert!(error.message().contains("schema"));
     }
+}
+
+#[test]
+fn invariant_schema_four_round_trips_exact_managed_godot_artifacts() {
+    let hash = "a".repeat(128);
+    let editor = LockedGodotArtifact::new(
+        "Godot_v4.4.1-stable_macos.universal.zip".to_owned(),
+        "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_macos.universal.zip".to_owned(),
+        hash.clone(),
+        42,
+    ).expect("editor should lock");
+    let templates = LockedGodotArtifact::new(
+        "Godot_v4.4.1-stable_export_templates.tpz".to_owned(),
+        "https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz".to_owned(),
+        hash,
+        24,
+    ).expect("templates should lock");
+    let toolchain = LockedGodotToolchain::new(
+        SemanticVersion::parse("4.4.1").expect("version should parse"),
+        GodotFlavor::Standard,
+        "4.4.1-stable".to_owned(),
+        [(GodotPlatform::MacosUniversal, editor)],
+        templates,
+    ).expect("toolchain should lock");
+    let lock = lock(["example-addon"]).with_toolchain(toolchain);
+    let output = lock.to_toml();
+    let parsed = Lockfile::parse(Path::new(PATH), &output).expect("schema four should parse");
+    assert_eq!(lock, parsed);
+    assert_eq!(lock.schema(), 4);
+    assert!(output.contains("[toolchain]"));
+    assert!(output.contains("[[toolchain.editor]]"));
 }
 
 #[test]

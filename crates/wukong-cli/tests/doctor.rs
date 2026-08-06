@@ -12,7 +12,11 @@ fn invariant_doctor_checks_a_healthy_project_without_network_access() {
         .output()
         .expect("doctor should run");
 
-    assert!(output.status.success());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8(output.stdout).expect("doctor output should be UTF-8");
     for check in [
         "project discovery",
@@ -124,7 +128,11 @@ impl Fixture {
             .env("WUKONG_CACHE_DIR", self.cache_root())
             .output()
             .expect("lock should run");
-        assert!(output.status.success());
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     fn executable(&self, name: &str) -> std::path::PathBuf {
         #[cfg(windows)]

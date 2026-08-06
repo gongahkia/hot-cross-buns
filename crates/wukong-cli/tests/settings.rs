@@ -73,6 +73,44 @@ fn invariant_unknown_global_progress_style_fails_without_writing_settings() {
     assert!(!config.exists());
 }
 
+#[test]
+fn invariant_managed_godot_download_policy_is_user_scoped_and_configurable() {
+    let fixture = TempDir::new().expect("fixture should exist");
+    let config = fixture.path().join("config");
+    let engine_dir = fixture.path().join("engines");
+    let set_downloads = command(&config)
+        .args(["settings", "set", "godot.downloads", "manual"])
+        .output()
+        .expect("settings set should run");
+    assert!(set_downloads.status.success());
+    let set_root = command(&config)
+        .args([
+            "settings",
+            "set",
+            "godot.engine-dir",
+            engine_dir.to_str().expect("engine path should be UTF-8"),
+        ])
+        .output()
+        .expect("settings set should run");
+    assert!(set_root.status.success());
+    let downloads = command(&config)
+        .args(["settings", "get", "godot.downloads"])
+        .output()
+        .expect("settings get should run");
+    assert_eq!(String::from_utf8(downloads.stdout).expect("setting should be UTF-8"), "manual\n");
+    let root = command(&config)
+        .args(["settings", "get", "godot.engine-dir"])
+        .output()
+        .expect("settings get should run");
+    assert_eq!(
+        String::from_utf8(root.stdout).expect("setting should be UTF-8"),
+        format!("{}\n", engine_dir.display())
+    );
+    let rendered = fs::read_to_string(config.join("wukong/settings.toml")).expect("settings should persist");
+    assert!(rendered.contains("schema = 2"));
+    assert!(rendered.contains("downloads = \"manual\""));
+}
+
 #[cfg(unix)]
 #[test]
 fn invariant_run_forwards_only_explicit_godot_arguments() {

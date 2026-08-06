@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use wukong_core::{
     diagnostic::ErrorCode,
+    managed_godot::GodotFlavor,
     manifest::{Dependency, DependencyLayout, GitReference, Manifest},
 };
 
@@ -21,6 +22,50 @@ godot = ">=4.5,<5"
     assert_eq!(manifest.project().godot().to_string(), ">=4.5, <5");
     assert!(manifest.dependencies().is_empty());
     assert!(manifest.dev_dependencies().is_empty());
+}
+
+#[test]
+fn invariant_exact_toolchain_pin_must_be_stable_and_project_compatible() {
+    let manifest = parse(
+        r#"
+[project]
+name = "my-game"
+godot = ">=4.4,<5"
+
+[toolchain]
+godot = "4.4.1"
+flavor = "dotnet"
+"#,
+    );
+    let toolchain = manifest.toolchain().expect("toolchain should parse");
+    assert_eq!(toolchain.godot().to_string(), "4.4.1");
+    assert_eq!(toolchain.flavor(), GodotFlavor::Dotnet);
+
+    let incompatible = parse_error(
+        r#"
+[project]
+name = "my-game"
+godot = ">=4.4,<5"
+
+[toolchain]
+godot = "4.3.0"
+flavor = "standard"
+"#,
+    );
+    assert!(incompatible.message().contains("does not satisfy project.godot"));
+
+    let prerelease = parse_error(
+        r#"
+[project]
+name = "my-game"
+godot = "4"
+
+[toolchain]
+godot = "4.5.0-beta.1"
+flavor = "standard"
+"#,
+    );
+    assert!(prerelease.message().contains("exact stable semantic version"));
 }
 
 #[test]
