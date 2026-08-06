@@ -22,5 +22,7 @@ jobs:
         run: cargo +nightly fuzz run manifest -- -max_total_time=60
       - name: Fuzz lockfile parser
         run: cargo +nightly fuzz run lockfile -- -max_total_time=60
+      - name: Fuzz source catalog parser
+        run: cargo +nightly fuzz run source_catalog -- -max_total_time=60
       - name: Fuzz archive extraction
         run: cargo +nightly fuzz run archive -- -max_total_time=60

@@ -10,13 +10,16 @@ schema = 1
 
 [[branch]]
 series = "4.6"
+version = "4.6.3"
 support = "supported"
 ```
 
-Each entry must use a unique, ascending `4.x` branch series. `support` is
+Each entry must use a unique, ascending `4.x` branch series and an exact stable
+`version` from that series. `support` is
 either `supported` (bugs, security, and platform fixes) or `partial` (security
-and platform fixes). Unknown fields, patch-shaped series, duplicates, empty
-matrices, and unsupported statuses fail validation before the matrix is used.
+and platform fixes). Unknown fields, patch-shaped series, pre-release or
+cross-branch versions, duplicates, empty matrices, and unsupported statuses
+fail validation before the matrix is used.
 
 Updates are ordinary reviewed source changes. They must use the current Godot
 release policy and do not rewrite `wukong.toml`, lockfiles, or installed project

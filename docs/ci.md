@@ -24,5 +24,9 @@ lockfiles, environment dumps, or verbose diagnostics. Git authentication must
 remain in the CI runner's Git/SSH configuration; Wukong accepts no manifest
 credentials and executes no package scripts.
 
-Repository-wide GitHub Actions remain deferred until the account billing or
-spending-limit issue is resolved; see [TODO wukong-002](../TODO.md).
+The repository CI derives its Godot validation matrix from the reviewed
+[`config/godot-support.toml`](../config/godot-support.toml) entries. Each job
+downloads its exact official stable Linux release and runs the package-free
+`fixtures/validation/minimal` project through `wukong validate` with a
+60-second timeout. Recovery mode disables editor plugins, tool scripts, and
+GDExtensions; no package-defined code path is selected by this validation.

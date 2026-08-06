@@ -1,6 +1,9 @@
 //! Reviewed repository configuration for supported Godot branches.
 
-use crate::diagnostic::{Diagnostic, ErrorCode};
+use crate::{
+    diagnostic::{Diagnostic, ErrorCode},
+    semantic_version::SemanticVersion,
+};
 use std::{collections::BTreeSet, fs, path::Path};
 use toml_edit::{Document, Item, TableLike};
 
@@ -78,22 +81,29 @@ impl GodotSupportLevel {
 }
 
 /// One reviewed branch in the repository support matrix.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GodotSupportBranch {
     branch: GodotBranch,
+    version: SemanticVersion,
     level: GodotSupportLevel,
 }
 
 impl GodotSupportBranch {
     /// Returns the configured Godot branch.
     #[must_use]
-    pub const fn branch(self) -> GodotBranch {
+    pub const fn branch(&self) -> GodotBranch {
         self.branch
+    }
+
+    /// Returns the exact reviewed stable release used for validation.
+    #[must_use]
+    pub const fn version(&self) -> &SemanticVersion {
+        &self.version
     }
 
     /// Returns the configured support level.
     #[must_use]
-    pub const fn level(self) -> GodotSupportLevel {
+    pub const fn level(&self) -> GodotSupportLevel {
         self.level
     }
 }
@@ -167,8 +177,30 @@ impl GodotSupportMatrix {
         let mut branches = Vec::with_capacity(entries.len());
         for (index, entry) in entries.iter().enumerate() {
             let scope = format!("branch[{index}]");
-            reject_unknown(path, entry, &["series", "support"], &scope)?;
+            reject_unknown(path, entry, &["series", "version", "support"], &scope)?;
             let branch = GodotBranch::parse(string(path, entry.get("series"), &scope, "series")?)?;
+            let version =
+                SemanticVersion::parse(string(path, entry.get("version"), &scope, "version")?)
+                    .map_err(|error| {
+                        invalid(
+                            path,
+                            format!("{scope}.version must be a complete stable semantic version"),
+                            error,
+                        )
+                    })?;
+            if version.as_semver().major != 4
+                || version.as_semver().minor != u64::from(branch.minor)
+                || version.is_prerelease()
+            {
+                return Err(invalid(
+                    path,
+                    format!(
+                        "{scope}.version must match stable branch {}",
+                        branch.as_str()
+                    ),
+                    "stale version entry",
+                ));
+            }
             let level =
                 GodotSupportLevel::parse(string(path, entry.get("support"), &scope, "support")?)?;
             if !seen.insert(branch) {
@@ -186,7 +218,11 @@ impl GodotSupportMatrix {
                 ));
             }
             previous = Some(branch);
-            branches.push(GodotSupportBranch { branch, level });
+            branches.push(GodotSupportBranch {
+                branch,
+                version,
+                level,
+            });
         }
         Ok(Self { branches })
     }
