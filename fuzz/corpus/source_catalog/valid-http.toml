@@ -1,0 +1,9 @@
+schema = 1
+
+[[package]]
+name = "catalog-addon"
+[package.http]
+version = "1.2.3"
+url = "https://example.test/catalog-addon.zip"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+root = "addons/catalog-addon"

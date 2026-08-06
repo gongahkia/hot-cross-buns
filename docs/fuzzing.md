@@ -10,11 +10,14 @@ Run a bounded local campaign with nightly Rust:
 ```sh
 cargo +nightly fuzz run manifest -- -max_total_time=60
 cargo +nightly fuzz run lockfile -- -max_total_time=60
+cargo +nightly fuzz run source_catalog -- -max_total_time=60
 cargo +nightly fuzz run archive -- -max_total_time=60
 ```
 
-Tracked corpus seeds under `fuzz/corpus/` include valid and invalid manifests
-and lockfiles plus malformed, traversal, and Unicode archive inputs.
+Tracked corpus seeds under `fuzz/corpus/` include valid and invalid manifests,
+lockfiles, and source catalogs, plus malformed, traversal, and Unicode archive
+inputs. The source-catalog target runs both structure parsing and declaration
+validation, including safe-root checks.
 `crates/wukong-core/tests/fuzz_regressions.rs` executes every tracked parser
 and raw-archive seed in normal test runs, so minimized crash inputs remain
 covered without `cargo-fuzz`.

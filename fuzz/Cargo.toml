@@ -38,3 +38,10 @@ path = "fuzz_targets/manifest.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "source_catalog"
+path = "fuzz_targets/source_catalog.rs"
+test = false
+doc = false
+bench = false
