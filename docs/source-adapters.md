@@ -21,8 +21,8 @@ Git version discovery is available through its Git-specific core boundary: it
 returns sorted SemVer versions mapped to complete commits and accepts an exact
 tag-prefix configuration. Local paths and checksummed HTTP archives report no
 version catalogue, so they require an immutable source declaration or package
-metadata rather than a version-only declaration. The generic resolver provider
-is added in W063.
+metadata rather than a version-only declaration. Catalog Git and HTTP adapters
+provide the reviewed candidates used by the generic resolver.
 See
 [ADR 0005](adr/0005-source-adapter-contract.md) and
 [ADR 0020](adr/0020-git-source-canonicalisation.md), plus

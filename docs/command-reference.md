@@ -10,7 +10,7 @@ installed package version. Exit codes are documented in [diagnostics](diagnostic
 | `package validate [--path <directory>] [--json]` | Validate package metadata without mutation or network access. | [package validate](package-validate.md) |
 | `add <alias> <--path\|--git\|--url> … [--dev]` | Edit, lock, and sync one direct dependency transactionally. | [add](add.md) |
 | `remove <alias>` | Remove one direct dependency and safely reconcile owned files. | [remove](remove.md) |
-| `lock [--offline] [--locked]` | Resolve direct sources and write a deterministic lockfile. | [lockfile](lockfile.md) |
+| `lock [--offline] [--locked]` | Resolve direct sources or version-only catalog graphs into a deterministic lockfile. | [lockfile](lockfile.md) |
 | `install` / `sync` | Reconcile the project from `wukong.lock`. | [sync](sync.md) |
 | `update [<alias>] [--dry-run]` | Re-lock selected supported dependencies and sync changes. | [update](update.md) |
 | `tree [--json]` / `why <alias> [--json]` | Inspect locked dependency paths without resolving. | [dependency views](dependency-views.md) |

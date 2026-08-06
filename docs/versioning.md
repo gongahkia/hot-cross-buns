@@ -20,9 +20,9 @@ version are user errors.
 
 Path, Git, and checksum-verified HTTP dependencies are source-pinned and have
 no version catalogue. Their immutable local snapshot, Git commit, or archive
-checksum is the selected source identity. A version-only declaration is a
-future catalogue dependency and is not interchangeable with a source-pinned
-declaration.
+checksum is the selected source identity. A version-only declaration resolves
+through a reviewed project catalog and is not interchangeable with a
+source-pinned declaration.
 
 This intentionally follows Cargo-compatible SemVer rather than npm-style
 version grammar; for example, alternatives separated by `||` are not accepted.

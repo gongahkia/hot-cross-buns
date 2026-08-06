@@ -52,8 +52,10 @@ free: it does not fetch sources or access declared paths. It rejects:
 - duplicate candidates after URL and root canonicalisation.
 
 Validation returns typed canonical package names, Git identities, Semantic
-Versions, checksums, and normalised source-relative roots. The catalog is not
-yet consumed by lock or sync commands. See [ADR 0042](adr/0042-project-source-catalog.md).
+Versions, checksums, and normalised source-relative roots. `wukong lock` uses
+the catalog when every direct manifest dependency is a version requirement;
+the resulting schema-three lock records the complete selected closure. See
+[ADR 0042](adr/0042-project-source-catalog.md).
 
 Each validated package candidate has a deterministic SHA-256 fingerprint of its
 canonical reviewed declaration. Schema-three catalog graph locks record that
@@ -117,13 +119,15 @@ the diagnostic names that package and requirement; incompatible non-empty
 constraints retain the resolver derivation. Cancellation is checked before
 catalog acquisition. This core API may populate and verify the shared cache,
 but never reads or mutates a Godot project, manifest, lockfile, or installed
-state. CLI lock/sync publication is later graph integration work.
+state. The lock service turns its selected candidates into a schema-three
+lockfile only after all required candidates have been acquired and verified.
 
 Resolver requests classify direct roots as runtime or development. The resolved
 graph derives the complete closures: development-only packages are excluded
 from runtime selection, while any package also reachable from a runtime root is
-promoted to runtime and selected once. The current direct-source sync remains
-separate until catalog graph integration.
+promoted to runtime and selected once. Sync materialises that persisted closure
+through the same ownership preflight and transaction boundary as direct locks.
+It never resolves a catalog during materialisation.
 
 Core callers can add or remove one candidate transactionally. The edit holds a
 per-catalog advisory lock, validates the complete output before publication,

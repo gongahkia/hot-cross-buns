@@ -194,6 +194,7 @@ pub fn sync_direct_dependencies_with_progress_and_cancellation(
     let mut cache_leases = Vec::<VerifiedCacheObject>::new();
     let mut validated_local_sources = BTreeMap::<String, ValidatedSource>::new();
     let mut packages = Vec::new();
+    let catalog_graph = lock.catalog_graph_roots().is_some();
     for locked in lock.packages().values() {
         cancellation.check()?;
         if locked.development() && !include_dev {
@@ -205,28 +206,39 @@ pub fn sync_direct_dependencies_with_progress_and_cancellation(
             selected_total,
             SyncProgressStage::ValidatingSource,
         ));
-        let dependency = dependency(manifest, locked.name().as_str(), locked.development())?;
-        let local_key = local_validation_key(locked.source(), dependency);
-        let source = if let Some(source) = local_key
-            .as_ref()
-            .and_then(|key| validated_local_sources.get(key))
-        {
-            source.clone()
-        } else {
-            let source = validate_source(
+        let source = if catalog_graph {
+            validate_locked_source(
                 locked.source(),
-                dependency,
-                manifest_path,
                 &git,
                 &http,
                 cancellation,
                 offline,
                 locked.name().as_str(),
-            )?;
-            if let Some(key) = local_key {
-                validated_local_sources.insert(key, source.clone());
+            )?
+        } else {
+            let dependency = dependency(manifest, locked.name().as_str(), locked.development())?;
+            let local_key = local_validation_key(locked.source(), dependency);
+            if let Some(source) = local_key
+                .as_ref()
+                .and_then(|key| validated_local_sources.get(key))
+            {
+                source.clone()
+            } else {
+                let source = validate_source(
+                    locked.source(),
+                    dependency,
+                    manifest_path,
+                    &git,
+                    &http,
+                    cancellation,
+                    offline,
+                    locked.name().as_str(),
+                )?;
+                if let Some(key) = local_key {
+                    validated_local_sources.insert(key, source.clone());
+                }
+                source
             }
-            source
         };
         progress.report(&SyncProgress::new(
             locked.name().clone(),
@@ -495,6 +507,52 @@ fn validate_source(
             http.fetch(locked.url(), locked.sha256(), offline)?,
         )),
         _ => Err(source_mismatch(package)),
+    }
+}
+
+fn validate_locked_source(
+    source: &LockedSource,
+    git: &GitFetcher,
+    http: &HttpArchiveFetcher,
+    cancellation: &CancellationToken,
+    offline: bool,
+    package: &str,
+) -> Result<ValidatedSource, Box<Diagnostic>> {
+    cancellation.check()?;
+    match source {
+        LockedSource::Git(locked) => {
+            let checkout = git.fetch(
+                &GitSourceRequest::new(
+                    locked.url().to_owned(),
+                    Some(GitReference::Rev(locked.commit().to_owned())),
+                ),
+                offline,
+            )?;
+            if checkout.resolution().immutable_id() != source.immutable_id() {
+                return Err(Box::new(
+                    Diagnostic::new(
+                        ErrorCode::IntegrityFailure,
+                        format!("Git source identity changed for locked package {package}"),
+                    )
+                    .with_package(package)
+                    .with_recovery("regenerate wukong.lock from the reviewed catalog"),
+                ));
+            }
+            Ok(ValidatedSource::Directory(checkout.root().to_path_buf()))
+        }
+        LockedSource::Http(locked) => Ok(ValidatedSource::Archive(http.fetch(
+            locked.url(),
+            locked.sha256(),
+            offline,
+        )?)),
+        LockedSource::Local(_) => Err(Box::new(
+            Diagnostic::new(
+                ErrorCode::IntegrityFailure,
+                format!("catalog graph package {package} has a local source"),
+            )
+            .with_package(package)
+            .with_recovery("regenerate wukong.lock from the reviewed catalog"),
+        )),
     }
 }
 

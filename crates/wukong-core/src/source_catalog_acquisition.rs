@@ -53,6 +53,7 @@ pub struct AcquiredCatalogCandidate {
     metadata: PackageMetadata,
     source: AcquiredCatalogSource,
     cache_object: CacheObject,
+    catalog_sha256: String,
 }
 
 impl AcquiredCatalogCandidate {
@@ -78,6 +79,12 @@ impl AcquiredCatalogCandidate {
     #[must_use]
     pub const fn cache_object(&self) -> &CacheObject {
         &self.cache_object
+    }
+
+    /// Returns the fingerprint of the reviewed catalog declaration selected.
+    #[must_use]
+    pub fn catalog_sha256(&self) -> &str {
+        &self.catalog_sha256
     }
 }
 
@@ -221,7 +228,12 @@ impl CatalogCandidateAcquirer {
                         .discover_candidates(declaration, self.offline)?;
                     for candidate in discovered.into_values() {
                         cancellation.check()?;
-                        candidates.push(self.acquire_git(package, &candidate, cancellation)?);
+                        candidates.push(self.acquire_git(
+                            package,
+                            declaration,
+                            &candidate,
+                            cancellation,
+                        )?);
                     }
                 }
                 ValidatedCatalogCandidate::Http(declaration) => {
@@ -235,6 +247,7 @@ impl CatalogCandidateAcquirer {
     fn acquire_git(
         &self,
         package: &PackageName,
+        declaration: &crate::source_catalog::ValidatedCatalogGitCandidate,
         candidate: &CatalogGitVersionCandidate,
         cancellation: &CancellationToken,
     ) -> SourceResult<AcquiredCatalogCandidate> {
@@ -259,6 +272,8 @@ impl CatalogCandidateAcquirer {
                 root: candidate.root().to_owned(),
             },
             cache_object,
+            catalog_sha256: ValidatedCatalogCandidate::Git(declaration.clone())
+                .fingerprint(package),
         })
     }
 
@@ -292,6 +307,7 @@ impl CatalogCandidateAcquirer {
                 root: candidate.root().to_owned(),
             },
             cache_object,
+            catalog_sha256: ValidatedCatalogCandidate::Http(candidate.clone()).fingerprint(package),
         })
     }
 

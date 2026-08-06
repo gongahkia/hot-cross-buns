@@ -21,6 +21,9 @@ use wukong_core::{
         CacheLayout, audit_cached_packages, check_cache_permissions, clean_cache, inspect_cache,
         verify_cached_packages,
     },
+    catalog_lock::{
+        lock_catalog_dependencies, manifest_uses_catalog, validate_catalog_lock_manifest,
+    },
     dependency_graph::{DependencyGroup, LockedDependencyGraph},
     diagnostic::{Diagnostic, ErrorCode},
     direct_lock::{
@@ -3105,14 +3108,27 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     };
     let cache = CacheLayout::from_environment()?;
     let reusable = options.offline.then_some(existing.as_ref()).flatten();
-    let locked = lock_direct_dependencies_with_cancellation(
-        &manifest_path,
-        &manifest,
-        reusable,
-        &cache,
-        options.offline,
-        &cancellation,
-    )?;
+    let locked = if manifest_uses_catalog(&manifest) {
+        let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+        let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
+        lock_catalog_dependencies(
+            &manifest,
+            catalog,
+            existing.as_ref(),
+            cache.clone(),
+            options.offline,
+            &cancellation,
+        )?
+    } else {
+        lock_direct_dependencies_with_cancellation(
+            &manifest_path,
+            &manifest,
+            reusable,
+            &cache,
+            options.offline,
+            &cancellation,
+        )?
+    };
     let godot_report = validate_locked_package_godot_compatibility(&locked, &compatibility)?;
     let output = locked.to_toml();
     if options.locked
@@ -3179,20 +3195,39 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             "run wukong lock to resolve the current manifest",
         )
     })?;
+    if lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+        validate_catalog_lock_manifest(&manifest, &lock)?;
+    }
     if matches!(options.output, OutputFormat::Json) {
         emit_json_progress("sync", "validating-lockfile");
     }
     let godot_report = validate_locked_package_godot_compatibility(&lock, &compatibility)?;
     let cache = CacheLayout::from_environment()?;
-    if options.locked {
-        let expected = lock_direct_dependencies_with_cancellation(
-            &manifest_path,
-            &manifest,
-            None,
-            &cache,
-            options.offline,
-            &cancellation,
-        )?;
+    if options.locked
+        && (!options.frozen
+            || lock.schema() != wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA)
+    {
+        let expected = if lock.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
+            let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+            let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
+            lock_catalog_dependencies(
+                &manifest,
+                catalog,
+                Some(&lock),
+                cache.clone(),
+                options.offline,
+                &cancellation,
+            )?
+        } else {
+            lock_direct_dependencies_with_cancellation(
+                &manifest_path,
+                &manifest,
+                None,
+                &cache,
+                options.offline,
+                &cancellation,
+            )?
+        };
         if expected.to_toml() != lock.to_toml() {
             return Err(user_error(
                 "manifest and lockfile differ while --locked was supplied",
@@ -3292,6 +3327,7 @@ struct SyncOptions {
     project: Option<PathBuf>,
     include_dev: bool,
     locked: bool,
+    frozen: bool,
     offline: bool,
     godot_version: Option<String>,
     output: OutputFormat,
@@ -3372,6 +3408,7 @@ fn parse_sync_arguments(
         project: None,
         include_dev: false,
         locked: false,
+        frozen: false,
         offline: false,
         godot_version: None,
         output: OutputFormat::Human,
@@ -3389,6 +3426,7 @@ fn parse_sync_arguments(
         if argument == "--frozen" {
             options.locked = true;
             options.offline = true;
+            options.frozen = true;
             continue;
         }
         if argument == "--offline" {

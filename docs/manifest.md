@@ -71,8 +71,10 @@ part of the declaration identity.
 | `root` | Direct sources | Safe source-relative package directory. |
 | `target` | Direct sources | Safe project-relative installation directory. |
 
-Version-only dependencies require a catalogue and are currently rejected before
-resolution. See [versioning policy](versioning.md).
+Version-only dependencies resolve through the project
+[`wukong.sources.toml`](source-catalog.md) catalog. A lock operation requires
+all direct dependencies to be version-only or all to be direct sources; mixing
+the two declaration styles is rejected. See [versioning policy](versioning.md).
 
 ## Editing
 

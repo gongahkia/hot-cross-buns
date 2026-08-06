@@ -13,17 +13,19 @@ prepared-package cache objects; `wukong cache dir`, `status`, and conservative
 `clean --dry-run`/`clean` provide cache maintenance. Git canonicalisation and core fetching are
 implemented. HTTPS archive retrieval and immutable checksum-addressed caching
 are implemented in the core. `wukong lock` supports direct path, Git, and HTTP
-dependencies. `wukong add` resolves and synchronises direct path, Git, and
-HTTPS archive sources transactionally; `wukong tree`/`wukong why` inspect the
-resolved lock graph. `wukong update [package]` re-locks supported direct sources
-and synchronises changes transactionally, with a dry-run preview. The core
-dependency solver is available for source-adapter integration; official asset
+dependencies, plus complete catalog-selected graphs for version-only manifests.
+`wukong add` resolves and synchronises direct path, Git, and HTTPS archive
+sources transactionally; `wukong tree`/`wukong why` inspect the resolved lock
+graph. `wukong update [package]` re-locks supported direct sources and
+synchronises changes transactionally, with a dry-run preview. Official asset
 sources are available only through the opt-in AssetLib feature; package scripts
 are not implemented. `wukong outdated` reports
 Git tag updates without changing the project. `wukong doctor` checks local
 project, cache, executable, network-configuration, and lock health.
 `wukong source add` and `wukong source remove` transactionally edit reviewed
 catalog candidates, while `wukong source list` inspects them without fetching.
+Version-only manifest dependencies resolve through these reviewed candidates
+into a schema-three lock.
 Every locked package requires valid `wukong-package.toml`; see the
 [package metadata guide](docs/package-metadata.md).
 

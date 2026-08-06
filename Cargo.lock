@@ -1489,8 +1489,10 @@ dependencies = [
  "ctrlc",
  "indicatif",
  "serde_json",
+ "sha2",
  "tempfile",
  "wukong-core",
+ "zip",
 ]
 
 [[package]]

@@ -102,20 +102,20 @@ produces stable canonical bytes. Schema two supports `local`, `git`, and
 
 ## Command
 
-`wukong lock` resolves direct local, Git, and HTTPS archive dependencies and
-writes `wukong.lock`; it does not materialise project files. Independent source
+`wukong lock` resolves direct local, Git, and HTTPS archive dependencies into
+schema two, or resolves version-only roots through `wukong.sources.toml` into a
+schema-three complete graph. Mixed catalog and direct-source declarations are
+rejected. Locking does not materialise project files. Independent direct-source
 preparation uses up to four workers, while lockfile ordering and the first
-reported package error remain deterministic. `--offline` uses
-only verified cached Git checkouts and HTTP archives; an exact Git revision can
-reuse its checkout without selector metadata. When re-resolution is required,
-it lists every unavailable remote artifact. `--locked` refuses a
-missing or changed lockfile with exit code 2. An unchanged valid lockfile is not
-rewritten. [`wukong install` and `wukong sync`](sync.md) apply supported direct
-source locks transactionally. [`wukong tree` and `wukong why`](dependency-views.md)
-read this lockfile without resolving, fetching, or modifying project files.
-[`wukong update`](update.md) re-locks all direct dependencies or one selected
-entry, prints immutable source or version changes, and synchronises the result
-transactionally.
+reported package error remain deterministic. `--offline` uses only verified
+cached Git checkouts and HTTP archives; an exact Git revision can reuse its
+checkout without selector metadata. When re-resolution is required, it lists
+every unavailable remote artifact. `--locked` refuses a missing or changed
+lockfile with exit code 2. An unchanged valid lockfile is not rewritten.
+[`wukong install` and `wukong sync`](sync.md) apply both supported lock shapes
+transactionally. [`wukong tree` and `wukong why`](dependency-views.md) read
+this lockfile without resolving, fetching, or modifying project files.
+[`wukong update`](update.md) still supports direct-source locks only.
 
 ## Policy
 

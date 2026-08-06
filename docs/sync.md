@@ -3,7 +3,9 @@
 `wukong install` and `wukong sync` are aliases. Both require an existing
 `wukong.lock`, verify each selected local, Git, or HTTPS archive source and
 prepared package checksum, then transactionally reconcile the project with the
-lockfile. They never execute package scripts.
+lockfile. Schema-three catalog locks materialise their full persisted runtime
+or development closure without requiring source declarations for transitive
+packages. They never execute package scripts.
 
 ```sh
 wukong lock
@@ -27,9 +29,12 @@ checksum still matches.
   selector metadata is not required. Local-path sync performs no network I/O.
 - `--godot <x.y.z>` validates an explicit active engine version against
   `[project].godot` before synchronisation.
-- `--locked` recomputes direct source resolution and refuses any manifest,
-  source, or lockfile mismatch before project mutation.
-- `--frozen` combines `--locked` and `--offline`.
+- `--locked` recomputes direct source resolution or the selected catalog graph
+  and refuses any manifest, source, or lockfile mismatch before project
+  mutation.
+- `--frozen` combines `--locked` and `--offline`. For schema-three locks it
+  validates manifest roots against the lock and does not read the source
+  catalog.
 - `--json` emits versioned JSON Lines events for editor and automation clients;
   the terminal result contains written, unchanged, removed, and Godot
   compatibility-summary fields.

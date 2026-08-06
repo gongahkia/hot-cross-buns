@@ -82,6 +82,9 @@ pub mod source_catalog_http;
 /// Lazy package-scoped source-catalog candidate acquisition.
 pub mod source_catalog_acquisition;
 
+/// Catalog-backed immutable graph-lock construction.
+pub mod catalog_lock;
+
 /// Transactional project source-catalog editing.
 pub mod source_catalog_edit;
 
