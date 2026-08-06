@@ -486,6 +486,7 @@ fn run_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
             ));
         }
     };
+    progress::finish_for_output();
     println!(
         "added {}; sync: {} written, {} unchanged, {} removed",
         options.alias, summary.written, summary.unchanged, summary.removed
@@ -744,6 +745,7 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             ));
         }
     };
+    progress::finish_for_output();
     println!(
         "removed {}; sync: {} written, {} unchanged, {} removed",
         options.alias, summary.written, summary.unchanged, summary.removed
@@ -1114,6 +1116,7 @@ fn update_value(package: &wukong_core::lockfile::LockedPackage) -> String {
 }
 
 fn print_update_changes(prefix: &str, changes: &[String]) {
+    progress::finish_for_output();
     if changes.is_empty() {
         println!("{prefix}: no changes");
         return;
@@ -1124,6 +1127,7 @@ fn print_update_changes(prefix: &str, changes: &[String]) {
 }
 
 fn print_godot_compatibility_report(report: &PackageGodotCompatibilityReport) {
+    progress::finish_for_output();
     if !report.unknown().is_empty() {
         println!(
             "godot compatibility: unknown for {}",
@@ -4299,6 +4303,7 @@ fn run_sync(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         emit_json_progress("sync", "state-written");
         emit_json_result(&render_sync_json(&summary, &godot_report));
     } else {
+        progress::finish_for_output();
         println!(
             "sync: {} written, {} unchanged, {} removed",
             summary.written, summary.unchanged, summary.removed
@@ -4814,6 +4819,7 @@ fn user_error(message: impl AsRef<str>, recovery: impl AsRef<str>) -> Box<Diagno
 }
 
 fn render_error(diagnostic: &Diagnostic) -> ProcessExit {
+    progress::finish_for_output();
     JSON_MODE.with(|mode| {
         if mode.get() {
             eprintln!("{}", render_json(diagnostic));

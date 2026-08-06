@@ -31,6 +31,7 @@ pub const DEFAULT_SPINNER: &str = "simple-dots";
 pub const DEFAULT_BAR_THEME: &str = "classic";
 const RENDER_DELAY: Duration = Duration::from_millis(120);
 const REFRESH_INTERVAL: Duration = Duration::from_millis(80);
+const FINISH_WAIT: Duration = Duration::from_millis(250);
 const BAR_WIDTH: usize = 24;
 
 thread_local! {
@@ -124,6 +125,7 @@ impl ProgressSession {
         };
         let shared = Arc::new(Shared {
             finished: AtomicBool::new(false),
+            cleared: AtomicBool::new(false),
             state: Mutex::new(State {
                 command: command.to_owned(),
                 phase: "starting".to_owned(),
@@ -185,12 +187,31 @@ pub fn set_progress(completed: usize, total: usize, phase: &str) {
     });
 }
 
+/// Clears active terminal progress before a command writes a durable line.
+///
+/// stdout and stderr can target the same terminal. Waiting for the renderer to
+/// clear its line prevents a stable result or diagnostic from being appended to
+/// a spinner frame.
+pub fn finish_for_output() {
+    ACTIVE_PROGRESS.with(|active| {
+        let shared = active.borrow().clone();
+        if let Some(shared) = shared {
+            shared.finished.store(true, Ordering::Release);
+            let deadline = Instant::now() + FINISH_WAIT;
+            while !shared.cleared.load(Ordering::Acquire) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+    });
+}
+
 fn progress_disabled_by_environment() -> bool {
     std::env::var_os("WUKONG_NO_PROGRESS").is_some_and(|value| value != "0")
 }
 
 struct Shared {
     finished: AtomicBool,
+    cleared: AtomicBool,
     state: Mutex<State>,
 }
 
@@ -349,6 +370,7 @@ fn render_loop(shared: Arc<Shared>, spinner: SpinnerPreset, bar: BarTheme) {
     if rendered {
         let _ = clear_line();
     }
+    shared.cleared.store(true, Ordering::Release);
 }
 
 fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Duration) -> String {
