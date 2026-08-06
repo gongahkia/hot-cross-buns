@@ -57,6 +57,48 @@ fn invariant_stress_local_dependency_counts_are_transactional_and_idempotent() {
     }
 }
 
+#[test]
+fn invariant_stress_deep_unicode_package_tree_materialises_without_path_loss() {
+    let fixture = Fixture::new();
+    let source = fixture.project().join("shaped");
+    let nested = (0..24).fold(source.clone(), |path, index| {
+        path.join(format!("nested-{index:02}"))
+    });
+    let relative = nested
+        .strip_prefix(&source)
+        .expect("nested path should remain inside source")
+        .join("東京-ß-長い名前.gd");
+    fs::create_dir_all(&nested).expect("deep source path should create");
+    fs::write(source.join(&relative), "extends Node\n# unicode\n")
+        .expect("deep source should write");
+    fs::write(
+        source.join("wukong-package.toml"),
+        "[package]\nschema = 1\nname = \"shaped\"\nversion = \"1.0.0\"\ngodot = \"4\"\n",
+    )
+    .expect("deep package metadata should write");
+    let manifest_text = "[project]\nname = \"stress\"\ngodot = \"4\"\n\n[dev-dependencies]\nshaped = { path = \"shaped\" }\n";
+    fs::write(fixture.manifest_path(), manifest_text).expect("deep manifest should write");
+    let manifest = Manifest::parse(fixture.manifest_path(), manifest_text)
+        .expect("deep manifest should parse");
+    let lock = lock_direct_local_dependencies(fixture.manifest_path(), &manifest, None)
+        .expect("deep package should lock");
+
+    sync_direct_local_dependencies(
+        fixture.project(),
+        fixture.manifest_path(),
+        &manifest,
+        &lock,
+        true,
+    )
+    .expect("deep package should sync");
+
+    assert_eq!(
+        fs::read_to_string(fixture.project().join("addons/shaped").join(relative))
+            .expect("deep unicode output should read"),
+        "extends Node\n# unicode\n"
+    );
+}
+
 struct Fixture {
     _directory: TempDir,
     project: std::path::PathBuf,
