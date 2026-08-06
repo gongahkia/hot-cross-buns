@@ -59,6 +59,16 @@ fn invariant_state_rejects_unsafe_paths_unknown_owners_and_unknown_fields() {
 }
 
 #[test]
+fn invariant_state_rejects_backslash_delimited_serialized_paths() {
+    let state = state(["alpha"]);
+    let output = state
+        .to_toml()
+        .replace("addons/alpha/plugin.gd", "addons\\\\alpha\\\\plugin.gd");
+
+    assert!(InstalledState::parse(Path::new("fixture/.wukong/state.toml"), &output).is_err());
+}
+
+#[test]
 fn invariant_state_retains_all_identical_file_owners() {
     let alpha = package("alpha", 0);
     let beta = package("beta", 1);

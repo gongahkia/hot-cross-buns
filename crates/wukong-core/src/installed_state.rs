@@ -458,8 +458,15 @@ fn parse_file(table: &dyn TableLike) -> Result<OwnedFile, Box<Diagnostic>> {
         "file",
     )?;
     let packages = package_names(table, "packages", "file")?;
+    let path = string(table, "path", "file")?;
+    if path.contains('\\') {
+        return Err(user(
+            "file.path must be a safe slash-separated relative path",
+            "use a non-empty path below the project root",
+        ));
+    }
     OwnedFile::new(
-        PathBuf::from(string(table, "path", "file")?),
+        PathBuf::from(path),
         packages,
         string(table, "sha256", "file")?,
         MaterializationStrategy::parse(&string(table, "materialization", "file")?)?,
@@ -612,7 +619,7 @@ fn known(table: &dyn TableLike, fields: &[&str], scope: &str) -> Result<(), Box<
 }
 
 fn safe_relative_path(value: &Path, field: &str) -> Result<PathBuf, Box<Diagnostic>> {
-    if value.as_os_str().is_empty() || value.to_string_lossy().contains('\\') {
+    if value.as_os_str().is_empty() {
         return Err(user(
             format!("{field} must be a safe slash-separated relative path"),
             "use a non-empty path below the project root",

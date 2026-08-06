@@ -187,7 +187,9 @@ jobs:
           archive="release-artifacts/wukong-$version-${{ matrix.target }}.zip"
           test -s "$archive"
           stage="$(mktemp -d)"
-          python - "$archive" "$archive.sha256" "${{ matrix.binary }}" "$stage" <<'PY'
+          python_bin="$(command -v python3 || command -v python || true)"
+          test -n "$python_bin"
+          "$python_bin" - "$archive" "$archive.sha256" "${{ matrix.binary }}" "$stage" <<'PY'
           import hashlib
           import pathlib
           import sys
