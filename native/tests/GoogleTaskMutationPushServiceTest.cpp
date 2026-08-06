@@ -3,6 +3,7 @@
 #include "core/Clock.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleTaskMutationPushService.h"
+#include "core/MutationTelemetryStore.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
 #include "core/TaskListMutationService.h"
@@ -85,6 +86,12 @@ template <typename Result> [[nodiscard]] Result awaitResult(std::future<Result>&
 
 void verifyReady(hcb::OptimisticMutationCoordinator& coordinator) {
   const std::shared_future<hcb::SqliteWriteResult> ready = coordinator.ready();
+  QCOMPARE(ready.wait_for(2s), std::future_status::ready);
+  QVERIFY(!ready.get().has_value());
+}
+
+void verifyReady(hcb::MutationTelemetryStore& store) {
+  const std::shared_future<hcb::SqliteWriteResult> ready = store.ready();
   QCOMPARE(ready.wait_for(2s), std::future_status::ready);
   QVERIFY(!ready.get().has_value());
 }
@@ -394,6 +401,8 @@ void GoogleTaskMutationPushServiceTest::keepsPartialTaskBatchFailuresRetryable()
   FixedClock clock;
   hcb::OptimisticMutationCoordinator coordinator(database->databasePath(), clock);
   verifyReady(coordinator);
+  hcb::MutationTelemetryStore telemetry(database->databasePath(), clock);
+  verifyReady(telemetry);
   const hcb::PendingMutation first = enqueue(
       coordinator,
       QStringLiteral("task.update"),
@@ -427,7 +436,7 @@ void GoogleTaskMutationPushServiceTest::keepsPartialTaskBatchFailuresRetryable()
   manager.enqueue({.body = batchResponse});
   hcb::GoogleHttpClient httpClient(nullptr, &manager);
   hcb::GoogleTaskMutationPushService service(
-      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{});
+      coordinator, httpClient, clock, hcb::SyncBackoffPolicy{}, nullptr, nullptr, nullptr, &telemetry);
 
   const hcb::GoogleTaskMutationPushResult result = push(service);
   QCOMPARE(result.applied, 1);
@@ -442,6 +451,23 @@ void GoogleTaskMutationPushServiceTest::keepsPartialTaskBatchFailuresRetryable()
   QCOMPARE(retriable.status, hcb::PendingMutationStatus::Failed);
   QCOMPARE(retriable.lastErrorCode, std::optional<QString>(QStringLiteral("server")));
   QVERIFY(retriable.nextRetryAt.has_value());
+  const hcb::MutationTelemetryReadResult telemetryResult = telemetry.recent().get();
+  QVERIFY(std::holds_alternative<QList<hcb::MutationTelemetryRecord>>(telemetryResult));
+  if (!std::holds_alternative<QList<hcb::MutationTelemetryRecord>>(telemetryResult)) {
+    return;
+  }
+  const QList<hcb::MutationTelemetryRecord> records =
+      std::get<QList<hcb::MutationTelemetryRecord>>(telemetryResult);
+  QCOMPARE(records.size(), 2);
+  const auto failed = std::find_if(records.cbegin(), records.cend(), [](const auto& record) {
+    return record.phase == hcb::MutationTelemetryPhase::RemoteFailed;
+  });
+  QVERIFY(failed != records.cend());
+  if (failed == records.cend()) {
+    return;
+  }
+  QCOMPARE(failed->errorCode, std::optional<QString>(QStringLiteral("server")));
+  QCOMPARE(failed->rollbackReason, std::optional<QString>(QStringLiteral("keep_retry")));
 }
 
 void GoogleTaskMutationPushServiceTest::pushesTaskReorderMove() {

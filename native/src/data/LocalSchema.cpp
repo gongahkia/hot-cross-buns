@@ -240,6 +240,27 @@ ADD COLUMN event_type TEXT CHECK(event_type IS NULL OR event_type IN (
 ))
 )";
 
+constexpr char mutationTelemetrySchemaSql[] = R"(
+CREATE TABLE local_mutation_telemetry (
+  id TEXT PRIMARY KEY CHECK(length(trim(id)) BETWEEN 1 AND 128),
+  mutation_id TEXT NOT NULL DEFAULT '' CHECK(length(mutation_id) <= 128),
+  resource TEXT NOT NULL CHECK(resource IN ('task', 'task_list', 'event')),
+  operation TEXT NOT NULL CHECK(length(trim(operation)) BETWEEN 1 AND 128),
+  scope TEXT NOT NULL CHECK(scope IN ('none', 'this_instance', 'this_and_following', 'full_series')),
+  all_day INTEGER NOT NULL CHECK(all_day IN (0, 1)),
+  target_start_at TEXT CHECK(target_start_at IS NULL OR length(trim(target_start_at)) BETWEEN 1 AND 64),
+  target_end_at TEXT CHECK(target_end_at IS NULL OR length(trim(target_end_at)) BETWEEN 1 AND 64),
+  phase TEXT NOT NULL CHECK(phase IN ('intent', 'remote_applied', 'remote_failed', 'rollback')),
+  remote_outcome TEXT CHECK(remote_outcome IS NULL OR length(trim(remote_outcome)) BETWEEN 1 AND 128),
+  error_code TEXT CHECK(error_code IS NULL OR length(trim(error_code)) BETWEEN 1 AND 128),
+  rollback_reason TEXT CHECK(rollback_reason IS NULL OR length(trim(rollback_reason)) BETWEEN 1 AND 128),
+  created_at TEXT NOT NULL CHECK(length(trim(created_at)) BETWEEN 1 AND 64)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX local_mutation_telemetry_recency
+ON local_mutation_telemetry(created_at DESC, id DESC)
+)";
+
 constexpr char calendarEventMetadataSchemaSql[] = R"(
 DROP TRIGGER local_calendar_events_fts_insert;
 DROP TRIGGER local_calendar_events_fts_delete;
@@ -1011,8 +1032,14 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
                      QStringLiteral("SQLite calendar-list color schema"));
 }
 
-[[nodiscard]] const std::array<SqliteMigration, 24>& migrations() {
-  static const std::array<SqliteMigration, 24> catalogue = {{
+[[nodiscard]] std::optional<AppError> applyMutationTelemetrySchema(SqliteConnection& connection) {
+  return applySchema(connection,
+                     mutationTelemetrySchemaSql,
+                     QStringLiteral("SQLite mutation telemetry schema"));
+}
+
+[[nodiscard]] const std::array<SqliteMigration, 25>& migrations() {
+  static const std::array<SqliteMigration, 25> catalogue = {{
       {1,
        QStringLiteral("create local settings"),
        checksum(settingsSchemaSql),
@@ -1098,6 +1125,10 @@ applyCalendarEventMetadataSchema(SqliteConnection& connection) {
        QStringLiteral("store calendar-list color IDs"),
        checksum(calendarListColorSchemaSql),
        applyCalendarListColorSchema},
+      {25,
+       QStringLiteral("store redacted mutation telemetry"),
+       checksum(mutationTelemetrySchemaSql),
+       applyMutationTelemetrySchema},
   }};
   return catalogue;
 }

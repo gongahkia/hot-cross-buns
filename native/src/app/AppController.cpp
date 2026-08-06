@@ -78,6 +78,9 @@ constexpr char kWeekStartDaySettingsKey[] = "week_start_day";
 constexpr char kUse24HourTimeSettingsKey[] = "use_24_hour_time";
 constexpr char kDisplayTimeZoneSettingsKey[] = "display_time_zone";
 constexpr char kWorkdayStartHourSettingsKey[] = "workday_start_hour";
+constexpr char kUndoRetentionDaysSettingsKey[] = "undo_retention_days";
+constexpr char kUndoMaximumEntriesSettingsKey[] = "undo_maximum_entries";
+constexpr char kCalendarDragCreateHintSeenSettingsKey[] = "calendar_drag_create_hint_seen";
 constexpr char kWorkdayEndHourSettingsKey[] = "workday_end_hour";
 constexpr char kCalendarVisibilitySettingsKey[] = "calendar_visibility";
 constexpr char kSidebarTabIdsSettingsKey[] = "sidebar_tab_ids";
@@ -703,6 +706,77 @@ calendarPresentation(QList<CalendarEventSummary> events) {
       .month = MonthGridModel::buildLayout(date, events, displayTimeZone, firstDay)};
 }
 
+[[nodiscard]] QJsonObject taskDueSnapshot(const TaskMutationSnapshot& task) {
+  return {{QStringLiteral("taskId"), task.taskId},
+          {QStringLiteral("dueAt"),
+           task.dueAt.has_value() ? QJsonValue(*task.dueAt) : QJsonValue(QJsonValue::Null)},
+          {QStringLiteral("dueTimeZone"),
+           task.dueTimeZone.has_value() ? QJsonValue(*task.dueTimeZone)
+                                        : QJsonValue(QJsonValue::Null)}};
+}
+
+[[nodiscard]] QJsonObject existenceSnapshot(bool exists) {
+  return {{QStringLiteral("exists"), exists}};
+}
+
+[[nodiscard]] std::optional<bool> existenceFromSnapshot(const QJsonValue& value) {
+  if (!value.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonValue exists = value.toObject().value(QStringLiteral("exists"));
+  return exists.isBool() ? std::optional<bool>(exists.toBool()) : std::nullopt;
+}
+
+[[nodiscard]] std::optional<TaskDue> taskDueFromSnapshot(const QJsonValue& snapshot,
+                                                          const QString& taskId) {
+  if (!snapshot.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject object = snapshot.toObject();
+  if (object.value(QStringLiteral("taskId")).toString() != taskId) {
+    return std::nullopt;
+  }
+  const QJsonValue dueAt = object.value(QStringLiteral("dueAt"));
+  const QJsonValue dueTimeZone = object.value(QStringLiteral("dueTimeZone"));
+  if ((!dueAt.isNull() && !dueAt.isString()) ||
+      (!dueTimeZone.isNull() && !dueTimeZone.isString())) {
+    return std::nullopt;
+  }
+  return TaskDue{.at = dueAt.isNull() ? std::optional<QString>{}
+                                      : std::optional<QString>(dueAt.toString()),
+                 .timeZone = dueTimeZone.isNull() ? std::optional<QString>{}
+                                                  : std::optional<QString>(dueTimeZone.toString())};
+}
+
+[[nodiscard]] QJsonObject eventTimingSnapshot(const CalendarEventMutationSnapshot& event) {
+  return {{QStringLiteral("eventId"), event.eventId},
+          {QStringLiteral("startAt"), event.startAt},
+          {QStringLiteral("endAt"), event.endAt},
+          {QStringLiteral("allDay"), event.allDay}};
+}
+
+struct EventTiming final {
+  QString startAt;
+  QString endAt;
+  bool allDay{false};
+};
+
+[[nodiscard]] std::optional<EventTiming> eventTimingFromSnapshot(const QJsonValue& snapshot,
+                                                                  const QString& eventId) {
+  if (!snapshot.isObject()) {
+    return std::nullopt;
+  }
+  const QJsonObject object = snapshot.toObject();
+  const QJsonValue allDay = object.value(QStringLiteral("allDay"));
+  const QString startAt = object.value(QStringLiteral("startAt")).toString();
+  const QString endAt = object.value(QStringLiteral("endAt")).toString();
+  if (object.value(QStringLiteral("eventId")).toString() != eventId || startAt.isEmpty() ||
+      endAt.isEmpty() || !allDay.isBool()) {
+    return std::nullopt;
+  }
+  return EventTiming{.startAt = startAt, .endAt = endAt, .allDay = allDay.toBool()};
+}
+
 } // namespace
 
 AppController::AppController(FilePath databasePath,
@@ -730,6 +804,8 @@ AppController::AppController(FilePath databasePath,
       googleCalendarEventPullClient_(googleHttpClient_), googleMirrorStore_(databasePath, clock),
       settingsService_(databasePath, clock), savedSearchStore_(settingsService_),
       optimisticMutationCoordinator_(databasePath, clock),
+      mutationTelemetryStore_(databasePath, clock),
+      undoRecoveryPolicy_(databasePath, clock, QStringLiteral("undo:google")),
       syncCheckpointStore_(databasePath, clock), syncConflictStore_(databasePath, clock),
       googleSyncConflictResolver_(
           optimisticMutationCoordinator_, syncConflictStore_, googleHttpClient_),
@@ -744,13 +820,15 @@ AppController::AppController(FilePath databasePath,
                                      SyncBackoffPolicy(),
                                      &taskMutationService_,
                                      &taskListMutationService_,
-                                     &googleSyncConflictResolver_),
+                                     &googleSyncConflictResolver_,
+                                     &mutationTelemetryStore_),
       googleCalendarEventMutationPushService_(optimisticMutationCoordinator_,
                                               googleHttpClient_,
                                               clock,
                                               SyncBackoffPolicy(),
                                               &calendarMutationService_,
-                                              &googleSyncConflictResolver_),
+                                              &googleSyncConflictResolver_,
+                                              &mutationTelemetryStore_),
       taskListReadService_(databasePath), taskReadService_(databasePath),
       calendarReadService_(databasePath),
       googleCalendarInstanceCacheService_(
@@ -992,6 +1070,34 @@ QVariantList AppController::scheduledTasks() const {
   return result;
 }
 
+QVariantList AppController::unscheduledTasks() const {
+  QVariantList result;
+  for (const TaskModelTask& task : taskProjectionTasks_) {
+    if (task.completed || task.parentTaskId.has_value() || task.due.has_value()) {
+      continue;
+    }
+    result.append(QVariantMap{{QStringLiteral("id"), task.id},
+                              {QStringLiteral("taskListId"), task.taskListId},
+                              {QStringLiteral("taskListTitle"), task.taskListTitle},
+                              {QStringLiteral("title"), task.title},
+                              {QStringLiteral("notes"), task.notes.value_or(QString())},
+                              {QStringLiteral("priority"), static_cast<int>(task.priority)}});
+  }
+  return result;
+}
+
+QString AppController::undoLabel() const { return undoLabel_; }
+
+QString AppController::redoLabel() const { return redoLabel_; }
+
+int AppController::undoRetentionDays() const { return undoRetentionDays_; }
+
+int AppController::undoMaximumEntries() const { return undoMaximumEntries_; }
+
+bool AppController::calendarDragCreateHintSeen() const { return calendarDragCreateHintSeen_; }
+
+int AppController::pendingSyncCount() const { return pendingSyncCount_; }
+
 QString AppController::reminderStatusMessage() const { return reminderStatusMessage_; }
 
 bool AppController::busy() const { return busy_; }
@@ -1000,6 +1106,46 @@ SearchResultsModel& AppController::searchResultsModel() { return *searchResultsM
 
 void AppController::initialize() {
   loadSavedSearches();
+  watch(undoRecoveryPolicy_.recover(), [this](UndoRecoveryResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    refreshUndoStatus();
+  }, false);
+  const auto loadUndoSetting = [this](const char* key, bool retention) {
+    watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                    QString::fromLatin1(key)),
+          [this, retention](SettingsJsonReadResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+            if (!stored.has_value()) {
+              return;
+            }
+            bool parsed = false;
+            const int value = stored->toInt(&parsed);
+            const bool valid = retention ? value >= 1 && value <= 3'650
+                                         : value >= 50 && value <= 1'000;
+            if (!parsed || !valid) {
+              setStatus(QStringLiteral("Stored undo history setting is invalid"));
+              return;
+            }
+            if (retention) {
+              undoRetentionDays_ = value;
+            } else {
+              undoMaximumEntries_ = value;
+            }
+            undoRecoveryPolicy_.configure(
+                {.retentionDays = undoRetentionDays_, .maximumEntries = undoMaximumEntries_});
+            emit undoHistorySettingsChanged();
+          }, false);
+  };
+  loadUndoSetting(kUndoRetentionDaysSettingsKey, true);
+  loadUndoSetting(kUndoMaximumEntriesSettingsKey, false);
+  refreshPendingSyncCount();
   watch(settingsService_.readJson(QString::fromLatin1(kSyncSettingsScope),
                                   QString::fromLatin1(kConflictPolicySettingsKey)),
         [this](SettingsJsonReadResult result) {
@@ -1396,6 +1542,27 @@ void AppController::initialize() {
           } else if (value.has_value() && use24HourTime_ != *value) {
             use24HourTime_ = *value;
             emit use24HourTimeChanged();
+          }
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kCalendarDragCreateHintSeenSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          if (*stored != QStringLiteral("true") && *stored != QStringLiteral("false")) {
+            setStatus(QStringLiteral("Stored calendar drag hint setting is invalid"));
+            return;
+          }
+          const bool seen = *stored == QStringLiteral("true");
+          if (calendarDragCreateHintSeen_ != seen) {
+            calendarDragCreateHintSeen_ = seen;
+            emit calendarDragCreateHintSeenChanged();
           }
         });
   watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
@@ -3618,7 +3785,14 @@ void AppController::createTask(QString taskListId, QString parentTaskId, QString
         if (std::holds_alternative<AppError>(result)) {
           setStatus(errorMessage(std::get<AppError>(result)));
         } else {
+          recordExistenceHistory(UndoResourceKind::Task,
+                                 std::get<TaskMutationReceipt>(result).taskId,
+                                 QStringLiteral("task.create"),
+                                 QStringLiteral("Create task"),
+                                 false,
+                                 true);
           refreshTasks();
+          refreshPendingSyncCount();
         }
       });
 }
@@ -3715,7 +3889,14 @@ void AppController::createTaskDetailed(QString taskListId,
     if (std::holds_alternative<AppError>(result)) {
       setStatus(errorMessage(std::get<AppError>(result)));
     } else {
+      recordExistenceHistory(UndoResourceKind::Task,
+                             std::get<TaskMutationReceipt>(result).taskId,
+                             QStringLiteral("task.create"),
+                             QStringLiteral("Create task"),
+                             false,
+                             true);
       refreshTasks();
+      refreshPendingSyncCount();
     }
   });
 }
@@ -3729,7 +3910,14 @@ void AppController::saveNoteTask(QString taskId, QString taskListId, QString tit
             if (std::holds_alternative<AppError>(result)) {
               setStatus(errorMessage(std::get<AppError>(result)));
             } else {
+              recordExistenceHistory(UndoResourceKind::Task,
+                                     std::get<TaskMutationReceipt>(result).taskId,
+                                     QStringLiteral("task.create"),
+                                     QStringLiteral("Create task"),
+                                     false,
+                                     true);
               refreshTasks();
+              refreshPendingSyncCount();
             }
           });
     return;
@@ -3980,12 +4168,29 @@ void AppController::splitTaskRecurrence(QString taskId) {
 }
 
 void AppController::deleteTask(QString taskId) {
-  watch(taskMutationService_.remove(std::move(taskId)), [this](TaskMutationResult result) {
-    if (std::holds_alternative<AppError>(result)) {
-      setStatus(errorMessage(std::get<AppError>(result)));
-    } else {
-      refreshTasks();
+  watch(taskMutationService_.inspect({taskId}), [this, taskId = std::move(taskId)](
+            TaskMutationSnapshotResult inspection) {
+    if (std::holds_alternative<AppError>(inspection) ||
+        std::get<QList<TaskMutationSnapshot>>(inspection).size() != 1) {
+      setStatus(std::holds_alternative<AppError>(inspection)
+                    ? errorMessage(std::get<AppError>(inspection))
+                    : QStringLiteral("Task is unavailable for deletion"));
+      return;
     }
+    watch(taskMutationService_.remove(taskId), [this, taskId](TaskMutationResult result) {
+      if (std::holds_alternative<AppError>(result)) {
+        setStatus(errorMessage(std::get<AppError>(result)));
+      } else {
+        recordExistenceHistory(UndoResourceKind::Task,
+                               taskId,
+                               QStringLiteral("task.delete"),
+                               QStringLiteral("Delete task"),
+                               true,
+                               false);
+        refreshTasks();
+        refreshPendingSyncCount();
+      }
+    });
   });
 }
 
@@ -4050,8 +4255,26 @@ void AppController::bulkSetTaskDue(QVariantList taskIds, QString dueAt) {
     setStatus(QStringLiteral("Bulk task due date is invalid"));
     return;
   }
-  runBulkTaskMutation(
-      {.action = TaskBulkAction::SetDue, .taskIds = *ids, .due = TaskDue{.at = normalizedDue}});
+  watch(taskMutationService_.inspect(*ids),
+        [this, ids = *ids, due = *normalizedDue](TaskMutationSnapshotResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const QList<TaskMutationSnapshot> before =
+              std::get<QList<TaskMutationSnapshot>>(std::move(result));
+          runBulkTaskMutation(
+              {.action = TaskBulkAction::SetDue, .taskIds = ids, .due = TaskDue{.at = due}},
+              [this, before, due](const TaskBulkMutationSummary&) {
+                recordTaskDueHistory(before, QStringLiteral("Schedule task"));
+                static_cast<void>(mutationTelemetryStore_.record(
+                    {.resource = QStringLiteral("task"),
+                     .operation = QStringLiteral("task.schedule"),
+                     .scope = QStringLiteral("none"),
+                     .targetStartAt = due,
+                     .phase = MutationTelemetryPhase::Intent}));
+              });
+        });
 }
 
 void AppController::bulkClearTaskDue(QVariantList taskIds) {
@@ -4060,7 +4283,23 @@ void AppController::bulkClearTaskDue(QVariantList taskIds) {
     setStatus(QStringLiteral("Bulk task selection is invalid"));
     return;
   }
-  runBulkTaskMutation({.action = TaskBulkAction::ClearDue, .taskIds = *ids});
+  watch(taskMutationService_.inspect(*ids), [this, ids = *ids](TaskMutationSnapshotResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    const QList<TaskMutationSnapshot> before =
+        std::get<QList<TaskMutationSnapshot>>(std::move(result));
+    runBulkTaskMutation({.action = TaskBulkAction::ClearDue, .taskIds = ids},
+                        [this, before](const TaskBulkMutationSummary&) {
+                          recordTaskDueHistory(before, QStringLiteral("Unschedule task"));
+                          static_cast<void>(mutationTelemetryStore_.record(
+                              {.resource = QStringLiteral("task"),
+                               .operation = QStringLiteral("task.unschedule"),
+                               .scope = QStringLiteral("none"),
+                               .phase = MutationTelemetryPhase::Intent}));
+                        });
+  });
 }
 
 void AppController::bulkSetTaskPriority(QVariantList taskIds, int priority) {
@@ -4072,6 +4311,66 @@ void AppController::bulkSetTaskPriority(QVariantList taskIds, int priority) {
   }
   runBulkTaskMutation(
       {.action = TaskBulkAction::SetPriority, .taskIds = *ids, .priority = *parsedPriority});
+}
+
+void AppController::undo() { replayHistory(UndoAction::Undo); }
+
+void AppController::redo() { replayHistory(UndoAction::Redo); }
+
+void AppController::saveUndoHistorySettings(int retentionDays, int maximumEntries) {
+  if (retentionDays < 1 || retentionDays > 3'650 || maximumEntries < 50 ||
+      maximumEntries > 1'000) {
+    setStatus(QStringLiteral("Undo history settings are invalid"));
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kUndoRetentionDaysSettingsKey),
+                                   QString::number(retentionDays)),
+        [this, retentionDays, maximumEntries](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                           QString::fromLatin1(kUndoMaximumEntriesSettingsKey),
+                                           QString::number(maximumEntries)),
+                [this, retentionDays, maximumEntries](SettingsMutationResultOrError maximumResult) {
+                  if (std::holds_alternative<AppError>(maximumResult)) {
+                    setStatus(errorMessage(std::get<AppError>(maximumResult)));
+                    return;
+                  }
+                  undoRetentionDays_ = retentionDays;
+                  undoMaximumEntries_ = maximumEntries;
+                  undoRecoveryPolicy_.configure(
+                      {.retentionDays = retentionDays, .maximumEntries = maximumEntries});
+                  emit undoHistorySettingsChanged();
+                  watch(undoRecoveryPolicy_.recover(), [this](UndoRecoveryResult recoveryResult) {
+                    if (std::holds_alternative<AppError>(recoveryResult)) {
+                      setStatus(errorMessage(std::get<AppError>(recoveryResult)));
+                      return;
+                    }
+                    refreshUndoStatus();
+                    setStatus(QStringLiteral("Undo history saved"));
+                  }, false);
+                });
+        });
+}
+
+void AppController::dismissCalendarDragCreateHint() {
+  if (calendarDragCreateHintSeen_) {
+    return;
+  }
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kCalendarDragCreateHintSeenSettingsKey),
+                                   QStringLiteral("true")),
+        [this](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (!calendarDragCreateHintSeen_) {
+            calendarDragCreateHintSeen_ = true;
+            emit calendarDragCreateHintSeenChanged();
+          }
+        });
 }
 
 void AppController::bulkReparentTasks(QVariantList taskIds, QString parentTaskId) {
@@ -4148,7 +4447,14 @@ void AppController::createEvent(QString calendarId,
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
+            recordExistenceHistory(UndoResourceKind::Event,
+                                   std::get<CalendarEventMutationReceipt>(result).eventId,
+                                   QStringLiteral("event.create"),
+                                   QStringLiteral("Create event"),
+                                   false,
+                                   true);
             refreshCalendar();
+            refreshPendingSyncCount();
           }
         });
 }
@@ -4179,6 +4485,7 @@ void AppController::updateEvent(QString eventId,
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
             refreshCalendar();
+            refreshPendingSyncCount();
           }
         });
 }
@@ -4248,7 +4555,14 @@ void AppController::createEventDetailed(QString calendarId,
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
+            recordExistenceHistory(UndoResourceKind::Event,
+                                   std::get<CalendarEventMutationReceipt>(result).eventId,
+                                   QStringLiteral("event.create"),
+                                   QStringLiteral("Create event"),
+                                   false,
+                                   true);
             refreshCalendar();
+            refreshPendingSyncCount();
           }
         });
 }
@@ -4343,13 +4657,33 @@ void AppController::deleteEvent(QString eventId, int recurrenceScope) {
   const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
                      : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
                                             : CalendarEventRecurrenceScope::FullSeries;
-  watch(calendarMutationService_.removeScoped({.eventId = std::move(eventId), .scope = scope}),
-        [this](CalendarEventMutationResult result) {
-          if (std::holds_alternative<AppError>(result)) {
-            setStatus(errorMessage(std::get<AppError>(result)));
-          } else {
-            refreshCalendar();
+  watch(calendarMutationService_.inspect({eventId}),
+        [this, eventId = std::move(eventId), scope](CalendarEventMutationSnapshotResult inspection) {
+          if (std::holds_alternative<AppError>(inspection)) {
+            setStatus(errorMessage(std::get<AppError>(inspection)));
+            return;
           }
+          const QList<CalendarEventMutationSnapshot> events =
+              std::get<QList<CalendarEventMutationSnapshot>>(std::move(inspection));
+          const bool undoable = events.size() == 1 && !events.front().recurrenceRule.has_value() &&
+                                !events.front().recurringRemoteId.has_value();
+          watch(calendarMutationService_.removeScoped({.eventId = eventId, .scope = scope}),
+                [this, eventId, undoable](CalendarEventMutationResult result) {
+                  if (std::holds_alternative<AppError>(result)) {
+                    setStatus(errorMessage(std::get<AppError>(result)));
+                  } else {
+                    if (undoable) {
+                      recordExistenceHistory(UndoResourceKind::Event,
+                                             eventId,
+                                             QStringLiteral("event.delete"),
+                                             QStringLiteral("Delete event"),
+                                             true,
+                                             false);
+                    }
+                    refreshCalendar();
+                    refreshPendingSyncCount();
+                  }
+                });
         });
 }
 
@@ -4366,27 +4700,71 @@ void AppController::respondToEvent(QString eventId, QString responseStatus, QStr
 }
 
 void AppController::moveEvent(QString eventId, QString startAt, QString endAt, bool allDay) {
-  watch(calendarMutationService_.update({.eventId = std::move(eventId),
-                                         .startAt = std::move(startAt),
-                                         .endAt = std::move(endAt),
-                                         .allDay = allDay}),
-        [this](CalendarEventMutationResult result) {
+  watch(calendarMutationService_.inspect({eventId}),
+        [this, eventId = std::move(eventId), startAt = std::move(startAt), endAt = std::move(endAt),
+         allDay](CalendarEventMutationSnapshotResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
-          } else {
-            refreshCalendar();
+            return;
           }
+          const QList<CalendarEventMutationSnapshot> snapshots =
+              std::get<QList<CalendarEventMutationSnapshot>>(std::move(result));
+          if (snapshots.size() != 1) {
+            setStatus(QStringLiteral("Calendar event is unavailable for move"));
+            return;
+          }
+          const CalendarEventMutationSnapshot before = snapshots.front();
+          watch(calendarMutationService_.update({.eventId = eventId,
+                                                 .startAt = startAt,
+                                                 .endAt = endAt,
+                                                 .allDay = allDay}),
+                [this, before, startAt, endAt, allDay](CalendarEventMutationResult updateResult) {
+                  if (std::holds_alternative<AppError>(updateResult)) {
+                    setStatus(errorMessage(std::get<AppError>(updateResult)));
+                    return;
+                  }
+                  recordEventTimingHistory(before, QStringLiteral("Move event"));
+                  static_cast<void>(mutationTelemetryStore_.record(
+                      {.resource = QStringLiteral("event"), .operation = QStringLiteral("event.move"),
+                       .scope = QStringLiteral("none"), .allDay = allDay,
+                       .targetStartAt = startAt, .targetEndAt = endAt,
+                       .phase = MutationTelemetryPhase::Intent}));
+                  refreshCalendar();
+                  refreshPendingSyncCount();
+                });
         });
 }
 
 void AppController::resizeEvent(QString eventId, QString endAt) {
-  watch(calendarMutationService_.update({.eventId = std::move(eventId), .endAt = std::move(endAt)}),
-        [this](CalendarEventMutationResult result) {
+  watch(calendarMutationService_.inspect({eventId}),
+        [this, eventId = std::move(eventId), endAt = std::move(endAt)](
+            CalendarEventMutationSnapshotResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
-          } else {
-            refreshCalendar();
+            return;
           }
+          const QList<CalendarEventMutationSnapshot> snapshots =
+              std::get<QList<CalendarEventMutationSnapshot>>(std::move(result));
+          if (snapshots.size() != 1) {
+            setStatus(QStringLiteral("Calendar event is unavailable for resize"));
+            return;
+          }
+          const CalendarEventMutationSnapshot before = snapshots.front();
+          watch(calendarMutationService_.update({.eventId = eventId, .endAt = endAt}),
+                [this, before, endAt](CalendarEventMutationResult updateResult) {
+                  if (std::holds_alternative<AppError>(updateResult)) {
+                    setStatus(errorMessage(std::get<AppError>(updateResult)));
+                    return;
+                  }
+                  recordEventTimingHistory(before, QStringLiteral("Resize event"));
+                  static_cast<void>(mutationTelemetryStore_.record(
+                      {.resource = QStringLiteral("event"), .operation = QStringLiteral("event.resize"),
+                       .scope = QStringLiteral("none"), .allDay = before.allDay,
+                       .targetStartAt = before.startAt, .targetEndAt = endAt,
+                       .phase = MutationTelemetryPhase::Intent}));
+                  refreshCalendar();
+                  refreshPendingSyncCount();
+                });
         });
 }
 
@@ -4402,16 +4780,23 @@ void AppController::moveEventScoped(QString eventId,
   const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
                      : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
                                             : CalendarEventRecurrenceScope::FullSeries;
+  const QString telemetryScope = recurrenceScope == 0 ? QStringLiteral("this_instance")
+                                : recurrenceScope == 1 ? QStringLiteral("this_and_following")
+                                                       : QStringLiteral("full_series");
   watch(calendarMutationService_.updateScoped(
-            {.update = {.eventId = std::move(eventId),
-                        .startAt = std::move(startAt),
-                        .endAt = std::move(endAt),
+            {.update = {.eventId = eventId,
+                        .startAt = startAt,
+                        .endAt = endAt,
                         .allDay = allDay},
              .scope = scope}),
-        [this](CalendarEventMutationResult result) {
+        [this, startAt, endAt, allDay, telemetryScope](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
+            static_cast<void>(mutationTelemetryStore_.record(
+                {.resource = QStringLiteral("event"), .operation = QStringLiteral("event.move"),
+                 .scope = telemetryScope, .allDay = allDay, .targetStartAt = startAt,
+                 .targetEndAt = endAt, .phase = MutationTelemetryPhase::Intent}));
             refreshCalendar();
           }
         });
@@ -4425,12 +4810,19 @@ void AppController::resizeEventScoped(QString eventId, QString endAt, int recurr
   const auto scope = recurrenceScope == 0 ? CalendarEventRecurrenceScope::ThisInstance
                      : recurrenceScope == 1 ? CalendarEventRecurrenceScope::ThisAndFollowing
                                             : CalendarEventRecurrenceScope::FullSeries;
+  const QString telemetryScope = recurrenceScope == 0 ? QStringLiteral("this_instance")
+                                : recurrenceScope == 1 ? QStringLiteral("this_and_following")
+                                                       : QStringLiteral("full_series");
   watch(calendarMutationService_.updateScoped(
-            {.update = {.eventId = std::move(eventId), .endAt = std::move(endAt)}, .scope = scope}),
-        [this](CalendarEventMutationResult result) {
+            {.update = {.eventId = eventId, .endAt = endAt}, .scope = scope}),
+        [this, endAt, telemetryScope](CalendarEventMutationResult result) {
           if (std::holds_alternative<AppError>(result)) {
             setStatus(errorMessage(std::get<AppError>(result)));
           } else {
+            static_cast<void>(mutationTelemetryStore_.record(
+                {.resource = QStringLiteral("event"), .operation = QStringLiteral("event.resize"),
+                 .scope = telemetryScope, .targetEndAt = endAt,
+                 .phase = MutationTelemetryPhase::Intent}));
             refreshCalendar();
           }
         });
@@ -4588,8 +4980,11 @@ void AppController::loadSavedSearches() {
   });
 }
 
-void AppController::runBulkTaskMutation(TaskBulkMutationInput input) {
-  watch(taskBulkMutationService_.execute(std::move(input)), [this](TaskBulkMutationResult result) {
+void AppController::runBulkTaskMutation(
+    TaskBulkMutationInput input,
+    std::function<void(const TaskBulkMutationSummary&)> onSuccess) {
+  watch(taskBulkMutationService_.execute(std::move(input)), [this, onSuccess = std::move(onSuccess)](
+                                                       TaskBulkMutationResult result) {
     if (std::holds_alternative<AppError>(result)) {
       const QString message = errorMessage(std::get<AppError>(result));
       setBulkTaskStatusMessage(message);
@@ -4602,6 +4997,10 @@ void AppController::runBulkTaskMutation(TaskBulkMutationInput input) {
     setStatus(message);
     if (summary.queued > 0) {
       refreshTasks();
+      refreshPendingSyncCount();
+      if (onSuccess) {
+        onSuccess(summary);
+      }
     }
   });
 }
@@ -4718,6 +5117,401 @@ void AppController::applyTaskProjections(QList<TaskModelTask> tasks) {
       taskProjectionTasks_, notesEnabled_ && notesProjectionMode_ == kNotesOnlyProjection));
   notesModel_.setTasks(taskProjectionTasks_);
   emit scheduledTasksChanged();
+  emit unscheduledTasksChanged();
+}
+
+void AppController::refreshUndoStatus() {
+  watch(undoRecoveryPolicy_.status(), [this](UndoStatusResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    const UndoStatus status = std::get<UndoStatus>(std::move(result));
+    const QString undoLabel = status.undoLabel.value_or(QString());
+    const QString redoLabel = status.redoLabel.value_or(QString());
+    if (undoLabel_ != undoLabel || redoLabel_ != redoLabel) {
+      undoLabel_ = undoLabel;
+      redoLabel_ = redoLabel;
+      emit undoStateChanged();
+    }
+  }, false);
+}
+
+void AppController::refreshPendingSyncCount() {
+  watch(optimisticMutationCoordinator_.listActive(), [this](PendingMutationListResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    const int count = static_cast<int>(std::get<QList<PendingMutation>>(std::move(result)).size());
+    if (pendingSyncCount_ != count) {
+      pendingSyncCount_ = count;
+      emit pendingSyncCountChanged();
+    }
+  }, false);
+}
+
+void AppController::recordExistenceHistory(UndoResourceKind resource,
+                                           QString resourceId,
+                                           QString actionKind,
+                                           QString label,
+                                           bool beforeExists,
+                                           bool afterExists) {
+  watch(undoRecoveryPolicy_.record({.actionKind = std::move(actionKind),
+                                    .label = std::move(label),
+                                    .resource = resource,
+                                    .resourceId = std::move(resourceId),
+                                    .before = existenceSnapshot(beforeExists),
+                                    .after = existenceSnapshot(afterExists)}),
+        [this](std::optional<AppError> recordResult) {
+          if (recordResult.has_value()) {
+            setStatus(errorMessage(*recordResult));
+            return;
+          }
+          refreshUndoStatus();
+        },
+        false);
+}
+
+void AppController::recordTaskDueHistory(QList<TaskMutationSnapshot> before, QString label) {
+  if (before.isEmpty()) {
+    return;
+  }
+  QList<QString> ids;
+  ids.reserve(before.size());
+  for (const TaskMutationSnapshot& task : before) {
+    ids.append(task.taskId);
+  }
+  watch(taskMutationService_.inspect(std::move(ids)),
+        [this, before = std::move(before), label = std::move(label)](
+            TaskMutationSnapshotResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const QList<TaskMutationSnapshot> after =
+              std::get<QList<TaskMutationSnapshot>>(std::move(result));
+          for (const TaskMutationSnapshot& beforeTask : before) {
+            const auto afterTask = std::find_if(
+                after.cbegin(), after.cend(), [&beforeTask](const TaskMutationSnapshot& candidate) {
+                  return candidate.taskId == beforeTask.taskId;
+                });
+            if (afterTask == after.cend()) {
+              continue;
+            }
+            watch(undoRecoveryPolicy_.record({.actionKind = QStringLiteral("task.due"),
+                                              .label = label,
+                                              .resource = UndoResourceKind::Task,
+                                              .resourceId = beforeTask.taskId,
+                                              .before = taskDueSnapshot(beforeTask),
+                                              .after = taskDueSnapshot(*afterTask)}),
+                  [this](std::optional<AppError> recordResult) {
+                    if (recordResult.has_value()) {
+                      setStatus(errorMessage(*recordResult));
+                      return;
+                    }
+                    refreshUndoStatus();
+                  },
+                  false);
+          }
+        });
+}
+
+void AppController::recordEventTimingHistory(CalendarEventMutationSnapshot before, QString label) {
+  watch(calendarMutationService_.inspect({before.eventId}),
+        [this, before = std::move(before), label = std::move(label)](
+            CalendarEventMutationSnapshotResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const QList<CalendarEventMutationSnapshot> after =
+              std::get<QList<CalendarEventMutationSnapshot>>(std::move(result));
+          if (after.size() != 1) {
+            return;
+          }
+          watch(undoRecoveryPolicy_.record({.actionKind = QStringLiteral("event.timing"),
+                                            .label = std::move(label),
+                                            .resource = UndoResourceKind::Event,
+                                            .resourceId = before.eventId,
+                                            .before = eventTimingSnapshot(before),
+                                            .after = eventTimingSnapshot(after.front())}),
+                [this](std::optional<AppError> recordResult) {
+                  if (recordResult.has_value()) {
+                    setStatus(errorMessage(*recordResult));
+                    return;
+                  }
+                  refreshUndoStatus();
+                },
+                false);
+        });
+}
+
+void AppController::replayHistory(UndoAction action) {
+  const auto onEntry = [this](UndoEntryResult result) {
+    if (std::holds_alternative<AppError>(result)) {
+      setStatus(errorMessage(std::get<AppError>(result)));
+      return;
+    }
+    replayHistoryEntry(std::get<UndoEntry>(std::move(result)));
+  };
+  if (action == UndoAction::Undo) {
+    watch(undoRecoveryPolicy_.nextUndo(), onEntry, false);
+  } else {
+    watch(undoRecoveryPolicy_.nextRedo(), onEntry, false);
+  }
+}
+
+void AppController::replayHistoryEntry(UndoEntry entry) {
+  if (entry.resource == UndoResourceKind::Task &&
+      (entry.actionKind == QStringLiteral("task.create") ||
+       entry.actionKind == QStringLiteral("task.delete"))) {
+    watch(taskMutationService_.inspect({entry.resourceId}),
+          [this, entry = std::move(entry)](TaskMutationSnapshotResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const bool exists = std::get<QList<TaskMutationSnapshot>>(std::move(result)).size() == 1;
+            const std::optional<bool> expected = existenceFromSnapshot(entry.expected);
+            if (!expected.has_value() || exists != *expected) {
+              setStatus(QStringLiteral("Undo is unavailable because the task changed"));
+              return;
+            }
+            const QJsonObject currentSnapshot = existenceSnapshot(exists);
+            const auto applyHistory = [this](UndoReplayResult replayResult) {
+              if (std::holds_alternative<AppError>(replayResult)) {
+                setStatus(errorMessage(std::get<AppError>(replayResult)));
+                return;
+              }
+              const UndoReplay replay = std::get<UndoReplay>(std::move(replayResult));
+              const std::optional<bool> target = existenceFromSnapshot(replay.target);
+              if (!target.has_value()) {
+                setStatus(QStringLiteral("Stored undo task snapshot is invalid"));
+                return;
+              }
+              const QJsonObject targetSnapshot = existenceSnapshot(*target);
+              const auto complete = [this, replay, targetSnapshot](TaskMutationResult mutation) {
+                if (std::holds_alternative<AppError>(mutation)) {
+                  const AppError failure = std::get<AppError>(mutation);
+                  auto rollback = replay.action == UndoAction::Undo
+                                            ? undoRecoveryPolicy_.redo(targetSnapshot)
+                                            : undoRecoveryPolicy_.undo(targetSnapshot);
+                  watch(std::move(rollback), [this, failure](UndoReplayResult) {
+                    refreshUndoStatus();
+                    setStatus(errorMessage(failure));
+                  }, false);
+                  return;
+                }
+                refreshTasks();
+                refreshPendingSyncCount();
+                refreshUndoStatus();
+                setStatus(QStringLiteral("%1 queued for Google sync")
+                              .arg(replay.action == UndoAction::Undo
+                                       ? QStringLiteral("Undid %1").arg(replay.label)
+                                       : QStringLiteral("Redid %1").arg(replay.label)));
+              };
+              if (*target) {
+                watch(taskMutationService_.restore(replay.resourceId), complete);
+              } else {
+                watch(taskMutationService_.remove(replay.resourceId), complete);
+              }
+            };
+            if (entry.action == UndoAction::Undo) {
+              watch(undoRecoveryPolicy_.undo(currentSnapshot), applyHistory, false);
+            } else {
+              watch(undoRecoveryPolicy_.redo(currentSnapshot), applyHistory, false);
+            }
+          });
+    return;
+  }
+  if (entry.resource == UndoResourceKind::Event &&
+      (entry.actionKind == QStringLiteral("event.create") ||
+       entry.actionKind == QStringLiteral("event.delete"))) {
+    watch(calendarMutationService_.inspect({entry.resourceId}),
+          [this, entry = std::move(entry)](CalendarEventMutationSnapshotResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const bool exists =
+                std::get<QList<CalendarEventMutationSnapshot>>(std::move(result)).size() == 1;
+            const std::optional<bool> expected = existenceFromSnapshot(entry.expected);
+            if (!expected.has_value() || exists != *expected) {
+              setStatus(QStringLiteral("Undo is unavailable because the event changed"));
+              return;
+            }
+            const QJsonObject currentSnapshot = existenceSnapshot(exists);
+            const auto applyHistory = [this](UndoReplayResult replayResult) {
+              if (std::holds_alternative<AppError>(replayResult)) {
+                setStatus(errorMessage(std::get<AppError>(replayResult)));
+                return;
+              }
+              const UndoReplay replay = std::get<UndoReplay>(std::move(replayResult));
+              const std::optional<bool> target = existenceFromSnapshot(replay.target);
+              if (!target.has_value()) {
+                setStatus(QStringLiteral("Stored undo event snapshot is invalid"));
+                return;
+              }
+              const QJsonObject targetSnapshot = existenceSnapshot(*target);
+              const auto complete = [this, replay, targetSnapshot](CalendarEventMutationResult mutation) {
+                if (std::holds_alternative<AppError>(mutation)) {
+                  const AppError failure = std::get<AppError>(mutation);
+                  auto rollback = replay.action == UndoAction::Undo
+                                            ? undoRecoveryPolicy_.redo(targetSnapshot)
+                                            : undoRecoveryPolicy_.undo(targetSnapshot);
+                  watch(std::move(rollback), [this, failure](UndoReplayResult) {
+                    refreshUndoStatus();
+                    setStatus(errorMessage(failure));
+                  }, false);
+                  return;
+                }
+                refreshCalendar();
+                refreshPendingSyncCount();
+                refreshUndoStatus();
+                setStatus(QStringLiteral("%1 queued for Google sync")
+                              .arg(replay.action == UndoAction::Undo
+                                       ? QStringLiteral("Undid %1").arg(replay.label)
+                                       : QStringLiteral("Redid %1").arg(replay.label)));
+              };
+              if (*target) {
+                watch(calendarMutationService_.restore(replay.resourceId), complete);
+              } else {
+                watch(calendarMutationService_.remove(replay.resourceId), complete);
+              }
+            };
+            if (entry.action == UndoAction::Undo) {
+              watch(undoRecoveryPolicy_.undo(currentSnapshot), applyHistory, false);
+            } else {
+              watch(undoRecoveryPolicy_.redo(currentSnapshot), applyHistory, false);
+            }
+          });
+    return;
+  }
+  if (entry.resource == UndoResourceKind::Task && entry.actionKind == QStringLiteral("task.due")) {
+    watch(taskMutationService_.inspect({entry.resourceId}),
+          [this, entry = std::move(entry)](TaskMutationSnapshotResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const QList<TaskMutationSnapshot> current =
+                std::get<QList<TaskMutationSnapshot>>(std::move(result));
+            if (current.size() != 1 || taskDueSnapshot(current.front()) != entry.expected) {
+              setStatus(QStringLiteral("Undo is unavailable because the task changed"));
+              return;
+            }
+            const QJsonObject currentSnapshot = taskDueSnapshot(current.front());
+            const auto moveHistory = [this](UndoReplayResult replayResult) {
+              if (std::holds_alternative<AppError>(replayResult)) {
+                setStatus(errorMessage(std::get<AppError>(replayResult)));
+                return;
+              }
+              const UndoReplay replay = std::get<UndoReplay>(std::move(replayResult));
+              const std::optional<TaskDue> target = taskDueFromSnapshot(replay.target, replay.resourceId);
+              if (!target.has_value()) {
+                setStatus(QStringLiteral("Stored undo task snapshot is invalid"));
+                return;
+              }
+              watch(taskMutationService_.update({.taskId = replay.resourceId, .due = *target}),
+                    [this, replay, target = *target](TaskMutationResult updateResult) {
+                      if (std::holds_alternative<AppError>(updateResult)) {
+                        auto restore = replay.action == UndoAction::Undo
+                                                 ? undoRecoveryPolicy_.redo(taskDueSnapshot(
+                                                       TaskMutationSnapshot{.taskId = replay.resourceId,
+                                                                            .dueAt = target.at,
+                                                                            .dueTimeZone = target.timeZone}))
+                                                 : undoRecoveryPolicy_.undo(taskDueSnapshot(
+                                                       TaskMutationSnapshot{.taskId = replay.resourceId,
+                                                                            .dueAt = target.at,
+                                                                            .dueTimeZone = target.timeZone}));
+                        watch(std::move(restore), [this, updateResult](UndoReplayResult) {
+                          refreshUndoStatus();
+                          setStatus(errorMessage(std::get<AppError>(updateResult)));
+                        }, false);
+                        return;
+                      }
+                      refreshTasks();
+                      refreshPendingSyncCount();
+                      refreshUndoStatus();
+                      setStatus(QStringLiteral("%1 queued for Google sync")
+                                    .arg(replay.action == UndoAction::Undo
+                                             ? QStringLiteral("Undid %1").arg(replay.label)
+                                             : QStringLiteral("Redid %1").arg(replay.label)));
+                    });
+            };
+            if (entry.action == UndoAction::Undo) {
+              watch(undoRecoveryPolicy_.undo(currentSnapshot), moveHistory, false);
+            } else {
+              watch(undoRecoveryPolicy_.redo(currentSnapshot), moveHistory, false);
+            }
+          });
+    return;
+  }
+  if (entry.resource == UndoResourceKind::Event &&
+      entry.actionKind == QStringLiteral("event.timing")) {
+    watch(calendarMutationService_.inspect({entry.resourceId}),
+          [this, entry = std::move(entry)](CalendarEventMutationSnapshotResult result) {
+            if (std::holds_alternative<AppError>(result)) {
+              setStatus(errorMessage(std::get<AppError>(result)));
+              return;
+            }
+            const QList<CalendarEventMutationSnapshot> current =
+                std::get<QList<CalendarEventMutationSnapshot>>(std::move(result));
+            if (current.size() != 1 || eventTimingSnapshot(current.front()) != entry.expected) {
+              setStatus(QStringLiteral("Undo is unavailable because the event changed"));
+              return;
+            }
+            const QJsonObject currentSnapshot = eventTimingSnapshot(current.front());
+            const auto moveHistory = [this](UndoReplayResult replayResult) {
+              if (std::holds_alternative<AppError>(replayResult)) {
+                setStatus(errorMessage(std::get<AppError>(replayResult)));
+                return;
+              }
+              const UndoReplay replay = std::get<UndoReplay>(std::move(replayResult));
+              const std::optional<EventTiming> target =
+                  eventTimingFromSnapshot(replay.target, replay.resourceId);
+              if (!target.has_value()) {
+                setStatus(QStringLiteral("Stored undo event snapshot is invalid"));
+                return;
+              }
+              watch(calendarMutationService_.update({.eventId = replay.resourceId,
+                                                     .startAt = target->startAt,
+                                                     .endAt = target->endAt,
+                                                     .allDay = target->allDay}),
+                    [this, replay, target = *target](CalendarEventMutationResult updateResult) {
+                      if (std::holds_alternative<AppError>(updateResult)) {
+                        const QJsonObject targetSnapshot{{QStringLiteral("eventId"), replay.resourceId},
+                                                         {QStringLiteral("startAt"), target.startAt},
+                                                         {QStringLiteral("endAt"), target.endAt},
+                                                         {QStringLiteral("allDay"), target.allDay}};
+                        auto restore = replay.action == UndoAction::Undo
+                                                 ? undoRecoveryPolicy_.redo(targetSnapshot)
+                                                 : undoRecoveryPolicy_.undo(targetSnapshot);
+                        watch(std::move(restore), [this, updateResult](UndoReplayResult) {
+                          refreshUndoStatus();
+                          setStatus(errorMessage(std::get<AppError>(updateResult)));
+                        }, false);
+                        return;
+                      }
+                      refreshCalendar();
+                      refreshPendingSyncCount();
+                      refreshUndoStatus();
+                      setStatus(QStringLiteral("%1 queued for Google sync")
+                                    .arg(replay.action == UndoAction::Undo
+                                             ? QStringLiteral("Undid %1").arg(replay.label)
+                                             : QStringLiteral("Redid %1").arg(replay.label)));
+                    });
+            };
+            if (entry.action == UndoAction::Undo) {
+              watch(undoRecoveryPolicy_.undo(currentSnapshot), moveHistory, false);
+            } else {
+              watch(undoRecoveryPolicy_.redo(currentSnapshot), moveHistory, false);
+            }
+          });
+    return;
+  }
+  setStatus(QStringLiteral("Stored undo action is unavailable"));
 }
 
 void AppController::reorderTask(QString taskId, bool earlier) {
@@ -5011,6 +5805,7 @@ void AppController::setSyncStatus(QString status) {
   }
   syncStatus_ = std::move(status);
   emit syncStatusChanged();
+  refreshPendingSyncCount();
 }
 
 void AppController::setUnresolvedConflicts(QList<SyncConflict> conflicts) {

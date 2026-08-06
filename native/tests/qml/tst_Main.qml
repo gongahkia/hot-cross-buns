@@ -1495,7 +1495,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-26T10:00:00.000Z", endAt: "2026-07-26T11:00:00.000Z", allDay: false } } }', testCase)
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-26T10:00:00.000Z", endAt: "2026-07-26T11:00:00.000Z", allDay: false } } function timelinePointInput(x, y, width, column, hourHeight, endPoint) { return { minute: y > 5000 ? (endPoint ? 1440 : 1425) : 0 } } }', testCase)
         const timeline = component.createObject(null, { timelineModel: timelineModel })
         verify(timeline !== null)
         let request = null
@@ -1517,7 +1517,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/DayTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-26T12:00:00.000Z" } } }', testCase)
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-26T12:00:00.000Z" } } function timelinePointInput(x, y, width, column, hourHeight, endPoint) { return { minute: y > 5000 ? (endPoint ? 1440 : 1425) : 15 } } }', testCase)
         const timeline = component.createObject(null, { timelineModel: timelineModel })
         verify(timeline !== null)
         let request = null
@@ -1643,7 +1643,7 @@ TestCase {
         const component = Qt.createComponent("../../qml/WeekTimelineView.qml")
         compare(component.status, Component.Ready, component.errorString())
 
-        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } function moveAllDayInput(eventId, dayIndex) { return { id: eventId, startAt: "2026-07-28T00:00:00.000Z", endAt: "2026-07-30T00:00:00.000Z", allDay: true } } function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-27T12:00:00.000Z" } } function resizeAllDayInput(eventId, dayIndex) { return { id: eventId, endAt: "2026-07-31T00:00:00.000Z" } } }', testCase)
+        const timelineModel = Qt.createQmlObject('import QtQml.Models; ListModel { function moveInput(eventId, dayIndex, minute) { return { id: eventId, startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } function moveAllDayInput(eventId, dayIndex) { return { id: eventId, startAt: "2026-07-28T00:00:00.000Z", endAt: "2026-07-30T00:00:00.000Z", allDay: true } } function resizeInput(eventId, dayIndex, minute) { return { id: eventId, endAt: "2026-07-27T12:00:00.000Z" } } function resizeAllDayRangeInput(eventId, startDayIndex, endDayIndex) { return { id: eventId, startAt: "2026-07-28T00:00:00.000Z", endAt: "2026-07-31T00:00:00.000Z", allDay: true } } function timedRangeInput(firstDay, firstMinute, lastDay, lastMinute) { return { startAt: "2026-07-27T10:00:00.000Z", endAt: "2026-07-27T11:00:00.000Z", allDay: false } } function allDayRangeInput(firstDay, lastDay) { return { startAt: "2026-07-27T00:00:00.000Z", endAt: "2026-07-29T00:00:00.000Z", allDay: true } } function timelinePointInput(x, y, width, column, hourHeight, endPoint) { return { dayIndex: x < 0 ? 0 : x > 800 ? 6 : 0, minute: y > 5000 ? (endPoint ? 1440 : 1425) : 0 } } function dateForDayIndex(dayIndex) { return "2026-07-" + (27 + dayIndex) } function dayIndexForDate(date) { return 0 } }', testCase)
         const timeline = component.createObject(null, { timelineModel: timelineModel, width: 764 })
         verify(timeline !== null)
         let request = null
@@ -1665,9 +1665,11 @@ TestCase {
         timeline.requestResize("event-1", 1, 720)
         compare(resize.eventId, "event-1")
         compare(resize.endAt, "2026-07-27T12:00:00.000Z")
-        timeline.requestAllDayResize("event-2", 4)
-        compare(resize.eventId, "event-2")
-        compare(resize.endAt, "2026-07-31T00:00:00.000Z")
+        timeline.requestAllDayResize("event-2", 1, 4)
+        compare(request.eventId, "event-2")
+        compare(request.startAt, "2026-07-28T00:00:00.000Z")
+        compare(request.endAt, "2026-07-31T00:00:00.000Z")
+        compare(request.allDay, true)
         compare(timeline.dropDayIndex(-1, 764), 0)
         compare(timeline.dropDayIndex(99999, 764), 6)
         compare(timeline.dropMinute(99999), 1425)
@@ -1708,10 +1710,12 @@ TestCase {
     function test_monthGridCreatesRangesAndMovesMultiDayEvents() {
         const component = Qt.createComponent("../../qml/MonthGridView.qml")
         compare(component.status, Component.Ready, component.errorString())
+        const model = Qt.createQmlObject('import QtQml.Models; ListModel { function dateIndex(date) { const days = { "2026-08-05": 10, "2026-08-06": 11, "2026-08-07": 12, "2026-08-09": 14, "2026-08-10": 15 }; return days[date] === undefined ? -1 : days[date] } function dateForIndex(index) { const days = { 10: "2026-08-05", 11: "2026-08-06", 12: "2026-08-07", 14: "2026-08-09", 15: "2026-08-10" }; return days[index] || "" } function allDayRangeInput(first, last) { return { startAt: first === 10 ? "2026-08-05T00:00:00.000Z" : "2026-08-06T00:00:00.000Z", endAt: last === 12 ? "2026-08-08T00:00:00.000Z" : "2026-08-10T00:00:00.000Z", allDay: true } } function moveInput(event, target) { return { id: event.id, startAt: "2026-08-07T00:00:00.000Z", endAt: "2026-08-10T00:00:00.000Z", allDay: true } } function resizeAllDayRangeInput(event, first, last) { return { id: event.id, startAt: "2026-08-06T00:00:00.000Z", endAt: "2026-08-10T00:00:00.000Z", allDay: true } } }', testCase)
         const monthGrid = component.createObject(null, {
             width: 700,
             height: 480,
-            calendarDate: "2026-08-05"
+            calendarDate: "2026-08-05",
+            monthGridModel: model
         })
         verify(monthGrid !== null)
         let create = null
@@ -1732,7 +1736,28 @@ TestCase {
         compare(move.startAt, "2026-08-07T00:00:00.000Z")
         compare(move.endAt, "2026-08-10T00:00:00.000Z")
         compare(move.allDay, true)
+        let resize = null
+        monthGrid.eventAllDayResizeScopeRequested.connect(function(event, startAt, endAt) {
+            resize = { event, startAt, endAt }
+        })
+        monthGrid.requestAllDayResize({ id: "event-1", allDay: true }, "2026-08-06", "2026-08-09")
+        compare(resize.event.id, "event-1")
+        compare(resize.startAt, "2026-08-06T00:00:00.000Z")
+        compare(resize.endAt, "2026-08-10T00:00:00.000Z")
+        monthGrid.scheduledTasks = [{ id: "task-1", dueAt: "2026-08-05", title: "First" },
+                                    { id: "task-2", dueAt: "2026-08-05", title: "Second" }]
+        const hidden = monthGrid.moreCount("2026-08-05", [
+            { id: "all-day", allDay: true, calendarId: "calendar-1", title: "All day" },
+            { id: "timed-1", allDay: false, calendarId: "calendar-1", title: "First" },
+            { id: "timed-2", allDay: false, calendarId: "calendar-1", title: "Second" },
+            { id: "timed-3", allDay: false, calendarId: "calendar-1", title: "Third" }
+        ])
+        compare(hidden, 3)
+        monthGrid.showPreview("New event", "2026-08-07", "2026-08-10")
+        compare(monthGrid.previewSegments().length, 2)
+        monthGrid.clearPreview()
         monthGrid.destroy()
+        model.destroy()
     }
 
     function test_mainNavigatesCalendarByCurrentView() {

@@ -364,6 +364,58 @@ LIMIT ?2
                    QStringLiteral("SQLite due mutation finalization failed (%1)"), finalizeResult));
 }
 
+[[nodiscard]] PendingMutationListResult
+listStoredActiveMutations(SqliteConnection& connection, int limit) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite mutation connection is unavailable"));
+  }
+  const QByteArray sql = QStringLiteral(R"(
+SELECT %1
+FROM local_pending_mutations
+WHERE status IN ('pending', 'applying', 'failed')
+ORDER BY created_at ASC, id ASC
+LIMIT ?1
+)")
+                             .arg(QString::fromLatin1(pendingMutationColumns))
+                             .toUtf8();
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult = sqlite3_prepare_v3(
+      handle, sql.constData(), -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite active mutation preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error = bindInteger(statement, 1, limit); error.has_value()) {
+    sqlite3_finalize(statement);
+    return *error;
+  }
+  QList<PendingMutation> mutations;
+  while (true) {
+    const int stepResult = sqlite3_step(statement);
+    if (stepResult == SQLITE_DONE) {
+      break;
+    }
+    if (stepResult != SQLITE_ROW) {
+      sqlite3_finalize(statement);
+      return databaseError(QStringLiteral("SQLite active mutation query failed (%1)"), stepResult);
+    }
+    const PendingMutationResult decoded = decodeMutation(statement);
+    if (std::holds_alternative<AppError>(decoded)) {
+      sqlite3_finalize(statement);
+      return std::get<AppError>(decoded);
+    }
+    mutations.append(std::get<PendingMutation>(decoded));
+  }
+  const int finalizeResult = sqlite3_finalize(statement);
+  return finalizeResult == SQLITE_OK
+             ? PendingMutationListResult(mutations)
+             : PendingMutationListResult(databaseError(
+                   QStringLiteral("SQLite active mutation finalization failed (%1)"), finalizeResult));
+}
+
 [[nodiscard]] std::variant<OptimisticMutationInput, AppError>
 canonicalize(OptimisticMutationInput input) {
   if (input.payload.contains(QString::fromLatin1(conflictMetadataKey)) ||
@@ -838,6 +890,17 @@ std::future<PendingMutationListResult> OptimisticMutationCoordinator::listDue(in
   return writerQueue_.enqueueResult(
       [now, cappedLimit](SqliteConnection& connection) -> PendingMutationListResult {
         return listStoredDueMutations(connection, now, cappedLimit);
+      });
+}
+
+std::future<PendingMutationListResult> OptimisticMutationCoordinator::listActive(int limit) {
+  if (limit < 1 || limit > 1'000) {
+    return readyFuture(PendingMutationListResult(
+        validationError(QStringLiteral("Active mutation limit is invalid"))));
+  }
+  return writerQueue_.enqueueResult(
+      [limit](SqliteConnection& connection) -> PendingMutationListResult {
+        return listStoredActiveMutations(connection, limit);
       });
 }
 

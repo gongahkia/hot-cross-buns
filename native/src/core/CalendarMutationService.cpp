@@ -1823,6 +1823,58 @@ WHERE id = ?1 AND deleted_at IS NULL
   return CalendarEventMutationReceipt{.eventId = eventId, .updatedAt = updatedAt};
 }
 
+[[nodiscard]] CalendarEventMutationResult
+restoreStoredEvent(SqliteConnection& connection,
+                   const QString& eventId,
+                   bool createRemote,
+                   const QString& remoteId,
+                   const QString& updatedAt) {
+  sqlite3* const handle = connection.nativeHandle();
+  if (handle == nullptr) {
+    return AppError(AppErrorCode::Database,
+                    QStringLiteral("SQLite calendar-event connection is unavailable"));
+  }
+  constexpr char sql[] = R"(
+UPDATE local_calendar_events
+SET deleted_at = NULL,
+    remote_id = CASE WHEN ?2 = 1 THEN ?3 ELSE remote_id END,
+    etag = CASE WHEN ?2 = 1 THEN NULL ELSE etag END,
+    updated_at = ?4
+WHERE id = ?1 AND deleted_at IS NOT NULL
+)";
+  sqlite3_stmt* statement = nullptr;
+  const int prepareResult =
+      sqlite3_prepare_v3(handle, sql, -1, SQLITE_PREPARE_PERSISTENT, &statement, nullptr);
+  if (prepareResult != SQLITE_OK) {
+    sqlite3_finalize(statement);
+    return databaseError(QStringLiteral("SQLite calendar-event restoration preparation failed (%1)"),
+                         prepareResult);
+  }
+  if (const std::optional<AppError> error =
+          bindAll(statement,
+                  {bindText(statement, 1, eventId),
+                   bindInteger(statement, 2, createRemote ? 1 : 0),
+                   bindText(statement, 3, remoteId),
+                   bindText(statement, 4, updatedAt)});
+      error.has_value()) {
+    return *error;
+  }
+  const int stepResult = sqlite3_step(statement);
+  const int changedRows = sqlite3_changes(handle);
+  const int finalizeResult = sqlite3_finalize(statement);
+  if (stepResult != SQLITE_DONE) {
+    return databaseError(QStringLiteral("SQLite calendar-event restoration failed (%1)"), stepResult);
+  }
+  if (finalizeResult != SQLITE_OK) {
+    return databaseError(QStringLiteral("SQLite calendar-event restoration finalization failed (%1)"),
+                         finalizeResult);
+  }
+  if (changedRows != 1) {
+    return validationError(QStringLiteral("Calendar event is unavailable for restoration"));
+  }
+  return CalendarEventMutationReceipt{.eventId = eventId, .updatedAt = updatedAt};
+}
+
 [[nodiscard]] std::variant<std::optional<StoredEventContext>, AppError>
 readSeriesMasterContext(SqliteConnection& connection, const StoredEventContext& event) {
   if (!event.recurringRemoteId.has_value()) {
@@ -2996,6 +3048,69 @@ std::future<CalendarEventMutationResult> CalendarMutationService::remove(QString
           return CalendarEventMutationResult(*error);
         }
         return removed;
+      });
+}
+
+std::future<CalendarEventMutationResult> CalendarMutationService::restore(QString eventId) {
+  if (!isValidRequiredText(eventId, kMaximumIdentifierLength)) {
+    return readyFuture(CalendarEventMutationResult(
+        validationError(QStringLiteral("Calendar event restoration input is invalid"))));
+  }
+  const QString updatedAt = timestamp(clock_);
+  return writerQueue_.enqueueResult(
+      [eventId = std::move(eventId), updatedAt](SqliteConnection& connection) {
+        SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
+        if (std::holds_alternative<AppError>(transactionResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(std::move(transactionResult)));
+        }
+        SqliteTransaction transaction = std::get<SqliteTransaction>(std::move(transactionResult));
+        const std::variant<std::optional<ActiveEventMutation>, AppError> activeResult =
+            findActiveEventMutation(connection, eventId);
+        if (std::holds_alternative<AppError>(activeResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(activeResult));
+        }
+        const std::optional<ActiveEventMutation>& active =
+            std::get<std::optional<ActiveEventMutation>>(activeResult);
+        const bool cancelPendingDelete =
+            active.has_value() && active->operation == QStringLiteral("event.delete");
+        const QString pendingRemoteId =
+            QStringLiteral("pending:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        CalendarEventMutationResult restored = restoreStoredEvent(connection,
+                                                                   eventId,
+                                                                   !cancelPendingDelete,
+                                                                   pendingRemoteId,
+                                                                   updatedAt);
+        if (std::holds_alternative<AppError>(restored)) {
+          return restored;
+        }
+        const std::variant<std::optional<StoredEventContext>, AppError> afterResult =
+            readEventContext(connection, eventId);
+        if (std::holds_alternative<AppError>(afterResult)) {
+          return CalendarEventMutationResult(std::get<AppError>(afterResult));
+        }
+        const std::optional<StoredEventContext>& after =
+            std::get<std::optional<StoredEventContext>>(afterResult);
+        if (!after.has_value()) {
+          return CalendarEventMutationResult(AppError(
+              AppErrorCode::Database, QStringLiteral("Restored calendar event is unavailable")));
+        }
+        std::optional<AppError> queueError;
+        if (cancelPendingDelete) {
+          queueError = removeActiveEventMutation(connection, *active);
+        } else {
+          queueError = queueEventMutation(connection,
+                                          *after,
+                                          after,
+                                          QStringLiteral("event.create"),
+                                          updatedAt);
+        }
+        if (queueError.has_value()) {
+          return CalendarEventMutationResult(*queueError);
+        }
+        if (const std::optional<AppError> error = transaction.commit(); error.has_value()) {
+          return CalendarEventMutationResult(*error);
+        }
+        return restored;
       });
 }
 

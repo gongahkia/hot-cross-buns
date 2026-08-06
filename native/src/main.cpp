@@ -230,7 +230,9 @@ int runApplication(int argc, char* argv[]) {
   }
   startupTimings.mark(u"qml.loaded");
 
-  if (!timelineProfile) {
+  const bool exitAfterLoad =
+      qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1");
+  if (!timelineProfile && !exitAfterLoad) {
     appController.initialize();
     QTimer::singleShot(0, &reminderService, &hcb::ReminderService::start);
   }
@@ -296,7 +298,7 @@ int runApplication(int argc, char* argv[]) {
   } else if (benchmarkCommandPalette) {
     startupTimings.mark(u"benchmark.command_palette.scheduled");
     scheduleCommandPaletteBenchmark(application, rootObject);
-  } else if (qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1")) {
+  } else if (exitAfterLoad) {
     startupTimings.mark(u"benchmark.exit.scheduled");
     QTimer::singleShot(0, &application, &QCoreApplication::quit);
   }

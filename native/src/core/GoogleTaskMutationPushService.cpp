@@ -4,6 +4,7 @@
 #include "core/GoogleApiError.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleSyncConflictResolver.h"
+#include "core/MutationTelemetryStore.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
 #include "core/TaskListMutationService.h"
@@ -987,10 +988,38 @@ processTaskResponse(OptimisticMutationCoordinator& mutations,
              : TaskPushOutcomeOrError(TaskPushOutcome{.applied = 1});
 }
 
-void addOutcome(GoogleTaskMutationPushResult& summary, const TaskPushOutcome& outcome) {
+void addOutcome(GoogleTaskMutationPushResult& summary,
+                const TaskPushOutcome& outcome,
+                MutationTelemetryStore* telemetry,
+                OptimisticMutationCoordinator& mutations,
+                const PendingMutation& mutation) {
   summary.applied += outcome.applied;
   summary.failed += outcome.failed;
   summary.skipped += outcome.skipped;
+  if (telemetry == nullptr || (outcome.applied == 0 && outcome.failed == 0)) {
+    return;
+  }
+  std::optional<QString> errorCode;
+  const PendingMutationLookupResult stored = mutations.find(mutation.id).get();
+  if (std::holds_alternative<std::optional<PendingMutation>>(stored)) {
+    const std::optional<PendingMutation>& pending =
+        std::get<std::optional<PendingMutation>>(stored);
+    if (pending.has_value()) errorCode = pending->lastErrorCode;
+  }
+  const QString resource = mutation.resource == PendingMutationResource::Task
+                               ? QStringLiteral("task") : QStringLiteral("task_list");
+  static_cast<void>(telemetry->record(
+      {.mutationId = mutation.id,
+       .resource = resource,
+       .operation = mutation.operation,
+       .scope = QStringLiteral("none"),
+       .phase = outcome.applied > 0 ? MutationTelemetryPhase::RemoteApplied
+                                    : MutationTelemetryPhase::RemoteFailed,
+       .remoteOutcome = outcome.applied > 0 ? std::optional<QString>(QStringLiteral("applied"))
+                                             : std::optional<QString>(QStringLiteral("failed")),
+       .errorCode = std::move(errorCode),
+       .rollbackReason = outcome.failed > 0 ? std::optional<QString>(QStringLiteral("keep_retry"))
+                                            : std::nullopt}));
 }
 
 } // namespace
@@ -1002,10 +1031,12 @@ GoogleTaskMutationPushService::GoogleTaskMutationPushService(
     SyncBackoffPolicy backoffPolicy,
     TaskMutationService* taskMutationService,
     TaskListMutationService* taskListMutationService,
-    GoogleSyncConflictResolver* conflictResolver)
+    GoogleSyncConflictResolver* conflictResolver,
+    MutationTelemetryStore* mutationTelemetryStore)
     : mutations_(mutations), httpClient_(httpClient), clock_(clock),
       backoffPolicy_(std::move(backoffPolicy)), taskMutationService_(taskMutationService),
-      taskListMutationService_(taskListMutationService), conflictResolver_(conflictResolver) {}
+      taskListMutationService_(taskListMutationService), conflictResolver_(conflictResolver),
+      mutationTelemetryStore_(mutationTelemetryStore) {}
 
 std::future<GoogleTaskMutationPushResultOrError>
 GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
@@ -1099,7 +1130,8 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                 completion->set_value(std::get<AppError>(std::move(outcome)));
                 return;
               }
-              addOutcome(summary, std::get<TaskPushOutcome>(outcome));
+              addOutcome(summary, std::get<TaskPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                         batchItems.constFirst().mutation);
             } else if (batchItems.size() > 1) {
               const std::optional<GoogleHttpRequest> batchRequest =
                   buildTaskBatchRequest(batchItems);
@@ -1148,7 +1180,8 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
                   completion->set_value(std::get<AppError>(std::move(outcome)));
                   return;
                 }
-                addOutcome(summary, std::get<TaskPushOutcome>(outcome));
+                addOutcome(summary, std::get<TaskPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                           batchItems.at(index).mutation);
               }
             }
             dueIndex = batchEnd - 1;
@@ -1363,6 +1396,7 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
           }
           GoogleHttpResult response =
               httpClient_.send(std::get<MutationPushRequest>(request).request, accessToken).get();
+          const PendingMutation telemetryMutation = claimed;
           TaskPushOutcomeOrError outcome = processTaskResponse(mutations_,
                                                                  taskMutationService_,
                                                                  taskListMutationService_,
@@ -1377,7 +1411,8 @@ GoogleTaskMutationPushService::pushDue(QString accessToken, int limit) {
             completion->set_value(std::get<AppError>(std::move(outcome)));
             return;
           }
-          addOutcome(summary, std::get<TaskPushOutcome>(outcome));
+          addOutcome(summary, std::get<TaskPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                     telemetryMutation);
         }
         completion->set_value(summary);
       } catch (...) {

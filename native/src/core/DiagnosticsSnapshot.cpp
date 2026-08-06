@@ -11,13 +11,15 @@ DiagnosticsSnapshotBuilder::build(const Clock& clock,
                                   DiagnosticsBuildInfo buildInfo,
                                   const StartupTimingTracker& startupTimings,
                                   const UiTransitionTimingTracker& uiTransitionTimings,
-                                  const StructuredLogger& logger) {
+                                  const StructuredLogger& logger,
+                                  QList<MutationTelemetryRecord> mutationTelemetry) {
   return DiagnosticsSnapshot{diagnosticsSchemaVersion,
                              clock.wallNow(),
                              redactBuildInfo(std::move(buildInfo)),
                              startupTimings.spans(),
                              uiTransitionTimings.spans(),
-                             logger.entries()};
+                             logger.entries(),
+                             std::move(mutationTelemetry)};
 }
 
 DiagnosticsBuildInfo DiagnosticsSnapshotBuilder::redactBuildInfo(DiagnosticsBuildInfo buildInfo) {

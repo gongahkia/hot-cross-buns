@@ -9,6 +9,7 @@ private slots:
   void buildsSundayFirstGridAndAssignsEndExclusiveEventSpans();
   void keepsAllDayDatesStableAcrossDisplayTimeZones();
   void createsWeeklySegmentsForMultiWeekAllDayEvents();
+  void mapsGridCoordinatesAndMovesMultiDayEventsInDisplayTimeZone();
   void clearsForInvalidMonthOrTimeZone();
 };
 
@@ -108,6 +109,40 @@ void MonthGridModelTest::createsWeeklySegmentsForMultiWeekAllDayEvents() {
   QCOMPARE(spans.at(2).toMap().value(QStringLiteral("daySpan")).toInt(), 3);
   QCOMPARE(spans.at(1).toMap().value(QStringLiteral("startsBeforeRange")).toBool(), true);
   QCOMPARE(spans.at(1).toMap().value(QStringLiteral("endsAfterRange")).toBool(), true);
+}
+
+void MonthGridModelTest::mapsGridCoordinatesAndMovesMultiDayEventsInDisplayTimeZone() {
+  const QTimeZone zone(QByteArrayLiteral("Australia/Adelaide"));
+  QVERIFY(zone.isValid());
+  hcb::MonthGridModel model;
+  model.setMonth(QDate(2026, 10, 1), {}, zone);
+  QCOMPARE(model.dateForPoint(0.0, 0.0, 700.0, 600.0), QStringLiteral("2026-09-27"));
+  QCOMPARE(model.dateForPoint(699.0, 599.0, 700.0, 600.0), QStringLiteral("2026-11-07"));
+  QCOMPARE(model.dateIndex(QStringLiteral("2026-10-04")), 7);
+  QCOMPARE(model.dateForIndex(7), QStringLiteral("2026-10-04"));
+  QCOMPARE(model.dateForIndex(-1), QString());
+  const QVariantMap created = model.allDayRangeInput(7, 9);
+  QCOMPARE(created.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-10-04T00:00:00.000Z"));
+  QCOMPARE(created.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-10-07T00:00:00.000Z"));
+  const QVariantMap moved = model.moveInput(
+      {{QStringLiteral("id"), QStringLiteral("event-a")},
+       {QStringLiteral("allDay"), false},
+       {QStringLiteral("startAt"), QStringLiteral("2026-10-03T13:30:00.000Z")},
+       {QStringLiteral("endAt"), QStringLiteral("2026-10-03T14:30:00.000Z")}},
+      7);
+  QVERIFY(!moved.isEmpty());
+  const QDateTime expected(QDate(2026, 10, 4), QTime(23, 0), zone,
+                           QDateTime::TransitionResolution::PreferAfter);
+  QCOMPARE(moved.value(QStringLiteral("startAt")).toString(),
+           expected.toUTC().toString(Qt::ISODateWithMs));
+  const QVariantMap resized = model.resizeAllDayRangeInput(
+      {{QStringLiteral("id"), QStringLiteral("event-a")}, {QStringLiteral("allDay"), true}}, 8, 10);
+  QCOMPARE(resized.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-10-05T00:00:00.000Z"));
+  QCOMPARE(resized.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-10-08T00:00:00.000Z"));
 }
 
 void MonthGridModelTest::clearsForInvalidMonthOrTimeZone() {

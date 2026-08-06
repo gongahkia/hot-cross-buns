@@ -104,6 +104,18 @@ void UndoRecoveryPolicyTest::recordsUndoesAndRedoesSnapshots() {
   QCOMPARE(initialStatus.undoLabel, std::optional<QString>(QStringLiteral("Edit task")));
   QVERIFY(!initialStatus.redoLabel.has_value());
 
+  std::future<hcb::UndoEntryResult> nextUndo = policy.nextUndo();
+  const hcb::UndoEntryResult nextUndoResult = awaitResult(nextUndo);
+  QVERIFY(std::holds_alternative<hcb::UndoEntry>(nextUndoResult));
+  if (!std::holds_alternative<hcb::UndoEntry>(nextUndoResult)) {
+    return;
+  }
+  const hcb::UndoEntry undoEntry = std::get<hcb::UndoEntry>(nextUndoResult);
+  QVERIFY(undoEntry.action == hcb::UndoAction::Undo);
+  QCOMPARE(undoEntry.actionKind, QStringLiteral("task.update"));
+  QVERIFY(undoEntry.expected == after);
+  QVERIFY(undoEntry.target == before);
+
   std::future<hcb::UndoReplayResult> undo = policy.undo(after);
   const hcb::UndoReplayResult undoResult = awaitResult(undo);
   QVERIFY(std::holds_alternative<hcb::UndoReplay>(undoResult));
@@ -126,6 +138,18 @@ void UndoRecoveryPolicyTest::recordsUndoesAndRedoesSnapshots() {
   const hcb::UndoStatus afterUndoStatus = std::get<hcb::UndoStatus>(afterUndoStatusResult);
   QVERIFY(!afterUndoStatus.undoLabel.has_value());
   QCOMPARE(afterUndoStatus.redoLabel, std::optional<QString>(QStringLiteral("Edit task")));
+
+  std::future<hcb::UndoEntryResult> nextRedo = policy.nextRedo();
+  const hcb::UndoEntryResult nextRedoResult = awaitResult(nextRedo);
+  QVERIFY(std::holds_alternative<hcb::UndoEntry>(nextRedoResult));
+  if (!std::holds_alternative<hcb::UndoEntry>(nextRedoResult)) {
+    return;
+  }
+  const hcb::UndoEntry redoEntry = std::get<hcb::UndoEntry>(nextRedoResult);
+  QVERIFY(redoEntry.action == hcb::UndoAction::Redo);
+  QCOMPARE(redoEntry.actionKind, QStringLiteral("task.update"));
+  QVERIFY(redoEntry.expected == before);
+  QVERIFY(redoEntry.target == after);
 
   std::future<hcb::UndoReplayResult> redo = policy.redo(before);
   const hcb::UndoReplayResult redoResult = awaitResult(redo);

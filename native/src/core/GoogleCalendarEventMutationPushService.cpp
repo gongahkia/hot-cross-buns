@@ -5,6 +5,7 @@
 #include "core/GoogleApiError.h"
 #include "core/GoogleHttpClient.h"
 #include "core/GoogleSyncConflictResolver.h"
+#include "core/MutationTelemetryStore.h"
 #include "core/OptimisticMutationCoordinator.h"
 #include "core/SyncBackoffPolicy.h"
 
@@ -1242,10 +1243,36 @@ decodeBatchResponse(const QByteArray& responseBody, int expectedParts) {
              : EventPushOutcomeOrError(EventPushOutcome{.applied = 1});
 }
 
-void addOutcome(GoogleCalendarEventMutationPushResult& summary, const EventPushOutcome& outcome) {
+void addOutcome(GoogleCalendarEventMutationPushResult& summary,
+                const EventPushOutcome& outcome,
+                MutationTelemetryStore* telemetry,
+                OptimisticMutationCoordinator& mutations,
+                const PendingMutation& mutation) {
   summary.applied += outcome.applied;
   summary.failed += outcome.failed;
   summary.skipped += outcome.skipped;
+  if (telemetry == nullptr || (outcome.applied == 0 && outcome.failed == 0)) {
+    return;
+  }
+  std::optional<QString> errorCode;
+  const PendingMutationLookupResult stored = mutations.find(mutation.id).get();
+  if (std::holds_alternative<std::optional<PendingMutation>>(stored)) {
+    const std::optional<PendingMutation>& pending =
+        std::get<std::optional<PendingMutation>>(stored);
+    if (pending.has_value()) errorCode = pending->lastErrorCode;
+  }
+  static_cast<void>(telemetry->record(
+      {.mutationId = mutation.id,
+       .resource = QStringLiteral("event"),
+       .operation = mutation.operation,
+       .scope = QStringLiteral("none"),
+       .phase = outcome.applied > 0 ? MutationTelemetryPhase::RemoteApplied
+                                    : MutationTelemetryPhase::RemoteFailed,
+       .remoteOutcome = outcome.applied > 0 ? std::optional<QString>(QStringLiteral("applied"))
+                                             : std::optional<QString>(QStringLiteral("failed")),
+       .errorCode = std::move(errorCode),
+       .rollbackReason = outcome.failed > 0 ? std::optional<QString>(QStringLiteral("keep_retry"))
+                                            : std::nullopt}));
 }
 
 } // namespace
@@ -1256,10 +1283,11 @@ GoogleCalendarEventMutationPushService::GoogleCalendarEventMutationPushService(
     const Clock& clock,
     SyncBackoffPolicy backoffPolicy,
     CalendarMutationService* calendarMutationService,
-    GoogleSyncConflictResolver* conflictResolver)
+    GoogleSyncConflictResolver* conflictResolver,
+    MutationTelemetryStore* mutationTelemetryStore)
     : mutations_(mutations), httpClient_(httpClient), clock_(clock),
       backoffPolicy_(std::move(backoffPolicy)), calendarMutationService_(calendarMutationService),
-      conflictResolver_(conflictResolver) {}
+      conflictResolver_(conflictResolver), mutationTelemetryStore_(mutationTelemetryStore) {}
 
 std::future<GoogleCalendarEventMutationPushResultOrError>
 GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) {
@@ -1342,7 +1370,8 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
                 completion->set_value(std::get<AppError>(std::move(outcome)));
                 return;
               }
-              addOutcome(summary, std::get<EventPushOutcome>(outcome));
+              addOutcome(summary, std::get<EventPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                         batchItems.constFirst().mutation);
             } else if (batchItems.size() > 1) {
               const std::optional<GoogleHttpRequest> batchRequest = buildBatchRequest(batchItems);
               QList<GoogleHttpResult> responses;
@@ -1387,7 +1416,8 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
                   completion->set_value(std::get<AppError>(std::move(outcome)));
                   return;
                 }
-                addOutcome(summary, std::get<EventPushOutcome>(outcome));
+                addOutcome(summary, std::get<EventPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                           batchItems.at(itemIndex).mutation);
               }
             }
             dueIndex = batchEnd;
@@ -1477,6 +1507,7 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
             ResolvedInstanceRequestOrError resolved =
                 resolveInstanceRequest(claimed, httpClient_, accessToken);
             if (std::holds_alternative<GoogleApiError>(resolved)) {
+              const PendingMutation telemetryMutation = claimed;
               EventPushOutcomeOrError outcome = processEventResponse(mutations_,
                                                                        calendarMutationService_,
                                                                        conflictResolver_,
@@ -1489,7 +1520,8 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
                 completion->set_value(std::get<AppError>(std::move(outcome)));
                 return;
               }
-              addOutcome(summary, std::get<EventPushOutcome>(outcome));
+              addOutcome(summary, std::get<EventPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                         telemetryMutation);
               ++dueIndex;
               continue;
             }
@@ -1542,7 +1574,8 @@ GoogleCalendarEventMutationPushService::pushDue(QString accessToken, int limit) 
             completion->set_value(std::get<AppError>(std::move(outcome)));
             return;
           }
-          addOutcome(summary, std::get<EventPushOutcome>(outcome));
+          addOutcome(summary, std::get<EventPushOutcome>(outcome), mutationTelemetryStore_, mutations_,
+                     claimed);
           ++dueIndex;
         }
         completion->set_value(summary);

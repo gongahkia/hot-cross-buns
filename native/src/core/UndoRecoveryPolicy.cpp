@@ -14,6 +14,7 @@
 #include <QUuid>
 
 #include <chrono>
+#include <algorithm>
 #include <future>
 #include <initializer_list>
 #include <optional>
@@ -27,7 +28,10 @@ constexpr qsizetype kMaximumIdentifierLength = 256;
 constexpr qsizetype kMaximumActionKindLength = 128;
 constexpr qsizetype kMaximumLabelLength = 512;
 constexpr qsizetype kMaximumSnapshotBytes = 262'144;
-constexpr auto kStaleEntryAge = std::chrono::hours(24 * 14);
+constexpr int kMinimumRetentionDays = 1;
+constexpr int kMaximumRetentionDays = 3650;
+constexpr int kMinimumEntries = 50;
+constexpr int kMaximumEntries = 1000;
 
 enum class UndoStack : std::uint8_t {
   Undo,
@@ -207,6 +211,7 @@ bindAll(sqlite3_stmt* statement, const std::initializer_list<std::optional<AppEr
 [[nodiscard]] std::optional<AppError> cleanupStoredEntries(SqliteConnection& connection,
                                                            const QString& sessionId,
                                                            const QString& staleBefore,
+                                                           int maximumEntries,
                                                            int* deletedCount) {
   sqlite3* const handle = connection.nativeHandle();
   if (handle == nullptr) {
@@ -221,11 +226,15 @@ WHERE session_id = ?1
     FROM local_undo_entries
     WHERE session_id = ?1
     ORDER BY ordinal DESC, id DESC
-    LIMIT 200
+    LIMIT ?2
   )
 )";
   if (const std::optional<AppError> error =
-          executeDelete(handle, currentSessionSql, sessionId, std::nullopt, deletedCount);
+          executeDelete(handle,
+                        currentSessionSql,
+                        sessionId,
+                        QString::number(maximumEntries),
+                        deletedCount);
       error.has_value()) {
     return error;
   }
@@ -344,7 +353,8 @@ LIMIT 1
                                                         const QString& sessionId,
                                                         const UndoChangeInput& input,
                                                         const QString& now,
-                                                        const QString& staleBefore) {
+                                                        const QString& staleBefore,
+                                                        int maximumEntries) {
   SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
   if (std::holds_alternative<AppError>(transactionResult)) {
     return std::get<AppError>(transactionResult);
@@ -426,7 +436,7 @@ INSERT INTO local_undo_entries (
   }
   int discardedEntries = 0;
   if (const std::optional<AppError> error =
-          cleanupStoredEntries(connection, sessionId, staleBefore, &discardedEntries);
+          cleanupStoredEntries(connection, sessionId, staleBefore, maximumEntries, &discardedEntries);
       error.has_value()) {
     return error;
   }
@@ -513,9 +523,31 @@ WHERE id = ?1 AND session_id = ?3 AND stack = ?5
                     .target = stack == UndoStack::Undo ? entry->before : entry->after};
 }
 
+[[nodiscard]] UndoEntryResult readStoredTopEntry(SqliteConnection& connection,
+                                                  const QString& sessionId,
+                                                  UndoStack stack) {
+  const StoredEntryLookupResult found = topStoredEntry(connection, sessionId, stack);
+  if (std::holds_alternative<AppError>(found)) {
+    return std::get<AppError>(found);
+  }
+  const std::optional<StoredUndoEntry>& entry = std::get<std::optional<StoredUndoEntry>>(found);
+  if (!entry.has_value()) {
+    return validationError(stack == UndoStack::Undo ? QStringLiteral("Nothing to undo")
+                                                    : QStringLiteral("Nothing to redo"));
+  }
+  return UndoEntry{.action = stack == UndoStack::Undo ? UndoAction::Undo : UndoAction::Redo,
+                   .actionKind = entry->actionKind,
+                   .label = entry->label,
+                   .resource = entry->resource,
+                   .resourceId = entry->resourceId,
+                   .expected = stack == UndoStack::Undo ? entry->after : entry->before,
+                   .target = stack == UndoStack::Undo ? entry->before : entry->after};
+}
+
 [[nodiscard]] UndoRecoveryResult recoverStoredEntries(SqliteConnection& connection,
                                                       const QString& sessionId,
-                                                      const QString& staleBefore) {
+                                                      const QString& staleBefore,
+                                                      int maximumEntries) {
   SqliteTransactionResult transactionResult = SqliteTransaction::begin(connection);
   if (std::holds_alternative<AppError>(transactionResult)) {
     return std::get<AppError>(transactionResult);
@@ -523,7 +555,7 @@ WHERE id = ?1 AND session_id = ?3 AND stack = ?5
   SqliteTransaction transaction = std::move(std::get<SqliteTransaction>(transactionResult));
   int discardedEntries = 0;
   if (const std::optional<AppError> error =
-          cleanupStoredEntries(connection, sessionId, staleBefore, &discardedEntries);
+          cleanupStoredEntries(connection, sessionId, staleBefore, maximumEntries, &discardedEntries);
       error.has_value()) {
     return *error;
   }
@@ -561,10 +593,40 @@ std::shared_future<SqliteWriteResult> UndoRecoveryPolicy::ready() const { return
 
 const QString& UndoRecoveryPolicy::sessionId() const noexcept { return sessionId_; }
 
+void UndoRecoveryPolicy::configure(UndoHistoryConfiguration configuration) {
+  configuration.retentionDays = std::clamp(configuration.retentionDays,
+                                           kMinimumRetentionDays,
+                                           kMaximumRetentionDays);
+  configuration.maximumEntries = std::clamp(configuration.maximumEntries,
+                                            kMinimumEntries,
+                                            kMaximumEntries);
+  std::scoped_lock lock(configurationMutex_);
+  configuration_ = configuration;
+}
+
+UndoHistoryConfiguration UndoRecoveryPolicy::configuration() const {
+  std::scoped_lock lock(configurationMutex_);
+  return configuration_;
+}
+
 std::future<UndoStatusResult> UndoRecoveryPolicy::status() {
   return writerQueue_.enqueueResult(
       [sessionId = sessionId_](SqliteConnection& connection) -> UndoStatusResult {
         return readStoredStatus(connection, sessionId);
+      });
+}
+
+std::future<UndoEntryResult> UndoRecoveryPolicy::nextUndo() {
+  return writerQueue_.enqueueResult(
+      [sessionId = sessionId_](SqliteConnection& connection) -> UndoEntryResult {
+        return readStoredTopEntry(connection, sessionId, UndoStack::Undo);
+      });
+}
+
+std::future<UndoEntryResult> UndoRecoveryPolicy::nextRedo() {
+  return writerQueue_.enqueueResult(
+      [sessionId = sessionId_](SqliteConnection& connection) -> UndoEntryResult {
+        return readStoredTopEntry(connection, sessionId, UndoStack::Redo);
       });
 }
 
@@ -577,12 +639,14 @@ std::future<std::optional<AppError>> UndoRecoveryPolicy::record(UndoChangeInput 
   if (snapshotBytes(storedInput.before) == snapshotBytes(storedInput.after)) {
     return readyFuture(std::optional<AppError>{});
   }
+  const UndoHistoryConfiguration configuration = this->configuration();
   const WallTimePoint nowPoint = clock_.wallNow();
   const QString now = timestampAt(nowPoint);
-  const QString staleBefore = timestampAt(nowPoint - kStaleEntryAge);
-  return writerQueue_.enqueueResult([sessionId = sessionId_, input = storedInput, now, staleBefore](
+  const QString staleBefore = timestampAt(nowPoint - std::chrono::hours(24 * configuration.retentionDays));
+  return writerQueue_.enqueueResult([sessionId = sessionId_, input = storedInput, now, staleBefore,
+                                     maximumEntries = configuration.maximumEntries](
                                         SqliteConnection& connection) -> std::optional<AppError> {
-    return recordStoredEntry(connection, sessionId, input, now, staleBefore);
+    return recordStoredEntry(connection, sessionId, input, now, staleBefore, maximumEntries);
   });
 }
 
@@ -613,11 +677,12 @@ std::future<UndoReplayResult> UndoRecoveryPolicy::redo(QJsonValue currentSnapsho
 }
 
 std::future<UndoRecoveryResult> UndoRecoveryPolicy::recover() {
+  const UndoHistoryConfiguration configuration = this->configuration();
   const WallTimePoint nowPoint = clock_.wallNow();
-  const QString staleBefore = timestampAt(nowPoint - kStaleEntryAge);
+  const QString staleBefore = timestampAt(nowPoint - std::chrono::hours(24 * configuration.retentionDays));
   return writerQueue_.enqueueResult(
-      [sessionId = sessionId_, staleBefore](SqliteConnection& connection) -> UndoRecoveryResult {
-        return recoverStoredEntries(connection, sessionId, staleBefore);
+      [sessionId = sessionId_, staleBefore, maximumEntries = configuration.maximumEntries](SqliteConnection& connection) -> UndoRecoveryResult {
+        return recoverStoredEntries(connection, sessionId, staleBefore, maximumEntries);
       });
 }
 

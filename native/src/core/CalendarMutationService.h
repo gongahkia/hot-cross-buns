@@ -161,6 +161,7 @@ public:
   [[nodiscard]] std::future<CalendarEventMutationResult>
   updateScoped(CalendarEventScopedUpdateInput input);
   [[nodiscard]] std::future<CalendarEventMutationResult> remove(QString eventId);
+  [[nodiscard]] std::future<CalendarEventMutationResult> restore(QString eventId);
   [[nodiscard]] std::future<CalendarEventMutationResult>
   removeScoped(CalendarEventScopedDeleteInput input);
   [[nodiscard]] std::future<CalendarEventMutationSnapshotResult> inspect(QList<QString> eventIds);

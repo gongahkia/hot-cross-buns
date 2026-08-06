@@ -72,6 +72,22 @@ public:
                                       int targetEndDayIndex,
                                       int targetEndMinute) const;
   Q_INVOKABLE QVariantMap resizeAllDayInput(const QString& eventId, int targetEndDayIndex) const;
+  Q_INVOKABLE QVariantMap resizeAllDayRangeInput(const QString& eventId,
+                                                 int targetStartDayIndex,
+                                                 int targetEndDayIndex) const;
+  Q_INVOKABLE QVariantMap timedRangeInput(int firstDayIndex,
+                                          int firstMinute,
+                                          int lastDayIndex,
+                                          int lastMinute) const;
+  Q_INVOKABLE QVariantMap allDayRangeInput(int firstDayIndex, int lastDayIndex) const;
+  Q_INVOKABLE QVariantMap timelinePointInput(double x,
+                                             double y,
+                                             double availableWidth,
+                                             double timeColumnWidth,
+                                             double hourHeight,
+                                             bool endPoint = false) const;
+  Q_INVOKABLE int dayIndexForDate(const QString& date) const;
+  Q_INVOKABLE QString dateForDayIndex(int dayIndex) const;
 
   struct Item final {
     CalendarEventSummary event;

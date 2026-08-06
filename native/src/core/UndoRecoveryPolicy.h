@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <future>
+#include <mutex>
 #include <optional>
 #include <variant>
 
@@ -24,6 +25,11 @@ enum class UndoResourceKind : std::uint8_t {
 enum class UndoAction : std::uint8_t {
   Undo,
   Redo
+};
+
+struct UndoHistoryConfiguration final {
+  int retentionDays{30};
+  int maximumEntries{200};
 };
 
 struct UndoChangeInput final {
@@ -48,6 +54,16 @@ struct UndoReplay final {
   QJsonValue target;
 };
 
+struct UndoEntry final {
+  UndoAction action{UndoAction::Undo};
+  QString actionKind;
+  QString label;
+  UndoResourceKind resource{UndoResourceKind::Task};
+  QString resourceId;
+  QJsonValue expected;
+  QJsonValue target;
+};
+
 struct UndoRecoveryReport final {
   UndoStatus status;
   int discardedEntries{0};
@@ -55,6 +71,7 @@ struct UndoRecoveryReport final {
 
 using UndoStatusResult = std::variant<UndoStatus, AppError>;
 using UndoReplayResult = std::variant<UndoReplay, AppError>;
+using UndoEntryResult = std::variant<UndoEntry, AppError>;
 using UndoRecoveryResult = std::variant<UndoRecoveryReport, AppError>;
 
 class UndoRecoveryPolicy final {
@@ -65,7 +82,11 @@ public:
 
   [[nodiscard]] std::shared_future<SqliteWriteResult> ready() const;
   [[nodiscard]] const QString& sessionId() const noexcept;
+  void configure(UndoHistoryConfiguration configuration);
+  [[nodiscard]] UndoHistoryConfiguration configuration() const;
   [[nodiscard]] std::future<UndoStatusResult> status();
+  [[nodiscard]] std::future<UndoEntryResult> nextUndo();
+  [[nodiscard]] std::future<UndoEntryResult> nextRedo();
   [[nodiscard]] std::future<std::optional<AppError>> record(UndoChangeInput input);
   [[nodiscard]] std::future<UndoReplayResult> undo(QJsonValue currentSnapshot);
   [[nodiscard]] std::future<UndoReplayResult> redo(QJsonValue currentSnapshot);
@@ -74,6 +95,8 @@ public:
 private:
   const Clock& clock_;
   QString sessionId_;
+  mutable std::mutex configurationMutex_;
+  UndoHistoryConfiguration configuration_;
   SqliteWriterQueue writerQueue_;
   std::shared_future<SqliteWriteResult> initialization_;
 };

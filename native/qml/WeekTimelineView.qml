@@ -30,6 +30,7 @@ Pane {
     signal eventResizeRequested(string eventId, string endAt)
     signal eventMoveScopeRequested(var event, string startAt, string endAt, bool allDay)
     signal eventResizeScopeRequested(var event, string endAt)
+    signal eventAllDayResizeScopeRequested(var event, string startAt, string endAt)
     signal quickCreateRequested(string startAt, string endAt, bool allDay)
     signal taskMoveRequested(string taskId, string dueDate)
     signal taskDetailRequested(var task)
@@ -42,6 +43,13 @@ Pane {
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
     signal eventDetailRequested(var event)
+    property bool dragPreviewActive: false
+    property bool dragPreviewAllDay: false
+    property int dragPreviewStartDay: 0
+    property int dragPreviewEndDay: 0
+    property int dragPreviewStartMinute: 0
+    property int dragPreviewEndMinute: 15
+    property string dragPreviewTitle: ""
 
     function dayColumnWidth(availableWidth) {
         return (availableWidth - timeColumnWidth) / dayCount
@@ -76,47 +84,51 @@ Pane {
     }
 
     function dropDayIndex(x, availableWidth) {
-        return Math.max(0, Math.min(dayCount - 1,
-                                    Math.floor((x - timeColumnWidth) / dayColumnWidth(availableWidth))))
+        const point = timelineModel !== null && typeof timelineModel.timelinePointInput === "function"
+                ? timelineModel.timelinePointInput(x, 0, availableWidth, timeColumnWidth, hourHeight, false) : null
+        return point !== null && typeof point.dayIndex === "number" ? point.dayIndex : 0
     }
 
     function dropMinute(y) {
-        return Math.max(0, Math.min(24 * 60 - 15, Math.round(y * 60 / hourHeight / 15) * 15))
+        const point = timelineModel !== null && typeof timelineModel.timelinePointInput === "function"
+                ? timelineModel.timelinePointInput(timeColumnWidth, y, timeColumnWidth + dayCount,
+                                                   timeColumnWidth, hourHeight, false) : null
+        return point !== null && typeof point.minute === "number" ? point.minute : 0
     }
 
     function dropEndMinute(y) {
-        return Math.max(15, Math.min(24 * 60, Math.round(y * 60 / hourHeight / 15) * 15))
-    }
-
-    function dateForDayIndex(index) {
-        const date = new Date(weekStartDate + "T00:00:00")
-        if (!Number.isFinite(date.getTime())) return ""
-        date.setDate(date.getDate() + index)
-        return date.toISOString().slice(0, 10)
-    }
-
-    function dateTimeFor(dayIndex, minute) {
-        const date = new Date(dateForDayIndex(dayIndex) + "T00:00:00")
-        if (!Number.isFinite(date.getTime())) return ""
-        date.setMinutes(minute, 0, 0)
-        return date.toISOString()
+        const point = timelineModel !== null && typeof timelineModel.timelinePointInput === "function"
+                ? timelineModel.timelinePointInput(timeColumnWidth, y, timeColumnWidth + dayCount,
+                                                   timeColumnWidth, hourHeight, true) : null
+        return point !== null && typeof point.minute === "number" ? point.minute : 15
     }
 
     function quickCreateTimed(dayIndex, startMinute, endMinute) {
+        if (timelineModel === null || typeof timelineModel.timedRangeInput !== "function") return
         const start = Math.min(startMinute, endMinute)
-        const end = Math.max(start + 15, endMinute)
-        quickCreateRequested(dateTimeFor(dayIndex, start),
-                             dateTimeFor(dayIndex, Math.min(24 * 60, end)), false)
+        const input = timelineModel.timedRangeInput(dayIndex, start, dayIndex,
+                                                    Math.max(start + 15, endMinute))
+        if (typeof input.startAt === "string" && typeof input.endAt === "string") {
+            quickCreateRequested(input.startAt, input.endAt, false)
+        }
     }
 
     function quickCreateAllDay(firstDay, lastDay) {
-        const start = Math.min(firstDay, lastDay)
-        const end = Math.max(firstDay, lastDay)
-        const startDate = dateForDayIndex(start)
-        const endDate = new Date(dateForDayIndex(end) + "T00:00:00")
-        if (!Number.isFinite(endDate.getTime())) return
-        endDate.setDate(endDate.getDate() + 1)
-        quickCreateRequested(startDate + "T00:00:00.000Z", endDate.toISOString(), true)
+        if (timelineModel === null || typeof timelineModel.allDayRangeInput !== "function") return
+        const input = timelineModel.allDayRangeInput(firstDay, lastDay)
+        if (typeof input.startAt === "string" && typeof input.endAt === "string") {
+            quickCreateRequested(input.startAt, input.endAt, true)
+        }
+    }
+
+    function dateForTimelineDay(dayIndex) {
+        return timelineModel !== null && typeof timelineModel.dateForDayIndex === "function"
+                ? timelineModel.dateForDayIndex(dayIndex) : ""
+    }
+
+    function taskDayIndexForDate(dueAt) {
+        return timelineModel !== null && typeof timelineModel.dayIndexForDate === "function"
+                ? timelineModel.dayIndexForDate((dueAt || "").slice(0, 10)) : -1
     }
 
     function tasksForDate(date) {
@@ -162,16 +174,45 @@ Pane {
         else eventResizeRequested(resize.id, resize.endAt)
     }
 
-    function requestAllDayResize(eventId, targetEndDayIndex, sourceEvent) {
-        if (timelineModel === null || typeof timelineModel.resizeAllDayInput !== "function") {
+    function requestAllDayResize(eventId, targetStartDayIndex, targetEndDayIndex, sourceEvent) {
+        if (timelineModel === null || typeof timelineModel.resizeAllDayRangeInput !== "function") {
             return
         }
-        const resize = timelineModel.resizeAllDayInput(eventId, targetEndDayIndex)
-        if (resize === null || typeof resize.id !== "string" || typeof resize.endAt !== "string") {
+        const resize = timelineModel.resizeAllDayRangeInput(eventId, targetStartDayIndex,
+                                                             targetEndDayIndex)
+        if (resize === null || typeof resize.id !== "string" || typeof resize.startAt !== "string" ||
+                typeof resize.endAt !== "string") {
             return
         }
-        if (sourceEvent !== undefined) eventResizeScopeRequested(sourceEvent, resize.endAt)
-        else eventResizeRequested(resize.id, resize.endAt)
+        if (sourceEvent !== undefined) {
+            eventAllDayResizeScopeRequested(sourceEvent, resize.startAt, resize.endAt)
+        } else {
+            eventMoveRequested(resize.id, resize.startAt, resize.endAt, true)
+        }
+    }
+
+    function showAllDayPreview(title, startDay, endDay) {
+        dragPreviewActive = true
+        dragPreviewAllDay = true
+        dragPreviewTitle = title
+        dragPreviewStartDay = Math.max(0, Math.min(dayCount - 1, startDay))
+        dragPreviewEndDay = Math.max(dragPreviewStartDay, Math.min(dayCount - 1, endDay))
+    }
+
+    function showTimedPreview(title, day, startMinute, endMinute) {
+        dragPreviewActive = true
+        dragPreviewAllDay = false
+        dragPreviewTitle = title
+        dragPreviewStartDay = Math.max(0, Math.min(dayCount - 1, day))
+        dragPreviewEndDay = dragPreviewStartDay
+        dragPreviewStartMinute = Math.max(0, Math.min(24 * 60 - 15, startMinute))
+        dragPreviewEndMinute = Math.max(dragPreviewStartMinute + 15,
+                                        Math.min(24 * 60, endMinute))
+    }
+
+    function clearDragPreview() {
+        dragPreviewActive = false
+        dragPreviewTitle = ""
     }
 
     function selectEvent(eventId) {
@@ -288,6 +329,19 @@ Pane {
             Layout.fillWidth: true
             Layout.preferredHeight: root.allDayLaneHeight * (root.allDayLaneCount + 2)
 
+            DropArea {
+                x: root.timeColumnWidth
+                width: parent.width - root.timeColumnWidth
+                height: parent.height
+                keys: ["hcb-task"]
+                onDropped: function(drop) {
+                    if (drop.source !== null && typeof drop.source.taskId === "string") {
+                        root.taskMoveRequested(drop.source.taskId,
+                                               root.dateForTimelineDay(root.dropDayIndex(drop.x, parent.width)))
+                    }
+                }
+            }
+
             Repeater {
                 model: root.dayCount
 
@@ -300,6 +354,34 @@ Pane {
                     horizontalAlignment: Text.AlignHCenter
                     Accessible.name: text
                 }
+            }
+
+            Rectangle {
+                visible: root.dragPreviewActive && root.dragPreviewAllDay
+                x: root.dayPosition(root.dragPreviewStartDay, dayHeader.width)
+                y: root.allDayLaneHeight
+                width: (root.dragPreviewEndDay - root.dragPreviewStartDay + 1) *
+                       root.dayColumnWidth(dayHeader.width)
+                height: root.allDayLaneHeight
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                border.color: Theme.accent
+                border.width: 1
+                radius: 4
+            }
+
+            CalendarEventButton {
+                visible: root.dragPreviewActive && root.dragPreviewAllDay
+                x: root.dayPosition(root.dragPreviewStartDay, dayHeader.width) + 2
+                y: root.allDayLaneHeight + 2
+                width: Math.max(1, (root.dragPreviewEndDay - root.dragPreviewStartDay + 1) *
+                                root.dayColumnWidth(dayHeader.width) - 4)
+                height: root.allDayLaneHeight - 4
+                z: 4
+                compact: true
+                enabled: false
+                opacity: 0.48
+                eventColor: Theme.accent
+                text: root.dragPreviewTitle
             }
 
             Repeater {
@@ -364,55 +446,108 @@ Pane {
                         id: allDayMoveHandler
                         enabled: !root.selectionMode && !endsAfterRange
                         target: null
+                        onTranslationChanged: {
+                            root.showAllDayPreview(title,
+                                                   root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                     dayHeader.width),
+                                                   root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                     dayHeader.width) + daySpan - 1)
+                        }
                         onActiveChanged: {
                             const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                 dayHeader.width)
-                            if (!active && !allDayResizeHandler.active && targetDay !== dayIndex) {
+                            if (!active && !allDayStartResizeHandler.active &&
+                                    !allDayEndResizeHandler.active && targetDay !== dayIndex) {
                                 root.requestAllDayMove(id, targetDay,
                                                        {id: id, title: title, allDay: allDay,
                                                         recurrenceRule: recurrenceRule,
                                                         recurringRemoteId: recurringRemoteId,
                                                         originalStartAt: originalStartAt})
                             }
+                            if (!active) root.clearDragPreview()
                         }
                     }
 
                     AccessibleButton {
-                        id: allDayResizeHandle
+                        id: allDayStartResizeHandle
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        width: 12
+                        visible: allDayHover.hovered || allDayStartResizeHandler.active
+                        padding: 0
+                        text: ""
+                        enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
+                        accessibleName: "Resize " + title + " start"
+                        accessibleDescription: "Drag to change the all-day start date"
+                        background: Rectangle { color: root.eventColor(calendarId, colorId); opacity: 0.7; radius: 2 }
+
+                        DragHandler {
+                            id: allDayStartResizeHandler
+                            enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
+                            target: null
+                            cursorShape: Qt.SizeHorCursor
+                            grabPermissions: PointerHandler.CanTakeOverFromAnything
+                            onTranslationChanged: {
+                                root.showAllDayPreview(title,
+                                                       root.dropDayIndex(parent.parent.x + activeTranslation.x,
+                                                                         dayHeader.width),
+                                                       dayIndex + daySpan - 1)
+                            }
+                            onActiveChanged: {
+                                const targetDay = root.dropDayIndex(parent.parent.x + activeTranslation.x,
+                                                                    dayHeader.width)
+                                const initialStartDay = dayIndex
+                                if (!active && targetDay !== initialStartDay) {
+                                    root.requestAllDayResize(id, targetDay, dayIndex + daySpan - 1,
+                                                              {id: id, title: title, allDay: allDay,
+                                                               recurrenceRule: recurrenceRule,
+                                                               recurringRemoteId: recurringRemoteId,
+                                                               originalStartAt: originalStartAt})
+                                }
+                                if (!active) root.clearDragPreview()
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        id: allDayEndResizeHandle
                         anchors.top: parent.top
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         width: 14
-                        visible: allDayHover.hovered || allDayResizeHandler.active
+                        visible: allDayHover.hovered || allDayEndResizeHandler.active
                         padding: 0
                         text: ""
                         enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
                         accessibleName: "Resize " + title + " end"
                         accessibleDescription: "Drag to change the all-day end date"
-                        onClicked: root.requestAllDayResize(id, dayIndex + daySpan,
-                                                            {id: id, title: title, allDay: allDay,
-                                                             recurrenceRule: recurrenceRule,
-                                                             recurringRemoteId: recurringRemoteId,
-                                                             originalStartAt: originalStartAt})
+                        background: Rectangle { color: root.eventColor(calendarId, colorId); opacity: 0.7; radius: 2 }
 
                         DragHandler {
-                            id: allDayResizeHandler
-                            enabled: !root.selectionMode && !endsAfterRange
+                            id: allDayEndResizeHandler
+                            enabled: !root.selectionMode && !startsBeforeRange && !endsAfterRange
                             target: null
                             cursorShape: Qt.SizeHorCursor
                             grabPermissions: PointerHandler.CanTakeOverFromAnything
+                            onTranslationChanged: {
+                                root.showAllDayPreview(title, dayIndex,
+                                                       root.dropDayIndex(parent.parent.x + parent.parent.width - 1 +
+                                                                         activeTranslation.x, dayHeader.width))
+                            }
                             onActiveChanged: {
                                 const targetDay = root.dropDayIndex(
                                             parent.parent.x + parent.parent.width - 1 + activeTranslation.x,
                                             dayHeader.width)
                                 const initialEndDay = dayIndex + daySpan - 1
                                 if (!active && targetDay !== initialEndDay) {
-                                    root.requestAllDayResize(id, targetDay,
+                                    root.requestAllDayResize(id, dayIndex, targetDay,
                                                               {id: id, title: title, allDay: allDay,
                                                                recurrenceRule: recurrenceRule,
                                                                recurringRemoteId: recurringRemoteId,
                                                                originalStartAt: originalStartAt})
                                 }
+                                if (!active) root.clearDragPreview()
                             }
                         }
                     }
@@ -436,9 +571,7 @@ Pane {
 
                 delegate: CalendarTaskButton {
                     required property var modelData
-                    property int taskDayIndex: root.dateForDayIndex(0) === "" ? -1 :
-                                               Math.round((new Date(modelData.dueAt.slice(0, 10) + "T00:00:00") -
-                                                           new Date(root.weekStartDate + "T00:00:00")) / 86400000)
+                    property int taskDayIndex: root.taskDayIndexForDate(modelData.dueAt)
                     visible: !root.selectionMode && taskDayIndex >= 0 && taskDayIndex < root.dayCount
                     x: root.dayPosition(taskDayIndex, dayHeader.width) + 2
                     y: root.allDayLaneHeight * (root.allDayLaneCount + 1)
@@ -456,7 +589,7 @@ Pane {
                             const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                 dayHeader.width)
                             if (!active && targetDay !== taskDayIndex) {
-                                root.taskMoveRequested(modelData.id, root.dateForDayIndex(targetDay))
+                                root.taskMoveRequested(modelData.id, root.dateForTimelineDay(targetDay))
                             }
                         }
                     }
@@ -465,6 +598,7 @@ Pane {
 
             MouseArea {
                 id: allDayQuickCreateArea
+                objectName: "weekAllDayQuickCreateArea"
                 x: root.timeColumnWidth
                 width: dayHeader.width - root.timeColumnWidth
                 height: dayHeader.height
@@ -472,10 +606,18 @@ Pane {
                 property int pressDay: 0
                 preventStealing: true
                 cursorShape: Qt.CrossCursor
-                onPressed: function(mouse) { pressDay = root.dropDayIndex(mouse.x + x, dayHeader.width) }
+                onPressed: function(mouse) {
+                    pressDay = root.dropDayIndex(mouse.x + x, dayHeader.width)
+                    root.showAllDayPreview("New event", pressDay, pressDay)
+                }
+                onPositionChanged: function(mouse) {
+                    if (pressed) root.showAllDayPreview("New event", pressDay,
+                                                        root.dropDayIndex(mouse.x + x, dayHeader.width))
+                }
                 onReleased: function(mouse) {
                     if (!root.selectionMode) root.quickCreateAllDay(pressDay,
                                                                     root.dropDayIndex(mouse.x + x, dayHeader.width))
+                    root.clearDragPreview()
                 }
             }
         }
@@ -527,6 +669,19 @@ Pane {
                 width: timelineViewport.width
                 height: root.hourHeight * 24
 
+                DropArea {
+                    x: root.timeColumnWidth
+                    width: parent.width - root.timeColumnWidth
+                    height: parent.height
+                    keys: ["hcb-task"]
+                    onDropped: function(drop) {
+                        if (drop.source !== null && typeof drop.source.taskId === "string") {
+                            root.taskMoveRequested(drop.source.taskId,
+                                                   root.dateForTimelineDay(root.dropDayIndex(drop.x, parent.width)))
+                        }
+                    }
+                }
+
                 Repeater {
                     model: 24
 
@@ -559,6 +714,7 @@ Pane {
 
                 MouseArea {
                     id: timedQuickCreateArea
+                    objectName: "weekTimedQuickCreateArea"
                     x: root.timeColumnWidth
                     width: timelineCanvas.width - root.timeColumnWidth
                     height: timelineCanvas.height
@@ -569,11 +725,44 @@ Pane {
                     onPressed: function(mouse) {
                         pressDay = root.dropDayIndex(mouse.x + x, timelineCanvas.width)
                         pressMinute = root.dropMinute(mouse.y)
+                        root.showTimedPreview("New event", pressDay, pressMinute, pressMinute + 15)
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (pressed) root.showTimedPreview("New event", pressDay, pressMinute,
+                                                           root.dropEndMinute(mouse.y))
                     }
                     onReleased: function(mouse) {
                         if (!root.selectionMode) root.quickCreateTimed(pressDay, pressMinute,
                                                                         root.dropEndMinute(mouse.y))
+                        root.clearDragPreview()
                     }
+                }
+
+                Rectangle {
+                    visible: root.dragPreviewActive && !root.dragPreviewAllDay
+                    x: root.dayPosition(root.dragPreviewStartDay, timelineCanvas.width)
+                    y: root.timePosition(root.dragPreviewStartMinute)
+                    width: root.dayColumnWidth(timelineCanvas.width)
+                    height: Math.max(15, root.timePosition(root.dragPreviewEndMinute) - y)
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                    border.color: Theme.accent
+                    border.width: 1
+                    radius: 4
+                    z: 1
+                }
+
+                CalendarEventButton {
+                    visible: root.dragPreviewActive && !root.dragPreviewAllDay
+                    x: root.dayPosition(root.dragPreviewStartDay, timelineCanvas.width) + 2
+                    y: root.timePosition(root.dragPreviewStartMinute) + 2
+                    width: Math.max(1, root.dayColumnWidth(timelineCanvas.width) - 4)
+                    height: Math.max(20, root.timePosition(root.dragPreviewEndMinute) -
+                                     root.timePosition(root.dragPreviewStartMinute) - 4)
+                    z: 4
+                    enabled: false
+                    opacity: 0.48
+                    eventColor: Theme.accent
+                    text: root.dragPreviewTitle
                 }
 
                 Repeater {
@@ -640,6 +829,13 @@ Pane {
                             id: moveHandler
                             enabled: !root.selectionMode
                             target: null
+                            onTranslationChanged: {
+                                const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
+                                                                    timelineCanvas.width)
+                                const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
+                                root.showTimedPreview(title, targetDay, targetMinute,
+                                                      targetMinute + durationMinutes)
+                            }
                             onActiveChanged: {
                                 const targetDay = root.dropDayIndex(parent.x + activeTranslation.x,
                                                                     timelineCanvas.width)
@@ -652,6 +848,7 @@ Pane {
                                                       recurringRemoteId: recurringRemoteId,
                                                       originalStartAt: originalStartAt})
                                 }
+                                if (!active) root.clearDragPreview()
                             }
                         }
 
@@ -700,6 +897,15 @@ Pane {
                                 target: null
                                 cursorShape: Qt.SizeVerCursor
                                 grabPermissions: PointerHandler.CanTakeOverFromAnything
+                                onTranslationChanged: {
+                                    const targetDay = root.dropDayIndex(
+                                                parent.parent.x + parent.parent.width - 1 + activeTranslation.x,
+                                                timelineCanvas.width)
+                                    const targetEndMinute = root.dropEndMinute(
+                                                parent.parent.y + parent.parent.height + activeTranslation.y)
+                                    root.showTimedPreview(title, dayIndex, startMinute,
+                                                          targetDay === dayIndex ? targetEndMinute : 24 * 60)
+                                }
                                 onActiveChanged: {
                                     const targetEndDay = root.dropDayIndex(
                                                 parent.parent.x + parent.parent.width - 1 + activeTranslation.x,
@@ -716,6 +922,7 @@ Pane {
                                                             recurringRemoteId: recurringRemoteId,
                                                             originalStartAt: originalStartAt})
                                     }
+                                    if (!active) root.clearDragPreview()
                                 }
                             }
                         }

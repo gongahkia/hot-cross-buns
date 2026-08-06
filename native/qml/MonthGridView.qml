@@ -14,6 +14,15 @@ Pane {
     property string monthLabel: ""
     property int visibleAllDayLanes: 3
     property int allDayLaneHeight: 22
+    property string selectedDate: calendarDate
+    property bool dragPreviewActive: false
+    property string dragPreviewTitle: ""
+    property string dragPreviewStartDate: ""
+    property string dragPreviewEndDate: ""
+    property var overflowAllDayEvents: []
+    property var overflowTimedEvents: []
+    property var overflowTasks: []
+    property string overflowDate: ""
     property alias cells: cells
     signal dateSelected(string date)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -22,6 +31,7 @@ Pane {
     signal eventEditRequested(var event)
     signal eventDetailRequested(var event)
     signal eventMoveScopeRequested(var event, string startAt, string endAt, bool allDay)
+    signal eventAllDayResizeScopeRequested(var event, string startAt, string endAt)
     signal taskMoveRequested(string taskId, string dueDate)
     signal taskDetailRequested(var task)
 
@@ -30,6 +40,7 @@ Pane {
     }
 
     function selectDate(date) {
+        selectedDate = date
         dateSelected(date)
     }
 
@@ -44,9 +55,7 @@ Pane {
         }).map(function(event) { return event.id })
     }
 
-    function isEventSelected(eventId) {
-        return selectedEventIds.indexOf(eventId) >= 0
-    }
+    function isEventSelected(eventId) { return selectedEventIds.indexOf(eventId) >= 0 }
 
     function eventColor(calendarId, colorId) {
         const fallback = calendarVisibility !== null && typeof calendarVisibility.calendarColor === "function"
@@ -60,64 +69,48 @@ Pane {
         })
     }
 
-    function localDateString(date) {
-        return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" +
-               String(date.getDate()).padStart(2, "0")
-    }
-
-    function gridStartDate() {
-        const month = new Date(calendarDate + "T12:00:00")
-        if (!Number.isFinite(month.getTime())) return null
-        month.setDate(1)
-        const offset = (month.getDay() - weekStartDay + 7) % 7
-        month.setDate(month.getDate() - offset)
-        return month
+    function visibleAllDayEvents(events) {
+        return events.filter(function(event) {
+            return root.isCalendarVisible(event.calendarId) && event.allDay === true
+        })
     }
 
     function dateForGridPoint(x, y) {
-        const start = gridStartDate()
-        if (start === null || gridArea.width <= 0 || gridArea.height <= 0) return ""
-        const column = Math.max(0, Math.min(6, Math.floor(x / (gridArea.width / 7))))
-        const row = Math.max(0, Math.min(5, Math.floor(y / (gridArea.height / 6))))
-        start.setDate(start.getDate() + row * 7 + column)
-        return localDateString(start)
+        return monthGridModel !== null && typeof monthGridModel.dateForPoint === "function"
+             ? monthGridModel.dateForPoint(x, y, gridArea.width, gridArea.height) : ""
     }
 
-    function dayDelta(firstDate, secondDate) {
-        const first = new Date(firstDate + "T12:00:00")
-        const second = new Date(secondDate + "T12:00:00")
-        return Math.round((second - first) / 86400000)
+    function dateIndex(date) {
+        return monthGridModel !== null && typeof monthGridModel.dateIndex === "function"
+             ? monthGridModel.dateIndex(date) : -1
     }
 
-    function shiftDateValue(value, offset, allDay) {
-        if (allDay) {
-            const date = new Date(value.slice(0, 10) + "T00:00:00Z")
-            if (!Number.isFinite(date.getTime())) return ""
-            date.setUTCDate(date.getUTCDate() + offset)
-            return date.toISOString()
-        }
-        const date = new Date(value)
-        if (!Number.isFinite(date.getTime())) return ""
-        date.setDate(date.getDate() + offset)
-        return date.toISOString()
+    function dateForGridIndex(index) {
+        return monthGridModel !== null && typeof monthGridModel.dateForIndex === "function"
+             ? monthGridModel.dateForIndex(index) : ""
     }
 
-    function sourceDateForEvent(event) {
-        if (event === null || event === undefined) return ""
-        if (event.allDay === true) return (event.startAt || "").slice(0, 10)
-        const date = new Date(event.startAt)
-        return Number.isFinite(date.getTime()) ? localDateString(date) : ""
+    function dateInRange(date, firstDate, lastDate) {
+        const index = dateIndex(date)
+        const first = dateIndex(firstDate)
+        const last = dateIndex(lastDate)
+        return index >= 0 && first >= 0 && last >= 0 && index >= Math.min(first, last) &&
+               index <= Math.max(first, last)
     }
 
     function requestEventMove(event, targetDate) {
-        const sourceDate = sourceDateForEvent(event)
-        if (sourceDate.length === 0 || targetDate.length === 0) return
-        const offset = dayDelta(sourceDate, targetDate)
-        if (offset === 0) return
-        const startAt = shiftDateValue(event.startAt, offset, event.allDay === true)
-        const endAt = shiftDateValue(event.endAt, offset, event.allDay === true)
-        if (startAt.length > 0 && endAt.length > 0) {
-            eventMoveScopeRequested(event, startAt, endAt, event.allDay === true)
+        if (monthGridModel === null || typeof monthGridModel.moveInput !== "function") return
+        const move = monthGridModel.moveInput(event, dateIndex(targetDate))
+        if (typeof move.startAt === "string" && typeof move.endAt === "string") {
+            eventMoveScopeRequested(event, move.startAt, move.endAt, move.allDay === true)
+        }
+    }
+
+    function requestAllDayResize(event, firstDate, lastDate) {
+        if (monthGridModel === null || typeof monthGridModel.resizeAllDayRangeInput !== "function") return
+        const resize = monthGridModel.resizeAllDayRangeInput(event, dateIndex(firstDate), dateIndex(lastDate))
+        if (typeof resize.startAt === "string" && typeof resize.endAt === "string") {
+            eventAllDayResizeScopeRequested(event, resize.startAt, resize.endAt)
         }
     }
 
@@ -127,14 +120,11 @@ Pane {
     }
 
     function quickCreateForRange(firstDate, lastDate) {
-        if (firstDate.length === 0 || lastDate.length === 0) return
-        const first = new Date(firstDate + "T00:00:00Z")
-        const last = new Date(lastDate + "T00:00:00Z")
-        if (!Number.isFinite(first.getTime()) || !Number.isFinite(last.getTime())) return
-        const start = first <= last ? first : last
-        const end = first <= last ? last : first
-        end.setUTCDate(end.getUTCDate() + 1)
-        quickCreateRequested(start.toISOString(), end.toISOString(), true)
+        if (monthGridModel === null || typeof monthGridModel.allDayRangeInput !== "function") return
+        const input = monthGridModel.allDayRangeInput(dateIndex(firstDate), dateIndex(lastDate))
+        if (typeof input.startAt === "string" && typeof input.endAt === "string") {
+            quickCreateRequested(input.startAt, input.endAt, true)
+        }
     }
 
     function visibleAllDaySpans() {
@@ -143,6 +133,69 @@ Pane {
         return source.filter(function(event) {
             return root.isCalendarVisible(event.calendarId) && event.laneIndex < root.visibleAllDayLanes
         })
+    }
+
+    function spanCoversDate(span, date) {
+        const index = dateIndex(date)
+        const first = span.weekIndex * 7 + span.startColumn
+        return index >= first && index < first + span.daySpan
+    }
+
+    function visibleAllDayIdsForDate(date) {
+        return visibleAllDaySpans().filter(function(span) { return root.spanCoversDate(span, date) })
+                                  .map(function(span) { return span.id })
+    }
+
+    function hiddenAllDayEvents(date, events) {
+        const visibleIds = visibleAllDayIdsForDate(date)
+        return visibleAllDayEvents(events).filter(function(event) {
+            return visibleIds.indexOf(event.id) < 0
+        })
+    }
+
+    function moreCount(date, events) {
+        return hiddenAllDayEvents(date, events).length + Math.max(0, visibleTimedEvents(events).length - 2) +
+               Math.max(0, tasksForDate(date).length - 1)
+    }
+
+    function openOverflow(date, events, x, y) {
+        overflowDate = date
+        overflowAllDayEvents = visibleAllDayEvents(events)
+        overflowTimedEvents = visibleTimedEvents(events)
+        overflowTasks = tasksForDate(date)
+        overflowPopup.x = Math.max(0, Math.min(gridArea.width - overflowPopup.width, x))
+        overflowPopup.y = Math.max(0, Math.min(gridArea.height - overflowPopup.height, y))
+        overflowPopup.open()
+    }
+
+    function previewSegments() {
+        if (!dragPreviewActive) return []
+        let first = dateIndex(dragPreviewStartDate)
+        let last = dateIndex(dragPreviewEndDate)
+        if (first < 0 || last < 0) return []
+        if (first > last) { const swap = first; first = last; last = swap }
+        const segments = []
+        for (let start = first; start <= last;) {
+            const end = Math.min(last, Math.floor(start / 7) * 7 + 6)
+            segments.push({ weekIndex: Math.floor(start / 7), startColumn: start % 7,
+                            daySpan: end - start + 1 })
+            start = end + 1
+        }
+        return segments
+    }
+
+    function showPreview(title, firstDate, lastDate) {
+        dragPreviewActive = true
+        dragPreviewTitle = title
+        dragPreviewStartDate = firstDate
+        dragPreviewEndDate = lastDate
+    }
+
+    function clearPreview() {
+        dragPreviewActive = false
+        dragPreviewTitle = ""
+        dragPreviewStartDate = ""
+        dragPreviewEndDate = ""
     }
 
     ColumnLayout {
@@ -173,8 +226,30 @@ Pane {
 
         Item {
             id: gridArea
+            objectName: "monthGridArea"
             Layout.fillWidth: true
             Layout.fillHeight: true
+
+            DropArea {
+                anchors.fill: parent
+                z: 8
+                keys: ["hcb-task"]
+                onEntered: function(drag) {
+                    root.showPreview(drag.source.title || "Task", root.dateForGridPoint(drag.x, drag.y),
+                                     root.dateForGridPoint(drag.x, drag.y))
+                }
+                onPositionChanged: function(drag) {
+                    root.showPreview(drag.source.title || "Task", root.dateForGridPoint(drag.x, drag.y),
+                                     root.dateForGridPoint(drag.x, drag.y))
+                }
+                onExited: root.clearPreview()
+                onDropped: function(drop) {
+                    if (drop.source !== null && typeof drop.source.taskId === "string") {
+                        root.taskMoveRequested(drop.source.taskId, root.dateForGridPoint(drop.x, drop.y))
+                    }
+                    root.clearPreview()
+                }
+            }
 
             TableView {
                 id: cells
@@ -194,17 +269,56 @@ Pane {
                     required property int allDayOverflowCount
                     opacity: outsideMonth ? 0.5 : 1
 
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: root.dragPreviewActive && root.dateInRange(date,
+                                                                             root.dragPreviewStartDate,
+                                                                             root.dragPreviewEndDate)
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+                        border.color: Theme.accent
+                        border.width: 1
+                        radius: 4
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: root.selectedDate === date
+                        color: "transparent"
+                        border.color: Theme.accent
+                        border.width: 1
+                        radius: 4
+                    }
+
                     MouseArea {
                         id: cellQuickCreateArea
+                        objectName: "monthCellQuickCreate:" + date
                         anchors.fill: parent
                         z: -1
                         property string firstDate: ""
+                        property real pressX: 0
+                        property real pressY: 0
                         preventStealing: true
                         cursorShape: Qt.CrossCursor
-                        onPressed: firstDate = date
+                        onPressed: function(mouse) {
+                            firstDate = date
+                            pressX = mouse.x
+                            pressY = mouse.y
+                        }
+                        onPositionChanged: function(mouse) {
+                            if (pressed) root.showPreview("New event", firstDate,
+                                                          root.dateForGridPoint(mapToItem(gridArea, mouse.x, mouse.y).x,
+                                                                                mapToItem(gridArea, mouse.x, mouse.y).y))
+                        }
                         onReleased: function(mouse) {
                             const point = mapToItem(gridArea, mouse.x, mouse.y)
-                            root.quickCreateForRange(firstDate, root.dateForGridPoint(point.x, point.y))
+                            const lastDate = root.dateForGridPoint(point.x, point.y)
+                            const moved = Math.abs(mouse.x - pressX) > 6 || Math.abs(mouse.y - pressY) > 6
+                            if (!root.selectionMode && moved) root.quickCreateForRange(firstDate, lastDate)
+                            else root.selectedDate = date
+                            root.clearPreview()
+                        }
+                        onDoubleClicked: function(mouse) {
+                            if (!root.selectionMode) root.quickCreateForRange(date, date)
                         }
                     }
 
@@ -218,7 +332,7 @@ Pane {
                         padding: 0
                         text: day
                         accessibleName: date
-                        onClicked: root.dateSelected(date)
+                        onClicked: root.selectDate(date)
                         background: Item {}
                     }
 
@@ -245,16 +359,22 @@ Pane {
                                     if (root.selectionMode) root.eventSelectionRequested(modelData.id, !root.isEventSelected(modelData.id))
                                     else root.eventDetailRequested(modelData)
                                 }
-
                                 DragHandler {
                                     enabled: !root.selectionMode
                                     target: null
-                                    onActiveChanged: {
-                                        const point = parent.mapToItem(gridArea,
-                                                                       parent.width / 2 + activeTranslation.x,
+                                    onTranslationChanged: {
+                                        const point = parent.mapToItem(gridArea, parent.width / 2 + activeTranslation.x,
                                                                        parent.height / 2 + activeTranslation.y)
-                                        if (!active) root.requestEventMove(modelData,
-                                                                           root.dateForGridPoint(point.x, point.y))
+                                        const target = root.dateForGridPoint(point.x, point.y)
+                                        root.showPreview(modelData.title, target, target)
+                                    }
+                                    onActiveChanged: {
+                                        const point = parent.mapToItem(gridArea, parent.width / 2 + activeTranslation.x,
+                                                                       parent.height / 2 + activeTranslation.y)
+                                        if (!active) {
+                                            root.requestEventMove(modelData, root.dateForGridPoint(point.x, point.y))
+                                            root.clearPreview()
+                                        }
                                     }
                                 }
                             }
@@ -270,16 +390,22 @@ Pane {
                                 text: modelData.title
                                 accessibleName: "Task: " + modelData.title
                                 onClicked: root.taskDetailRequested(modelData)
-
                                 DragHandler {
                                     enabled: !root.selectionMode
                                     target: null
-                                    onActiveChanged: {
-                                        const point = parent.mapToItem(gridArea,
-                                                                       parent.width / 2 + activeTranslation.x,
+                                    onTranslationChanged: {
+                                        const point = parent.mapToItem(gridArea, parent.width / 2 + activeTranslation.x,
                                                                        parent.height / 2 + activeTranslation.y)
-                                        if (!active) root.taskMoveRequested(modelData.id,
-                                                                             root.dateForGridPoint(point.x, point.y))
+                                        const target = root.dateForGridPoint(point.x, point.y)
+                                        root.showPreview(modelData.title, target, target)
+                                    }
+                                    onActiveChanged: {
+                                        const point = parent.mapToItem(gridArea, parent.width / 2 + activeTranslation.x,
+                                                                       parent.height / 2 + activeTranslation.y)
+                                        if (!active) {
+                                            root.taskMoveRequested(modelData.id, root.dateForGridPoint(point.x, point.y))
+                                            root.clearPreview()
+                                        }
                                     }
                                 }
                             }
@@ -287,29 +413,35 @@ Pane {
 
                         AccessibleButton {
                             id: moreButton
-                            property var timedEvents: root.visibleTimedEvents(events)
-                            property int moreCount: allDayOverflowCount + Math.max(0, timedEvents.length - 2)
+                            property int hiddenCount: root.moreCount(date, events)
                             width: parent.width
                             height: root.allDayLaneHeight
-                            visible: moreCount > 0
+                            visible: hiddenCount > 0
                             padding: 2
-                            text: "+" + moreCount + " more"
-                            onClicked: overflowMenu.open()
-
-                            Menu {
-                                id: overflowMenu
-                                MenuItem { text: "New event"; onTriggered: root.eventCreateRequested(date) }
-                                Repeater {
-                                    model: moreButton.timedEvents.slice(2)
-                                    delegate: MenuItem {
-                                        required property var modelData
-                                        text: modelData.title
-                                        onTriggered: root.eventDetailRequested(modelData)
-                                    }
-                                }
+                            text: "+" + hiddenCount + " more"
+                            onClicked: {
+                                const point = mapToItem(gridArea, x, y + height)
+                                root.openOverflow(date, events, point.x, point.y)
                             }
                         }
                     }
+                }
+            }
+
+            Repeater {
+                model: root.previewSegments()
+                delegate: CalendarEventButton {
+                    required property var modelData
+                    x: modelData.startColumn * gridArea.width / 7 + Theme.spacingSmall
+                    y: modelData.weekIndex * gridArea.height / 6 + 28
+                    width: Math.max(1, modelData.daySpan * gridArea.width / 7 - Theme.spacingSmall * 2)
+                    height: root.allDayLaneHeight - 1
+                    z: 5
+                    enabled: false
+                    opacity: 0.48
+                    compact: true
+                    eventColor: Theme.accent
+                    text: root.dragPreviewTitle
                 }
             }
 
@@ -321,7 +453,7 @@ Pane {
                     y: modelData.weekIndex * gridArea.height / 6 + 28 + modelData.laneIndex * root.allDayLaneHeight
                     width: Math.max(1, modelData.daySpan * gridArea.width / 7 - Theme.spacingSmall * 2)
                     height: root.allDayLaneHeight - 1
-                    z: 2
+                    z: 6
                     compact: true
                     eventColor: root.eventColor(modelData.calendarId, modelData.colorId || "")
                     text: (modelData.startsBeforeRange ? "‹ " : "") + modelData.title +
@@ -332,16 +464,173 @@ Pane {
                         else root.eventDetailRequested(modelData)
                     }
 
+                    HoverHandler { id: allDayHover }
+
                     DragHandler {
+                        id: allDayMoveHandler
                         enabled: !root.selectionMode && !modelData.startsBeforeRange
                         target: null
-                        onActiveChanged: {
-                            const point = parent.mapToItem(gridArea,
-                                                           parent.x + activeTranslation.x,
+                        onTranslationChanged: {
+                            const point = parent.mapToItem(gridArea, parent.x + activeTranslation.x,
                                                            parent.y + parent.height / 2 + activeTranslation.y)
-                            if (!active) root.requestEventMove(modelData,
-                                                               root.dateForGridPoint(point.x, point.y))
+                            const target = root.dateForGridPoint(point.x, point.y)
+                            const span = Math.max(1, modelData.daySpan)
+                            const targetIndex = root.dateIndex(target)
+                            root.showPreview(modelData.title, target,
+                                             root.dateForGridIndex(targetIndex + span - 1))
                         }
+                        onActiveChanged: {
+                            const point = parent.mapToItem(gridArea, parent.x + activeTranslation.x,
+                                                           parent.y + parent.height / 2 + activeTranslation.y)
+                            if (!active && !allDayStartResizeHandler.active && !allDayEndResizeHandler.active) {
+                                root.requestEventMove(modelData, root.dateForGridPoint(point.x, point.y))
+                            }
+                            if (!active) root.clearPreview()
+                        }
+                    }
+
+                    AccessibleButton {
+                        id: allDayStartResizeHandle
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 12
+                        visible: allDayHover.hovered || allDayStartResizeHandler.active
+                        enabled: !root.selectionMode && !modelData.startsBeforeRange
+                        padding: 0
+                        text: ""
+                        accessibleName: "Resize " + modelData.title + " start"
+                        background: Rectangle { color: root.eventColor(modelData.calendarId, modelData.colorId || ""); opacity: 0.7; radius: 2 }
+                        DragHandler {
+                            id: allDayStartResizeHandler
+                            target: null
+                            enabled: !root.selectionMode && !modelData.startsBeforeRange
+                            cursorShape: Qt.SizeHorCursor
+                            grabPermissions: PointerHandler.CanTakeOverFromAnything
+                            onTranslationChanged: {
+                                const point = parent.parent.mapToItem(gridArea, parent.parent.x + activeTranslation.x,
+                                                                      parent.parent.y + parent.parent.height / 2)
+                                root.showPreview(modelData.title, root.dateForGridPoint(point.x, point.y),
+                                                 (modelData.endAt || "").slice(0, 10))
+                            }
+                            onActiveChanged: {
+                                const point = parent.parent.mapToItem(gridArea, parent.parent.x + activeTranslation.x,
+                                                                      parent.parent.y + parent.parent.height / 2)
+                                if (!active) {
+                                    const target = root.dateForGridPoint(point.x, point.y)
+                                    const currentEnd = root.dateForGridIndex(
+                                                root.dateIndex((modelData.endAt || "").slice(0, 10)) - 1)
+                                    if (currentEnd !== "") root.requestAllDayResize(modelData, target, currentEnd)
+                                    root.clearPreview()
+                                }
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        id: allDayEndResizeHandle
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 12
+                        visible: allDayHover.hovered || allDayEndResizeHandler.active
+                        enabled: !root.selectionMode && !modelData.endsAfterRange
+                        padding: 0
+                        text: ""
+                        accessibleName: "Resize " + modelData.title + " end"
+                        background: Rectangle { color: root.eventColor(modelData.calendarId, modelData.colorId || ""); opacity: 0.7; radius: 2 }
+                        DragHandler {
+                            id: allDayEndResizeHandler
+                            target: null
+                            enabled: !root.selectionMode && !modelData.endsAfterRange
+                            cursorShape: Qt.SizeHorCursor
+                            grabPermissions: PointerHandler.CanTakeOverFromAnything
+                            onTranslationChanged: {
+                                const point = parent.parent.mapToItem(gridArea, parent.parent.x + parent.parent.width - 1 +
+                                                                      activeTranslation.x, parent.parent.y + parent.parent.height / 2)
+                                root.showPreview(modelData.title, (modelData.startAt || "").slice(0, 10),
+                                                 root.dateForGridPoint(point.x, point.y))
+                            }
+                            onActiveChanged: {
+                                const point = parent.parent.mapToItem(gridArea, parent.parent.x + parent.parent.width - 1 +
+                                                                      activeTranslation.x, parent.parent.y + parent.parent.height / 2)
+                                if (!active) {
+                                    root.requestAllDayResize(modelData, (modelData.startAt || "").slice(0, 10),
+                                                             root.dateForGridPoint(point.x, point.y))
+                                    root.clearPreview()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Popup {
+                id: overflowPopup
+                parent: gridArea
+                width: Math.min(360, gridArea.width)
+                height: Math.min(420, gridArea.height)
+                modal: false
+                focus: true
+                padding: Theme.spacingMedium
+                onClosed: {
+                    root.overflowAllDayEvents = []
+                    root.overflowTimedEvents = []
+                    root.overflowTasks = []
+                }
+
+                contentItem: ColumnLayout {
+                    spacing: Theme.spacingSmall
+                    Label {
+                        text: root.overflowDate
+                        font.bold: true
+                        Accessible.role: Accessible.Heading
+                    }
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        Column {
+                            width: parent.width
+                            spacing: Theme.spacingSmall
+                            Repeater {
+                                model: root.overflowAllDayEvents
+                                delegate: CalendarEventButton {
+                                    required property var modelData
+                                    width: parent.width
+                                    compact: true
+                                    eventColor: root.eventColor(modelData.calendarId, modelData.colorId || "")
+                                    text: modelData.title + " — All day"
+                                    onClicked: { overflowPopup.close(); root.eventDetailRequested(modelData) }
+                                }
+                            }
+                            Repeater {
+                                model: root.overflowTimedEvents
+                                delegate: CalendarEventButton {
+                                    required property var modelData
+                                    width: parent.width
+                                    compact: true
+                                    eventColor: root.eventColor(modelData.calendarId, modelData.colorId || "")
+                                    text: modelData.title
+                                    onClicked: { overflowPopup.close(); root.eventDetailRequested(modelData) }
+                                }
+                            }
+                            Repeater {
+                                model: root.overflowTasks
+                                delegate: CalendarTaskButton {
+                                    required property var modelData
+                                    width: parent.width
+                                    compact: true
+                                    text: modelData.title
+                                    onClicked: { overflowPopup.close(); root.taskDetailRequested(modelData) }
+                                }
+                            }
+                        }
+                    }
+                    AccessibleButton {
+                        Layout.alignment: Qt.AlignRight
+                        text: "Open day"
+                        onClicked: { overflowPopup.close(); root.selectDate(root.overflowDate) }
                     }
                 }
             }

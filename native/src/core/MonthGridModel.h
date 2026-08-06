@@ -33,6 +33,14 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
   [[nodiscard]] QVariantList allDaySpans() const;
+  Q_INVOKABLE QString dateForPoint(double x, double y, double width, double height) const;
+  Q_INVOKABLE int dateIndex(const QString& date) const;
+  Q_INVOKABLE QString dateForIndex(int dayIndex) const;
+  Q_INVOKABLE QVariantMap allDayRangeInput(int firstDayIndex, int lastDayIndex) const;
+  Q_INVOKABLE QVariantMap moveInput(const QVariantMap& event, int targetDayIndex) const;
+  Q_INVOKABLE QVariantMap resizeAllDayRangeInput(const QVariantMap& event,
+                                                 int firstDayIndex,
+                                                 int lastDayIndex) const;
 
   struct Cell final {
     QDate date;
@@ -54,6 +62,7 @@ public:
     QList<Cell> cells;
     QList<AllDaySpan> allDaySpans;
     QList<int> allDayOverflowCounts;
+    QTimeZone displayTimeZone;
   };
 
   [[nodiscard]] static Layout buildLayout(QDate month,
@@ -75,6 +84,7 @@ private:
   QList<Cell> cells_;
   QList<AllDaySpan> allDaySpans_;
   QList<int> allDayOverflowCounts_;
+  QTimeZone displayTimeZone_;
 };
 
 } // namespace hcb

@@ -14,6 +14,7 @@ class Clock;
 class GoogleHttpClient;
 class GoogleSyncConflictResolver;
 class OptimisticMutationCoordinator;
+class MutationTelemetryStore;
 class TaskListMutationService;
 class TaskMutationService;
 
@@ -31,9 +32,10 @@ public:
                                 GoogleHttpClient& httpClient,
                                 const Clock& clock,
                                 SyncBackoffPolicy backoffPolicy,
-                                TaskMutationService* taskMutationService = nullptr,
-                                TaskListMutationService* taskListMutationService = nullptr,
-                                GoogleSyncConflictResolver* conflictResolver = nullptr);
+                                 TaskMutationService* taskMutationService = nullptr,
+                                 TaskListMutationService* taskListMutationService = nullptr,
+                                 GoogleSyncConflictResolver* conflictResolver = nullptr,
+                                 MutationTelemetryStore* mutationTelemetryStore = nullptr);
 
   [[nodiscard]] std::future<GoogleTaskMutationPushResultOrError> pushDue(QString accessToken,
                                                                          int limit = 25);
@@ -46,6 +48,7 @@ private:
   TaskMutationService* taskMutationService_;
   TaskListMutationService* taskListMutationService_;
   GoogleSyncConflictResolver* conflictResolver_;
+  MutationTelemetryStore* mutationTelemetryStore_;
 };
 
 } // namespace hcb

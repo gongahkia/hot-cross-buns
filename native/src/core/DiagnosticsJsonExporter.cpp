@@ -17,6 +17,7 @@ namespace {
 constexpr std::size_t kMaximumStartupTimings = 32;
 constexpr std::size_t kMaximumUiTransitionTimings = 64;
 constexpr std::size_t kMaximumLogs = 500;
+constexpr int kMaximumMutationTelemetry = 500;
 constexpr std::size_t kMaximumMetadataEntries = 20;
 
 QString timestampString(WallTimePoint timestamp) {
@@ -100,6 +101,37 @@ QJsonArray logsArray(const std::vector<LogEntry>& entries) {
   return logs;
 }
 
+QString telemetryPhaseName(MutationTelemetryPhase phase) {
+  switch (phase) {
+  case MutationTelemetryPhase::Intent: return QStringLiteral("intent");
+  case MutationTelemetryPhase::RemoteApplied: return QStringLiteral("remote_applied");
+  case MutationTelemetryPhase::RemoteFailed: return QStringLiteral("remote_failed");
+  case MutationTelemetryPhase::Rollback: return QStringLiteral("rollback");
+  }
+  return QStringLiteral("intent");
+}
+
+QJsonArray mutationTelemetryArray(const QList<MutationTelemetryRecord>& records) {
+  QJsonArray telemetry;
+  const qsizetype count = std::min(records.size(), static_cast<qsizetype>(kMaximumMutationTelemetry));
+  for (int index = 0; index < count; ++index) {
+    const MutationTelemetryRecord& record = records.at(index);
+    telemetry.append(QJsonObject{{QStringLiteral("mutation_id"), safeText(record.mutationId, 128, QStringLiteral("local"))},
+                                 {QStringLiteral("resource"), safeText(record.resource, 32, QStringLiteral("unknown"))},
+                                 {QStringLiteral("operation"), safeText(record.operation, 128, QStringLiteral("unknown"))},
+                                 {QStringLiteral("scope"), safeText(record.scope, 32, QStringLiteral("none"))},
+                                 {QStringLiteral("all_day"), record.allDay},
+                                 {QStringLiteral("target_start_at"), record.targetStartAt.value_or(QString())},
+                                 {QStringLiteral("target_end_at"), record.targetEndAt.value_or(QString())},
+                                 {QStringLiteral("phase"), telemetryPhaseName(record.phase)},
+                                 {QStringLiteral("remote_outcome"), record.remoteOutcome.value_or(QString())},
+                                 {QStringLiteral("error_code"), record.errorCode.value_or(QString())},
+                                 {QStringLiteral("rollback_reason"), record.rollbackReason.value_or(QString())},
+                                 {QStringLiteral("created_at"), record.createdAt}});
+  }
+  return telemetry;
+}
+
 } // namespace
 
 QByteArray DiagnosticsJsonExporter::exportSnapshot(const DiagnosticsSnapshot& snapshot) {
@@ -117,7 +149,8 @@ QByteArray DiagnosticsJsonExporter::exportSnapshot(const DiagnosticsSnapshot& sn
       {QStringLiteral("startup_timings"), startupTimingsArray(snapshot.startupTimings)},
       {QStringLiteral("ui_transition_timings"),
        uiTransitionTimingsArray(snapshot.uiTransitionTimings)},
-      {QStringLiteral("logs"), logsArray(snapshot.logs)}};
+      {QStringLiteral("logs"), logsArray(snapshot.logs)},
+      {QStringLiteral("mutation_telemetry"), mutationTelemetryArray(snapshot.mutationTelemetry)}};
   return QJsonDocument(document).toJson(QJsonDocument::Compact);
 }
 

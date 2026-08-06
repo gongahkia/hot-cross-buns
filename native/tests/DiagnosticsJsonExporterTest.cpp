@@ -46,7 +46,8 @@ void DiagnosticsJsonExporterTest::exportsBoundedRedactedJson() {
   QVERIFY(document.isObject());
 
   const QJsonObject root = document.object();
-  QCOMPARE(root.value(QStringLiteral("schema_version")).toInt(), 1);
+  QCOMPARE(root.value(QStringLiteral("schema_version")).toInt(),
+           static_cast<int>(hcb::diagnosticsSchemaVersion));
   QCOMPARE(root.value(QStringLiteral("generated_at")).toString(),
            QStringLiteral("2024-08-30T06:40:00.000Z"));
   const QJsonObject build = root.value(QStringLiteral("build")).toObject();
@@ -70,6 +71,7 @@ void DiagnosticsJsonExporterTest::exportsBoundedRedactedJson() {
                .value(QStringLiteral("[redacted]"))
                .toString(),
            QStringLiteral("[redacted]"));
+  QCOMPARE(root.value(QStringLiteral("mutation_telemetry")).toArray().size(), 0);
 }
 
 void DiagnosticsJsonExporterTest::boundsManualSnapshotData() {

@@ -92,6 +92,7 @@ public:
   [[nodiscard]] std::future<PendingMutationResult> enqueue(OptimisticMutationInput input);
   [[nodiscard]] std::future<PendingMutationLookupResult> find(QString mutationId);
   [[nodiscard]] std::future<PendingMutationListResult> listDue(int limit = 25);
+  [[nodiscard]] std::future<PendingMutationListResult> listActive(int limit = 1'000);
   [[nodiscard]] std::future<PendingMutationResult> claim(QString mutationId,
                                                          std::chrono::seconds leaseDuration);
   [[nodiscard]] std::future<PendingMutationResult> markApplied(QString mutationId, QString leaseId);

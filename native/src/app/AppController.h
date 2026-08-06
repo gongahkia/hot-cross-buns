@@ -25,6 +25,7 @@
 #include "core/GoogleTaskMutationPushService.h"
 #include "core/GoogleTaskPullClient.h"
 #include "core/LocalSearchService.h"
+#include "core/MutationTelemetryStore.h"
 #include "core/AccountStatusService.h"
 #include "core/OAuthBrowserAuthorizationLauncher.h"
 #include "core/OAuthClientConfigurationStore.h"
@@ -45,6 +46,7 @@
 #include "core/TaskBulkMutationService.h"
 #include "core/TaskMutationService.h"
 #include "core/TaskReadService.h"
+#include "core/UndoRecoveryPolicy.h"
 
 #include <QObject>
 #include <QDate>
@@ -162,6 +164,14 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList invitations READ invitations NOTIFY invitationsChanged)
   Q_PROPERTY(int pendingInvitationCount READ pendingInvitationCount NOTIFY invitationsChanged)
   Q_PROPERTY(QVariantList scheduledTasks READ scheduledTasks NOTIFY scheduledTasksChanged)
+  Q_PROPERTY(QVariantList unscheduledTasks READ unscheduledTasks NOTIFY unscheduledTasksChanged)
+  Q_PROPERTY(QString undoLabel READ undoLabel NOTIFY undoStateChanged)
+  Q_PROPERTY(QString redoLabel READ redoLabel NOTIFY undoStateChanged)
+  Q_PROPERTY(int undoRetentionDays READ undoRetentionDays NOTIFY undoHistorySettingsChanged)
+  Q_PROPERTY(int undoMaximumEntries READ undoMaximumEntries NOTIFY undoHistorySettingsChanged)
+  Q_PROPERTY(bool calendarDragCreateHintSeen READ calendarDragCreateHintSeen NOTIFY
+                 calendarDragCreateHintSeenChanged)
+  Q_PROPERTY(int pendingSyncCount READ pendingSyncCount NOTIFY pendingSyncCountChanged)
   Q_PROPERTY(QString reminderStatusMessage READ reminderStatusMessage NOTIFY reminderStatusMessageChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
@@ -243,6 +253,13 @@ public:
   [[nodiscard]] QVariantList invitations() const;
   [[nodiscard]] int pendingInvitationCount() const;
   [[nodiscard]] QVariantList scheduledTasks() const;
+  [[nodiscard]] QVariantList unscheduledTasks() const;
+  [[nodiscard]] QString undoLabel() const;
+  [[nodiscard]] QString redoLabel() const;
+  [[nodiscard]] int undoRetentionDays() const;
+  [[nodiscard]] int undoMaximumEntries() const;
+  [[nodiscard]] bool calendarDragCreateHintSeen() const;
+  [[nodiscard]] int pendingSyncCount() const;
   [[nodiscard]] QString reminderStatusMessage() const;
   [[nodiscard]] bool busy() const;
   [[nodiscard]] SearchResultsModel& searchResultsModel();
@@ -382,6 +399,10 @@ public:
   Q_INVOKABLE void bulkSetTaskDue(QVariantList taskIds, QString dueAt);
   Q_INVOKABLE void bulkClearTaskDue(QVariantList taskIds);
   Q_INVOKABLE void bulkSetTaskPriority(QVariantList taskIds, int priority);
+  Q_INVOKABLE void undo();
+  Q_INVOKABLE void redo();
+  Q_INVOKABLE void saveUndoHistorySettings(int retentionDays, int maximumEntries);
+  Q_INVOKABLE void dismissCalendarDragCreateHint();
   Q_INVOKABLE void bulkReparentTasks(QVariantList taskIds, QString parentTaskId);
   Q_INVOKABLE void bulkReplaceTaskText(QVariantList taskIds,
                                        QString findText,
@@ -532,6 +553,11 @@ signals:
   void driveAttachmentCandidatesChanged();
   void invitationsChanged();
   void scheduledTasksChanged();
+  void unscheduledTasksChanged();
+  void undoStateChanged();
+  void undoHistorySettingsChanged();
+  void calendarDragCreateHintSeenChanged();
+  void pendingSyncCountChanged();
   void reminderStatusMessageChanged();
   void busyChanged();
 
@@ -580,6 +606,18 @@ private:
   void schedulePoll();
   void pollPending();
   void refreshTasks();
+  void refreshUndoStatus();
+  void refreshPendingSyncCount();
+  void recordExistenceHistory(UndoResourceKind resource,
+                              QString resourceId,
+                              QString actionKind,
+                              QString label,
+                              bool beforeExists,
+                              bool afterExists);
+  void recordTaskDueHistory(QList<TaskMutationSnapshot> before, QString label);
+  void recordEventTimingHistory(CalendarEventMutationSnapshot before, QString label);
+  void replayHistory(UndoAction action);
+  void replayHistoryEntry(UndoEntry entry);
   void refreshCalendar();
   void loadCalendarManagementRows(std::uint64_t generation,
                                   std::int64_t offset,
@@ -606,7 +644,9 @@ private:
   void refreshSearchProjection();
   void applyTaskProjections(QList<TaskModelTask> tasks);
   void loadSavedSearches();
-  void runBulkTaskMutation(TaskBulkMutationInput input);
+  void runBulkTaskMutation(
+      TaskBulkMutationInput input,
+      std::function<void(const TaskBulkMutationSummary&)> onSuccess = {});
   void runBulkEventMutation(CalendarEventBulkMutationInput input);
   void previewBulkTaskMutation(TaskBulkMutationInput input, int requestToken);
   void previewBulkEventMutation(CalendarEventBulkMutationInput input, int requestToken);
@@ -670,6 +710,8 @@ private:
   SettingsService settingsService_;
   SavedSearchStore savedSearchStore_;
   OptimisticMutationCoordinator optimisticMutationCoordinator_;
+  MutationTelemetryStore mutationTelemetryStore_;
+  UndoRecoveryPolicy undoRecoveryPolicy_;
   SyncCheckpointStore syncCheckpointStore_;
   SyncConflictStore syncConflictStore_;
   GoogleSyncConflictResolver googleSyncConflictResolver_;
@@ -761,6 +803,12 @@ private:
   ReminderService* reminderService_{nullptr};
   QString reminderStatusMessage_{QStringLiteral("Calendar reminders are initializing")};
   QList<TaskModelTask> taskProjectionTasks_;
+  QString undoLabel_;
+  QString redoLabel_;
+  int undoRetentionDays_{30};
+  int undoMaximumEntries_{200};
+  bool calendarDragCreateHintSeen_{false};
+  int pendingSyncCount_{0};
   std::uint64_t calendarRefreshGeneration_{0};
   QTimer searchDebounce_;
   std::unique_ptr<CancellationSource> searchCancellation_;

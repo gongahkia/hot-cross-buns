@@ -94,6 +94,12 @@ namespace {
   return result;
 }
 
+[[nodiscard]] std::optional<QDateTime> mapDateTime(const QVariantMap& event,
+                                                    const QString& key,
+                                                    const QTimeZone& timeZone) {
+  return parseDateTime(event.value(key).toString(), timeZone);
+}
+
 } // namespace
 
 MonthGridModel::MonthGridModel(QObject* parent) : QAbstractTableModel(parent) {}
@@ -153,6 +159,100 @@ QVariantList MonthGridModel::allDaySpans() const {
     spans.append(allDaySpanMap(span));
   }
   return spans;
+}
+
+QString MonthGridModel::dateForPoint(double x, double y, double width, double height) const {
+  if (cells_.size() != 42 || width <= 0.0 || height <= 0.0) {
+    return {};
+  }
+  const int column = std::clamp(static_cast<int>(x / (width / 7.0)), 0, 6);
+  const int row = std::clamp(static_cast<int>(y / (height / 6.0)), 0, 5);
+  return cells_.at(row * 7 + column).date.toString(Qt::ISODate);
+}
+
+int MonthGridModel::dateIndex(const QString& date) const {
+  const QDate parsed = QDate::fromString(date.left(10), Qt::ISODate);
+  if (!parsed.isValid() || cells_.isEmpty()) {
+    return -1;
+  }
+  const qint64 index = cells_.first().date.daysTo(parsed);
+  return index >= 0 && index < cells_.size() ? static_cast<int>(index) : -1;
+}
+
+QString MonthGridModel::dateForIndex(int dayIndex) const {
+  if (dayIndex < 0 || dayIndex >= cells_.size()) {
+    return {};
+  }
+  return cells_.at(dayIndex).date.toString(Qt::ISODate);
+}
+
+QVariantMap MonthGridModel::allDayRangeInput(int firstDayIndex, int lastDayIndex) const {
+  if (cells_.size() != 42 || firstDayIndex < 0 || firstDayIndex >= cells_.size() ||
+      lastDayIndex < 0 || lastDayIndex >= cells_.size()) {
+    return {};
+  }
+  const int first = std::min(firstDayIndex, lastDayIndex);
+  const int last = std::max(firstDayIndex, lastDayIndex);
+  return {{QStringLiteral("startAt"),
+           QDateTime(cells_.at(first).date, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"),
+           QDateTime(cells_.at(last).date.addDays(1), QTime(0, 0), QTimeZone::UTC)
+               .toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), true}};
+}
+
+QVariantMap MonthGridModel::moveInput(const QVariantMap& event, int targetDayIndex) const {
+  if (cells_.size() != 42 || !displayTimeZone_.isValid() || targetDayIndex < 0 ||
+      targetDayIndex >= cells_.size()) {
+    return {};
+  }
+  const bool allDay = event.value(QStringLiteral("allDay")).toBool();
+  const QString id = event.value(QStringLiteral("id")).toString();
+  if (id.isEmpty()) {
+    return {};
+  }
+  if (allDay) {
+    const QDate source = QDate::fromString(event.value(QStringLiteral("startAt")).toString().left(10), Qt::ISODate);
+    const QDate end = QDate::fromString(event.value(QStringLiteral("endAt")).toString().left(10), Qt::ISODate);
+    if (!source.isValid() || !end.isValid() || end <= source) {
+      return {};
+    }
+    const QDate target = cells_.at(targetDayIndex).date;
+    const qint64 duration = source.daysTo(end);
+    return {{QStringLiteral("id"), id},
+            {QStringLiteral("startAt"), QDateTime(target, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
+            {QStringLiteral("endAt"), QDateTime(target.addDays(duration), QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
+            {QStringLiteral("allDay"), true}};
+  }
+  const std::optional<QDateTime> start = mapDateTime(event, QStringLiteral("startAt"), displayTimeZone_);
+  const std::optional<QDateTime> end = mapDateTime(event, QStringLiteral("endAt"), displayTimeZone_);
+  if (!start.has_value() || !end.has_value() || *end <= *start) {
+    return {};
+  }
+  const QDateTime targetStart(cells_.at(targetDayIndex).date, start->time(), displayTimeZone_,
+                              QDateTime::TransitionResolution::PreferAfter);
+  const QDateTime targetEnd = targetStart.addMSecs(start->msecsTo(*end));
+  if (!targetStart.isValid() || !targetEnd.isValid()) {
+    return {};
+  }
+  return {{QStringLiteral("id"), id},
+          {QStringLiteral("startAt"), targetStart.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"), targetEnd.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), false}};
+}
+
+QVariantMap MonthGridModel::resizeAllDayRangeInput(const QVariantMap& event,
+                                                    int firstDayIndex,
+                                                    int lastDayIndex) const {
+  const QString id = event.value(QStringLiteral("id")).toString();
+  if (id.isEmpty() || !event.value(QStringLiteral("allDay")).toBool()) {
+    return {};
+  }
+  QVariantMap range = allDayRangeInput(firstDayIndex, lastDayIndex);
+  if (!range.isEmpty()) {
+    range.insert(QStringLiteral("id"), id);
+  }
+  return range;
 }
 
 MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
@@ -236,7 +336,8 @@ MonthGridModel::Layout MonthGridModel::buildLayout(QDate month,
   return {.month = month,
           .cells = std::move(cells),
           .allDaySpans = std::move(allDaySpans),
-          .allDayOverflowCounts = std::move(allDayOverflowCounts)};
+          .allDayOverflowCounts = std::move(allDayOverflowCounts),
+          .displayTimeZone = displayTimeZone};
 }
 
 void MonthGridModel::applyLayout(Layout layout) {
@@ -245,6 +346,7 @@ void MonthGridModel::applyLayout(Layout layout) {
   cells_ = std::move(layout.cells);
   allDaySpans_ = std::move(layout.allDaySpans);
   allDayOverflowCounts_ = std::move(layout.allDayOverflowCounts);
+  displayTimeZone_ = std::move(layout.displayTimeZone);
   endResetModel();
   emit allDaySpansChanged();
 }

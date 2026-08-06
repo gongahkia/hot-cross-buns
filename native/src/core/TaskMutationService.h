@@ -126,6 +126,7 @@ public:
                                std::optional<QList<QString>> additionDates = std::nullopt);
   [[nodiscard]] std::future<TaskMutationResult> splitManagedRecurrence(QString taskId);
   [[nodiscard]] std::future<TaskMutationResult> remove(QString taskId);
+  [[nodiscard]] std::future<TaskMutationResult> restore(QString taskId);
   [[nodiscard]] std::future<TaskMutationSnapshotResult> inspect(QList<QString> taskIds);
   [[nodiscard]] std::future<TaskMutationSnapshotResult>
   inspectManagedSeries(QList<QString> taskIds);

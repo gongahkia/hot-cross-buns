@@ -25,6 +25,18 @@ ApplicationWindow {
     property var timelineModel: null
     property var scheduledTasks: appController !== null && appController.scheduledTasks !== undefined
                                  ? appController.scheduledTasks : []
+    property var unscheduledTasks: appController !== null && appController.unscheduledTasks !== undefined
+                                   ? appController.unscheduledTasks : []
+    property string undoLabel: appController !== null && typeof appController.undoLabel === "string"
+                               ? appController.undoLabel : ""
+    property string redoLabel: appController !== null && typeof appController.redoLabel === "string"
+                               ? appController.redoLabel : ""
+    property int pendingSyncCount: appController !== null && typeof appController.pendingSyncCount === "number"
+                                   ? appController.pendingSyncCount : 0
+    property int undoRetentionDays: appController !== null && typeof appController.undoRetentionDays === "number"
+                                    ? appController.undoRetentionDays : 30
+    property int undoMaximumEntries: appController !== null && typeof appController.undoMaximumEntries === "number"
+                                      ? appController.undoMaximumEntries : 200
     property bool notesEnabled: appController !== null && appController.notesEnabled === true
     property int notesProjectionMode: appController !== null &&
                                       typeof appController.notesProjectionMode === "number"
@@ -447,6 +459,7 @@ ApplicationWindow {
     }
 
     function openCalendarQuickCreate(startAt, endAt, allDay) {
+        controllerCall("dismissCalendarDragCreateHint", [])
         calendarQuickCreateDialog.openForRange(calendarVisibility.preferredCalendarId(), startAt, endAt,
                                                allDay)
     }
@@ -472,6 +485,15 @@ ApplicationWindow {
         }
         eventResizeRequested(event.id, endAt)
         controllerCall("resizeEvent", [event.id, endAt])
+    }
+
+    function requestScopedAllDayResize(event, startAt, endAt) {
+        if (isRecurringEvent(event)) {
+            eventMutationScopeDialog.openForMutation("resize", event, startAt, endAt, true)
+            return
+        }
+        eventMoveRequested(event.id, startAt, endAt, true)
+        controllerCall("moveEvent", [event.id, startAt, endAt, true])
     }
 
     function openEventEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
@@ -529,6 +551,20 @@ ApplicationWindow {
         autoRepeat: false
         enabled: window.appController === null || window.appController.googleConnected !== false
         onActivated: window.openSearch()
+    }
+
+    Shortcut {
+        sequence: StandardKey.Undo
+        autoRepeat: false
+        enabled: window.undoLabel.length > 0
+        onActivated: window.controllerCall("undo", [])
+    }
+
+    Shortcut {
+        sequence: StandardKey.Redo
+        autoRepeat: false
+        enabled: window.redoLabel.length > 0
+        onActivated: window.controllerCall("redo", [])
     }
 
     Shortcut {
@@ -849,6 +885,39 @@ ApplicationWindow {
         }
     }
 
+    Popup {
+        id: calendarDragCreateHint
+        parent: Overlay.overlay
+        x: Math.max(Theme.spacingMedium, (parent.width - width) / 2)
+        y: Math.max(Theme.spacingMedium, parent.height - height - Theme.spacingLarge)
+        padding: Theme.spacingMedium
+        modal: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        property bool dismissedLocally: false
+        property bool shouldShow: window.currentPage === "Calendar" && !dismissedLocally &&
+                                  !window.controllerBool("calendarDragCreateHintSeen", false)
+        onShouldShowChanged: {
+            if (shouldShow && !opened) open()
+            else if (!shouldShow && opened) close()
+        }
+        Component.onCompleted: if (shouldShow) open()
+        onClosed: {
+            if (shouldShow) {
+                dismissedLocally = true
+                window.controllerCall("dismissCalendarDragCreateHint", [])
+            }
+        }
+
+        contentItem: RowLayout {
+            spacing: Theme.spacingMedium
+            Label { text: "Drag empty space to create" }
+            AccessibleButton {
+                text: "Got it"
+                onClicked: calendarDragCreateHint.close()
+            }
+        }
+    }
+
     EventMutationScopeDialog {
         id: eventMutationScopeDialog
         parent: Overlay.overlay
@@ -857,6 +926,10 @@ ApplicationWindow {
             if (operation === "move") {
                 window.eventMoveRequested(event.id, startAt, endAt, allDay)
                 window.controllerCall("moveEventScoped", [event.id, startAt, endAt, allDay,
+                                                            recurrenceScope])
+            } else if (allDay) {
+                window.eventMoveRequested(event.id, startAt, endAt, true)
+                window.controllerCall("moveEventScoped", [event.id, startAt, endAt, true,
                                                             recurrenceScope])
             } else {
                 window.eventResizeRequested(event.id, endAt)
@@ -1539,10 +1612,15 @@ ApplicationWindow {
                     }
                 }
 
-                StackLayout {
+                RowLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    currentIndex: calendarViews.currentIndex
+                    spacing: Theme.spacingSmall
+
+                    StackLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: calendarViews.currentIndex
 
                     AgendaView {
                         id: agendaView
@@ -1604,6 +1682,9 @@ ApplicationWindow {
                         onQuickCreateRequested: function(startAt, endAt, allDay) {
                             window.openCalendarQuickCreate(startAt, endAt, allDay)
                         }
+                        onTaskMoveRequested: function(taskId, dueDate) {
+                            window.controllerCall("bulkSetTaskDue", [[taskId], dueDate])
+                        }
                         onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                         onEventEditRequested: function(eventId, calendarId, title, startAt, endAt, allDay,
                                                         description, location, startTimeZone, colorId,
@@ -1652,6 +1733,9 @@ ApplicationWindow {
                         }
                         onEventResizeScopeRequested: function(event, endAt) {
                             window.requestScopedEventResize(event, endAt)
+                        }
+                        onEventAllDayResizeScopeRequested: function(event, startAt, endAt) {
+                            window.requestScopedAllDayResize(event, startAt, endAt)
                         }
                         onQuickCreateRequested: function(startAt, endAt, allDay) {
                             window.openCalendarQuickCreate(startAt, endAt, allDay)
@@ -1703,6 +1787,9 @@ ApplicationWindow {
                         onEventMoveScopeRequested: function(event, startAt, endAt, allDay) {
                             window.requestScopedEventMove(event, startAt, endAt, allDay)
                         }
+                        onEventAllDayResizeScopeRequested: function(event, startAt, endAt) {
+                            window.requestScopedAllDayResize(event, startAt, endAt)
+                        }
                         onTaskMoveRequested: function(taskId, dueDate) {
                             window.controllerCall("bulkSetTaskDue", [[taskId], dueDate])
                         }
@@ -1718,6 +1805,14 @@ ApplicationWindow {
                                                  event.guestPermissionsJson, event.statusPropertiesJson)
                         }
                         onEventDetailRequested: function(event) { window.openEventDetail(event) }
+                    }
+                    }
+
+                    UnscheduledTaskTray {
+                        id: unscheduledTaskTray
+                        Layout.fillHeight: true
+                        tasks: window.unscheduledTasks
+                        onTaskDetailRequested: function(task) { window.openTaskDetail(task) }
                     }
                 }
             }
@@ -2168,6 +2263,56 @@ ApplicationWindow {
                     color: Theme.textSecondary
                 }
 
+                Label {
+                    text: "Undo history"
+                    font.pixelSize: Theme.bodyFontSize
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label { text: "Keep" }
+
+                    SpinBox {
+                        id: undoRetentionDaysField
+                        from: 1
+                        to: 3650
+                        value: window.undoRetentionDays
+                        editable: true
+                        Accessible.name: "Undo retention days"
+                    }
+
+                    Label { text: "days /" }
+
+                    SpinBox {
+                        id: undoMaximumEntriesField
+                        from: 50
+                        to: 1000
+                        value: window.undoMaximumEntries
+                        editable: true
+                        Accessible.name: "Maximum undo history entries"
+                    }
+
+                    Label { text: "actions" }
+
+                    Button {
+                        text: "Save undo history"
+                        enabled: window.appController !== null && !window.appController.busy
+                        onClicked: window.controllerCall("saveUndoHistorySettings",
+                                                         [undoRetentionDaysField.value,
+                                                          undoMaximumEntriesField.value])
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Undo is stored locally. It stops if the item changed outside Hot Cross Buns."
+                    wrapMode: Text.WordWrap
+                    color: Theme.textSecondary
+                }
+
                 Button {
                     id: resetVisualPreferencesButton
                     objectName: "resetVisualPreferencesButton"
@@ -2571,6 +2716,40 @@ ApplicationWindow {
     onNotesEnabledChanged: {
         if (!notesEnabled && currentPage === "Notes") {
             currentPage = "Tasks"
+        }
+    }
+
+    Pane {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: Theme.spacingMedium
+        z: 3
+        visible: window.undoLabel.length > 0 || window.redoLabel.length > 0 || window.pendingSyncCount > 0
+        padding: Theme.spacingSmall
+
+        RowLayout {
+            spacing: Theme.spacingSmall
+
+            Label {
+                visible: window.pendingSyncCount > 0
+                text: window.pendingSyncCount + " change" +
+                      (window.pendingSyncCount === 1 ? "" : "s") + " pending Google sync"
+                color: Theme.textSecondary
+            }
+
+            Button {
+                visible: window.undoLabel.length > 0
+                text: "Undo " + window.undoLabel
+                Accessible.name: text
+                onClicked: window.controllerCall("undo", [])
+            }
+
+            Button {
+                visible: window.redoLabel.length > 0
+                text: "Redo " + window.redoLabel
+                Accessible.name: text
+                onClicked: window.controllerCall("redo", [])
+            }
         }
     }
 

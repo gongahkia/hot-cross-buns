@@ -11,6 +11,7 @@ private slots:
   void buildsMoveInputInDisplayTimeZone();
   void buildsResizeInputInDisplayTimeZone();
   void movesAndResizesAllDayEventsWithoutTimezoneShift();
+  void mapsCoordinatesAcrossDstAndHalfHourZones();
   void virtualizesDenseTimedRowsByViewportAndCalendar();
   void clearsInvalidRanges();
 };
@@ -172,6 +173,43 @@ void TimelineModelTest::movesAndResizesAllDayEventsWithoutTimezoneShift() {
                .value(QStringLiteral("endAt"))
                .toString(),
            QStringLiteral("2026-08-02T00:00:00.000Z"));
+  const QVariantMap resized =
+      model.resizeAllDayRangeInput(QStringLiteral("all-day"), 1, 4);
+  QCOMPARE(resized.value(QStringLiteral("startAt")).toString(),
+           QStringLiteral("2026-08-02T00:00:00.000Z"));
+  QCOMPARE(resized.value(QStringLiteral("endAt")).toString(),
+           QStringLiteral("2026-08-06T00:00:00.000Z"));
+  QVERIFY(model.resizeAllDayRangeInput(QStringLiteral("all-day"), 4, 1).isEmpty());
+}
+
+void TimelineModelTest::mapsCoordinatesAcrossDstAndHalfHourZones() {
+  const QList<QByteArray> zones{QByteArrayLiteral("UTC"), QByteArrayLiteral("Asia/Singapore"),
+                                QByteArrayLiteral("Asia/Kolkata"), QByteArrayLiteral("Australia/Adelaide"),
+                                QByteArrayLiteral("America/Los_Angeles")};
+  for (const QByteArray& zoneId : zones) {
+    const QTimeZone zone(zoneId);
+    QVERIFY2(zone.isValid(), zoneId.constData());
+    hcb::TimelineModel model;
+    model.setRange(QDate(2026, 3, 8), 2, {}, zone, 1);
+    const QVariantMap point = model.timelinePointInput(400.0, 150.0, 724.0, 24.0, 60.0);
+    QCOMPARE(point.value(QStringLiteral("dayIndex")).toInt(), 1);
+    QCOMPARE(point.value(QStringLiteral("minute")).toInt(), 150);
+    const QVariantMap timed = model.timedRangeInput(0, 150, 0, 210);
+    QVERIFY(!timed.isEmpty());
+    const QDateTime expectedStart(QDate(2026, 3, 8), QTime(2, 30), zone,
+                                  QDateTime::TransitionResolution::PreferAfter);
+    QCOMPARE(timed.value(QStringLiteral("startAt")).toString(),
+             expectedStart.toUTC().toString(Qt::ISODateWithMs));
+    QVERIFY(QDateTime::fromString(timed.value(QStringLiteral("endAt")).toString(), Qt::ISODateWithMs) >
+            QDateTime::fromString(timed.value(QStringLiteral("startAt")).toString(), Qt::ISODateWithMs));
+    QCOMPARE(model.dateForDayIndex(1), QStringLiteral("2026-03-09"));
+    QCOMPARE(model.dayIndexForDate(QStringLiteral("2026-03-09")), 1);
+    const QVariantMap allDay = model.allDayRangeInput(0, 1);
+    QCOMPARE(allDay.value(QStringLiteral("startAt")).toString(),
+             QStringLiteral("2026-03-08T00:00:00.000Z"));
+    QCOMPARE(allDay.value(QStringLiteral("endAt")).toString(),
+             QStringLiteral("2026-03-10T00:00:00.000Z"));
+  }
 }
 
 void TimelineModelTest::virtualizesDenseTimedRowsByViewportAndCalendar() {

@@ -29,6 +29,7 @@ Pane {
     signal eventMoveScopeRequested(var event, string startAt, string endAt, bool allDay)
     signal eventResizeScopeRequested(var event, string endAt)
     signal quickCreateRequested(string startAt, string endAt, bool allDay)
+    signal taskMoveRequested(string taskId, string dueDate)
     signal taskDetailRequested(var task)
     signal eventEditRequested(string eventId, string calendarId, string title, string startAt,
                               string endAt, bool allDay, string description, string location,
@@ -39,6 +40,10 @@ Pane {
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
     signal eventDetailRequested(var event)
+    property bool dragPreviewActive: false
+    property int dragPreviewStartMinute: 0
+    property int dragPreviewEndMinute: 15
+    property string dragPreviewTitle: ""
 
     function timePosition(minute) {
         return minute * hourHeight / 60
@@ -69,24 +74,39 @@ Pane {
     }
 
     function dropMinute(y) {
-        return Math.max(0, Math.min(24 * 60 - 15, Math.round(y * 60 / hourHeight / 15) * 15))
+        const point = timelineModel !== null && typeof timelineModel.timelinePointInput === "function"
+                ? timelineModel.timelinePointInput(timeColumnWidth, y, timelineCanvas.width,
+                                                   timeColumnWidth, hourHeight, false) : null
+        return point !== null && typeof point.minute === "number" ? point.minute : 0
     }
 
     function dropEndMinute(y) {
-        return Math.max(15, Math.min(24 * 60, Math.round(y * 60 / hourHeight / 15) * 15))
-    }
-
-    function dateTimeForMinute(minute) {
-        const date = new Date(dateIso + "T00:00:00")
-        if (!Number.isFinite(date.getTime())) return ""
-        date.setMinutes(minute, 0, 0)
-        return date.toISOString()
+        const point = timelineModel !== null && typeof timelineModel.timelinePointInput === "function"
+                ? timelineModel.timelinePointInput(timeColumnWidth, y, timelineCanvas.width,
+                                                   timeColumnWidth, hourHeight, true) : null
+        return point !== null && typeof point.minute === "number" ? point.minute : 15
     }
 
     function quickCreateAt(startMinute, endMinute) {
-        const start = Math.min(startMinute, endMinute)
-        const end = Math.max(start + 15, endMinute)
-        quickCreateRequested(dateTimeForMinute(start), dateTimeForMinute(Math.min(24 * 60, end)), false)
+        if (timelineModel === null || typeof timelineModel.timedRangeInput !== "function") return
+        const input = timelineModel.timedRangeInput(dayIndex, Math.min(startMinute, endMinute), dayIndex,
+                                                    Math.max(Math.min(startMinute, endMinute) + 15, endMinute))
+        if (typeof input.startAt === "string" && typeof input.endAt === "string") {
+            quickCreateRequested(input.startAt, input.endAt, false)
+        }
+    }
+
+    function showTimedPreview(title, startMinute, endMinute) {
+        dragPreviewActive = true
+        dragPreviewTitle = title
+        dragPreviewStartMinute = Math.max(0, Math.min(24 * 60 - 15, startMinute))
+        dragPreviewEndMinute = Math.max(dragPreviewStartMinute + 15,
+                                        Math.min(24 * 60, endMinute))
+    }
+
+    function clearDragPreview() {
+        dragPreviewActive = false
+        dragPreviewTitle = ""
     }
 
     function tasksForDate(date) {
@@ -229,8 +249,19 @@ Pane {
         }
 
         Column {
+            id: allDayColumn
             Layout.fillWidth: true
             spacing: Theme.spacingSmall
+
+            DropArea {
+                anchors.fill: parent
+                keys: ["hcb-task"]
+                onDropped: function(drop) {
+                    if (drop.source !== null && typeof drop.source.taskId === "string") {
+                        root.taskMoveRequested(drop.source.taskId, root.dateIso)
+                    }
+                }
+            }
 
             Repeater {
                 model: allDayEventRows
@@ -357,6 +388,18 @@ Pane {
                 width: timelineViewport.width
                 height: root.hourHeight * 24
 
+                DropArea {
+                    x: root.timeColumnWidth
+                    width: parent.width - root.timeColumnWidth
+                    height: parent.height
+                    keys: ["hcb-task"]
+                    onDropped: function(drop) {
+                        if (drop.source !== null && typeof drop.source.taskId === "string") {
+                            root.taskMoveRequested(drop.source.taskId, root.dateIso)
+                        }
+                    }
+                }
+
                 Repeater {
                     model: 24
 
@@ -387,6 +430,7 @@ Pane {
 
                 MouseArea {
                     id: quickCreateArea
+                    objectName: "dayTimedQuickCreateArea"
                     x: root.timeColumnWidth
                     width: timelineCanvas.width - root.timeColumnWidth
                     height: timelineCanvas.height
@@ -394,9 +438,41 @@ Pane {
                     preventStealing: true
                     cursorShape: Qt.CrossCursor
                     onPressed: function(mouse) { pressMinute = root.dropMinute(mouse.y) }
+                    onPositionChanged: function(mouse) {
+                        if (pressed) root.showTimedPreview("New event", pressMinute,
+                                                           root.dropEndMinute(mouse.y))
+                    }
                     onReleased: function(mouse) {
                         if (!root.selectionMode) root.quickCreateAt(pressMinute, root.dropEndMinute(mouse.y))
+                        root.clearDragPreview()
                     }
+                }
+
+                Rectangle {
+                    visible: root.dragPreviewActive
+                    x: root.timeColumnWidth
+                    y: root.timePosition(root.dragPreviewStartMinute)
+                    width: timelineCanvas.width - root.timeColumnWidth
+                    height: Math.max(15, root.timePosition(root.dragPreviewEndMinute) - y)
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                    border.color: Theme.accent
+                    border.width: 1
+                    radius: 4
+                    z: 1
+                }
+
+                CalendarEventButton {
+                    visible: root.dragPreviewActive
+                    x: root.timeColumnWidth + 2
+                    y: root.timePosition(root.dragPreviewStartMinute) + 2
+                    width: Math.max(1, timelineCanvas.width - root.timeColumnWidth - 4)
+                    height: Math.max(20, root.timePosition(root.dragPreviewEndMinute) -
+                                     root.timePosition(root.dragPreviewStartMinute) - 4)
+                    z: 4
+                    enabled: false
+                    opacity: 0.48
+                    eventColor: Theme.accent
+                    text: root.dragPreviewTitle
                 }
 
                 Repeater {
@@ -463,6 +539,11 @@ Pane {
                             id: moveHandler
                             enabled: !root.selectionMode
                             target: null
+                            onTranslationChanged: {
+                                const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
+                                root.showTimedPreview(title, targetMinute,
+                                                      targetMinute + durationMinutes)
+                            }
                             onActiveChanged: {
                                 const targetMinute = root.dropMinute(parent.y + activeTranslation.y)
                                 if (!active && !resizeHandler.active && targetMinute !== startMinute) {
@@ -472,6 +553,7 @@ Pane {
                                                       recurringRemoteId: recurringRemoteId,
                                                       originalStartAt: originalStartAt})
                                 }
+                                if (!active) root.clearDragPreview()
                             }
                         }
 
@@ -515,6 +597,11 @@ Pane {
                                 target: null
                                 cursorShape: Qt.SizeVerCursor
                                 grabPermissions: PointerHandler.CanTakeOverFromAnything
+                                onTranslationChanged: {
+                                    root.showTimedPreview(title, startMinute, root.dropEndMinute(
+                                                              parent.parent.y + parent.parent.height +
+                                                              activeTranslation.y))
+                                }
                                 onActiveChanged: {
                                     const targetEndMinute = root.dropEndMinute(
                                                 parent.parent.y + parent.parent.height + activeTranslation.y)
@@ -527,6 +614,7 @@ Pane {
                                                             recurringRemoteId: recurringRemoteId,
                                                             originalStartAt: originalStartAt})
                                     }
+                                    if (!active) root.clearDragPreview()
                                 }
                             }
                         }

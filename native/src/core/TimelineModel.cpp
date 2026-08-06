@@ -7,6 +7,7 @@
 #include <QHash>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <utility>
 
@@ -15,6 +16,19 @@ namespace hcb {
 namespace {
 
 constexpr int kMinutesPerDay = 24 * 60;
+constexpr int kSnapMinutes = 15;
+
+[[nodiscard]] int clampMinute(int minute, bool endPoint) {
+  const int lower = endPoint ? kSnapMinutes : 0;
+  const int upper = endPoint ? kMinutesPerDay : kMinutesPerDay - kSnapMinutes;
+  return std::clamp(minute, lower, upper);
+}
+
+[[nodiscard]] QDateTime resolvedDateTime(const QDate& date,
+                                         const QTime& time,
+                                         const QTimeZone& timeZone) {
+  return QDateTime(date, time, timeZone, QDateTime::TransitionResolution::PreferAfter);
+}
 
 struct EventRange final {
   QDateTime start;
@@ -226,7 +240,7 @@ TimelineModel::moveInput(const QString& eventId, int targetDayIndex, int targetM
   }
   const QDate targetDate = rangeStartDate_.addDays(targetDayIndex);
   const QTime targetTime(targetMinute / 60, targetMinute % 60);
-  const QDateTime targetStart(targetDate, targetTime, displayTimeZone_);
+  const QDateTime targetStart = resolvedDateTime(targetDate, targetTime, displayTimeZone_);
   if (!targetStart.isValid()) {
     return {};
   }
@@ -291,7 +305,7 @@ QVariantMap TimelineModel::resizeInput(const QString& eventId,
   }
   const QTime targetTime(targetEndMinute % kMinutesPerDay / 60,
                          targetEndMinute % kMinutesPerDay % 60);
-  const QDateTime targetEnd(targetDate, targetTime, displayTimeZone_);
+  const QDateTime targetEnd = resolvedDateTime(targetDate, targetTime, displayTimeZone_);
   if (!targetEnd.isValid() || targetEnd <= range->start) {
     return {};
   }
@@ -300,8 +314,23 @@ QVariantMap TimelineModel::resizeInput(const QString& eventId,
 }
 
 QVariantMap TimelineModel::resizeAllDayInput(const QString& eventId, int targetEndDayIndex) const {
+  const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
+    return candidate.event.id == eventId && candidate.allDay && !candidate.startsBeforeRange &&
+           !candidate.endsAfterRange;
+  });
+  if (item == items_.cend()) {
+    return {};
+  }
+  return resizeAllDayRangeInput(eventId, item->dayIndex, targetEndDayIndex);
+}
+
+QVariantMap TimelineModel::resizeAllDayRangeInput(const QString& eventId,
+                                                  int targetStartDayIndex,
+                                                  int targetEndDayIndex) const {
   if (eventId.isEmpty() || !rangeStartDate_.isValid() || dayCount_ < 1 || targetEndDayIndex < 0 ||
-      targetEndDayIndex >= dayCount_ || !displayTimeZone_.isValid()) {
+      targetEndDayIndex >= dayCount_ || targetStartDayIndex < 0 ||
+      targetStartDayIndex >= dayCount_ || targetEndDayIndex < targetStartDayIndex ||
+      !displayTimeZone_.isValid()) {
     return {};
   }
   const auto item = std::find_if(items_.cbegin(), items_.cend(), [&eventId](const Item& candidate) {
@@ -311,17 +340,107 @@ QVariantMap TimelineModel::resizeAllDayInput(const QString& eventId, int targetE
   if (item == items_.cend()) {
     return {};
   }
-  const std::optional<EventRange> range = eventRange(item->event, displayTimeZone_);
-  if (!range.has_value()) {
-    return {};
-  }
+  const QDate targetStartDate = rangeStartDate_.addDays(targetStartDayIndex);
   const QDate targetEndDate = rangeStartDate_.addDays(targetEndDayIndex + 1);
-  if (targetEndDate <= range->start.date()) {
-    return {};
-  }
   return {{QStringLiteral("id"), item->event.id},
+          {QStringLiteral("startAt"),
+           QDateTime(targetStartDate, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
           {QStringLiteral("endAt"),
            QDateTime(targetEndDate, QTime(0, 0), QTimeZone::UTC).toString(Qt::ISODateWithMs)}};
+}
+
+QVariantMap TimelineModel::timedRangeInput(int firstDayIndex,
+                                           int firstMinute,
+                                           int lastDayIndex,
+                                           int lastMinute) const {
+  if (!rangeStartDate_.isValid() || dayCount_ < 1 || !displayTimeZone_.isValid() ||
+      firstDayIndex < 0 || firstDayIndex >= dayCount_ || lastDayIndex < 0 ||
+      lastDayIndex >= dayCount_) {
+    return {};
+  }
+  firstMinute = clampMinute(firstMinute, false);
+  lastMinute = clampMinute(lastMinute, true);
+  if (lastDayIndex < firstDayIndex ||
+      (lastDayIndex == firstDayIndex && lastMinute <= firstMinute)) {
+    lastDayIndex = firstDayIndex;
+    lastMinute = std::min(kMinutesPerDay, firstMinute + kSnapMinutes);
+  }
+  QDate endDate = rangeStartDate_.addDays(lastDayIndex);
+  if (lastMinute == kMinutesPerDay) {
+    endDate = endDate.addDays(1);
+  }
+  const QDateTime requestedStart(rangeStartDate_.addDays(firstDayIndex),
+                                 QTime(firstMinute / 60, firstMinute % 60),
+                                 QTimeZone::UTC);
+  const QDateTime requestedEnd(endDate,
+                               QTime((lastMinute % kMinutesPerDay) / 60,
+                                     lastMinute % kMinutesPerDay),
+                               QTimeZone::UTC);
+  const QDateTime start = resolvedDateTime(rangeStartDate_.addDays(firstDayIndex),
+                                           QTime(firstMinute / 60, firstMinute % 60),
+                                           displayTimeZone_);
+  QDateTime end = resolvedDateTime(endDate,
+                                   QTime((lastMinute % kMinutesPerDay) / 60,
+                                         lastMinute % kMinutesPerDay),
+                                   displayTimeZone_);
+  if (end <= start) {
+    end = start.addMSecs(std::max<qint64>(kSnapMinutes * 60'000,
+                                          requestedStart.msecsTo(requestedEnd)));
+  }
+  if (!start.isValid() || !end.isValid() || end <= start) {
+    return {};
+  }
+  return {{QStringLiteral("startAt"), start.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"), end.toUTC().toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), false}};
+}
+
+QVariantMap TimelineModel::allDayRangeInput(int firstDayIndex, int lastDayIndex) const {
+  if (!rangeStartDate_.isValid() || dayCount_ < 1 || firstDayIndex < 0 ||
+      firstDayIndex >= dayCount_ || lastDayIndex < 0 || lastDayIndex >= dayCount_) {
+    return {};
+  }
+  const int startIndex = std::min(firstDayIndex, lastDayIndex);
+  const int endIndex = std::max(firstDayIndex, lastDayIndex);
+  return {{QStringLiteral("startAt"),
+           QDateTime(rangeStartDate_.addDays(startIndex), QTime(0, 0), QTimeZone::UTC)
+               .toString(Qt::ISODateWithMs)},
+          {QStringLiteral("endAt"),
+           QDateTime(rangeStartDate_.addDays(endIndex + 1), QTime(0, 0), QTimeZone::UTC)
+               .toString(Qt::ISODateWithMs)},
+          {QStringLiteral("allDay"), true}};
+}
+
+QVariantMap TimelineModel::timelinePointInput(double x,
+                                              double y,
+                                              double availableWidth,
+                                              double timeColumnWidth,
+                                              double hourHeight,
+                                              bool endPoint) const {
+  if (dayCount_ < 1 || availableWidth <= timeColumnWidth || hourHeight <= 0.0) {
+    return {};
+  }
+  const double dayWidth = (availableWidth - timeColumnWidth) / static_cast<double>(dayCount_);
+  const int dayIndex = std::clamp(static_cast<int>((x - timeColumnWidth) / dayWidth), 0, dayCount_ - 1);
+  const int rounded = static_cast<int>(std::llround(y * 60.0 / hourHeight / kSnapMinutes)) *
+                      kSnapMinutes;
+  return {{QStringLiteral("dayIndex"), dayIndex},
+          {QStringLiteral("minute"), clampMinute(rounded, endPoint)}};
+}
+
+int TimelineModel::dayIndexForDate(const QString& date) const {
+  const QDate parsed = QDate::fromString(date.left(10), Qt::ISODate);
+  if (!parsed.isValid() || !rangeStartDate_.isValid()) {
+    return -1;
+  }
+  const qint64 index = rangeStartDate_.daysTo(parsed);
+  return index >= 0 && index < dayCount_ ? static_cast<int>(index) : -1;
+}
+
+QString TimelineModel::dateForDayIndex(int dayIndex) const {
+  return dayIndex >= 0 && dayIndex < dayCount_ && rangeStartDate_.isValid()
+             ? rangeStartDate_.addDays(dayIndex).toString(Qt::ISODate)
+             : QString();
 }
 
 TimelineModel::Layout TimelineModel::buildLayout(QDate startDate,

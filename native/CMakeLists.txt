@@ -144,6 +144,8 @@ set(HCB_NATIVE_SOURCES
   src/core/MonthGridModel.cpp
   src/core/MonthGridModel.h
   src/core/ModelDiffPolicy.h
+  src/core/MutationTelemetryStore.cpp
+  src/core/MutationTelemetryStore.h
   src/core/NotesModel.cpp
   src/core/NotesModel.h
   src/core/OAuthBrowserAuthorizationLauncher.cpp
@@ -272,7 +274,8 @@ qt_add_qml_module(hcb_native
     qml/CalendarEventButton.qml
     qml/CalendarQuickCreateDialog.qml
     qml/CalendarSourceControls.qml
-    qml/CalendarTaskButton.qml
+  qml/CalendarTaskButton.qml
+  qml/UnscheduledTaskTray.qml
     qml/BulkTextReplaceDialog.qml
     qml/DayTimelineView.qml
     qml/DateEditor.qml
@@ -777,10 +780,10 @@ if(BUILD_TESTING)
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp
     src/data/SqliteConnection.h
-    src/data/SqliteMigrationRunner.cpp
-    src/data/SqliteMigrationRunner.h
     src/data/SqliteQueryTimingTracker.cpp
     src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
     src/data/SqliteTransaction.cpp
     src/data/SqliteTransaction.h
   )
@@ -947,10 +950,10 @@ if(BUILD_TESTING)
     src/data/LocalSchema.h
     src/data/SqliteConnection.cpp
     src/data/SqliteConnection.h
-    src/data/SqliteMigrationRunner.cpp
-    src/data/SqliteMigrationRunner.h
     src/data/SqliteQueryTimingTracker.cpp
     src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
     src/data/SqliteTransaction.cpp
     src/data/SqliteTransaction.h
     src/data/SqliteWriterQueue.cpp
@@ -2058,6 +2061,8 @@ if(BUILD_TESTING)
     src/core/GoogleCalendarEventMutationPushService.h
     src/core/GoogleHttpClient.cpp
     src/core/GoogleHttpClient.h
+    src/core/MutationTelemetryStore.cpp
+    src/core/MutationTelemetryStore.h
     src/core/GoogleSyncConflictResolver.cpp
     src/core/GoogleSyncConflictResolver.h
     src/core/OptimisticMutationCoordinator.cpp
@@ -2183,6 +2188,8 @@ if(BUILD_TESTING)
     src/core/GoogleSyncConflictResolver.h
     src/core/GoogleTaskMutationPushService.cpp
     src/core/GoogleTaskMutationPushService.h
+    src/core/MutationTelemetryStore.cpp
+    src/core/MutationTelemetryStore.h
     src/core/OptimisticMutationCoordinator.cpp
     src/core/OptimisticMutationCoordinator.h
     src/core/SecretRedactor.cpp
@@ -2526,6 +2533,32 @@ if(BUILD_TESTING)
   hcb_enable_warnings(hcb_structured_logger_tests)
   hcb_enable_sanitizers(hcb_structured_logger_tests)
   add_test(NAME hcb_structured_logger_tests COMMAND hcb_structured_logger_tests)
+
+  qt_add_executable(hcb_mutation_telemetry_store_tests
+    tests/MutationTelemetryStoreTest.cpp
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/MutationTelemetryStore.cpp
+    src/core/MutationTelemetryStore.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+    src/data/SqliteWriterQueue.cpp
+    src/data/SqliteWriterQueue.h
+  )
+  target_link_libraries(hcb_mutation_telemetry_store_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  target_include_directories(hcb_mutation_telemetry_store_tests PRIVATE src)
+  hcb_enable_warnings(hcb_mutation_telemetry_store_tests)
+  hcb_enable_sanitizers(hcb_mutation_telemetry_store_tests)
+  add_test(NAME hcb_mutation_telemetry_store_tests COMMAND hcb_mutation_telemetry_store_tests)
 
   qt_add_executable(hcb_startup_timing_tracker_tests
     tests/StartupTimingTrackerTest.cpp
