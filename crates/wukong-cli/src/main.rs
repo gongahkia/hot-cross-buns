@@ -229,7 +229,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
     }
 }
 
-const fn command_uses_progress(command: &str) -> bool {
+fn command_uses_progress(command: &str) -> bool {
     matches!(
         command,
         "add"
@@ -251,7 +251,7 @@ const fn command_uses_progress(command: &str) -> bool {
     )
 }
 
-const fn command_progress_phase(command: &str) -> &'static str {
+fn command_progress_phase(command: &str) -> &'static str {
     match command {
         "add" | "remove" | "update" | "lock" => "resolving dependencies",
         "migrate" => "planning migration",
@@ -1464,7 +1464,9 @@ fn run_settings(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box
                             ErrorCode::InternalFailure,
                             "Godot executable setting was not retained",
                         )
-                        .with_recovery("retry wukong settings set godot.executable <absolute-path>"),
+                        .with_recovery(
+                            "retry wukong settings set godot.executable <absolute-path>",
+                        ),
                     )
                 })?;
                 discover_godot_executable_with_configured(Some(configured), None)?;
@@ -1679,6 +1681,7 @@ fn wait_for_godot_child(
     }
 }
 
+#[allow(clippy::too_many_lines)] // validates action-specific options before launching Godot
 fn parse_project_action_arguments(
     action: ProjectAction,
     arguments: impl Iterator<Item = OsString>,
@@ -5260,5 +5263,22 @@ mod tests {
         assert_eq!(export.preset, Some(OsString::from("Linux")));
         assert_eq!(export.output, Some(OsString::from("build/game")));
         assert!(export.debug);
+
+        let error = parse_project_action_arguments(
+            ProjectAction::Export,
+            [
+                "--preset",
+                "Linux",
+                "--output",
+                "build/game",
+                "--debug",
+                "--release",
+            ]
+            .into_iter()
+            .map(OsString::from),
+        )
+        .err()
+        .expect("export modes must be mutually exclusive");
+        assert!(error.message().contains("mutually exclusive"));
     }
 }

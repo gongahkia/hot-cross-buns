@@ -138,3 +138,74 @@ fn invariant_run_forwards_only_explicit_godot_arguments() {
         ]
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn invariant_persisted_godot_selection_launches_editor_without_project_state_changes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let fixture = TempDir::new().expect("fixture should exist");
+    let project = fixture.path().join("project");
+    let config = fixture.path().join("config");
+    let record = fixture.path().join("arguments.txt");
+    fs::create_dir_all(&project).expect("project should create");
+    fs::write(
+        project.join("project.godot"),
+        "[application]\nconfig/name=\"fixture\"\n",
+    )
+    .expect("project file should write");
+    let executable = fixture.path().join("godot-fixture");
+    fs::write(
+        &executable,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$WUKONG_TEST_RECORD\"\n",
+    )
+    .expect("fixture executable should write");
+    let mut permissions = fs::metadata(&executable)
+        .expect("fixture executable should stat")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&executable, permissions)
+        .expect("fixture executable should become executable");
+
+    let configured = command(&config)
+        .args([
+            "settings",
+            "set",
+            "godot.executable",
+            executable.to_str().expect("UTF-8 executable path"),
+        ])
+        .output()
+        .expect("settings set should run");
+    assert!(
+        configured.status.success(),
+        "{}",
+        String::from_utf8_lossy(&configured.stderr)
+    );
+
+    let output = command(&config)
+        .env("WUKONG_TEST_RECORD", &record)
+        .args([
+            "editor",
+            "--project",
+            project.to_str().expect("UTF-8 project path"),
+        ])
+        .output()
+        .expect("editor should execute configured Godot");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arguments = fs::read_to_string(record).expect("fixture should record arguments");
+    let canonical_project = project.canonicalize().expect("project should canonicalise");
+    assert_eq!(
+        arguments.lines().collect::<Vec<_>>(),
+        vec![
+            "--path",
+            canonical_project.to_str().expect("UTF-8 project path"),
+            "--editor",
+        ]
+    );
+    assert!(!project.join("wukong.toml").exists());
+    assert!(!project.join("wukong.lock").exists());
+}

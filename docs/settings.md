@@ -7,7 +7,7 @@ The settings file is `settings.toml` below these platform directories:
 
 - macOS: `~/Library/Application Support/wukong/`
 - Linux: `$XDG_CONFIG_HOME/wukong/`, falling back to `~/.config/wukong/`
-- Windows: `%APPDATA%\\wukong\\`
+- Windows: `%APPDATA%\wukong\`
 
 Set `WUKONG_CONFIG_DIR` to use another configuration root, such as a temporary
 directory in automation. Wukong appends `wukong/settings.toml` to that root.

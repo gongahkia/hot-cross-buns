@@ -65,7 +65,7 @@ impl Settings {
                         "run wukong settings list-spinners to inspect supported preset names",
                     ));
                 }
-                self.spinner = value.to_owned();
+                value.clone_into(&mut self.spinner);
             }
             "progress.bar" => {
                 if !is_supported_bar_theme(value) {
@@ -74,7 +74,7 @@ impl Settings {
                         "run wukong settings list-bars to inspect supported themes",
                     ));
                 }
-                self.bar = value.to_owned();
+                value.clone_into(&mut self.bar);
             }
             "godot.executable" => {
                 let path = PathBuf::from(value);
@@ -99,8 +99,8 @@ impl Settings {
     /// Resets one supported setting to its default or removes it.
     pub fn reset(&mut self, key: &str) -> Result<(), Box<Diagnostic>> {
         match key {
-            "progress.spinner" => self.spinner = DEFAULT_SPINNER.to_owned(),
-            "progress.bar" => self.bar = DEFAULT_BAR_THEME.to_owned(),
+            "progress.spinner" => DEFAULT_SPINNER.clone_into(&mut self.spinner),
+            "progress.bar" => DEFAULT_BAR_THEME.clone_into(&mut self.bar),
             "godot.executable" => self.godot_executable = None,
             _ => {
                 return Err(invalid(

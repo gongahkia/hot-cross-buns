@@ -136,7 +136,7 @@ impl ProgressSession {
         });
         ACTIVE_PROGRESS.with(|active| *active.borrow_mut() = Some(Arc::clone(&shared)));
         let worker_shared = Arc::clone(&shared);
-        let worker = thread::spawn(move || render_loop(worker_shared, spinner, bar));
+        let worker = thread::spawn(move || render_loop(&worker_shared, spinner, bar));
         Self {
             shared: Some(shared),
             worker: Some(worker),
@@ -167,7 +167,7 @@ pub fn set_phase(phase: &str) {
         let shared = active.borrow().clone();
         if let Some(shared) = shared {
             if let Ok(mut state) = shared.state.lock() {
-                state.phase = phase.to_owned();
+                phase.clone_into(&mut state.phase);
             }
         }
     });
@@ -179,7 +179,7 @@ pub fn set_progress(completed: usize, total: usize, phase: &str) {
         let shared = active.borrow().clone();
         if let Some(shared) = shared {
             if let Ok(mut state) = shared.state.lock() {
-                state.phase = phase.to_owned();
+                phase.clone_into(&mut state.phase);
                 state.completed = Some(completed);
                 state.total = Some(total);
             }
@@ -351,7 +351,7 @@ fn frame_for<T: Rattle>(elapsed: Duration) -> &'static str {
     frames[index][0]
 }
 
-fn render_loop(shared: Arc<Shared>, spinner: SpinnerPreset, bar: BarTheme) {
+fn render_loop(shared: &Shared, spinner: SpinnerPreset, bar: BarTheme) {
     thread::sleep(RENDER_DELAY);
     let mut rendered = false;
     while !shared.finished.load(Ordering::Acquire) {
@@ -389,7 +389,8 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
                 "eta --".to_owned()
             } else {
                 let remaining = total - completed;
-                format_duration(elapsed.mul_f64(remaining as f64 / completed as f64))
+                estimated_remaining_duration(elapsed, completed, remaining)
+                    .and_then(format_duration)
                     .map_or_else(|| "eta --".to_owned(), |value| format!("eta {value}"))
             };
             format!(
@@ -404,6 +405,20 @@ fn render_line(state: &State, spinner: SpinnerPreset, bar: BarTheme, elapsed: Du
             format_duration(elapsed).unwrap_or_else(|| "0s".to_owned())
         ),
     }
+}
+
+fn estimated_remaining_duration(
+    elapsed: Duration,
+    completed: usize,
+    remaining: usize,
+) -> Option<Duration> {
+    let elapsed_nanos = elapsed.as_nanos();
+    let estimated_nanos = elapsed_nanos
+        .checked_mul(u128::try_from(remaining).ok()?)?
+        .checked_div(u128::try_from(completed).ok()?)?;
+    let seconds = u64::try_from(estimated_nanos / 1_000_000_000).ok()?;
+    let nanoseconds = u32::try_from(estimated_nanos % 1_000_000_000).ok()?;
+    Some(Duration::new(seconds, nanoseconds))
 }
 
 fn format_duration(duration: Duration) -> Option<String> {
@@ -460,7 +475,9 @@ mod tests {
             phase: "preparing addon".to_owned(),
             completed: Some(9),
             total: Some(3),
-            started: Instant::now() - Duration::from_secs(3),
+            started: Instant::now()
+                .checked_sub(Duration::from_secs(3))
+                .expect("three seconds should be representable"),
         };
         for theme in BAR_THEMES {
             let output = render_line(
