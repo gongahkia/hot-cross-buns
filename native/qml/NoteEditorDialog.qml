@@ -49,7 +49,7 @@ HcbDialog {
     onOpened: titleField.forceActiveFocus()
     onPrimaryAction: taskSaveRequested(taskId, taskListId, titleField.text.trim(), bodyField.text)
 
-    TextField {
+    EmojiTextField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: "Note title"
@@ -62,7 +62,7 @@ HcbDialog {
         }
     }
 
-    TextArea {
+    EmojiTextArea {
         id: bodyField
         Layout.fillWidth: true
         Layout.preferredHeight: 240

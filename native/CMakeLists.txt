@@ -287,6 +287,9 @@ qt_add_qml_module(hcb_native
     qml/EventBulkMoveDialog.qml
     qml/EventCreateDialog.qml
     qml/EventColorPicker.qml
+    qml/EmojiAutocomplete.qml
+    qml/EmojiTextArea.qml
+    qml/EmojiTextField.qml
     qml/EventDeleteDialog.qml
     qml/EventDetailDialog.qml
     qml/EventEditDialog.qml
@@ -320,6 +323,8 @@ qt_add_qml_module(hcb_native
     qml/TaskMoveDialog.qml
     qml/Theme.qml
     qml/WeekTimelineView.qml
+  RESOURCES
+    qml/EmojiCatalog.js
 )
 
 target_link_libraries(hcb_native PRIVATE

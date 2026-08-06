@@ -65,7 +65,7 @@ HcbDialog {
         TabButton { text: "Task"; Accessible.name: text }
     }
 
-    TextField {
+    EmojiTextField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: root.createKind === 0 ? "Event title" : "Task title"

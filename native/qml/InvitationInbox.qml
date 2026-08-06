@@ -46,7 +46,7 @@ Pane {
                         text: modelData.allDay ? "All day · " + modelData.startAt.slice(0, 10) : modelData.startAt
                         color: Theme.textSecondary
                     }
-                    TextArea {
+                    EmojiTextArea {
                         id: comment
                         Layout.fillWidth: true
                         Layout.preferredHeight: 64

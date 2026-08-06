@@ -232,7 +232,7 @@ HcbDialog {
                                           statusEditor.propertiesJson, sendUpdatesPicker.currentValue)
     }
 
-    TextField {
+    EmojiTextField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: "Event title"
@@ -324,7 +324,7 @@ HcbDialog {
         }
     }
 
-    TextArea {
+    EmojiTextArea {
         id: rsvpCommentField
         Layout.fillWidth: true
         Layout.preferredHeight: 64
@@ -549,7 +549,7 @@ HcbDialog {
         accessibleName: "Event ends"
     }
 
-    TextField {
+    EmojiTextField {
         id: locationField
         Layout.fillWidth: true
         placeholderText: "Location"
@@ -557,7 +557,7 @@ HcbDialog {
         selectByMouse: true
     }
 
-    TextArea {
+    EmojiTextArea {
         id: descriptionField
         Layout.fillWidth: true
         Layout.preferredHeight: 160

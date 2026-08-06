@@ -115,7 +115,7 @@ HcbDialog {
         }
     }
 
-    TextField {
+    EmojiTextField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: root.captureKind === 1 ? "Team sync tomorrow at 9am" : "Call Sam tomorrow P1"

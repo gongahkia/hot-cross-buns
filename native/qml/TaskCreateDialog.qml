@@ -86,7 +86,7 @@ HcbDialog {
                                          ruleField.text.trim(), exclusionDatesField.text.trim(),
                                          additionDatesField.text.trim())
 
-    TextField {
+    EmojiTextField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: "Task title"
@@ -99,7 +99,7 @@ HcbDialog {
         }
     }
 
-    TextArea {
+    EmojiTextArea {
         id: notesField
         Layout.fillWidth: true
         Layout.preferredHeight: 100
