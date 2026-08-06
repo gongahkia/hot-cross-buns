@@ -31,7 +31,7 @@ wukong sync --dev --project .
 wukong sync --frozen --dev --project .
 wukong status --project .
 wukong doctor --project .
-wukong cache verify --project .
+wukong cache verify
 wukong validate --project . --godot-executable <godot> --timeout-seconds 60
 wukong remove local-addon --dev --project .
 ```
