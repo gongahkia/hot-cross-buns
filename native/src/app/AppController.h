@@ -118,6 +118,7 @@ class AppController final : public QObject {
   Q_PROPERTY(QVariantList calendarWeekLabels READ calendarWeekLabels NOTIFY calendarLabelsChanged)
   Q_PROPERTY(int appearanceMode READ appearanceMode NOTIFY appearanceModeChanged)
   Q_PROPERTY(int visualDensity READ visualDensity NOTIFY visualDensityChanged)
+  Q_PROPERTY(int taskListPaneWidth READ taskListPaneWidth NOTIFY taskListPaneWidthChanged)
   Q_PROPERTY(int paletteMode READ paletteMode NOTIFY paletteModeChanged)
   Q_PROPERTY(QString accentColor READ accentColor NOTIFY accentColorChanged)
   Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
@@ -220,6 +221,7 @@ public:
   [[nodiscard]] QVariantList calendarWeekLabels() const;
   [[nodiscard]] int appearanceMode() const;
   [[nodiscard]] int visualDensity() const;
+  [[nodiscard]] int taskListPaneWidth() const;
   [[nodiscard]] int paletteMode() const;
   [[nodiscard]] QString accentColor() const;
   [[nodiscard]] QString fontFamily() const;
@@ -273,6 +275,7 @@ public:
   Q_INVOKABLE void setCalendarDate(QString date);
   Q_INVOKABLE void saveAppearanceMode(int mode);
   Q_INVOKABLE void saveVisualDensity(int density);
+  Q_INVOKABLE void saveTaskListPaneWidth(int width);
   Q_INVOKABLE void savePaletteMode(int mode);
   Q_INVOKABLE void saveAccentColor(QString color);
   Q_INVOKABLE void saveFontFamily(QString family);
@@ -528,6 +531,7 @@ signals:
   void calendarLabelsChanged();
   void appearanceModeChanged();
   void visualDensityChanged();
+  void taskListPaneWidthChanged();
   void paletteModeChanged();
   void accentColorChanged();
   void fontFamilyChanged();
@@ -646,6 +650,7 @@ private:
   void runSearch();
   void refreshSearchProjection();
   void applyTaskProjections(QList<TaskModelTask> tasks);
+  void ensureNotesSidebarTab();
   void loadSavedSearches();
   void runBulkTaskMutation(
       TaskBulkMutationInput input,
@@ -767,6 +772,7 @@ private:
   QDate calendarDate_{QDate::currentDate()};
   int appearanceMode_{0};
   int visualDensity_{1};
+  int taskListPaneWidth_{260};
   int paletteMode_{0};
   QString accentColor_;
   QString fontFamily_;

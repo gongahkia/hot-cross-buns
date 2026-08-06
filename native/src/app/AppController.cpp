@@ -61,6 +61,7 @@ constexpr char kNotesEnabledSettingsKey[] = "notes_enabled";
 constexpr char kNotesProjectionSettingsKey[] = "notes_projection";
 constexpr char kAppearanceModeSettingsKey[] = "appearance_mode";
 constexpr char kVisualDensitySettingsKey[] = "visual_density";
+constexpr char kTaskListPaneWidthSettingsKey[] = "task_list_pane_width";
 constexpr char kPaletteModeSettingsKey[] = "palette_mode";
 constexpr char kAccentColorSettingsKey[] = "accent_color";
 constexpr char kFontFamilySettingsKey[] = "font_family";
@@ -90,6 +91,8 @@ constexpr int kNotesOnlyProjection = 0;
 constexpr int kMirrorNotesProjection = 1;
 constexpr auto kGoogleSyncInterval = std::chrono::minutes(5);
 constexpr int kSearchDebounceMilliseconds = 180;
+constexpr int kMinimumTaskListPaneWidth = 200;
+constexpr int kMaximumTaskListPaneWidth = 480;
 
 [[nodiscard]] std::unique_ptr<OAuthCredentialStore> makeCredentialStore() {
 #if defined(Q_OS_MACOS)
@@ -121,6 +124,10 @@ constexpr int kSearchDebounceMilliseconds = 180;
 [[nodiscard]] bool isValidAppearanceMode(int value) { return value >= 0 && value <= 2; }
 
 [[nodiscard]] bool isValidVisualDensity(int value) { return value >= 0 && value <= 2; }
+
+[[nodiscard]] bool isValidTaskListPaneWidth(int value) {
+  return value >= kMinimumTaskListPaneWidth && value <= kMaximumTaskListPaneWidth;
+}
 
 [[nodiscard]] bool isValidPaletteMode(int value) { return value >= 0 && value <= 5; }
 
@@ -951,6 +958,8 @@ int AppController::appearanceMode() const { return appearanceMode_; }
 
 int AppController::visualDensity() const { return visualDensity_; }
 
+int AppController::taskListPaneWidth() const { return taskListPaneWidth_; }
+
 int AppController::paletteMode() const { return paletteMode_; }
 
 QString AppController::accentColor() const { return accentColor_; }
@@ -1216,6 +1225,29 @@ void AppController::initialize() {
             refreshSearchProjection();
             emit notesEnabledChanged();
           }
+          ensureNotesSidebarTab();
+        });
+  watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
+                                  QString::fromLatin1(kTaskListPaneWidthSettingsKey)),
+        [this](SettingsJsonReadResult result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+            return;
+          }
+          const std::optional<QString>& stored = std::get<std::optional<QString>>(result);
+          if (!stored.has_value()) {
+            return;
+          }
+          bool valid = false;
+          const int width = stored->toInt(&valid);
+          if (!valid || !isValidTaskListPaneWidth(width)) {
+            setStatus(QStringLiteral("Stored task Lists pane width is invalid"));
+            return;
+          }
+          if (taskListPaneWidth_ != width) {
+            taskListPaneWidth_ = width;
+            emit taskListPaneWidthChanged();
+          }
         });
   watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
                                   QString::fromLatin1(kNotesProjectionSettingsKey)),
@@ -1261,6 +1293,7 @@ void AppController::initialize() {
             sidebarTabIds_ = *ids;
             emit sidebarTabIdsChanged();
           }
+          ensureNotesSidebarTab();
         });
   watch(settingsService_.readJson(QString::fromLatin1(kPresentationSettingsScope),
                                   QString::fromLatin1(kExternalBrowserSettingsKey)),
@@ -1778,6 +1811,21 @@ void AppController::saveVisualDensity(int density) {
           } else if (visualDensity_ != density) {
             visualDensity_ = density;
             emit visualDensityChanged();
+          }
+        });
+}
+
+void AppController::saveTaskListPaneWidth(int width) {
+  width = std::clamp(width, kMinimumTaskListPaneWidth, kMaximumTaskListPaneWidth);
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kTaskListPaneWidthSettingsKey),
+                                   QString::number(width)),
+        [this, width](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          } else if (taskListPaneWidth_ != width) {
+            taskListPaneWidth_ = width;
+            emit taskListPaneWidthChanged();
           }
         });
 }
@@ -3587,7 +3635,25 @@ void AppController::saveNotesEnabled(bool enabled) {
             refreshSearchProjection();
             emit notesEnabledChanged();
           }
+          ensureNotesSidebarTab();
           setStatus(QStringLiteral("Notes presentation saved"));
+        });
+}
+
+void AppController::ensureNotesSidebarTab() {
+  if (!notesEnabled_ || sidebarTabIds_.contains(QStringLiteral("notes"))) {
+    return;
+  }
+  sidebarTabIds_.append(QStringLiteral("notes"));
+  emit sidebarTabIdsChanged();
+  const QStringList persistedIds = sidebarTabIds_;
+  watch(settingsService_.writeJson(QString::fromLatin1(kPresentationSettingsScope),
+                                   QString::fromLatin1(kSidebarTabIdsSettingsKey),
+                                   jsonStringList(persistedIds)),
+        [this](SettingsMutationResultOrError result) {
+          if (std::holds_alternative<AppError>(result)) {
+            setStatus(errorMessage(std::get<AppError>(result)));
+          }
         });
 }
 
