@@ -98,6 +98,7 @@ QList<LocalSearchRankedResult> UnifiedLocalSearchRanker::rank(
                     .id = id,
                     .title = title,
                     .detail = candidate.detail,
+                    .scheduledAt = candidate.scheduledAt,
                     .score = score,
                     .isUndatedTask = candidate.isUndatedTask});
   }

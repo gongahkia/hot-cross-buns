@@ -8,6 +8,8 @@ Pane {
     property var calendarVisibility: null
     property var selectedEventIds: []
     property bool selectionMode: false
+    property string highlightedEventId: ""
+    property int revealAttempts: 0
     property alias eventRows: eventRows
     signal eventSelected(string eventId)
     signal eventSelectionRequested(string eventId, bool selected)
@@ -36,6 +38,58 @@ Pane {
 
     function selectEvent(eventId) {
         eventSelected(eventId)
+    }
+
+    function revealEvent(eventId) {
+        highlightedEventId = eventId
+        revealAttempts = 0
+        revealTimer.restart()
+        highlightTimer.restart()
+    }
+
+    function formatAgendaDay(value) {
+        const date = new Date(value + "T12:00:00")
+        return Number.isFinite(date.getTime()) ? Qt.locale().toString(date, "dddd, d MMMM") : value
+    }
+
+    function formatAgendaWeek(value) {
+        const date = new Date(value + "T12:00:00")
+        if (!Number.isFinite(date.getTime())) return value
+        date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+        return Qt.locale().toString(date, "d MMMM yyyy")
+    }
+
+    Timer {
+        id: revealTimer
+        interval: 50
+        repeat: true
+        onTriggered: {
+            root.revealAttempts += 1
+            if (root.agendaModel === null || typeof root.agendaModel.rowForEvent !== "function") {
+                stop()
+                return
+            }
+            const row = root.agendaModel.rowForEvent(root.highlightedEventId)
+            if (row >= 0) {
+                eventRows.currentIndex = row
+                eventRows.positionViewAtIndex(row, ListView.Center)
+                const event = typeof root.agendaModel.eventForId === "function"
+                              ? root.agendaModel.eventForId(root.highlightedEventId) : ({})
+                if (event.id !== undefined && event.id.length > 0) {
+                    root.eventDetailRequested(event)
+                }
+                stop()
+            } else if (root.revealAttempts >= 50) {
+                stop()
+            }
+        }
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 5000
+        repeat: false
+        onTriggered: root.highlightedEventId = ""
     }
 
     function requestEdit(eventId, calendarId, title, startAt, endAt, allDay, description, location,
@@ -93,6 +147,29 @@ Pane {
             clip: true
             model: root.agendaModel
             spacing: Theme.spacingSmall
+            section.property: "agendaDay"
+            section.criteria: ViewSection.FullString
+            section.delegate: Column {
+                required property string section
+                width: ListView.view.width
+                spacing: Theme.spacingSmall
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Theme.textSecondary
+                    opacity: 0.35
+                }
+
+                Label {
+                    text: "Week of " + root.formatAgendaWeek(section) + " · " +
+                          root.formatAgendaDay(section)
+                    font.bold: true
+                    color: Theme.textSecondary
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+            }
 
             delegate: CalendarEventButton {
                 required property string id
@@ -123,6 +200,7 @@ Pane {
                 height: visible ? implicitHeight : 0
                 enabled: visible
                 eventColor: root.eventColor(calendarId, colorId)
+                outlined: root.highlightedEventId === id
                 text: title + "\n" + root.scheduleLabel(startAt, allDay) +
                       (location.length > 0 ? " · " + location : "")
                 accessibleName: title

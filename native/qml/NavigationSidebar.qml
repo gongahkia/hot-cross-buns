@@ -93,9 +93,14 @@ Pane {
                     enabled: root.googleConnected || commandLabel === "Settings"
                     visible: commandId.startsWith("navigation.")
                     accessibleDescription: commandLabel === "Calendar"
-                                           ? "Calendar page. Right-click to show or hide calendar visibility controls."
+                                           ? "Calendar page. Click again to show or hide calendar visibility controls."
                                            : ""
-                    onPageSelected: pageName => root.selectPage(pageName)
+                    onPageSelected: {
+                        if (commandLabel === "Calendar") {
+                            root.calendarControlsExpanded = !root.calendarControlsExpanded
+                        }
+                        root.selectPage(pageName)
+                    }
                     onSecondaryActivated: {
                         if (commandLabel === "Calendar") root.calendarControlsExpanded = !root.calendarControlsExpanded
                     }
@@ -104,8 +109,9 @@ Pane {
                 CalendarSourceControls {
                     id: calendarVisibility
                     Layout.fillWidth: true
-                    Layout.preferredHeight: visible ? implicitHeight : 0
-                    visible: commandLabel === "Calendar" && root.calendarControlsExpanded
+                    Layout.preferredHeight: commandLabel === "Calendar" ? implicitHeight : 0
+                    visible: commandLabel === "Calendar"
+                    expanded: root.calendarControlsExpanded
                     calendarSourceModel: root.calendarSourceModel
                     persistedVisibleCalendarIds: root.persistedVisibleCalendarIds
                     calendarVisibilityConfigured: root.calendarVisibilityConfigured

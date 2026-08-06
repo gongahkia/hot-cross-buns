@@ -34,6 +34,7 @@ Pane {
     signal eventAllDayResizeScopeRequested(var event, string startAt, string endAt)
     signal taskMoveRequested(string taskId, string dueDate)
     signal taskDetailRequested(var task)
+    signal periodNavigationRequested(int direction)
 
     function isCalendarVisible(calendarId) {
         return calendarVisibility === null || calendarVisibility.isVisible(calendarId)
@@ -183,6 +184,15 @@ Pane {
     Connections {
         target: root.calendarVisibility
         function onVisibleCalendarIdsChanged() { root.syncPresentationIndex() }
+    }
+
+    WheelHandler {
+        target: null
+        onWheel: function(event) {
+            if (event.angleDelta.y === 0) return
+            root.periodNavigationRequested(event.angleDelta.y < 0 ? 1 : -1)
+            event.accepted = true
+        }
     }
 
     ColumnLayout {

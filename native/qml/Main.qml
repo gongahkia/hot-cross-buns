@@ -148,6 +148,7 @@ ApplicationWindow {
     property alias fontScaleSelector: fontScaleSelector
     property alias displayTimeZoneSelector: displayTimeZoneField
     property alias resetVisualPreferencesButton: resetVisualPreferencesButton
+    property alias settingsSearchField: settingsSearchField
     signal quickCaptureRequested(string title)
     signal taskCreateRequested(string taskListId, string parentTaskId, string title)
     signal taskDeleteRequested(string taskId)
@@ -162,7 +163,8 @@ ApplicationWindow {
     signal eventDeleteRequested(string eventId)
     signal eventMoveRequested(string eventId, string startAt, string endAt, bool allDay)
     signal eventResizeRequested(string eventId, string endAt)
-    signal searchResultActivated(string resource, string resultId, string title, string detail)
+    signal searchResultActivated(string resource, string resultId, string title, string detail,
+                                 string scheduledAt)
 
     Binding {
         target: Theme
@@ -326,6 +328,33 @@ ApplicationWindow {
                ? appController[propertyName] : fallback
     }
 
+    function matchingSettingsSections(query) {
+        const normalized = query.trim().toLowerCase()
+        if (normalized.length === 0) return []
+        const sections = [
+            { title: "Google setup", keywords: "oauth client id secret connect sync google", target: googleSetupHeading },
+            { title: "Google calendars", keywords: "calendar create subscribe import manage", target: googleCalendarsHeading },
+            { title: "Desktop reminders", keywords: "reminder notification alert", target: remindersHeading },
+            { title: "Undated task presentation", keywords: "notes undated task mirror", target: notesPresentationHeading },
+            { title: "Sidebar", keywords: "tabs task calendar notes invitations", target: sidebarHeading },
+            { title: "Appearance and calendar", keywords: "theme dark light colour color accent font density timezone week", target: appearanceHeading },
+            { title: "Links", keywords: "browser external links safari chrome firefox", target: linksHeading },
+            { title: "Undo history", keywords: "undo retention history actions", target: undoHeading },
+            { title: "Bulk rewriting", keywords: "bulk find replace recurrence", target: bulkRewritingHeading },
+            { title: "Quick Capture", keywords: "quick capture aliases duration task event", target: quickCaptureHeading }
+        ]
+        return sections.filter(function(section) {
+            return (section.title + " " + section.keywords).toLowerCase().indexOf(normalized) >= 0
+        })
+    }
+
+    function revealSettingsSection(section) {
+        if (section === undefined || section.target === undefined || section.target === null) return
+        settingsFlickable.contentY = Math.max(0, Math.min(settingsFlickable.contentHeight - settingsFlickable.height,
+                                                           section.target.y - Theme.spacingMedium))
+        section.target.forceActiveFocus()
+    }
+
     function hasNavigationPage(pageName) {
         if (pageName === "Notes" && !notesEnabled) {
             return false
@@ -438,7 +467,7 @@ ApplicationWindow {
         searchPopup.open()
     }
 
-    function openSearchResult(resource, resultId, title, detail) {
+    function openSearchResult(resource, resultId, title, detail, scheduledAt) {
         if (resource === "task" || resource === "taskList") {
             selectPage("Tasks")
         } else if (resource === "note") {
@@ -446,7 +475,16 @@ ApplicationWindow {
         } else if (resource === "calendar" || resource === "event") {
             selectPage("Calendar")
         }
-        searchResultActivated(resource, resultId, title, detail)
+        searchResultActivated(resource, resultId, title, detail, scheduledAt)
+        if (resource === "task") {
+            Qt.callLater(function() { taskList.revealTask(resultId) })
+        } else if (resource === "event") {
+            calendarViews.currentIndex = 0
+            if (scheduledAt.length >= 10) {
+                controllerCall("setCalendarDate", [scheduledAt.slice(0, 10)])
+            }
+            Qt.callLater(function() { agendaView.revealEvent(resultId) })
+        }
         searchPopup.close()
     }
 
@@ -652,12 +690,6 @@ ApplicationWindow {
             Accessible.role: Accessible.Dialog
             Accessible.name: "Command palette"
 
-            Label {
-                text: "Command Palette"
-                font.bold: true
-                font.pixelSize: Theme.labelFontSize
-            }
-
             TextField {
                 id: commandPaletteQuery
                 objectName: "commandPaletteQuery"
@@ -737,8 +769,8 @@ ApplicationWindow {
         id: searchPopup
         appController: window.appController
         searchResultsModel: window.searchResultsModel
-        onResultActivated: function(resource, resultId, title, detail) {
-            window.openSearchResult(resource, resultId, title, detail)
+        onResultActivated: function(resource, resultId, title, detail, scheduledAt) {
+            window.openSearchResult(resource, resultId, title, detail, scheduledAt)
         }
     }
 
@@ -1751,6 +1783,7 @@ ApplicationWindow {
                                                  attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
                         onEventDetailRequested: function(event) { window.openEventDetail(event) }
+                        onPeriodNavigationRequested: direction => window.navigateCalendar(direction)
                     }
 
                     WeekTimelineView {
@@ -1810,6 +1843,7 @@ ApplicationWindow {
                                                  attachmentsJson, guestPermissionsJson, statusPropertiesJson)
                         }
                         onEventDetailRequested: function(event) { window.openEventDetail(event) }
+                        onPeriodNavigationRequested: direction => window.navigateCalendar(direction)
                     }
 
                     MonthGridView {
@@ -1857,6 +1891,7 @@ ApplicationWindow {
                                                  event.guestPermissionsJson, event.statusPropertiesJson)
                         }
                         onEventDetailRequested: function(event) { window.openEventDetail(event) }
+                        onPeriodNavigationRequested: direction => window.navigateCalendar(direction)
                     }
                     }
 
@@ -1870,6 +1905,7 @@ ApplicationWindow {
             }
 
             Flickable {
+                id: settingsFlickable
                 anchors.fill: parent
                 visible: window.currentPage === "Settings"
                 clip: true
@@ -1887,7 +1923,41 @@ ApplicationWindow {
                     width: parent.width
                     spacing: Theme.spacingMedium
 
+                TextField {
+                    id: settingsSearchField
+                    Layout.fillWidth: true
+                    placeholderText: "Find a setting"
+                    Accessible.name: placeholderText
+                    selectByMouse: true
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingSmall
+                    visible: settingsSearchField.text.trim().length > 0
+
+                    Repeater {
+                        model: window.matchingSettingsSections(settingsSearchField.text)
+
+                        delegate: Button {
+                            required property var modelData
+                            text: modelData.title
+                            Accessible.name: "Go to " + text
+                            onClicked: window.revealSettingsSection(modelData)
+                        }
+                    }
+                }
+
                 Label {
+                    Layout.fillWidth: true
+                    visible: settingsSearchField.text.trim().length > 0 &&
+                             window.matchingSettingsSections(settingsSearchField.text).length === 0
+                    text: "No matching settings section"
+                    color: Theme.textSecondary
+                }
+
+                Label {
+                    id: googleSetupHeading
                     text: "Google setup"
                     font.pixelSize: Theme.titleFontSize
                     Accessible.role: Accessible.Heading
@@ -1968,6 +2038,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: googleCalendarsHeading
                     text: "Google calendars"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2121,6 +2192,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: remindersHeading
                     text: "Desktop reminders"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2135,6 +2207,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: notesPresentationHeading
                     text: "Undated task presentation"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2172,6 +2245,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: sidebarHeading
                     text: "Sidebar"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2215,6 +2289,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: appearanceHeading
                     text: "Appearance and calendar"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2290,6 +2365,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: linksHeading
                     text: "Links"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2316,6 +2392,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: undoHeading
                     text: "Undo history"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2377,6 +2454,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: bulkRewritingHeading
                     text: "Bulk rewriting"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2401,6 +2479,7 @@ ApplicationWindow {
                 }
 
                 Label {
+                    id: quickCaptureHeading
                     text: "Quick Capture"
                     font.pixelSize: Theme.bodyFontSize
                     Accessible.role: Accessible.Heading
@@ -2754,14 +2833,9 @@ ApplicationWindow {
         }
     }
 
-    onSearchResultActivated: function(resource, resultId, title, detail) {
-        if (resource === "task") {
-            taskList.selectTask(resultId)
-        } else if (resource === "note") {
+    onSearchResultActivated: function(resource, resultId, title, detail, scheduledAt) {
+        if (resource === "note") {
             notesList.selectNote(resultId)
-        } else if (resource === "event") {
-            calendarViews.currentIndex = 0
-            agendaView.selectEvent(resultId)
         }
     }
 

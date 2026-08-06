@@ -24,6 +24,30 @@ namespace {
          !task.title.contains(QChar::Null) && task.sortOrder >= 0;
 }
 
+[[nodiscard]] QVariantMap taskMap(const TaskModelTask& task) {
+  return {{QStringLiteral("id"), task.id},
+          {QStringLiteral("taskListId"), task.taskListId},
+          {QStringLiteral("taskListTitle"), task.taskListTitle},
+          {QStringLiteral("title"), task.title},
+          {QStringLiteral("notes"), task.notes.value_or(QString())},
+          {QStringLiteral("dueAt"),
+           task.due.has_value() ? task.due->at.value_or(QString()) : QString()},
+          {QStringLiteral("dueTimeZone"),
+           task.due.has_value() ? task.due->timeZone.value_or(QString()) : QString()},
+          {QStringLiteral("priority"), static_cast<int>(task.priority)},
+          {QStringLiteral("completed"), task.completed},
+          {QStringLiteral("managedRecurrence"), task.managedRecurrence},
+          {QStringLiteral("recurrenceSummary"), task.recurrenceSummary},
+          {QStringLiteral("recurrenceFrequency"), task.recurrenceFrequency},
+          {QStringLiteral("recurrenceInterval"), task.recurrenceInterval},
+          {QStringLiteral("recurrenceEndKind"), task.recurrenceEndKind},
+          {QStringLiteral("recurrenceEndUntil"), task.recurrenceEndUntil},
+          {QStringLiteral("recurrenceEndCount"), task.recurrenceEndCount},
+          {QStringLiteral("recurrenceRule"), task.recurrenceRule},
+          {QStringLiteral("recurrenceExclusionDates"), task.recurrenceExclusionDates},
+          {QStringLiteral("recurrenceAdditionDates"), task.recurrenceAdditionDates}};
+}
+
 } // namespace
 
 TaskModel::TaskModel(QObject* parent) : QAbstractItemModel(parent) {}
@@ -173,6 +197,37 @@ QVariantList TaskModel::topLevelTasks() const {
                              {QStringLiteral("taskListId"), root->task.taskListId}});
   }
   return tasks;
+}
+
+QVariantMap TaskModel::taskForId(QString taskId) const {
+  const auto found = std::find_if(nodes_.cbegin(), nodes_.cend(), [&taskId](const auto& node) {
+    return node->task.id == taskId;
+  });
+  return found == nodes_.cend() ? QVariantMap() : taskMap((*found)->task);
+}
+
+int TaskModel::flatRowForTaskId(QString taskId) const {
+  int currentRow = 0;
+  const auto find = [&taskId, &currentRow](const auto& self, const Node* node) -> int {
+    if (node->task.id == taskId) {
+      return currentRow;
+    }
+    ++currentRow;
+    for (const Node* child : node->children) {
+      const int row = self(self, child);
+      if (row >= 0) {
+        return row;
+      }
+    }
+    return -1;
+  };
+  for (const Node* root : roots_) {
+    const int row = find(find, root);
+    if (row >= 0) {
+      return row;
+    }
+  }
+  return -1;
 }
 
 void TaskModel::setTasks(QList<TaskModelTask> tasks) {

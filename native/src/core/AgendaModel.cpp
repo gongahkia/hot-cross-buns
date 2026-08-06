@@ -1,6 +1,10 @@
 #include "core/AgendaModel.h"
 #include "core/ModelDiffPolicy.h"
 
+#include <QDate>
+#include <QDateTime>
+
+#include <algorithm>
 #include <utility>
 
 namespace hcb {
@@ -28,6 +32,49 @@ namespace {
          left.statusPropertiesJson == right.statusPropertiesJson && left.eventType == right.eventType &&
          left.etag == right.etag && left.sequence == right.sequence &&
          left.remoteUpdatedAt == right.remoteUpdatedAt && left.updatedAt == right.updatedAt;
+}
+
+[[nodiscard]] QDate eventDate(const CalendarEventSummary& event) {
+  const QDate date = QDate::fromString(event.startAt.left(10), Qt::ISODate);
+  return date;
+}
+
+[[nodiscard]] QString agendaDay(const CalendarEventSummary& event) {
+  const QDate date = eventDate(event);
+  return date.isValid() ? date.toString(Qt::ISODate) : QString();
+}
+
+[[nodiscard]] QString agendaWeek(const CalendarEventSummary& event) {
+  const QDate date = eventDate(event);
+  return date.isValid() ? date.addDays(1 - date.dayOfWeek()).toString(Qt::ISODate) : QString();
+}
+
+[[nodiscard]] QVariantMap eventMap(const CalendarEventSummary& event) {
+  return {{QStringLiteral("id"), event.id},
+          {QStringLiteral("calendarId"), event.calendarId},
+          {QStringLiteral("recurringRemoteId"), event.recurringRemoteId.value_or(QString())},
+          {QStringLiteral("originalStartAt"), event.originalStartAt.value_or(QString())},
+          {QStringLiteral("recurrenceRule"), event.recurrenceRule.value_or(QString())},
+          {QStringLiteral("status"), event.status},
+          {QStringLiteral("title"), event.title},
+          {QStringLiteral("description"), event.description.value_or(QString())},
+          {QStringLiteral("location"), event.location.value_or(QString())},
+          {QStringLiteral("startAt"), event.startAt},
+          {QStringLiteral("startTimeZone"), event.startTimeZone.value_or(QString())},
+          {QStringLiteral("endAt"), event.endAt},
+          {QStringLiteral("endTimeZone"), event.endTimeZone.value_or(QString())},
+          {QStringLiteral("allDay"), event.allDay},
+          {QStringLiteral("colorId"), event.colorId.value_or(QString())},
+          {QStringLiteral("transparency"), event.transparency.value_or(QString())},
+          {QStringLiteral("visibility"), event.visibility.value_or(QString())},
+          {QStringLiteral("attendeeEmailsJson"), event.attendeeEmailsJson},
+          {QStringLiteral("remindersJson"), event.remindersJson},
+          {QStringLiteral("remindersUseDefault"), event.remindersUseDefault},
+          {QStringLiteral("eventType"), event.eventType.value_or(QStringLiteral("default"))},
+          {QStringLiteral("conferenceJson"), event.conferenceJson.value_or(QString())},
+          {QStringLiteral("attachmentsJson"), event.attachmentsJson},
+          {QStringLiteral("guestPermissionsJson"), event.guestPermissionsJson},
+          {QStringLiteral("statusPropertiesJson"), event.statusPropertiesJson}};
 }
 
 } // namespace
@@ -99,6 +146,10 @@ QVariant AgendaModel::data(const QModelIndex& index, int role) const {
     return event.statusPropertiesJson;
   case EventTypeRole:
     return event.eventType.value_or(QStringLiteral("default"));
+  case AgendaDayRole:
+    return agendaDay(event);
+  case AgendaWeekRole:
+    return agendaWeek(event);
   default:
     return {};
   }
@@ -131,7 +182,25 @@ QHash<int, QByteArray> AgendaModel::roleNames() const {
           {AttachmentsJsonRole, "attachmentsJson"},
           {GuestPermissionsJsonRole, "guestPermissionsJson"},
           {StatusPropertiesJsonRole, "statusPropertiesJson"},
-          {EventTypeRole, "eventType"}};
+          {EventTypeRole, "eventType"},
+          {AgendaDayRole, "agendaDay"},
+          {AgendaWeekRole, "agendaWeek"}};
+}
+
+int AgendaModel::rowForEvent(QString eventId) const {
+  for (qsizetype row = 0; row < events_.size(); ++row) {
+    if (events_.at(row).id == eventId) {
+      return static_cast<int>(row);
+    }
+  }
+  return -1;
+}
+
+QVariantMap AgendaModel::eventForId(QString eventId) const {
+  const auto found = std::find_if(events_.cbegin(), events_.cend(), [&eventId](const auto& event) {
+    return event.id == eventId;
+  });
+  return found == events_.cend() ? QVariantMap() : eventMap(*found);
 }
 
 void AgendaModel::setEvents(QList<CalendarEventSummary> events) {

@@ -23,7 +23,7 @@ Popup {
     property alias saveSearchButton: saveSearchButton
     property alias savedSearchRows: savedSearchRows
     property alias optionsToggleButton: optionsToggleButton
-    signal resultActivated(string resource, string resultId, string title, string detail)
+    signal resultActivated(string resource, string resultId, string title, string detail, string scheduledAt)
 
     function controllerCall(method, args) {
         if (appController !== null && typeof appController[method] === "function") {
@@ -115,12 +115,13 @@ Popup {
                 required property string resource
                 required property string title
                 required property string detail
+                required property string scheduledAt
                 width: ListView.view.width
                 text: title + "\n" + resource + (detail.length > 0 ? " — " + detail : "")
                 accessibleName: title
                 accessibleDescription: resource + (detail.length > 0 ? ". " + detail : "")
                 highlighted: ListView.isCurrentItem
-                onClicked: root.resultActivated(resource, id, title, detail)
+                onClicked: root.resultActivated(resource, id, title, detail, scheduledAt)
             }
         }
 

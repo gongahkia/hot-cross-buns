@@ -40,6 +40,7 @@ Pane {
                               string conferenceJson, string attachmentsJson,
                               string guestPermissionsJson, string statusPropertiesJson)
     signal eventDetailRequested(var event)
+    signal periodNavigationRequested(int direction)
     property bool dragPreviewActive: false
     property int dragPreviewStartMinute: 0
     property int dragPreviewEndMinute: 15
@@ -240,6 +241,15 @@ Pane {
     Connections {
         target: root.calendarVisibility
         function onVisibleCalendarIdsChanged() { root.updateViewportFilters() }
+    }
+
+    WheelHandler {
+        target: null
+        onWheel: function(event) {
+            if (event.angleDelta.y === 0) return
+            root.periodNavigationRequested(event.angleDelta.y < 0 ? 1 : -1)
+            event.accepted = true
+        }
     }
 
     ColumnLayout {

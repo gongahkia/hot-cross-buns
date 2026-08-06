@@ -9,6 +9,7 @@ Pane {
     property var persistedVisibleCalendarIds: []
     property bool calendarVisibilityConfigured: false
     property bool visibilityInitialized: false
+    property bool expanded: true
     property int sourceRevision: calendarSourceModel !== null && calendarSourceModel.revision !== undefined
                                  ? calendarSourceModel.revision : 0
     property alias sourceRows: sourceRows
@@ -120,20 +121,44 @@ Pane {
         }
     }
 
+    clip: true
     padding: Theme.spacingSmall
-    implicitHeight: controlsRow.implicitHeight + topPadding + bottomPadding
-    visible: sourceRows.count > 0
+    implicitHeight: expanded && sourceRows.count > 0
+                    ? controlsColumn.implicitHeight + topPadding + bottomPadding : 0
 
-    RowLayout {
-        id: controlsRow
+    Behavior on implicitHeight {
+        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+    }
+
+    Behavior on opacity {
+        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    }
+
+    opacity: expanded ? 1 : 0
+
+    ColumnLayout {
+        id: controlsColumn
         anchors.fill: parent
         spacing: Theme.spacingSmall
 
-        Label {
-            text: "Calendars"
-            font.pixelSize: Theme.bodyFontSize
-            Accessible.role: Accessible.Heading
-            Accessible.name: text
+        RowLayout {
+            Layout.fillWidth: true
+
+            Label {
+                text: "Calendars"
+                font.pixelSize: Theme.bodyFontSize
+                Accessible.role: Accessible.Heading
+                Accessible.name: text
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Button {
+                text: "Show all"
+                enabled: root.visibleCalendarIds.length < root.calendarIds().length
+                Accessible.name: text
+                onClicked: root.showAll()
+            }
         }
 
         Flow {
@@ -163,13 +188,6 @@ Pane {
                     onToggled: root.setCalendarVisible(id, checked)
                 }
             }
-        }
-
-        Button {
-            text: "Show all"
-            enabled: root.visibleCalendarIds.length < root.calendarIds().length
-            Accessible.name: text
-            onClicked: root.showAll()
         }
     }
 }

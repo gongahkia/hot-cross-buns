@@ -461,7 +461,8 @@ TestCase {
         const component = Qt.createComponent("../../qml/Main.qml")
         compare(component.status, Component.Ready, component.errorString())
         const results = Qt.createQmlObject('import QtQml.Models; ListModel {}', testCase)
-        results.append({ id: "task-1", resource: "task", title: "Release search", detail: "Verify cache", score: 100 })
+        results.append({ id: "task-1", resource: "task", title: "Release search", detail: "Verify cache",
+                         scheduledAt: "2026-08-06", score: 100 })
         const calls = []
         const controller = {
             googleConnected: true,
@@ -489,8 +490,8 @@ TestCase {
         })
         verify(mainWindow !== null)
         let activated = null
-        mainWindow.searchResultActivated.connect(function(resource, resultId, title, detail) {
-            activated = { resource, resultId, title, detail }
+        mainWindow.searchResultActivated.connect(function(resource, resultId, title, detail, scheduledAt) {
+            activated = { resource, resultId, title, detail, scheduledAt }
         })
         mainWindow.searchShortcut.activated()
         tryVerify(function() { return mainWindow.searchPopup.opened && mainWindow.searchQuery.activeFocus })
@@ -509,6 +510,7 @@ TestCase {
         compare(mainWindow.currentPage, "Tasks")
         compare(activated.resource, "task")
         compare(activated.resultId, "task-1")
+        compare(activated.scheduledAt, "2026-08-06")
         tryVerify(function() { return !mainWindow.searchPopup.opened })
 
         mainWindow.openSearch()
@@ -525,6 +527,22 @@ TestCase {
         compare(calls[calls.length - 1].method, "deleteSavedSearch")
         mainWindow.destroy()
         results.destroy()
+    }
+
+    function test_settingsSearchMatchesSettingsSections() {
+        const component = Qt.createComponent("../../qml/Main.qml")
+        compare(component.status, Component.Ready, component.errorString())
+        const mainWindow = component.createObject(null, {
+            navigationCommands: navigationCommands,
+            appController: { googleConnected: true }
+        })
+        verify(mainWindow !== null)
+
+        mainWindow.settingsSearchField.text = "quick capture"
+        const matches = mainWindow.matchingSettingsSections(mainWindow.settingsSearchField.text)
+        compare(matches.length, 1)
+        compare(matches[0].title, "Quick Capture")
+        mainWindow.destroy()
     }
 
     function test_quickCaptureEmitsTaskRequest() {
@@ -989,6 +1007,9 @@ TestCase {
 
         calendarEntry.button.click()
         compare(mainWindow.currentPage, "Calendar")
+        verify(!mainWindow.navigationSidebar.calendarControlsExpanded)
+        calendarEntry.button.click()
+        verify(mainWindow.navigationSidebar.calendarControlsExpanded)
         mainWindow.destroy()
         calendars.destroy()
     }

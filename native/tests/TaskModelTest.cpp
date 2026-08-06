@@ -61,6 +61,10 @@ void TaskModelTest::exposesHierarchicalTaskRoles() {
   QCOMPARE(model.roleNames().value(hcb::TaskModel::SortOrderRole), QByteArrayLiteral("sortOrder"));
   QCOMPARE(model.roleNames().value(hcb::TaskModel::RecurrenceEndCountRole),
            QByteArrayLiteral("recurrenceEndCount"));
+  QCOMPARE(model.flatRowForTaskId(QStringLiteral("root")), 0);
+  QCOMPARE(model.flatRowForTaskId(QStringLiteral("child")), 1);
+  QCOMPARE(model.taskForId(QStringLiteral("child")).value(QStringLiteral("title")).toString(),
+           QStringLiteral("Child"));
 }
 
 void TaskModelTest::filtersInvalidTasksAndBreaksCycles() {

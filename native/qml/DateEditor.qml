@@ -34,8 +34,17 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Label { text: root.accessibleName; Layout.preferredWidth: 72 }
-        SpinBox { id: year; from: 1970; to: 2100; value: new Date().getFullYear(); editable: true
-                  Accessible.name: root.accessibleName + " year"; onValueModified: root.commit() }
+        SpinBox {
+            id: year
+            from: 1970
+            to: 2100
+            value: new Date().getFullYear()
+            editable: true
+            textFromValue: function(value) { return String(value) }
+            valueFromText: function(text) { return Number(text.replace(/[^0-9]/g, "")) }
+            Accessible.name: root.accessibleName + " year"
+            onValueModified: root.commit()
+        }
         SpinBox { id: month; from: 1; to: 12; value: 1; editable: true
                   Accessible.name: root.accessibleName + " month"; onValueModified: root.commit() }
         SpinBox { id: day; from: 1; to: 31; value: 1; editable: true

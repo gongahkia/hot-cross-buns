@@ -19,6 +19,7 @@ void SearchResultsModelTest::exposesRankedSearchResultRolesAndResets() {
                      .id = QStringLiteral("event-a"),
                      .title = QStringLiteral("Release review"),
                      .detail = QStringLiteral("Calendar event"),
+                     .scheduledAt = QStringLiteral("2026-07-25T10:00:00.000Z"),
                      .score = 96}});
 
   QCOMPARE(model.rowCount(), 1);
@@ -30,6 +31,8 @@ void SearchResultsModelTest::exposesRankedSearchResultRolesAndResets() {
            QStringLiteral("event"));
   QCOMPARE(model.data(index, hcb::SearchResultsModel::DetailRole).toString(),
            QStringLiteral("Calendar event"));
+  QCOMPARE(model.data(index, hcb::SearchResultsModel::ScheduledAtRole).toString(),
+           QStringLiteral("2026-07-25T10:00:00.000Z"));
   QCOMPARE(model.data(index, hcb::SearchResultsModel::ScoreRole).toInt(), 96);
   QCOMPARE(model.roleNames().value(hcb::SearchResultsModel::ResourceRole),
            QByteArrayLiteral("resource"));

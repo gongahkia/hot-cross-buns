@@ -26,7 +26,8 @@ namespace {
 [[nodiscard]] bool equivalentResult(const LocalSearchRankedResult& left,
                                     const LocalSearchRankedResult& right) {
   return left.id == right.id && left.resource == right.resource && left.title == right.title &&
-         left.detail == right.detail && left.score == right.score;
+         left.detail == right.detail && left.scheduledAt == right.scheduledAt &&
+         left.score == right.score;
 }
 
 } // namespace
@@ -52,6 +53,8 @@ QVariant SearchResultsModel::data(const QModelIndex& index, int role) const {
     return resourceName(result.resource);
   case DetailRole:
     return result.detail;
+  case ScheduledAtRole:
+    return result.scheduledAt;
   case ScoreRole:
     return result.score;
   default:
@@ -64,6 +67,7 @@ QHash<int, QByteArray> SearchResultsModel::roleNames() const {
           {ResourceRole, "resource"},
           {TitleRole, "title"},
           {DetailRole, "detail"},
+          {ScheduledAtRole, "scheduledAt"},
           {ScoreRole, "score"}};
 }
 

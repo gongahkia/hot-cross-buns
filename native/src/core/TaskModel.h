@@ -4,6 +4,7 @@
 
 #include <QAbstractItemModel>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <QList>
 #include <QString>
@@ -86,6 +87,8 @@ public:
 
   Q_INVOKABLE QVariantList taskIds() const;
   Q_INVOKABLE QVariantList topLevelTasks() const;
+  Q_INVOKABLE QVariantMap taskForId(QString taskId) const;
+  Q_INVOKABLE int flatRowForTaskId(QString taskId) const;
   void setTasks(QList<TaskModelTask> tasks);
 
 private:

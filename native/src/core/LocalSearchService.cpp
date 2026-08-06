@@ -273,6 +273,7 @@ readCandidates(SqliteConnection& connection,
                         .id = *id,
                         .title = *title,
                         .detail = renderedDetail,
+                        .scheduledAt = *scheduledAt,
                         .isUndatedTask =
                             spec.resource == LocalSearchResource::Task && scheduledAt->isEmpty()},
           .container = *container,

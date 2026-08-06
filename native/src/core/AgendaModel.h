@@ -3,6 +3,7 @@
 #include "core/CalendarReadService.h"
 
 #include <QAbstractListModel>
+#include <QVariantMap>
 
 #include <cstdint>
 
@@ -39,7 +40,9 @@ public:
     AttachmentsJsonRole,
     GuestPermissionsJsonRole,
     StatusPropertiesJsonRole,
-    EventTypeRole
+    EventTypeRole,
+    AgendaDayRole,
+    AgendaWeekRole
   };
   Q_ENUM(Role)
 
@@ -49,6 +52,8 @@ public:
   [[nodiscard]] QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
+  Q_INVOKABLE int rowForEvent(QString eventId) const;
+  Q_INVOKABLE QVariantMap eventForId(QString eventId) const;
   void setEvents(QList<CalendarEventSummary> events);
 
 private:

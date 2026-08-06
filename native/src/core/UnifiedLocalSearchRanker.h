@@ -20,6 +20,7 @@ struct LocalSearchCandidate final {
   QString id;
   QString title;
   QString detail;
+  QString scheduledAt;
   bool isUndatedTask{false};
 };
 
@@ -28,6 +29,7 @@ struct LocalSearchRankedResult final {
   QString id;
   QString title;
   QString detail;
+  QString scheduledAt;
   int score{0};
   bool isUndatedTask{false};
 };

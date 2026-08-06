@@ -43,9 +43,16 @@ void AgendaModelTest::exposesAgendaRolesAndResets() {
   QCOMPARE(model.data(index, hcb::AgendaModel::StartAtRole).toString(),
            QStringLiteral("2026-07-25T10:00:00.000Z"));
   QCOMPARE(model.data(index, hcb::AgendaModel::AllDayRole).toBool(), false);
+  QCOMPARE(model.data(index, hcb::AgendaModel::AgendaDayRole).toString(),
+           QStringLiteral("2026-07-25"));
+  QCOMPARE(model.data(index, hcb::AgendaModel::AgendaWeekRole).toString(),
+           QStringLiteral("2026-07-20"));
   QCOMPARE(model.data(index, hcb::AgendaModel::HcbKindRole).toString(), QStringLiteral("birthday"));
   QCOMPARE(model.roleNames().value(hcb::AgendaModel::EndTimeZoneRole),
            QByteArrayLiteral("endTimeZone"));
+  QCOMPARE(model.rowForEvent(QStringLiteral("event-a")), 0);
+  QCOMPARE(model.eventForId(QStringLiteral("event-a")).value(QStringLiteral("title")).toString(),
+           QStringLiteral("Review"));
 
   model.setEvents({});
   QCOMPARE(model.rowCount(), 0);

@@ -5,6 +5,7 @@ AccessibleButton {
     id: root
     property color eventColor: Theme.calendarFallback
     property bool compact: false
+    property bool outlined: false
 
     leftPadding: Theme.spacingSmall
     rightPadding: Theme.spacingSmall
@@ -14,8 +15,8 @@ AccessibleButton {
     background: Rectangle {
         radius: 5
         color: Theme.darkPalette ? Qt.darker(root.eventColor, 1.8) : Qt.lighter(root.eventColor, 1.72)
-        border.width: 1
-        border.color: Qt.darker(root.eventColor, 1.08)
+        border.width: root.outlined ? 2 : 1
+        border.color: root.outlined ? Theme.accent : Qt.darker(root.eventColor, 1.08)
     }
 
     contentItem: Label {

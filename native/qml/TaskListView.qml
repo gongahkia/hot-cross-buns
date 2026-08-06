@@ -16,6 +16,7 @@ Pane {
     property bool listPaneWidthInitialized: false
     property var selectedTaskIds: []
     property bool selectionMode: false
+    property string highlightedTaskId: ""
     readonly property string preferredTaskListId: root.selectedTaskListId()
     property alias taskRows: taskRows
     property alias taskCreateButton: taskCreateButton
@@ -76,7 +77,29 @@ Pane {
     Component.onCompleted: listPaneWidthInitialized = true
 
     function selectTask(taskId) {
+        revealTask(taskId)
+    }
+
+    function revealTask(taskId) {
+        highlightedTaskId = taskId
+        highlightTimer.restart()
         taskSelected(taskId)
+        if (taskModel === null || typeof taskModel.taskForId !== "function") return
+        const task = taskModel.taskForId(taskId)
+        if (task.id === undefined || task.id.length === 0) return
+        const row = typeof taskModel.flatRowForTaskId === "function"
+                    ? taskModel.flatRowForTaskId(taskId) : -1
+        if (row >= 0 && typeof taskRows.positionViewAtRow === "function") {
+            taskRows.positionViewAtRow(row, TableView.Center)
+        }
+        Qt.callLater(function() { root.requestTaskDetail(task) })
+    }
+
+    Timer {
+        id: highlightTimer
+        interval: 5000
+        repeat: false
+        onTriggered: root.highlightedTaskId = ""
     }
 
     function resizeListPane(width) {
@@ -416,6 +439,15 @@ Pane {
                         required property string taskListTitle
 
                         HoverHandler { id: taskHover }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            color: "transparent"
+                            border.color: Theme.accent
+                            border.width: 2
+                            radius: Theme.spacingSmall
+                            visible: root.highlightedTaskId === id
+                        }
 
                         ColumnLayout {
                             id: taskRow

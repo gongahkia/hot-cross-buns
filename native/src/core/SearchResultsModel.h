@@ -17,6 +17,7 @@ public:
     ResourceRole,
     TitleRole,
     DetailRole,
+    ScheduledAtRole,
     ScoreRole
   };
   Q_ENUM(Role)
