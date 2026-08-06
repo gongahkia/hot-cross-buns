@@ -79,7 +79,17 @@ published performance result or a version-solver benchmark.
    a proxy or VPN was active, and whether the network was otherwise idle. Do
    not place credentials in the record or command environment.
 4. Run the exact command 15 independent times. Save the complete stdout,
-   stderr, exit status, and elapsed wall time of each invocation.
+   stderr, exit status, and elapsed wall time of each invocation. The collector
+   automates this layout without deleting or replacing an existing result
+   directory:
+
+   ```sh
+   scripts/collect-benchmark-runs.sh benchmarks/results/<date>-component-harness
+   ```
+
+   Pass an explicit command after the directory for a distinct workload. Set
+   `WUKONG_BENCH_NETWORK_CONDITIONS` to the reviewed, credential-free
+   description before collecting any network workload.
 5. Keep raw output immutable. Produce median, minimum, maximum, and standard deviation only as derived data; never replace the raw observations.
 
 Use a unique result directory such as
@@ -94,6 +104,7 @@ raw/01.status
 raw/15.stdout
 raw/15.stderr
 raw/15.status
+raw/15.wall_ns
 summary.md
 ```
 
@@ -113,6 +124,11 @@ operating_system = "<name and version>"
 filesystem = "<filesystem type and mount details>"
 network_conditions = "<not-applicable or target, region, connection, proxy/VPN>"
 ```
+
+The collector stores raw system context in `environment/` files and references
+them from `metadata.toml`. Review those files before committing or sharing
+results: remove personal mount paths and any non-benchmark information while
+retaining the filesystem and host facts needed for comparison.
 
 For macOS, `system_profiler SPHardwareDataType SPSoftwareDataType`, `rustc
 -Vv`, and `mount` provide the required local context. Use equivalent native
