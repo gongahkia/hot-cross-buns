@@ -1,6 +1,6 @@
 .pragma library
 
-import "EmojiUnicode16.js" as EmojiUnicode16
+.import "EmojiUnicode16.js" as EmojiUnicode16
 
 var rows = [
     "😀|grinning|grinning_face,grin", "😃|smiley|smiling_face", "😄|smile|smiling_face_with_smiling_eyes",
