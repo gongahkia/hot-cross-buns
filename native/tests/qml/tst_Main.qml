@@ -633,9 +633,6 @@ TestCase {
             visible: true
         })
         verify(taskList !== null)
-        console.log("task list diagnostic", taskList.taskListSplitView.height,
-                    taskList.taskListControls.width, taskList.taskListControls.height,
-                    taskList.taskRows.width, taskList.taskRows.height)
         tryCompare(taskList.taskRows, "rows", 2)
         let selectedId = ""
         taskList.taskSelected.connect(function(taskId) { selectedId = taskId })
@@ -1008,7 +1005,10 @@ TestCase {
         tryCompare(taskList.taskListControls, "width", 200)
         taskList.listPaneWidth = 480
         tryCompare(taskList.taskListControls, "width", 480)
-        taskList.listPaneWidth = 310
+        taskList.listPaneWidth = 260
+        tryCompare(taskList.taskListControls, "width", 260)
+        taskList.resizeListPane(310)
+        tryCompare(taskList, "listPaneWidth", 310)
         tryCompare(taskList.taskListControls, "width", 310)
         wait(250)
         compare(persistedWidths[persistedWidths.length - 1], 310)

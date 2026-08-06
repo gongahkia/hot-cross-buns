@@ -14,7 +14,6 @@ Pane {
     property int bulkTextRecurrenceScope: 2
     property int listPaneWidth: 260
     property bool listPaneWidthInitialized: false
-    property bool synchronizingListPaneWidth: false
     property var selectedTaskIds: []
     property bool selectionMode: false
     readonly property string preferredTaskListId: root.selectedTaskListId()
@@ -70,25 +69,18 @@ Pane {
         onTriggered: root.listPaneWidthPersistenceRequested(root.listPaneWidth)
     }
 
-    function applyListPaneWidth() {
-        if (taskListControls === null || taskListSplitView === null) return
-        synchronizingListPaneWidth = true
-        taskListControls.width = listPaneWidth
-        synchronizingListPaneWidth = false
-    }
-
     onListPaneWidthChanged: {
-        applyListPaneWidth()
         if (listPaneWidthInitialized) listPaneWidthSaveTimer.restart()
     }
 
-    Component.onCompleted: {
-        listPaneWidthInitialized = true
-        applyListPaneWidth()
-    }
+    Component.onCompleted: listPaneWidthInitialized = true
 
     function selectTask(taskId) {
         taskSelected(taskId)
+    }
+
+    function resizeListPane(width) {
+        listPaneWidth = Math.max(200, Math.min(480, Math.round(width)))
     }
 
     function requestTaskCreate() {
@@ -246,30 +238,22 @@ Pane {
             }
         }
 
-        SplitView {
+        RowLayout {
             id: taskListSplitView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 1
-            Layout.preferredHeight: Math.max(1, root.height - taskToolbar.implicitHeight - Theme.spacingMedium)
-            orientation: Qt.Horizontal
+            spacing: 0
 
             TaskListControls {
                 id: taskListControls
-                SplitView.minimumWidth: 200
-                SplitView.maximumWidth: 480
-                SplitView.preferredWidth: root.listPaneWidth
-                SplitView.fillHeight: true
-                SplitView.preferredHeight: taskListSplitView.height
+                Layout.minimumWidth: 200
+                Layout.maximumWidth: 480
+                Layout.preferredWidth: root.listPaneWidth
+                Layout.fillHeight: true
                 taskListModel: root.taskListModel
                 loading: root.taskListLoading
                 errorMessage: root.taskListErrorMessage
-                onWidthChanged: {
-                    const nextWidth = Math.round(width)
-                    if (!root.synchronizingListPaneWidth && nextWidth >= 200 && nextWidth <= 480 &&
-                            root.listPaneWidth !== nextWidth)
-                        root.listPaneWidth = nextWidth
-                }
+
                 onTaskListCreateRequested: root.taskListCreateRequested()
                 onTaskListRenameRequested: function(taskListId, title) {
                     root.taskListRenameRequested(taskListId, title)
@@ -282,10 +266,46 @@ Pane {
                 }
             }
 
+            Item {
+                id: listPaneResizeHandle
+                Layout.preferredWidth: Theme.spacingMedium
+                Layout.minimumWidth: Theme.spacingMedium
+                Layout.maximumWidth: Theme.spacingMedium
+                Layout.fillHeight: true
+                Accessible.role: Accessible.Separator
+                Accessible.name: "Resize task lists pane"
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 2
+                    height: Math.min(parent.height, Theme.spacingLarge * 2)
+                    radius: 1
+                    color: listPaneResizeHover.hovered || listPaneResizeDrag.active
+                           ? Theme.accent : Theme.textSecondary
+                    opacity: listPaneResizeHover.hovered || listPaneResizeDrag.active ? 1 : 0.45
+                }
+
+                HoverHandler {
+                    id: listPaneResizeHover
+                    cursorShape: Qt.SplitHCursor
+                }
+
+                DragHandler {
+                    id: listPaneResizeDrag
+                    target: null
+                    xAxis.enabled: true
+                    yAxis.enabled: false
+                    property int pressWidth: 0
+
+                    onActiveChanged: if (active) pressWidth = root.listPaneWidth
+                    onActiveTranslationChanged: root.resizeListPane(pressWidth + activeTranslation.x)
+                }
+            }
+
             ColumnLayout {
-                SplitView.fillWidth: true
-                SplitView.fillHeight: true
-                SplitView.preferredHeight: taskListSplitView.height
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 spacing: Theme.spacingSmall
 
                 Flow {
