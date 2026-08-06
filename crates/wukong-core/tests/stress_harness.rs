@@ -109,23 +109,19 @@ fn invariant_stress_deep_unicode_package_tree_materialises_without_path_loss() {
 fn invariant_stress_large_and_many_file_packages_are_idempotent() {
     let fixture = Fixture::new();
     let large = fixture.project().join("large");
-    fixture.write_package_file(
-        &large,
-        "large",
-        Path::new("plugin.gd"),
-        &vec![0xA5; LARGE_FILE_BYTES],
-    );
+    let large_content = vec![0xA5; LARGE_FILE_BYTES];
+    Fixture::write_package_file(&large, "large", Path::new("plugin.gd"), &large_content);
 
     let many = fixture.project().join("many");
     for index in 0..MANY_FILE_COUNT {
-        fixture.write_package_file(
+        Fixture::write_package_file(
             &many,
             "many",
             &PathBuf::from(format!("scripts/file-{index:04}.gd")),
             format!("extends Node\n# {index}\n").as_bytes(),
         );
     }
-    fixture.write_metadata(&many, "many");
+    Fixture::write_metadata(&many, "many");
     let manifest_text = "[project]\nname = \"stress\"\ngodot = \"4\"\n\n[dev-dependencies]\nlarge = { path = \"large\" }\nmany = { path = \"many\" }\n";
     fs::write(fixture.manifest_path(), manifest_text).expect("shape manifest should write");
     let manifest = Manifest::parse(fixture.manifest_path(), manifest_text)
@@ -175,8 +171,8 @@ fn invariant_stress_shared_source_aliases_lock_and_materialise_independently() {
     for index in 0..SHARED_SOURCE_ALIAS_COUNT {
         let alias = format!("alias-{index:02}");
         let root = shared.join("addons").join(&alias);
-        fixture.write_package_file(&root, &alias, Path::new("plugin.gd"), alias.as_bytes());
-        fixture.write_metadata(&root, &alias);
+        Fixture::write_package_file(&root, &alias, Path::new("plugin.gd"), alias.as_bytes());
+        Fixture::write_metadata(&root, &alias);
         manifest_text.push_str(&format!(
             "{alias} = {{ path = \"shared\", root = \"addons/{alias}\", target = \"addons/{alias}\" }}\n"
         ));
@@ -266,7 +262,7 @@ impl Fixture {
         Manifest::parse(&self.manifest_path, &input).expect("stress manifest should parse")
     }
 
-    fn write_package_file(&self, root: &Path, name: &str, relative: &Path, bytes: &[u8]) {
+    fn write_package_file(root: &Path, name: &str, relative: &Path, bytes: &[u8]) {
         fs::create_dir_all(root).expect("shape source should create");
         let destination = root.join(relative);
         fs::create_dir_all(
@@ -276,10 +272,10 @@ impl Fixture {
         )
         .expect("shape package parent should create");
         fs::write(destination, bytes).expect("shape package file should write");
-        self.write_metadata(root, name);
+        Self::write_metadata(root, name);
     }
 
-    fn write_metadata(&self, root: &Path, name: &str) {
+    fn write_metadata(root: &Path, name: &str) {
         fs::write(
             root.join("wukong-package.toml"),
             format!(
