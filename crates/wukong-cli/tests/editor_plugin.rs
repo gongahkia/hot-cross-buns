@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 #[test]
-fn invariant_editor_plugin_delegates_state_and_sync_to_versioned_cli_events() {
+fn invariant_editor_plugin_delegates_graph_workflows_to_versioned_cli_events() {
     let plugin = plugin_directory();
     let configuration = fs::read_to_string(plugin.join("plugin.cfg"))
         .expect("plugin configuration should be readable");
@@ -23,6 +23,14 @@ fn invariant_editor_plugin_delegates_state_and_sync_to_versioned_cli_events() {
         dock.contains("PackedStringArray([\"sync\", \"--json\", \"--project\", _project_path()])")
     );
     assert!(
+        dock.contains("PackedStringArray([\"lock\", \"--json\", \"--project\", _project_path()])")
+    );
+    assert!(
+        dock.contains(
+            "PackedStringArray([\"update\", \"--json\", \"--project\", _project_path()])"
+        )
+    );
+    assert!(
         dock.contains("PackedStringArray([\"tree\", \"--json\", \"--project\", _project_path()])")
     );
     assert!(
@@ -33,10 +41,14 @@ fn invariant_editor_plugin_delegates_state_and_sync_to_versioned_cli_events() {
     assert!(
         dock.contains("PackedStringArray([\"audit\", \"--json\", \"--project\", _project_path()])")
     );
+    assert!(dock.contains(
+        "PackedStringArray([\"source\", \"list\", \"--json\", \"--project\", _project_path()])"
+    ));
     assert!(dock.contains("const PROTOCOL_VERSION := 1"));
     assert!(dock.contains("_show_diagnostic"));
     assert!(dock.contains("Ownership conflict"));
     assert!(dock.contains("_show_godot_warnings"));
+    assert!(dock.contains("_show_sources"));
     assert!(dock.contains("navigate_to_path"));
     assert!(!dock.contains("ConfigFile"));
     assert!(!dock.contains("FileAccess.open"));

@@ -62,6 +62,38 @@ fn invariant_selected_update_changes_only_the_selected_package_and_summarizes_so
 }
 
 #[test]
+fn invariant_update_json_reports_versioned_changes_and_sync_summary() {
+    let fixture = Fixture::new();
+    fixture.addon("alpha", "first\n");
+    add(&fixture, "alpha");
+    fixture.set_addon_content("alpha", "second\n");
+
+    let output = command(fixture.root())
+        .args(["alpha", "--json"])
+        .output()
+        .expect("JSON update should run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let events = String::from_utf8(output.stdout)
+        .expect("output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event should parse"))
+        .collect::<Vec<_>>();
+    assert_eq!(events.first().expect("started event")["type"], "started");
+    assert_eq!(events.last().expect("result event")["type"], "result");
+    assert!(events.iter().all(|event| event["protocol"] == 1));
+    assert_eq!(events[0]["command"], "update");
+    let result = &events.last().expect("result event")["result"];
+    assert_eq!(result["changes"], serde_json::json!(["alpha"]));
+    assert!(result["sync"]["written"].as_u64().is_some());
+    assert_eq!(fixture.installed_content("alpha"), "second\n");
+}
+
+#[test]
 fn invariant_update_all_updates_every_direct_package() {
     let fixture = Fixture::new();
     fixture.addon("alpha", "first\n");

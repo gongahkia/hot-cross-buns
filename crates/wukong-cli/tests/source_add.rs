@@ -93,6 +93,60 @@ fn invariant_source_add_preserves_existing_catalog_content() {
 }
 
 #[test]
+fn invariant_source_add_json_is_line_framed_and_redacts_failures_with_stable_exit_codes() {
+    let fixture = Fixture::new(Some("schema = 1\n"));
+    let added = command(fixture.root())
+        .args([
+            "source",
+            "add",
+            "alpha",
+            "--url",
+            "https://example.test/alpha.zip",
+            "--version",
+            "1.0.0",
+            "--sha256",
+            SHA256,
+            "--root",
+            "addons/alpha",
+            "--json",
+        ])
+        .output()
+        .expect("JSON source add should run");
+
+    assert!(added.status.success());
+    let events = json_events(&added.stdout);
+    assert_eq!(event_types(&events), ["started", "progress", "result"]);
+    assert!(events.iter().all(|event| event["protocol"] == 1));
+    assert_eq!(events[0]["command"], "source-add");
+    assert_eq!(events[2]["result"]["operation"], "added");
+    assert_eq!(events[2]["result"]["name"], "alpha");
+
+    let secret = "never-display-this";
+    let failed = command(fixture.root())
+        .args([
+            "source",
+            "add",
+            "beta",
+            "--git",
+            &format!("https://user:{secret}@example.test/beta.git"),
+            "--root",
+            "../addons/beta",
+            "--json",
+        ])
+        .output()
+        .expect("invalid JSON source add should run");
+
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&failed.stderr).lines().all(|line| {
+        serde_json::from_str::<serde_json::Value>(line).is_ok() && !line.contains(secret)
+    }));
+    let diagnostic: serde_json::Value =
+        serde_json::from_slice(&failed.stderr).expect("diagnostic should parse");
+    assert_eq!(diagnostic["protocol"], 1);
+    assert_eq!(diagnostic["type"], "diagnostic");
+}
+
+#[test]
 fn invariant_invalid_or_duplicate_source_add_leaves_catalog_unchanged_and_redacts_credentials() {
     let fixture = Fixture::new(Some("schema = 1\n"));
     let before = fixture.catalog();
@@ -149,6 +203,21 @@ fn command(root: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.current_dir(root);
     command
+}
+
+fn json_events(output: &[u8]) -> Vec<serde_json::Value> {
+    std::str::from_utf8(output)
+        .expect("output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("event should parse"))
+        .collect()
+}
+
+fn event_types(events: &[serde_json::Value]) -> Vec<&str> {
+    events
+        .iter()
+        .map(|event| event["type"].as_str().expect("event should have type"))
+        .collect()
 }
 
 struct Fixture {

@@ -88,6 +88,63 @@ fn invariant_catalog_lock_syncs_the_complete_graph_without_a_catalog_during_froz
 }
 
 #[test]
+fn invariant_catalog_lock_and_update_json_are_versioned_and_line_framed() {
+    let fixture = Fixture::new();
+
+    let lock = fixture
+        .command("lock")
+        .args(["--offline", "--json"])
+        .output()
+        .expect("catalog JSON lock should run");
+
+    assert!(
+        lock.status.success(),
+        "{}",
+        String::from_utf8_lossy(&lock.stderr)
+    );
+    let lock_events = json_events(&lock.stdout);
+    assert_eq!(
+        lock_events.first().expect("started event")["type"],
+        "started"
+    );
+    assert_eq!(lock_events.last().expect("result event")["type"], "result");
+    assert!(lock_events.iter().all(|event| event["protocol"] == 1));
+    assert_eq!(lock_events[0]["command"], "lock");
+    let lock_result = &lock_events.last().expect("result event")["result"];
+    assert_eq!(lock_result["lockfile_schema"], 3);
+    assert_eq!(lock_result["changed"], true);
+    assert_eq!(lock_result["packages"], 3);
+
+    let update = fixture
+        .command("update")
+        .args(["--offline", "--json"])
+        .output()
+        .expect("catalog JSON update should run");
+
+    assert!(
+        update.status.success(),
+        "{}",
+        String::from_utf8_lossy(&update.stderr)
+    );
+    let update_events = json_events(&update.stdout);
+    assert_eq!(
+        update_events.first().expect("started event")["type"],
+        "started"
+    );
+    assert_eq!(
+        update_events.last().expect("result event")["type"],
+        "result"
+    );
+    assert!(update_events.iter().all(|event| event["protocol"] == 1));
+    assert_eq!(update_events[0]["command"], "update");
+    let update_result = &update_events.last().expect("result event")["result"];
+    assert_eq!(update_result["lockfile_schema"], 3);
+    assert_eq!(update_result["dry_run"], false);
+    assert_eq!(update_result["changes"], serde_json::json!([]));
+    assert_eq!(update_result["sync"], serde_json::Value::Null);
+}
+
+#[test]
 fn invariant_frozen_catalog_sync_rejects_changed_roots_before_project_mutation() {
     let fixture = Fixture::new();
     let lock = fixture
@@ -514,4 +571,12 @@ fn cache_archive(cache: &CacheLayout, archive: &[u8]) -> String {
         .expect("archive cache parent should create");
     fs::write(path, archive).expect("archive cache should write");
     sha256
+}
+
+fn json_events(output: &[u8]) -> Vec<serde_json::Value> {
+    std::str::from_utf8(output)
+        .expect("output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("event should parse"))
+        .collect()
 }

@@ -605,6 +605,9 @@ fn run_remove(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
 #[allow(clippy::too_many_lines)] // coordinates lock publication and project sync
 fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_update_arguments(arguments)?;
+    if options.json {
+        emit_json_started("update");
+    }
     let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
@@ -617,9 +620,15 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if options.json {
+        emit_json_progress("update", "reading-manifest");
+    }
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let manifest = read_manifest(&manifest_path)?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    if options.json {
+        emit_json_progress("update", "reading-lockfile");
+    }
     let existing = read_lockfile(&lock_path)?.ok_or_else(|| {
         user_error(
             "wukong.lock is required before updating",
@@ -641,6 +650,9 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
             )
         })?;
     let cache = CacheLayout::from_environment()?;
+    if options.json {
+        emit_json_progress("update", "resolving-dependencies");
+    }
     let updated = if existing.schema() == wukong_core::lockfile::CATALOG_GRAPH_LOCKFILE_SCHEMA {
         let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
         let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
@@ -668,12 +680,33 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     let compatibility = resolve_project_godot_compatibility(&manifest, None)?;
     let godot_report = validate_locked_package_godot_compatibility(&updated, &compatibility)?;
     let changes = update_changes(&existing, &updated);
+    let changed_packages = update_changed_packages(&existing, &updated);
     if options.dry_run {
-        print_update_changes("would update", &changes);
+        if options.json {
+            emit_json_result(&render_update_json(
+                &updated,
+                &changed_packages,
+                true,
+                None,
+                &godot_report,
+            ));
+        } else {
+            print_update_changes("would update", &changes);
+        }
         return Ok(());
     }
     if changes.is_empty() {
-        println!("update: no changes");
+        if options.json {
+            emit_json_result(&render_update_json(
+                &updated,
+                &changed_packages,
+                false,
+                None,
+                &godot_report,
+            ));
+        } else {
+            println!("update: no changes");
+        }
         return Ok(());
     }
     if std::io::stdout().is_terminal() {
@@ -682,6 +715,9 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     let output = updated.to_toml().into_bytes();
     let lock_snapshot = FileSnapshot::capture(&lock_path)?;
     write_atomic(&lock_path, &output)?;
+    if options.json {
+        emit_json_progress("update", "synchronising-project");
+    }
     let summary = match sync_direct_dependencies_with_cancellation(
         project.path(),
         &manifest_path,
@@ -695,12 +731,22 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         Ok(summary) => summary,
         Err(error) => return Err(rollback_update(error, &lock_snapshot, &output)),
     };
-    print_update_changes("updated", &changes);
-    println!(
-        "sync: {} written, {} unchanged, {} removed",
-        summary.written, summary.unchanged, summary.removed
-    );
-    print_godot_compatibility_report(&godot_report);
+    if options.json {
+        emit_json_result(&render_update_json(
+            &updated,
+            &changed_packages,
+            false,
+            Some(&summary),
+            &godot_report,
+        ));
+    } else {
+        print_update_changes("updated", &changes);
+        println!(
+            "sync: {} written, {} unchanged, {} removed",
+            summary.written, summary.unchanged, summary.removed
+        );
+        print_godot_compatibility_report(&godot_report);
+    }
     Ok(())
 }
 
@@ -888,6 +934,19 @@ fn update_changes(existing: &Lockfile, updated: &Lockfile) -> Vec<String> {
         .collect()
 }
 
+fn update_changed_packages(existing: &Lockfile, updated: &Lockfile) -> Vec<String> {
+    let names = existing
+        .packages()
+        .keys()
+        .chain(updated.packages().keys())
+        .collect::<BTreeSet<_>>();
+    names
+        .into_iter()
+        .filter(|name| existing.packages().get(*name) != updated.packages().get(*name))
+        .map(ToString::to_string)
+        .collect()
+}
+
 fn update_value(package: &wukong_core::lockfile::LockedPackage) -> String {
     package.version().map_or_else(
         || package.source().immutable_id().as_str().to_owned(),
@@ -935,6 +994,7 @@ struct UpdateOptions {
     dry_run: bool,
     offline: bool,
     project: Option<PathBuf>,
+    json: bool,
 }
 
 struct MigrateOptions {
@@ -994,6 +1054,7 @@ fn parse_update_arguments(
         dry_run: false,
         offline: false,
         project: None,
+        json: false,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--dry-run" {
@@ -1014,6 +1075,15 @@ fn parse_update_arguments(
             }
             continue;
         }
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong update [package] --json",
+                ));
+            }
+            continue;
+        }
         if argument == "--project" {
             let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
             if options.project.replace(path).is_some() {
@@ -1027,7 +1097,7 @@ fn parse_update_arguments(
         if argument.to_string_lossy().starts_with('-') {
             return Err(user_error(
                 format!("unsupported update argument {}", argument.to_string_lossy()),
-                "use --dry-run, --offline, or --project <path>",
+                "use --dry-run, --offline, --json, or --project <path>",
             ));
         }
         if options
@@ -1695,10 +1765,14 @@ struct SourceAddOptions {
     name: String,
     entry: CatalogEditEntry,
     project: Option<PathBuf>,
+    json: bool,
 }
 
 fn run_source_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_source_add_arguments(arguments)?;
+    if options.json {
+        emit_json_started("source-add");
+    }
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -1711,11 +1785,19 @@ fn run_source_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<D
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    if options.json {
+        emit_json_progress("source-add", "editing-catalog");
+    }
     add_catalog_entry(&path, &options.entry)?;
-    println!("added source candidate {}", options.name);
+    if options.json {
+        emit_json_result(&render_source_edit_json(&options.name, "added"));
+    } else {
+        println!("added source candidate {}", options.name);
+    }
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)] // keeps source declaration validation colocated
 fn parse_source_add_arguments(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<SourceAddOptions, Box<Diagnostic>> {
@@ -1733,6 +1815,7 @@ fn parse_source_add_arguments(
     let mut sha256 = None;
     let mut tag_prefix = None;
     let mut project = None;
+    let mut json = false;
     while let Some(argument) = arguments.next() {
         if argument == "--git" {
             set_source_add_value(&mut git, &mut arguments, "--git")?;
@@ -1758,6 +1841,15 @@ fn parse_source_add_arguments(
             set_source_add_value(&mut tag_prefix, &mut arguments, "--tag-prefix")?;
             continue;
         }
+        if argument == "--json" {
+            if std::mem::replace(&mut json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong source add <name> --json",
+                ));
+            }
+            continue;
+        }
         if argument == "--project" {
             let path = PathBuf::from(required_add_value(&mut arguments, "--project")?);
             if project.replace(path).is_some() {
@@ -1773,7 +1865,7 @@ fn parse_source_add_arguments(
                 "unsupported source add argument {}",
                 argument.to_string_lossy()
             ),
-            "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+            "use --git --root [--tag-prefix] or --url --version --sha256 --root, optionally with --json",
         ));
     }
     let root = root.ok_or_else(|| {
@@ -1817,6 +1909,7 @@ fn parse_source_add_arguments(
         name,
         entry,
         project,
+        json,
     })
 }
 
@@ -1839,6 +1932,7 @@ struct SourceRemoveOptions {
     name: String,
     entry: Option<CatalogEditEntry>,
     project: Option<PathBuf>,
+    json: bool,
 }
 
 struct SourceRemoveFields {
@@ -1849,12 +1943,16 @@ struct SourceRemoveFields {
     sha256: Option<String>,
     tag_prefix: Option<String>,
     project: Option<PathBuf>,
+    json: bool,
 }
 
 fn run_source_catalog_remove(
     arguments: impl Iterator<Item = OsString>,
 ) -> Result<(), Box<Diagnostic>> {
     let options = parse_source_remove_arguments(arguments)?;
+    if options.json {
+        emit_json_started("source-remove");
+    }
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
             Diagnostic::new(
@@ -1867,12 +1965,19 @@ fn run_source_catalog_remove(
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
     let path = project.path().join(SOURCE_CATALOG_FILE_NAME);
+    if options.json {
+        emit_json_progress("source-remove", "editing-catalog");
+    }
     let entry = match options.entry {
         Some(entry) => entry,
         None => select_single_catalog_entry(&path, &options.name)?,
     };
     remove_catalog_entry(&path, &entry)?;
-    println!("removed source candidate {}", options.name);
+    if options.json {
+        emit_json_result(&render_source_edit_json(&options.name, "removed"));
+    } else {
+        println!("removed source candidate {}", options.name);
+    }
     Ok(())
 }
 
@@ -1894,6 +1999,7 @@ fn parse_source_remove_arguments(
         sha256,
         tag_prefix,
         project,
+        json,
     } = parse_source_remove_fields(&mut arguments)?;
     if git.is_none()
         && url.is_none()
@@ -1906,6 +2012,7 @@ fn parse_source_remove_arguments(
             name,
             entry: None,
             project,
+            json,
         });
     }
     let root = root.ok_or_else(|| {
@@ -1949,6 +2056,7 @@ fn parse_source_remove_arguments(
         name,
         entry: Some(entry),
         project,
+        json,
     })
 }
 
@@ -1962,6 +2070,7 @@ fn parse_source_remove_fields(
     let mut sha256 = None;
     let mut tag_prefix = None;
     let mut project = None;
+    let mut json = false;
     while let Some(argument) = arguments.next() {
         if argument == "--git" {
             set_source_add_value(&mut git, arguments, "--git")?;
@@ -1987,6 +2096,15 @@ fn parse_source_remove_fields(
             set_source_add_value(&mut tag_prefix, arguments, "--tag-prefix")?;
             continue;
         }
+        if argument == "--json" {
+            if std::mem::replace(&mut json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong source remove <name> --json",
+                ));
+            }
+            continue;
+        }
         if argument == "--project" {
             let path = PathBuf::from(required_add_value(arguments, "--project")?);
             if project.replace(path).is_some() {
@@ -2002,7 +2120,7 @@ fn parse_source_remove_fields(
                 "unsupported source remove argument {}",
                 argument.to_string_lossy()
             ),
-            "use --git --root [--tag-prefix] or --url --version --sha256 --root",
+            "use --git --root [--tag-prefix] or --url --version --sha256 --root, optionally with --json",
         ));
     }
     Ok(SourceRemoveFields {
@@ -2013,6 +2131,7 @@ fn parse_source_remove_fields(
         sha256,
         tag_prefix,
         project,
+        json,
     })
 }
 
@@ -2151,6 +2270,15 @@ fn render_source_list_json(catalog: &ValidatedSourceCatalog) -> String {
                 }),
             }).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
+    })
+    .to_string()
+}
+
+fn render_source_edit_json(name: &str, operation: &str) -> String {
+    json!({
+        "schema": SOURCE_CATALOG_SCHEMA,
+        "operation": operation,
+        "name": name,
     })
     .to_string()
 }
@@ -3160,10 +3288,54 @@ fn render_sync_json(
         "written": summary.written,
         "unchanged": summary.unchanged,
         "removed": summary.removed,
-        "godot": {
-            "unknown": godot.unknown().iter().map(PackageName::as_str).collect::<Vec<_>>(),
-            "indeterminate": godot.indeterminate().iter().map(PackageName::as_str).collect::<Vec<_>>(),
-        },
+        "godot": render_godot_json(godot),
+    })
+    .to_string()
+}
+
+fn render_godot_json(godot: &PackageGodotCompatibilityReport) -> serde_json::Value {
+    json!({
+        "unknown": godot.unknown().iter().map(PackageName::as_str).collect::<Vec<_>>(),
+        "indeterminate": godot.indeterminate().iter().map(PackageName::as_str).collect::<Vec<_>>(),
+    })
+}
+
+fn render_lock_json(
+    lock: &Lockfile,
+    changed: bool,
+    godot: &PackageGodotCompatibilityReport,
+) -> String {
+    json!({
+        "schema": 1,
+        "lockfile_schema": lock.schema(),
+        "changed": changed,
+        "packages": lock.packages().len(),
+        "godot": render_godot_json(godot),
+    })
+    .to_string()
+}
+
+fn render_update_json(
+    lock: &Lockfile,
+    changes: &[String],
+    dry_run: bool,
+    summary: Option<&wukong_core::project_sync::SyncSummary>,
+    godot: &PackageGodotCompatibilityReport,
+) -> String {
+    let sync = summary.map(|summary| {
+        json!({
+            "written": summary.written,
+            "unchanged": summary.unchanged,
+            "removed": summary.removed,
+        })
+    });
+    json!({
+        "schema": 1,
+        "lockfile_schema": lock.schema(),
+        "dry_run": dry_run,
+        "changes": changes,
+        "sync": sync,
+        "godot": render_godot_json(godot),
     })
     .to_string()
 }
@@ -3360,8 +3532,12 @@ fn human_bytes(bytes: u64) -> String {
     format!("{whole}.{tenth} {}", UNITS[unit])
 }
 
+#[allow(clippy::too_many_lines)] // coordinates lock resolution and machine rendering
 fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnostic>> {
     let options = parse_lock_arguments(arguments)?;
+    if options.json {
+        emit_json_started("lock");
+    }
     let cancellation = cli_cancellation()?;
     let current_directory = env::current_dir().map_err(|error| {
         boxed(
@@ -3374,6 +3550,9 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         )
     })?;
     let project = ProjectRoot::discover(&current_directory, options.project.as_deref())?;
+    if options.json {
+        emit_json_progress("lock", "reading-manifest");
+    }
     let manifest_path = project.path().join(MANIFEST_FILE_NAME);
     let input = fs::read_to_string(&manifest_path).map_err(|error| {
         boxed(
@@ -3389,6 +3568,9 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     let compatibility =
         resolve_project_godot_compatibility(&manifest, options.godot_version.as_deref())?;
     let lock_path = project.path().join(LOCKFILE_FILE_NAME);
+    if options.json {
+        emit_json_progress("lock", "reading-lockfile");
+    }
     let existing = match fs::read_to_string(&lock_path) {
         Ok(input) => Some(Lockfile::parse(&lock_path, &input)?),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -3405,6 +3587,9 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
     };
     let cache = CacheLayout::from_environment()?;
     let reusable = options.offline.then_some(existing.as_ref()).flatten();
+    if options.json {
+        emit_json_progress("lock", "resolving-dependencies");
+    }
     let locked = if manifest_uses_catalog(&manifest) {
         let catalog_path = project.path().join(SOURCE_CATALOG_FILE_NAME);
         let catalog = SourceCatalog::load(&catalog_path)?.validate(&catalog_path)?;
@@ -3442,8 +3627,12 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         .as_ref()
         .is_some_and(|existing| existing.to_toml() == output)
     {
-        print_godot_compatibility_report(&godot_report);
-        println!("lockfile unchanged");
+        if options.json {
+            emit_json_result(&render_lock_json(&locked, false, &godot_report));
+        } else {
+            print_godot_compatibility_report(&godot_report);
+            println!("lockfile unchanged");
+        }
         return Ok(());
     }
     fs::write(&lock_path, output).map_err(|error| {
@@ -3456,8 +3645,12 @@ fn run_lock(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
             .with_recovery("check project permissions and retry"),
         )
     })?;
-    print_godot_compatibility_report(&godot_report);
-    println!("locked {}", lock_path.display());
+    if options.json {
+        emit_json_result(&render_lock_json(&locked, true, &godot_report));
+    } else {
+        print_godot_compatibility_report(&godot_report);
+        println!("locked {}", lock_path.display());
+    }
     Ok(())
 }
 
@@ -3567,6 +3760,7 @@ struct LockOptions {
     locked: bool,
     offline: bool,
     godot_version: Option<String>,
+    json: bool,
 }
 fn parse_lock_arguments(
     mut arguments: impl Iterator<Item = OsString>,
@@ -3576,6 +3770,7 @@ fn parse_lock_arguments(
         locked: false,
         offline: false,
         godot_version: None,
+        json: false,
     };
     while let Some(argument) = arguments.next() {
         if argument == "--locked" {
@@ -3584,6 +3779,15 @@ fn parse_lock_arguments(
         }
         if argument == "--offline" {
             options.offline = true;
+            continue;
+        }
+        if argument == "--json" {
+            if std::mem::replace(&mut options.json, true) {
+                return Err(user_error(
+                    "--json may be supplied only once",
+                    "run wukong lock --json",
+                ));
+            }
             continue;
         }
         if argument == "--godot" {
@@ -3613,7 +3817,7 @@ fn parse_lock_arguments(
         }
         return Err(user_error(
             format!("unsupported lock argument {}", argument.to_string_lossy()),
-            "use --locked, --offline, --godot <x.y.z>, or --project <path>",
+            "use --locked, --offline, --json, --godot <x.y.z>, or --project <path>",
         ));
     }
     Ok(options)

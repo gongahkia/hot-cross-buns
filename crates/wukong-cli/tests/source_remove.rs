@@ -114,6 +114,34 @@ root = "addons/alpha"
     assert_eq!(fixture.catalog(), before);
 }
 
+#[test]
+fn invariant_source_remove_json_is_versioned_and_line_framed() {
+    let fixture = Fixture::new(CATALOG);
+
+    let output = command(fixture.root())
+        .args(["source", "remove", "alpha", "--json"])
+        .output()
+        .expect("JSON source remove should run");
+
+    assert!(output.status.success());
+    let events = String::from_utf8(output.stdout)
+        .expect("output should be UTF-8")
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event should parse"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| event["type"].as_str().expect("event should have type"))
+            .collect::<Vec<_>>(),
+        ["started", "progress", "result"]
+    );
+    assert!(events.iter().all(|event| event["protocol"] == 1));
+    assert_eq!(events[0]["command"], "source-remove");
+    assert_eq!(events[2]["result"]["operation"], "removed");
+    assert_eq!(events[2]["result"]["name"], "alpha");
+}
+
 fn command(root: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wukong"));
     command.current_dir(root);

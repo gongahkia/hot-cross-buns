@@ -2,12 +2,19 @@
 
 Protocol version 1 is opt-in with `--json` and is designed for editor and automation clients.
 
-Output is UTF-8 JSON Lines. Every stdout line is one JSON object with `protocol: 1`, `type`, and a deterministic payload. The protocol-enabled commands (`sync`, `status`, `outdated`, `audit`, `tree`, `why`, `source list`, and `source validate`) emit `started`, zero or more `progress`, then exactly one `result` event on success. Human output is suppressed in this mode.
+Output is UTF-8 JSON Lines. Every stdout line is one JSON object with `protocol: 1`, `type`, and a deterministic payload. The protocol-enabled commands (`lock`, `sync`, `update`, `status`, `outdated`, `audit`, `tree`, `why`, `source add`, `source list`, `source remove`, and `source validate`) emit `started`, zero or more `progress`, then exactly one `result` event on success. Human output is suppressed in this mode.
 
 `sync` package progress additionally includes `package`, `completed`, and
 `total`. Its `phase` is `validating-source`, `preparing-package`, or
 `package-ready`; the existing coarse phases remain available. These additive
 fields preserve protocol version 1 compatibility.
+
+`lock` results include the lockfile schema, whether publication changed it,
+package count, and Godot compatibility. `update` results include the lockfile
+schema, dry-run state, changed package names, optional sync summary, and Godot
+compatibility. `source add` and `source remove` results include the catalog
+schema, candidate name, and completed operation. These fields are additive in
+protocol version 1.
 
 Failures emit JSON diagnostics to stderr and retain the stable process exit codes: `0` success, `2` user input, `3` source access, `4` integrity, and `70` internal failure. Commands normally emit one diagnostic; `source validate` emits one deterministic protocol-v1 diagnostic per declaration failure. The diagnostic object contains `code`, `message`, `package`, `source`, `modified`, `rollback`, and `recovery`; absent optional values are JSON null. Sources and causes remain credential-redacted.
 

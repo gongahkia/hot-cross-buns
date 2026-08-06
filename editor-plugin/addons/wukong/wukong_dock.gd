@@ -40,7 +40,7 @@ func _process(_delta: float) -> void:
 	if exit_code != 0:
 		_set_status("wukong exited with status %d." % exit_code)
 		return
-	if _command == "sync":
+	if _command == "sync" or _command == "update":
 		_refresh_status()
 
 func _build_ui() -> void:
@@ -53,6 +53,14 @@ func _build_ui() -> void:
 	_sync_button.text = "Sync"
 	_sync_button.pressed.connect(_run_sync)
 	controls.add_child(_sync_button)
+	var lock := Button.new()
+	lock.text = "Lock"
+	lock.pressed.connect(_run_lock)
+	controls.add_child(lock)
+	var update := Button.new()
+	update.text = "Update"
+	update.pressed.connect(_run_update)
+	controls.add_child(update)
 	add_child(controls)
 	var views := HBoxContainer.new()
 	var tree := Button.new()
@@ -67,6 +75,10 @@ func _build_ui() -> void:
 	provenance.text = "Provenance"
 	provenance.pressed.connect(_view_provenance)
 	views.add_child(provenance)
+	var sources := Button.new()
+	sources.text = "Sources"
+	sources.pressed.connect(_view_sources)
+	views.add_child(sources)
 	add_child(views)
 	_packages = ItemList.new()
 	_packages.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -103,6 +115,12 @@ func _refresh_status() -> void:
 func _run_sync() -> void:
 	_start("sync", PackedStringArray(["sync", "--json", "--project", _project_path()]))
 
+func _run_lock() -> void:
+	_start("lock", PackedStringArray(["lock", "--json", "--project", _project_path()]))
+
+func _run_update() -> void:
+	_start("update", PackedStringArray(["update", "--json", "--project", _project_path()]))
+
 func _view_tree() -> void:
 	_start("tree", PackedStringArray(["tree", "--json", "--project", _project_path()]))
 
@@ -111,6 +129,9 @@ func _view_outdated() -> void:
 
 func _view_provenance() -> void:
 	_start("audit", PackedStringArray(["audit", "--json", "--project", _project_path()]))
+
+func _view_sources() -> void:
+	_start("source-list", PackedStringArray(["source", "list", "--json", "--project", _project_path()]))
 
 func _start(command: String, arguments: PackedStringArray) -> void:
 	if _cli_path.is_empty() or not _active_process.is_empty():
@@ -166,6 +187,14 @@ func _handle_result(result: Dictionary) -> void:
 		)
 		_show_godot_warnings(result.get("godot", {}))
 		return
+	if _command == "lock":
+		_set_status("lockfile %s (%d package(s))." % ["updated" if result.get("changed", false) else "unchanged", result.get("packages", 0)])
+		_show_godot_warnings(result.get("godot", {}))
+		return
+	if _command == "update":
+		_set_status("update: %d package(s) changed." % result.get("changes", []).size())
+		_show_godot_warnings(result.get("godot", {}))
+		return
 	if _command == "tree":
 		_show_tree(result)
 		return
@@ -174,6 +203,9 @@ func _handle_result(result: Dictionary) -> void:
 		return
 	if _command == "audit":
 		_show_provenance(result)
+		return
+	if _command == "source-list":
+		_show_sources(result)
 
 func _show_tree(result: Dictionary) -> void:
 	var lines := PackedStringArray(["Dependency tree"])
@@ -212,6 +244,17 @@ func _show_provenance(result: Dictionary) -> void:
 		)
 	_details.text = "\n".join(lines)
 	_set_status("Provenance view loaded.")
+
+func _show_sources(result: Dictionary) -> void:
+	var lines := PackedStringArray(["Reviewed sources"])
+	for package in result.get("packages", []):
+		for candidate in package.get("candidates", []):
+			lines.append(
+				"%s: %s %s"
+				% [package.get("name"), candidate.get("kind"), candidate.get("url")]
+			)
+	_details.text = "\n".join(lines)
+	_set_status("Reviewed source catalog loaded.")
 
 func _show_godot_warnings(godot: Dictionary) -> void:
 	var lines := PackedStringArray()
