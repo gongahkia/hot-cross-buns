@@ -118,11 +118,13 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
         Err(diagnostic) => return render_error(&diagnostic),
     };
     let command_name = command.as_deref().and_then(|command| command.to_str());
-    let _progress = if matches!(command_name, Some("run" | "editor" | "export" | "settings")) {
-        None
-    } else {
-        command_name.map(|command| ProgressSession::start(command, &presentation))
-    };
+    let _progress = command_name
+        .filter(|command| command_uses_progress(command))
+        .map(|command| {
+            let session = ProgressSession::start(command, &presentation);
+            progress::set_phase(command_progress_phase(command));
+            session
+        });
     let arguments = arguments.into_iter();
     match command {
         Some(command) if command == "init" => match run_init(arguments) {
@@ -224,6 +226,42 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> ProcessExit {
             "run wukong --help for supported commands",
         )),
         None => ProcessExit::Success,
+    }
+}
+
+const fn command_uses_progress(command: &str) -> bool {
+    matches!(
+        command,
+        "add"
+            | "remove"
+            | "update"
+            | "migrate"
+            | "outdated"
+            | "audit"
+            | "validate"
+            | "doctor"
+            | "status"
+            | "source"
+            | "lock"
+            | "install"
+            | "sync"
+            | "cache"
+            | "tree"
+            | "why"
+    )
+}
+
+const fn command_progress_phase(command: &str) -> &'static str {
+    match command {
+        "add" | "remove" | "update" | "lock" => "resolving dependencies",
+        "migrate" => "planning migration",
+        "outdated" | "audit" | "status" | "tree" | "why" => "reading project state",
+        "validate" => "validating with Godot",
+        "doctor" => "checking project health",
+        "source" => "reading source catalog",
+        "install" | "sync" => "synchronising packages",
+        "cache" => "checking cache",
+        _ => "working",
     }
 }
 
@@ -857,6 +895,7 @@ fn run_update(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
                 &godot_report,
             ));
         } else {
+            progress::finish_for_output();
             println!("update: no changes");
         }
         return Ok(());
@@ -977,6 +1016,7 @@ fn run_migrate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diag
         &cancellation,
     )?;
     if options.dry_run {
+        progress::finish_for_output();
         println!(
             "migration dry-run: would write {}, {}, and {}",
             manifest_path.display(),
@@ -1004,6 +1044,7 @@ fn run_migrate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diag
             ],
         ));
     }
+    progress::finish_for_output();
     println!(
         "migrated direct remote dependencies to catalog graph schema {}",
         migration.lock().schema()
@@ -1309,6 +1350,7 @@ fn run_outdated(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
         emit_json_progress("outdated", "report-ready");
         emit_json_result(&render_outdated_json(&report));
     } else {
+        progress::finish_for_output();
         println!("{}", render_outdated(&report));
     }
     Ok(())
@@ -1349,6 +1391,7 @@ fn run_audit(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagno
         emit_json_progress("audit", "report-ready");
         emit_json_result(&render_audit_json(&report));
     } else {
+        progress::finish_for_output();
         println!("{}", render_audit(&report));
     }
     Ok(())
@@ -1374,6 +1417,7 @@ fn run_godot(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
             "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
         )
     })?;
+    progress::finish_for_output();
     if options.verbose {
         println!("selected from {}", executable.source().as_str());
     }
@@ -1414,7 +1458,15 @@ fn run_settings(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box
             reject_extra_arguments(&mut arguments, "settings set")?;
             settings.set(&key, &value)?;
             if key == "godot.executable" {
-                let configured = settings.godot_executable().expect("setting just assigned");
+                let configured = settings.godot_executable().ok_or_else(|| {
+                    boxed(
+                        Diagnostic::new(
+                            ErrorCode::InternalFailure,
+                            "Godot executable setting was not retained",
+                        )
+                        .with_recovery("retry wukong settings set godot.executable <absolute-path>"),
+                    )
+                })?;
                 discover_godot_executable_with_configured(Some(configured), None)?;
             }
             settings::save(&path, &settings)?;
@@ -1550,8 +1602,18 @@ fn run_project_action(
             command.arg("--editor");
         }
         ProjectAction::Export => {
-            let preset = options.preset.expect("export parser requires a preset");
-            let output = options.output.expect("export parser requires an output");
+            let preset = options.preset.as_ref().ok_or_else(|| {
+                user_error(
+                    "export requires --preset <name>",
+                    "provide a project export preset name",
+                )
+            })?;
+            let output = options.output.as_ref().ok_or_else(|| {
+                user_error(
+                    "export requires --output <path>",
+                    "provide an export output path",
+                )
+            })?;
             command.arg("--headless");
             command.arg(if options.debug {
                 "--export-debug"
@@ -1716,7 +1778,13 @@ fn parse_project_action_arguments(
             continue;
         }
         if argument == "--debug" && matches!(action, ProjectAction::Export) {
-            if std::mem::replace(&mut options.debug, true) || options.release {
+            if options.release {
+                return Err(user_error(
+                    "--debug and --release are mutually exclusive",
+                    "choose one export mode",
+                ));
+            }
+            if std::mem::replace(&mut options.debug, true) {
                 return Err(user_error(
                     "--debug may be supplied only once",
                     "omit it or provide it once",
@@ -1725,10 +1793,16 @@ fn parse_project_action_arguments(
             continue;
         }
         if argument == "--release" && matches!(action, ProjectAction::Export) {
-            if options.debug || std::mem::replace(&mut options.release, true) {
+            if options.debug {
                 return Err(user_error(
                     "--debug and --release are mutually exclusive",
                     "choose one export mode",
+                ));
+            }
+            if std::mem::replace(&mut options.release, true) {
+                return Err(user_error(
+                    "--release may be supplied only once",
+                    "omit it or provide it once",
                 ));
             }
             continue;
@@ -1799,10 +1873,11 @@ fn run_validate(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Dia
             "set WUKONG_GODOT_EXECUTABLE or pass --godot-executable <path>",
         )
     })?;
+    let report = run_headless_project_check(&executable, project.path(), options.timeout)?;
+    progress::finish_for_output();
     if options.verbose {
         println!("selected from {}", executable.source().as_str());
     }
-    let report = run_headless_project_check(&executable, project.path(), options.timeout)?;
     match report.outcome() {
         HeadlessValidationOutcome::Passed => {
             println!("validation: passed in {} ms", report.elapsed().as_millis());
@@ -2068,6 +2143,7 @@ fn run_doctor(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
         "concurrent operation locks",
         doctor_lock_check(project.path()),
     );
+    progress::finish_for_output();
     println!("doctor:");
     for check in checks {
         let status = if check.passed { "ok" } else { "fail" };
@@ -2109,8 +2185,10 @@ fn run_status(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagn
     if options.json {
         emit_json_result(&render_status_json(&packages, graph.as_ref()));
     } else if packages.is_empty() {
+        progress::finish_for_output();
         println!("installed packages: none");
     } else {
+        progress::finish_for_output();
         println!("installed packages:");
         for package in packages.values() {
             let groups = graph
@@ -2301,11 +2379,13 @@ fn run_source_validate(
                     &json!({"schema": SOURCE_CATALOG_SCHEMA, "valid": true}).to_string(),
                 );
             } else {
+                progress::finish_for_output();
                 println!("source catalog: valid");
             }
             Ok(ProcessExit::Success)
         }
         Err(errors) => {
+            progress::finish_for_output();
             for error in errors {
                 if options.json {
                     eprintln!("{}", render_json(&error));
@@ -2349,6 +2429,7 @@ fn run_source_add(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<D
     if options.json {
         emit_json_result(&render_source_edit_json(&options.name, "added"));
     } else {
+        progress::finish_for_output();
         println!("added source candidate {}", options.name);
     }
     Ok(())
@@ -2533,6 +2614,7 @@ fn run_source_catalog_remove(
     if options.json {
         emit_json_result(&render_source_edit_json(&options.name, "removed"));
     } else {
+        progress::finish_for_output();
         println!("removed source candidate {}", options.name);
     }
     Ok(())
@@ -2775,6 +2857,7 @@ fn parse_source_read_arguments(
 }
 
 fn render_source_list_human(catalog: &ValidatedSourceCatalog) {
+    progress::finish_for_output();
     if catalog.packages().is_empty() {
         println!("source catalog: no candidates");
         return;
@@ -3498,6 +3581,7 @@ fn run_tree(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnos
         emit_json_progress("tree", "graph-ready");
         emit_json_result(&render_tree_json(&graph));
     } else {
+        progress::finish_for_output();
         println!("{}", render_tree(&graph));
     }
     Ok(())
@@ -3544,6 +3628,7 @@ fn run_why(arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Diagnost
         emit_json_progress("why", "paths-ready");
         emit_json_result(&render_why_json(&target, &paths));
     } else {
+        progress::finish_for_output();
         println!("{}", render_why(&target, &paths));
     }
     Ok(())
@@ -3966,6 +4051,7 @@ fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
     match command.to_str() {
         Some("dir") => {
             cache_arguments_empty(&mut arguments, "dir")?;
+            progress::finish_for_output();
             println!("{}", layout.schema_root().display());
             Ok(())
         }
@@ -3975,6 +4061,7 @@ fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
             let recognized = status
                 .prepared_package_bytes()
                 .saturating_add(status.archive_bytes());
+            progress::finish_for_output();
             println!(
                 "cache status: {}\nprepared packages: {} ({})\narchives: {} ({})\nother cache data: {}\ntotal: {}",
                 layout.schema_root().display(),
@@ -3995,6 +4082,7 @@ fn run_cache(mut arguments: impl Iterator<Item = OsString>) -> Result<(), Box<Di
             } else {
                 "cache clean"
             };
+            progress::finish_for_output();
             println!(
                 "{action}: {} prepared package(s), {} archive(s), {}",
                 report.prepared_packages(),
@@ -4053,6 +4141,7 @@ fn run_cache_verify(
 ) -> Result<(), Box<Diagnostic>> {
     cache_arguments_empty(arguments, "verify")?;
     let report = verify_cached_packages(layout)?;
+    progress::finish_for_output();
     println!(
         "cache verification: {} verified, {} corrupt removed",
         report.verified_packages(),
