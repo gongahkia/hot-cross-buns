@@ -30,3 +30,9 @@ downloads its exact official stable Linux release and runs the package-free
 `fixtures/validation/minimal` project through `wukong validate` with a
 60-second timeout. Recovery mode disables editor plugins, tool scripts, and
 GDExtensions; no package-defined code path is selected by this validation.
+
+The `native transactions` matrix records the real-filesystem transaction
+fixtures separately on Linux, macOS, and Windows. It covers stale transaction
+recovery, conflict rollback, safe removal, Unicode preservation, portable case
+conflicts, and advisory lock contention. Fixtures use only temporary local
+paths and do not place credentials in output or retained artifacts.
