@@ -60,6 +60,13 @@ fn invariant_stress_local_dependency_counts_are_transactional_and_idempotent() {
             .expect("last package should materialise"),
             format!("extends Node\n# {package_count}\n")
         );
+        if package_count
+            == *PACKAGE_COUNTS
+                .last()
+                .expect("stress counts should not be empty")
+        {
+            report_observation("local-500", first.written, fixture.project());
+        }
     }
 }
 
@@ -89,7 +96,7 @@ fn invariant_stress_deep_unicode_package_tree_materialises_without_path_loss() {
     let lock = lock_direct_local_dependencies(fixture.manifest_path(), &manifest, None)
         .expect("deep package should lock");
 
-    sync_direct_local_dependencies(
+    let report = sync_direct_local_dependencies(
         fixture.project(),
         fixture.manifest_path(),
         &manifest,
@@ -103,6 +110,7 @@ fn invariant_stress_deep_unicode_package_tree_materialises_without_path_loss() {
             .expect("deep unicode output should read"),
         "extends Node\n# unicode\n"
     );
+    report_observation("deep-unicode", report.written, fixture.project());
 }
 
 #[test]
@@ -160,6 +168,7 @@ fn invariant_stress_large_and_many_file_packages_are_idempotent() {
             .expect("last small output should read"),
         "extends Node\n# 511\n"
     );
+    report_observation("many-small-and-large", first.written, fixture.project());
 }
 
 #[test]
@@ -183,7 +192,7 @@ fn invariant_stress_shared_source_aliases_lock_and_materialise_independently() {
     let lock = lock_direct_local_dependencies(fixture.manifest_path(), &manifest, None)
         .expect("shared aliases should lock");
 
-    sync_direct_local_dependencies(
+    let first = sync_direct_local_dependencies(
         fixture.project(),
         fixture.manifest_path(),
         &manifest,
@@ -208,6 +217,33 @@ fn invariant_stress_shared_source_aliases_lock_and_materialise_independently() {
             .expect("last alias output should read"),
         "alias-15"
     );
+    report_observation("shared-aliases-16", first.written, fixture.project());
+}
+
+fn report_observation(scenario: &str, written: usize, project: &Path) {
+    eprintln!(
+        "stress_observation scenario={scenario} written={written} project_bytes={} cache_bytes=0",
+        tree_size(project),
+    );
+}
+
+fn tree_size(root: &Path) -> u64 {
+    fs::read_dir(root)
+        .expect("stress project should remain readable")
+        .map(|entry| {
+            let entry = entry.expect("stress project entry should read");
+            let metadata = entry
+                .metadata()
+                .expect("stress project entry metadata should read");
+            if metadata.is_dir() {
+                tree_size(&entry.path())
+            } else if metadata.is_file() {
+                metadata.len()
+            } else {
+                0
+            }
+        })
+        .sum()
 }
 
 struct Fixture {

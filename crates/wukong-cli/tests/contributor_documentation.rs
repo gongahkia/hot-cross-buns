@@ -10,7 +10,8 @@ fn invariant_contributor_guides_cover_maintainer_workflows() {
         ("docs/release-process.md", "Release process"),
         ("docs/debugging.md", "RUST_BACKTRACE=1"),
         ("docs/external-testing.md", "## Onboarding ledger"),
-        ("docs/stress-testing.md", "Schema version: 1"),
+        ("docs/stress-testing.md", "Observed local result"),
+        ("docs/benchmarks.md", "Observed local component result"),
         ("docs/manual-verification.md", "Schema version: 1"),
         (
             "docs/compatibility-expansion.md",

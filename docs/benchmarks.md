@@ -165,6 +165,58 @@ installed state, fresh materialisation, and no-op state for each count. This
 is a correctness harness, not a scale claim or a substitute for recorded
 stress results.
 
+## Observed local component result
+
+On 2026-08-07, commit `6a1f29be34ee0f034af1d6aed5bf8135c3ee6bcd` was measured
+with the collector on macOS 26.5.2, APFS, Apple M3, 16 GB memory, and Rust
+1.85.0. The collector ran 15 independent invocations of the local-only
+component harness; each row below represents 20 iterations within one
+invocation. Git and HTTPS rows were intentionally skipped in this collection
+because it measured only deterministic local fixtures.
+
+| Workload | Median for 20 iterations | Range | Interpretation |
+| --- | ---: | ---: | --- |
+| Cold direct sync, small project | 869.764 ms | 798.251–1,381.226 ms | local package preparation and first materialisation |
+| Warm direct sync, 64 aliases | 1,031.046 ms | 994.489–3,788.041 ms | repeated ownership/materialisation planning |
+| Warm direct sync, 100 local dependencies | 1,659.085 ms | 1,569.769–6,273.003 ms | largest measured local workload |
+| Frozen no-op direct sync, small project | 17.685 ms | 16.864–55.287 ms | lock-and-state reuse without source access |
+| Automatic materialisation, small project | 2.427 ms | 2.269–7.996 ms | reflink-or-copy selection |
+| Copy materialisation, small project | 65.967 ms | 57.145–82.238 ms | forced file-copy baseline |
+
+The whole harness had a median wall time of 8.741 seconds (8.189–20.372
+seconds). These data identify large local dependency sets and repeated aliases
+as the dominant measured work. They do not justify a general speed claim or
+an optimization: the wide tail requires profiling on a controlled host before
+changing cache, transaction, or source-validation behavior.
+
+The raw collector record was reviewed locally but is not committed because its
+environment capture contains host-specific data. Reproduce it with the
+collection procedure above, retain redacted raw observations, and add public
+Git, HTTPS, Linux, and Windows rows before publishing a cross-platform result.
+
+## Observed public-source component result
+
+A second 15-sample collection used credential-free public inputs: the exact
+Git revision `e2347a35a6c0922cfb0a077cf5ed21696fba46da` of
+[`npkgz/cli-progress`](https://github.com/npkgz/cli-progress), plus its
+SHA-256-pinned 160 KiB GitHub archive
+`0914eb4a64d014ed21dfe33bba065e72377df913f4390ed51a30f0a956b7821f`.
+It used the same Wukong commit, host, Rust version, and filesystem as the
+local collection. No proxy environment variables were set; VPN state was not
+recorded.
+
+| Workload | Median for iterations shown | Range | Notes |
+| --- | ---: | ---: | --- |
+| Git cold fetch (3) | 1,960.107 ms | 1,879.449–3,144.811 ms | clone and immutable-revision verification |
+| Git warm offline fetch (20) | 342.897 ms | 271.571–529.873 ms | verified cached checkout reuse |
+| HTTPS cold fetch (3) | 856.999 ms | 800.985–1,773.847 ms | download, SHA-256 verification, and cache publication |
+| HTTPS warm offline fetch (20) | 8.937 ms | 7.769–40.186 ms | verified cached archive reuse |
+
+The complete network-inclusive harness had a 14.788-second median wall time
+(13.410–21.027 seconds); all 15 commands exited successfully. This records one
+public GitHub network condition and a small archive only. It neither measures
+large archives nor supports a general network-performance claim.
+
 ## Reporting
 
 State the fixture, cache state, hardware, operating system, filesystem,
