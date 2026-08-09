@@ -59,7 +59,7 @@
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens are stored in macOS Keychain, not SQLite. The user-supplied Desktop OAuth client ID is stored separately in local settings; a Desktop client ID is not treated as a credential. Linux and Windows credential adapters are deferred and are not release behavior.</p>
+      <p>Google OAuth tokens are stored in macOS Keychain or, on the supported Fedora 43 KDE/Wayland RPM, KDE Wallet's Secret Service bridge; they are never stored in SQLite. The user-supplied Desktop OAuth client ID is stored separately in local settings; a Desktop client ID is not treated as a credential. Windows credential adapters remain deferred.</p>
     </article>
 
     <article class="doc-card">

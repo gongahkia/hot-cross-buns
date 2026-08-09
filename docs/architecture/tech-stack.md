@@ -15,4 +15,4 @@ Google Calendar, Google Tasks, and Google Drive metadata are accessed through bo
 
 ## Non-Decisions
 
-Linux and Windows packaging/runtime parity are deferred until macOS release validation passes. Electron, React, TypeScript, Vite, Tailwind, preload APIs, and Node SQLite bindings are retired architecture, not supported dependencies.
+Fedora 43 KDE/Wayland uses the same C++20/QML core with Fedora's shared Qt and SQLite libraries, Secret Service credentials, D-Bus notifications, and a systemd user reminder daemon. Windows packaging/runtime parity remains deferred. Electron, React, TypeScript, Vite, Tailwind, preload APIs, and Node SQLite bindings are retired architecture, not supported dependencies.

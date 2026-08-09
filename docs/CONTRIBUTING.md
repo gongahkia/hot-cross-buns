@@ -34,4 +34,4 @@ Use focused test targets while changing a subsystem. Run the complete debug suit
 
 ## Validation
 
-Use mock and local-fixture tests for automation. Do not use a personal Google account in automated tests. Live validation is a separate redacted procedure in [live Google smoke](testing/live-google-smoke.md). macOS is the only release target; Linux and Windows parity is deferred.
+Use mock and local-fixture tests for automation. Do not use a personal Google account in automated tests. Live validation is a separate redacted procedure in [live Google smoke](testing/live-google-smoke.md). macOS and Fedora 43 KDE/Wayland are release targets; Windows is deferred.

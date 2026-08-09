@@ -39,9 +39,12 @@ signals:
 
 private:
 #if defined(Q_OS_LINUX)
+private slots:
   void notificationActionInvoked(uint notificationId, QString action);
+  void notificationClosed(uint notificationId, uint reason);
 #endif
 
+private:
   class NativeReminderNotifierPrivate;
   NativeReminderNotifierPrivate* state_{nullptr};
 };

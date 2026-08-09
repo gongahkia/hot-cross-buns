@@ -45,6 +45,12 @@ NativeReminderNotifier::NativeReminderNotifier(QObject* parent) : QObject(parent
                                        QStringLiteral("ActionInvoked"),
                                        this,
                                        SLOT(notificationActionInvoked(uint, QString))));
+  static_cast<void>(connection.connect(QString::fromLatin1(kNotificationService),
+                                       QString::fromLatin1(kNotificationPath),
+                                       QString::fromLatin1(kNotificationInterface),
+                                       QStringLiteral("NotificationClosed"),
+                                       this,
+                                       SLOT(notificationClosed(uint, uint))));
 }
 
 NativeReminderNotifier::~NativeReminderNotifier() {
@@ -165,6 +171,13 @@ void NativeReminderNotifier::notificationActionInvoked(uint notificationId, QStr
     emit actionRequested(identifier, ReminderAction::SnoozeTenMinutes);
   } else if (action == QStringLiteral("dismiss")) {
     emit actionRequested(identifier, ReminderAction::Dismiss);
+  }
+}
+
+void NativeReminderNotifier::notificationClosed(uint notificationId, uint reason) {
+  Q_UNUSED(reason);
+  if (state_ != nullptr) {
+    state_->notificationIdentifiers.remove(notificationId);
   }
 }
 

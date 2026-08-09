@@ -10,7 +10,7 @@
 ## Post-macOS deferred work
 
 - Google Calendar ACL administration is deferred; calendar create, subscribe, sharing surfaces, free/busy, Meet, attachments, status events, and RSVP are in macOS scope.
-- Linux parity is deferred until macOS acceptance is complete.
-- Windows parity is deferred after Linux/macOS decisions are settled.
+- Fedora 43 KDE/Wayland parity is a release target; expand Linux support only after its acceptance matrix is complete.
+- Windows parity is deferred after Fedora/macOS release decisions are settled.
 
 Historical Electron roadmap phases are retired and must not be used as implementation requirements.

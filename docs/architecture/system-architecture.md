@@ -19,7 +19,7 @@ Google Calendar and Google Tasks are the remote sources of truth. SQLite is a lo
 - `AppController`: validates UI requests, coordinates services, and applies completed results on the GUI thread.
 - domain services: validate inputs, run queued SQLite work, create optimistic mutations, and preserve conflict metadata.
 - Google clients: bounded HTTP with timeout/cancellation, OAuth bearer credentials, pagination, incremental sync tokens, and API-specific batching.
-- platform adapters: macOS Keychain, system tray, deep links, and desktop notifications. Linux/Windows adapter parity is deferred.
+- platform adapters: macOS Keychain and `UNUserNotificationCenter`; Fedora KDE Secret Service, D-Bus notifications, reminder daemon, tray, and desktop deep links. Windows parity is deferred.
 
 ## Data Flow
 
