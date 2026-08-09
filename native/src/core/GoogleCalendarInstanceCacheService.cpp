@@ -63,7 +63,7 @@ GoogleCalendarInstanceCacheService::refresh(QString accountId,
     qsizetype next = 0;
     while (next < targets.size() || !pending.empty()) {
       while (next < targets.size() && pending.size() < kMaximumConcurrentPulls) {
-        CalendarRecurringInstanceCacheTarget target = std::move(targets.at(next));
+        CalendarRecurringInstanceCacheTarget target = targets.at(next);
         ++next;
         pending.push_back(
             {.target = target,

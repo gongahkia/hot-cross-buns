@@ -28,5 +28,9 @@ cmake --build --preset fedora43-debug --parallel 3
 QT_QPA_PLATFORM=offscreen ctest --preset fedora43-debug --output-on-failure
 ```
 
+Build and launch the Fedora executable with `./script/build_and_run.sh`. Pass
+`--debug`, `--logs`, `--verify`, or `--profile-timeline` for the corresponding
+development mode.
+
 See [the Fedora KDE Wayland acceptance checklist](../testing/manual-fedora43-kde-wayland.md)
 before releasing an RPM.
