@@ -1,10 +1,17 @@
-# macOS Distribution
+# Distribution
 
 ## Status
 
-macOS is the only distribution target. The universal package configuration exists in CMake; signed, notarized public distribution requires separate Apple credentials and live packaged-app validation. Do not describe an unsigned build as production-ready.
+macOS distribution uses the universal package configuration. Signed, notarized
+public distribution requires separate Apple credentials and live packaged-app
+validation. Do not describe an unsigned build as production-ready.
 
-Linux AppImage and Windows NSIS configuration are deferred source scaffolding, not supported artifacts.
+Fedora 43 KDE/Wayland distribution uses a direct-download x86_64 RPM built by
+`packaging/fedora/hot-cross-buns.spec`. The build links system Qt and SQLite;
+it does not bundle those libraries. CI artifacts are unsigned. Sign release
+artifacts with the configured release GPG key, verify with `rpm --checksig`,
+and publish the public key and checksum alongside the RPM. No DNF repository
+or automatic updater is included.
 
 ## Build
 
@@ -21,6 +28,20 @@ cmake --build --preset macos-debug --target hcb_native --parallel 3
 ctest --preset macos-debug --output-on-failure
 ```
 
+## Fedora RPM
+
+Create a source archive named `hot-cross-buns-<version>.tar.gz` with the
+repository contents at its root, then run:
+
+```sh
+rpmbuild -ba packaging/fedora/hot-cross-buns.spec
+```
+
+The RPM installs the GUI executable, URL-handler desktop entry, icon, and
+`hcb-reminderd` user service. The GUI starts the reminder service for the
+current desktop session; it must be active for reminders to persist after the
+GUI exits.
+
 ## Release gate
 
 1. Clean source tree except intentional release changes.
@@ -34,5 +55,4 @@ ctest --preset macos-debug --output-on-failure
 ## Non-claims
 
 - No automatic in-place updater is implemented.
-- No Linux or Windows release/support claim is valid.
 - No macOS signing/notarization claim is valid without recorded package evidence.

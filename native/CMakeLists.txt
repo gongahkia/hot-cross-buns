@@ -352,6 +352,37 @@ if(WIN32)
   target_link_libraries(hcb_native PRIVATE Advapi32 Psapi)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  qt_add_executable(hcb_reminderd
+    src/reminder/ReminderDaemonMain.cpp
+    src/app/AppPaths.cpp
+    src/app/AppPaths.h
+    src/app/LinuxPathsAdapter.cpp
+    src/app/LinuxPathsAdapter.h
+    src/app/NativeReminderNotifier.cpp
+    src/app/NativeReminderNotifier.h
+    src/core/AppError.h
+    src/core/Clock.h
+    src/core/FilePath.h
+    src/core/ReminderService.cpp
+    src/core/ReminderService.h
+    src/data/LocalSchema.cpp
+    src/data/LocalSchema.h
+    src/data/SqliteConnection.cpp
+    src/data/SqliteConnection.h
+    src/data/SqliteMigrationRunner.cpp
+    src/data/SqliteMigrationRunner.h
+    src/data/SqliteQueryTimingTracker.cpp
+    src/data/SqliteQueryTimingTracker.h
+    src/data/SqliteTransaction.cpp
+    src/data/SqliteTransaction.h
+  )
+  target_link_libraries(hcb_reminderd PRIVATE hcb::sqlite Qt6::Core Qt6::DBus)
+  target_include_directories(hcb_reminderd PRIVATE src)
+  hcb_enable_warnings(hcb_reminderd)
+  hcb_enable_sanitizers(hcb_reminderd)
+endif()
+
 qt_add_executable(hcb_launch_benchmark
   benchmarks/NativeLaunchBenchmarkMain.cpp
   src/core/NativeLaunchBenchmark.cpp
@@ -609,6 +640,11 @@ if(BUILD_TESTING)
     COMMAND ${CMAKE_COMMAND}
       "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/LinuxX64PackageConfigTest.cmake"
+  )
+  add_test(NAME hcb_fedora_rpm_config_tests
+    COMMAND ${CMAKE_COMMAND}
+      "-DHCB_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/FedoraRpmConfigTest.cmake"
   )
   add_test(NAME hcb_windows_x64_package_config_tests
     COMMAND ${CMAKE_COMMAND}
@@ -1163,6 +1199,9 @@ if(BUILD_TESTING)
     src/data/SqliteTransaction.h
   )
   target_link_libraries(hcb_reminder_service_tests PRIVATE hcb::sqlite Qt6::Core Qt6::Test)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(hcb_reminder_service_tests PRIVATE Qt6::DBus)
+  endif()
   target_include_directories(hcb_reminder_service_tests PRIVATE src tests)
   hcb_enable_warnings(hcb_reminder_service_tests)
   hcb_enable_sanitizers(hcb_reminder_service_tests)

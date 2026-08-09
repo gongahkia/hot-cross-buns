@@ -157,6 +157,69 @@ jobs:
           retention-days: 14
           path: build/linux-debug/Testing/Temporary/**
 
+  native-fedora43:
+    name: Native Qt build and tests (Fedora 43)
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    timeout-minutes: 40
+    steps:
+      - name: Install Fedora build dependencies
+        run: |
+          dnf install -y \
+            cmake \
+            gcc-c++ \
+            git \
+            ninja-build \
+            qt6-qtbase-devel \
+            qt6-qtdeclarative-devel \
+            qt6-qtwayland \
+            rpm-build \
+            sqlite-devel \
+            systemd-rpm-macros
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Configure native Fedora debug build
+        run: cmake --preset fedora43-debug
+
+      - name: Build native Fedora targets
+        run: cmake --build --preset fedora43-debug --parallel 3
+
+      - name: Run native Fedora tests
+        run: QT_QPA_PLATFORM=offscreen ctest --preset fedora43-debug --output-on-failure
+
+      - name: Build and inspect Fedora RPM
+        run: |
+          mkdir -p "$HOME/rpmbuild/SOURCES"
+          git archive --format=tar --prefix=hot-cross-buns-6.0.0/ HEAD | \
+            gzip -n > "$HOME/rpmbuild/SOURCES/hot-cross-buns-6.0.0.tar.gz"
+          rpmbuild -ba packaging/fedora/hot-cross-buns.spec
+          rpm_path="$(find "$HOME/rpmbuild/RPMS" -name 'hot-cross-buns-*.rpm' -print -quit)"
+          test -n "$rpm_path"
+          rpm -qlp "$rpm_path" | grep -Fx /usr/bin/hot-cross-buns
+          rpm -qlp "$rpm_path" | grep -Fx /usr/libexec/hot-cross-buns/hcb-reminderd
+          rpm -qlp "$rpm_path" | grep -Fx /usr/share/applications/hot-cross-buns.desktop
+
+      - name: Upload unsigned Fedora RPM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hot-cross-buns-fedora43-x86_64-unsigned-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ~/rpmbuild/RPMS/x86_64/hot-cross-buns-*.rpm
+
+      - name: Upload native Fedora test diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-fedora43-test-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/fedora43-debug/Testing/Temporary/**
+
   native-windows:
     name: Native Qt build and tests (Windows)
     runs-on: windows-2022

@@ -1759,6 +1759,10 @@ void AppController::setReminderService(ReminderService* service) {
   setReminderStatusMessage(reminderService_->statusMessage());
 }
 
+void AppController::setPlatformReminderStatus(QString message) {
+  setReminderStatusMessage(std::move(message));
+}
+
 void AppController::refresh() {
   refreshTasks();
   refreshCalendar();

@@ -271,6 +271,7 @@ public:
 
   Q_INVOKABLE void initialize();
   void setReminderService(ReminderService* service);
+  void setPlatformReminderStatus(QString message);
   Q_INVOKABLE void refresh();
   Q_INVOKABLE void setCalendarDate(QString date);
   Q_INVOKABLE void saveAppearanceMode(int mode);

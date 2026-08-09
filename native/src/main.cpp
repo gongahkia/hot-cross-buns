@@ -1,16 +1,23 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QDir>
+#if defined(Q_OS_LINUX)
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusMessage>
+#endif
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QTextStream>
 #include <QTimer>
 #include <QVariant>
 
 #include <exception>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -41,6 +48,61 @@ namespace {
 constexpr int kMaximumBenchmarkIdleRssDurationMilliseconds = 60'000;
 constexpr int kCommandPaletteBenchmarkTimeoutMilliseconds = 5'000;
 constexpr int kMaximumTimelineProfileEventCount = 100'000;
+
+#if defined(Q_OS_LINUX)
+constexpr char kReminderServiceName[] = "dev.hotcrossbuns.Reminders";
+constexpr char kReminderObjectPath[] = "/dev/hotcrossbuns/Reminders";
+constexpr char kReminderServiceInterface[] = "dev.hotcrossbuns.Reminders";
+
+class LinuxReminderDaemonClient final : public QObject {
+public:
+  using StatusHandler = std::function<void(QString)>;
+
+  explicit LinuxReminderDaemonClient(StatusHandler statusHandler, QObject* parent = nullptr)
+      : QObject(parent), statusHandler_(std::move(statusHandler)) {
+    refreshTimer_.setInterval(30'000);
+    QObject::connect(&refreshTimer_, &QTimer::timeout, this, &LinuxReminderDaemonClient::refresh);
+  }
+
+  void start() {
+    static_cast<void>(QProcess::startDetached(QStringLiteral("systemctl"),
+                                              {QStringLiteral("--user"),
+                                               QStringLiteral("start"),
+                                               QStringLiteral("hcb-reminderd.service")}));
+    refreshTimer_.start();
+    QTimer::singleShot(500, this, &LinuxReminderDaemonClient::refresh);
+  }
+
+private:
+  void reportStatus(QString message) const {
+    if (statusHandler_) {
+      statusHandler_(std::move(message));
+    }
+  }
+
+  void refresh() {
+    QDBusInterface service(QString::fromLatin1(kReminderServiceName),
+                           QString::fromLatin1(kReminderObjectPath),
+                           QString::fromLatin1(kReminderServiceInterface),
+                           QDBusConnection::sessionBus());
+    if (!service.isValid()) {
+      reportStatus(
+          QStringLiteral("Calendar reminder service is unavailable; start hcb-reminderd.service"));
+      return;
+    }
+    static_cast<void>(service.call(QStringLiteral("Refresh")));
+    const QDBusMessage reply = service.call(QStringLiteral("Status"));
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().size() != 1) {
+      reportStatus(QStringLiteral("Calendar reminder service could not report its status"));
+      return;
+    }
+    reportStatus(reply.arguments().constFirst().toString());
+  }
+
+  StatusHandler statusHandler_;
+  QTimer refreshTimer_;
+};
+#endif
 
 [[nodiscard]] std::optional<int> timelineProfileEventCount(const QStringList& arguments) {
   constexpr QStringView prefix = u"--timeline-profile-events=";
@@ -173,8 +235,6 @@ int runApplication(int argc, char* argv[]) {
   hcb::TaskListModel taskListModel;
   hcb::TaskModel taskModel;
   hcb::TimelineModel timelineModel;
-  hcb::NativeReminderNotifier reminderNotifier(&application);
-  hcb::ReminderService reminderService(*databasePath, clock, reminderNotifier, &application);
   hcb::UiTransitionTimingTracker transitionTimings(clock, logger);
   hcb::AppController appController(*databasePath,
                                    clock,
@@ -186,7 +246,17 @@ int runApplication(int argc, char* argv[]) {
                                    taskModel,
                                    timelineModel,
                                    &application);
+#if defined(Q_OS_LINUX)
+  LinuxReminderDaemonClient reminderClient(
+      [&appController](QString status) {
+        appController.setPlatformReminderStatus(std::move(status));
+      },
+      &application);
+#else
+  hcb::NativeReminderNotifier reminderNotifier(&application);
+  hcb::ReminderService reminderService(*databasePath, clock, reminderNotifier, &application);
   appController.setReminderService(&reminderService);
+#endif
   const QDate profileWeekStart = timelineProfileWeekStart(QDate::currentDate());
   if (timelineProfile) {
     timelineModel.setRange(profileWeekStart,
@@ -234,7 +304,11 @@ int runApplication(int argc, char* argv[]) {
       qEnvironmentVariable("HCB_BENCHMARK_EXIT_AFTER_LOAD") == QStringLiteral("1");
   if (!timelineProfile && !exitAfterLoad) {
     appController.initialize();
+#if defined(Q_OS_LINUX)
+    reminderClient.start();
+#else
     QTimer::singleShot(0, &reminderService, &hcb::ReminderService::start);
+#endif
   }
 
   QObject* rootObject = engine.rootObjects().constFirst();

@@ -16,7 +16,7 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 ## Current Direction
 
 - Product name: Hot Cross Buns
-- Release platform: macOS; Linux and Windows parity are deferred until macOS acceptance.
+- Release platforms: macOS and Fedora 43 KDE/Wayland; Windows is deferred.
 - Default stack: C++20, Qt 6, CMake, SQLite
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: Google Tasks/Calendar cache, settings, checkpoints, offline mutations, diagnostics
@@ -26,8 +26,8 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 
 - Qt Quick views bind to C++ task, notes, calendar, and navigation models.
 - SQLite domain services own local reads and mutations; the app controller applies completed results only on the Qt GUI thread.
-- The macOS app supports a user-supplied Google Desktop OAuth client ID, PKCE loopback authorization, Keychain-backed credentials, and Google Tasks/Calendar sync.
-- Native shell and package validation are macOS release work; Linux and Windows documents are deferred-port references.
+- The macOS app and Fedora RPM support a user-supplied Google Desktop OAuth client ID, PKCE loopback authorization, OS-backed credentials, and Google Tasks/Calendar sync.
+- Fedora RPM validation includes KDE Wallet Secret Service credential checks and the user reminder daemon; Windows remains deferred.
 
 ## Documentation Map
 

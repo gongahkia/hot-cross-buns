@@ -39,6 +39,24 @@
       }
     },
     {
+      "name": "fedora43-debug",
+      "inherits": "linux-debug",
+      "binaryDir": "${sourceDir}/build/fedora43-debug",
+      "cacheVariables": {
+        "HCB_NATIVE_DEPENDENCY_MODE": "system"
+      }
+    },
+    {
+      "name": "fedora43-rpm",
+      "inherits": "fedora43-debug",
+      "binaryDir": "${sourceDir}/build/fedora43-rpm",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "/usr",
+        "HCB_ENABLE_FEDORA_RPM": "ON"
+      }
+    },
+    {
       "name": "linux-x64-package",
       "inherits": "base",
       "generator": "Ninja",
@@ -222,6 +240,8 @@
   "buildPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug" },
     { "name": "linux-debug", "configurePreset": "linux-debug" },
+    { "name": "fedora43-debug", "configurePreset": "fedora43-debug" },
+    { "name": "fedora43-rpm", "configurePreset": "fedora43-rpm" },
     { "name": "linux-x64-package", "configurePreset": "linux-x64-package", "targets": ["package"] },
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" },
     { "name": "windows-x64-package", "configurePreset": "windows-x64-package", "configuration": "Release", "targets": ["package"] },
@@ -242,6 +262,7 @@
   "testPresets": [
     { "name": "macos-debug", "configurePreset": "macos-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },
     { "name": "linux-debug", "configurePreset": "linux-debug", "output": { "outputOnFailure": true } },
+    { "name": "fedora43-debug", "configurePreset": "fedora43-debug", "output": { "outputOnFailure": true } },
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug", "output": { "outputOnFailure": true } },
     { "name": "macos-sanitize", "configurePreset": "macos-sanitize", "configuration": "Debug", "output": { "outputOnFailure": true } },
     { "name": "linux-sanitize", "configurePreset": "linux-sanitize", "output": { "outputOnFailure": true } },

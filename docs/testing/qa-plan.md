@@ -4,7 +4,7 @@
 
 - C++ Qt Test: domain validation, SQLite schema/migrations, mutation payloads, Google protocol clients, recurrence, sync conflicts, reminder state, and cancellation.
 - QML Test: dialogs, structured inputs, navigation, visual settings, invitations, and accessibility labels.
-- Native shell smoke: Qt app launch, resource loading, and macOS adapter wiring.
+- Native shell smoke: Qt app launch, resource loading, and platform-adapter wiring.
 - Release benchmarks: local search, task render/scroll, calendar navigation, and sync-apply fixture.
 
 Run:
@@ -27,6 +27,9 @@ ctest --preset macos-debug --output-on-failure
 - Timeout/cancellation and shutdown behavior for Google workers.
 - Dense Day/Week [physical-display profiling](physical-display-calendar-profile.md) before release; offscreen QML results alone are insufficient.
 
-## Manual macOS acceptance
+## Manual platform acceptance
 
-After automated checks, use [live Google smoke](live-google-smoke.md) and [native shell checklist](manual-macos-native-shell.md). Redact OAuth/client/account data. Linux and Windows are deferred and have no release QA claim.
+After automated checks, use [live Google smoke](live-google-smoke.md) and the
+target checklist: [macOS](manual-macos-native-shell.md) or [Fedora 43 KDE
+Wayland](manual-fedora43-kde-wayland.md). Redact OAuth/client/account data.
+Windows is deferred and has no release QA claim.

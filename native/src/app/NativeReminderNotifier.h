@@ -38,6 +38,10 @@ signals:
   void actionRequested(QString identifier, hcb::ReminderAction action);
 
 private:
+#if defined(Q_OS_LINUX)
+  void notificationActionInvoked(uint notificationId, QString action);
+#endif
+
   class NativeReminderNotifierPrivate;
   NativeReminderNotifierPrivate* state_{nullptr};
 };

@@ -29,4 +29,13 @@ consent screen where required, save the client ID, then select Connect Google.
 HCB uses a temporary localhost callback and does not accept a client secret.
 
 Real-account acceptance and macOS distribution are still release blockers.
-Linux and Windows parity are deferred until those macOS gates pass.
+Build on Fedora 43 KDE/Wayland with the distribution toolchain:
+
+  sudo dnf install cmake gcc-c++ ninja-build qt6-qtbase-devel \
+    qt6-qtdeclarative-devel qt6-qtwayland sqlite-devel
+  make build
+  make test
+
+The Fedora build links system Qt 6.10+ and SQLite 3.50+. Release RPMs are
+signed direct downloads; they do not configure a DNF repository or an
+automatic updater.

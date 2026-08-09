@@ -1,12 +1,22 @@
 # Platform Strategy
 
-## Release target
+## Release targets
 
-macOS is the only current release target. The supported runtime is the Qt bundle built by the macOS CMake presets, with Keychain credentials, system tray support, and Calendar popup reminders delivered through `UNUserNotificationCenter`.
+macOS uses the Qt bundle built by the macOS CMake presets, with Keychain
+credentials, system tray support, and Calendar popup reminders delivered
+through `UNUserNotificationCenter`.
+
+Fedora 43 KDE Plasma on Wayland is the supported Linux release target. Its
+signed x86_64 RPM links Fedora's Qt 6.10+ and SQLite 3.50+ packages, uses the
+Secret Service bridge provided by KDE Wallet for credentials, and runs a
+per-user `hcb-reminderd` service for Calendar reminders after the main window
+exits. The RPM is a direct download; no DNF repository or in-place updater is
+provided.
 
 ## Deferred targets
 
-Linux and Windows source/package scaffolding is retained for future work, but neither has feature, packaging, credential, notification, or live-account parity. Do not present either platform as supported until macOS release acceptance is complete and a dedicated parity issue closes those gaps.
+Windows remains deferred. Linux support is intentionally limited to the Fedora
+43 KDE/Wayland target until a separate acceptance matrix is complete.
 
 ## Portable boundary
 
