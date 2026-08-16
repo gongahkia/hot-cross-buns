@@ -25,7 +25,7 @@
     <p class="eyebrow">Privacy and trust</p>
     <h1>What Hot Cross Buns stores, requests, and does not send.</h1>
     <p class="deck">
-      Hot Cross Buns is a macOS desktop app that talks directly to Google Tasks and Google Calendar. There is no Hot Cross Buns-operated backend.
+      Hot Cross Buns includes a native desktop app and a browser-local web app. Both talk directly to Google Tasks and Google Calendar; there is no Hot Cross Buns-operated backend.
     </p>
   </section>
 
@@ -43,29 +43,29 @@
 
     <article class="doc-card">
       <h2>How Google data is used</h2>
-      <p>Google user data is used only to provide visible task, note, calendar, search, reminder, attachment-picker, and sync features. The app sends edits directly to Google Tasks and Google Calendar for the connected account, reads responses into the local cache, and uses local copies for fast search, offline display, pending offline writes, and diagnostics.</p>
+      <p>Google user data is used only to provide visible task, note, calendar, search, reminder, attachment-picker, and sync features. The apps send edits directly to Google Tasks and Google Calendar for the connected account, read responses into a local cache, and use local copies for fast search and offline display.</p>
       <p>Hot Cross Buns does not sell Google user data, use it for advertising, transfer it to data brokers, or use it to train AI models.</p>
     </article>
 
     <article class="doc-card">
       <h2>Where local data lives</h2>
-      <p>By default the app keeps a local cache under <code>~/Library/Application Support/Hot Cross Buns/</code> on macOS.</p>
+      <p>The native app keeps a local cache under <code>~/Library/Application Support/Hot Cross Buns/</code> on macOS. The web app keeps its cache in that browser's IndexedDB site storage.</p>
       <ul>
         <li><code>hot-cross-buns.sqlite</code>: account metadata, settings, sync checkpoints, pending offline mutations, task/calendar mirrors, search indexes, and reminder state</li>
         <li>local logs and diagnostics only when you choose to create or share them</li>
       </ul>
-      <p>The cache is replaceable. Google remains the source of truth for synced data.</p>
+      <p>The cache is replaceable. Browser site-data clearing removes the web cache. Google remains the source of truth for synced data.</p>
     </article>
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens are stored in macOS Keychain or, on the supported Fedora 43 KDE/Wayland RPM, KDE Wallet's Secret Service bridge; they are never stored in SQLite. The user-supplied Desktop OAuth client ID is stored separately in local settings; a Desktop client ID is not treated as a credential. Windows credential adapters remain deferred.</p>
+      <p>The native app stores OAuth tokens in macOS Keychain or, on the supported Fedora 43 KDE/Wayland RPM, KDE Wallet's Secret Service bridge; they are never stored in SQLite. The web app keeps its short-lived access token only in page memory. It never stores access tokens, refresh tokens, or client secrets in IndexedDB, local storage, cookies, or service-worker caches. A user-supplied Web OAuth client ID is non-secret browser configuration.</p>
     </article>
 
     <article class="doc-card">
       <h2>Sharing and retention</h2>
       <p>There is no Hot Cross Buns-operated server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Calendar events may also be visible to event attendees or calendar subscribers according to Google Calendar settings.</p>
-      <p>Disconnecting removes locally stored credentials for that account. You can revoke access from your Google Account. Data stored in Google remains there unless you delete it through Google or Hot Cross Buns.</p>
+      <p>Disconnecting removes the web app's in-memory authorization. Clearing browser-local data removes its cache and client ID. You can revoke access from your Google Account. Data stored in Google remains there unless you delete it through Google or Hot Cross Buns.</p>
     </article>
 
     <article class="doc-card">
@@ -80,13 +80,13 @@
 
     <article class="doc-card">
       <h2>Permissions</h2>
-      <p>Notifications are optional and used only for device-local reminders derived from Google Calendar popup reminders. Email reminders stay in Google and do not create macOS notifications. You can revoke Google account access from Google account settings and disconnect Hot Cross Buns in Settings.</p>
+      <p>Native notifications are optional and used only for device-local reminders derived from Google Calendar popup reminders. The web app does not promise notifications or sync after the browser is closed. You can revoke Google account access from Google account settings and disconnect Hot Cross Buns in Settings.</p>
     </article>
 
 
     <article class="doc-card">
       <h2>OAuth client ownership</h2>
-      <p>Hot Cross Buns uses a Google Cloud Desktop OAuth client controlled by the person or organization using the app. The macOS app stores the user-supplied client ID in local settings and uses a localhost browser redirect. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
+      <p>The native app uses a user-owned Google Cloud Desktop OAuth client and localhost redirect. The web app uses a user-owned Google Cloud Web OAuth client and Google Identity Services in the browser. The web app accepts the client ID only; never paste a client secret into it. Do not use another person's OAuth client unless you trust that project and consent screen.</p>
     </article>
 
     <article class="doc-card">
