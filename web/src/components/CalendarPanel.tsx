@@ -21,10 +21,18 @@ type CalendarView = "day" | "week" | "month" | "agenda";
 type RepeatFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly" | "custom";
 type RepeatEnd = "never" | "on-date" | "after-count";
 
+export interface CalendarPanelCommand {
+  readonly id: string;
+  readonly type: "new-event" | "open-event" | "find-time" | "manage-calendars";
+  readonly eventId?: string;
+  readonly calendarId?: string;
+}
+
 interface CalendarPanelProps {
   readonly calendars: readonly GoogleCalendar[];
   readonly events: readonly GoogleCalendarEvent[];
   readonly search: string;
+  readonly command?: CalendarPanelCommand;
   readonly driveAuthorized: boolean;
   readonly eventConflict: EventConflict | undefined;
   createCalendar(input: CalendarInput): Promise<void>;
@@ -528,7 +536,7 @@ function EventEditor({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <form className="modal-card event-editor" onSubmit={(eventSubmit) => void submit(eventSubmit)} aria-labelledby="event-editor-heading">
+      <form className="modal-card event-editor" onSubmit={(eventSubmit) => void submit(eventSubmit)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(); } }} aria-labelledby="event-editor-heading">
         <div className="panel-heading">
           <div><p className="eyebrow">Google Calendar</p><h2 id="event-editor-heading">{editingEvent ? "Edit event" : "New event"}</h2></div>
           <button type="button" onClick={close}>Close</button>
@@ -540,7 +548,7 @@ function EventEditor({
             <label><input type="radio" checked={scope === "series"} onChange={() => void changeScope("series")} /> The entire series</label>
           </fieldset>
         )}
-        <label>Title<input value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} required /></label>
+        <label>Title<input value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} autoFocus required /></label>
         <label>Calendar<select value={calendarId} disabled={Boolean(editingEvent)} onChange={(eventInput) => setCalendarId(eventInput.target.value)}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label>
         <label>Location<input value={location} onChange={(eventInput) => setLocation(eventInput.target.value)} placeholder="Optional location" /></label>
         <label>Description<textarea value={description} onChange={(eventInput) => setDescription(eventInput.target.value)} rows={4} /></label>
@@ -593,7 +601,7 @@ function ConflictDialog({ conflict, resolve, dismiss }: {
   const isDelete = conflict.kind === "delete";
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-card conflict-card" role="dialog" aria-modal="true" aria-labelledby="conflict-heading">
+      <section className="modal-card conflict-card" role="dialog" aria-modal="true" aria-labelledby="conflict-heading" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}>
         <p className="eyebrow">Google Calendar</p>
         <h2 id="conflict-heading">This event changed in Google</h2>
         <p>{isDelete ? "Someone changed this event before you deleted it." : "Someone changed this event while you were editing it."}</p>
@@ -609,6 +617,7 @@ export function CalendarPanel({
   calendars,
   events,
   search,
+  command,
   driveAuthorized,
   eventConflict,
   createCalendar,
@@ -644,6 +653,32 @@ export function CalendarPanel({
       return available.length > 0 ? available : defaultCalendarId ? [defaultCalendarId] : [];
     });
   }, [calendars, defaultCalendarId]);
+
+  useEffect(() => {
+    if (!command) {
+      return;
+    }
+    if (command.type === "new-event") {
+      setEditingEvent(undefined);
+      setComposerPrefill(undefined);
+      setComposerOpen(true);
+      return;
+    }
+    if (command.type === "find-time") {
+      setAvailabilityOpen(true);
+      return;
+    }
+    if (command.type === "manage-calendars") {
+      setCalendarManagerOpen(true);
+      return;
+    }
+    const event = events.find((candidate) => candidate.id === command.eventId && candidate.calendarId === command.calendarId);
+    if (event) {
+      setComposerOpen(false);
+      setComposerPrefill(undefined);
+      setEditingEvent(event);
+    }
+  }, [command, events]);
 
   useEffect(() => {
     void loadCalendarRange(range.start.toISOString(), range.end.toISOString()).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Calendar events could not be loaded"));

@@ -238,7 +238,12 @@ export class LocalStore {
     await transactionDone(transaction);
   }
 
-  async replaceCalendarList(subject: string, calendars: readonly GoogleCalendar[], checkpoint: SyncCheckpoint): Promise<void> {
+  async replaceCalendarList(
+    subject: string,
+    calendars: readonly GoogleCalendar[],
+    checkpoint: SyncCheckpoint,
+    resetEventCaches = false
+  ): Promise<void> {
     const database = await this.db();
     const transaction = database.transaction(
       [stores.calendars, stores.events, stores.canonicalEvents, stores.checkpoints],
@@ -246,7 +251,15 @@ export class LocalStore {
     );
     const calendarStore = transaction.objectStore(stores.calendars);
     const current = await this.recordsForSubject<Cached<GoogleCalendar>>(calendarStore, subject);
-    const nextIds = new Set(calendars.map((calendar) => calendar.id));
+    const activeCalendars = calendars.filter((calendar) => !calendar.deleted);
+    const nextIds = new Set(activeCalendars.map((calendar) => calendar.id));
+    if (resetEventCaches) {
+      for (const calendarId of new Set([...current.map((calendar) => calendar.id), ...activeCalendars.map((calendar) => calendar.id)])) {
+        await this.deleteCalendarRecords(transaction.objectStore(stores.events), subject, calendarId);
+        await this.deleteCalendarRecords(transaction.objectStore(stores.canonicalEvents), subject, calendarId);
+        transaction.objectStore(stores.checkpoints).delete([subject, `calendar-events:${calendarId}`]);
+      }
+    }
     for (const calendar of current) {
       if (!nextIds.has(calendar.id)) {
         await this.deleteCalendarRecords(transaction.objectStore(stores.events), subject, calendar.id);
@@ -254,7 +267,7 @@ export class LocalStore {
         transaction.objectStore(stores.checkpoints).delete([subject, `calendar-events:${calendar.id}`]);
       }
     }
-    await this.replaceSubjectRecords(calendarStore, subject, calendars);
+    await this.replaceSubjectRecords(calendarStore, subject, activeCalendars);
     transaction.objectStore(stores.checkpoints).put({ ...checkpoint, subject } satisfies StoredCheckpoint);
     await transactionDone(transaction);
   }
@@ -309,7 +322,10 @@ export class LocalStore {
         throw new Error("Task change was applied to the wrong task list");
       }
       if (task.deleted) {
-        tasks.delete([subject, task.id]);
+        const current = await requestResult(tasks.get([subject, task.id])) as Cached<GoogleTask> | undefined;
+        if (current?.listId === listId) {
+          tasks.delete([subject, task.id]);
+        }
       } else {
         tasks.put({ ...task, subject });
       }

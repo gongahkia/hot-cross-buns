@@ -49,4 +49,37 @@ describe("LocalStore", () => {
     expect(await store.getActiveSubject()).toBeUndefined();
     expect(await store.readSnapshot(subject)).toBeUndefined();
   });
+
+  it("commits Calendar deltas and their token together while invalidating stale occurrences", async () => {
+    await store.saveSnapshot({
+      identity: { subject },
+      taskLists: [],
+      tasks: [],
+      calendars: [{ id: "primary", summary: "Primary" }],
+      events: [{
+        id: "occurrence-1",
+        calendarId: "primary",
+        summary: "Old occurrence",
+        start: { dateTime: "2026-08-16T09:00:00.000Z" },
+        end: { dateTime: "2026-08-16T10:00:00.000Z" }
+      }],
+      updatedAt: "2026-08-16T00:00:00.000Z"
+    });
+
+    await store.applyCalendarEventChanges(subject, "primary", [{
+      id: "series-1",
+      calendarId: "primary",
+      summary: "Updated series",
+      start: { dateTime: "2026-08-16T09:00:00.000Z" },
+      end: { dateTime: "2026-08-16T10:00:00.000Z" },
+      recurrence: ["RRULE:FREQ=WEEKLY"]
+    }], {
+      resource: "calendar-events:primary",
+      token: "next-token",
+      updatedAt: "2026-08-16T01:00:00.000Z"
+    });
+
+    expect((await store.readSnapshot(subject))?.events).toEqual([]);
+    await expect(store.readCheckpoint(subject, "calendar-events:primary")).resolves.toMatchObject({ token: "next-token" });
+  });
 });

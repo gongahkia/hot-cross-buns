@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -19,10 +19,17 @@ import { CSS } from "@dnd-kit/utilities";
 
 import type { GoogleTask, GoogleTaskList, TaskInput, TaskMoveInput } from "@/types";
 
+export interface TaskPanelCommand {
+  readonly id: string;
+  readonly type: "new-task" | "open-task";
+  readonly taskId?: string;
+}
+
 interface TaskPanelProps {
   readonly taskLists: readonly GoogleTaskList[];
   readonly tasks: readonly GoogleTask[];
   readonly search: string;
+  readonly command?: TaskPanelCommand;
   createTaskList(title: string): Promise<void>;
   updateTaskList(taskList: GoogleTaskList, title: string): Promise<void>;
   deleteTaskList(taskList: GoogleTaskList): Promise<void>;
@@ -150,6 +157,7 @@ export function TaskPanel({
   taskLists,
   tasks,
   search,
+  command,
   createTaskList,
   updateTaskList,
   deleteTaskList,
@@ -163,10 +171,9 @@ export function TaskPanel({
   const [newListTitle, setNewListTitle] = useState("");
   const [listTitle, setListTitle] = useState("");
   const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
-  const [due, setDue] = useState("");
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
   const [error, setError] = useState("");
+  const quickAddRef = useRef<HTMLInputElement>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -183,6 +190,21 @@ export function TaskPanel({
   useEffect(() => {
     setListTitle(selectedList?.title ?? "");
   }, [selectedList?.id, selectedList?.title]);
+
+  useEffect(() => {
+    if (!command) {
+      return;
+    }
+    if (command.type === "new-task") {
+      queueMicrotask(() => quickAddRef.current?.focus());
+      return;
+    }
+    const task = tasks.find((candidate) => candidate.id === command.taskId);
+    if (task) {
+      setSelectedListId(task.listId);
+      setEditingTask(task);
+    }
+  }, [command, tasks]);
 
   const listTasks = useMemo(
     () => tasks.filter((task) => task.listId === selectedListId && !task.deleted),
@@ -238,10 +260,8 @@ export function TaskPanel({
     }
     setError("");
     try {
-      await createTask(selectedListId, { title, notes, due: dueTimestamp(due) });
+      await createTask(selectedListId, { title });
       setTitle("");
-      setNotes("");
-      setDue("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task could not be saved");
     }
@@ -395,9 +415,7 @@ export function TaskPanel({
                   <button type="button" className="danger-button" onClick={() => void removeTaskList()}>Delete list</button>
                 </div>
                 <form className="task-create-form" onSubmit={(event) => void submitTask(event)}>
-                  <input aria-label="New task title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a task" />
-                  <input aria-label="New task notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional note" />
-                  <input aria-label="New task due date" type="date" value={due} onChange={(event) => setDue(event.target.value)} />
+                  <input ref={quickAddRef} aria-label="New task title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a task — details can be added after" />
                   <button type="submit">Add task</button>
                 </form>
                 {error && <p className="error" role="alert">{error}</p>}
@@ -422,12 +440,12 @@ export function TaskPanel({
       </DndContext>
       {editingTask && (
         <div className="modal-backdrop" role="presentation">
-          <form className="modal-card task-editor" onSubmit={(event) => void finishEdit(event)} aria-labelledby="edit-task-heading">
+          <form className="modal-card task-editor" onSubmit={(event) => void finishEdit(event)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditingTask(undefined); } }} aria-labelledby="edit-task-heading">
             <div className="panel-heading">
               <div><p className="eyebrow">Google Tasks</p><h2 id="edit-task-heading">Edit task</h2></div>
               <button type="button" onClick={() => setEditingTask(undefined)}>Close</button>
             </div>
-            <label>Title<input name="title" defaultValue={editingTask.title} required /></label>
+            <label>Title<input name="title" defaultValue={editingTask.title} autoFocus required /></label>
             <label>Notes<textarea name="notes" defaultValue={editingTask.notes ?? ""} rows={4} /></label>
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
             <label>Task list<select name="list" defaultValue={editingTask.listId}>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>

@@ -98,7 +98,9 @@ function mergeTasks(existing: readonly GoogleTask[], changes: readonly GoogleTas
   const tasks = new Map(existing.map((task) => [task.id, task]));
   for (const task of changes) {
     if (task.deleted) {
-      tasks.delete(task.id);
+      if (tasks.get(task.id)?.listId === task.listId) {
+        tasks.delete(task.id);
+      }
     } else {
       tasks.set(task.id, task);
     }
@@ -402,13 +404,16 @@ export function useWorkspace(): WorkspaceController {
       resetCalendarList = true;
       calendarChanges = await api.listCalendarChanges();
     }
+    if (!calendarChanges.nextSyncToken) {
+      throw new Error("Google Calendar did not return a calendar-list sync token");
+    }
     const calendarListCheckpoint = {
       resource: "calendar-list",
       token: calendarChanges.nextSyncToken,
       updatedAt: syncStartedAt
     };
     if (resetCalendarList || !calendarCheckpoint) {
-      await localStore.replaceCalendarList(subject, calendarChanges.items, calendarListCheckpoint);
+      await localStore.replaceCalendarList(subject, calendarChanges.items, calendarListCheckpoint, resetCalendarList);
     } else {
       await localStore.applyCalendarListChanges(subject, calendarChanges.items, calendarListCheckpoint);
     }
@@ -431,6 +436,9 @@ export function useWorkspace(): WorkspaceController {
         reset = true;
         await localStore.replaceCalendarEventCache(subject, calendar.id, { resource, updatedAt: syncStartedAt });
         changes = await api.listCalendarEventChanges(calendar.id);
+      }
+      if (!changes.nextSyncToken) {
+        throw new Error(`Google Calendar did not return a sync token for ${calendar.summary}`);
       }
       await localStore.applyCalendarEventChanges(subject, calendar.id, changes.items, {
         resource,

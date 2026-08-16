@@ -94,4 +94,59 @@ describe("GoogleApiClient", () => {
     });
     vi.unstubAllGlobals();
   });
+
+  it("uses durable Calendar sync tokens without viewport-only parameters", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        items: [{ id: "primary", summary: "Primary" }],
+        nextSyncToken: "calendar-list-token"
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        items: [{
+          id: "event-1",
+          summary: "Planning",
+          start: { dateTime: "2026-08-16T09:00:00.000Z" },
+          end: { dateTime: "2026-08-16T10:00:00.000Z" }
+        }],
+        nextSyncToken: "event-token"
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.listCalendarChanges("old-calendar-list-token")).resolves.toMatchObject({
+      nextSyncToken: "calendar-list-token",
+      items: [{ id: "primary" }]
+    });
+    await expect(client.listCalendarEventChanges("primary", "old-event-token")).resolves.toMatchObject({
+      nextSyncToken: "event-token",
+      items: [{ id: "event-1", calendarId: "primary" }]
+    });
+
+    const calendarUrl = String(fetchMock.mock.calls[0][0]);
+    const eventUrl = String(fetchMock.mock.calls[1][0]);
+    expect(calendarUrl).toContain("syncToken=old-calendar-list-token");
+    expect(eventUrl).toContain("syncToken=old-event-token");
+    expect(eventUrl).toContain("singleEvents=false");
+    expect(eventUrl).toContain("showDeleted=true");
+    expect(eventUrl).not.toContain("timeMin=");
+    expect(eventUrl).not.toContain("orderBy=");
+    vi.unstubAllGlobals();
+  });
+
+  it("uses deleted Task changes and a persisted timestamp watermark", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [{ id: "task-1", title: "Removed", deleted: true }]
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.listTasks("inbox", "2026-08-16T00:00:00.000Z")).resolves.toMatchObject([
+      { id: "task-1", listId: "inbox", deleted: true }
+    ]);
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("updatedMin=2026-08-16T00%3A00%3A00.000Z");
+    expect(url).toContain("showDeleted=true");
+    expect(url).toContain("showHidden=true");
+    vi.unstubAllGlobals();
+  });
 });

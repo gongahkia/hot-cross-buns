@@ -19,6 +19,8 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         <div><dt>OAuth client ID</dt><dd>{clientId || "Not configured"}</dd></div>
         <div><dt>Authorization</dt><dd>{connected ? "Active in this browser session" : "Not active"}</dd></div>
         <div><dt>Stored by Hot Cross Buns</dt><dd>Only browser-local cached data and this non-secret client ID.</dd></div>
+        <div><dt>Calendar synchronization</dt><dd>Google Calendar uses browser-local sync tokens. Google Tasks uses timestamp-based changes because its API has no sync-token endpoint.</dd></div>
+        <div><dt>Keyboard</dt><dd><kbd>⌘/Ctrl K</kbd> opens cached search and commands. Use ↑ ↓ and Enter inside the palette.</dd></div>
       </dl>
       <p className="status" aria-live="polite">{status}</p>
       <div className="button-row">

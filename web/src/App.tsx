@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CalendarPanel } from "@/components/CalendarPanel";
+import { CommandPalette, type PaletteAction } from "@/components/CommandPalette";
 import { Onboarding } from "@/components/Onboarding";
 import { SettingsPanel } from "@/components/SettingsPanel";
-import { TaskPanel } from "@/components/TaskPanel";
+import { TaskPanel, type TaskPanelCommand } from "@/components/TaskPanel";
+import type { CalendarPanelCommand } from "@/components/CalendarPanel";
 import { useWorkspace } from "@/features/useWorkspace";
 
 type View = "tasks" | "calendar" | "settings";
@@ -11,7 +13,62 @@ type View = "tasks" | "calendar" | "settings";
 export default function App(): React.JSX.Element {
   const workspace = useWorkspace();
   const [view, setView] = useState<View>("tasks");
-  const [search, setSearch] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [taskCommand, setTaskCommand] = useState<TaskPanelCommand>();
+  const [calendarCommand, setCalendarCommand] = useState<CalendarPanelCommand>();
+  const paletteButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  function closePalette(): void {
+    setPaletteOpen(false);
+    queueMicrotask(() => paletteButtonRef.current?.focus());
+  }
+
+  function runPaletteAction(action: PaletteAction): void {
+    const id = crypto.randomUUID();
+    switch (action.type) {
+      case "navigate":
+        setView(action.view);
+        return;
+      case "sync":
+        void workspace.sync().catch(() => undefined);
+        return;
+      case "new-task":
+        setView("tasks");
+        setTaskCommand({ id, type: "new-task" });
+        return;
+      case "open-task":
+        setView("tasks");
+        setTaskCommand({ id, type: "open-task", taskId: action.task.id });
+        return;
+      case "new-event":
+        setView("calendar");
+        setCalendarCommand({ id, type: "new-event" });
+        return;
+      case "open-event":
+        setView("calendar");
+        setCalendarCommand({ id, type: "open-event", eventId: action.event.id, calendarId: action.event.calendarId });
+        return;
+      case "find-time":
+        setView("calendar");
+        setCalendarCommand({ id, type: "find-time" });
+        return;
+      case "manage-calendars":
+        setView("calendar");
+        setCalendarCommand({ id, type: "manage-calendars" });
+        return;
+    }
+  }
 
   if (!workspace.ready) {
     return <main className="loading-screen">Loading browser-local workspace…</main>;
@@ -27,10 +84,7 @@ export default function App(): React.JSX.Element {
           <p className="eyebrow">Hot Cross Buns</p>
           <h1>{workspace.workspace.identity.name ?? workspace.workspace.identity.email ?? "Google workspace"}</h1>
         </div>
-        <label className="search-field">
-          <span>Search cached tasks and events</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" />
-        </label>
+        <button ref={paletteButtonRef} className="command-palette-trigger" type="button" aria-keyshortcuts="Control+K Meta+K" onClick={() => setPaletteOpen(true)}>Search or command <kbd>⌘/Ctrl K</kbd></button>
         <button type="button" disabled={workspace.busy} onClick={() => void workspace.sync().catch(() => undefined)}>
           {workspace.busy ? "Working…" : "Sync"}
         </button>
@@ -45,7 +99,8 @@ export default function App(): React.JSX.Element {
         <TaskPanel
           taskLists={workspace.workspace.taskLists}
           tasks={workspace.workspace.tasks}
-          search={search}
+          search=""
+          command={taskCommand}
           createTaskList={workspace.createTaskList}
           updateTaskList={workspace.updateTaskList}
           deleteTaskList={workspace.deleteTaskList}
@@ -60,7 +115,8 @@ export default function App(): React.JSX.Element {
         <CalendarPanel
           calendars={workspace.workspace.calendars}
           events={workspace.workspace.events}
-          search={search}
+          search=""
+          command={calendarCommand}
           driveAuthorized={workspace.driveAuthorized}
           eventConflict={workspace.eventConflict}
           createCalendar={workspace.createCalendar}
@@ -91,6 +147,7 @@ export default function App(): React.JSX.Element {
           clearLocalData={workspace.clearLocalData}
         />
       )}
+      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} close={closePalette} run={runPaletteAction} />
     </main>
   );
 }

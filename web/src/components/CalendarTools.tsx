@@ -169,11 +169,11 @@ export function CalendarManagerDialog({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-card calendar-manager" role="dialog" aria-modal="true" aria-labelledby="calendar-manager-heading">
+      <section className="modal-card calendar-manager" role="dialog" aria-modal="true" aria-labelledby="calendar-manager-heading" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(); } }}>
         <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="calendar-manager-heading">Manage calendars</h2></div><button type="button" onClick={close}>Close</button></div>
         <form onSubmit={(event) => void create(event)}>
           <h3>Create a new calendar</h3>
-          <label>Name<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Team planning" required /></label>
+          <label>Name<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Team planning" autoFocus required /></label>
           <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} /></label>
           <label>Time zone<select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>{timeZones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>
           <button type="submit" disabled={busy}>Create calendar</button>
@@ -258,7 +258,7 @@ export function AvailabilityAssistant({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-card availability-assistant" role="dialog" aria-modal="true" aria-labelledby="availability-heading">
+      <section className="modal-card availability-assistant" role="dialog" aria-modal="true" aria-labelledby="availability-heading" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(); } }}>
         <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="availability-heading">Find a free time</h2></div><button type="button" onClick={close}>Close</button></div>
         <p className="field-help">This checks only the calendars you select below. It does not expose event titles or invitee schedules.</p>
         <form onSubmit={(event) => void find(event)}>
