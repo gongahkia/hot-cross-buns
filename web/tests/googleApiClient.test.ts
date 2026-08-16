@@ -67,4 +67,31 @@ describe("GoogleApiClient", () => {
     expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("If-Match")).toBe('"version-1"');
     vi.unstubAllGlobals();
   });
+
+  it("creates calendars, adds existing calendars, and sends free-busy requests directly to Google", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "planning", summary: "Planning", timeZone: "Asia/Singapore" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "team", summary: "Team", accessRole: "reader" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        timeMin: "2026-08-16T09:00:00.000Z",
+        timeMax: "2026-08-16T10:00:00.000Z",
+        calendars: { planning: { busy: [] } }
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.createCalendar({ summary: "Planning", timeZone: "Asia/Singapore" })).resolves.toMatchObject({ id: "planning" });
+    await expect(client.subscribeCalendar("team")).resolves.toMatchObject({ id: "team", accessRole: "reader" });
+    await expect(client.queryFreeBusy(["planning"], "2026-08-16T09:00:00.000Z", "2026-08-16T10:00:00.000Z", "Asia/Singapore")).resolves.toMatchObject({ calendars: { planning: { busy: [] } } });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/calendar/v3/calendars");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+    expect(String(fetchMock.mock.calls[1][0])).toContain("/calendar/v3/users/me/calendarList");
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ id: "team" });
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
+      timeZone: "Asia/Singapore",
+      items: [{ id: "planning" }]
+    });
+    vi.unstubAllGlobals();
+  });
 });

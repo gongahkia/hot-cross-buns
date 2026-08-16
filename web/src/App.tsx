@@ -63,10 +63,15 @@ export default function App(): React.JSX.Element {
           search={search}
           driveAuthorized={workspace.driveAuthorized}
           eventConflict={workspace.eventConflict}
+          createCalendar={workspace.createCalendar}
+          subscribeCalendar={workspace.subscribeCalendar}
+          removeCalendarFromList={workspace.removeCalendarFromList}
+          queryAvailability={workspace.queryAvailability}
           createEvent={workspace.createEvent}
           updateEvent={workspace.updateEvent}
           deleteEvent={workspace.deleteEvent}
           getEvent={workspace.getEvent}
+          respondToEvent={workspace.respondToEvent}
           loadCalendarRange={workspace.loadCalendarRange}
           resolveEventConflict={workspace.resolveEventConflict}
           dismissEventConflict={workspace.dismissEventConflict}

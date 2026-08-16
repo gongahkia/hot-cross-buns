@@ -65,6 +65,28 @@ export interface GoogleCalendar {
   readonly accessRole?: string;
 }
 
+export interface CalendarInput {
+  readonly summary: string;
+  readonly description?: string;
+  readonly timeZone?: string;
+}
+
+export interface GoogleFreeBusyInterval {
+  readonly start: string;
+  readonly end: string;
+}
+
+export interface GoogleFreeBusyCalendar {
+  readonly busy?: readonly GoogleFreeBusyInterval[];
+  readonly errors?: readonly { readonly domain?: string; readonly reason?: string }[];
+}
+
+export interface GoogleFreeBusyResponse {
+  readonly timeMin: string;
+  readonly timeMax: string;
+  readonly calendars: Readonly<Record<string, GoogleFreeBusyCalendar>>;
+}
+
 export interface GoogleEventDateTime {
   readonly date?: string;
   readonly dateTime?: string;

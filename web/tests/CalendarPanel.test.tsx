@@ -12,10 +12,21 @@ function panel(overrides: Partial<React.ComponentProps<typeof CalendarPanel>> = 
       search=""
       driveAuthorized={false}
       eventConflict={undefined}
+      createCalendar={vi.fn().mockResolvedValue(undefined)}
+      subscribeCalendar={vi.fn().mockResolvedValue(undefined)}
+      removeCalendarFromList={vi.fn().mockResolvedValue(undefined)}
+      queryAvailability={vi.fn().mockResolvedValue({ timeMin: "2026-08-16T09:00:00.000Z", timeMax: "2026-08-16T10:00:00.000Z", calendars: {} })}
       createEvent={vi.fn().mockResolvedValue(undefined)}
       updateEvent={vi.fn().mockResolvedValue("updated")}
       deleteEvent={vi.fn().mockResolvedValue("deleted")}
       getEvent={vi.fn()}
+      respondToEvent={vi.fn().mockResolvedValue({
+        id: "event-1",
+        calendarId: "primary",
+        summary: "Updated invitation",
+        start: { dateTime: "2026-08-16T09:00:00.000Z" },
+        end: { dateTime: "2026-08-16T10:00:00.000Z" }
+      })}
       loadCalendarRange={vi.fn().mockResolvedValue(undefined)}
       resolveEventConflict={vi.fn().mockResolvedValue(undefined)}
       dismissEventConflict={vi.fn()}

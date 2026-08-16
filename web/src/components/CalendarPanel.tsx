@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
+import {
+  AvailabilityAssistant,
+  CalendarManagerDialog,
+  type AvailabilitySlot
+} from "@/components/CalendarTools";
 import type { EventConflict } from "@/features/useWorkspace";
 import type {
+  CalendarInput,
   CalendarEventInput,
   GoogleCalendar,
   GoogleCalendarEvent,
   GoogleDriveFile,
-  GoogleEventAttachment
+  GoogleEventAttachment,
+  GoogleFreeBusyResponse
 } from "@/types";
 
 type CalendarView = "day" | "week" | "month" | "agenda";
@@ -20,10 +27,15 @@ interface CalendarPanelProps {
   readonly search: string;
   readonly driveAuthorized: boolean;
   readonly eventConflict: EventConflict | undefined;
+  createCalendar(input: CalendarInput): Promise<void>;
+  subscribeCalendar(calendarId: string): Promise<void>;
+  removeCalendarFromList(calendar: GoogleCalendar): Promise<void>;
+  queryAvailability(calendarIds: readonly string[], timeMin: string, timeMax: string): Promise<GoogleFreeBusyResponse>;
   createEvent(calendarId: string, event: CalendarEventInput): Promise<void>;
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
   loadCalendarRange(timeMin: string, timeMax: string): Promise<void>;
   resolveEventConflict(resolution: "keep-local" | "use-google"): Promise<void>;
   dismissEventConflict(): void;
@@ -362,24 +374,28 @@ function AgendaView({ events, colors, open }: {
 function EventEditor({
   calendars,
   event,
+  prefill,
   defaultCalendarId,
   driveAuthorized,
   createEvent,
   updateEvent,
   deleteEvent,
   getEvent,
+  respondToEvent,
   authorizeDrive,
   searchDrive,
   close
 }: {
   readonly calendars: readonly GoogleCalendar[];
   readonly event: GoogleCalendarEvent | undefined;
+  readonly prefill: AvailabilitySlot | undefined;
   readonly defaultCalendarId: string;
   readonly driveAuthorized: boolean;
   createEvent(calendarId: string, input: CalendarEventInput): Promise<void>;
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
   authorizeDrive(): Promise<void>;
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
   close(): void;
@@ -399,6 +415,7 @@ function EventEditor({
   const [attachments, setAttachments] = useState<GoogleEventAttachment[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceDraft>(defaultRecurrence);
   const [error, setError] = useState("");
+  const [responding, setResponding] = useState(false);
 
   function loadDraft(source: GoogleCalendarEvent | undefined): void {
     setEditingEvent(source);
@@ -408,8 +425,8 @@ function EventEditor({
     setLocation(source?.location ?? "");
     const sourceAllDay = Boolean(source?.start.date);
     setAllDay(sourceAllDay);
-    setStart(sourceAllDay ? source?.start.date ?? toYmd(new Date()) : source?.start.dateTime ? toLocalDateTime(new Date(source.start.dateTime)) : localDateTime(30));
-    setEnd(sourceAllDay ? toYmd(addDays(dateFromYmd(source?.end.date ?? source?.start.date ?? toYmd(new Date())), -1)) : source?.end.dateTime ? toLocalDateTime(new Date(source.end.dateTime)) : localDateTime(90));
+    setStart(sourceAllDay ? source?.start.date ?? toYmd(new Date()) : source?.start.dateTime ? toLocalDateTime(new Date(source.start.dateTime)) : prefill ? toLocalDateTime(new Date(prefill.start)) : localDateTime(30));
+    setEnd(sourceAllDay ? toYmd(addDays(dateFromYmd(source?.end.date ?? source?.start.date ?? toYmd(new Date())), -1)) : source?.end.dateTime ? toLocalDateTime(new Date(source.end.dateTime)) : prefill ? toLocalDateTime(new Date(prefill.end)) : localDateTime(90));
     setTimeZone(source?.start.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
     setAttendeeText(source?.attendees?.map((attendee) => attendee.email).join(", ") ?? "");
     setMeet(Boolean(source?.conferenceData));
@@ -421,7 +438,7 @@ function EventEditor({
   useEffect(() => {
     setScope("instance");
     loadDraft(event);
-  }, [event?.id, defaultCalendarId]);
+  }, [event?.id, defaultCalendarId, prefill?.end, prefill?.start]);
 
   async function changeScope(next: "instance" | "series"): Promise<void> {
     if (!event?.recurringEventId || next === scope) {
@@ -492,6 +509,23 @@ function EventEditor({
     }
   }
 
+  async function respond(responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<void> {
+    if (!editingEvent) {
+      return;
+    }
+    setError("");
+    setResponding(true);
+    try {
+      setEditingEvent(await respondToEvent(editingEvent, responseStatus));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Invitation response could not be saved");
+    } finally {
+      setResponding(false);
+    }
+  }
+
+  const selfAttendee = editingEvent?.attendees?.find((attendee) => attendee.self);
+
   return (
     <div className="modal-backdrop" role="presentation">
       <form className="modal-card event-editor" onSubmit={(eventSubmit) => void submit(eventSubmit)} aria-labelledby="event-editor-heading">
@@ -535,6 +569,7 @@ function EventEditor({
           </details>
         </fieldset>
         <label>Attendees<input value={attendeeText} onChange={(eventInput) => setAttendeeText(eventInput.target.value)} placeholder="Emails separated by commas" /></label>
+        {selfAttendee && <fieldset className="response-editor"><legend>Your invitation</legend><p className="field-help">Current response: {selfAttendee.responseStatus ?? "needs action"}</p><div className="button-row"><button type="button" disabled={responding} onClick={() => void respond("accepted")}>Accept</button><button type="button" disabled={responding} onClick={() => void respond("tentative")}>Maybe</button><button type="button" disabled={responding} onClick={() => void respond("declined")}>Decline</button></div></fieldset>}
         <label className="check-label"><input type="checkbox" checked={meet} onChange={(eventInput) => setMeet(eventInput.target.checked)} /> Create a Google Meet link</label>
         <DriveAttachmentPicker
           authorized={driveAuthorized}
@@ -576,10 +611,15 @@ export function CalendarPanel({
   search,
   driveAuthorized,
   eventConflict,
+  createCalendar,
+  subscribeCalendar,
+  removeCalendarFromList,
+  queryAvailability,
   createEvent,
   updateEvent,
   deleteEvent,
   getEvent,
+  respondToEvent,
   loadCalendarRange,
   resolveEventConflict,
   dismissEventConflict,
@@ -591,6 +631,9 @@ export function CalendarPanel({
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [editingEvent, setEditingEvent] = useState<GoogleCalendarEvent | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
+  const [calendarManagerOpen, setCalendarManagerOpen] = useState(false);
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [composerPrefill, setComposerPrefill] = useState<AvailabilitySlot | undefined>();
   const [error, setError] = useState("");
   const defaultCalendarId = calendars.find((calendar) => calendar.primary)?.id ?? calendars[0]?.id ?? "";
   const range = useMemo(() => viewRange(anchor, view), [anchor, view]);
@@ -625,19 +668,28 @@ export function CalendarPanel({
 
   function openEvent(event: GoogleCalendarEvent): void {
     setComposerOpen(false);
+    setComposerPrefill(undefined);
     setEditingEvent(event);
   }
 
   function closeEditor(): void {
     setEditingEvent(undefined);
     setComposerOpen(false);
+    setComposerPrefill(undefined);
+  }
+
+  function useAvailabilitySlot(slot: AvailabilitySlot): void {
+    setAvailabilityOpen(false);
+    setEditingEvent(undefined);
+    setComposerPrefill(slot);
+    setComposerOpen(true);
   }
 
   return (
     <section className="workspace-panel calendar-panel" aria-labelledby="calendar-heading">
       <div className="panel-heading">
         <div><p className="eyebrow">Google Calendar</p><h2 id="calendar-heading">Calendar</h2></div>
-        <button type="button" disabled={!defaultCalendarId} onClick={() => { setEditingEvent(undefined); setComposerOpen(true); }}>New event</button>
+        <div className="button-row"><button type="button" onClick={() => setAvailabilityOpen(true)}>Find time</button><button type="button" onClick={() => setCalendarManagerOpen(true)}>Manage calendars</button><button type="button" disabled={!defaultCalendarId} onClick={() => { setEditingEvent(undefined); setComposerPrefill(undefined); setComposerOpen(true); }}>New event</button></div>
       </div>
       {calendars.length === 0 ? <p className="empty-state">No Google Calendars were found.</p> : (
         <>
@@ -654,7 +706,9 @@ export function CalendarPanel({
           {view === "agenda" && (visibleEvents.length > 0 ? <AgendaView events={visibleEvents} colors={colors} open={openEvent} /> : <p className="empty-state">No events in this range.</p>)}
         </>
       )}
-      {(composerOpen || editingEvent) && <EventEditor calendars={calendars} event={editingEvent} defaultCalendarId={defaultCalendarId} driveAuthorized={driveAuthorized} createEvent={createEvent} updateEvent={updateEvent} deleteEvent={deleteEvent} getEvent={getEvent} authorizeDrive={authorizeDrive} searchDrive={searchDrive} close={closeEditor} />}
+      {(composerOpen || editingEvent) && <EventEditor calendars={calendars} event={editingEvent} prefill={composerPrefill} defaultCalendarId={defaultCalendarId} driveAuthorized={driveAuthorized} createEvent={createEvent} updateEvent={updateEvent} deleteEvent={deleteEvent} getEvent={getEvent} respondToEvent={respondToEvent} authorizeDrive={authorizeDrive} searchDrive={searchDrive} close={closeEditor} />}
+      {calendarManagerOpen && <CalendarManagerDialog calendars={calendars} createCalendar={createCalendar} subscribeCalendar={subscribeCalendar} removeCalendarFromList={removeCalendarFromList} close={() => setCalendarManagerOpen(false)} />}
+      {availabilityOpen && <AvailabilityAssistant calendars={calendars} defaultCalendarIds={selectedCalendarIds} queryAvailability={queryAvailability} useSlot={useAvailabilitySlot} close={() => setAvailabilityOpen(false)} />}
       {eventConflict && <ConflictDialog conflict={eventConflict} resolve={async (resolution) => { try { await resolveEventConflict(resolution); closeEditor(); } catch (reason) { setError(reason instanceof Error ? reason.message : "The conflict could not be resolved"); } }} dismiss={dismissEventConflict} />}
     </section>
   );

@@ -136,6 +136,13 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 .month-day .calendar-event span { display: none; }
 .agenda-list .calendar-event { border-block: 0; border-inline-end: 0; }
 .conflict-card { max-width: 38rem; }
+.calendar-manager form, .availability-assistant form { display: grid; gap: 0.75rem; }
+.calendar-manager h3, .availability-assistant h3 { margin: 0; }
+.calendar-management-list, .availability-slots { display: grid; gap: 0.55rem; list-style: none; margin: 0; padding: 0; }
+.calendar-management-list li, .availability-slots li { align-items: center; border-top: 1px solid #eadfd3; display: flex; gap: 0.7rem; justify-content: space-between; padding-top: 0.65rem; }
+.availability-slots time { color: #50332a; font-weight: 700; }
+.response-editor { border: 1px solid #dacbbc; border-radius: 0.6rem; margin: 0; padding: 0.8rem; }
+.response-editor legend { font-weight: 800; }
 
 @media (max-width: 48rem) {
   .app-header { align-items: stretch; grid-template-columns: 1fr; }
@@ -147,5 +154,6 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
   .task-sidebar { border-block-end: 1px solid #eadfd3; border-inline-end: 0; padding-block-end: 1rem; padding-inline-end: 0; }
   .task-list-tabs { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
   .task-create-form, .task-list-heading, .event-time-fields { grid-template-columns: 1fr; }
+  .calendar-management-list li, .availability-slots li { align-items: stretch; flex-direction: column; }
   .week-grid, .month-grid { grid-template-columns: repeat(7, minmax(7rem, 1fr)); }
 }

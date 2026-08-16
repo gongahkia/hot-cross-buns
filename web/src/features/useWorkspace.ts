@@ -12,9 +12,12 @@ import { localStore } from "@/data/localStore";
 import {
   GOOGLE_SCOPES,
   INITIAL_GOOGLE_SCOPES,
+  type CalendarInput,
   type CalendarEventInput,
+  type GoogleCalendar,
   type GoogleCalendarEvent,
   type GoogleDriveFile,
+  type GoogleFreeBusyResponse,
   type GoogleTask,
   type GoogleTaskList,
   type TaskInput,
@@ -44,6 +47,10 @@ export interface WorkspaceController {
   connect(): Promise<void>;
   sync(): Promise<void>;
   loadCalendarRange(timeMin: string, timeMax: string): Promise<void>;
+  createCalendar(input: CalendarInput): Promise<void>;
+  subscribeCalendar(calendarId: string): Promise<void>;
+  removeCalendarFromList(calendar: GoogleCalendar): Promise<void>;
+  queryAvailability(calendarIds: readonly string[], timeMin: string, timeMax: string): Promise<GoogleFreeBusyResponse>;
   authorizeDrive(): Promise<void>;
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
   createTaskList(title: string): Promise<void>;
@@ -58,6 +65,7 @@ export interface WorkspaceController {
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
   resolveEventConflict(resolution: "keep-local" | "use-google"): Promise<void>;
   dismissEventConflict(): void;
   disconnect(): Promise<void>;
@@ -686,6 +694,70 @@ export function useWorkspace(): WorkspaceController {
     }
   }, [api, replaceTask]);
 
+  const createCalendar = useCallback(async (input: CalendarInput) => {
+    const normalized = input.summary.trim();
+    if (!workspaceRef.current || !normalized) {
+      throw new Error("Enter a calendar name after authorizing Google");
+    }
+    const created = await api.createCalendar({
+      summary: normalized,
+      description: input.description?.trim() || undefined,
+      timeZone: input.timeZone
+    });
+    await updateCachedWorkspace((snapshot) => ({
+      ...snapshot,
+      calendars: [...snapshot.calendars, { ...created, accessRole: "owner" }],
+      updatedAt: new Date().toISOString()
+    }));
+    setStatus(`Created the ${normalized} calendar`);
+  }, [api, updateCachedWorkspace]);
+
+  const subscribeCalendar = useCallback(async (calendarId: string) => {
+    const normalized = calendarId.trim();
+    if (!workspaceRef.current || !normalized) {
+      throw new Error("Enter a Google Calendar ID after authorizing Google");
+    }
+    const subscribed = await api.subscribeCalendar(normalized);
+    await updateCachedWorkspace((snapshot) => ({
+      ...snapshot,
+      calendars: snapshot.calendars.some((calendar) => calendar.id === subscribed.id)
+        ? snapshot.calendars.map((calendar) => calendar.id === subscribed.id ? subscribed : calendar)
+        : [...snapshot.calendars, subscribed],
+      updatedAt: new Date().toISOString()
+    }));
+    setStatus(`Added ${subscribed.summary} to your Google Calendar list`);
+  }, [api, updateCachedWorkspace]);
+
+  const removeCalendarFromList = useCallback(async (calendar: GoogleCalendar) => {
+    if (!workspaceRef.current) {
+      throw new Error("Authorize Google before making changes");
+    }
+    if (calendar.primary || calendar.accessRole === "owner") {
+      throw new Error("Google does not let this app remove a primary or owner calendar from your list");
+    }
+    await api.removeCalendarFromList(calendar.id);
+    await updateCachedWorkspace((snapshot) => ({
+      ...snapshot,
+      calendars: snapshot.calendars.filter((item) => item.id !== calendar.id),
+      events: snapshot.events.filter((event) => event.calendarId !== calendar.id),
+      updatedAt: new Date().toISOString()
+    }));
+    setStatus(`Removed ${calendar.summary} from your Google Calendar list`);
+  }, [api, updateCachedWorkspace]);
+
+  const queryAvailability = useCallback(async (calendarIds: readonly string[], timeMin: string, timeMax: string) => {
+    if (!workspaceRef.current) {
+      throw new Error("Authorize Google before checking availability");
+    }
+    if (calendarIds.length === 0) {
+      throw new Error("Choose at least one calendar");
+    }
+    if (calendarIds.length > 50) {
+      throw new Error("Google can check availability for up to 50 calendars at once");
+    }
+    return api.queryFreeBusy(calendarIds, timeMin, timeMax);
+  }, [api]);
+
   const createEvent = useCallback(async (calendarId: string, event: CalendarEventInput) => {
     const current = workspaceRef.current;
     if (!current) {
@@ -740,6 +812,22 @@ export function useWorkspace(): WorkspaceController {
     }
     return api.getEvent(calendarId, eventId);
   }, [api]);
+
+  const respondToEvent = useCallback(async (
+    event: GoogleCalendarEvent,
+    responseStatus: "accepted" | "declined" | "tentative" | "needsAction"
+  ) => {
+    if (!workspaceRef.current) {
+      throw new Error("Authorize Google before responding to an event");
+    }
+    if (isLocalId(event.id)) {
+      throw new Error("Reconnect Google before responding to an event that is still waiting to be created");
+    }
+    const updated = await api.updateAttendeeResponse(event.calendarId, event.id, responseStatus);
+    await replaceEvent(updated);
+    setStatus(`Invitation response saved: ${responseStatus}`);
+    return updated;
+  }, [api, replaceEvent]);
 
   const updateEvent = useCallback(async (event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict"> => {
     const current = workspaceRef.current;
@@ -903,6 +991,10 @@ export function useWorkspace(): WorkspaceController {
     connect,
     sync,
     loadCalendarRange,
+    createCalendar,
+    subscribeCalendar,
+    removeCalendarFromList,
+    queryAvailability,
     authorizeDrive,
     searchDrive,
     createTaskList,
@@ -917,6 +1009,7 @@ export function useWorkspace(): WorkspaceController {
     updateEvent,
     deleteEvent,
     getEvent,
+    respondToEvent,
     resolveEventConflict,
     dismissEventConflict,
     disconnect,

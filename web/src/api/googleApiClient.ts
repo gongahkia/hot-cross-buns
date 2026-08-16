@@ -1,9 +1,11 @@
 import type {
+  CalendarInput,
   CalendarEventInput,
   GoogleCalendar,
   GoogleCalendarEvent,
   GoogleDriveFile,
   GoogleEventAttachment,
+  GoogleFreeBusyResponse,
   GoogleTask,
   GoogleTaskList,
   TaskInput,
@@ -230,6 +232,26 @@ export class GoogleApiClient {
     return response.items.map(toCalendar);
   }
 
+  async createCalendar(input: CalendarInput): Promise<GoogleCalendar> {
+    const calendar = await this.request<RawCalendar>("/calendar/v3/calendars", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+    return toCalendar(calendar);
+  }
+
+  async subscribeCalendar(calendarId: string): Promise<GoogleCalendar> {
+    const calendar = await this.request<RawCalendar>("/calendar/v3/users/me/calendarList", {
+      method: "POST",
+      body: JSON.stringify({ id: calendarId })
+    });
+    return toCalendar(calendar);
+  }
+
+  async removeCalendarFromList(calendarId: string): Promise<void> {
+    await this.request<void>(`/calendar/v3/users/me/calendarList/${encodeURIComponent(calendarId)}`, { method: "DELETE" });
+  }
+
   async listEvents(calendarId: string, timeMin: string, timeMax: string): Promise<GoogleCalendarEvent[]> {
     const query = new URLSearchParams({
       timeMin,
@@ -291,10 +313,15 @@ export class GoogleApiClient {
     return toEvent(calendarId, event);
   }
 
-  async queryFreeBusy(calendarIds: readonly string[], timeMin: string, timeMax: string): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>("/calendar/v3/freeBusy", {
+  async queryFreeBusy(
+    calendarIds: readonly string[],
+    timeMin: string,
+    timeMax: string,
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  ): Promise<GoogleFreeBusyResponse> {
+    return this.request<GoogleFreeBusyResponse>("/calendar/v3/freeBusy", {
       method: "POST",
-      body: JSON.stringify({ timeMin, timeMax, items: calendarIds.map((id) => ({ id })) })
+      body: JSON.stringify({ timeMin, timeMax, timeZone, items: calendarIds.map((id) => ({ id })) })
     });
   }
 
