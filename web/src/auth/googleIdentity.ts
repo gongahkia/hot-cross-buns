@@ -17,6 +17,7 @@ interface GoogleAccounts {
     initTokenClient(configuration: {
       client_id: string;
       scope: string;
+      include_granted_scopes?: boolean;
       callback: (response: GoogleTokenResponse) => void;
       error_callback?: (error: { type?: string; message?: string }) => void;
     }): GoogleTokenClient;
@@ -84,9 +85,15 @@ export async function requestGoogleAccessToken(
   }
   await loadGoogleIdentityServices();
   return new Promise<BrowserAccessToken>((resolve, reject) => {
-    const tokenClient = window.google?.accounts.oauth2.initTokenClient({
+    const oauth = window.google?.accounts.oauth2;
+    if (!oauth) {
+      reject(new GoogleAuthorizationError("Google Identity Services did not initialize"));
+      return;
+    }
+    const tokenClient = oauth.initTokenClient({
       client_id: normalizedClientId,
       scope: scopes.join(" "),
+      include_granted_scopes: true,
       callback: (response) => {
         if (!response.access_token || !response.expires_in) {
           reject(

@@ -67,6 +67,7 @@ export default function App(): React.JSX.Element {
           status={workspace.status}
           connected={workspace.connected}
           busy={workspace.busy}
+          connect={workspace.connect}
           sync={workspace.sync}
           disconnect={workspace.disconnect}
           clearLocalData={workspace.clearLocalData}

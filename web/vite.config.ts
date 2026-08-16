@@ -1,8 +1,11 @@
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
+
+const rootDirectory = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -35,12 +38,13 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./src")
+      "@": resolve(rootDirectory, "./src")
     }
   },
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
+    exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
     globals: true,
     clearMocks: true
   }

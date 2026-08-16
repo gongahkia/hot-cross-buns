@@ -3,12 +3,13 @@ interface SettingsPanelProps {
   readonly status: string;
   readonly connected: boolean;
   readonly busy: boolean;
+  connect(): Promise<void>;
   sync(): Promise<void>;
   disconnect(): Promise<void>;
   clearLocalData(): Promise<void>;
 }
 
-export function SettingsPanel({ clientId, status, connected, busy, sync, disconnect, clearLocalData }: SettingsPanelProps): React.JSX.Element {
+export function SettingsPanel({ clientId, status, connected, busy, connect, sync, disconnect, clearLocalData }: SettingsPanelProps): React.JSX.Element {
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   return (
     <section className="workspace-panel settings-panel" aria-labelledby="settings-heading">
@@ -21,6 +22,7 @@ export function SettingsPanel({ clientId, status, connected, busy, sync, disconn
       </dl>
       <p className="status" aria-live="polite">{status}</p>
       <div className="button-row">
+        <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Reconnect Google" : "Connect Google"}</button>
         <button type="button" disabled={busy || !connected} onClick={() => run(sync)}>Sync now</button>
         <button type="button" disabled={busy || !connected} onClick={() => run(disconnect)}>Disconnect Google</button>
         <button className="danger-button" type="button" disabled={busy} onClick={() => run(clearLocalData)}>Clear browser-local data</button>
