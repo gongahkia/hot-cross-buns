@@ -59,6 +59,19 @@ describe("CommandPalette", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("exposes the full Google Tasks refresh command", async () => {
+    const user = userEvent.setup();
+    const close = vi.fn();
+    const run = vi.fn();
+    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={run} />);
+
+    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "refresh all tasks");
+    await user.keyboard("{Enter}");
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledWith({ type: "refresh-tasks" });
+  });
+
   it("finds a historic canonical event that is not in the visible calendar range", async () => {
     const user = userEvent.setup();
     const close = vi.fn();

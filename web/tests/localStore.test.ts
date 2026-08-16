@@ -106,4 +106,39 @@ describe("LocalStore", () => {
       { id: "primary:series-1", title: "Updated series" }
     ]);
   });
+
+  it("persists page-resume state while allowing occurrence cache recovery without discarding canonical events", async () => {
+    await store.saveSnapshot({
+      identity: { subject }, taskLists: [], tasks: [], calendars: [{ id: "primary", summary: "Primary" }],
+      events: [{ id: "visible", calendarId: "primary", summary: "Visible", start: { dateTime: "2026-08-16T09:00:00.000Z" }, end: { dateTime: "2026-08-16T10:00:00.000Z" } }],
+      updatedAt: "2026-08-16T00:00:00.000Z"
+    });
+    await store.applyCalendarEventPage(subject, "primary", [{ id: "series", calendarId: "primary", summary: "Canonical series", recurrence: ["RRULE:FREQ=DAILY"], start: { dateTime: "2020-08-16T09:00:00.000Z" }, end: { dateTime: "2020-08-16T10:00:00.000Z" } }], false);
+    await store.saveCalendarSyncRun({
+      subject, startedAt: "2026-08-16T00:00:00.000Z", phase: "calendar-events", calendarListReset: false,
+      calendarIds: ["primary"], calendarIndex: 0, eventSyncToken: "sync-token", eventPageToken: "next-page", eventReset: false,
+      changedCalendarIds: ["primary"], occurrenceCacheCleared: false, pagesSaved: 3, recordsSaved: 2500
+    });
+
+    await expect(store.readCalendarSyncRun(subject)).resolves.toMatchObject({ eventPageToken: "next-page", pagesSaved: 3 });
+    await store.clearOccurrenceCache(subject);
+    expect((await store.readSnapshot(subject))?.events).toEqual([]);
+    await expect(store.readCanonicalEventSearchDocuments(subject)).resolves.toMatchObject([{ id: "primary:series" }]);
+  });
+
+  it("rebuilds the task mirror and restarts timestamp incrementality after a full refresh", async () => {
+    await store.saveSnapshot({
+      identity: { subject }, taskLists: [], tasks: [], calendars: [], events: [],
+      updatedAt: "2026-08-16T00:00:00.000Z"
+    });
+    await store.replaceTaskMirror(
+      subject,
+      [{ id: "inbox", title: "Inbox" }],
+      [{ id: "task-1", listId: "inbox", title: "Fresh task", status: "needsAction" }],
+      "2026-08-16T02:00:00.000Z"
+    );
+
+    expect((await store.readSnapshot(subject))?.tasks).toMatchObject([{ id: "task-1", title: "Fresh task" }]);
+    await expect(store.readCheckpoint(subject, "tasks:inbox")).resolves.toMatchObject({ updatedAt: "2026-08-16T02:00:00.000Z" });
+  });
 });

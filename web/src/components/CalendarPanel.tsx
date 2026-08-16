@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
+import { ModalDialog } from "@/components/ModalDialog";
 import {
   AvailabilityAssistant,
   CalendarManagerDialog,
@@ -407,6 +408,7 @@ function EventEditor({
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
   close(): void;
 }): React.JSX.Element {
+  const titleRef = useRef<HTMLInputElement>(null);
   const [editingEvent, setEditingEvent] = useState(event);
   const [scope, setScope] = useState<"instance" | "series">("instance");
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
@@ -534,8 +536,8 @@ function EventEditor({
   const selfAttendee = editingEvent?.attendees?.find((attendee) => attendee.self);
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <form className="modal-card event-editor" onSubmit={(eventSubmit) => void submit(eventSubmit)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(); } }} aria-labelledby="event-editor-heading">
+    <ModalDialog className="event-editor" labelledBy="event-editor-heading" initialFocusRef={titleRef} onClose={close}>
+      <form onSubmit={(eventSubmit) => void submit(eventSubmit)}>
         <div className="panel-heading">
           <div><p className="eyebrow">Google Calendar</p><h2 id="event-editor-heading">{editingEvent ? "Edit event" : "New event"}</h2></div>
           <button type="button" onClick={close}>Close</button>
@@ -547,7 +549,7 @@ function EventEditor({
             <label><input type="radio" checked={scope === "series"} onChange={() => void changeScope("series")} /> The entire series</label>
           </fieldset>
         )}
-        <label>Title<input value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} autoFocus required /></label>
+        <label>Title<input ref={titleRef} value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} required /></label>
         <label>Calendar<select value={calendarId} disabled={Boolean(editingEvent)} onChange={(eventInput) => setCalendarId(eventInput.target.value)}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label>
         <label>Location<input value={location} onChange={(eventInput) => setLocation(eventInput.target.value)} placeholder="Optional location" /></label>
         <label>Description<textarea value={description} onChange={(eventInput) => setDescription(eventInput.target.value)} rows={4} /></label>
@@ -588,7 +590,7 @@ function EventEditor({
         {error && <p className="error" role="alert">{error}</p>}
         <div className="button-row"><button type="submit">{editingEvent ? "Save event" : "Create event"}</button>{editingEvent && <button type="button" className="danger-button" onClick={() => void remove()}>Delete event</button>}</div>
       </form>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -598,17 +600,16 @@ function ConflictDialog({ conflict, resolve, dismiss }: {
   dismiss(): void;
 }): React.JSX.Element {
   const isDelete = conflict.kind === "delete";
+  const dismissRef = useRef<HTMLButtonElement>(null);
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="modal-card conflict-card" role="dialog" aria-modal="true" aria-labelledby="conflict-heading" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}>
+    <ModalDialog className="conflict-card" labelledBy="conflict-heading" initialFocusRef={dismissRef} onClose={dismiss}>
         <p className="eyebrow">Google Calendar</p>
         <h2 id="conflict-heading">This event changed in Google</h2>
         <p>{isDelete ? "Someone changed this event before you deleted it." : "Someone changed this event while you were editing it."}</p>
         <p><strong>Google now has:</strong> {conflict.latest.summary} — {eventRangeLabel(conflict.latest)}</p>
         <p>{isDelete ? "Delete it anyway, or keep the Google version?" : "Use your changes to update Google, or discard them and use the Google version?"}</p>
-        <div className="button-row"><button type="button" onClick={() => void resolve("keep-local")}>{isDelete ? "Delete it anyway" : "Use my changes"}</button><button type="button" onClick={() => void resolve("use-google")}>Use Google version</button><button type="button" onClick={dismiss}>Not now</button></div>
-      </section>
-    </div>
+        <div className="button-row"><button type="button" onClick={() => void resolve("keep-local")}>{isDelete ? "Delete it anyway" : "Use my changes"}</button><button type="button" onClick={() => void resolve("use-google")}>Use Google version</button><button ref={dismissRef} type="button" onClick={dismiss}>Not now</button></div>
+    </ModalDialog>
   );
 }
 

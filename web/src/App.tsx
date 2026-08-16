@@ -95,6 +95,9 @@ export default function App(): React.JSX.Element {
       case "sync":
         void workspace.sync().catch(() => undefined);
         return;
+      case "refresh-tasks":
+        void workspace.refreshAllTasks().catch(() => undefined);
+        return;
       case "new-task":
         setView("tasks");
         setTaskCommand({ id, type: "new-task" });
@@ -152,6 +155,13 @@ export default function App(): React.JSX.Element {
         <button className={view === "settings" ? "active" : ""} type="button" onClick={() => setView("settings")}>Settings</button>
       </nav>
       <p className="global-status" aria-live="polite">{workspace.status}</p>
+      {workspace.syncProgress.phase !== "idle" && (
+        <section className="sync-progress" aria-live="polite" aria-label="Synchronization progress">
+          <strong>{workspace.syncProgress.detail}</strong>
+          <span>{workspace.syncProgress.completed !== undefined && workspace.syncProgress.total !== undefined ? `${workspace.syncProgress.completed} of ${workspace.syncProgress.total} resources` : `${workspace.syncProgress.pagesSaved} pages saved`}</span>
+          {workspace.syncProgress.cancellable && <button type="button" onClick={workspace.cancelSync}>Cancel sync</button>}
+        </section>
+      )}
       {view === "tasks" && (
         <TaskPanel
           taskLists={workspace.workspace.taskLists}
@@ -200,6 +210,9 @@ export default function App(): React.JSX.Element {
           busy={workspace.busy}
           connect={workspace.connect}
           sync={workspace.sync}
+          refreshAllTasks={workspace.refreshAllTasks}
+          syncProgress={workspace.syncProgress}
+          cancelSync={workspace.cancelSync}
           disconnect={workspace.disconnect}
           clearLocalData={workspace.clearLocalData}
         />

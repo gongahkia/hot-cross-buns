@@ -14,14 +14,16 @@ describe("GoogleApiClient", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "list-2", title: "Later" }] })));
     vi.stubGlobal("fetch", fetchMock);
     const client = new GoogleApiClient(() => "memory-only-token");
+    const controller = new AbortController();
 
-    await expect(client.listTaskLists()).resolves.toEqual([
+    await expect(client.listTaskLists(controller.signal)).resolves.toEqual([
       { id: "list-1", title: "Inbox", updated: undefined },
       { id: "list-2", title: "Later", updated: undefined }
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[1][0])).toContain("pageToken=next");
     expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe("Bearer memory-only-token");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
     vi.unstubAllGlobals();
   });
 
@@ -130,6 +132,41 @@ describe("GoogleApiClient", () => {
     expect(eventUrl).toContain("showDeleted=true");
     expect(eventUrl).not.toContain("timeMin=");
     expect(eventUrl).not.toContain("orderBy=");
+    vi.unstubAllGlobals();
+  });
+
+  it("exposes abortable Calendar pages and retains the page token with the sync request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [{ id: "event-1", summary: "Planning", start: { dateTime: "2026-08-16T09:00:00.000Z" }, end: { dateTime: "2026-08-16T10:00:00.000Z" } }],
+      nextPageToken: "next-page"
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.listCalendarEventChangesPage("primary", "sync-token", "page-token", controller.signal)).resolves.toMatchObject({
+      nextPageToken: "next-page",
+      items: [{ id: "event-1", calendarId: "primary" }]
+    });
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("syncToken=sync-token");
+    expect(url).toContain("pageToken=page-token");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+    vi.unstubAllGlobals();
+  });
+
+  it("carries cancellation through visible Calendar occurrence pagination", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [{ id: "event-1", summary: "Planning", start: { dateTime: "2026-08-16T09:00:00.000Z" }, end: { dateTime: "2026-08-16T10:00:00.000Z" } }]
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.listCalendarOccurrences("primary", "2026-08-16T00:00:00.000Z", "2026-08-17T00:00:00.000Z", controller.signal)).resolves.toMatchObject([
+      { id: "event-1", calendarId: "primary" }
+    ]);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
     vi.unstubAllGlobals();
   });
 

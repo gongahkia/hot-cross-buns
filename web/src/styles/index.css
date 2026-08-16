@@ -29,6 +29,7 @@ button {
 }
 button:hover:not(:disabled), button.active { background: #50332a; color: #fffdf9; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #dc9a48; outline-offset: 2px; }
+textarea:focus-visible { outline: 3px solid #dc9a48; outline-offset: 2px; }
 
 .loading-screen, .onboarding-shell { display: grid; min-height: 100vh; place-items: center; padding: 1.5rem; }
 .onboarding-card, .workspace-panel {
@@ -58,6 +59,8 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; color: #50332a; font-size: 0.78em; padding: 0.12rem 0.32rem; }
 .primary-nav { display: flex; gap: 0.55rem; margin: 1.5rem 0 0.75rem; }
 .global-status { margin: 0.5rem 0 1rem; min-height: 1.3rem; }
+.sync-progress { align-items: center; background: #f5dfbb; border: 1px solid #d8a55a; border-radius: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.55rem 1rem; justify-content: space-between; margin: 0 0 1rem; padding: 0.7rem 0.85rem; }
+.sync-progress span { color: #6e6258; font-size: 0.88rem; }
 .workspace-panel { padding: clamp(1rem, 2vw, 1.7rem); }
 .panel-heading { display: flex; align-items: end; gap: 1rem; justify-content: space-between; margin-bottom: 1.2rem; }
 .compact-field { min-width: min(100%, 17rem); }
@@ -106,10 +109,11 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .task .task-content { border: 0; color: inherit; display: grid; flex: 1; gap: 0.15rem; padding: 0.2rem; text-align: start; }
 .task .task-content:hover { background: transparent; color: inherit; }
 .task .task-content span { color: #62564d; font-weight: 400; white-space: pre-wrap; }
-.modal-backdrop { align-items: start; background: rgb(39 33 28 / 50%); display: flex; inset: 0; justify-content: center; overflow-y: auto; padding: 5vh 1rem; position: fixed; z-index: 10; }
-.modal-card { background: #fffaf3; border: 1px solid #d9cdbf; border-radius: 1rem; box-shadow: 0 18px 55px rgb(39 33 28 / 32%); display: grid; gap: 0.85rem; max-width: 48rem; padding: clamp(1rem, 3vw, 1.6rem); width: 100%; }
+.modal-backdrop { align-items: start; background: rgb(39 33 28 / 50%); display: flex; inset: 0; justify-content: center; overflow-y: auto; overscroll-behavior: contain; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); position: fixed; z-index: 10; }
+.modal-card { background: #fffaf3; border: 1px solid #d9cdbf; border-radius: 1rem; box-shadow: 0 18px 55px rgb(39 33 28 / 32%); display: grid; gap: 0.85rem; margin: auto 0; max-width: 48rem; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: clamp(1rem, 3vw, 1.6rem); width: 100%; }
 .modal-card label, .recurrence-editor > label, .event-time-fields label { display: grid; gap: 0.35rem; font-weight: 700; }
 .modal-card textarea { min-height: 5rem; resize: vertical; }
+.task-editor form, .event-editor form { display: grid; gap: 0.85rem; }
 .scope-choice, .recurrence-editor, .calendar-sources { border: 1px solid #dacbbc; border-radius: 0.6rem; display: grid; gap: 0.65rem; margin: 0; padding: 0.8rem; }
 .scope-choice legend, .recurrence-editor legend, .calendar-sources legend { font-weight: 800; }
 .scope-choice label, .weekday-toggle label, .calendar-sources label { align-items: center; display: flex; font-weight: 500; gap: 0.45rem; }
@@ -166,4 +170,6 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
   .task-create-form, .task-list-heading, .event-time-fields { grid-template-columns: 1fr; }
   .calendar-management-list li, .availability-slots li { align-items: stretch; flex-direction: column; }
   .week-grid, .month-grid { grid-template-columns: repeat(7, minmax(7rem, 1fr)); }
+  .sync-progress { align-items: stretch; flex-direction: column; }
+  .modal-card { border-radius: 0.8rem; max-height: calc(100dvh - 1rem); }
 }

@@ -40,6 +40,10 @@ export interface GoogleSyncPage<T> {
   readonly nextSyncToken?: string;
 }
 
+export interface GooglePage<T> extends GoogleSyncPage<T> {
+  readonly nextPageToken?: string;
+}
+
 interface GoogleListResponse<T> {
   readonly items?: readonly T[];
   readonly nextPageToken?: string;
@@ -163,8 +167,8 @@ export class GoogleApiClient {
     return (await response.json()) as T;
   }
 
-  async listTaskLists(): Promise<GoogleTaskList[]> {
-    const response = await this.listPages<GoogleTaskList>("/tasks/v1/users/@me/lists?maxResults=100");
+  async listTaskLists(signal?: AbortSignal): Promise<GoogleTaskList[]> {
+    const response = await this.listPages<GoogleTaskList>("/tasks/v1/users/@me/lists?maxResults=100", signal);
     return response.items.map((item) => ({ id: item.id, title: item.title, updated: item.updated }));
   }
 
@@ -199,6 +203,29 @@ export class GoogleApiClient {
     const path = `/tasks/v1/lists/${encodeURIComponent(listId)}/tasks?${parameters.toString()}`;
     const response = await this.listPages<RawTask>(path);
     return response.items.map((item) => toTask(listId, item));
+  }
+
+  async listTasksPage(listId: string, updatedMin?: string, pageToken?: string, signal?: AbortSignal): Promise<GooglePage<GoogleTask>> {
+    const parameters = new URLSearchParams({
+      maxResults: "100",
+      showCompleted: "true",
+      showHidden: "true",
+      showDeleted: "true"
+    });
+    if (updatedMin) {
+      parameters.set("updatedMin", updatedMin);
+    }
+    if (pageToken) {
+      parameters.set("pageToken", pageToken);
+    }
+    const response = await this.request<GoogleListResponse<RawTask>>(
+      `/tasks/v1/lists/${encodeURIComponent(listId)}/tasks?${parameters.toString()}`,
+      { signal }
+    );
+    return {
+      items: (response.items ?? []).map((item) => toTask(listId, item)),
+      nextPageToken: response.nextPageToken
+    };
   }
 
   async createTask(listId: string, input: TaskInput): Promise<GoogleTask> {
@@ -260,6 +287,25 @@ export class GoogleApiClient {
     };
   }
 
+  async listCalendarChangesPage(syncToken?: string, pageToken?: string, signal?: AbortSignal): Promise<GooglePage<GoogleCalendar>> {
+    const parameters = new URLSearchParams({ maxResults: "250" });
+    if (syncToken) {
+      parameters.set("syncToken", syncToken);
+    }
+    if (pageToken) {
+      parameters.set("pageToken", pageToken);
+    }
+    const response = await this.request<GoogleListResponse<RawCalendar>>(
+      `/calendar/v3/users/me/calendarList?${parameters.toString()}`,
+      { signal }
+    );
+    return {
+      items: (response.items ?? []).map(toCalendar),
+      nextPageToken: response.nextPageToken,
+      nextSyncToken: response.nextSyncToken
+    };
+  }
+
   async listCalendarEventChanges(calendarId: string, syncToken?: string): Promise<GoogleSyncPage<GoogleCalendarEvent>> {
     const parameters = new URLSearchParams({
       maxResults: "2500",
@@ -278,11 +324,49 @@ export class GoogleApiClient {
     };
   }
 
-  async listCalendarOccurrences(calendarId: string, timeMin: string, timeMax: string): Promise<GoogleCalendarEvent[]> {
-    return this.listEvents(calendarId, timeMin, timeMax);
+  async listCalendarEventChangesPage(
+    calendarId: string,
+    syncToken?: string,
+    pageToken?: string,
+    signal?: AbortSignal
+  ): Promise<GooglePage<GoogleCalendarEvent>> {
+    const parameters = new URLSearchParams({
+      maxResults: "2500",
+      singleEvents: "false",
+      showDeleted: "true"
+    });
+    if (syncToken) {
+      parameters.set("syncToken", syncToken);
+    }
+    if (pageToken) {
+      parameters.set("pageToken", pageToken);
+    }
+    const response = await this.request<GoogleListResponse<RawEvent>>(
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${parameters.toString()}`,
+      { signal }
+    );
+    return {
+      items: (response.items ?? []).map((event) => toEvent(calendarId, event)),
+      nextPageToken: response.nextPageToken,
+      nextSyncToken: response.nextSyncToken
+    };
   }
 
-  async listEvents(calendarId: string, timeMin: string, timeMax: string): Promise<GoogleCalendarEvent[]> {
+  async listCalendarOccurrences(
+    calendarId: string,
+    timeMin: string,
+    timeMax: string,
+    signal?: AbortSignal
+  ): Promise<GoogleCalendarEvent[]> {
+    return this.listEvents(calendarId, timeMin, timeMax, signal);
+  }
+
+  async listEvents(
+    calendarId: string,
+    timeMin: string,
+    timeMax: string,
+    signal?: AbortSignal
+  ): Promise<GoogleCalendarEvent[]> {
     const query = new URLSearchParams({
       timeMin,
       timeMax,
@@ -291,7 +375,8 @@ export class GoogleApiClient {
       maxResults: "2500"
     });
     const response = await this.listPages<RawEvent>(
-      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${query.toString()}`
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${query.toString()}`,
+      signal
     );
     return response.items.map((event) => toEvent(calendarId, event));
   }
@@ -391,14 +476,14 @@ export class GoogleApiClient {
     return response.files ?? [];
   }
 
-  private async listPages<T>(initialPath: string): Promise<{ items: T[]; syncToken?: string }> {
+  private async listPages<T>(initialPath: string, signal?: AbortSignal): Promise<{ items: T[]; syncToken?: string }> {
     const items: T[] = [];
     let pageToken: string | undefined;
     let syncToken: string | undefined;
     do {
       const separator = initialPath.includes("?") ? "&" : "?";
       const path = pageToken ? `${initialPath}${separator}pageToken=${encodeURIComponent(pageToken)}` : initialPath;
-      const page = await this.request<GoogleListResponse<T>>(path);
+      const page = await this.request<GoogleListResponse<T>>(path, { signal });
       items.push(...(page.items ?? []));
       syncToken = page.nextSyncToken ?? syncToken;
       pageToken = page.nextPageToken;

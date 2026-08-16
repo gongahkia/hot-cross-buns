@@ -8,7 +8,7 @@ import {
   type BrowserAccessToken
 } from "@/auth/googleIdentity";
 import { TokenSession } from "@/auth/tokenSession";
-import { localStore } from "@/data/localStore";
+import { localStore, type StorageEstimate } from "@/data/localStore";
 import {
   GOOGLE_SCOPES,
   INITIAL_GOOGLE_SCOPES,
@@ -34,11 +34,33 @@ export interface EventConflict {
   readonly localInput?: CalendarEventInput;
 }
 
+export interface SyncProgress {
+  readonly active: boolean;
+  readonly cancellable: boolean;
+  readonly phase: "idle" | "pending" | "tasks" | "calendar-list" | "calendar-events" | "occurrences" | "complete" | "paused" | "error";
+  readonly detail: string;
+  readonly completed?: number;
+  readonly total?: number;
+  readonly pagesSaved: number;
+  readonly recordsSaved: number;
+  readonly storage?: StorageEstimate;
+}
+
+const idleSyncProgress: SyncProgress = {
+  active: false,
+  cancellable: false,
+  phase: "idle",
+  detail: "No sync is running",
+  pagesSaved: 0,
+  recordsSaved: 0
+};
+
 export interface WorkspaceController {
   readonly clientId: string;
   readonly ready: boolean;
   readonly busy: boolean;
   readonly status: string;
+  readonly syncProgress: SyncProgress;
   readonly workspace: WorkspaceSnapshot | undefined;
   readonly connected: boolean;
   readonly driveAuthorized: boolean;
@@ -46,6 +68,8 @@ export interface WorkspaceController {
   saveClientId(clientId: string): Promise<void>;
   connect(): Promise<void>;
   sync(): Promise<void>;
+  cancelSync(): void;
+  refreshAllTasks(): Promise<void>;
   loadCalendarRange(timeMin: string, timeMax: string): Promise<void>;
   createCalendar(input: CalendarInput): Promise<void>;
   subscribeCalendar(calendarId: string): Promise<void>;
@@ -108,18 +132,6 @@ function mergeTasks(existing: readonly GoogleTask[], changes: readonly GoogleTas
   return [...tasks.values()];
 }
 
-function mergeCalendars(existing: readonly GoogleCalendar[], changes: readonly GoogleCalendar[]): GoogleCalendar[] {
-  const calendars = new Map(existing.map((calendar) => [calendar.id, calendar]));
-  for (const calendar of changes) {
-    if (calendar.deleted) {
-      calendars.delete(calendar.id);
-    } else {
-      calendars.set(calendar.id, calendar);
-    }
-  }
-  return [...calendars.values()];
-}
-
 function eventFromInput(event: GoogleCalendarEvent, input: CalendarEventInput): GoogleCalendarEvent {
   return {
     ...event,
@@ -159,15 +171,18 @@ function isLocalId(id: string): boolean {
 async function mapWithConcurrency<T, R>(
   values: readonly T[],
   maximum: number,
-  callback: (value: T) => Promise<R>
+  callback: (value: T) => Promise<R>,
+  signal?: AbortSignal
 ): Promise<R[]> {
   const result: R[] = [];
   let cursor = 0;
   const workers = Array.from({ length: Math.min(maximum, values.length) }, async () => {
     while (cursor < values.length) {
+      throwIfAborted(signal);
       const index = cursor;
       cursor += 1;
       result[index] = await callback(values[index]);
+      throwIfAborted(signal);
     }
   });
   await Promise.all(workers);
@@ -186,14 +201,37 @@ function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An unexpected error occurred";
 }
 
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new DOMException("Sync was cancelled", "AbortError");
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isQuotaError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "QuotaExceededError";
+}
+
+function storagePressured(estimate: StorageEstimate): boolean {
+  if (!estimate.usage || !estimate.quota) {
+    return false;
+  }
+  return estimate.usage / estimate.quota >= 0.8 || estimate.quota - estimate.usage < 50 * 1024 * 1024;
+}
+
 export function useWorkspace(): WorkspaceController {
   const [clientId, setClientId] = useState("");
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | undefined>(emptyWorkspace);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("Configure your Google Web OAuth client to begin");
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>(idleSyncProgress);
   const [eventConflict, setEventConflict] = useState<EventConflict | undefined>();
   const workspaceRef = useRef<WorkspaceSnapshot | undefined>(workspace);
+  const syncAbortRef = useRef<AbortController | undefined>(undefined);
 
   const replaceWorkspace = useCallback((next: WorkspaceSnapshot | undefined) => {
     workspaceRef.current = next;
@@ -358,9 +396,8 @@ export function useWorkspace(): WorkspaceController {
     }
   }, [api, replaceEvent, replaceTask, saveConflict, updateCachedWorkspace]);
 
-  const synchronize = useCallback(async () => {
-    const token = session.accessToken();
-    if (!token) {
+  const synchronize = useCallback(async (signal?: AbortSignal, fullTaskRefresh = false) => {
+    if (!session.accessToken()) {
       throw new GoogleAuthorizationRequiredError();
     }
     const current = workspaceRef.current;
@@ -369,109 +406,221 @@ export function useWorkspace(): WorkspaceController {
     }
     const subject = current.identity.subject;
     const syncStartedAt = new Date().toISOString();
+    setSyncProgress({ active: true, cancellable: false, phase: "pending", detail: "Saving pending local changes", pagesSaved: 0, recordsSaved: 0 });
     await flushPending(subject);
+    throwIfAborted(signal);
 
-    const taskLists = await api.listTaskLists();
-    const taskChanges = await mapWithConcurrency(taskLists, 4, async (taskList) => {
-      const checkpoint = await localStore.readCheckpoint(subject, `tasks:${taskList.id}`);
-      const changes = await api.listTasks(
-        taskList.id,
-        checkpoint ? subtractMinutes(checkpoint.updatedAt, 5) : undefined
-      );
-      await localStore.applyTaskChanges(subject, taskList.id, changes, {
-        resource: `tasks:${taskList.id}`,
-        updatedAt: syncStartedAt
-      });
-      return { listId: taskList.id, changes, initial: !checkpoint };
-    });
+    setSyncProgress({ active: true, cancellable: true, phase: "tasks", detail: fullTaskRefresh ? "Refreshing all Google Tasks" : "Checking Google Tasks changes", pagesSaved: 0, recordsSaved: 0 });
+    const taskLists = await api.listTaskLists(signal);
+    const taskChanges: Array<{ readonly listId: string; readonly changes: readonly GoogleTask[]; readonly initial: boolean }> = [];
+    let taskPages = 0;
+    let taskRecords = 0;
+    for (let index = 0; index < taskLists.length; index += 1) {
+      throwIfAborted(signal);
+      const taskList = taskLists[index]!;
+      const checkpoint = fullTaskRefresh ? undefined : await localStore.readCheckpoint(subject, `tasks:${taskList.id}`);
+      const changes: GoogleTask[] = [];
+      let pageToken: string | undefined;
+      do {
+        const page = await api.listTasksPage(taskList.id, checkpoint ? subtractMinutes(checkpoint.updatedAt, 5) : undefined, pageToken, signal);
+        changes.push(...page.items);
+        pageToken = page.nextPageToken;
+        taskPages += 1;
+        taskRecords += page.items.length;
+        setSyncProgress({ active: true, cancellable: true, phase: "tasks", detail: `${fullTaskRefresh ? "Refreshing" : "Checking"} task list ${index + 1} of ${taskLists.length}`, completed: index, total: taskLists.length, pagesSaved: taskPages, recordsSaved: taskRecords });
+        throwIfAborted(signal);
+      } while (pageToken);
+      taskChanges.push({ listId: taskList.id, changes, initial: fullTaskRefresh || !checkpoint });
+      if (!fullTaskRefresh) {
+        await localStore.applyTaskChanges(subject, taskList.id, changes, { resource: `tasks:${taskList.id}`, updatedAt: syncStartedAt });
+      }
+    }
     let tasks = current.tasks.filter((task) => taskLists.some((list) => list.id === task.listId));
     for (const group of taskChanges) {
       const existing = group.initial ? tasks.filter((task) => task.listId !== group.listId) : tasks;
-      tasks = group.initial
-        ? [...existing, ...group.changes.filter((task) => !task.deleted)]
-        : mergeTasks(tasks, group.changes);
+      tasks = group.initial ? [...existing, ...group.changes.filter((task) => !task.deleted)] : mergeTasks(tasks, group.changes);
+    }
+    if (fullTaskRefresh) {
+      await localStore.replaceTaskMirror(subject, taskLists, tasks, syncStartedAt);
+      await saveWorkspace({ ...current, taskLists, tasks, updatedAt: new Date().toISOString() });
+      setStatus(`Refreshed ${tasks.length} tasks from Google`);
+      setSyncProgress({ active: false, cancellable: false, phase: "complete", detail: "Google Tasks refresh complete", pagesSaved: taskPages, recordsSaved: taskRecords });
+      return;
     }
 
-    const calendarCheckpoint = await localStore.readCheckpoint(subject, "calendar-list");
-    let calendarChanges;
-    let resetCalendarList = false;
-    try {
-      calendarChanges = await api.listCalendarChanges(calendarCheckpoint?.token);
-    } catch (error) {
-      if (!(error instanceof GoogleApiError) || error.status !== 410 || !calendarCheckpoint?.token) {
-        throw error;
+    const estimate = await localStore.storageEstimate().catch(() => ({}));
+    if (storagePressured(estimate)) {
+      setStatus("Browser storage is under pressure. Calendar sync will clear only regenerable visible-range events if a write runs out of space.");
+    }
+    let run = await localStore.readCalendarSyncRun(subject);
+    if (!run) {
+      const checkpoint = await localStore.readCheckpoint(subject, "calendar-list");
+      const reset = !checkpoint;
+      if (reset) {
+        await localStore.beginCalendarListReplacement(subject);
       }
-      resetCalendarList = true;
-      calendarChanges = await api.listCalendarChanges();
+      run = {
+        subject,
+        startedAt: syncStartedAt,
+        phase: "calendar-list",
+        calendarListSyncToken: checkpoint?.token,
+        calendarListReset: reset,
+        calendarIds: [],
+        calendarIndex: 0,
+        eventReset: false,
+        changedCalendarIds: [],
+        occurrenceCacheCleared: false,
+        pagesSaved: 0,
+        recordsSaved: 0
+      };
+      await localStore.saveCalendarSyncRun(run);
     }
-    if (!calendarChanges.nextSyncToken) {
-      throw new Error("Google Calendar did not return a calendar-list sync token");
+    if (!run) {
+      throw new Error("Calendar sync could not start");
     }
-    const calendarListCheckpoint = {
-      resource: "calendar-list",
-      token: calendarChanges.nextSyncToken,
-      updatedAt: syncStartedAt
-    };
-    if (resetCalendarList || !calendarCheckpoint) {
-      await localStore.replaceCalendarList(subject, calendarChanges.items, calendarListCheckpoint, resetCalendarList);
-    } else {
-      await localStore.applyCalendarListChanges(subject, calendarChanges.items, calendarListCheckpoint);
-    }
-    const calendars = resetCalendarList || !calendarCheckpoint
-      ? calendarChanges.items.filter((calendar) => !calendar.deleted)
-      : mergeCalendars(current.calendars, calendarChanges.items);
 
-    const changedCalendarIds = new Set<string>();
-    await mapWithConcurrency(calendars, 4, async (calendar) => {
-      const resource = `calendar-events:${calendar.id}`;
-      const checkpoint = await localStore.readCheckpoint(subject, resource);
-      let changes;
-      let reset = false;
+    while (run.phase === "calendar-list") {
+      throwIfAborted(signal);
+      setSyncProgress({ active: true, cancellable: true, phase: "calendar-list", detail: "Synchronizing Calendar list", pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
+      let page;
       try {
-        changes = await api.listCalendarEventChanges(calendar.id, checkpoint?.token);
+        page = await api.listCalendarChangesPage(run.calendarListSyncToken, run.calendarListPageToken, signal);
       } catch (error) {
-        if (!(error instanceof GoogleApiError) || error.status !== 410 || !checkpoint?.token) {
+        if (!(error instanceof GoogleApiError) || error.status !== 410 || !run.calendarListSyncToken) {
           throw error;
         }
-        reset = true;
-        await localStore.replaceCalendarEventCache(subject, calendar.id, { resource, updatedAt: syncStartedAt });
-        changes = await api.listCalendarEventChanges(calendar.id);
+        await localStore.beginCalendarListReplacement(subject);
+        run = { ...run, calendarListSyncToken: undefined, calendarListPageToken: undefined, calendarListReset: true };
+        await localStore.saveCalendarSyncRun(run);
+        continue;
       }
-      if (!changes.nextSyncToken) {
-        throw new Error(`Google Calendar did not return a sync token for ${calendar.summary}`);
+      if (!page.nextPageToken && !page.nextSyncToken) {
+        throw new Error("Google Calendar did not return a calendar-list sync token");
       }
-      await localStore.applyCalendarEventChanges(subject, calendar.id, changes.items, {
-        resource,
-        token: changes.nextSyncToken,
-        updatedAt: syncStartedAt
-      });
-      if (reset || !checkpoint || changes.items.length > 0) {
-        changedCalendarIds.add(calendar.id);
+      const applyCalendarListPage = () => page.nextPageToken
+        ? localStore.applyCalendarListPage(subject, page.items)
+        : localStore.applyCalendarListChanges(subject, page.items, {
+          resource: "calendar-list",
+          token: page.nextSyncToken!,
+          updatedAt: syncStartedAt
+        });
+      try {
+        await applyCalendarListPage();
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          throw error;
+        }
+        setStatus("Browser storage is full. Cleared regenerable visible-range events and retrying this Calendar-list page.");
+        await localStore.clearOccurrenceCache(subject);
+        run = { ...run, occurrenceCacheCleared: true };
+        await localStore.saveCalendarSyncRun(run);
+        await applyCalendarListPage();
       }
-    });
+      run = { ...run, calendarListPageToken: page.nextPageToken, pagesSaved: run.pagesSaved + 1, recordsSaved: run.recordsSaved + page.items.length };
+      if (page.nextPageToken) {
+        await localStore.saveCalendarSyncRun(run);
+        continue;
+      }
+      const snapshot = await localStore.readSnapshot(subject);
+      run = { ...run, phase: "calendar-events", calendarIds: snapshot?.calendars.filter((calendar) => !calendar.deleted).map((calendar) => calendar.id) ?? [], calendarIndex: 0, calendarListPageToken: undefined };
+      await localStore.saveCalendarSyncRun(run);
+    }
 
+    while (run.calendarIndex < run.calendarIds.length) {
+      throwIfAborted(signal);
+      const calendarId = run.calendarIds[run.calendarIndex]!;
+      const resource = `calendar-events:${calendarId}`;
+      if (!run.eventSyncToken && !run.eventPageToken && !run.eventReset) {
+        const checkpoint = await localStore.readCheckpoint(subject, resource);
+        run = { ...run, eventSyncToken: checkpoint?.token, eventReset: !checkpoint };
+        if (!checkpoint) {
+          await localStore.replaceCalendarEventCache(subject, calendarId, { resource, updatedAt: syncStartedAt });
+        }
+        await localStore.saveCalendarSyncRun(run);
+      }
+      setSyncProgress({ active: true, cancellable: true, phase: "calendar-events", detail: `Synchronizing calendar ${run.calendarIndex + 1} of ${run.calendarIds.length}`, completed: run.calendarIndex, total: run.calendarIds.length, pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
+      let page;
+      try {
+        page = await api.listCalendarEventChangesPage(calendarId, run.eventSyncToken, run.eventPageToken, signal);
+      } catch (error) {
+        if (!(error instanceof GoogleApiError) || error.status !== 410 || !run.eventSyncToken) {
+          throw error;
+        }
+        await localStore.replaceCalendarEventCache(subject, calendarId, { resource, updatedAt: syncStartedAt });
+        run = { ...run, eventSyncToken: undefined, eventPageToken: undefined, eventReset: true };
+        await localStore.saveCalendarSyncRun(run);
+        continue;
+      }
+      if (!page.nextPageToken && !page.nextSyncToken) {
+        throw new Error(`Google Calendar did not return a sync token for ${calendarId}`);
+      }
+      const invalidateOccurrences = !run.eventPageToken;
+      const applyPage = () => page.nextPageToken
+        ? localStore.applyCalendarEventPage(subject, calendarId, page.items, invalidateOccurrences)
+        : localStore.applyCalendarEventChanges(subject, calendarId, page.items, {
+          resource,
+          token: page.nextSyncToken!,
+          updatedAt: syncStartedAt
+        });
+      try {
+        await applyPage();
+      } catch (error) {
+        if (!isQuotaError(error)) {
+          throw error;
+        }
+        setStatus("Browser storage is full. Cleared regenerable visible-range events and retrying this Calendar page.");
+        await localStore.clearOccurrenceCache(subject);
+        run = { ...run, occurrenceCacheCleared: true };
+        await localStore.saveCalendarSyncRun(run);
+        await applyPage();
+      }
+      const changedCalendarIds: readonly string[] = (run.eventReset || page.items.length > 0) && !run.changedCalendarIds.includes(calendarId)
+        ? [...run.changedCalendarIds, calendarId]
+        : run.changedCalendarIds;
+      run = { ...run, changedCalendarIds, eventPageToken: page.nextPageToken, pagesSaved: run.pagesSaved + 1, recordsSaved: run.recordsSaved + page.items.length };
+      if (page.nextPageToken) {
+        await localStore.saveCalendarSyncRun(run);
+        continue;
+      }
+      run = { ...run, calendarIndex: run.calendarIndex + 1, eventSyncToken: undefined, eventPageToken: undefined, eventReset: false };
+      await localStore.saveCalendarSyncRun(run);
+    }
+
+    const snapshot = await localStore.readSnapshot(subject);
+    const calendars = (snapshot?.calendars ?? []).filter((calendar) => !calendar.deleted);
     const range = toIsoRange();
-    const currentCalendarIds = new Set(calendars.map((calendar) => calendar.id));
-    const calendarsToLoad = calendars.filter((calendar) => changedCalendarIds.has(calendar.id));
+    const changedCalendarIds = new Set(run.changedCalendarIds);
+    const calendarsToLoad = run.occurrenceCacheCleared ? calendars : calendars.filter((calendar) => changedCalendarIds.has(calendar.id));
+    let occurrencesLoaded = 0;
+    setSyncProgress({ active: true, cancellable: true, phase: "occurrences", detail: calendarsToLoad.length > 0 ? "Loading the visible Calendar range" : "Using the existing visible Calendar range", completed: 0, total: calendarsToLoad.length, pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
     const eventGroups = await mapWithConcurrency(
       calendarsToLoad,
       4,
-      (calendar) => api.listCalendarOccurrences(calendar.id, range.start, range.end)
+      async (calendar) => {
+        const events = await api.listCalendarOccurrences(calendar.id, range.start, range.end, signal);
+        occurrencesLoaded += 1;
+        setSyncProgress({ active: true, cancellable: true, phase: "occurrences", detail: "Loading the visible Calendar range", completed: occurrencesLoaded, total: calendarsToLoad.length, pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
+        return events;
+      },
+      signal
     );
-    const events = [
-      ...current.events.filter((event) => currentCalendarIds.has(event.calendarId) && !changedCalendarIds.has(event.calendarId)),
-      ...eventGroups.flat()
-    ];
+    throwIfAborted(signal);
+    const calendarIds = new Set(calendars.map((calendar) => calendar.id));
+    const retainedEvents = run.occurrenceCacheCleared
+      ? []
+      : current.events.filter((event) => calendarIds.has(event.calendarId) && !changedCalendarIds.has(event.calendarId));
     const next: WorkspaceSnapshot = {
       identity: current.identity,
       taskLists,
       tasks,
       calendars,
-      events,
+      events: [...retainedEvents, ...eventGroups.flat()],
       updatedAt: new Date().toISOString()
     };
     await saveWorkspace(next);
-    setStatus(`Synced ${next.tasks.length} tasks and ${changedCalendarIds.size} calendar changes`);
+    await localStore.clearCalendarSyncRun(subject);
+    setStatus(`Synced ${next.tasks.length} tasks and ${calendars.length} calendars`);
+    setSyncProgress({ active: false, cancellable: false, phase: "complete", detail: "Sync complete", completed: calendarsToLoad.length, total: calendarsToLoad.length, pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
   }, [api, flushPending, saveWorkspace]);
 
   const loadCalendarRange = useCallback(async (timeMin: string, timeMax: string) => {
@@ -521,23 +670,75 @@ export function useWorkspace(): WorkspaceController {
         updatedAt: new Date().toISOString()
       };
       await saveWorkspace({ ...initial, identity });
-      await synchronize();
+      const controller = new AbortController();
+      syncAbortRef.current = controller;
+      await synchronize(controller.signal);
     } catch (error) {
-      setStatus(asErrorMessage(error));
+      setStatus(isAbortError(error) ? "Sync paused. Choose Sync now after reconnecting Google to resume Calendar history." : asErrorMessage(error));
       throw error;
     } finally {
+      syncAbortRef.current = undefined;
       setBusy(false);
     }
   }, [clientId, saveWorkspace, synchronize]);
 
   const sync = useCallback(async () => {
+    if (syncAbortRef.current) {
+      throw new Error("A synchronization is already running");
+    }
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
     setBusy(true);
     try {
-      await synchronize();
+      await synchronize(controller.signal);
     } catch (error) {
-      setStatus(asErrorMessage(error));
+      if (isAbortError(error)) {
+        const current = workspaceRef.current;
+        const resumable = current ? await localStore.readCalendarSyncRun(current.identity.subject) : undefined;
+        setStatus(resumable ? "Sync paused. Reconnect Google if needed, then choose Sync now to resume Calendar history." : "Sync cancelled before Calendar history started.");
+        setSyncProgress((progress) => ({ ...progress, active: false, cancellable: false, phase: "paused", detail: "Sync paused; saved Calendar pages can resume" }));
+        return;
+      }
+      const message = isQuotaError(error)
+        ? "Browser storage is still full after clearing visible-range events. Free browser storage or clear local data, then choose Sync now to resume Calendar history."
+        : asErrorMessage(error);
+      setStatus(message);
+      setSyncProgress((progress) => ({ ...progress, active: false, cancellable: false, phase: "error", detail: message }));
       throw error;
     } finally {
+      if (syncAbortRef.current === controller) {
+        syncAbortRef.current = undefined;
+      }
+      setBusy(false);
+    }
+  }, [synchronize]);
+
+  const cancelSync = useCallback(() => {
+    syncAbortRef.current?.abort();
+  }, []);
+
+  const refreshAllTasks = useCallback(async () => {
+    if (syncAbortRef.current) {
+      throw new Error("A synchronization is already running");
+    }
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
+    setBusy(true);
+    try {
+      await synchronize(controller.signal, true);
+    } catch (error) {
+      if (isAbortError(error)) {
+        setStatus("Google Tasks refresh cancelled. Your existing browser-local task cache was kept.");
+        setSyncProgress((progress) => ({ ...progress, active: false, cancellable: false, phase: "paused", detail: "Tasks refresh cancelled" }));
+        return;
+      }
+      setStatus(asErrorMessage(error));
+      setSyncProgress((progress) => ({ ...progress, active: false, cancellable: false, phase: "error", detail: asErrorMessage(error) }));
+      throw error;
+    } finally {
+      if (syncAbortRef.current === controller) {
+        syncAbortRef.current = undefined;
+      }
       setBusy(false);
     }
   }, [synchronize]);
@@ -1101,6 +1302,7 @@ export function useWorkspace(): WorkspaceController {
     ready,
     busy,
     status,
+    syncProgress,
     workspace,
     connected: Boolean(session.accessToken() && workspace),
     driveAuthorized: session.hasScope(GOOGLE_SCOPES.driveMetadata),
@@ -1108,6 +1310,8 @@ export function useWorkspace(): WorkspaceController {
     saveClientId,
     connect,
     sync,
+    cancelSync,
+    refreshAllTasks,
     loadCalendarRange,
     createCalendar,
     subscribeCalendar,

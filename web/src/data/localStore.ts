@@ -12,7 +12,7 @@ import type {
 import { calendarSearchDocument, type CalendarSearchDocument } from "@/features/calendarSearch";
 
 const DATABASE_NAME = "hot-cross-buns-web";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 const stores = {
   settings: "settings",
@@ -24,7 +24,8 @@ const stores = {
   canonicalEvents: "canonicalEvents",
   driveFiles: "driveFiles",
   mutations: "mutations",
-  checkpoints: "checkpoints"
+  checkpoints: "checkpoints",
+  syncRuns: "syncRuns"
 } as const;
 
 type StoreName = (typeof stores)[keyof typeof stores];
@@ -40,6 +41,29 @@ interface StoredSetting {
 
 interface StoredCheckpoint extends SyncCheckpoint {
   readonly subject: string;
+}
+
+export interface CalendarSyncRun {
+  readonly subject: string;
+  readonly startedAt: string;
+  readonly phase: "calendar-list" | "calendar-events";
+  readonly calendarListSyncToken?: string;
+  readonly calendarListPageToken?: string;
+  readonly calendarListReset: boolean;
+  readonly calendarIds: readonly string[];
+  readonly calendarIndex: number;
+  readonly eventSyncToken?: string;
+  readonly eventPageToken?: string;
+  readonly eventReset: boolean;
+  readonly changedCalendarIds: readonly string[];
+  readonly occurrenceCacheCleared: boolean;
+  readonly pagesSaved: number;
+  readonly recordsSaved: number;
+}
+
+export interface StorageEstimate {
+  readonly usage?: number;
+  readonly quota?: number;
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -86,6 +110,9 @@ function openDatabase(): Promise<IDBDatabase> {
         database.deleteObjectStore(stores.events);
         createSubjectStore(database, stores.events, ["subject", "calendarId", "id"]);
         createSubjectStore(database, stores.canonicalEvents, ["subject", "calendarId", "id"]);
+      }
+      if (event.oldVersion < 3) {
+        createSubjectStore(database, stores.syncRuns, "subject");
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -237,6 +264,114 @@ export class LocalStore {
     await this.put(stores.checkpoints, { ...checkpoint, subject } satisfies StoredCheckpoint);
   }
 
+  async readCalendarSyncRun(subject: string): Promise<CalendarSyncRun | undefined> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.syncRuns, "readonly");
+    const run = await requestResult(transaction.objectStore(stores.syncRuns).get(subject)) as CalendarSyncRun | undefined;
+    await transactionDone(transaction);
+    return run && {
+      ...run,
+      changedCalendarIds: run.changedCalendarIds ?? [],
+      occurrenceCacheCleared: run.occurrenceCacheCleared ?? false
+    };
+  }
+
+  async saveCalendarSyncRun(run: CalendarSyncRun): Promise<void> {
+    await this.put(stores.syncRuns, run);
+  }
+
+  async clearCalendarSyncRun(subject: string): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.syncRuns, "readwrite");
+    transaction.objectStore(stores.syncRuns).delete(subject);
+    await transactionDone(transaction);
+  }
+
+  async beginCalendarListReplacement(subject: string): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction([stores.calendars, stores.events, stores.canonicalEvents, stores.checkpoints], "readwrite");
+    await this.deleteSubjectRecords(transaction.objectStore(stores.calendars), subject);
+    await this.deleteSubjectRecords(transaction.objectStore(stores.events), subject);
+    await this.deleteSubjectRecords(transaction.objectStore(stores.canonicalEvents), subject);
+    await this.deleteCheckpointsWithPrefix(transaction.objectStore(stores.checkpoints), subject, "calendar-");
+    await transactionDone(transaction);
+  }
+
+  async applyCalendarListPage(subject: string, changes: readonly GoogleCalendar[]): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction([stores.calendars, stores.events, stores.canonicalEvents, stores.checkpoints], "readwrite");
+    const calendars = transaction.objectStore(stores.calendars);
+    const occurrences = transaction.objectStore(stores.events);
+    const canonicalEvents = transaction.objectStore(stores.canonicalEvents);
+    const checkpoints = transaction.objectStore(stores.checkpoints);
+    for (const calendar of changes) {
+      if (calendar.deleted) {
+        calendars.delete([subject, calendar.id]);
+        await this.deleteCalendarRecords(occurrences, subject, calendar.id);
+        await this.deleteCalendarRecords(canonicalEvents, subject, calendar.id);
+        checkpoints.delete([subject, `calendar-events:${calendar.id}`]);
+      } else {
+        calendars.put({ ...calendar, subject });
+      }
+    }
+    await transactionDone(transaction);
+  }
+
+  async applyCalendarEventPage(
+    subject: string,
+    calendarId: string,
+    changes: readonly GoogleCalendarEvent[],
+    invalidateOccurrences: boolean
+  ): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction([stores.canonicalEvents, stores.events], "readwrite");
+    const canonicalEvents = transaction.objectStore(stores.canonicalEvents);
+    if (invalidateOccurrences) {
+      await this.deleteCalendarRecords(transaction.objectStore(stores.events), subject, calendarId);
+    }
+    for (const event of changes) {
+      if (event.status === "cancelled") {
+        canonicalEvents.delete([subject, calendarId, event.id]);
+      } else {
+        canonicalEvents.put({ ...event, subject });
+      }
+    }
+    await transactionDone(transaction);
+  }
+
+  async clearOccurrenceCache(subject: string): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.events, "readwrite");
+    await this.deleteSubjectRecords(transaction.objectStore(stores.events), subject);
+    await transactionDone(transaction);
+  }
+
+  async replaceTaskMirror(
+    subject: string,
+    taskLists: readonly GoogleTaskList[],
+    tasks: readonly GoogleTask[],
+    updatedAt: string
+  ): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction([stores.taskLists, stores.tasks, stores.checkpoints], "readwrite");
+    await this.replaceSubjectRecords(transaction.objectStore(stores.taskLists), subject, taskLists);
+    await this.replaceSubjectRecords(transaction.objectStore(stores.tasks), subject, tasks);
+    const checkpoints = transaction.objectStore(stores.checkpoints);
+    await this.deleteCheckpointsWithPrefix(checkpoints, subject, "tasks:");
+    for (const taskList of taskLists) {
+      checkpoints.put({ subject, resource: `tasks:${taskList.id}`, updatedAt } satisfies StoredCheckpoint);
+    }
+    await transactionDone(transaction);
+  }
+
+  async storageEstimate(): Promise<StorageEstimate> {
+    if (typeof navigator === "undefined" || !navigator.storage?.estimate) {
+      return {};
+    }
+    const estimate = await navigator.storage.estimate();
+    return { usage: estimate.usage, quota: estimate.quota };
+  }
+
   async applyCalendarListChanges(
     subject: string,
     changes: readonly GoogleCalendar[],
@@ -262,40 +397,6 @@ export class LocalStore {
       }
     }
     checkpoints.put({ ...checkpoint, subject } satisfies StoredCheckpoint);
-    await transactionDone(transaction);
-  }
-
-  async replaceCalendarList(
-    subject: string,
-    calendars: readonly GoogleCalendar[],
-    checkpoint: SyncCheckpoint,
-    resetEventCaches = false
-  ): Promise<void> {
-    const database = await this.db();
-    const transaction = database.transaction(
-      [stores.calendars, stores.events, stores.canonicalEvents, stores.checkpoints],
-      "readwrite"
-    );
-    const calendarStore = transaction.objectStore(stores.calendars);
-    const current = await this.recordsForSubject<Cached<GoogleCalendar>>(calendarStore, subject);
-    const activeCalendars = calendars.filter((calendar) => !calendar.deleted);
-    const nextIds = new Set(activeCalendars.map((calendar) => calendar.id));
-    if (resetEventCaches) {
-      for (const calendarId of new Set([...current.map((calendar) => calendar.id), ...activeCalendars.map((calendar) => calendar.id)])) {
-        await this.deleteCalendarRecords(transaction.objectStore(stores.events), subject, calendarId);
-        await this.deleteCalendarRecords(transaction.objectStore(stores.canonicalEvents), subject, calendarId);
-        transaction.objectStore(stores.checkpoints).delete([subject, `calendar-events:${calendarId}`]);
-      }
-    }
-    for (const calendar of current) {
-      if (!nextIds.has(calendar.id)) {
-        await this.deleteCalendarRecords(transaction.objectStore(stores.events), subject, calendar.id);
-        await this.deleteCalendarRecords(transaction.objectStore(stores.canonicalEvents), subject, calendar.id);
-        transaction.objectStore(stores.checkpoints).delete([subject, `calendar-events:${calendar.id}`]);
-      }
-    }
-    await this.replaceSubjectRecords(calendarStore, subject, activeCalendars);
-    transaction.objectStore(stores.checkpoints).put({ ...checkpoint, subject } satisfies StoredCheckpoint);
     await transactionDone(transaction);
   }
 
@@ -396,7 +497,8 @@ export class LocalStore {
       stores.canonicalEvents,
       stores.driveFiles,
       stores.mutations,
-      stores.checkpoints
+      stores.checkpoints,
+      stores.syncRuns
     ];
     const transaction = database.transaction(affectedStores, "readwrite");
     for (const storeName of affectedStores) {
@@ -462,6 +564,15 @@ export class LocalStore {
     const keys = await requestResult(store.index("subjectCalendar").getAllKeys([subject, calendarId]));
     for (const key of keys) {
       store.delete(key);
+    }
+  }
+
+  private async deleteCheckpointsWithPrefix(store: IDBObjectStore, subject: string, prefix: string): Promise<void> {
+    const checkpoints = await this.recordsForSubject<StoredCheckpoint>(store, subject);
+    for (const checkpoint of checkpoints) {
+      if (checkpoint.resource.startsWith(prefix)) {
+        store.delete([subject, checkpoint.resource]);
+      }
     }
   }
 }

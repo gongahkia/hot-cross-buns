@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { ModalDialog } from "@/components/ModalDialog";
 import type { GoogleTask, GoogleTaskList, TaskInput, TaskMoveInput } from "@/types";
 
 export interface TaskPanelCommand {
@@ -174,6 +175,7 @@ export function TaskPanel({
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
   const [error, setError] = useState("");
   const quickAddRef = useRef<HTMLInputElement>(null);
+  const taskTitleRef = useRef<HTMLInputElement>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -439,13 +441,13 @@ export function TaskPanel({
         </div>
       </DndContext>
       {editingTask && (
-        <div className="modal-backdrop" role="presentation">
-          <form className="modal-card task-editor" onSubmit={(event) => void finishEdit(event)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditingTask(undefined); } }} aria-labelledby="edit-task-heading">
+        <ModalDialog className="task-editor" labelledBy="edit-task-heading" initialFocusRef={taskTitleRef} onClose={() => setEditingTask(undefined)}>
+          <form onSubmit={(event) => void finishEdit(event)}>
             <div className="panel-heading">
               <div><p className="eyebrow">Google Tasks</p><h2 id="edit-task-heading">Edit task</h2></div>
               <button type="button" onClick={() => setEditingTask(undefined)}>Close</button>
             </div>
-            <label>Title<input name="title" defaultValue={editingTask.title} autoFocus required /></label>
+            <label>Title<input ref={taskTitleRef} name="title" defaultValue={editingTask.title} required /></label>
             <label>Notes<textarea name="notes" defaultValue={editingTask.notes ?? ""} rows={4} /></label>
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
             <label>Task list<select name="list" defaultValue={editingTask.listId}>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
@@ -453,7 +455,7 @@ export function TaskPanel({
             {error && <p className="error" role="alert">{error}</p>}
             <div className="button-row"><button type="submit">Save task</button><button type="button" className="danger-button" onClick={() => void removeTask()}>Delete task</button></div>
           </form>
-        </div>
+        </ModalDialog>
       )}
     </section>
   );
