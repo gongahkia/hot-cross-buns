@@ -89,4 +89,24 @@ describe("CalendarPanel", () => {
     await user.click(screen.getByRole("button", { name: "Use my changes" }));
     expect(resolveEventConflict).toHaveBeenCalledWith("keep-local");
   });
+
+  it("opens a canonical historic result and anchors Calendar on its date", async () => {
+    render(panel({
+      command: {
+        id: "open-historic-event",
+        type: "open-event",
+        event: {
+          id: "historic-event",
+          calendarId: "primary",
+          summary: "Historic launch review",
+          start: { dateTime: "2021-03-12T09:00:00.000Z" },
+          end: { dateTime: "2021-03-12T10:00:00.000Z" }
+        }
+      }
+    }));
+
+    expect(await screen.findByRole("heading", { name: "Edit event" })).toBeVisible();
+    expect(screen.getByLabelText("Title")).toHaveValue("Historic launch review");
+    expect(screen.getByRole("button", { name: "Day" })).toHaveClass("active");
+  });
 });

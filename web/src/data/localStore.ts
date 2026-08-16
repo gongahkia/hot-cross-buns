@@ -9,6 +9,7 @@ import type {
   SyncCheckpoint,
   WorkspaceSnapshot
 } from "@/types";
+import { calendarSearchDocument, type CalendarSearchDocument } from "@/features/calendarSearch";
 
 const DATABASE_NAME = "hot-cross-buns-web";
 const DATABASE_VERSION = 2;
@@ -28,6 +29,9 @@ const stores = {
 
 type StoreName = (typeof stores)[keyof typeof stores];
 type Cached<T> = T & { readonly subject: string };
+type CachedDriveFile = Cached<GoogleDriveFile> & { readonly cachedAt?: string };
+
+const MAX_CACHED_DRIVE_FILES = 200;
 
 interface StoredSetting {
   readonly key: string;
@@ -183,8 +187,31 @@ export class LocalStore {
   async saveDriveFiles(subject: string, files: readonly GoogleDriveFile[]): Promise<void> {
     const database = await this.db();
     const transaction = database.transaction(stores.driveFiles, "readwrite");
-    await this.replaceSubjectRecords(transaction.objectStore(stores.driveFiles), subject, files);
+    const store = transaction.objectStore(stores.driveFiles);
+    const existing = await this.recordsForSubject<CachedDriveFile>(store, subject);
+    const cachedAt = new Date().toISOString();
+    const byId = new Map(existing.map((file) => [file.id, file]));
+    for (const file of files) {
+      byId.set(file.id, { ...file, subject, cachedAt });
+    }
+    const next = [...byId.values()]
+      .sort((left, right) => (right.cachedAt ?? "").localeCompare(left.cachedAt ?? ""))
+      .slice(0, MAX_CACHED_DRIVE_FILES);
+    await this.deleteSubjectRecords(store, subject);
+    for (const file of next) {
+      store.put(file);
+    }
     await transactionDone(transaction);
+  }
+
+  async readDriveFiles(subject: string): Promise<GoogleDriveFile[]> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.driveFiles, "readonly");
+    const files = await this.recordsForSubject<CachedDriveFile>(transaction.objectStore(stores.driveFiles), subject);
+    await transactionDone(transaction);
+    return files
+      .sort((left, right) => (right.cachedAt ?? "").localeCompare(left.cachedAt ?? ""))
+      .map(({ subject: _subject, cachedAt: _cachedAt, ...file }) => file);
   }
 
   async queueMutation(mutation: PendingMutation): Promise<void> {
@@ -342,6 +369,20 @@ export class LocalStore {
     ) as StoredCheckpoint | undefined;
     await transactionDone(transaction);
     return record ? withoutSubject(record) : undefined;
+  }
+
+  async readCanonicalEventSearchDocuments(subject: string): Promise<CalendarSearchDocument[]> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.canonicalEvents, "readonly");
+    const events = await this.recordsForSubject<Cached<GoogleCalendarEvent>>(
+      transaction.objectStore(stores.canonicalEvents),
+      subject
+    );
+    await transactionDone(transaction);
+    return events.map(withoutSubject).flatMap((event) => {
+      const document = calendarSearchDocument(event);
+      return document ? [document] : [];
+    });
   }
 
   async clearAccount(subject: string): Promise<void> {

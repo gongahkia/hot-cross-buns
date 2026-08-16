@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { CalendarPanel } from "@/components/CalendarPanel";
-import { CommandPalette, type PaletteAction } from "@/components/CommandPalette";
+import { CommandPalette, type CalendarHistory, type DriveHistory, type PaletteAction } from "@/components/CommandPalette";
 import { Onboarding } from "@/components/Onboarding";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { TaskPanel, type TaskPanelCommand } from "@/components/TaskPanel";
 import type { CalendarPanelCommand } from "@/components/CalendarPanel";
+import { localStore } from "@/data/localStore";
 import { useWorkspace } from "@/features/useWorkspace";
 
 type View = "tasks" | "calendar" | "settings";
@@ -16,6 +17,8 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskPanelCommand>();
   const [calendarCommand, setCalendarCommand] = useState<CalendarPanelCommand>();
+  const [calendarHistory, setCalendarHistory] = useState<CalendarHistory>({ status: "idle", documents: [] });
+  const [driveHistory, setDriveHistory] = useState<DriveHistory>({ status: "idle", files: [] });
   const paletteButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -28,6 +31,55 @@ export default function App(): React.JSX.Element {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    const current = workspace.workspace;
+    if (!paletteOpen || !current) {
+      return;
+    }
+    let active = true;
+    setCalendarHistory((previous) => ({ status: "loading", documents: previous.documents }));
+    void localStore.readCanonicalEventSearchDocuments(current.identity.subject).then(
+      (documents) => {
+        if (active) {
+          setCalendarHistory({ status: "ready", documents });
+        }
+      },
+      () => {
+        if (active) {
+          setCalendarHistory({ status: "error", documents: [] });
+        }
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [paletteOpen, workspace.workspace]);
+
+  useEffect(() => {
+    const current = workspace.workspace;
+    if (!paletteOpen || !current || !workspace.driveAuthorized) {
+      setDriveHistory({ status: "idle", files: [] });
+      return;
+    }
+    let active = true;
+    setDriveHistory((previous) => ({ status: "loading", files: previous.files }));
+    void localStore.readDriveFiles(current.identity.subject).then(
+      (files) => {
+        if (active) {
+          setDriveHistory({ status: "ready", files });
+        }
+      },
+      () => {
+        if (active) {
+          setDriveHistory({ status: "error", files: [] });
+        }
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [paletteOpen, workspace.driveAuthorized, workspace.workspace]);
 
   function closePalette(): void {
     setPaletteOpen(false);
@@ -57,7 +109,12 @@ export default function App(): React.JSX.Element {
         return;
       case "open-event":
         setView("calendar");
-        setCalendarCommand({ id, type: "open-event", eventId: action.event.id, calendarId: action.event.calendarId });
+        setCalendarCommand({ id, type: "open-event", event: action.event });
+        return;
+      case "open-drive-file":
+        if (action.file.webViewLink) {
+          window.open(action.file.webViewLink, "_blank", "noopener,noreferrer");
+        }
         return;
       case "find-time":
         setView("calendar");
@@ -147,7 +204,7 @@ export default function App(): React.JSX.Element {
           clearLocalData={workspace.clearLocalData}
         />
       )}
-      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} close={closePalette} run={runPaletteAction} />
+      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
     </main>
   );
 }

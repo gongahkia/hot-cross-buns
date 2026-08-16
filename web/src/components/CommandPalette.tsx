@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { GoogleCalendarEvent, GoogleTask, WorkspaceSnapshot } from "@/types";
+import {
+  calendarResultKind,
+  type CalendarSearchDocument,
+  type CalendarSearchHit,
+  searchCalendarHistory,
+  searchScore
+} from "@/features/calendarSearch";
+import {
+  includesResultType,
+  matchesEventFilters,
+  matchesTaskFilters,
+  parsePaletteQuery,
+  type ParsedPaletteQuery
+} from "@/features/paletteFilters";
+import type { GoogleCalendarEvent, GoogleDriveFile, GoogleTask, WorkspaceSnapshot } from "@/types";
 
 export type PaletteAction =
   | { readonly type: "navigate"; readonly view: "tasks" | "calendar" | "settings" }
@@ -10,15 +24,31 @@ export type PaletteAction =
   | { readonly type: "find-time" }
   | { readonly type: "manage-calendars" }
   | { readonly type: "open-task"; readonly task: GoogleTask }
-  | { readonly type: "open-event"; readonly event: GoogleCalendarEvent };
+  | { readonly type: "open-event"; readonly event: GoogleCalendarEvent }
+  | { readonly type: "open-drive-file"; readonly file: GoogleDriveFile };
 
 interface CommandPaletteProps {
   readonly open: boolean;
   readonly workspace: WorkspaceSnapshot;
   readonly busy: boolean;
+  readonly calendarHistory?: CalendarHistory;
+  readonly driveHistory?: DriveHistory;
   readonly close: () => void;
   readonly run: (action: PaletteAction) => void;
 }
+
+export interface CalendarHistory {
+  readonly status: "idle" | "loading" | "ready" | "error";
+  readonly documents: readonly CalendarSearchDocument[];
+}
+
+export interface DriveHistory {
+  readonly status: "idle" | "loading" | "ready" | "error";
+  readonly files: readonly GoogleDriveFile[];
+}
+
+const emptyCalendarHistory: CalendarHistory = { status: "idle", documents: [] };
+const emptyDriveHistory: DriveHistory = { status: "idle", files: [] };
 
 interface PaletteItem {
   readonly id: string;
@@ -26,31 +56,6 @@ interface PaletteItem {
   readonly detail: string;
   readonly score: number;
   readonly action: PaletteAction | "deep-search";
-}
-
-function titleScore(value: string, query: string): number | undefined {
-  const source = value.toLocaleLowerCase();
-  const target = query.toLocaleLowerCase();
-  if (source === target) {
-    return 0;
-  }
-  if (source.startsWith(target)) {
-    return 10 + source.length - target.length;
-  }
-  const containedAt = source.indexOf(target);
-  if (containedAt >= 0) {
-    return 100 + containedAt;
-  }
-  let cursor = 0;
-  for (const character of source) {
-    if (character === target[cursor]) {
-      cursor += 1;
-    }
-    if (cursor === target.length) {
-      return 300 + source.length;
-    }
-  }
-  return undefined;
 }
 
 function actionItems(busy: boolean): PaletteItem[] {
@@ -66,58 +71,241 @@ function actionItems(busy: boolean): PaletteItem[] {
   ];
 }
 
-function searchableItems(workspace: WorkspaceSnapshot, query: string, deepSearch: boolean): PaletteItem[] {
+function eventDateLabel(event: GoogleCalendarEvent): string {
+  const value = event.originalStartTime ?? event.start;
+  if (value.date) {
+    return new Date(`${value.date}T00:00:00`).toLocaleDateString();
+  }
+  return value.dateTime ? new Date(value.dateTime).toLocaleString() : "No date";
+}
+
+function taskDueLabel(task: GoogleTask): string {
+  if (!task.due) {
+    return "No due date";
+  }
+  const due = new Date(task.due);
+  return Number.isNaN(due.valueOf()) ? "Due date unavailable" : `Due ${due.toLocaleDateString()}`;
+}
+
+function calendarDetail(accessRole: string | undefined): string {
+  if (!accessRole) {
+    return "Calendar";
+  }
+  const access = accessRole === "freeBusyReader" ? "Availability only" : `${accessRole[0]?.toUpperCase()}${accessRole.slice(1)}`;
+  return `Calendar · ${access}`;
+}
+
+function driveTypeLabel(mimeType: string | undefined): string {
+  switch (mimeType) {
+    case "application/vnd.google-apps.document":
+      return "Google Doc";
+    case "application/vnd.google-apps.spreadsheet":
+      return "Google Sheet";
+    case "application/vnd.google-apps.presentation":
+      return "Google Slides";
+    case "application/vnd.google-apps.folder":
+      return "Drive folder";
+    default:
+      return mimeType?.split("/").at(-1) ?? "Drive file";
+  }
+}
+
+function resultScore(title: string, body: string, parsed: ParsedPaletteQuery, deepSearch: boolean): number | undefined {
+  if (!parsed.text) {
+    return 500;
+  }
+  const titleScore = searchScore(title, parsed.text);
+  if (titleScore !== undefined) {
+    return titleScore;
+  }
+  if (!deepSearch) {
+    return undefined;
+  }
+  const bodyScore = searchScore(body, parsed.text);
+  return bodyScore === undefined ? undefined : 1_000 + bodyScore;
+}
+
+function searchableItems(
+  workspace: WorkspaceSnapshot,
+  parsed: ParsedPaletteQuery,
+  deepSearch: boolean,
+  canonicalEventIds: ReadonlySet<string>,
+  driveFiles: readonly GoogleDriveFile[]
+): PaletteItem[] {
   const taskLists = new Map(workspace.taskLists.map((list) => [list.id, list.title]));
   const calendars = new Map(workspace.calendars.map((calendar) => [calendar.id, calendar.summary]));
   const items: PaletteItem[] = [];
   for (const task of workspace.tasks) {
+    if (!matchesTaskFilters(task, parsed.filters)) {
+      continue;
+    }
     const title = task.title || "Untitled task";
-    const score = titleScore(title, query) ?? (deepSearch ? titleScore(task.notes ?? "", query) : undefined);
+    const score = resultScore(title, task.notes ?? "", parsed, deepSearch);
     if (score !== undefined) {
       items.push({
         id: `task:${task.listId}:${task.id}`,
         title,
-        detail: `Task · ${taskLists.get(task.listId) ?? "Unknown list"}${task.status === "completed" ? " · Completed" : ""}`,
+        detail: `Task · ${taskLists.get(task.listId) ?? "Unknown list"} · ${taskDueLabel(task)} · ${task.status === "completed" ? "Completed" : "Open"}`,
         score,
         action: { type: "open-task", task }
       });
     }
   }
   for (const event of workspace.events) {
+    if (canonicalEventIds.has(`${event.calendarId}:${event.id}`) || !matchesEventFilters(event, parsed.filters, calendars.get(event.calendarId))) {
+      continue;
+    }
     const title = event.summary || "Untitled event";
-    const searchBody = `${event.description ?? ""}\n${event.location ?? ""}`;
-    const score = titleScore(title, query) ?? (deepSearch ? titleScore(searchBody, query) : undefined);
+    const score = resultScore(title, `${event.description ?? ""}\n${event.location ?? ""}`, parsed, deepSearch);
     if (score !== undefined) {
       items.push({
         id: `event:${event.calendarId}:${event.id}`,
         title,
-        detail: `Event · ${calendars.get(event.calendarId) ?? "Unknown calendar"}`,
+        detail: `Event · ${calendars.get(event.calendarId) ?? "Unknown calendar"} · ${eventDateLabel(event)}`,
         score,
         action: { type: "open-event", event }
       });
     }
   }
-  for (const list of workspace.taskLists) {
-    const score = titleScore(list.title, query);
-    if (score !== undefined) {
-      items.push({ id: `list:${list.id}`, title: list.title, detail: "Task list", score, action: { type: "navigate", view: "tasks" } });
+  if (includesResultType(parsed.filters, "calendar")) {
+    for (const calendar of workspace.calendars) {
+      const score = resultScore(calendar.summary, calendar.description ?? "", parsed, deepSearch);
+      if (score !== undefined) {
+        items.push({ id: `calendar:${calendar.id}`, title: calendar.summary, detail: calendarDetail(calendar.accessRole), score, action: { type: "navigate", view: "calendar" } });
+      }
     }
   }
-  for (const calendar of workspace.calendars) {
-    const score = titleScore(calendar.summary, query);
-    if (score !== undefined) {
-      items.push({ id: `calendar:${calendar.id}`, title: calendar.summary, detail: "Calendar", score, action: { type: "navigate", view: "calendar" } });
+  if (parsed.filters.types.length === 0) {
+    for (const list of workspace.taskLists) {
+      const score = resultScore(list.title, "", parsed, false);
+      if (score !== undefined) {
+        items.push({ id: `list:${list.id}`, title: list.title, detail: "Task list", score, action: { type: "navigate", view: "tasks" } });
+      }
+    }
+  }
+  if (includesResultType(parsed.filters, "drive")) {
+    for (const file of driveFiles) {
+      if (!file.webViewLink) {
+        continue;
+      }
+      const score = resultScore(file.name, `${file.mimeType ?? ""}\n${file.webViewLink ?? ""}`, parsed, deepSearch);
+      if (score !== undefined) {
+        items.push({
+          id: `drive:${file.id}`,
+          title: file.name || "Untitled Drive file",
+          detail: `Drive · ${driveTypeLabel(file.mimeType)} · Open in Drive`,
+          score,
+          action: { type: "open-drive-file", file }
+        });
+      }
     }
   }
   return items;
 }
 
-export function CommandPalette({ open, workspace, busy, close, run }: CommandPaletteProps): React.JSX.Element | null {
+export function CommandPalette({
+  open,
+  workspace,
+  busy,
+  calendarHistory = emptyCalendarHistory,
+  driveHistory = emptyDriveHistory,
+  close,
+  run
+}: CommandPaletteProps): React.JSX.Element | null {
   const [query, setQuery] = useState("");
   const [deepSearch, setDeepSearch] = useState(false);
   const [selected, setSelected] = useState(0);
+  const [historyHits, setHistoryHits] = useState<readonly CalendarSearchHit[]>([]);
+  const [historyIndexed, setHistoryIndexed] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const workerRef = useRef<Worker | undefined>(undefined);
+  const indexGenerationRef = useRef(0);
+  const searchRequestRef = useRef(0);
+  const parsedQuery = useMemo(() => parsePaletteQuery(query), [query]);
+  const calendarNames = useMemo(
+    () => Object.fromEntries(workspace.calendars.map((calendar) => [calendar.id, calendar.summary])),
+    [workspace.calendars]
+  );
+
+  useEffect(() => {
+    if (typeof Worker === "undefined") {
+      return;
+    }
+    const worker = new Worker(new URL("../workers/calendarSearchWorker.ts", import.meta.url), { type: "module" });
+    workerRef.current = worker;
+    worker.onmessage = (event: MessageEvent<{
+      readonly type: "indexed" | "results";
+      readonly generation?: number;
+      readonly requestId?: number;
+      readonly hits?: readonly CalendarSearchHit[];
+    }>) => {
+      if (event.data.type === "indexed" && event.data.generation === indexGenerationRef.current) {
+        setHistoryIndexed(true);
+      }
+      if (event.data.type === "results" && event.data.requestId === searchRequestRef.current) {
+        setHistoryHits(event.data.hits ?? []);
+      }
+    };
+    return () => {
+      worker.terminate();
+      workerRef.current = undefined;
+    };
+  }, []);
+
+  useEffect(() => {
+    setHistoryHits([]);
+    if (calendarHistory.status !== "ready") {
+      setHistoryIndexed(false);
+      return;
+    }
+    const worker = workerRef.current;
+    if (!worker) {
+      setHistoryIndexed(true);
+      return;
+    }
+    const generation = indexGenerationRef.current + 1;
+    indexGenerationRef.current = generation;
+    setHistoryIndexed(false);
+    worker.postMessage({ type: "index", generation, documents: calendarHistory.documents });
+  }, [calendarHistory.documents, calendarHistory.status]);
+
+  useEffect(() => {
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
+    setHistoryHits([]);
+    const shouldSearch = open
+      && calendarHistory.status === "ready"
+      && historyIndexed
+      && includesResultType(parsedQuery.filters, "event")
+      && (Boolean(parsedQuery.text) || parsedQuery.hasFilters);
+    if (!shouldSearch) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const worker = workerRef.current;
+      if (worker) {
+        worker.postMessage({
+          type: "search",
+          requestId,
+          query: parsedQuery.text,
+          includeBody: deepSearch,
+          filters: parsedQuery.filters,
+          calendarNames
+        });
+      } else {
+        setHistoryHits(searchCalendarHistory(
+          calendarHistory.documents,
+          parsedQuery.text,
+          deepSearch,
+          24,
+          parsedQuery.filters,
+          calendarNames
+        ));
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [calendarHistory.documents, calendarHistory.status, calendarNames, deepSearch, historyIndexed, open, parsedQuery]);
 
   useEffect(() => {
     if (open) {
@@ -128,28 +316,50 @@ export function CommandPalette({ open, workspace, busy, close, run }: CommandPal
     }
   }, [open]);
 
+  const canonicalEventIds = useMemo(
+    () => new Set(calendarHistory.documents.map((document) => document.id)),
+    [calendarHistory.documents]
+  );
+
   const items = useMemo(() => {
-    const normalized = query.trim();
     const commands = actionItems(busy);
-    if (!normalized) {
+    if (!query.trim()) {
       return commands;
     }
-    const commandsMatching = commands.flatMap((item) => {
-      const score = titleScore(item.title, normalized);
-      return score === undefined ? [] : [{ ...item, score }];
-    });
-    const results = searchableItems(workspace, normalized, deepSearch);
-    if (!deepSearch) {
+    const commandsMatching = parsedQuery.filters.types.length === 0 && !parsedQuery.filters.calendarQuery && !parsedQuery.filters.due && parsedQuery.filters.completed === undefined && !parsedQuery.filters.date
+      ? commands.flatMap((item) => {
+          const score = resultScore(item.title, item.detail, parsedQuery, false);
+          return score === undefined ? [] : [{ ...item, score }];
+        })
+      : [];
+    const results = searchableItems(workspace, parsedQuery, deepSearch, canonicalEventIds, driveHistory.files);
+    const calendars = new Map(workspace.calendars.map((calendar) => [calendar.id, calendar.summary]));
+    for (const hit of historyHits) {
+      const event = hit.document.event;
+      if (!matchesEventFilters(event, parsedQuery.filters, calendars.get(event.calendarId))) {
+        continue;
+      }
+      results.push({
+        id: `history-event:${hit.document.id}`,
+        title: hit.document.title,
+        detail: `${calendarResultKind(event)} · ${calendars.get(event.calendarId) ?? "Unknown calendar"} · ${eventDateLabel(event)}`,
+        score: hit.score,
+        action: { type: "open-event", event }
+      });
+    }
+    if (!deepSearch && parsedQuery.text) {
       results.push({
         id: "deep-search",
-        title: `Search notes and descriptions for “${normalized}”`,
+        title: `Search notes and descriptions for “${parsedQuery.text}”`,
         detail: "Continue search",
         score: 900,
         action: "deep-search"
       });
     }
-    return [...commandsMatching, ...results].sort((left, right) => left.score - right.score || left.title.localeCompare(right.title)).slice(0, 12);
-  }, [busy, deepSearch, query, workspace]);
+    return [...commandsMatching, ...results]
+      .sort((left, right) => left.score - right.score || left.title.localeCompare(right.title))
+      .slice(0, 12);
+  }, [busy, canonicalEventIds, deepSearch, driveHistory.files, historyHits, parsedQuery, query, workspace]);
 
   useEffect(() => {
     setSelected((current) => Math.min(current, Math.max(0, items.length - 1)));
@@ -217,9 +427,14 @@ export function CommandPalette({ open, workspace, busy, close, run }: CommandPal
         </div>
         <label className="palette-search">
           <span>Search cached work and commands</span>
-          <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); }} placeholder="Search tasks, events, calendars, or commands" />
+          <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); }} placeholder="Search tasks, events, calendars, Drive, or commands" />
         </label>
-        <p className="field-help">Use ↑ ↓ to move, Enter to open, and Escape to close. Search is browser-local.</p>
+        <p className="field-help">Use ↑ ↓ to move, Enter to open, and Escape to close. Filters: <code>type:task</code>, <code>due:today</code>, <code>completed:false</code>, <code>date:2026-08-01..2026-08-31</code>, <code>in:&quot;Primary&quot;</code>.</p>
+        <p className="field-help">Calendar and Drive results are browser-local; Drive results use metadata already cached after Drive authorization and an attachment search.</p>
+        {calendarHistory.status === "loading" && <p className="field-help" role="status">Indexing your synced Calendar history…</p>}
+        {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
+        {driveHistory.status === "loading" && <p className="field-help" role="status">Loading cached Drive metadata…</p>}
+        {driveHistory.status === "error" && <p className="field-help" role="status">Cached Drive metadata is unavailable in this browser session.</p>}
         <ul className="palette-results" role="listbox" aria-label="Command palette results">
           {items.map((item, index) => (
             <li key={item.id} role="option" aria-selected={selected === index}>
@@ -228,7 +443,7 @@ export function CommandPalette({ open, workspace, busy, close, run }: CommandPal
               </button>
             </li>
           ))}
-          {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title or continue into notes.</li>}
+          {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
         </ul>
       </section>
     </div>

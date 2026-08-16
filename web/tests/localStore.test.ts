@@ -50,6 +50,27 @@ describe("LocalStore", () => {
     expect(await store.readSnapshot(subject)).toBeUndefined();
   });
 
+  it("keeps cached Drive metadata partitioned by Google subject and retains prior local palette results", async () => {
+    await store.saveDriveFiles(subject, [{
+      id: "brief",
+      name: "Launch brief",
+      mimeType: "application/vnd.google-apps.document",
+      webViewLink: "https://drive.example.test/brief"
+    }]);
+    await store.saveDriveFiles(subject, [{
+      id: "roadmap",
+      name: "Roadmap",
+      mimeType: "application/vnd.google-apps.document",
+      webViewLink: "https://drive.example.test/roadmap"
+    }]);
+
+    expect(await store.readDriveFiles(subject)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "brief", name: "Launch brief" }),
+      expect.objectContaining({ id: "roadmap", name: "Roadmap" })
+    ]));
+    await expect(store.readDriveFiles("different-subject")).resolves.toEqual([]);
+  });
+
   it("commits Calendar deltas and their token together while invalidating stale occurrences", async () => {
     await store.saveSnapshot({
       identity: { subject },
@@ -81,5 +102,8 @@ describe("LocalStore", () => {
 
     expect((await store.readSnapshot(subject))?.events).toEqual([]);
     await expect(store.readCheckpoint(subject, "calendar-events:primary")).resolves.toMatchObject({ token: "next-token" });
+    await expect(store.readCanonicalEventSearchDocuments(subject)).resolves.toMatchObject([
+      { id: "primary:series-1", title: "Updated series" }
+    ]);
   });
 });

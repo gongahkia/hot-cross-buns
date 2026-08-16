@@ -24,8 +24,7 @@ type RepeatEnd = "never" | "on-date" | "after-count";
 export interface CalendarPanelCommand {
   readonly id: string;
   readonly type: "new-event" | "open-event" | "find-time" | "manage-calendars";
-  readonly eventId?: string;
-  readonly calendarId?: string;
+  readonly event?: GoogleCalendarEvent;
 }
 
 interface CalendarPanelProps {
@@ -672,8 +671,15 @@ export function CalendarPanel({
       setCalendarManagerOpen(true);
       return;
     }
-    const event = events.find((candidate) => candidate.id === command.eventId && candidate.calendarId === command.calendarId);
+    const event = command.event;
     if (event) {
+      const date = event.originalStartTime ?? event.start;
+      const anchor = date.date ? dateFromYmd(date.date) : date.dateTime ? new Date(date.dateTime) : undefined;
+      if (anchor && !Number.isNaN(anchor.getTime())) {
+        setAnchor(anchor);
+        setView("day");
+      }
+      setSelectedCalendarIds([event.calendarId]);
       setComposerOpen(false);
       setComposerPrefill(undefined);
       setEditingEvent(event);
