@@ -8,10 +8,10 @@
 * { box-sizing: border-box; }
 
 body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.58; }
-input, select {
+input, select, textarea {
   width: 100%;
   border: 1px solid #cdbfae;
   border-radius: 0.55rem;
@@ -87,10 +87,65 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 .danger-button { border-color: #a52f2b; color: #a52f2b; }
 .danger-button:hover:not(:disabled) { background: #a52f2b; color: #fff; }
 
+.task-workspace { display: grid; gap: 1.25rem; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); }
+.task-sidebar { border-inline-end: 1px solid #eadfd3; padding-inline-end: 1rem; }
+.task-list-tabs { display: grid; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
+.task-list-target { border-radius: 0.6rem; }
+.task-list-target.is-over { background: #f5dfbb; outline: 2px dashed #b55639; }
+.task-list-target button { border: 0; text-align: start; width: 100%; }
+.list-create-form, .task-create-form, .task-list-heading { align-items: end; display: grid; gap: 0.6rem; }
+.list-create-form { grid-template-columns: minmax(0, 1fr) auto; margin-top: 1rem; }
+.task-list-heading { grid-template-columns: minmax(12rem, 1fr) auto; margin-bottom: 1rem; }
+.task-create-form { grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(8rem, 10rem) auto; margin-bottom: 1rem; }
+.task { align-items: center; border: 1px solid transparent; border-top-color: #eadfd3; border-radius: 0.55rem; display: flex; gap: 0.55rem; padding: 0.55rem 0; }
+.task:hover { background: #fff5e8; border-color: #eadfd3; }
+.task .drag-handle { border: 0; color: #8e4c36; font-size: 1.2rem; line-height: 1; padding: 0.25rem; }
+.task .drag-handle:hover { background: #eee4d8; color: #50332a; }
+.task .task-content { border: 0; color: inherit; display: grid; flex: 1; gap: 0.15rem; padding: 0.2rem; text-align: start; }
+.task .task-content:hover { background: transparent; color: inherit; }
+.task .task-content span { color: #62564d; font-weight: 400; white-space: pre-wrap; }
+.modal-backdrop { align-items: start; background: rgb(39 33 28 / 50%); display: flex; inset: 0; justify-content: center; overflow-y: auto; padding: 5vh 1rem; position: fixed; z-index: 10; }
+.modal-card { background: #fffaf3; border: 1px solid #d9cdbf; border-radius: 1rem; box-shadow: 0 18px 55px rgb(39 33 28 / 32%); display: grid; gap: 0.85rem; max-width: 48rem; padding: clamp(1rem, 3vw, 1.6rem); width: 100%; }
+.modal-card label, .recurrence-editor > label, .event-time-fields label { display: grid; gap: 0.35rem; font-weight: 700; }
+.modal-card textarea { min-height: 5rem; resize: vertical; }
+.scope-choice, .recurrence-editor, .calendar-sources { border: 1px solid #dacbbc; border-radius: 0.6rem; display: grid; gap: 0.65rem; margin: 0; padding: 0.8rem; }
+.scope-choice legend, .recurrence-editor legend, .calendar-sources legend { font-weight: 800; }
+.scope-choice label, .weekday-toggle label, .calendar-sources label { align-items: center; display: flex; font-weight: 500; gap: 0.45rem; }
+.scope-choice input, .weekday-toggle input, .calendar-sources input { width: auto; }
+.event-time-fields { display: grid; gap: 0.75rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.weekday-toggle { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; }
+.calendar-panel { min-height: 36rem; }
+.calendar-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: space-between; }
+.view-switcher { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.calendar-sources { display: flex; flex-wrap: wrap; margin-top: 1rem; }
+.calendar-sources legend { width: 100%; }
+.calendar-swatch { border: 1px solid rgb(39 33 28 / 15%); border-radius: 50%; display: inline-block; height: 0.75rem; width: 0.75rem; }
+.calendar-range-label { color: #8e4c36; font-weight: 800; margin: 1rem 0; }
+.day-view { display: grid; gap: 0.65rem; }
+.day-view h3, .calendar-day h3 { margin: 0; }
+.calendar-event { border: 1px solid #eadfd3; border-inline-start: 0.35rem solid #b55639; color: inherit; display: grid; gap: 0.15rem; padding: 0.45rem 0.55rem; text-align: start; width: 100%; }
+.calendar-event:hover { background: #50332a; color: #fffdf9; }
+.calendar-event span, .calendar-event small { font-size: 0.75rem; font-weight: 700; }
+.week-grid { display: grid; grid-template-columns: repeat(7, minmax(8rem, 1fr)); overflow-x: auto; }
+.calendar-day { border: 1px solid #eadfd3; display: grid; gap: 0.5rem; min-height: 13rem; padding: 0.55rem; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(7rem, 1fr)); overflow-x: auto; }
+.month-label { border-bottom: 1px solid #eadfd3; padding: 0.45rem; text-align: center; }
+.month-day { border: 1px solid #eadfd3; display: grid; gap: 0.3rem; min-height: 8rem; padding: 0.45rem; }
+.month-day.muted { background: #f5efe4; color: #776c62; }
+.month-day .calendar-event { font-size: 0.78rem; padding: 0.25rem 0.35rem; }
+.month-day .calendar-event span { display: none; }
+.agenda-list .calendar-event { border-block: 0; border-inline-end: 0; }
+.conflict-card { max-width: 38rem; }
+
 @media (max-width: 48rem) {
   .app-header { align-items: stretch; grid-template-columns: 1fr; }
   .panel-heading { align-items: stretch; flex-direction: column; }
   .inline-form, .event-form { grid-template-columns: 1fr; }
   .event-form > input:first-child, .event-form > input:nth-child(4), .event-form > input:nth-child(5), .event-form > fieldset, .event-form > .selected-attachments, .event-form > .error, .event-form > button { grid-column: auto; }
   .agenda-list li { grid-template-columns: 1fr; }
+  .task-workspace { grid-template-columns: 1fr; }
+  .task-sidebar { border-block-end: 1px solid #eadfd3; border-inline-end: 0; padding-block-end: 1rem; padding-inline-end: 0; }
+  .task-list-tabs { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+  .task-create-form, .task-list-heading, .event-time-fields { grid-template-columns: 1fr; }
+  .week-grid, .month-grid { grid-template-columns: repeat(7, minmax(7rem, 1fr)); }
 }

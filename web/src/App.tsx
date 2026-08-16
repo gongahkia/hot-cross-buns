@@ -46,8 +46,14 @@ export default function App(): React.JSX.Element {
           taskLists={workspace.workspace.taskLists}
           tasks={workspace.workspace.tasks}
           search={search}
+          createTaskList={workspace.createTaskList}
+          updateTaskList={workspace.updateTaskList}
+          deleteTaskList={workspace.deleteTaskList}
           createTask={workspace.createTask}
+          updateTask={workspace.updateTask}
           toggleTask={workspace.toggleTask}
+          deleteTask={workspace.deleteTask}
+          moveTask={workspace.moveTask}
         />
       )}
       {view === "calendar" && (
@@ -56,7 +62,14 @@ export default function App(): React.JSX.Element {
           events={workspace.workspace.events}
           search={search}
           driveAuthorized={workspace.driveAuthorized}
+          eventConflict={workspace.eventConflict}
           createEvent={workspace.createEvent}
+          updateEvent={workspace.updateEvent}
+          deleteEvent={workspace.deleteEvent}
+          getEvent={workspace.getEvent}
+          loadCalendarRange={workspace.loadCalendarRange}
+          resolveEventConflict={workspace.resolveEventConflict}
+          dismissEventConflict={workspace.dismissEventConflict}
           authorizeDrive={workspace.authorizeDrive}
           searchDrive={workspace.searchDrive}
         />

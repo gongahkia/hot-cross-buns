@@ -24,4 +24,47 @@ describe("GoogleApiClient", () => {
     expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBe("Bearer memory-only-token");
     vi.unstubAllGlobals();
   });
+
+  it("moves a task to a new list and preserves Google ordering parameters", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "task-1",
+      title: "Plan launch",
+      status: "needsAction"
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await expect(client.moveTask("inbox", "task-1", {
+      destinationListId: "later",
+      previous: "task-0"
+    })).resolves.toMatchObject({ id: "task-1", listId: "later" });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("/tasks/v1/lists/inbox/tasks/task-1/move?");
+    expect(url).toContain("destinationTasklist=later");
+    expect(url).toContain("previous=task-0");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the cached Calendar ETag for conditional event changes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "event-1",
+      summary: "Planning",
+      start: { dateTime: "2026-08-16T09:00:00.000Z" },
+      end: { dateTime: "2026-08-16T10:00:00.000Z" }
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(() => "memory-only-token");
+
+    await client.updateEvent("primary", "event-1", {
+      summary: "Planning",
+      start: { dateTime: "2026-08-16T09:00:00.000Z", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-08-16T10:00:00.000Z", timeZone: "Asia/Singapore" }
+    }, '"version-1"');
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "PATCH" });
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("If-Match")).toBe('"version-1"');
+    vi.unstubAllGlobals();
+  });
 });
