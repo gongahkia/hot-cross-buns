@@ -39,6 +39,21 @@ export interface GoogleTask {
   readonly etag?: string;
 }
 
+export interface TaskInput {
+  readonly title: string;
+  readonly notes?: string;
+  readonly due?: string;
+  readonly parent?: string;
+  readonly status?: GoogleTask["status"];
+  readonly completed?: string;
+}
+
+export interface TaskMoveInput {
+  readonly destinationListId?: string;
+  readonly parent?: string;
+  readonly previous?: string;
+}
+
 export interface GoogleCalendar {
   readonly id: string;
   readonly summary: string;
@@ -136,7 +151,7 @@ export type PendingMutation =
       readonly subject: string;
       readonly kind: "task-create";
       readonly createdAt: string;
-      readonly payload: { readonly listId: string; readonly title: string; readonly notes?: string; readonly due?: string };
+      readonly payload: { readonly listId: string; readonly temporaryId: string; readonly task: TaskInput };
     }
   | {
       readonly id: string;
@@ -148,23 +163,63 @@ export type PendingMutation =
   | {
       readonly id: string;
       readonly subject: string;
+      readonly kind: "task-delete";
+      readonly createdAt: string;
+      readonly payload: { readonly listId: string; readonly taskId: string };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
+      readonly kind: "task-move";
+      readonly createdAt: string;
+      readonly payload: { readonly listId: string; readonly taskId: string; readonly move: TaskMoveInput };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
+      readonly kind: "task-list-create";
+      readonly createdAt: string;
+      readonly payload: { readonly temporaryId: string; readonly title: string };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
+      readonly kind: "task-list-update";
+      readonly createdAt: string;
+      readonly payload: { readonly listId: string; readonly title: string };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
+      readonly kind: "task-list-delete";
+      readonly createdAt: string;
+      readonly payload: { readonly listId: string };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
       readonly kind: "event-create";
       readonly createdAt: string;
-      readonly payload: { readonly calendarId: string; readonly event: CalendarEventInput };
+      readonly payload: { readonly calendarId: string; readonly temporaryId: string; readonly event: CalendarEventInput };
     }
   | {
       readonly id: string;
       readonly subject: string;
       readonly kind: "event-update";
       readonly createdAt: string;
-      readonly payload: { readonly calendarId: string; readonly eventId: string; readonly patch: CalendarEventInput };
+      readonly payload: {
+        readonly calendarId: string;
+        readonly eventId: string;
+        readonly patch: CalendarEventInput;
+        readonly etag?: string;
+      };
     }
   | {
       readonly id: string;
       readonly subject: string;
       readonly kind: "event-delete";
       readonly createdAt: string;
-      readonly payload: { readonly calendarId: string; readonly eventId: string };
+      readonly payload: { readonly calendarId: string; readonly eventId: string; readonly etag?: string };
     };
 
 export interface WorkspaceSnapshot {
