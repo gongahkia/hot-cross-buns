@@ -5,7 +5,9 @@ import type {
   GoogleDriveFile,
   GoogleEventAttachment,
   GoogleTask,
-  GoogleTaskList
+  GoogleTaskList,
+  TaskInput,
+  TaskMoveInput
 } from "@/types";
 
 const GOOGLE_API = "https://www.googleapis.com";
@@ -157,13 +159,31 @@ export class GoogleApiClient {
     return response.items.map((item) => ({ id: item.id, title: item.title, updated: item.updated }));
   }
 
+  async createTaskList(title: string): Promise<GoogleTaskList> {
+    return this.request<GoogleTaskList>("/tasks/v1/users/@me/lists", {
+      method: "POST",
+      body: JSON.stringify({ title })
+    });
+  }
+
+  async updateTaskList(listId: string, title: string): Promise<GoogleTaskList> {
+    return this.request<GoogleTaskList>(`/tasks/v1/users/@me/lists/${encodeURIComponent(listId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title })
+    });
+  }
+
+  async deleteTaskList(listId: string): Promise<void> {
+    await this.request<void>(`/tasks/v1/users/@me/lists/${encodeURIComponent(listId)}`, { method: "DELETE" });
+  }
+
   async listTasks(listId: string): Promise<GoogleTask[]> {
     const path = `/tasks/v1/lists/${encodeURIComponent(listId)}/tasks?maxResults=100&showCompleted=true&showHidden=true`;
     const response = await this.listPages<RawTask>(path);
     return response.items.map((item) => toTask(listId, item));
   }
 
-  async createTask(listId: string, input: Pick<GoogleTask, "title" | "notes" | "due" | "parent">): Promise<GoogleTask> {
+  async createTask(listId: string, input: TaskInput): Promise<GoogleTask> {
     const task = await this.request<RawTask>(`/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`, {
       method: "POST",
       body: JSON.stringify(input)
@@ -185,6 +205,26 @@ export class GoogleApiClient {
     });
   }
 
+  async moveTask(listId: string, taskId: string, move: TaskMoveInput): Promise<GoogleTask> {
+    const parameters = new URLSearchParams();
+    if (move.destinationListId) {
+      parameters.set("destinationTasklist", move.destinationListId);
+    }
+    if (move.parent) {
+      parameters.set("parent", move.parent);
+    }
+    if (move.previous) {
+      parameters.set("previous", move.previous);
+    }
+    const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+    const destinationListId = move.destinationListId ?? listId;
+    const task = await this.request<RawTask>(
+      `/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}/move${suffix}`,
+      { method: "POST" }
+    );
+    return toTask(destinationListId, task);
+  }
+
   async listCalendars(): Promise<GoogleCalendar[]> {
     const response = await this.listPages<RawCalendar>("/calendar/v3/users/me/calendarList?maxResults=250");
     return response.items.map(toCalendar);
@@ -204,6 +244,13 @@ export class GoogleApiClient {
     return response.items.map((event) => toEvent(calendarId, event));
   }
 
+  async getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent> {
+    const event = await this.request<RawEvent>(
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+    );
+    return toEvent(calendarId, event);
+  }
+
   async createEvent(calendarId: string, input: CalendarEventInput): Promise<GoogleCalendarEvent> {
     const event = await this.request<RawEvent>(
       `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=${input.createGoogleMeet ? "1" : "0"}&supportsAttachments=true`,
@@ -212,18 +259,27 @@ export class GoogleApiClient {
     return toEvent(calendarId, event);
   }
 
-  async updateEvent(calendarId: string, eventId: string, input: CalendarEventInput): Promise<GoogleCalendarEvent> {
+  async updateEvent(
+    calendarId: string,
+    eventId: string,
+    input: CalendarEventInput,
+    etag?: string
+  ): Promise<GoogleCalendarEvent> {
     const event = await this.request<RawEvent>(
       `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=${input.createGoogleMeet ? "1" : "0"}&supportsAttachments=true`,
-      { method: "PATCH", body: JSON.stringify(createEventPayload(input)) }
+      {
+        method: "PATCH",
+        headers: etag ? { "If-Match": etag } : undefined,
+        body: JSON.stringify(createEventPayload(input))
+      }
     );
     return toEvent(calendarId, event);
   }
 
-  async deleteEvent(calendarId: string, eventId: string): Promise<void> {
+  async deleteEvent(calendarId: string, eventId: string, etag?: string): Promise<void> {
     await this.request<void>(
       `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-      { method: "DELETE" }
+      { method: "DELETE", headers: etag ? { "If-Match": etag } : undefined }
     );
   }
 
