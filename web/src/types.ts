@@ -63,6 +63,7 @@ export interface GoogleCalendar {
   readonly foregroundColor?: string;
   readonly timeZone?: string;
   readonly accessRole?: string;
+  readonly deleted?: boolean;
 }
 
 export interface CalendarInput {

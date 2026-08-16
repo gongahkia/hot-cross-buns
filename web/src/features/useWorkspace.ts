@@ -90,6 +90,34 @@ function overlapsRange(event: GoogleCalendarEvent, timeMin: string, timeMax: str
   return eventTime(event, "end") > new Date(timeMin).getTime() && eventTime(event, "start") < new Date(timeMax).getTime();
 }
 
+function subtractMinutes(timestamp: string, minutes: number): string {
+  return new Date(new Date(timestamp).getTime() - minutes * 60_000).toISOString();
+}
+
+function mergeTasks(existing: readonly GoogleTask[], changes: readonly GoogleTask[]): GoogleTask[] {
+  const tasks = new Map(existing.map((task) => [task.id, task]));
+  for (const task of changes) {
+    if (task.deleted) {
+      tasks.delete(task.id);
+    } else {
+      tasks.set(task.id, task);
+    }
+  }
+  return [...tasks.values()];
+}
+
+function mergeCalendars(existing: readonly GoogleCalendar[], changes: readonly GoogleCalendar[]): GoogleCalendar[] {
+  const calendars = new Map(existing.map((calendar) => [calendar.id, calendar]));
+  for (const calendar of changes) {
+    if (calendar.deleted) {
+      calendars.delete(calendar.id);
+    } else {
+      calendars.set(calendar.id, calendar);
+    }
+  }
+  return [...calendars.values()];
+}
+
 function eventFromInput(event: GoogleCalendarEvent, input: CalendarEventInput): GoogleCalendarEvent {
   return {
     ...event,
@@ -337,23 +365,105 @@ export function useWorkspace(): WorkspaceController {
     if (!current) {
       throw new Error("Authorize Google before synchronizing");
     }
-    await flushPending(current.identity.subject);
-    const [taskLists, calendars] = await Promise.all([api.listTaskLists(), api.listCalendars()]);
+    const subject = current.identity.subject;
+    const syncStartedAt = new Date().toISOString();
+    await flushPending(subject);
+
+    const taskLists = await api.listTaskLists();
+    const taskChanges = await mapWithConcurrency(taskLists, 4, async (taskList) => {
+      const checkpoint = await localStore.readCheckpoint(subject, `tasks:${taskList.id}`);
+      const changes = await api.listTasks(
+        taskList.id,
+        checkpoint ? subtractMinutes(checkpoint.updatedAt, 5) : undefined
+      );
+      await localStore.applyTaskChanges(subject, taskList.id, changes, {
+        resource: `tasks:${taskList.id}`,
+        updatedAt: syncStartedAt
+      });
+      return { listId: taskList.id, changes, initial: !checkpoint };
+    });
+    let tasks = current.tasks.filter((task) => taskLists.some((list) => list.id === task.listId));
+    for (const group of taskChanges) {
+      const existing = group.initial ? tasks.filter((task) => task.listId !== group.listId) : tasks;
+      tasks = group.initial
+        ? [...existing, ...group.changes.filter((task) => !task.deleted)]
+        : mergeTasks(tasks, group.changes);
+    }
+
+    const calendarCheckpoint = await localStore.readCheckpoint(subject, "calendar-list");
+    let calendarChanges;
+    let resetCalendarList = false;
+    try {
+      calendarChanges = await api.listCalendarChanges(calendarCheckpoint?.token);
+    } catch (error) {
+      if (!(error instanceof GoogleApiError) || error.status !== 410 || !calendarCheckpoint?.token) {
+        throw error;
+      }
+      resetCalendarList = true;
+      calendarChanges = await api.listCalendarChanges();
+    }
+    const calendarListCheckpoint = {
+      resource: "calendar-list",
+      token: calendarChanges.nextSyncToken,
+      updatedAt: syncStartedAt
+    };
+    if (resetCalendarList || !calendarCheckpoint) {
+      await localStore.replaceCalendarList(subject, calendarChanges.items, calendarListCheckpoint);
+    } else {
+      await localStore.applyCalendarListChanges(subject, calendarChanges.items, calendarListCheckpoint);
+    }
+    const calendars = resetCalendarList || !calendarCheckpoint
+      ? calendarChanges.items.filter((calendar) => !calendar.deleted)
+      : mergeCalendars(current.calendars, calendarChanges.items);
+
+    const changedCalendarIds = new Set<string>();
+    await mapWithConcurrency(calendars, 4, async (calendar) => {
+      const resource = `calendar-events:${calendar.id}`;
+      const checkpoint = await localStore.readCheckpoint(subject, resource);
+      let changes;
+      let reset = false;
+      try {
+        changes = await api.listCalendarEventChanges(calendar.id, checkpoint?.token);
+      } catch (error) {
+        if (!(error instanceof GoogleApiError) || error.status !== 410 || !checkpoint?.token) {
+          throw error;
+        }
+        reset = true;
+        await localStore.replaceCalendarEventCache(subject, calendar.id, { resource, updatedAt: syncStartedAt });
+        changes = await api.listCalendarEventChanges(calendar.id);
+      }
+      await localStore.applyCalendarEventChanges(subject, calendar.id, changes.items, {
+        resource,
+        token: changes.nextSyncToken,
+        updatedAt: syncStartedAt
+      });
+      if (reset || !checkpoint || changes.items.length > 0) {
+        changedCalendarIds.add(calendar.id);
+      }
+    });
+
     const range = toIsoRange();
-    const [taskGroups, eventGroups] = await Promise.all([
-      mapWithConcurrency(taskLists, 4, (taskList) => api.listTasks(taskList.id)),
-      mapWithConcurrency(calendars, 4, (calendar) => api.listEvents(calendar.id, range.start, range.end))
-    ]);
+    const currentCalendarIds = new Set(calendars.map((calendar) => calendar.id));
+    const calendarsToLoad = calendars.filter((calendar) => changedCalendarIds.has(calendar.id));
+    const eventGroups = await mapWithConcurrency(
+      calendarsToLoad,
+      4,
+      (calendar) => api.listCalendarOccurrences(calendar.id, range.start, range.end)
+    );
+    const events = [
+      ...current.events.filter((event) => currentCalendarIds.has(event.calendarId) && !changedCalendarIds.has(event.calendarId)),
+      ...eventGroups.flat()
+    ];
     const next: WorkspaceSnapshot = {
       identity: current.identity,
       taskLists,
-      tasks: taskGroups.flat(),
+      tasks,
       calendars,
-      events: eventGroups.flat(),
+      events,
       updatedAt: new Date().toISOString()
     };
     await saveWorkspace(next);
-    setStatus(`Synced ${next.tasks.length} tasks and ${next.events.length} calendar events`);
+    setStatus(`Synced ${next.tasks.length} tasks and ${changedCalendarIds.size} calendar changes`);
   }, [api, flushPending, saveWorkspace]);
 
   const loadCalendarRange = useCallback(async (timeMin: string, timeMax: string) => {
@@ -366,7 +476,7 @@ export function useWorkspace(): WorkspaceController {
       const eventGroups = await mapWithConcurrency(
         current.calendars,
         4,
-        (calendar) => api.listEvents(calendar.id, timeMin, timeMax)
+        (calendar) => api.listCalendarOccurrences(calendar.id, timeMin, timeMax)
       );
       const loaded = eventGroups.flat();
       await updateCachedWorkspace((snapshot) => ({
