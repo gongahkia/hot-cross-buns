@@ -290,7 +290,7 @@ export default function App(): React.JSX.Element {
     return <main className="loading-screen">Loading browser-local workspace…</main>;
   }
   if (!workspace.workspace) {
-    return <Onboarding savedClientId={workspace.clientId} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} connect={workspace.connect} />;
+    return <Onboarding savedClientId={workspace.clientId} connectionProfile={workspace.connectionProfile} managedConnectionAvailable={workspace.managedConnectionAvailable} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} connect={workspace.connect} connectManaged={workspace.connectManaged} useDirectConnection={workspace.useDirectConnection} />;
   }
 
   const navigation: ReadonlyArray<{ readonly view: View; readonly icon: IconName; readonly label: string; readonly shortcut: string }> = [
@@ -380,10 +380,14 @@ export default function App(): React.JSX.Element {
       {view === "settings" && (
         <SettingsPanel
           clientId={workspace.clientId}
+          connectionProfile={workspace.connectionProfile}
+          managedConnectionAvailable={workspace.managedConnectionAvailable}
           status={workspace.status}
           connected={workspace.connected}
           busy={workspace.busy}
           connect={workspace.connect}
+          connectManaged={workspace.connectManaged}
+          useDirectConnection={workspace.useDirectConnection}
           sync={workspace.sync}
           refreshAllTasks={workspace.refreshAllTasks}
           syncProgress={workspace.syncProgress}

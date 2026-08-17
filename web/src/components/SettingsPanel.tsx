@@ -2,14 +2,18 @@ import { useState } from "react";
 
 import { bindingFromKeyboardEvent, formatBinding, keybindingLabels } from "@/features/keybindings";
 import type { SyncProgress } from "@/features/useWorkspace";
-import type { GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspaceKeybindings, WorkspacePreferences } from "@/types";
+import type { ConnectionProfile, GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspaceKeybindings, WorkspacePreferences } from "@/types";
 
 interface SettingsPanelProps {
   readonly clientId: string;
+  readonly connectionProfile: ConnectionProfile;
+  readonly managedConnectionAvailable: boolean;
   readonly status: string;
   readonly connected: boolean;
   readonly busy: boolean;
   connect(): Promise<void>;
+  connectManaged(): Promise<void>;
+  useDirectConnection(): Promise<void>;
   sync(): Promise<void>;
   refreshAllTasks(): Promise<void>;
   readonly syncProgress: SyncProgress;
@@ -43,19 +47,22 @@ function KeybindingField({ binding, value, save }: { readonly binding: keyof Wor
   }} onBlur={() => setCapturing(false)}>{capturing ? "Press shortcut…" : <kbd>{formatBinding(value)}</kbd>}</button></label>;
 }
 
-export function SettingsPanel({ clientId, status, connected, busy, connect, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, conflicts, taskLists, calendars, savePreferences, undo, redo, dismissConflict, openImport, openDiagnostics, requestNotifications }: SettingsPanelProps): React.JSX.Element {
+export function SettingsPanel({ clientId, connectionProfile, managedConnectionAvailable, status, connected, busy, connect, connectManaged, useDirectConnection, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, conflicts, taskLists, calendars, savePreferences, undo, redo, dismissConflict, openImport, openDiagnostics, requestNotifications }: SettingsPanelProps): React.JSX.Element {
   const [filter, setFilter] = useState("");
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   const save = (update: Partial<WorkspacePreferences>): void => run(() => savePreferences(update));
   const matches = (terms: string): boolean => !filter.trim() || terms.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
+  const managed = connectionProfile.mode === "managed";
+  const canConnect = managed || Boolean(clientId);
   return (
     <section className="workspace-panel settings-panel" aria-labelledby="settings-heading">
-      <p className="eyebrow">local privacy controls</p>
+      <p className="eyebrow">connection and local privacy controls</p>
       <h2 id="settings-heading">Settings</h2>
       <dl>
-        <div><dt>OAuth client ID</dt><dd>{clientId || "Not configured"}</dd></div>
-        <div><dt>Authorization</dt><dd>{connected ? "Active in this browser session" : "Not active"}</dd></div>
-        <div><dt>Stored by Hot Cross Buns</dt><dd>Only browser-local cached data and this non-secret client ID.</dd></div>
+        <div><dt>Connection model</dt><dd>{managed ? "Managed server connection" : "Direct browser connection"}</dd></div>
+        <div><dt>OAuth client ID</dt><dd>{managed ? "Configured on the managed service" : clientId || "Not configured"}</dd></div>
+        <div><dt>Authorization</dt><dd>{connected ? managed ? "Active through the managed service" : "Active in this browser session" : "Not active"}</dd></div>
+        <div><dt>Stored by Hot Cross Buns</dt><dd>{managed ? "Browser-local cache plus an encrypted Google refresh token and opaque session on the configured managed service." : "Only browser-local cached data and this non-secret client ID."}</dd></div>
         <div><dt>Calendar synchronization</dt><dd>Google Calendar uses browser-local sync tokens. Google Tasks uses timestamp-based changes because its API has no sync-token endpoint.</dd></div>
         <div><dt>Keyboard</dt><dd><kbd>{formatBinding(preferences.keybindings.commandPalette)}</kbd> opens cached search and commands. Workspace shortcuts are configurable below; use ↑ ↓ and Enter inside the palette.</dd></div>
       </dl>
@@ -109,10 +116,12 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         <p className="field-help">Prefer Google replaces the local cache when a current remote version is available. Prefer Local and Ask retain the local intent; reopen the affected item to make an explicit retry.</p>
       </details>}
       {syncProgress.storage?.usage !== undefined && syncProgress.storage.quota !== undefined && <p className="field-help">Browser storage estimate: {(syncProgress.storage.usage / (1024 * 1024)).toFixed(1)} MiB used of {(syncProgress.storage.quota / (1024 * 1024)).toFixed(1)} MiB available.</p>}
-      {matches("connect authorization sync refresh disconnect import diagnostics notifications browser local data") && <div className="button-row">
-        <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Renew Google access" : "Connect Google"}</button>
-        <button type="button" disabled={busy || !clientId} onClick={() => run(sync)}>{connected ? "Sync now" : "Sync and reconnect"}</button>
-        <button type="button" disabled={busy || !clientId} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
+      {matches("connect authorization managed direct sync refresh disconnect import diagnostics notifications browser local data") && <div className="button-row">
+        {managedConnectionAvailable && !managed && <button type="button" disabled={busy} onClick={() => run(connectManaged)}>Use managed connection</button>}
+        {managed && <button type="button" disabled={busy} onClick={() => run(useDirectConnection)}>Use direct browser connection</button>}
+        <button type="button" disabled={busy || !canConnect} onClick={() => run(connect)}>{connected ? managed ? "Reconnect managed Google" : "Renew Google access" : "Connect Google"}</button>
+        <button type="button" disabled={busy || !canConnect} onClick={() => run(sync)}>{connected ? "Sync now" : "Sync and reconnect"}</button>
+        <button type="button" disabled={busy || !canConnect} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
         {syncProgress.cancellable && <button type="button" onClick={cancelSync}>Cancel sync</button>}
         <button type="button" disabled={busy || !connected} onClick={() => run(disconnect)}>Disconnect Google</button>
         <button type="button" disabled={busy} onClick={openImport}>Import tasks or events</button>

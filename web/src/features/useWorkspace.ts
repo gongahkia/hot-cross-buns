@@ -781,7 +781,7 @@ export function useWorkspace(): WorkspaceController {
   }, [api, updateCachedWorkspace]);
 
   const synchronize = useCallback(async (signal?: AbortSignal, fullTaskRefresh = false) => {
-    if (!session.accessToken()) {
+    if (!hasRemoteAccess()) {
       throw new GoogleAuthorizationRequiredError();
     }
     const current = workspaceRef.current;
@@ -1014,11 +1014,11 @@ export function useWorkspace(): WorkspaceController {
     await localStore.clearCalendarSyncRun(subject);
     setStatus(`Synced ${next.tasks.length} tasks and ${calendars.length} calendars${successors ? `. Created ${successors} recurring-task successor${successors === 1 ? "" : "s"}` : ""}${orphanedBlocks.length ? `. Repaired ${orphanedBlocks.length} orphaned scheduled-task link${orphanedBlocks.length === 1 ? "" : "s"}` : ""}`);
     setSyncProgress({ active: false, cancellable: false, phase: "complete", detail: "Sync complete", completed: calendarsToLoad.length, total: calendarsToLoad.length, pagesSaved: run.pagesSaved, recordsSaved: run.recordsSaved, storage: estimate });
-  }, [api, ensureRecurringTaskSuccessors, flushPending, saveWorkspace, scheduledTaskBlocks]);
+  }, [api, ensureRecurringTaskSuccessors, flushPending, hasRemoteAccess, saveWorkspace, scheduledTaskBlocks]);
 
   const loadCalendarRange = useCallback(async (timeMin: string, timeMax: string) => {
     const current = workspaceRef.current;
-    if (!current || !session.accessToken()) {
+    if (!current || !hasRemoteAccess()) {
       return;
     }
     setBusy(true);
@@ -1040,9 +1040,15 @@ export function useWorkspace(): WorkspaceController {
     } finally {
       setBusy(false);
     }
-  }, [api, updateCachedWorkspace]);
+  }, [api, hasRemoteAccess, updateCachedWorkspace]);
 
   const connect = useCallback(async (fullTaskRefresh = false) => {
+    if (connectionProfileRef.current.mode === "managed") {
+      const backendOrigin = connectionProfileRef.current.backendOrigin;
+      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
+      beginManagedAuthorization(backendOrigin);
+      return;
+    }
     if (!clientId) {
       throw new Error("Save your Google Web OAuth client ID first");
     }
@@ -1076,11 +1082,31 @@ export function useWorkspace(): WorkspaceController {
     }
   }, [clientId, loadSubjectState, saveWorkspace, synchronize]);
 
+  const connectManaged = useCallback(async () => {
+    const profile = managedConnectionProfile();
+    if (!profile?.backendOrigin) throw new Error("This app build does not have a managed backend configured");
+    await localStore.setConnectionProfile(profile);
+    rememberConnectionProfile(profile);
+    session.clear();
+    rememberManagedSession(undefined);
+    setStatus("Opening managed Google authorization");
+    beginManagedAuthorization(profile.backendOrigin);
+  }, [rememberConnectionProfile, rememberManagedSession]);
+
+  const useDirectConnection = useCallback(async () => {
+    const profile: ConnectionProfile = { mode: "direct" };
+    await localStore.setConnectionProfile(profile);
+    rememberConnectionProfile(profile);
+    rememberManagedSession(undefined);
+    session.clear();
+    setStatus("Direct browser connection selected. Save your Google client ID, then connect.");
+  }, [rememberConnectionProfile, rememberManagedSession]);
+
   const sync = useCallback(async () => {
     if (syncAbortRef.current) {
       throw new Error("A synchronization is already running");
     }
-    if (!session.accessToken()) {
+    if (!hasRemoteAccess()) {
       await connect();
       return;
     }
@@ -1109,7 +1135,7 @@ export function useWorkspace(): WorkspaceController {
       }
       setBusy(false);
     }
-  }, [connect, synchronize]);
+  }, [connect, hasRemoteAccess, synchronize]);
 
   const cancelSync = useCallback(() => {
     syncAbortRef.current?.abort();
@@ -1119,7 +1145,7 @@ export function useWorkspace(): WorkspaceController {
     if (syncAbortRef.current) {
       throw new Error("A synchronization is already running");
     }
-    if (!session.accessToken()) {
+    if (!hasRemoteAccess()) {
       await connect(true);
       return;
     }
@@ -1143,9 +1169,15 @@ export function useWorkspace(): WorkspaceController {
       }
       setBusy(false);
     }
-  }, [connect, synchronize]);
+  }, [connect, hasRemoteAccess, synchronize]);
 
   const authorizeDrive = useCallback(async () => {
+    if (connectionProfileRef.current.mode === "managed") {
+      const backendOrigin = connectionProfileRef.current.backendOrigin;
+      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
+      beginManagedAuthorization(backendOrigin, "drive");
+      return;
+    }
     if (!clientId) {
       throw new Error("Save your Google Web OAuth client ID first");
     }
@@ -1166,7 +1198,10 @@ export function useWorkspace(): WorkspaceController {
     if (!workspaceRef.current) {
       throw new Error("Authorize Google before searching Drive");
     }
-    if (!session.hasScope(GOOGLE_SCOPES.driveMetadata)) {
+    const driveAuthorized = connectionProfileRef.current.mode === "managed"
+      ? managedSessionRef.current?.scopes.includes(GOOGLE_SCOPES.driveMetadata)
+      : session.hasScope(GOOGLE_SCOPES.driveMetadata);
+    if (!driveAuthorized) {
       throw new GoogleAuthorizationRequiredError();
     }
     const files = await api.searchDriveMetadata(query);
@@ -2012,6 +2047,19 @@ export function useWorkspace(): WorkspaceController {
   }, []);
 
   const disconnect = useCallback(async () => {
+    if (connectionProfileRef.current.mode === "managed") {
+      const backendOrigin = connectionProfileRef.current.backendOrigin;
+      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
+      setBusy(true);
+      try {
+        await disconnectManagedConnection(backendOrigin);
+        rememberManagedSession(undefined);
+        setStatus("Managed Google access was disconnected. Browser-local data remains until you clear it.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const token: BrowserAccessToken | undefined = session.current();
     setBusy(true);
     try {
@@ -2023,13 +2071,15 @@ export function useWorkspace(): WorkspaceController {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [rememberManagedSession]);
 
   const clearLocalData = useCallback(async () => {
     setBusy(true);
     try {
       await localStore.clearAll();
       session.clear();
+      rememberConnectionProfile({ mode: "direct" });
+      rememberManagedSession(undefined);
       setClientId("");
       setEventConflict(undefined);
       setPreferences(defaultWorkspacePreferences());
@@ -2044,17 +2094,21 @@ export function useWorkspace(): WorkspaceController {
     } finally {
       setBusy(false);
     }
-  }, [replaceWorkspace]);
+  }, [rememberConnectionProfile, rememberManagedSession, replaceWorkspace]);
 
   return {
     clientId,
+    connectionProfile,
+    managedConnectionAvailable: Boolean(managedConnectionProfile()),
     ready,
     busy,
     status,
     syncProgress,
     workspace,
-    connected: Boolean(session.accessToken() && workspace),
-    driveAuthorized: session.hasScope(GOOGLE_SCOPES.driveMetadata),
+    connected: Boolean(hasRemoteAccess() && workspace),
+    driveAuthorized: connectionProfile.mode === "managed"
+      ? Boolean(managedSession?.scopes.includes(GOOGLE_SCOPES.driveMetadata))
+      : session.hasScope(GOOGLE_SCOPES.driveMetadata),
     eventConflict,
     preferences,
     taskMetadata,
@@ -2065,6 +2119,8 @@ export function useWorkspace(): WorkspaceController {
     savedSearches,
     saveClientId,
     connect,
+    connectManaged,
+    useDirectConnection,
     sync,
     cancelSync,
     refreshAllTasks,

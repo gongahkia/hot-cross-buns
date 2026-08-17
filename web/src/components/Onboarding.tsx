@@ -1,21 +1,29 @@
 import { useState } from "react";
 
+import type { ConnectionProfile } from "@/types";
+
 interface OnboardingProps {
   readonly savedClientId: string;
+  readonly connectionProfile: ConnectionProfile;
+  readonly managedConnectionAvailable: boolean;
   readonly busy: boolean;
   readonly status: string;
   saveClientId(clientId: string): Promise<void>;
   connect(): Promise<void>;
+  connectManaged(): Promise<void>;
+  useDirectConnection(): Promise<void>;
 }
 
-export function Onboarding({ savedClientId, busy, status, saveClientId, connect }: OnboardingProps): React.JSX.Element {
+export function Onboarding({ savedClientId, connectionProfile, managedConnectionAvailable, busy, status, saveClientId, connect, connectManaged, useDirectConnection }: OnboardingProps): React.JSX.Element {
   const [clientId, setClientId] = useState(savedClientId);
+  const [mode, setMode] = useState<ConnectionProfile["mode"]>(connectionProfile.mode);
   const [error, setError] = useState("");
   const origin = window.location.origin;
 
   async function saveAndConnect(): Promise<void> {
     setError("");
     try {
+      await useDirectConnection();
       await saveClientId(clientId);
       await connect();
     } catch (reason) {
@@ -23,43 +31,47 @@ export function Onboarding({ savedClientId, busy, status, saveClientId, connect 
     }
   }
 
+  async function connectThroughManagedService(): Promise<void> {
+    setError("");
+    try {
+      await connectManaged();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Managed Google setup failed");
+    }
+  }
+
   return (
     <main className="onboarding-shell">
       <section className="onboarding-card" aria-labelledby="onboarding-title">
-        <p className="eyebrow">browser-local Google workspace</p>
-        <h1 id="onboarding-title">Connect your own Google Cloud project</h1>
-        <p>
-          Hot Cross Buns calls Google directly from this browser. It has no account, server database, or stored
-          Google credential.
-        </p>
-        <ol className="setup-steps">
-          <li>Create or choose a Google Cloud project you control.</li>
-          <li>Enable Google Tasks API, Google Calendar API, and Google Drive API.</li>
-          <li>Create a <strong>Web application</strong> OAuth client.</li>
-          <li>
-            Add <code>{origin}</code> as an authorized JavaScript origin. Add your local development origin too when
-            developing locally.
-          </li>
-          <li>Configure the consent screen and test users in Google Cloud before connecting.</li>
-        </ol>
-        <label className="field-label" htmlFor="google-client-id">
-          Google Web OAuth client ID
-        </label>
-        <input
-          id="google-client-id"
-          autoComplete="off"
-          spellCheck={false}
-          value={clientId}
-          onChange={(event) => setClientId(event.target.value)}
-          placeholder="1234567890-example.apps.googleusercontent.com"
-        />
-        <p className="field-help">
-          Do not paste a client secret. A static web app cannot protect one, and this app does not collect it.
-        </p>
+        <p className="eyebrow">Google workspace connection</p>
+        <h1 id="onboarding-title">Choose how to connect Google</h1>
+        <p>Both choices keep your tasks, calendar cache, preferences, and pending changes in this browser. They differ only in where Google authorization is maintained.</p>
+        <div className="connection-mode-options" role="radiogroup" aria-label="Google connection model">
+          <label className={mode === "direct" ? "connection-mode-option active" : "connection-mode-option"}>
+            <input type="radio" name="connection-mode" value="direct" checked={mode === "direct"} onChange={() => setMode("direct")} />
+            <span><strong>Direct browser connection</strong><small>Use your own Google Cloud OAuth client. Google access is kept only in this browser session, so Google may require a reconnect after it expires.</small></span>
+          </label>
+          {managedConnectionAvailable && <label className={mode === "managed" ? "connection-mode-option active" : "connection-mode-option"}>
+            <input type="radio" name="connection-mode" value="managed" checked={mode === "managed"} onChange={() => setMode("managed")} />
+            <span><strong>Managed connection</strong><small>Use this deployment’s server-side authorization. The service stores an encrypted Google refresh token and keeps an HttpOnly session so routine sync can continue without browser-token expiry.</small></span>
+          </label>}
+        </div>
+        {mode === "direct" ? <>
+          <ol className="setup-steps">
+            <li>Create or choose a Google Cloud project you control.</li>
+            <li>Enable Google Tasks API, Google Calendar API, and Google Drive API.</li>
+            <li>Create a <strong>Web application</strong> OAuth client.</li>
+            <li>Add <code>{origin}</code> as an authorized JavaScript origin. Add your local development origin too when developing locally.</li>
+            <li>Configure the consent screen and test users in Google Cloud before connecting.</li>
+          </ol>
+          <label className="field-label" htmlFor="google-client-id">Google Web OAuth client ID</label>
+          <input id="google-client-id" autoComplete="off" spellCheck={false} value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="1234567890-example.apps.googleusercontent.com" />
+          <p className="field-help">Do not paste a client secret. A static web app cannot protect one, and this app does not collect it.</p>
+        </> : <p className="field-help">The managed service never sends the Google client secret or refresh token to the browser. You will be redirected to Google once to approve access.</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <p className="status" aria-live="polite">{status}</p>
-        <button className="primary-button" type="button" disabled={busy || !clientId.trim()} onClick={() => void saveAndConnect()}>
-          {busy ? "Connecting…" : "Save and connect Google"}
+        <button className="primary-button" type="button" disabled={busy || (mode === "direct" && !clientId.trim())} onClick={() => void (mode === "managed" ? connectThroughManagedService() : saveAndConnect())}>
+          {busy ? "Connecting…" : mode === "managed" ? "Connect through managed service" : "Save and connect Google"}
         </button>
       </section>
     </main>

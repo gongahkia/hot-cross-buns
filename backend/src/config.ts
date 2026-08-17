@@ -38,10 +38,10 @@ function normalizeOrigin(value: string, name: string): string {
   return url.origin;
 }
 
-function positiveInteger(value: string | undefined, fallback: number, name: string): number {
+function positiveInteger(value: string | undefined, fallback: number, name: string, maximum = 365): number {
   if (!value) return fallback;
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) throw new Error(`${name} must be an integer between 1 and 365`);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > maximum) throw new Error(`${name} must be an integer between 1 and ${maximum}`);
   return parsed;
 }
 
@@ -70,7 +70,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Backen
   const cookieSecure = publicOrigin.startsWith("https:");
   if (cookieSameSite === "none" && !cookieSecure) throw new Error("HCB_SESSION_SAME_SITE=none requires an HTTPS HCB_PUBLIC_ORIGIN");
   return {
-    port: positiveInteger(environment.PORT, 8787, "PORT"),
+    port: positiveInteger(environment.PORT, 8787, "PORT", 65_535),
     databaseUrl: required(environment, "DATABASE_URL"),
     publicOrigin,
     frontendOrigins,
