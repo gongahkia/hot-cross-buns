@@ -71,6 +71,7 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; color: #50332a; font-size: 0.78em; padding: 0.12rem 0.32rem; }
 .primary-nav { display: flex; gap: 0.55rem; margin: 1.5rem 0 0.75rem; }
 .global-status { margin: 0.5rem 0 1rem; min-height: 1.3rem; }
+.update-ready { background: #f5dfbb; border: 1px solid #d8a55a; border-radius: 0.65rem; margin: 0 0 1rem; padding: 0.7rem 0.85rem; }
 .sync-progress { align-items: center; background: #f5dfbb; border: 1px solid #d8a55a; border-radius: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.55rem 1rem; justify-content: space-between; margin: 0 0 1rem; padding: 0.7rem 0.85rem; }
 .sync-progress span { color: #6e6258; font-size: 0.88rem; }
 .workspace-panel { padding: clamp(1rem, 2vw, 1.7rem); }
@@ -128,6 +129,9 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .settings-group summary { cursor: pointer; font-weight: 800; }
 .settings-group[open] summary { margin-bottom: 0.8rem; }
 .undo-controls { border-top: 1px solid #eadfd3; margin-top: 1rem; padding-top: 1rem; }
+.conflict-history { display: grid; gap: 0.65rem; list-style: none; margin: 0; padding: 0; }
+.conflict-history li { align-items: start; border-top: 1px solid #eadfd3; display: flex; gap: 0.8rem; justify-content: space-between; padding-top: 0.65rem; }
+.conflict-history p { margin: 0.2rem 0 0; }
 .quick-capture form { display: grid; gap: 0.85rem; }
 .quick-capture label { display: grid; gap: 0.35rem; font-weight: 700; }
 .recognition-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -136,6 +140,25 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .capture-preview div { display: grid; gap: 0.15rem; grid-template-columns: 6rem 1fr; }
 .capture-preview dt { color: #6e6258; font-weight: 700; }
 .capture-preview dd { margin: 0; overflow-wrap: anywhere; }
+.saved-search-create { display: grid; gap: 0.45rem; grid-template-columns: minmax(0, 1fr) auto; }
+.saved-searches { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.saved-searches span { display: flex; }
+.saved-searches button { border-radius: 0; font-size: 0.8rem; padding: 0.3rem 0.45rem; }
+.saved-searches button:first-child { border-radius: 0.5rem 0 0 0.5rem; }
+.saved-searches button:last-child { border-radius: 0 0.5rem 0.5rem 0; }
+.import-dialog { max-width: 56rem; }
+.import-drop { align-items: center; border: 2px dashed #cdbfae; border-radius: 0.7rem; display: grid; gap: 0.6rem; padding: 1rem; text-align: center; }
+.import-drop input { max-width: 25rem; justify-self: center; }
+.import-preview { border-top: 1px solid #eadfd3; max-height: 24rem; overflow: auto; padding-top: 0.7rem; }
+.import-preview h3 { margin: 0 0 0.5rem; }
+.import-preview ul { display: grid; gap: 0.35rem; list-style: none; margin: 0; padding: 0; }
+.import-preview li { border-top: 1px solid #eadfd3; padding-top: 0.35rem; }
+.import-preview small { display: block; }
+.diagnostics-dialog { max-width: 56rem; }
+.diagnostics-preview { background: #211c18; border-radius: 0.6rem; color: #f8eee2; font-size: 0.75rem; margin: 0; max-height: 24rem; overflow: auto; padding: 0.8rem; white-space: pre-wrap; }
+.foreground-reminders { background: #fff5df; border: 1px solid #d8a55a; border-radius: 0.7rem; bottom: 1rem; box-shadow: 0 8px 24px rgb(39 33 28 / 22%); display: grid; gap: 0.6rem; max-width: 28rem; padding: 0.8rem; position: fixed; right: 1rem; z-index: 8; }
+.foreground-reminders > div { display: grid; gap: 0.35rem; }
+.foreground-reminders a { align-items: center; border: 1px solid #50332a; border-radius: 0.55rem; color: #50332a; display: inline-flex; font-weight: 700; padding: 0.58rem 0.8rem; text-decoration: none; }
 .modal-backdrop { align-items: start; background: rgb(39 33 28 / 50%); display: flex; inset: 0; justify-content: center; overflow-y: auto; overscroll-behavior: contain; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); position: fixed; z-index: 10; }
 .modal-card { background: #fffaf3; border: 1px solid #d9cdbf; border-radius: 1rem; box-shadow: 0 18px 55px rgb(39 33 28 / 32%); display: grid; gap: 0.85rem; margin: auto 0; max-width: 48rem; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: clamp(1rem, 3vw, 1.6rem); width: 100%; }
 .modal-card label, .recurrence-editor > label, .event-time-fields label { display: grid; gap: 0.35rem; font-weight: 700; }
@@ -157,9 +180,24 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .day-view { display: grid; gap: 0.65rem; }
 .day-view h3, .calendar-day h3 { margin: 0; }
 .calendar-event { border: 1px solid #eadfd3; border-inline-start: 0.35rem solid #b55639; color: inherit; display: grid; gap: 0.15rem; padding: 0.45rem 0.55rem; text-align: start; width: 100%; }
+.calendar-event-row { align-items: start; display: flex; gap: 0.35rem; }
+.calendar-event-row > input { margin-top: 0.55rem; width: auto; }
 .calendar-event:hover { background: #50332a; color: #fffdf9; }
 .calendar-event span, .calendar-event small { font-size: 0.75rem; font-weight: 700; }
 .week-grid { display: grid; grid-template-columns: repeat(7, minmax(8rem, 1fr)); overflow-x: auto; }
+.time-grid-wrap { overflow: auto; }
+.all-day-lane { align-items: start; border: 1px solid #eadfd3; display: grid; gap: 0.35rem; grid-template-columns: 4.25rem repeat(7, minmax(8rem, 1fr)); margin-bottom: 0.4rem; min-width: 60rem; padding: 0.45rem; }
+.all-day-lane > div { display: grid; gap: 0.25rem; min-height: 2rem; }
+.time-grid { display: grid; min-width: 60rem; }
+.time-grid-day, .time-label, .time-cell { border: 1px solid #eadfd3; min-height: 3rem; padding: 0.25rem; }
+.time-grid-day { background: #f5efe4; font-weight: 800; position: sticky; top: 0; z-index: 1; }
+.time-label { color: #6e6258; font-size: 0.8rem; text-align: end; }
+.time-cell { background: rgb(255 253 249 / 58%); outline: 0; }
+.time-cell:focus-visible { outline: 3px solid #dc9a48; outline-offset: -3px; }
+.time-cell:hover { background: #fff5e8; }
+.time-grid-event { display: grid; gap: 0.15rem; }
+.time-grid-event-actions { display: flex; gap: 0.25rem; justify-content: end; }
+.time-grid-event-actions button { font-size: 0.75rem; padding: 0.15rem 0.35rem; }
 .calendar-day { border: 1px solid #eadfd3; display: grid; gap: 0.5rem; min-height: 13rem; padding: 0.55rem; }
 .month-grid { display: grid; grid-template-columns: repeat(7, minmax(7rem, 1fr)); overflow-x: auto; }
 .month-label { border-bottom: 1px solid #eadfd3; padding: 0.45rem; text-align: center; }
@@ -176,6 +214,13 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .availability-slots time { color: #50332a; font-weight: 700; }
 .response-editor { border: 1px solid #dacbbc; border-radius: 0.6rem; margin: 0; padding: 0.8rem; }
 .response-editor legend { font-weight: 800; }
+.event-advanced { border: 1px solid #dacbbc; border-radius: 0.6rem; padding: 0.8rem; }
+.event-advanced summary { cursor: pointer; font-weight: 800; }
+.advanced-fields { display: grid; gap: 0.65rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); margin: 0.8rem 0; }
+.advanced-fields label { display: grid; gap: 0.35rem; font-weight: 700; }
+.invitation-list { display: grid; gap: 0.85rem; list-style: none; margin: 0; padding: 0; }
+.invitation-list li { border-top: 1px solid #eadfd3; display: grid; gap: 0.45rem; padding-top: 0.75rem; }
+.invitation-list label { display: grid; gap: 0.35rem; font-weight: 700; }
 .command-palette-backdrop { align-items: max(8vh, 2rem); }
 .command-palette { max-width: 44rem; }
 .palette-search { display: grid; gap: 0.35rem; font-weight: 700; }
@@ -197,6 +242,7 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
   .task-create-form, .task-list-heading, .event-time-fields { grid-template-columns: 1fr; }
   .calendar-management-list li, .availability-slots li { align-items: stretch; flex-direction: column; }
   .week-grid, .month-grid { grid-template-columns: repeat(7, minmax(7rem, 1fr)); }
+  .all-day-lane, .time-grid { min-width: 52rem; }
   .sync-progress { align-items: stretch; flex-direction: column; }
   .modal-card { border-radius: 0.8rem; max-height: calc(100dvh - 1rem); }
 }

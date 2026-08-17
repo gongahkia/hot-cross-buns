@@ -115,6 +115,18 @@ export interface StorageEstimate {
   readonly quota?: number;
 }
 
+export interface LocalDiagnosticsCounts {
+  readonly taskLists: number;
+  readonly tasks: number;
+  readonly calendars: number;
+  readonly visibleEvents: number;
+  readonly canonicalEvents: number;
+  readonly pendingMutations: number;
+  readonly conflicts: number;
+  readonly undoEntries: number;
+  readonly reminderStates: number;
+}
+
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -545,6 +557,16 @@ export class LocalStore {
     return { usage: estimate.usage, quota: estimate.quota };
   }
 
+  async diagnosticsCounts(subject: string): Promise<LocalDiagnosticsCounts> {
+    const database = await this.db();
+    const names = [stores.taskLists, stores.tasks, stores.calendars, stores.events, stores.canonicalEvents, stores.mutations, stores.conflicts, stores.undoEntries, stores.reminderStates];
+    const transaction = database.transaction(names, "readonly");
+    const count = async (storeName: StoreName) => (await this.recordsForSubject<unknown>(transaction.objectStore(storeName), subject)).length;
+    const [taskLists, tasks, calendars, visibleEvents, canonicalEvents, pendingMutations, conflicts, undoEntries, reminderStates] = await Promise.all(names.map((name) => count(name)));
+    await transactionDone(transaction);
+    return { taskLists, tasks, calendars, visibleEvents, canonicalEvents, pendingMutations, conflicts, undoEntries, reminderStates };
+  }
+
   async applyCalendarListChanges(
     subject: string,
     changes: readonly GoogleCalendar[],
@@ -657,6 +679,22 @@ export class LocalStore {
       const document = calendarSearchDocument(event);
       return document ? [document] : [];
     });
+  }
+
+  async readCanonicalEvents(subject: string): Promise<GoogleCalendarEvent[]> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.canonicalEvents, "readonly");
+    const events = await this.recordsForSubject<Cached<GoogleCalendarEvent>>(transaction.objectStore(stores.canonicalEvents), subject);
+    await transactionDone(transaction);
+    return events.map(withoutSubject);
+  }
+
+  async saveCanonicalEvent(subject: string, event: GoogleCalendarEvent): Promise<void> {
+    await this.put(stores.canonicalEvents, { ...event, subject } satisfies Cached<GoogleCalendarEvent>);
+  }
+
+  async removeCanonicalEvent(subject: string, calendarId: string, eventId: string): Promise<void> {
+    await this.delete(stores.canonicalEvents, [subject, calendarId, eventId]);
   }
 
   async clearAccount(subject: string): Promise<void> {

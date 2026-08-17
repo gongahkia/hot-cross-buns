@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { registerSW } from "virtual:pwa-register";
 
 import { CalendarPanel } from "@/components/CalendarPanel";
 import { CommandPalette, type CalendarHistory, type DriveHistory, type PaletteAction } from "@/components/CommandPalette";
 import { Onboarding } from "@/components/Onboarding";
+import { ImportDialog } from "@/components/ImportDialog";
+import { DiagnosticsDialog } from "@/components/DiagnosticsDialog";
+import { ForegroundReminders, pendingForegroundReminderCount, requestForegroundNotificationPermission } from "@/components/ForegroundReminders";
 import { QuickCaptureDialog } from "@/components/QuickCaptureDialog";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { TaskPanel, type TaskPanelCommand } from "@/components/TaskPanel";
@@ -11,6 +15,10 @@ import { localStore } from "@/data/localStore";
 import { useWorkspace } from "@/features/useWorkspace";
 
 type View = "tasks" | "calendar" | "settings";
+
+interface LaunchQueueLike {
+  setConsumer(consumer: (launchParams: { readonly files: readonly { getFile(): Promise<File> }[] }) => void): void;
+}
 
 export default function App(): React.JSX.Element {
   const workspace = useWorkspace();
@@ -21,7 +29,27 @@ export default function App(): React.JSX.Element {
   const [calendarHistory, setCalendarHistory] = useState<CalendarHistory>({ status: "idle", documents: [] });
   const [driveHistory, setDriveHistory] = useState<DriveHistory>({ status: "idle", files: [] });
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File>();
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [deepLinkMessage, setDeepLinkMessage] = useState("");
+  const [updateReady, setUpdateReady] = useState(false);
   const paletteButtonRef = useRef<HTMLButtonElement>(null);
+  const updateServiceWorker = useRef<(() => Promise<void>) | undefined>(undefined);
+
+  useEffect(() => {
+    updateServiceWorker.current = registerSW({ onNeedRefresh: () => setUpdateReady(true) });
+  }, []);
+
+  useEffect(() => {
+    const launchQueue = (window as Window & { readonly launchQueue?: LaunchQueueLike }).launchQueue;
+    if (!launchQueue) return;
+    launchQueue.setConsumer((launchParams) => {
+      const fileHandle = launchParams.files[0];
+      if (!fileHandle) return;
+      void fileHandle.getFile().then((file) => { setImportFile(file); setImportOpen(true); });
+    });
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -44,6 +72,63 @@ export default function App(): React.JSX.Element {
     root.style.setProperty("--hcb-task-pane-width", `${preferences.taskListPaneWidth}px`);
     root.style.setProperty("--hcb-font-family", preferences.fontFamily === "serif" ? "ui-serif, Georgia, serif" : preferences.fontFamily === "monospace" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif");
   }, [workspace.preferences]);
+
+  useEffect(() => {
+    const current = workspace.workspace;
+    if (!current) return;
+    try {
+      let parts = window.location.pathname.split("/").filter(Boolean);
+      const protocolTarget = new URLSearchParams(window.location.search).get("open");
+      if (protocolTarget) {
+        const decodedTarget = decodeURIComponent(protocolTarget);
+        const target = new URL(decodedTarget);
+        if (target.protocol !== "web+hotcrossbuns:") throw new Error("Unsupported protocol target");
+        const targetPath = target.pathname.split("/").filter(Boolean);
+        parts = target.hostname ? [target.hostname, ...targetPath] : targetPath;
+      }
+      if (parts[0] === "task" && parts[1]) {
+        const id = decodeURIComponent(parts[1]);
+        const task = current.tasks.find((candidate) => candidate.id === id);
+        if (task) { setView("tasks"); setTaskCommand({ id: crypto.randomUUID(), type: "open-task", taskId: task.id }); setDeepLinkMessage(""); }
+        else setDeepLinkMessage("This task is not cached in this browser. Connect Google and sync, then try the link again.");
+      }
+      else if (parts[0] === "event" && parts[1] && parts[2]) {
+        const calendarId = decodeURIComponent(parts[1]);
+        const eventId = decodeURIComponent(parts[2]);
+        const event = current.events.find((candidate) => candidate.calendarId === calendarId && candidate.id === eventId);
+        if (event) { setView("calendar"); setCalendarCommand({ id: crypto.randomUUID(), type: "open-event", event }); setDeepLinkMessage(""); }
+        else setDeepLinkMessage("This event is not cached in this browser. Connect Google and sync the relevant date range, then try the link again.");
+      } else if (protocolTarget || parts[0] === "task" || parts[0] === "event") setDeepLinkMessage("This link does not identify a cached Hot Cross Buns task or event.");
+    } catch {
+      setDeepLinkMessage("This link is malformed. Open Hot Cross Buns normally and use cached search to find the item.");
+    }
+  }, [workspace.workspace]);
+
+  useEffect(() => {
+    if (!("registerProtocolHandler" in navigator) || !window.isSecureContext) return;
+    try { navigator.registerProtocolHandler("web+hotcrossbuns", `${window.location.origin}/?open=%s`); } catch { /* optional installed-PWA enhancement */ }
+  }, []);
+
+  useEffect(() => {
+    const subject = workspace.workspace?.identity.subject;
+    if (!subject || !("setAppBadge" in navigator)) return;
+    const badgeNavigator = navigator as Navigator & { setAppBadge?(contents?: number): Promise<void>; clearAppBadge?(): Promise<void> };
+    let active = true;
+    const update = (): void => {
+      void Promise.all([
+        localStore.pendingMutations(subject),
+        pendingForegroundReminderCount(subject, workspace.workspace?.events ?? [], workspace.workspace?.calendars ?? [])
+      ]).then(([mutations, reminders]) => {
+        if (!active) return;
+        const count = mutations.length + reminders;
+        if (count) void badgeNavigator.setAppBadge?.(count);
+        else void badgeNavigator.clearAppBadge?.();
+      });
+    };
+    update();
+    const timer = window.setInterval(update, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [workspace.workspace]);
 
   useEffect(() => {
     const current = workspace.workspace;
@@ -171,6 +256,8 @@ export default function App(): React.JSX.Element {
         <button className={view === "settings" ? "active" : ""} type="button" onClick={() => setView("settings")}>Settings</button>
       </nav>
       <p className="global-status" aria-live="polite">{workspace.status}</p>
+      {updateReady && <section className="update-ready" role="status">A new version of Hot Cross Buns is ready. <button type="button" onClick={() => void updateServiceWorker.current?.().then(() => setUpdateReady(false))}>Reload now</button></section>}
+      {deepLinkMessage && <p className="error" role="status">{deepLinkMessage}</p>}
       {workspace.syncProgress.phase !== "idle" && (
         <section className="sync-progress" aria-live="polite" aria-label="Synchronization progress">
           <strong>{workspace.syncProgress.detail}</strong>
@@ -206,9 +293,11 @@ export default function App(): React.JSX.Element {
         <CalendarPanel
           calendars={workspace.workspace.calendars}
           events={workspace.workspace.events}
+          invitations={workspace.invitationEvents}
           search=""
           command={calendarCommand}
           driveAuthorized={workspace.driveAuthorized}
+          visibleCalendarIds={workspace.preferences.visibleCalendarIds}
           eventConflict={workspace.eventConflict}
           createCalendar={workspace.createCalendar}
           subscribeCalendar={workspace.subscribeCalendar}
@@ -222,8 +311,11 @@ export default function App(): React.JSX.Element {
           loadCalendarRange={workspace.loadCalendarRange}
           resolveEventConflict={workspace.resolveEventConflict}
           dismissEventConflict={workspace.dismissEventConflict}
+          splitRecurringEvent={workspace.splitRecurringEvent}
           authorizeDrive={workspace.authorizeDrive}
           searchDrive={workspace.searchDrive}
+          bulkEvents={workspace.bulkEvents}
+          saveVisibleCalendarIds={(visibleCalendarIds) => workspace.savePreferences({ visibleCalendarIds })}
         />
       )}
       {view === "settings" && (
@@ -241,13 +333,26 @@ export default function App(): React.JSX.Element {
           clearLocalData={workspace.clearLocalData}
           preferences={workspace.preferences}
           undoEntries={workspace.undoEntries}
+          conflicts={workspace.conflicts}
+          taskLists={workspace.workspace.taskLists}
+          calendars={workspace.workspace.calendars}
           savePreferences={workspace.savePreferences}
           undo={workspace.undo}
           redo={workspace.redo}
+          dismissConflict={workspace.dismissConflict}
+          openImport={() => setImportOpen(true)}
+          openDiagnostics={() => setDiagnosticsOpen(true)}
+          requestNotifications={async () => {
+            const permission = await requestForegroundNotificationPermission();
+            if (permission !== "granted") throw new Error("Notifications were not enabled; reminders remain visible while the PWA is open");
+          }}
         />
       )}
-      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
+      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} taskMetadata={workspace.taskMetadata} savedSearches={workspace.savedSearches} saveSearch={workspace.saveSearch} deleteSearch={workspace.deleteSearch} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
       {quickCaptureOpen && <QuickCaptureDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} preferences={workspace.preferences.quickCapture} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} close={() => setQuickCaptureOpen(false)} />}
+      {importOpen && <ImportDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} initialFile={importFile} close={() => { setImportOpen(false); setImportFile(undefined); }} />}
+      {diagnosticsOpen && <DiagnosticsDialog subject={workspace.workspace.identity.subject} syncProgress={workspace.syncProgress} close={() => setDiagnosticsOpen(false)} />}
+      <ForegroundReminders subject={workspace.workspace.identity.subject} events={workspace.workspace.events} calendars={workspace.workspace.calendars} />
     </main>
   );
 }

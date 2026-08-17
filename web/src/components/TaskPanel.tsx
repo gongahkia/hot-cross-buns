@@ -207,6 +207,12 @@ export function TaskPanel({
   const [selectedTaskIds, setSelectedTaskIds] = useState<readonly string[]>([]);
   const [surface, setSurface] = useState<"tasks" | "notes">(notesProjectionMode === "notes-only" ? "notes" : "tasks");
   const [bulkResult, setBulkResult] = useState<BulkOperationResult | undefined>();
+  const [bulkMoveListId, setBulkMoveListId] = useState("");
+  const [bulkParentId, setBulkParentId] = useState("");
+  const [bulkDue, setBulkDue] = useState("");
+  const [bulkPriority, setBulkPriority] = useState<TaskMetadata["priority"] | "">("");
+  const [bulkFind, setBulkFind] = useState("");
+  const [bulkReplace, setBulkReplace] = useState("");
   const [error, setError] = useState("");
   const quickAddRef = useRef<HTMLInputElement>(null);
   const taskTitleRef = useRef<HTMLInputElement>(null);
@@ -325,6 +331,9 @@ export function TaskPanel({
     if (!bulkTasks || selectedTaskIds.length === 0) {
       return;
     }
+    if (operation.kind === "delete" && !window.confirm(`Delete ${selectedTaskIds.length} selected task${selectedTaskIds.length === 1 ? "" : "s"}? This can be recovered from Undo while its retention period lasts.`)) {
+      return;
+    }
     setError("");
     setBulkResult(undefined);
     try {
@@ -343,6 +352,12 @@ export function TaskPanel({
     const selectedFrequency = String(form.get("recurrence") ?? "none") as "none" | TaskRecurrenceFrequency;
     const existing = parseTaskRecurrenceNotes(task.notes);
     if (selectedFrequency === "none") {
+      if (existing.state === "unsupported-version") {
+        if (userNotes !== existing.userNotes) {
+          throw new Error("This recurrence marker version is unsupported. Keep its notes unchanged, or explicitly replace it with a supported recurrence.");
+        }
+        return task.notes;
+      }
       return userNotes || undefined;
     }
     if (task.parent) {
@@ -569,7 +584,7 @@ export function TaskPanel({
                   <input ref={quickAddRef} aria-label="New task title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a task — details can be added after" />
                   <button type="submit">Add task</button>
                 </form>
-                {selectedTaskIds.length > 0 && bulkTasks && <fieldset className="bulk-actions"><legend>{selectedTaskIds.length} selected task{selectedTaskIds.length === 1 ? "" : "s"}</legend><div className="button-row"><button type="button" onClick={() => void runBulk({ kind: "complete" })}>Complete</button><button type="button" className="danger-button" onClick={() => void runBulk({ kind: "delete" })}>Delete</button><select aria-label="Bulk priority" defaultValue=""><option value="" disabled>Set priority…</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">Clear priority</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "priority", priority: select.value as TaskMetadata["priority"] }); }}>Apply priority</button><button type="button" onClick={() => setSelectedTaskIds([])}>Clear selection</button></div><div className="bulk-form"><label>Move to<select aria-label="Bulk destination list" defaultValue=""> <option value="">Choose task list</option>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling?.querySelector("select") as HTMLSelectElement | null; if (select?.value) void runBulk({ kind: "move", destinationListId: select.value }); }}>Move selected</button><label>Due date<input aria-label="Bulk due date" type="date" /></label><button type="button" onClick={(event) => { const input = event.currentTarget.previousElementSibling?.querySelector("input") as HTMLInputElement | null; void runBulk({ kind: "due", due: dueTimestamp(input?.value ?? "") }); }}>Set due date</button></div></fieldset>}
+                {selectedTaskIds.length > 0 && bulkTasks && <fieldset className="bulk-actions"><legend>{selectedTaskIds.length} selected task{selectedTaskIds.length === 1 ? "" : "s"}</legend><div className="button-row"><button type="button" onClick={() => void runBulk({ kind: "complete" })}>Complete</button><button type="button" className="danger-button" onClick={() => void runBulk({ kind: "delete" })}>Delete</button><label>Priority<select aria-label="Bulk priority" value={bulkPriority} onChange={(event) => setBulkPriority(event.target.value as TaskMetadata["priority"] | "")}><option value="">Set priority…</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">Clear priority</option></select></label><button type="button" disabled={!bulkPriority} onClick={() => bulkPriority && void runBulk({ kind: "priority", priority: bulkPriority })}>Apply priority</button><button type="button" onClick={() => setSelectedTaskIds([])}>Clear selection</button></div><div className="bulk-form"><label>Move to<select aria-label="Bulk destination list" value={bulkMoveListId} onChange={(event) => setBulkMoveListId(event.target.value)}><option value="">Choose task list</option>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label><button type="button" disabled={!bulkMoveListId} onClick={() => void runBulk({ kind: "move", destinationListId: bulkMoveListId })}>Move selected</button><label>Parent<select aria-label="Bulk parent task" value={bulkParentId} onChange={(event) => setBulkParentId(event.target.value)}><option value="">Make root tasks</option>{listTasks.filter((task) => !selectedTaskIds.includes(task.id)).map((task) => <option key={task.id} value={task.id}>{task.title || "Untitled task"}</option>)}</select></label><button type="button" onClick={() => void runBulk({ kind: "reparent", parent: bulkParentId || undefined })}>Apply parent</button><label>Due date<input aria-label="Bulk due date" type="date" value={bulkDue} onChange={(event) => setBulkDue(event.target.value)} /></label><button type="button" onClick={() => void runBulk({ kind: "due", due: dueTimestamp(bulkDue) })}>{bulkDue ? "Set due date" : "Clear due date"}</button><label>Find text<input aria-label="Bulk find text" value={bulkFind} onChange={(event) => setBulkFind(event.target.value)} /></label><label>Replace with<input aria-label="Bulk replacement text" value={bulkReplace} onChange={(event) => setBulkReplace(event.target.value)} /></label><button type="button" disabled={!bulkFind} onClick={() => void runBulk({ kind: "replace-text", find: bulkFind, replace: bulkReplace })}>Replace text</button></div></fieldset>}
                 {error && <p className="error" role="alert">{error}</p>}
                 {bulkResult && <p className={bulkResult.failed.length ? "error" : "status"} role="status">{bulkResult.succeeded.length} changed{bulkResult.failed.length ? `; ${bulkResult.failed.length} need attention: ${bulkResult.failed.map((entry) => entry.error).join(" · ")}` : ""}</p>}
                 <SortableContext items={visibleTasks.map(({ task }) => `task:${task.id}`)} strategy={verticalListSortingStrategy}>
@@ -599,7 +614,7 @@ export function TaskPanel({
           <form onSubmit={(event) => void finishEdit(event)}>
             <div className="panel-heading">
               <div><p className="eyebrow">Google Tasks</p><h2 id="edit-task-heading">Edit task</h2></div>
-              <button type="button" onClick={() => setEditingTask(undefined)}>Close</button>
+              <div className="button-row"><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/task/${encodeURIComponent(editingTask.id)}`)}>Copy link</button><button type="button" onClick={() => setEditingTask(undefined)}>Close</button></div>
             </div>
             <label>Title<input ref={taskTitleRef} name="title" defaultValue={editingTask.title} required /></label>
             <datalist id="time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>

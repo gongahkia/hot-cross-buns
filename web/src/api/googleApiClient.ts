@@ -74,6 +74,7 @@ interface RawCalendar {
   timeZone?: string;
   accessRole?: string;
   deleted?: boolean;
+  defaultReminders?: readonly { readonly method: "email" | "popup"; readonly minutes: number }[];
 }
 
 interface RawEvent extends Omit<GoogleCalendarEvent, "calendarId"> {
@@ -107,7 +108,8 @@ function toCalendar(calendar: RawCalendar): GoogleCalendar {
     foregroundColor: calendar.foregroundColor,
     timeZone: calendar.timeZone,
     accessRole: calendar.accessRole,
-    deleted: calendar.deleted
+    deleted: calendar.deleted,
+    defaultReminders: calendar.defaultReminders
   };
 }
 
@@ -244,17 +246,23 @@ export class GoogleApiClient {
     return toTask(listId, task);
   }
 
-  async updateTask(listId: string, taskId: string, patch: Partial<GoogleTask>): Promise<GoogleTask> {
+  async getTask(listId: string, taskId: string): Promise<GoogleTask> {
+    const task = await this.request<RawTask>(`/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`);
+    return toTask(listId, task);
+  }
+
+  async updateTask(listId: string, taskId: string, patch: Partial<GoogleTask>, etag?: string): Promise<GoogleTask> {
     const task = await this.request<RawTask>(
       `/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,
-      { method: "PATCH", body: JSON.stringify(patch) }
+      { method: "PATCH", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify(patch) }
     );
     return toTask(listId, task);
   }
 
-  async deleteTask(listId: string, taskId: string): Promise<void> {
+  async deleteTask(listId: string, taskId: string, etag?: string): Promise<void> {
     await this.request<void>(`/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: etag ? { "If-Match": etag } : undefined
     });
   }
 

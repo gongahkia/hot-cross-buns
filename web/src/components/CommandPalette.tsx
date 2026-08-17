@@ -14,7 +14,7 @@ import {
   parsePaletteQuery,
   type ParsedPaletteQuery
 } from "@/features/paletteFilters";
-import type { GoogleCalendarEvent, GoogleDriveFile, GoogleTask, WorkspaceSnapshot } from "@/types";
+import type { GoogleCalendarEvent, GoogleDriveFile, GoogleTask, SavedSearch, TaskMetadata, WorkspaceSnapshot } from "@/types";
 
 export type PaletteAction =
   | { readonly type: "navigate"; readonly view: "tasks" | "calendar" | "settings" }
@@ -33,6 +33,10 @@ interface CommandPaletteProps {
   readonly open: boolean;
   readonly workspace: WorkspaceSnapshot;
   readonly busy: boolean;
+  readonly taskMetadata?: readonly TaskMetadata[];
+  readonly savedSearches?: readonly SavedSearch[];
+  saveSearch?(name: string, query: string): Promise<void>;
+  deleteSearch?(id: string): Promise<void>;
   readonly calendarHistory?: CalendarHistory;
   readonly driveHistory?: DriveHistory;
   readonly close: () => void;
@@ -134,13 +138,15 @@ function searchableItems(
   parsed: ParsedPaletteQuery,
   deepSearch: boolean,
   canonicalEventIds: ReadonlySet<string>,
-  driveFiles: readonly GoogleDriveFile[]
+  driveFiles: readonly GoogleDriveFile[],
+  taskMetadata: readonly TaskMetadata[]
 ): PaletteItem[] {
   const taskLists = new Map(workspace.taskLists.map((list) => [list.id, list.title]));
   const calendars = new Map(workspace.calendars.map((calendar) => [calendar.id, calendar.summary]));
+  const metadata = new Map(taskMetadata.map((entry) => [entry.taskId, entry]));
   const items: PaletteItem[] = [];
   for (const task of workspace.tasks) {
-    if (!matchesTaskFilters(task, parsed.filters)) {
+    if (!matchesTaskFilters(task, parsed.filters, undefined, metadata.get(task.id), taskLists.get(task.listId))) {
       continue;
     }
     const title = task.title || "Untitled task";
@@ -213,6 +219,10 @@ export function CommandPalette({
   busy,
   calendarHistory = emptyCalendarHistory,
   driveHistory = emptyDriveHistory,
+  taskMetadata = [],
+  savedSearches = [],
+  saveSearch,
+  deleteSearch,
   close,
   run
 }: CommandPaletteProps): React.JSX.Element | null {
@@ -221,6 +231,8 @@ export function CommandPalette({
   const [selected, setSelected] = useState(0);
   const [historyHits, setHistoryHits] = useState<readonly CalendarSearchHit[]>([]);
   const [historyIndexed, setHistoryIndexed] = useState(false);
+  const [limit, setLimit] = useState(12);
+  const [saveName, setSaveName] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | undefined>(undefined);
@@ -293,7 +305,7 @@ export function CommandPalette({
           type: "search",
           requestId,
           query: parsedQuery.text,
-          includeBody: deepSearch,
+          includeBody: deepSearch || Boolean(parsedQuery.searchBody),
           filters: parsedQuery.filters,
           calendarNames
         });
@@ -301,7 +313,7 @@ export function CommandPalette({
         setHistoryHits(searchCalendarHistory(
           calendarHistory.documents,
           parsedQuery.text,
-          deepSearch,
+          deepSearch || Boolean(parsedQuery.searchBody),
           24,
           parsedQuery.filters,
           calendarNames
@@ -316,6 +328,7 @@ export function CommandPalette({
       setQuery("");
       setDeepSearch(false);
       setSelected(0);
+      setLimit(12);
       queueMicrotask(() => inputRef.current?.focus());
     }
   }, [open]);
@@ -336,7 +349,7 @@ export function CommandPalette({
           return score === undefined ? [] : [{ ...item, score }];
         })
       : [];
-    const results = searchableItems(workspace, parsedQuery, deepSearch, canonicalEventIds, driveHistory.files);
+    const results = searchableItems(workspace, parsedQuery, deepSearch || Boolean(parsedQuery.searchBody), canonicalEventIds, driveHistory.files, taskMetadata);
     const calendars = new Map(workspace.calendars.map((calendar) => [calendar.id, calendar.summary]));
     for (const hit of historyHits) {
       const event = hit.document.event;
@@ -351,7 +364,7 @@ export function CommandPalette({
         action: { type: "open-event", event }
       });
     }
-    if (!deepSearch && parsedQuery.text) {
+    if (!deepSearch && !parsedQuery.searchBody && parsedQuery.text) {
       results.push({
         id: "deep-search",
         title: `Search notes and descriptions for “${parsedQuery.text}”`,
@@ -362,8 +375,8 @@ export function CommandPalette({
     }
     return [...commandsMatching, ...results]
       .sort((left, right) => left.score - right.score || left.title.localeCompare(right.title))
-      .slice(0, 12);
-  }, [busy, canonicalEventIds, deepSearch, driveHistory.files, historyHits, parsedQuery, query, workspace]);
+      .slice(0, limit);
+  }, [busy, canonicalEventIds, deepSearch, driveHistory.files, historyHits, limit, parsedQuery, query, taskMetadata, workspace]);
 
   useEffect(() => {
     setSelected((current) => Math.min(current, Math.max(0, items.length - 1)));
@@ -434,6 +447,9 @@ export function CommandPalette({
           <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); }} placeholder="Search tasks, events, calendars, Drive, or commands" />
         </label>
         <p className="field-help">Use ↑ ↓ to move, Enter to open, and Escape to close. Filters: <code>type:task</code>, <code>due:today</code>, <code>completed:false</code>, <code>date:2026-08-01..2026-08-31</code>, <code>in:&quot;Primary&quot;</code>.</p>
+        <p className="field-help">Also available: <code>list:</code>, <code>priority:</code>, <code>status:</code>, <code>start:</code>, <code>source:google</code>, and <code>notes:</code>/<code>body:</code> for an intentional deep search.</p>
+        {saveSearch && query.trim() && <div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Save this search as…" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => setSaveName("")); }}>Save search</button></div>}
+        {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
         <p className="field-help">Calendar and Drive results are browser-local; Drive results use metadata already cached after Drive authorization and an attachment search.</p>
         {calendarHistory.status === "loading" && <p className="field-help" role="status">Indexing your synced Calendar history…</p>}
         {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
@@ -449,6 +465,7 @@ export function CommandPalette({
           ))}
           {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
         </ul>
+        {items.length >= limit && <button type="button" onClick={() => setLimit((current) => current + 24)}>More results</button>}
       </section>
     </div>
   );

@@ -42,6 +42,14 @@ The initial connection requests Tasks and Calendar access. Drive access is reque
 
 Google’s browser token model returns short-lived access tokens. When a token expires, the user clicks a visible reconnect or sync control to authorize another token; the app does not hold a refresh token. See Google’s [token model guide](https://developers.google.com/identity/oauth2/web/guides/use-token-model).
 
+## Browser support and installation
+
+Core Tasks, Calendar, local search, offline cache/outbox, import, and foreground reminders are supported in current Chrome, Edge, Firefox, and Safari on desktop and mobile. The PWA requires HTTPS in production and IndexedDB; Google work and browser reminders run only while an authorized PWA tab is open. Closing every tab stops reminders and sync, by design; no access or refresh token is persisted.
+
+Install from the browser’s normal **Install app** / **Add to Home Screen** command. The 192px and 512px manifest icons and static-only service worker make the shell available after an offline restart. An update is presented by the PWA registration flow; reload when the browser says an update is ready. Google API and OAuth responses are never cached by the service worker.
+
+Installed Chromium PWAs may additionally show an app-icon badge for pending offline mutations and register `web+hotcrossbuns` links when the browser allows it. Those are optional enhancements: use in-app status, normal HTTPS `/task/<id>` and `/event/<calendarId>/<id>` links, and the Import button in every browser. The native `hotcrossbuns://` scheme and system tray are not web features.
+
 ## Product and UX audit
 
 The web PWA follows a title-first, keyboard-led workflow rather than copying every control from desktop calendar software.

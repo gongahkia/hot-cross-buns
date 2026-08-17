@@ -141,4 +141,18 @@ describe("LocalStore", () => {
     expect((await store.readSnapshot(subject))?.tasks).toMatchObject([{ id: "task-1", title: "Fresh task" }]);
     await expect(store.readCheckpoint(subject, "tasks:inbox")).resolves.toMatchObject({ updatedAt: "2026-08-16T02:00:00.000Z" });
   });
+
+  it("keeps planner preferences, metadata, recovery records, and reminder state scoped to one subject", async () => {
+    await store.saveTaskMetadata(subject, { taskId: "task-1", priority: "high", dueTimeZone: "Asia/Singapore", updatedAt: "2026-08-17T00:00:00.000Z" });
+    await store.saveScheduledTaskBlock(subject, { taskId: "task-1", calendarId: "primary", eventId: "event-1", createdAt: "2026-08-17T00:00:00.000Z", updatedAt: "2026-08-17T00:00:00.000Z" });
+    await store.saveConflict(subject, { id: "conflict-1", resourceKind: "task", operation: "update", resourceId: "task-1", localIntent: { title: "Local" }, latestRemote: { title: "Google" }, createdAt: "2026-08-17T00:00:00.000Z", retryState: "pending", reason: "conflict" });
+    await store.saveReminderState(subject, { id: "reminder-1", calendarId: "primary", eventId: "event-1", triggerAt: "2026-08-17T00:00:00.000Z", state: "dismissed", updatedAt: "2026-08-17T00:00:00.000Z" });
+    await store.updatePreferences(subject, { notesProjectionMode: "notes-only" });
+
+    await expect(store.readTaskMetadata("different-subject")).resolves.toEqual([]);
+    await expect(store.readScheduledTaskBlocks("different-subject")).resolves.toEqual([]);
+    await expect(store.readConflicts("different-subject")).resolves.toEqual([]);
+    await expect(store.readReminderStates("different-subject")).resolves.toEqual([]);
+    await expect(store.readPreferences(subject)).resolves.toMatchObject({ notesProjectionMode: "notes-only" });
+  });
 });

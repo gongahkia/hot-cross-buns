@@ -1,4 +1,4 @@
-import type { GoogleCalendarEvent, GoogleTask } from "@/types";
+import type { GoogleCalendarEvent, GoogleTask, TaskMetadata } from "@/types";
 
 export type PaletteResultType = "task" | "event" | "calendar" | "drive";
 
@@ -10,6 +10,10 @@ export type DateWindow =
 export interface PaletteFilters {
   readonly types: readonly PaletteResultType[];
   readonly calendarQuery?: string;
+  readonly listQuery?: string;
+  readonly source?: "google" | "local";
+  readonly status?: string;
+  readonly priority?: TaskMetadata["priority"];
   readonly due?: DateWindow | "none";
   readonly completed?: boolean;
   readonly date?: DateWindow;
@@ -19,6 +23,7 @@ export interface ParsedPaletteQuery {
   readonly text: string;
   readonly filters: PaletteFilters;
   readonly hasFilters: boolean;
+  readonly searchBody?: boolean;
 }
 
 const resultTypes = new Set<PaletteResultType>(["task", "event", "calendar", "drive"]);
@@ -146,10 +151,15 @@ export function parsePaletteQuery(input: string): ParsedPaletteQuery {
   const types = new Set<PaletteResultType>();
   const terms: string[] = [];
   let calendarQuery: string | undefined;
+  let listQuery: string | undefined;
+  let source: PaletteFilters["source"];
+  let status: string | undefined;
+  let priority: TaskMetadata["priority"] | undefined;
   let due: DateWindow | "none" | undefined;
   let completed: boolean | undefined;
   let date: DateWindow | undefined;
   let hasFilters = false;
+  let searchBody = false;
 
   for (const token of queryTokens(input.trim())) {
     const separator = token.indexOf(":");
@@ -188,6 +198,43 @@ export function parsePaletteQuery(input: string): ParsedPaletteQuery {
       hasFilters = true;
       continue;
     }
+    if (key === "list" && value) {
+      listQuery = value;
+      types.add("task");
+      hasFilters = true;
+      continue;
+    }
+    if (key === "source" && (value === "google" || value === "local")) {
+      source = value;
+      hasFilters = true;
+      continue;
+    }
+    if (key === "status" && value) {
+      status = value.toLocaleLowerCase();
+      hasFilters = true;
+      continue;
+    }
+    if (key === "priority" && ["none", "low", "medium", "high"].includes(value.toLocaleLowerCase())) {
+      priority = value.toLocaleLowerCase() as TaskMetadata["priority"];
+      types.add("task");
+      hasFilters = true;
+      continue;
+    }
+    if (key === "start") {
+      const window = parseDateWindow(value);
+      if (window) {
+        date = window;
+        types.add("event");
+        hasFilters = true;
+        continue;
+      }
+    }
+    if ((key === "notes" || key === "body") && value !== "false") {
+      searchBody = true;
+      hasFilters = true;
+      if (value && value !== "true") terms.push(value);
+      continue;
+    }
     if (key === "due") {
       const window = value === "none" ? "none" : parseDateWindow(value);
       if (window) {
@@ -220,8 +267,19 @@ export function parsePaletteQuery(input: string): ParsedPaletteQuery {
 
   return {
     text: terms.join(" ").trim(),
-    filters: { types: [...types], calendarQuery, due, completed, date },
-    hasFilters
+    filters: {
+      types: [...types],
+      ...(calendarQuery ? { calendarQuery } : {}),
+      ...(listQuery ? { listQuery } : {}),
+      ...(source ? { source } : {}),
+      ...(status ? { status } : {}),
+      ...(priority ? { priority } : {}),
+      ...(due ? { due } : {}),
+      ...(completed !== undefined ? { completed } : {}),
+      ...(date ? { date } : {})
+    },
+    hasFilters,
+    ...(searchBody ? { searchBody: true } : {})
   };
 }
 
@@ -237,13 +295,17 @@ export function matchesCalendar(calendarId: string, calendarName: string | undef
   return calendarId.toLocaleLowerCase().includes(target) || (calendarName?.toLocaleLowerCase().includes(target) ?? false);
 }
 
-export function matchesTaskFilters(task: GoogleTask, filters: PaletteFilters, today?: string): boolean {
+export function matchesTaskFilters(task: GoogleTask, filters: PaletteFilters, today?: string, metadata?: TaskMetadata, listName?: string): boolean {
   if (!includesResultType(filters, "task")) {
     return false;
   }
   if (filters.completed !== undefined && (task.status === "completed") !== filters.completed) {
     return false;
   }
+  if (filters.status && task.status.toLocaleLowerCase() !== filters.status && !(filters.status === "open" && task.status === "needsAction")) return false;
+  if (filters.priority && (metadata?.priority ?? "none") !== filters.priority) return false;
+  if (filters.listQuery && !(task.listId.toLocaleLowerCase().includes(filters.listQuery.toLocaleLowerCase()) || listName?.toLocaleLowerCase().includes(filters.listQuery.toLocaleLowerCase()))) return false;
+  if (filters.source === "local") return false;
   if (filters.due === "none") {
     return !task.due;
   }
@@ -264,6 +326,8 @@ export function matchesEventFilters(
   today?: string
 ): boolean {
   return includesResultType(filters, "event")
+    && filters.source !== "local"
+    && (!filters.status || event.status?.toLocaleLowerCase() === filters.status)
     && matchesCalendar(event.calendarId, calendarName, filters.calendarQuery)
     && matchesDateWindow(eventDateKey(event), filters.date, today);
 }

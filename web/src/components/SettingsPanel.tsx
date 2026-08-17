@@ -1,5 +1,5 @@
 import type { SyncProgress } from "@/features/useWorkspace";
-import type { UndoEntry, WorkspacePreferences } from "@/types";
+import type { GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspacePreferences } from "@/types";
 
 interface SettingsPanelProps {
   readonly clientId: string;
@@ -15,12 +15,19 @@ interface SettingsPanelProps {
   clearLocalData(): Promise<void>;
   readonly preferences: WorkspacePreferences;
   readonly undoEntries: readonly UndoEntry[];
+  readonly conflicts: readonly WorkspaceConflict[];
+  readonly taskLists: readonly GoogleTaskList[];
+  readonly calendars: readonly GoogleCalendar[];
   savePreferences(update: Partial<WorkspacePreferences>): Promise<void>;
   undo(): Promise<void>;
   redo(): Promise<void>;
+  dismissConflict(id: string): Promise<void>;
+  openImport(): void;
+  openDiagnostics(): void;
+  requestNotifications(): Promise<void>;
 }
 
-export function SettingsPanel({ clientId, status, connected, busy, connect, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, savePreferences, undo, redo }: SettingsPanelProps): React.JSX.Element {
+export function SettingsPanel({ clientId, status, connected, busy, connect, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, conflicts, taskLists, calendars, savePreferences, undo, redo, dismissConflict, openImport, openDiagnostics, requestNotifications }: SettingsPanelProps): React.JSX.Element {
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   const save = (update: Partial<WorkspacePreferences>): void => run(() => savePreferences(update));
   return (
@@ -48,6 +55,12 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
           <label>Undo retention (days)<input type="number" min="1" max="30" value={preferences.undoRetentionDays} onChange={(event) => save({ undoRetentionDays: Number(event.target.value) })} /></label>
           <label>Undo history limit<input type="number" min="1" max="200" value={preferences.undoMaximumEntries} onChange={(event) => save({ undoMaximumEntries: Number(event.target.value) })} /></label>
           <label>Default event duration (minutes)<input type="number" min="1" max="1440" value={preferences.quickCapture.defaultEventDurationMinutes} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, defaultEventDurationMinutes: Number(event.target.value) } })} /></label>
+          <label>Quick-capture task list<select value={preferences.quickCapture.defaultTaskListId ?? ""} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, defaultTaskListId: event.target.value || undefined } })}><option value="">First available list</option>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
+          <label>Quick-capture calendar<select value={preferences.quickCapture.defaultCalendarId ?? ""} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, defaultCalendarId: event.target.value || undefined } })}><option value="">Primary / first available calendar</option>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label>
+          <label className="check-label"><input type="checkbox" checked={preferences.quickCapture.removeRecognizedText} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, removeRecognizedText: event.target.checked } })} /> Remove recognized capture tokens from the title</label>
+          <label>Task aliases (comma-separated)<input value={preferences.quickCapture.taskAliases.join(", ")} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, taskAliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } })} /></label>
+          <label>Event aliases (comma-separated)<input value={preferences.quickCapture.eventAliases.join(", ")} onChange={(event) => save({ quickCapture: { ...preferences.quickCapture, eventAliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } })} /></label>
+          <label>Priority aliases high / medium / low<input value={`${preferences.quickCapture.highPriorityAliases.join(",")}; ${preferences.quickCapture.mediumPriorityAliases.join(",")}; ${preferences.quickCapture.lowPriorityAliases.join(",")}`} onChange={(event) => { const [high = "", medium = "", low = ""] = event.target.value.split(";"); const list = (value: string) => value.split(",").map((entry) => entry.trim()).filter(Boolean); save({ quickCapture: { ...preferences.quickCapture, highPriorityAliases: list(high), mediumPriorityAliases: list(medium), lowPriorityAliases: list(low) } }); }} /></label>
         </div>
         <datalist id="settings-time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
       </details>
@@ -63,6 +76,11 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         </div>
       </details>
       <section className="undo-controls" aria-label="Undo history"><p className="field-help">{undoEntries.find((entry) => entry.state === "undoable")?.label ?? "No undoable local change"}</p><div className="button-row"><button type="button" disabled={!undoEntries.some((entry) => entry.state === "undoable")} onClick={() => run(undo)}>Undo</button><button type="button" disabled={!undoEntries.some((entry) => entry.state === "redoable")} onClick={() => run(redo)}>Redo</button></div></section>
+      <details className="settings-group" open={conflicts.some((conflict) => conflict.retryState === "pending")}>
+        <summary>Conflict history{conflicts.length ? ` (${conflicts.length})` : ""}</summary>
+        {conflicts.length === 0 ? <p className="field-help">No task, event, or invitation conflicts are awaiting review.</p> : <ul className="conflict-history">{conflicts.map((conflict) => <li key={conflict.id}><div><strong>{conflict.resourceKind === "task" ? "Task" : "Event"} {conflict.operation}</strong><p className="field-help">{conflict.reason === "authorization" ? "Authorization expired" : conflict.reason === "gone" ? "The Google resource no longer exists" : "Google changed the resource"}. {conflict.retryState === "pending" ? "The local intent is retained for review." : "Resolved."}</p><p className="field-help">{new Date(conflict.createdAt).toLocaleString()}</p></div><button type="button" onClick={() => run(() => dismissConflict(conflict.id))}>Dismiss record</button></li>)}</ul>}
+        <p className="field-help">Prefer Google replaces the local cache when a current remote version is available. Prefer Local and Ask retain the local intent; reopen the affected item to make an explicit retry.</p>
+      </details>
       {syncProgress.storage?.usage !== undefined && syncProgress.storage.quota !== undefined && <p className="field-help">Browser storage estimate: {(syncProgress.storage.usage / (1024 * 1024)).toFixed(1)} MiB used of {(syncProgress.storage.quota / (1024 * 1024)).toFixed(1)} MiB available.</p>}
       <div className="button-row">
         <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Reconnect Google" : "Connect Google"}</button>
@@ -70,6 +88,9 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         <button type="button" disabled={busy || !connected} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
         {syncProgress.cancellable && <button type="button" onClick={cancelSync}>Cancel sync</button>}
         <button type="button" disabled={busy || !connected} onClick={() => run(disconnect)}>Disconnect Google</button>
+        <button type="button" disabled={busy} onClick={openImport}>Import tasks or events</button>
+        <button type="button" disabled={busy} onClick={openDiagnostics}>Diagnostics</button>
+        <button type="button" disabled={busy} onClick={() => run(requestNotifications)}>Enable foreground reminders</button>
         <button className="danger-button" type="button" disabled={busy} onClick={() => run(clearLocalData)}>Clear browser-local data</button>
       </div>
     </section>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
 import { ModalDialog } from "@/components/ModalDialog";
@@ -33,9 +33,11 @@ export interface CalendarPanelCommand {
 interface CalendarPanelProps {
   readonly calendars: readonly GoogleCalendar[];
   readonly events: readonly GoogleCalendarEvent[];
+  readonly invitations?: readonly GoogleCalendarEvent[];
   readonly search: string;
   readonly command?: CalendarPanelCommand;
   readonly driveAuthorized: boolean;
+  readonly visibleCalendarIds?: readonly string[];
   readonly eventConflict: EventConflict | undefined;
   createCalendar(input: CalendarInput): Promise<void>;
   subscribeCalendar(calendarId: string): Promise<void>;
@@ -45,13 +47,15 @@ interface CalendarPanelProps {
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
-  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction", comment?: string): Promise<GoogleCalendarEvent>;
   loadCalendarRange(timeMin: string, timeMax: string): Promise<void>;
   resolveEventConflict(resolution: "keep-local" | "use-google"): Promise<void>;
   dismissEventConflict(): void;
+  splitRecurringEvent?(series: GoogleCalendarEvent, firstChangedInstance: GoogleCalendarEvent, input: CalendarEventInput): Promise<void>;
   authorizeDrive(): Promise<void>;
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
   bulkEvents?(events: readonly GoogleCalendarEvent[], operation: EventBulkOperation): Promise<BulkOperationResult>;
+  saveVisibleCalendarIds?(calendarIds: readonly string[]): Promise<void>;
 }
 
 interface RecurrenceDraft {
@@ -83,6 +87,7 @@ interface AdvancedEventDraft {
 }
 
 const weekDays = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
+const emptyCalendarIds: readonly string[] = [];
 const weekDayLabels: Record<(typeof weekDays)[number], string> = {
   SU: "Sun",
   MO: "Mon",
@@ -192,6 +197,26 @@ function matchesEvent(event: GoogleCalendarEvent, query: string): boolean {
 
 function defaultRecurrence(): RecurrenceDraft {
   return { frequency: "none", interval: 1, weekdays: [], end: "never", until: "", count: "", advanced: "" };
+}
+
+function defaultAdvancedEvent(): AdvancedEventDraft {
+  return {
+    colorId: "",
+    transparency: "opaque",
+    visibility: "default",
+    reminderMinutes: "10",
+    useDefaultReminders: true,
+    guestsCanInviteOthers: true,
+    guestsCanModify: false,
+    guestsCanSeeOtherGuests: true,
+    sendUpdates: "all",
+    eventType: "default",
+    focusAutoDecline: "declineOnlyNewConflictingInvitations",
+    focusChatStatus: "doNotDisturb",
+    declineMessage: "",
+    workingLocationType: "homeOffice",
+    workingLocationLabel: ""
+  };
 }
 
 function parseRecurrence(lines: readonly string[] | undefined): RecurrenceDraft {
@@ -329,57 +354,129 @@ function eventInputFromDraft(
   };
 }
 
-function EventCard({ event, color, open }: { readonly event: GoogleCalendarEvent; readonly color?: string; open(): void }): React.JSX.Element {
+function eventInputFromExisting(event: GoogleCalendarEvent, start = event.start, end = event.end): CalendarEventInput {
+  return {
+    summary: event.summary,
+    description: event.description,
+    location: event.location,
+    start,
+    end,
+    recurrence: event.recurrence,
+    attendees: event.attendees?.map((attendee) => ({ email: attendee.email })),
+    reminders: event.reminders,
+    attachments: event.attachments,
+    visibility: event.visibility,
+    transparency: event.transparency,
+    colorId: event.colorId,
+    guestsCanInviteOthers: event.guestsCanInviteOthers,
+    guestsCanModify: event.guestsCanModify,
+    guestsCanSeeOtherGuests: event.guestsCanSeeOtherGuests,
+    eventType: event.eventType,
+    focusTimeProperties: event.focusTimeProperties,
+    outOfOfficeProperties: event.outOfOfficeProperties,
+    workingLocationProperties: event.workingLocationProperties
+  };
+}
+
+function eventKey(event: GoogleCalendarEvent): string {
+  return `${event.calendarId}:${event.id}`;
+}
+
+function EventCard({ event, color, selected, select, open }: { readonly event: GoogleCalendarEvent; readonly color?: string; readonly selected: boolean; select(): void; open(): void }): React.JSX.Element {
   return (
-    <button type="button" className="calendar-event" style={{ borderInlineStartColor: color }} onClick={open}>
+    <div className="calendar-event-row"><input aria-label={`Select ${event.summary || "untitled event"}`} checked={selected} type="checkbox" onChange={select} /><button type="button" className="calendar-event" style={{ borderInlineStartColor: color }} onClick={open}>
       <span>{eventTimeLabel(event)}</span>
       <strong>{event.summary}</strong>
       {event.recurringEventId || event.recurrence ? <small>Repeats</small> : null}
-    </button>
+    </button></div>
   );
 }
 
-function DayView({ day, events, colors, open }: {
+function slotDate(day: Date, hour: number): Date {
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0, 0, 0);
+}
+
+function timedEventAt(event: GoogleCalendarEvent, day: Date, hour: number): boolean {
+  if (event.start.date || !event.start.dateTime) return false;
+  const start = eventStart(event);
+  return start.getFullYear() === day.getFullYear() && start.getMonth() === day.getMonth() && start.getDate() === day.getDate() && start.getHours() === hour;
+}
+
+function TimeGrid({ days, events, colors, selected, select, create, move, resize, open }: {
+  readonly days: readonly Date[];
+  readonly events: readonly GoogleCalendarEvent[];
+  readonly colors: ReadonlyMap<string, string | undefined>;
+  readonly selected: ReadonlySet<string>;
+  select(event: GoogleCalendarEvent): void;
+  create(slot: AvailabilitySlot): void;
+  move(event: GoogleCalendarEvent, start: Date): void;
+  resize(event: GoogleCalendarEvent, end: Date): void;
+  open(event: GoogleCalendarEvent): void;
+}): React.JSX.Element {
+  const hours = Array.from({ length: 24 }, (_, hour) => hour);
+  const allDay = events.filter((event) => event.start.date);
+  return (
+    <div className="time-grid-wrap">
+      <div className="all-day-lane"><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
+      <div className="time-grid" role="grid" aria-label={days.length === 1 ? "Day time grid" : "Week time grid"} style={{ gridTemplateColumns: `4.25rem repeat(${days.length}, minmax(8rem, 1fr))` }}>
+        <div role="columnheader" />
+        {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>)}
+        {hours.map((hour) => <Fragment key={`hour-${hour}`}>
+          <div key={`label-${hour}`} className="time-label" role="rowheader">{slotDate(days[0]!, hour).toLocaleTimeString([], { hour: "numeric" })}</div>
+          {days.map((day) => {
+            const start = slotDate(day, hour);
+            const cellEvents = events.filter((event) => timedEventAt(event, day, hour));
+            return <div key={`${toYmd(day)}-${hour}`} className="time-cell" role="gridcell" tabIndex={0} aria-label={`Create event ${toYmd(day)} ${String(hour).padStart(2, "0")}:00`} onClick={(event) => { if (event.currentTarget === event.target) create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); } }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const key = event.dataTransfer.getData("application/x-hcb-event"); const moved = events.find((candidate) => eventKey(candidate) === key); if (moved) move(moved, start); }}>
+              {cellEvents.map((calendarEvent) => <div key={eventKey(calendarEvent)} className="time-grid-event" draggable onDragStart={(event) => event.dataTransfer.setData("application/x-hcb-event", eventKey(calendarEvent))}><EventCard event={calendarEvent} color={colors.get(calendarEvent.calendarId)} selected={selected.has(eventKey(calendarEvent))} select={() => select(calendarEvent)} open={() => open(calendarEvent)} /><div className="time-grid-event-actions"><button type="button" aria-label={`Move ${calendarEvent.summary} 30 minutes later`} onClick={() => move(calendarEvent, new Date(eventStart(calendarEvent).getTime() + 30 * 60_000))}>↓</button><button type="button" aria-label={`Extend ${calendarEvent.summary} by 30 minutes`} onClick={() => resize(calendarEvent, new Date(eventEnd(calendarEvent).getTime() + 30 * 60_000))}>↘</button></div></div>)}
+            </div>;
+          })}
+        </Fragment>)}
+      </div>
+    </div>
+  );
+}
+
+function DayView({ day, events, colors, selected, select, create, move, resize, open }: {
   readonly day: Date;
   readonly events: readonly GoogleCalendarEvent[];
   readonly colors: ReadonlyMap<string, string | undefined>;
+  readonly selected: ReadonlySet<string>;
+  select(event: GoogleCalendarEvent): void;
+  create(slot: AvailabilitySlot): void;
+  move(event: GoogleCalendarEvent, start: Date): void;
+  resize(event: GoogleCalendarEvent, end: Date): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
-  const daily = events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents);
   return (
     <div className="day-view">
       <h3>{day.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</h3>
-      {daily.length === 0 ? <p className="empty-state">Nothing scheduled for this day.</p> : daily.map((event) => <EventCard key={`${event.calendarId}:${event.id}`} event={event} color={colors.get(event.calendarId)} open={() => open(event)} />)}
+      <TimeGrid days={[day]} events={events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents)} colors={colors} selected={selected} select={select} create={create} move={move} resize={resize} open={open} />
     </div>
   );
 }
 
-function WeekView({ start, events, colors, open }: {
+function WeekView({ start, events, colors, selected, select, create, move, resize, open }: {
   readonly start: Date;
   readonly events: readonly GoogleCalendarEvent[];
   readonly colors: ReadonlyMap<string, string | undefined>;
+  readonly selected: ReadonlySet<string>;
+  select(event: GoogleCalendarEvent): void;
+  create(slot: AvailabilitySlot): void;
+  move(event: GoogleCalendarEvent, start: Date): void;
+  resize(event: GoogleCalendarEvent, end: Date): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
   return (
-    <div className="week-grid">
-      {Array.from({ length: 7 }, (_, index) => {
-        const day = addDays(start, index);
-        const daily = events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents);
-        return (
-          <section key={toYmd(day)} className="calendar-day">
-            <h3>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</h3>
-            {daily.map((event) => <EventCard key={`${event.calendarId}:${event.id}`} event={event} color={colors.get(event.calendarId)} open={() => open(event)} />)}
-          </section>
-        );
-      })}
-    </div>
+    <TimeGrid days={Array.from({ length: 7 }, (_, index) => addDays(start, index))} events={events} colors={colors} selected={selected} select={select} create={create} move={move} resize={resize} open={open} />
   );
 }
 
-function MonthView({ anchor, events, colors, open }: {
+function MonthView({ anchor, events, colors, selected, select, open }: {
   readonly anchor: Date;
   readonly events: readonly GoogleCalendarEvent[];
   readonly colors: ReadonlyMap<string, string | undefined>;
+  readonly selected: ReadonlySet<string>;
+  select(event: GoogleCalendarEvent): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
   const start = viewRange(anchor, "month").start;
@@ -392,7 +489,7 @@ function MonthView({ anchor, events, colors, open }: {
         return (
           <section key={toYmd(day)} className={day.getMonth() === anchor.getMonth() ? "month-day" : "month-day muted"}>
             <span>{day.getDate()}</span>
-            {daily.slice(0, 3).map((event) => <EventCard key={`${event.calendarId}:${event.id}`} event={event} color={colors.get(event.calendarId)} open={() => open(event)} />)}
+            {daily.slice(0, 3).map((event) => <EventCard key={eventKey(event)} event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}
             {daily.length > 3 && <small>+{daily.length - 3} more</small>}
           </section>
         );
@@ -401,9 +498,11 @@ function MonthView({ anchor, events, colors, open }: {
   );
 }
 
-function AgendaView({ events, colors, open }: {
+function AgendaView({ events, colors, selected, select, open }: {
   readonly events: readonly GoogleCalendarEvent[];
   readonly colors: ReadonlyMap<string, string | undefined>;
+  readonly selected: ReadonlySet<string>;
+  select(event: GoogleCalendarEvent): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
   return (
@@ -412,7 +511,7 @@ function AgendaView({ events, colors, open }: {
         <li key={`${event.calendarId}:${event.id}`}>
           <time dateTime={event.start.dateTime ?? event.start.date}>{eventRangeLabel(event)}</time>
           <div>
-            <EventCard event={event} color={colors.get(event.calendarId)} open={() => open(event)} />
+            <EventCard event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />
             {event.location && <small>{event.location}</small>}
             {event.description && <p>{event.description}</p>}
           </div>
@@ -435,6 +534,7 @@ function EventEditor({
   respondToEvent,
   authorizeDrive,
   searchDrive,
+  splitRecurringEvent,
   close
 }: {
   readonly calendars: readonly GoogleCalendar[];
@@ -446,14 +546,15 @@ function EventEditor({
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
-  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction", comment?: string): Promise<GoogleCalendarEvent>;
   authorizeDrive(): Promise<void>;
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
+  splitRecurringEvent(series: GoogleCalendarEvent, firstChangedInstance: GoogleCalendarEvent, input: CalendarEventInput): Promise<void>;
   close(): void;
 }): React.JSX.Element {
   const titleRef = useRef<HTMLInputElement>(null);
   const [editingEvent, setEditingEvent] = useState(event);
-  const [scope, setScope] = useState<"instance" | "series">("instance");
+  const [scope, setScope] = useState<"instance" | "following" | "series">("instance");
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -466,6 +567,8 @@ function EventEditor({
   const [meet, setMeet] = useState(false);
   const [attachments, setAttachments] = useState<GoogleEventAttachment[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceDraft>(defaultRecurrence);
+  const [advanced, setAdvanced] = useState<AdvancedEventDraft>(defaultAdvancedEvent);
+  const [responseComment, setResponseComment] = useState("");
   const [error, setError] = useState("");
   const [responding, setResponding] = useState(false);
 
@@ -481,9 +584,28 @@ function EventEditor({
     setEnd(sourceAllDay ? toYmd(addDays(dateFromYmd(source?.end.date ?? source?.start.date ?? toYmd(new Date())), -1)) : source?.end.dateTime ? toLocalDateTime(new Date(source.end.dateTime)) : prefill ? toLocalDateTime(new Date(prefill.end)) : localDateTime(90));
     setTimeZone(source?.start.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
     setAttendeeText(source?.attendees?.map((attendee) => attendee.email).join(", ") ?? "");
-    setMeet(Boolean(source?.conferenceData));
+    setMeet(false);
     setAttachments(source?.attachments ? [...source.attachments] : []);
     setRecurrence(parseRecurrence(source?.recurrence));
+    const popupReminder = source?.reminders?.overrides?.find((reminder) => reminder.method === "popup");
+    setAdvanced({
+      colorId: source?.colorId ?? "",
+      transparency: source?.transparency ?? "opaque",
+      visibility: source?.visibility ?? "default",
+      reminderMinutes: String(popupReminder?.minutes ?? 10),
+      useDefaultReminders: source?.reminders?.useDefault ?? true,
+      guestsCanInviteOthers: source?.guestsCanInviteOthers ?? true,
+      guestsCanModify: source?.guestsCanModify ?? false,
+      guestsCanSeeOtherGuests: source?.guestsCanSeeOtherGuests ?? true,
+      sendUpdates: "all",
+      eventType: source?.eventType ?? "default",
+      focusAutoDecline: source?.focusTimeProperties?.autoDeclineMode ?? source?.outOfOfficeProperties?.autoDeclineMode ?? "declineOnlyNewConflictingInvitations",
+      focusChatStatus: source?.focusTimeProperties?.chatStatus ?? "doNotDisturb",
+      declineMessage: source?.focusTimeProperties?.declineMessage ?? source?.outOfOfficeProperties?.declineMessage ?? "",
+      workingLocationType: source?.workingLocationProperties?.type ?? "homeOffice",
+      workingLocationLabel: source?.workingLocationProperties?.customLocation?.label ?? source?.workingLocationProperties?.officeLocation?.label ?? ""
+    });
+    setResponseComment(source?.attendees?.find((attendee) => attendee.self)?.comment ?? "");
     setError("");
   }
 
@@ -492,14 +614,22 @@ function EventEditor({
     loadDraft(event);
   }, [event?.id, defaultCalendarId, prefill?.end, prefill?.start]);
 
-  async function changeScope(next: "instance" | "series"): Promise<void> {
+  async function changeScope(next: "instance" | "following" | "series"): Promise<void> {
     if (!event?.recurringEventId || next === scope) {
       return;
     }
     setError("");
     try {
-      if (next === "series") {
+      if (next === "series" || next === "following") {
         loadDraft(await getEvent(event.calendarId, event.recurringEventId));
+        if (next === "following") {
+          const start = event.originalStartTime ?? event.start;
+          const end = event.end;
+          setAllDay(Boolean(start.date));
+          setStart(start.date ?? (start.dateTime ? toLocalDateTime(new Date(start.dateTime)) : localDateTime(30)));
+          setEnd(end.date ? toYmd(addDays(dateFromYmd(end.date), -1)) : end.dateTime ? toLocalDateTime(new Date(end.dateTime)) : localDateTime(90));
+          setTimeZone(start.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+        }
       } else {
         loadDraft(event);
       }
@@ -528,14 +658,35 @@ function EventEditor({
     eventSubmit.preventDefault();
     setError("");
     try {
-      const baseInput = eventInputFromDraft(title, description, location, allDay, start, end, timeZone, recurrence, attendeeText, attachments, meet);
+      const selectedCalendar = calendars.find((calendar) => calendar.id === calendarId);
+      if (advanced.eventType !== "default" && !selectedCalendar?.primary) {
+        throw new Error("Google status events are available only on the primary Calendar");
+      }
+      if ((advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice") && allDay) {
+        throw new Error("Focus time and out of office must be timed events");
+      }
+      if (advanced.eventType === "workingLocation" && !allDay) {
+        throw new Error("Working location must be an all-day event");
+      }
+      if (advanced.eventType === "workingLocation" && start !== end) {
+        throw new Error("Working location must cover exactly one day");
+      }
+      const constrainedAdvanced = advanced.eventType === "workingLocation"
+        ? { ...advanced, transparency: "transparent" as const, visibility: "public" as const }
+        : advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice"
+          ? { ...advanced, transparency: "opaque" as const }
+          : advanced;
+      const baseInput = eventInputFromDraft(title, description, location, allDay, start, end, timeZone, recurrence, attendeeText, attachments, meet, constrainedAdvanced);
       const input = editingEvent?.recurrence && recurrence.frequency === "none"
         ? { ...baseInput, recurrence: [] }
         : baseInput;
       if (editingEvent) {
-        const result = await updateEvent(editingEvent, input);
-        if (result === "updated") {
+        if (scope === "following" && event?.recurringEventId) {
+          await splitRecurringEvent(editingEvent, event, input);
           close();
+        } else {
+          const result = await updateEvent(editingEvent, input);
+          if (result === "updated") close();
         }
       } else {
         await createEvent(calendarId, input);
@@ -568,7 +719,7 @@ function EventEditor({
     setError("");
     setResponding(true);
     try {
-      setEditingEvent(await respondToEvent(editingEvent, responseStatus));
+      setEditingEvent(await respondToEvent(editingEvent, responseStatus, responseComment));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Invitation response could not be saved");
     } finally {
@@ -583,13 +734,15 @@ function EventEditor({
       <form onSubmit={(eventSubmit) => void submit(eventSubmit)}>
         <div className="panel-heading">
           <div><p className="eyebrow">Google Calendar</p><h2 id="event-editor-heading">{editingEvent ? "Edit event" : "New event"}</h2></div>
-          <button type="button" onClick={close}>Close</button>
+          <div className="button-row">{editingEvent && <button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/event/${encodeURIComponent(editingEvent.calendarId)}/${encodeURIComponent(editingEvent.id)}`)}>Copy link</button>}<button type="button" onClick={close}>Close</button></div>
         </div>
         {event?.recurringEventId && (
           <fieldset className="scope-choice">
             <legend>Apply changes to</legend>
             <label><input type="radio" checked={scope === "instance"} onChange={() => void changeScope("instance")} /> Only this occurrence</label>
+            <label><input type="radio" checked={scope === "following"} onChange={() => void changeScope("following")} /> This and following occurrences</label>
             <label><input type="radio" checked={scope === "series"} onChange={() => void changeScope("series")} /> The entire series</label>
+            {scope === "following" && <p className="field-help">This creates a new series at this occurrence and trims the original one. Google Calendar resets exceptions after the split point.</p>}
           </fieldset>
         )}
         <label>Title<input ref={titleRef} value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} required /></label>
@@ -620,9 +773,11 @@ function EventEditor({
             <textarea value={recurrence.advanced} onChange={(eventInput) => setRecurrence((current) => ({ ...current, advanced: eventInput.target.value }))} rows={4} placeholder="RRULE:FREQ=MONTHLY;BYDAY=MO" />
           </details>
         </fieldset>
+        <label>Event type<select value={advanced.eventType} onChange={(eventInput) => setAdvanced((current) => ({ ...current, eventType: eventInput.target.value as GoogleEventType }))}><option value="default">Event</option><option value="focusTime" disabled={!calendars.find((calendar) => calendar.id === calendarId)?.primary}>Focus time</option><option value="outOfOffice" disabled={!calendars.find((calendar) => calendar.id === calendarId)?.primary}>Out of office</option><option value="workingLocation" disabled={!calendars.find((calendar) => calendar.id === calendarId)?.primary}>Working location</option></select></label>
+        {advanced.eventType !== "default" && <p className="field-help">Google status events are available only on a primary Calendar. Focus time and out of office are timed and busy; working location is an all-day, public, free entry.</p>}
         <label>Attendees<input value={attendeeText} onChange={(eventInput) => setAttendeeText(eventInput.target.value)} placeholder="Emails separated by commas" /></label>
-        {selfAttendee && <fieldset className="response-editor"><legend>Your invitation</legend><p className="field-help">Current response: {selfAttendee.responseStatus ?? "needs action"}</p><div className="button-row"><button type="button" disabled={responding} onClick={() => void respond("accepted")}>Accept</button><button type="button" disabled={responding} onClick={() => void respond("tentative")}>Maybe</button><button type="button" disabled={responding} onClick={() => void respond("declined")}>Decline</button></div></fieldset>}
-        <label className="check-label"><input type="checkbox" checked={meet} onChange={(eventInput) => setMeet(eventInput.target.checked)} /> Create a Google Meet link</label>
+        {selfAttendee && <fieldset className="response-editor"><legend>Your invitation</legend><p className="field-help">Current response: {selfAttendee.responseStatus ?? "needs action"}</p><label>Response comment<textarea value={responseComment} onChange={(eventInput) => setResponseComment(eventInput.target.value)} rows={2} /></label><div className="button-row"><button type="button" disabled={responding} onClick={() => void respond("accepted")}>Accept</button><button type="button" disabled={responding} onClick={() => void respond("tentative")}>Maybe</button><button type="button" disabled={responding} onClick={() => void respond("declined")}>Decline</button></div></fieldset>}
+        {editingEvent?.conferenceData ? <p className="field-help">This event already has a Google Meet link. Saving other fields preserves it.</p> : <label className="check-label"><input type="checkbox" checked={meet} onChange={(eventInput) => setMeet(eventInput.target.checked)} /> Create a Google Meet link</label>}
         <DriveAttachmentPicker
           authorized={driveAuthorized}
           authorize={authorizeDrive}
@@ -630,6 +785,7 @@ function EventEditor({
           addAttachment={(attachment) => setAttachments((current) => current.some((item) => item.fileUrl === attachment.fileUrl) ? current : [...current, attachment])}
         />
         {attachments.length > 0 && <ul className="selected-attachments">{attachments.map((attachment) => <li key={attachment.fileUrl}>{attachment.title ?? attachment.fileUrl}<button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.fileUrl !== attachment.fileUrl))}>Remove</button></li>)}</ul>}
+        <details className="event-advanced"><summary>Advanced event settings</summary><div className="advanced-fields"><label>Event color ID<input value={advanced.colorId} onChange={(eventInput) => setAdvanced((current) => ({ ...current, colorId: eventInput.target.value }))} placeholder="Google color ID" /></label><label>Availability<select value={advanced.transparency} onChange={(eventInput) => setAdvanced((current) => ({ ...current, transparency: eventInput.target.value as AdvancedEventDraft["transparency"] }))} disabled={advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice" || advanced.eventType === "workingLocation"}><option value="opaque">Busy</option><option value="transparent">Free</option></select></label><label>Visibility<select value={advanced.visibility} onChange={(eventInput) => setAdvanced((current) => ({ ...current, visibility: eventInput.target.value as AdvancedEventDraft["visibility"] }))} disabled={advanced.eventType === "workingLocation"}><option value="default">Calendar default</option><option value="public">Public</option><option value="private">Private</option><option value="confidential">Confidential</option></select></label><label>Invitation email<select value={advanced.sendUpdates} onChange={(eventInput) => setAdvanced((current) => ({ ...current, sendUpdates: eventInput.target.value as SendUpdates }))}><option value="all">Send all updates</option><option value="externalOnly">Send external updates only</option><option value="none">Do not send updates</option></select></label></div><fieldset className="recurrence-editor"><legend>Popup reminder</legend><label className="check-label"><input type="checkbox" checked={advanced.useDefaultReminders} onChange={(eventInput) => setAdvanced((current) => ({ ...current, useDefaultReminders: eventInput.target.checked }))} /> Use Calendar default reminders</label>{!advanced.useDefaultReminders && <label>Minutes before<input type="number" min="0" max="40320" value={advanced.reminderMinutes} onChange={(eventInput) => setAdvanced((current) => ({ ...current, reminderMinutes: eventInput.target.value }))} /></label>}</fieldset><fieldset className="recurrence-editor"><legend>Guest permissions</legend><label className="check-label"><input type="checkbox" checked={advanced.guestsCanInviteOthers} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanInviteOthers: eventInput.target.checked }))} /> Guests can invite others</label><label className="check-label"><input type="checkbox" checked={advanced.guestsCanModify} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanModify: eventInput.target.checked }))} /> Guests can modify event</label><label className="check-label"><input type="checkbox" checked={advanced.guestsCanSeeOtherGuests} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanSeeOtherGuests: eventInput.target.checked }))} /> Guests can see other guests</label></fieldset>{(advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice") && <fieldset className="recurrence-editor"><legend>Decline conflicting invitations</legend><label>Policy<select value={advanced.focusAutoDecline} onChange={(eventInput) => setAdvanced((current) => ({ ...current, focusAutoDecline: eventInput.target.value as AdvancedEventDraft["focusAutoDecline"] }))}><option value="declineNone">Do not decline</option><option value="declineOnlyNewConflictingInvitations">Decline new conflicts</option><option value="declineAllConflictingInvitations">Decline all conflicts</option></select></label>{advanced.eventType === "focusTime" && <label>Chat status<select value={advanced.focusChatStatus} onChange={(eventInput) => setAdvanced((current) => ({ ...current, focusChatStatus: eventInput.target.value as AdvancedEventDraft["focusChatStatus"] }))}><option value="doNotDisturb">Do not disturb</option><option value="available">Available</option></select></label>}<label>Decline message<textarea value={advanced.declineMessage} onChange={(eventInput) => setAdvanced((current) => ({ ...current, declineMessage: eventInput.target.value }))} rows={2} /></label></fieldset>}{advanced.eventType === "workingLocation" && <fieldset className="recurrence-editor"><legend>Working location</legend><label>Location type<select value={advanced.workingLocationType} onChange={(eventInput) => setAdvanced((current) => ({ ...current, workingLocationType: eventInput.target.value as AdvancedEventDraft["workingLocationType"] }))}><option value="homeOffice">Home office</option><option value="officeLocation">Office</option><option value="customLocation">Custom</option></select></label>{advanced.workingLocationType !== "homeOffice" && <label>Location label<input value={advanced.workingLocationLabel} onChange={(eventInput) => setAdvanced((current) => ({ ...current, workingLocationLabel: eventInput.target.value }))} /></label>}</fieldset>}</details>
         {error && <p className="error" role="alert">{error}</p>}
         <div className="button-row"><button type="submit">{editingEvent ? "Save event" : "Create event"}</button>{editingEvent && <button type="button" className="danger-button" onClick={() => void remove()}>Delete event</button>}</div>
       </form>
@@ -656,12 +812,30 @@ function ConflictDialog({ conflict, resolve, dismiss }: {
   );
 }
 
+function InvitationInbox({ invitations, calendars, respond, close }: {
+  readonly invitations: readonly GoogleCalendarEvent[];
+  readonly calendars: readonly GoogleCalendar[];
+  respond(event: GoogleCalendarEvent, response: "accepted" | "declined" | "tentative", comment?: string): Promise<void>;
+  close(): void;
+}): React.JSX.Element {
+  const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
+  return <ModalDialog className="invitation-inbox" labelledBy="invitation-inbox-heading" onClose={close}>
+    <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="invitation-inbox-heading">Invitation inbox</h2></div><button type="button" onClick={close}>Close</button></div>
+    {invitations.length === 0 ? <p className="empty-state">No pending invitations in the synced Calendar cache.</p> : <ul className="invitation-list">{invitations.map((event) => {
+      const key = eventKey(event);
+      return <li key={key}><strong>{event.summary || "Untitled event"}</strong><span>{calendars.find((calendar) => calendar.id === event.calendarId)?.summary ?? event.calendarId} · {eventRangeLabel(event)}</span><label>Response comment<textarea value={comments[key] ?? ""} onChange={(input) => setComments((current) => ({ ...current, [key]: input.target.value }))} rows={2} /></label><div className="button-row"><button type="button" onClick={() => void respond(event, "accepted", comments[key])}>Accept</button><button type="button" onClick={() => void respond(event, "tentative", comments[key])}>Maybe</button><button type="button" onClick={() => void respond(event, "declined", comments[key])}>Decline</button></div></li>;
+    })}</ul>}
+  </ModalDialog>;
+}
+
 export function CalendarPanel({
   calendars,
   events,
+  invitations = [],
   search,
   command,
   driveAuthorized,
+  visibleCalendarIds = emptyCalendarIds,
   eventConflict,
   createCalendar,
   subscribeCalendar,
@@ -675,8 +849,11 @@ export function CalendarPanel({
   loadCalendarRange,
   resolveEventConflict,
   dismissEventConflict,
+  splitRecurringEvent,
   authorizeDrive,
-  searchDrive
+  searchDrive,
+  bulkEvents,
+  saveVisibleCalendarIds
 }: CalendarPanelProps): React.JSX.Element {
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
@@ -685,7 +862,15 @@ export function CalendarPanel({
   const [composerOpen, setComposerOpen] = useState(false);
   const [calendarManagerOpen, setCalendarManagerOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [composerPrefill, setComposerPrefill] = useState<AvailabilitySlot | undefined>();
+  const [selectedEventKeys, setSelectedEventKeys] = useState<readonly string[]>([]);
+  const [bulkResult, setBulkResult] = useState<BulkOperationResult | undefined>();
+  const [bulkCalendarId, setBulkCalendarId] = useState("");
+  const [bulkColorId, setBulkColorId] = useState("");
+  const [bulkFind, setBulkFind] = useState("");
+  const [bulkReplace, setBulkReplace] = useState("");
+  const [bulkShiftMinutes, setBulkShiftMinutes] = useState("0");
   const [error, setError] = useState("");
   const defaultCalendarId = calendars.find((calendar) => calendar.primary)?.id ?? calendars[0]?.id ?? "";
   const range = useMemo(() => viewRange(anchor, view), [anchor, view]);
@@ -693,9 +878,10 @@ export function CalendarPanel({
   useEffect(() => {
     setSelectedCalendarIds((current) => {
       const available = current.filter((id) => calendars.some((calendar) => calendar.id === id));
-      return available.length > 0 ? available : defaultCalendarId ? [defaultCalendarId] : [];
+      const saved = visibleCalendarIds.filter((id) => calendars.some((calendar) => calendar.id === id));
+      return available.length > 0 ? available : saved.length > 0 ? saved : defaultCalendarId ? [defaultCalendarId] : [];
     });
-  }, [calendars, defaultCalendarId]);
+  }, [calendars, defaultCalendarId, visibleCalendarIds]);
 
   useEffect(() => {
     if (!command) {
@@ -741,6 +927,12 @@ export function CalendarPanel({
     .filter((event) => matchesEvent(event, query))
     .sort(sortEvents), [events, query, range.end, range.start, selectedCalendarIds]);
   const colors = useMemo(() => new Map(calendars.map((calendar) => [calendar.id, calendar.backgroundColor])), [calendars]);
+  const selectedEventSet = useMemo(() => new Set(selectedEventKeys), [selectedEventKeys]);
+  const selectedEvents = useMemo(() => events.filter((event) => selectedEventSet.has(eventKey(event))), [events, selectedEventSet]);
+
+  useEffect(() => {
+    setSelectedEventKeys((current) => current.filter((key) => events.some((event) => eventKey(event) === key)));
+  }, [events]);
 
   function changeAnchor(direction: number): void {
     const multiplier = view === "day" ? 1 : view === "week" ? 7 : view === "month" ? 31 : 30;
@@ -748,13 +940,36 @@ export function CalendarPanel({
   }
 
   function toggleCalendar(calendarId: string): void {
-    setSelectedCalendarIds((current) => current.includes(calendarId) ? current.filter((id) => id !== calendarId) : [...current, calendarId]);
+    setSelectedCalendarIds((current) => {
+      const next = current.includes(calendarId) ? current.filter((id) => id !== calendarId) : [...current, calendarId];
+      void saveVisibleCalendarIds?.(next).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Calendar visibility could not be saved"));
+      return next;
+    });
   }
 
   function openEvent(event: GoogleCalendarEvent): void {
     setComposerOpen(false);
     setComposerPrefill(undefined);
     setEditingEvent(event);
+  }
+
+  function toggleEventSelection(event: GoogleCalendarEvent): void {
+    const key = eventKey(event);
+    setSelectedEventKeys((current) => current.includes(key) ? current.filter((candidate) => candidate !== key) : [...current, key]);
+  }
+
+  async function runBulk(operation: EventBulkOperation): Promise<void> {
+    if (!bulkEvents || selectedEvents.length === 0) return;
+    if (operation.kind === "delete" && !window.confirm(`Delete ${selectedEvents.length} selected event${selectedEvents.length === 1 ? "" : "s"}? This can be recovered from Undo while its retention period lasts.`)) return;
+    setError("");
+    setBulkResult(undefined);
+    try {
+      const result = await bulkEvents(selectedEvents, operation);
+      setBulkResult(result);
+      if (result.failed.length === 0) setSelectedEventKeys([]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The selected events could not be changed");
+    }
   }
 
   function closeEditor(): void {
@@ -770,11 +985,44 @@ export function CalendarPanel({
     setComposerOpen(true);
   }
 
+  function createTimeSlot(slot: AvailabilitySlot): void {
+    setEditingEvent(undefined);
+    setComposerPrefill(slot);
+    setComposerOpen(true);
+  }
+
+  async function moveGridEvent(event: GoogleCalendarEvent, start: Date): Promise<void> {
+    if (event.start.date || event.end.date) {
+      setError("All-day events are not changed by a timed drag. Open the event to make that explicit change.");
+      return;
+    }
+    const duration = eventEnd(event).getTime() - eventStart(event).getTime();
+    try {
+      const result = await updateEvent(event, eventInputFromExisting(event, { dateTime: start.toISOString(), timeZone: event.start.timeZone }, { dateTime: new Date(start.getTime() + duration).toISOString(), timeZone: event.end.timeZone }));
+      if (result === "conflict") setError("Google changed this event before the move. Resolve the conflict before retrying.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The event could not be moved");
+    }
+  }
+
+  async function resizeGridEvent(event: GoogleCalendarEvent, end: Date): Promise<void> {
+    if (event.start.date || event.end.date || end <= eventStart(event)) {
+      setError("A timed event must end after it starts. Open all-day events to edit them explicitly.");
+      return;
+    }
+    try {
+      const result = await updateEvent(event, eventInputFromExisting(event, event.start, { dateTime: end.toISOString(), timeZone: event.end.timeZone }));
+      if (result === "conflict") setError("Google changed this event before the resize. Resolve the conflict before retrying.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The event could not be resized");
+    }
+  }
+
   return (
     <section className="workspace-panel calendar-panel" aria-labelledby="calendar-heading">
       <div className="panel-heading">
         <div><p className="eyebrow">Google Calendar</p><h2 id="calendar-heading">Calendar</h2></div>
-        <div className="button-row"><button type="button" onClick={() => setAvailabilityOpen(true)}>Find time</button><button type="button" onClick={() => setCalendarManagerOpen(true)}>Manage calendars</button><button type="button" disabled={!defaultCalendarId} onClick={() => { setEditingEvent(undefined); setComposerPrefill(undefined); setComposerOpen(true); }}>New event</button></div>
+        <div className="button-row"><button type="button" onClick={() => setInboxOpen(true)}>Invitations{invitations.length ? ` (${invitations.length})` : ""}</button><button type="button" onClick={() => setAvailabilityOpen(true)}>Find time</button><button type="button" onClick={() => setCalendarManagerOpen(true)}>Manage calendars</button><button type="button" disabled={!defaultCalendarId} onClick={() => { setEditingEvent(undefined); setComposerPrefill(undefined); setComposerOpen(true); }}>New event</button></div>
       </div>
       {calendars.length === 0 ? <p className="empty-state">No Google Calendars were found.</p> : (
         <>
@@ -784,16 +1032,19 @@ export function CalendarPanel({
           </div>
           <fieldset className="calendar-sources"><legend>Show calendars</legend>{calendars.map((calendar) => <label key={calendar.id}><input type="checkbox" checked={selectedCalendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /> <span className="calendar-swatch" style={{ backgroundColor: calendar.backgroundColor }} /> {calendar.summary}</label>)}</fieldset>
           <p className="calendar-range-label">{view === "month" ? anchor.toLocaleDateString([], { month: "long", year: "numeric" }) : `${range.start.toLocaleDateString()} – ${addDays(range.end, -1).toLocaleDateString()}`}</p>
+          {selectedEvents.length > 0 && bulkEvents && <fieldset className="bulk-actions"><legend>{selectedEvents.length} selected event{selectedEvents.length === 1 ? "" : "s"}</legend><div className="button-row"><button type="button" className="danger-button" onClick={() => void runBulk({ kind: "delete" })}>Delete</button><label>Move to<select aria-label="Bulk destination calendar" value={bulkCalendarId} onChange={(event) => setBulkCalendarId(event.target.value)}><option value="">Choose calendar</option>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label><button type="button" disabled={!bulkCalendarId} onClick={() => void runBulk({ kind: "move", calendarId: bulkCalendarId })}>Move selected</button><label>Color ID<input aria-label="Bulk color ID" value={bulkColorId} onChange={(event) => setBulkColorId(event.target.value)} placeholder="Blank clears" /></label><button type="button" onClick={() => void runBulk({ kind: "color", colorId: bulkColorId || undefined })}>Apply color</button><select aria-label="Bulk availability" defaultValue=""><option value="" disabled>Set availability…</option><option value="opaque">Busy</option><option value="transparent">Free</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "availability", transparency: select.value as "opaque" | "transparent" }); }}>Apply availability</button><select aria-label="Bulk visibility" defaultValue=""><option value="" disabled>Set visibility…</option><option value="default">Calendar default</option><option value="public">Public</option><option value="private">Private</option><option value="confidential">Confidential</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "visibility", visibility: select.value as NonNullable<GoogleCalendarEvent["visibility"]> }); }}>Apply visibility</button><label>Shift minutes<input aria-label="Shift selected events in minutes" type="number" value={bulkShiftMinutes} onChange={(event) => setBulkShiftMinutes(event.target.value)} /></label><button type="button" onClick={() => void runBulk({ kind: "shift", minutes: Number(bulkShiftMinutes) })}>Shift</button><label>Find text<input aria-label="Bulk find event text" value={bulkFind} onChange={(event) => setBulkFind(event.target.value)} /></label><label>Replace with<input aria-label="Bulk replacement event text" value={bulkReplace} onChange={(event) => setBulkReplace(event.target.value)} /></label><button type="button" disabled={!bulkFind} onClick={() => void runBulk({ kind: "replace-text", find: bulkFind, replace: bulkReplace })}>Replace text</button><button type="button" onClick={() => setSelectedEventKeys([])}>Clear selection</button></div><p className="field-help">For a repeating event, open it first to choose whether an edit affects this occurrence or the series. “This and following” requires a series split, which the direct Google Calendar API does not expose as one mutation.</p></fieldset>}
           {error && <p className="error" role="alert">{error}</p>}
-          {view === "day" && <DayView day={range.start} events={visibleEvents} colors={colors} open={openEvent} />}
-          {view === "week" && <WeekView start={range.start} events={visibleEvents} colors={colors} open={openEvent} />}
-          {view === "month" && <MonthView anchor={anchor} events={visibleEvents} colors={colors} open={openEvent} />}
-          {view === "agenda" && (visibleEvents.length > 0 ? <AgendaView events={visibleEvents} colors={colors} open={openEvent} /> : <p className="empty-state">No events in this range.</p>)}
+          {bulkResult && <p className={bulkResult.failed.length ? "error" : "status"} role="status">{bulkResult.succeeded.length} changed{bulkResult.failed.length ? `; ${bulkResult.failed.length} need attention: ${bulkResult.failed.map((entry) => entry.error).join(" · ")}` : ""}</p>}
+          {view === "day" && <DayView day={range.start} events={visibleEvents} colors={colors} selected={selectedEventSet} select={toggleEventSelection} create={createTimeSlot} move={(event, start) => void moveGridEvent(event, start)} resize={(event, end) => void resizeGridEvent(event, end)} open={openEvent} />}
+          {view === "week" && <WeekView start={range.start} events={visibleEvents} colors={colors} selected={selectedEventSet} select={toggleEventSelection} create={createTimeSlot} move={(event, start) => void moveGridEvent(event, start)} resize={(event, end) => void resizeGridEvent(event, end)} open={openEvent} />}
+          {view === "month" && <MonthView anchor={anchor} events={visibleEvents} colors={colors} selected={selectedEventSet} select={toggleEventSelection} open={openEvent} />}
+          {view === "agenda" && (visibleEvents.length > 0 ? <AgendaView events={visibleEvents} colors={colors} selected={selectedEventSet} select={toggleEventSelection} open={openEvent} /> : <p className="empty-state">No events in this range.</p>)}
         </>
       )}
-      {(composerOpen || editingEvent) && <EventEditor calendars={calendars} event={editingEvent} prefill={composerPrefill} defaultCalendarId={defaultCalendarId} driveAuthorized={driveAuthorized} createEvent={createEvent} updateEvent={updateEvent} deleteEvent={deleteEvent} getEvent={getEvent} respondToEvent={respondToEvent} authorizeDrive={authorizeDrive} searchDrive={searchDrive} close={closeEditor} />}
+      {(composerOpen || editingEvent) && <EventEditor calendars={calendars} event={editingEvent} prefill={composerPrefill} defaultCalendarId={defaultCalendarId} driveAuthorized={driveAuthorized} createEvent={createEvent} updateEvent={updateEvent} deleteEvent={deleteEvent} getEvent={getEvent} respondToEvent={respondToEvent} authorizeDrive={authorizeDrive} searchDrive={searchDrive} splitRecurringEvent={splitRecurringEvent ?? (async () => { throw new Error("Recurring series splitting is unavailable in this workspace"); })} close={closeEditor} />}
       {calendarManagerOpen && <CalendarManagerDialog calendars={calendars} createCalendar={createCalendar} subscribeCalendar={subscribeCalendar} removeCalendarFromList={removeCalendarFromList} close={() => setCalendarManagerOpen(false)} />}
       {availabilityOpen && <AvailabilityAssistant calendars={calendars} defaultCalendarIds={selectedCalendarIds} queryAvailability={queryAvailability} useSlot={useAvailabilitySlot} close={() => setAvailabilityOpen(false)} />}
+      {inboxOpen && <InvitationInbox invitations={invitations} calendars={calendars} close={() => setInboxOpen(false)} respond={async (event, response, comment) => { try { await respondToEvent(event, response, comment); } catch (reason) { setError(reason instanceof Error ? reason.message : "The invitation response could not be saved"); } }} />}
       {eventConflict && <ConflictDialog conflict={eventConflict} resolve={async (resolution) => { try { await resolveEventConflict(resolution); closeEditor(); } catch (reason) { setError(reason instanceof Error ? reason.message : "The conflict could not be resolved"); } }} dismiss={dismissEventConflict} />}
     </section>
   );

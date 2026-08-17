@@ -132,7 +132,7 @@ function removeSpans(text: string, spans: readonly Span[]): string {
 export function parseQuickCapture(
   text: string,
   requestedKind: QuickCaptureKind,
-  preferences: Pick<QuickCapturePreferences, "defaultEventDurationMinutes" | "taskAliases" | "eventAliases" | "highPriorityAliases" | "mediumPriorityAliases" | "lowPriorityAliases"> = { defaultEventDurationMinutes: 30, ...defaultAliases },
+  preferences: Pick<QuickCapturePreferences, "defaultEventDurationMinutes" | "removeRecognizedText" | "taskAliases" | "eventAliases" | "highPriorityAliases" | "mediumPriorityAliases" | "lowPriorityAliases"> = { defaultEventDurationMinutes: 30, removeRecognizedText: true, ...defaultAliases },
   disabledRecognitionIds: readonly string[] = [],
   now = new Date()
 ): QuickCaptureResult {
@@ -196,7 +196,7 @@ export function parseQuickCapture(
   return {
     kind,
     rawTitle: text.trim(),
-    parsedTitle: removeSpans(text, spans),
+    parsedTitle: preferences.removeRecognizedText === false ? text.trim() : removeSpans(text, spans),
     date,
     time,
     allDay: kind === "event" && Boolean(date) && !time,

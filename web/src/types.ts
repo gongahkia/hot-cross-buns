@@ -82,6 +82,7 @@ export interface GoogleCalendar {
   readonly timeZone?: string;
   readonly accessRole?: string;
   readonly deleted?: boolean;
+  readonly defaultReminders?: readonly { readonly method: "email" | "popup"; readonly minutes: number }[];
 }
 
 export interface CalendarInput {
@@ -323,14 +324,14 @@ export type PendingMutation =
       readonly subject: string;
       readonly kind: "task-update";
       readonly createdAt: string;
-      readonly payload: { readonly listId: string; readonly taskId: string; readonly patch: Partial<GoogleTask> };
+      readonly payload: { readonly listId: string; readonly taskId: string; readonly patch: Partial<GoogleTask>; readonly etag?: string };
     }
   | {
       readonly id: string;
       readonly subject: string;
       readonly kind: "task-delete";
       readonly createdAt: string;
-      readonly payload: { readonly listId: string; readonly taskId: string };
+      readonly payload: { readonly listId: string; readonly taskId: string; readonly etag?: string };
     }
   | {
       readonly id: string;
@@ -385,6 +386,19 @@ export type PendingMutation =
       readonly kind: "event-delete";
       readonly createdAt: string;
       readonly payload: { readonly calendarId: string; readonly eventId: string; readonly etag?: string };
+    }
+  | {
+      readonly id: string;
+      readonly subject: string;
+      readonly kind: "event-respond";
+      readonly createdAt: string;
+      readonly payload: {
+        readonly calendarId: string;
+        readonly eventId: string;
+        readonly responseStatus: "accepted" | "declined" | "tentative" | "needsAction";
+        readonly comment?: string;
+        readonly etag?: string;
+      };
     };
 
 export interface WorkspaceSnapshot {
