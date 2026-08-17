@@ -1,6 +1,6 @@
 import emojiDataJson from "@emoji-mart/data/sets/15/native.json";
 import type { Emoji, EmojiMartData } from "@emoji-mart/data";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ModalDialog } from "@/components/ModalDialog";
 import { LoadingState } from "@/components/LoadingState";
@@ -34,6 +34,12 @@ interface EmojiTrigger {
 interface TextSelection {
   readonly start: number;
   readonly end: number;
+}
+
+interface TextHistory {
+  readonly past: string[];
+  readonly future: string[];
+  lastValue: string;
 }
 
 const emojiData = emojiDataJson as EmojiMartData;
@@ -117,15 +123,79 @@ function InsertDialog({ kind, selection, drive, close, insert }: { readonly kind
 export function MarkdownEditor({ label, value, rows = 7, disabled = false, drive, onChange }: MarkdownEditorProps): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selectionRef = useRef<TextSelection>({ start: 0, end: 0 });
+  const historyRef = useRef<TextHistory>({ past: [], future: [], lastValue: value });
   const [mode, setMode] = useState<EditorMode>("write");
   const [insertKind, setInsertKind] = useState<InsertKind>();
   const [trigger, setTrigger] = useState<EmojiTrigger>();
   const [activeEmoji, setActiveEmoji] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const emojiMatches = useMemo(() => {
     if (!trigger) return [];
     if (!trigger.query) return initialEmoji;
     return allEmoji.filter((emoji) => `${emoji.id} ${emoji.name} ${emoji.keywords.join(" ")}`.toLocaleLowerCase().includes(trigger.query)).slice(0, 36);
   }, [trigger]);
+
+  function refreshHistoryControls(): void {
+    setCanUndo(historyRef.current.past.length > 0);
+    setCanRedo(historyRef.current.future.length > 0);
+  }
+
+  useEffect(() => {
+    const history = historyRef.current;
+    if (history.lastValue !== value) {
+      history.past.splice(0);
+      history.future.splice(0);
+      history.lastValue = value;
+      refreshHistoryControls();
+    }
+  }, [value]);
+
+  function updateValue(next: string): void {
+    if (next === value) return;
+    const history = historyRef.current;
+    if (history.lastValue !== value) {
+      history.past.splice(0);
+      history.future.splice(0);
+    }
+    history.past.push(value);
+    if (history.past.length > 200) history.past.shift();
+    history.future.splice(0);
+    history.lastValue = next;
+    refreshHistoryControls();
+    onChange(next);
+  }
+
+  function restoreHistory(next: string): void {
+    historyRef.current.lastValue = next;
+    onChange(next);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const cursor = Math.min(selectionRef.current.end, next.length);
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+      selectionRef.current = { start: cursor, end: cursor };
+    });
+  }
+
+  function undo(): void {
+    const history = historyRef.current;
+    const previous = history.past.pop();
+    if (previous === undefined) return;
+    history.future.unshift(value);
+    refreshHistoryControls();
+    restoreHistory(previous);
+  }
+
+  function redo(): void {
+    const history = historyRef.current;
+    const next = history.future.shift();
+    if (next === undefined) return;
+    history.past.push(value);
+    refreshHistoryControls();
+    restoreHistory(next);
+  }
 
   function selection(): TextSelection {
     const textarea = textareaRef.current;
@@ -134,7 +204,7 @@ export function MarkdownEditor({ label, value, rows = 7, disabled = false, drive
 
   function replaceRange(replacement: string, range = selection(), selectedStart = replacement.length, selectedEnd = selectedStart): void {
     const next = `${value.slice(0, range.start)}${replacement}${value.slice(range.end)}`;
-    onChange(next);
+    updateValue(next);
     const start = range.start + selectedStart;
     const end = range.start + selectedEnd;
     requestAnimationFrame(() => {
@@ -181,7 +251,7 @@ export function MarkdownEditor({ label, value, rows = 7, disabled = false, drive
   }
 
   function handleChange(next: string, cursor: number): void {
-    onChange(next);
+    updateValue(next);
     selectionRef.current = { start: cursor, end: cursor };
     const nextTrigger = emojiTrigger(next, cursor);
     setTrigger(nextTrigger);
@@ -189,6 +259,19 @@ export function MarkdownEditor({ label, value, rows = 7, disabled = false, drive
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    const modifier = event.metaKey || event.ctrlKey;
+    const key = event.key.toLocaleLowerCase();
+    if (modifier && key === "z") {
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (modifier && key === "y") {
+      event.preventDefault();
+      redo();
+      return;
+    }
     if (!trigger || emojiMatches.length === 0) return;
     if (event.key === "ArrowDown") { event.preventDefault(); setActiveEmoji((current) => (current + 1) % emojiMatches.length); }
     else if (event.key === "ArrowUp") { event.preventDefault(); setActiveEmoji((current) => (current - 1 + emojiMatches.length) % emojiMatches.length); }
@@ -212,6 +295,7 @@ export function MarkdownEditor({ label, value, rows = 7, disabled = false, drive
   return <section className="markdown-editor" aria-label={`${label} Markdown editor`}>
     <div className="markdown-editor-tabs" role="tablist" aria-label={`${label} mode`}><button type="button" role="tab" aria-selected={mode === "write"} className={mode === "write" ? "active" : ""} onClick={() => setMode("write")}>Write</button><button type="button" role="tab" aria-selected={mode === "preview"} className={mode === "preview" ? "active" : ""} onClick={() => setMode("preview")}>Preview</button></div>
     {mode === "write" ? <><div className="markdown-toolbar" role="toolbar" aria-label={`${label} formatting`}>
+      <button type="button" title="Undo" aria-label="Undo" disabled={disabled || !canUndo} onMouseDown={(event) => event.preventDefault()} onClick={undo}>↶</button><button type="button" title="Redo" aria-label="Redo" disabled={disabled || !canRedo} onMouseDown={(event) => event.preventDefault()} onClick={redo}>↷</button>
       {toolbar.map(([name, action]) => <button key={name} type="button" title={name} aria-label={name} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={action}>{name === "Bold" ? "B" : name === "Italic" ? "I" : name === "Heading" ? "H" : name === "Strikethrough" ? "S" : name === "Bulleted list" ? "•" : name === "Numbered list" ? "1." : name === "Checklist" ? "☑" : name === "Blockquote" ? "❝" : name === "Code" ? "</>" : "▦"}</button>)}
       <button type="button" title="Insert link" aria-label="Insert link" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => openInsert("link")}>↗</button><button type="button" title="Insert image" aria-label="Insert image" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => openInsert("image")}>▧</button>
     </div><div className="markdown-composer"><textarea ref={textareaRef} aria-label={label} value={value} rows={rows} disabled={disabled} spellCheck onSelect={() => { selectionRef.current = selection(); }} onChange={(event) => handleChange(event.target.value, event.target.selectionStart)} onKeyDown={handleKeyDown} />{trigger && <EmojiPopover query={trigger.query} activeIndex={activeEmoji} select={insertEmoji} />}</div></> : <div className="markdown-preview" role="tabpanel"><RichDescription value={value} /></div>}

@@ -25,11 +25,15 @@ describe("MarkdownEditor", () => {
   it("applies reference toolbar formatting around the selected text", async () => {
     const user = userEvent.setup();
     render(<EditorHarness initial="plain" />);
-    const editor = screen.getByRole("textbox", { name: "Notes" });
+    const editor = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
     editor.focus();
     editor.setSelectionRange(0, 5);
     await user.click(screen.getByRole("button", { name: "Bold" }));
 
+    expect(editor).toHaveValue("**plain**");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(editor).toHaveValue("plain");
+    await user.click(screen.getByRole("button", { name: "Redo" }));
     expect(editor).toHaveValue("**plain**");
   });
 

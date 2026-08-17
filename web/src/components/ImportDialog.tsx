@@ -71,6 +71,11 @@ export function ImportDialog({ taskLists, calendars, createTask, createEvent, sa
         setWorking(false);
       }
     };
+    worker.onerror = () => {
+      setError("Import parser failed");
+      setProgress("");
+      setWorking(false);
+    };
     return () => worker.terminate();
   }, []);
 
@@ -80,11 +85,17 @@ export function ImportDialog({ taskLists, calendars, createTask, createEvent, sa
     setWorking(true);
     setProgress(`Reading ${file.name}…`);
     if (file.size > 5 * 1024 * 1024) { setError("Import source exceeds 5 MiB"); setProgress(""); setWorking(false); return; }
-    const text = await file.text();
-    const id = requestRef.current + 1;
-    requestRef.current = id;
-    workerRef.current?.postMessage({ id, name: file.name, text });
-    setProgress("Parsing in a browser worker…");
+    try {
+      const text = await file.text();
+      const id = requestRef.current + 1;
+      requestRef.current = id;
+      workerRef.current?.postMessage({ id, name: file.name, text });
+      setProgress("Parsing in a browser worker…");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Import source could not be read");
+      setProgress("");
+      setWorking(false);
+    }
   }
 
   useEffect(() => {
