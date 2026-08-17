@@ -264,11 +264,15 @@ export function CommandPalette({
   const [limit, setLimit] = useState(12);
   const [saveName, setSaveName] = useState("");
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  const [spotlightHovered, setSpotlightHovered] = useState(false);
+  const [hoveredShortcut, setHoveredShortcut] = useState<number>();
+  const [hoveredResult, setHoveredResult] = useState<number>();
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | undefined>(undefined);
   const indexGenerationRef = useRef(0);
   const searchRequestRef = useRef(0);
+  const reducedMotion = useReducedMotion();
   const parsedQuery = useMemo(() => parsePaletteQuery(query), [query]);
   const calendarNames = useMemo(
     () => Object.fromEntries(workspace.calendars.map((calendar) => [calendar.id, calendar.summary])),
@@ -414,10 +418,6 @@ export function CommandPalette({
     setSelected((current) => Math.min(current, Math.max(0, items.length - 1)));
   }, [items.length]);
 
-  if (!open) {
-    return null;
-  }
-
   function choose(item: PaletteItem | undefined): void {
     if (!item) {
       return;
@@ -467,36 +467,58 @@ export function CommandPalette({
     focusable[nextIndex]?.focus();
   }
 
-  return (
-    <div className="modal-backdrop command-palette-backdrop" role="presentation">
-      <section ref={dialogRef} className="modal-card command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-heading" onKeyDown={trapFocus}>
-        <div className="panel-heading">
-          <div><p className="eyebrow">Workspace</p><h2 id="command-palette-heading">Command palette</h2></div>
-          <button type="button" onClick={close}>Close</button>
-        </div>
-        <label className="palette-search">
-          <span>Search cached work and commands</span>
-          <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); }} placeholder="Search tasks, events, calendars, Drive, or commands" />
-        </label>
-        {saveSearch && query.trim() && <details className="saved-search-control" open={saveSearchOpen} onToggle={(event) => setSaveSearchOpen(event.currentTarget.open)}><summary>Save this search</summary><div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Name this search" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => { setSaveName(""); setSaveSearchOpen(false); }); }}>Save</button></div></details>}
-        {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
-        <p className="field-help">Calendar and Drive results are browser-local; Drive results use metadata already cached after Drive authorization and an attachment search.</p>
-        {calendarHistory.status === "loading" && <LoadingState label="Indexing synced Calendar history" variant="Dots" className="inline-loader" />}
-        {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
-        {driveHistory.status === "loading" && <LoadingState label="Loading cached Drive metadata" variant="Dots" className="inline-loader" />}
-        {driveHistory.status === "error" && <p className="field-help" role="status">Cached Drive metadata is unavailable in this browser session.</p>}
-        <ul className="palette-results" role="listbox" aria-label="Command palette results">
-          {items.map((item, index) => (
-            <li key={item.id} role="option" aria-selected={selected === index}>
-              <button className={selected === index ? "active" : ""} type="button" onMouseMove={() => setSelected(index)} onClick={() => choose(item)}>
-                <strong>{item.title}</strong><span>{item.detail}</span>
-              </button>
-            </li>
-          ))}
-          {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
-        </ul>
-        {items.length >= limit && <button type="button" onClick={() => setLimit((current) => current + 24)}>More results</button>}
-      </section>
-    </div>
-  );
+  const shortcuts = actionItems(busy).filter((item) => ["go-tasks", "go-calendar", "new-task", "new-event"].includes(item.id));
+  const spotlightItem = hoveredShortcut === undefined ? (hoveredResult === undefined ? undefined : items[hoveredResult]) : shortcuts[hoveredShortcut];
+  const placeholder = spotlightItem?.title ?? "Search tasks, events, calendars, Drive, or commands";
+  const transition = { type: "spring" as const, stiffness: 550, damping: 50 };
+
+  return <AnimatePresence mode="wait">
+    {open && <motion.div
+      className="modal-backdrop command-palette-backdrop"
+      role="presentation"
+      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, filter: "blur(16px)", scaleX: 1.04, scaleY: 1.02, y: -10 }}
+      animate={{ opacity: 1, filter: "blur(0px)", scaleX: 1, scaleY: 1, y: 0 }}
+      exit={reducedMotion ? { opacity: 0 } : { opacity: 0, filter: "blur(16px)", scaleX: 1.04, scaleY: 1.02, y: 10 }}
+      transition={transition}
+      onClick={close}
+    >
+      <svg className="spotlight-filter" aria-hidden="true"><filter id="hcb-spotlight-blob"><feGaussianBlur stdDeviation="10" in="SourceGraphic" /><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 18 -9" result="blob" /><feBlend in="SourceGraphic" in2="blob" /></filter></svg>
+      <div className="spotlight-cluster" style={{ filter: "url(#hcb-spotlight-blob)" }} onMouseEnter={() => setSpotlightHovered(true)} onFocusCapture={() => setSpotlightHovered(true)} onMouseLeave={() => { setSpotlightHovered(false); setHoveredShortcut(undefined); setHoveredResult(undefined); }} onClick={(event) => event.stopPropagation()}>
+        <motion.section layout="position" ref={dialogRef} className="modal-card command-palette spotlight-card" role="dialog" aria-modal="true" aria-labelledby="command-palette-heading" onKeyDown={trapFocus}>
+          <h2 id="command-palette-heading" className="visually-hidden">Command palette</h2>
+          <div className="spotlight-input-row">
+            <Search className="spotlight-search-icon" aria-hidden="true" />
+            <label className="visually-hidden" htmlFor="command-palette-search">Search cached work and commands</label>
+            <div className="spotlight-query-wrap">
+              {(!query || spotlightItem) && <motion.p key={placeholder} className="spotlight-placeholder" initial={reducedMotion ? false : { opacity: 0, y: 8, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={reducedMotion ? undefined : { opacity: 0, y: -8, filter: "blur(4px)" }} transition={{ duration: 0.18 }} aria-hidden="true">{placeholder}</motion.p>}
+              <input id="command-palette-search" ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); setHoveredResult(undefined); }} autoComplete="off" />
+            </div>
+            <button className="spotlight-close" type="button" aria-label="Close command palette" title="Close command palette" onClick={close}><X aria-hidden="true" /></button>
+          </div>
+          <AnimatePresence initial={false}>
+            {query.trim() && <motion.div className="spotlight-results-container" initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+              {saveSearch && <details className="saved-search-control" open={saveSearchOpen} onToggle={(event) => setSaveSearchOpen(event.currentTarget.open)}><summary>Save this search</summary><div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Name this search" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => { setSaveName(""); setSaveSearchOpen(false); }); }}>Save</button></div></details>}
+              {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
+              {calendarHistory.status === "loading" && <LoadingState label="Indexing synced Calendar history" variant="Dots" className="inline-loader" />}
+              {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
+              {driveHistory.status === "loading" && <LoadingState label="Loading cached Drive metadata" variant="Dots" className="inline-loader" />}
+              {driveHistory.status === "error" && <p className="field-help" role="status">Cached Drive metadata is unavailable in this browser session.</p>}
+              <ul className="palette-results spotlight-results" role="listbox" aria-label="Command palette results">
+                {items.map((item, index) => <motion.li key={item.id} role="option" aria-selected={selected === index} initial={false} animate={{ opacity: 1 }} exit={reducedMotion ? undefined : { opacity: 0 }} transition={{ delay: Math.min(index, 8) * 0.035, duration: 0.16 }} onMouseEnter={() => { setSelected(index); setHoveredResult(index); }}>
+                  <button className={selected === index ? "active" : ""} type="button" onClick={() => choose(item)}>
+                    <span className="spotlight-result-icon" aria-hidden="true">{paletteItemIcon(item)}</span><span className="spotlight-result-copy"><strong>{item.title}</strong><span>{item.detail}</span></span><ChevronRight className="spotlight-result-chevron" aria-hidden="true" />
+                  </button>
+                </motion.li>)}
+                {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
+              </ul>
+              {items.length >= limit && <button className="spotlight-more" type="button" onClick={() => setLimit((current) => current + 24)}>More results</button>}
+            </motion.div>}
+          </AnimatePresence>
+        </motion.section>
+        <AnimatePresence>
+          {spotlightHovered && !query && shortcuts.map((item, index) => <motion.button key={item.id} className="spotlight-shortcut" type="button" title={item.title} aria-label={item.title} initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72, x: -20 }} animate={{ opacity: 0.42, scale: 1, x: 0 }} whileHover={{ opacity: 1, scale: 1.04 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72, x: 20 }} transition={{ ...transition, delay: index * 0.045 }} onMouseEnter={() => setHoveredShortcut(index)} onFocus={() => setHoveredShortcut(index)} onClick={() => choose(item)}>{paletteItemIcon(item)}</motion.button>)}
+        </AnimatePresence>
+      </div>
+    </motion.div>}
+  </AnimatePresence>;
 }

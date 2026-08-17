@@ -59,6 +59,29 @@ describe("CommandPalette", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("exposes Spotlight quick actions before a query", async () => {
+    const user = userEvent.setup();
+    const close = vi.fn();
+    const run = vi.fn();
+    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={run} />);
+
+    await user.hover(screen.getByRole("dialog"));
+    await user.click(screen.getByRole("button", { name: "New task" }));
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledWith({ type: "new-task" });
+  });
+
+  it("closes from the Spotlight close control", async () => {
+    const user = userEvent.setup();
+    const close = vi.fn();
+    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Close command palette" }));
+
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("exposes the full Google Tasks refresh command", async () => {
     const user = userEvent.setup();
     const close = vi.fn();
