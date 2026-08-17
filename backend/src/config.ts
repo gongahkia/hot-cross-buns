@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-
 export const managedGoogleScopes = [
   "openid",
   "email",
@@ -61,8 +59,7 @@ function parseKeyRing(environment: NodeJS.ProcessEnv): EncryptionKeyRing {
     keys.set(id, key);
   }
   const activeId = required(environment, "HCB_ACTIVE_ENCRYPTION_KEY_ID");
-  const active = keys.get(activeId);
-  if (!active || !timingSafeEqual(active, active)) throw new Error("HCB_ACTIVE_ENCRYPTION_KEY_ID is not present in HCB_ENCRYPTION_KEYS");
+  if (!keys.has(activeId)) throw new Error("HCB_ACTIVE_ENCRYPTION_KEY_ID is not present in HCB_ENCRYPTION_KEYS");
   return { activeId, keys };
 }
 
