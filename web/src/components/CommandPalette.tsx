@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { LoadingState } from "@/components/LoadingState";
 import {
   calendarResultKind,
   type CalendarSearchDocument,
@@ -451,9 +452,9 @@ export function CommandPalette({
         {saveSearch && query.trim() && <details className="saved-search-control" open={saveSearchOpen} onToggle={(event) => setSaveSearchOpen(event.currentTarget.open)}><summary>Save this search</summary><div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Name this search" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => { setSaveName(""); setSaveSearchOpen(false); }); }}>Save</button></div></details>}
         {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
         <p className="field-help">Calendar and Drive results are browser-local; Drive results use metadata already cached after Drive authorization and an attachment search.</p>
-        {calendarHistory.status === "loading" && <p className="field-help" role="status">Indexing your synced Calendar history…</p>}
+        {calendarHistory.status === "loading" && <LoadingState label="Indexing synced Calendar history" variant="Dots" className="inline-loader" />}
         {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
-        {driveHistory.status === "loading" && <p className="field-help" role="status">Loading cached Drive metadata…</p>}
+        {driveHistory.status === "loading" && <LoadingState label="Loading cached Drive metadata" variant="Dots" className="inline-loader" />}
         {driveHistory.status === "error" && <p className="field-help" role="status">Cached Drive metadata is unavailable in this browser session.</p>}
         <ul className="palette-results" role="listbox" aria-label="Command palette results">
           {items.map((item, index) => (

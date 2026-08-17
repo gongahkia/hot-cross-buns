@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { LoadingState } from "@/components/LoadingState";
 import type { GoogleDriveFile, GoogleEventAttachment } from "@/types";
 
 interface DriveAttachmentPickerProps {
@@ -37,9 +38,10 @@ export function DriveAttachmentPicker({ authorized, authorize, search, addAttach
       ) : (
         <div className="inline-form">
           <input aria-label="Search Drive files" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search existing Drive files" />
-          <button type="button" disabled={busy || !query.trim()} onClick={() => void runSearch()}>{busy ? "Searching…" : "Search"}</button>
+          <button type="button" disabled={busy || !query.trim()} onClick={() => void runSearch()}>Search</button>
         </div>
       )}
+      {busy && <LoadingState label="Searching Drive" variant="Dots" className="inline-loader" />}
       {error && <p className="error" role="alert">{error}</p>}
       <ul className="drive-results">
         {results.map((file) => (
