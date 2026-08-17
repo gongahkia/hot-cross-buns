@@ -81,7 +81,7 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
         <div><dt>Authorization</dt><dd>{connected ? managed ? "Active through the managed service" : "Active in this browser session" : "Not active"}</dd></div>
         <div><dt>Stored by Hot Cross Buns</dt><dd>{managed ? "Browser-local cache plus an encrypted Google refresh token and opaque session on the configured managed service." : "Only browser-local cached data and this non-secret client ID."}</dd></div>
         <div><dt>Calendar synchronization</dt><dd>Google Calendar uses browser-local sync tokens. Google Tasks uses timestamp-based changes because its API has no sync-token endpoint.</dd></div>
-        <div><dt>Keyboard</dt><dd><kbd>{formatBinding(preferences.keybindings.commandPalette)}</kbd> opens cached search and commands. Workspace shortcuts are configurable below; use ↑ ↓ and Enter inside the palette.</dd></div>
+        <div><dt>Keyboard</dt><dd><kbd>{formatBinding(preferences.keybindings.commandPalette)}</kbd> opens cached search. Workspace shortcuts are configurable below; use ↑ ↓ and Enter inside the palette.</dd></div>
       </dl>
       <p className="status" aria-live="polite">{status}</p>
       <label className="settings-search"><span>Search settings</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search appearance, sync, shortcuts, import…" /></label>

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarClock, CalendarDays, CalendarPlus, CheckSquare2, ChevronRight, FileText, ListTodo, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X, Zap } from "lucide-react";
+import { CalendarDays, CheckSquare2, ChevronRight, FileText, ListTodo, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
@@ -17,17 +17,10 @@ import {
   parsePaletteQuery,
   type ParsedPaletteQuery
 } from "@/features/paletteFilters";
-import type { GoogleCalendarEvent, GoogleDriveFile, GoogleTask, SavedSearch, TaskMetadata, WorkspaceSnapshot } from "@/types";
+import type { GoogleCalendarEvent, GoogleDriveFile, GoogleTask, TaskMetadata, WorkspaceSnapshot } from "@/types";
 
 export type PaletteAction =
-  | { readonly type: "navigate"; readonly view: "tasks" | "calendar" | "settings" }
-  | { readonly type: "sync" }
-  | { readonly type: "refresh-tasks" }
-  | { readonly type: "quick-capture" }
-  | { readonly type: "new-task" }
-  | { readonly type: "new-event" }
-  | { readonly type: "find-time" }
-  | { readonly type: "manage-calendars" }
+  | { readonly type: "navigate"; readonly view: "tasks" | "calendar" }
   | { readonly type: "open-task"; readonly task: GoogleTask }
   | { readonly type: "open-event"; readonly event: GoogleCalendarEvent }
   | { readonly type: "open-drive-file"; readonly file: GoogleDriveFile };
@@ -35,11 +28,7 @@ export type PaletteAction =
 interface CommandPaletteProps {
   readonly open: boolean;
   readonly workspace: WorkspaceSnapshot;
-  readonly busy: boolean;
   readonly taskMetadata?: readonly TaskMetadata[];
-  readonly savedSearches?: readonly SavedSearch[];
-  saveSearch?(name: string, query: string): Promise<void>;
-  deleteSearch?(id: string): Promise<void>;
   readonly calendarHistory?: CalendarHistory;
   readonly driveHistory?: DriveHistory;
   readonly close: () => void;
@@ -71,20 +60,7 @@ function paletteItemIcon(item: PaletteItem): ReactNode {
   if (item.action === "deep-search") return <Search />;
   switch (item.action.type) {
     case "navigate":
-      return item.action.view === "calendar" ? <CalendarDays /> : item.action.view === "settings" ? <Settings /> : <ListTodo />;
-    case "sync":
-    case "refresh-tasks":
-      return <RefreshCw />;
-    case "quick-capture":
-      return <Zap />;
-    case "new-task":
-      return <Plus />;
-    case "new-event":
-      return <CalendarPlus />;
-    case "find-time":
-      return <CalendarClock />;
-    case "manage-calendars":
-      return <SlidersHorizontal />;
+      return item.action.view === "calendar" ? <CalendarDays /> : <ListTodo />;
     case "open-task":
       return <CheckSquare2 />;
     case "open-event":
@@ -92,21 +68,6 @@ function paletteItemIcon(item: PaletteItem): ReactNode {
     case "open-drive-file":
       return <FileText />;
   }
-}
-
-function actionItems(busy: boolean): PaletteItem[] {
-  return [
-    { id: "go-tasks", title: "Go to Tasks", detail: "Navigation", score: 0, action: { type: "navigate", view: "tasks" } },
-    { id: "go-calendar", title: "Go to Calendar", detail: "Navigation", score: 1, action: { type: "navigate", view: "calendar" } },
-    { id: "go-settings", title: "Go to Settings", detail: "Navigation", score: 2, action: { type: "navigate", view: "settings" } },
-    { id: "new-task", title: "New task", detail: "Action", score: 3, action: { type: "new-task" } },
-    { id: "quick-capture", title: "Quick capture", detail: "Parse a task or event before creating it", score: 4, action: { type: "quick-capture" } },
-    { id: "new-event", title: "New event", detail: "Action", score: 5, action: { type: "new-event" } },
-    { id: "find-time", title: "Find a free time", detail: "Calendar action", score: 6, action: { type: "find-time" } },
-    { id: "manage-calendars", title: "Manage calendars", detail: "Calendar action", score: 7, action: { type: "manage-calendars" } },
-    { id: "sync", title: "Sync now", detail: busy ? "Currently syncing" : "Action", score: 8, action: { type: "sync" } },
-    { id: "refresh-tasks", title: "Refresh all Tasks from Google", detail: "Rebuilds this browser's task cache", score: 9, action: { type: "refresh-tasks" } }
-  ];
 }
 
 function eventDateLabel(event: GoogleCalendarEvent): string {
@@ -246,13 +207,9 @@ function searchableItems(
 export function CommandPalette({
   open,
   workspace,
-  busy,
   calendarHistory = emptyCalendarHistory,
   driveHistory = emptyDriveHistory,
   taskMetadata = [],
-  savedSearches = [],
-  saveSearch,
-  deleteSearch,
   close,
   run
 }: CommandPaletteProps): React.JSX.Element | null {
@@ -261,13 +218,14 @@ export function CommandPalette({
   const [selected, setSelected] = useState(0);
   const [historyHits, setHistoryHits] = useState<readonly CalendarSearchHit[]>([]);
   const [historyIndexed, setHistoryIndexed] = useState(false);
+  const [historySearching, setHistorySearching] = useState(false);
   const [limit, setLimit] = useState(12);
-  const [saveName, setSaveName] = useState("");
-  const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [hoveredResult, setHoveredResult] = useState<number>();
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | undefined>(undefined);
+  const loadMoreTimerRef = useRef<number | undefined>(undefined);
   const indexGenerationRef = useRef(0);
   const searchRequestRef = useRef(0);
   const reducedMotion = useReducedMotion();
@@ -294,6 +252,7 @@ export function CommandPalette({
       }
       if (event.data.type === "results" && event.data.requestId === searchRequestRef.current) {
         setHistoryHits(event.data.hits ?? []);
+        setHistorySearching(false);
       }
     };
     return () => {
@@ -329,8 +288,10 @@ export function CommandPalette({
       && includesResultType(parsedQuery.filters, "event")
       && (Boolean(parsedQuery.text) || parsedQuery.hasFilters);
     if (!shouldSearch) {
+      setHistorySearching(false);
       return;
     }
+    setHistorySearching(true);
     const timer = window.setTimeout(() => {
       const worker = workerRef.current;
       if (worker) {
@@ -351,6 +312,7 @@ export function CommandPalette({
           parsedQuery.filters,
           calendarNames
         ));
+        setHistorySearching(false);
       }
     }, 120);
     return () => window.clearTimeout(timer);
@@ -362,27 +324,26 @@ export function CommandPalette({
       setDeepSearch(false);
       setSelected(0);
       setLimit(12);
-      setSaveSearchOpen(false);
+      setLoadingMore(false);
       queueMicrotask(() => inputRef.current?.focus());
     }
   }, [open]);
+
+  useEffect(() => () => {
+    if (loadMoreTimerRef.current !== undefined) {
+      window.clearTimeout(loadMoreTimerRef.current);
+    }
+  }, []);
 
   const canonicalEventIds = useMemo(
     () => new Set(calendarHistory.documents.map((document) => document.id)),
     [calendarHistory.documents]
   );
 
-  const items = useMemo(() => {
-    const commands = actionItems(busy);
+  const allItems = useMemo(() => {
     if (!query.trim()) {
       return [];
     }
-    const commandsMatching = parsedQuery.filters.types.length === 0 && !parsedQuery.filters.calendarQuery && !parsedQuery.filters.due && parsedQuery.filters.completed === undefined && !parsedQuery.filters.date
-      ? commands.flatMap((item) => {
-          const score = resultScore(item.title, item.detail, parsedQuery, false);
-          return score === undefined ? [] : [{ ...item, score }];
-        })
-      : [];
     const results = searchableItems(workspace, parsedQuery, deepSearch || Boolean(parsedQuery.searchBody), canonicalEventIds, driveHistory.files, taskMetadata);
     const calendars = new Map(workspace.calendars.map((calendar) => [calendar.id, calendar.summary]));
     for (const hit of historyHits) {
@@ -407,10 +368,11 @@ export function CommandPalette({
         action: "deep-search"
       });
     }
-    return [...commandsMatching, ...results]
-      .sort((left, right) => left.score - right.score || left.title.localeCompare(right.title))
-      .slice(0, limit);
-  }, [busy, canonicalEventIds, deepSearch, driveHistory.files, historyHits, limit, parsedQuery, query, taskMetadata, workspace]);
+    return results.sort((left, right) => left.score - right.score || left.title.localeCompare(right.title));
+  }, [canonicalEventIds, deepSearch, driveHistory.files, historyHits, parsedQuery, query, taskMetadata, workspace]);
+
+  const items = useMemo(() => allItems.slice(0, limit), [allItems, limit]);
+  const hasMoreResults = items.length < allItems.length;
 
   useEffect(() => {
     setSelected((current) => Math.min(current, Math.max(0, items.length - 1)));
@@ -427,6 +389,25 @@ export function CommandPalette({
     }
     close();
     run(item.action);
+  }
+
+  function requestMoreResults(): void {
+    if (!hasMoreResults || loadingMore) {
+      return;
+    }
+    setLoadingMore(true);
+    loadMoreTimerRef.current = window.setTimeout(() => {
+      setLimit((current) => Math.min(current + 24, allItems.length));
+      setLoadingMore(false);
+      loadMoreTimerRef.current = undefined;
+    }, 120);
+  }
+
+  function handleResultScroll(event: React.UIEvent<HTMLDivElement>): void {
+    const container = event.currentTarget;
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 48) {
+      requestMoreResults();
+    }
   }
 
   function trapFocus(event: React.KeyboardEvent<HTMLElement>): void {
@@ -466,7 +447,7 @@ export function CommandPalette({
   }
 
   const spotlightItem = hoveredResult === undefined ? undefined : items[hoveredResult];
-  const placeholder = spotlightItem?.title ?? "Search tasks, events, calendars, Drive, or commands";
+  const placeholder = spotlightItem?.title ?? "Search tasks, events, calendars, or Drive";
   const transition = { type: "spring" as const, stiffness: 550, damping: 50 };
 
   return <AnimatePresence mode="wait">
@@ -485,21 +466,20 @@ export function CommandPalette({
           <h2 id="command-palette-heading" className="visually-hidden">Command palette</h2>
           <div className="spotlight-input-row">
             <Search className="spotlight-search-icon" aria-hidden="true" />
-            <label className="visually-hidden" htmlFor="command-palette-search">Search cached work and commands</label>
+            <label className="visually-hidden" htmlFor="command-palette-search">Search cached work</label>
             <div className="spotlight-query-wrap">
               {(!query || spotlightItem) && <motion.p key={placeholder} className="spotlight-placeholder" initial={reducedMotion ? false : { opacity: 0, y: 8, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={reducedMotion ? undefined : { opacity: 0, y: -8, filter: "blur(4px)" }} transition={{ duration: 0.18 }} aria-hidden="true">{placeholder}</motion.p>}
-              <input id="command-palette-search" ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); setHoveredResult(undefined); }} autoComplete="off" />
+              <input id="command-palette-search" ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); setLimit(12); setLoadingMore(false); setHoveredResult(undefined); }} autoComplete="off" />
             </div>
             <button className="spotlight-close" type="button" aria-label="Close command palette" title="Close command palette" onClick={close}><X aria-hidden="true" /></button>
           </div>
           <AnimatePresence initial={false}>
-            {query.trim() && <motion.div className="spotlight-results-container" initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-              {saveSearch && <details className="saved-search-control" open={saveSearchOpen} onToggle={(event) => setSaveSearchOpen(event.currentTarget.open)}><summary>Save this search</summary><div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Name this search" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => { setSaveName(""); setSaveSearchOpen(false); }); }}>Save</button></div></details>}
-              {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
+            {query.trim() && <motion.div className="spotlight-results-container" initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }} transition={{ duration: 0.18 }} onScroll={handleResultScroll}>
               {calendarHistory.status === "loading" && <LoadingState label="Indexing synced Calendar history" variant="Dots" className="inline-loader" />}
               {calendarHistory.status === "error" && <p className="field-help" role="status">Calendar history is unavailable until the next successful sync.</p>}
               {driveHistory.status === "loading" && <LoadingState label="Loading cached Drive metadata" variant="Dots" className="inline-loader" />}
               {driveHistory.status === "error" && <p className="field-help" role="status">Cached Drive metadata is unavailable in this browser session.</p>}
+              {(historySearching || loadingMore) && <LoadingState label={loadingMore ? "Loading more results" : "Searching cached work"} variant="Drive" className="inline-loader palette-loading" />}
               <ul className="palette-results spotlight-results" role="listbox" aria-label="Command palette results">
                 {items.map((item, index) => <motion.li key={item.id} role="option" aria-selected={selected === index} initial={false} animate={{ opacity: 1 }} exit={reducedMotion ? undefined : { opacity: 0 }} transition={{ delay: Math.min(index, 8) * 0.035, duration: 0.16 }} onMouseEnter={() => { setSelected(index); setHoveredResult(index); }}>
                   <button className={selected === index ? "active" : ""} type="button" onClick={() => choose(item)}>
@@ -508,7 +488,6 @@ export function CommandPalette({
                 </motion.li>)}
                 {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
               </ul>
-              {items.length >= limit && <button className="spotlight-more" type="button" onClick={() => setLimit((current) => current + 24)}>More results</button>}
             </motion.div>}
           </AnimatePresence>
         </motion.section>

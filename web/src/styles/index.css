@@ -288,9 +288,6 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .keybinding-field { align-items: center; display: flex !important; gap: 0.65rem; justify-content: space-between; }
 .keybinding-capture { min-width: 7.5rem; }
 .keybinding-capture.active { background: #2383e2; border-color: #2383e2; color: #fff; }
-.saved-search-control { border: 1px solid var(--hcb-border); border-radius: 0.55rem; padding: 0.55rem 0.7rem; }
-.saved-search-control summary { cursor: pointer; font-weight: 700; }
-.saved-search-control[open] summary { margin-bottom: 0.6rem; }
 .item-detail { max-width: 38rem; }
 .detail-list { display: grid; gap: 0.7rem; margin: 0; }
 .detail-list div { border-top: 1px solid var(--hcb-border); display: grid; gap: 0.18rem; padding-top: 0.65rem; }
@@ -410,9 +407,7 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .spotlight-result-chevron { color: var(--hcb-muted); flex: 0 0 auto; height: 1.15rem; opacity: 0; transform: translateX(-0.2rem); transition: opacity 140ms ease, transform 140ms ease; width: 1.15rem; }
 .spotlight-results button:hover .spotlight-result-chevron, .spotlight-results button.active .spotlight-result-chevron { opacity: 1; transform: translateX(0); }
 .spotlight-results .empty-state { padding: 1rem 0.65rem; }
-.spotlight-results-container .saved-search-control { background: var(--hcb-surface); margin: 0 0 0.5rem; }
-.spotlight-results-container .saved-searches { margin: 0 0 0.5rem; }
-.spotlight-more { margin: 0.55rem 0.2rem 0.1rem; width: calc(100% - 0.4rem); }
+.palette-loading { padding: 0.2rem 0.65rem; }
 @media (max-width: 48rem) {
   .app-shell { display: block; padding-bottom: 4.5rem; }
   .app-sidebar-nav { background: var(--hcb-surface); border-block-start: 1px solid var(--hcb-border); border-inline-end: 0; bottom: 0; flex-direction: row; height: auto; justify-content: space-around; left: 0; padding: 0.4rem 0.6rem; position: fixed; right: 0; top: auto; z-index: 7; }

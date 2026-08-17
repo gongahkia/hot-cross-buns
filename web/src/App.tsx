@@ -246,27 +246,9 @@ export default function App(): React.JSX.Element {
       case "navigate":
         setView(action.view);
         return;
-      case "sync":
-        setSyncDialogOpen(true);
-        void workspace.sync().catch(() => undefined);
-        return;
-      case "refresh-tasks":
-        void workspace.refreshAllTasks().catch(() => undefined);
-        return;
-      case "new-task":
-        setView("tasks");
-        setTaskCommand({ id, type: "new-task" });
-        return;
-      case "quick-capture":
-        setQuickCaptureOpen(true);
-        return;
       case "open-task":
         setView("tasks");
         setTaskCommand({ id, type: "open-task", taskId: action.task.id });
-        return;
-      case "new-event":
-        setView("calendar");
-        setCalendarCommand({ id, type: "new-event" });
         return;
       case "open-event":
         setView("calendar");
@@ -276,14 +258,6 @@ export default function App(): React.JSX.Element {
         if (action.file.webViewLink) {
           window.open(action.file.webViewLink, "_blank", "noopener,noreferrer");
         }
-        return;
-      case "find-time":
-        setView("calendar");
-        setCalendarCommand({ id, type: "find-time" });
-        return;
-      case "manage-calendars":
-        setView("calendar");
-        setCalendarCommand({ id, type: "manage-calendars" });
         return;
     }
   }
@@ -446,7 +420,7 @@ export default function App(): React.JSX.Element {
         />
       )}
       {view === "health" && <HealthPanel subject={workspace.workspace.identity.subject} connected={workspace.connected} connectionProfile={workspace.connectionProfile} status={workspace.status} syncProgress={workspace.syncProgress} openDiagnostics={() => setDiagnosticsOpen(true)} />}
-      <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} taskMetadata={workspace.taskMetadata} savedSearches={workspace.savedSearches} saveSearch={workspace.saveSearch} deleteSearch={workspace.deleteSearch} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
+      <CommandPalette open={paletteOpen} workspace={workspace.workspace} taskMetadata={workspace.taskMetadata} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
       {quickCaptureOpen && <QuickCaptureDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} preferences={workspace.preferences.quickCapture} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} close={() => setQuickCaptureOpen(false)} />}
       {importOpen && <ImportDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} initialFile={importFile} close={() => { setImportOpen(false); setImportFile(undefined); }} />}
       {diagnosticsOpen && <DiagnosticsDialog subject={workspace.workspace.identity.subject} syncProgress={workspace.syncProgress} close={() => setDiagnosticsOpen(false)} />}
