@@ -98,6 +98,21 @@ const weekDayLabels: Record<(typeof weekDays)[number], string> = {
   SA: "Sat"
 };
 
+/** Google Calendar Event color IDs, returned on each event resource. */
+const googleEventColors: Readonly<Record<string, string>> = {
+  "1": "#a4bdfc",
+  "2": "#7ae7bf",
+  "3": "#dbadff",
+  "4": "#ff887c",
+  "5": "#fbd75b",
+  "6": "#ffb878",
+  "7": "#46d6db",
+  "8": "#e1e1e1",
+  "9": "#5484ed",
+  "10": "#51b749",
+  "11": "#dc2127"
+};
+
 const timeZones = typeof Intl.supportedValuesOf === "function"
   ? Intl.supportedValuesOf("timeZone")
   : [Intl.DateTimeFormat().resolvedOptions().timeZone];
@@ -382,10 +397,20 @@ function eventKey(event: GoogleCalendarEvent): string {
   return `${event.calendarId}:${event.id}`;
 }
 
+function eventColor(event: GoogleCalendarEvent, calendarColor?: string): string | undefined {
+  return googleEventColors[event.colorId ?? ""] ?? calendarColor;
+}
+
+function eventTextColor(color: string | undefined): string | undefined {
+  if (!color || !/^#[0-9a-f]{6}$/i.test(color)) return undefined;
+  const [red, green, blue] = [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map((value) => Number.parseInt(value, 16));
+  return ((red! * 299 + green! * 587 + blue! * 114) / 1000) < 145 ? "#fff" : "#202124";
+}
+
 function EventCard({ event, color, selected, select, open }: { readonly event: GoogleCalendarEvent; readonly color?: string; readonly selected: boolean; select(): void; open(): void }): React.JSX.Element {
   return (
-    <div className="calendar-event-row"><input aria-label={`Select ${event.summary || "untitled event"}`} checked={selected} type="checkbox" onChange={select} /><button type="button" className="calendar-event" style={{ borderInlineStartColor: color }} onClick={open}>
-      <span>{eventTimeLabel(event)}</span>
+    <div className="calendar-event-row"><input aria-label={`Select ${event.summary || "untitled event"}`} checked={selected} type="checkbox" onChange={select} /><button type="button" className="calendar-event" style={{ borderInlineStartColor: color, backgroundColor: color, color: eventTextColor(color) }} onClick={open}>
+      {!event.start.date && <span>{eventTimeLabel(event)}</span>}
       <strong>{event.summary}</strong>
       {event.recurringEventId || event.recurrence ? <small>Repeats</small> : null}
     </button></div>
@@ -417,7 +442,7 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
   const allDay = events.filter((event) => event.start.date);
   return (
     <div className="time-grid-wrap">
-      <div className="all-day-lane"><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
+      <div className="all-day-lane"><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
       <div className="time-grid" role="grid" aria-label={days.length === 1 ? "Day time grid" : "Week time grid"} style={{ gridTemplateColumns: `4.25rem repeat(${days.length}, minmax(8rem, 1fr))` }}>
         <div role="columnheader" />
         {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>)}
@@ -427,7 +452,7 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
             const start = slotDate(day, hour);
             const cellEvents = events.filter((event) => timedEventAt(event, day, hour));
             return <div key={`${toYmd(day)}-${hour}`} className="time-cell" role="gridcell" tabIndex={0} aria-label={`Create event ${toYmd(day)} ${String(hour).padStart(2, "0")}:00`} onClick={(event) => { if (event.currentTarget === event.target) create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); } }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const key = event.dataTransfer.getData("application/x-hcb-event"); const moved = events.find((candidate) => eventKey(candidate) === key); if (moved) move(moved, start); }}>
-              {cellEvents.map((calendarEvent) => <div key={eventKey(calendarEvent)} className="time-grid-event" draggable onDragStart={(event) => event.dataTransfer.setData("application/x-hcb-event", eventKey(calendarEvent))}><EventCard event={calendarEvent} color={colors.get(calendarEvent.calendarId)} selected={selected.has(eventKey(calendarEvent))} select={() => select(calendarEvent)} open={() => open(calendarEvent)} /><div className="time-grid-event-actions"><button type="button" aria-label={`Move ${calendarEvent.summary} 30 minutes later`} onClick={() => move(calendarEvent, new Date(eventStart(calendarEvent).getTime() + 30 * 60_000))}>↓</button><button type="button" aria-label={`Extend ${calendarEvent.summary} by 30 minutes`} onClick={() => resize(calendarEvent, new Date(eventEnd(calendarEvent).getTime() + 30 * 60_000))}>↘</button></div></div>)}
+              {cellEvents.map((calendarEvent) => <div key={eventKey(calendarEvent)} className="time-grid-event" draggable onDragStart={(event) => event.dataTransfer.setData("application/x-hcb-event", eventKey(calendarEvent))}><EventCard event={calendarEvent} color={eventColor(calendarEvent, colors.get(calendarEvent.calendarId))} selected={selected.has(eventKey(calendarEvent))} select={() => select(calendarEvent)} open={() => open(calendarEvent)} /><div className="time-grid-event-actions"><button type="button" aria-label={`Move ${calendarEvent.summary} 30 minutes later`} onClick={() => move(calendarEvent, new Date(eventStart(calendarEvent).getTime() + 30 * 60_000))}>↓</button><button type="button" aria-label={`Extend ${calendarEvent.summary} by 30 minutes`} onClick={() => resize(calendarEvent, new Date(eventEnd(calendarEvent).getTime() + 30 * 60_000))}>↘</button></div></div>)}
             </div>;
           })}
         </Fragment>)}
@@ -489,7 +514,7 @@ function MonthView({ anchor, events, colors, selected, select, open }: {
         return (
           <section key={toYmd(day)} className={day.getMonth() === anchor.getMonth() ? "month-day" : "month-day muted"}>
             <span>{day.getDate()}</span>
-            {daily.slice(0, 3).map((event) => <EventCard key={eventKey(event)} event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}
+            {daily.slice(0, 3).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}
             {daily.length > 3 && <small>+{daily.length - 3} more</small>}
           </section>
         );
@@ -511,7 +536,7 @@ function AgendaView({ events, colors, selected, select, open }: {
         <li key={`${event.calendarId}:${event.id}`}>
           <time dateTime={event.start.dateTime ?? event.start.date}>{eventRangeLabel(event)}</time>
           <div>
-            <EventCard event={event} color={colors.get(event.calendarId)} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />
+            <EventCard event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />
             {event.location && <small>{event.location}</small>}
             {event.description && <p>{event.description}</p>}
           </div>
