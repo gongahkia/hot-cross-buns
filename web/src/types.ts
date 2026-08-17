@@ -39,6 +39,24 @@ export interface GoogleTask {
   readonly etag?: string;
 }
 
+export type TaskPriority = "none" | "low" | "medium" | "high";
+
+/** Browser-local fields which Google Tasks cannot represent. */
+export interface TaskMetadata {
+  readonly taskId: string;
+  readonly priority: TaskPriority;
+  readonly dueTimeZone?: string;
+  readonly updatedAt: string;
+}
+
+export interface ScheduledTaskBlock {
+  readonly taskId: string;
+  readonly calendarId: string;
+  readonly eventId: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export interface TaskInput {
   readonly title: string;
   readonly notes?: string;
@@ -120,6 +138,14 @@ export interface GoogleCalendarEvent {
   readonly attachments?: readonly GoogleEventAttachment[];
   readonly transparency?: "opaque" | "transparent";
   readonly visibility?: "default" | "public" | "private" | "confidential";
+  readonly colorId?: string;
+  readonly guestsCanInviteOthers?: boolean;
+  readonly guestsCanModify?: boolean;
+  readonly guestsCanSeeOtherGuests?: boolean;
+  readonly eventType?: GoogleEventType;
+  readonly focusTimeProperties?: GoogleFocusTimeProperties;
+  readonly outOfOfficeProperties?: GoogleOutOfOfficeProperties;
+  readonly workingLocationProperties?: GoogleWorkingLocationProperties;
 }
 
 export interface GoogleEventAttendee {
@@ -128,6 +154,7 @@ export interface GoogleEventAttendee {
   readonly responseStatus?: string;
   readonly organizer?: boolean;
   readonly self?: boolean;
+  readonly comment?: string;
 }
 
 export interface GoogleEventReminders {
@@ -138,6 +165,33 @@ export interface GoogleEventReminders {
 export interface GoogleConferenceData {
   readonly entryPoints?: readonly { readonly entryPointType?: string; readonly uri?: string }[];
 }
+
+export type GoogleEventType = "default" | "focusTime" | "outOfOffice" | "workingLocation";
+
+export interface GoogleFocusTimeProperties {
+  readonly autoDeclineMode?: "declineNone" | "declineAllConflictingInvitations" | "declineOnlyNewConflictingInvitations";
+  readonly chatStatus?: "available" | "doNotDisturb";
+  readonly declineMessage?: string;
+}
+
+export interface GoogleOutOfOfficeProperties {
+  readonly autoDeclineMode?: "declineNone" | "declineAllConflictingInvitations" | "declineOnlyNewConflictingInvitations";
+  readonly declineMessage?: string;
+}
+
+export interface GoogleWorkingLocationProperties {
+  readonly type: "homeOffice" | "officeLocation" | "customLocation";
+  readonly officeLocation?: {
+    readonly buildingId?: string;
+    readonly deskId?: string;
+    readonly floorId?: string;
+    readonly floorSectionId?: string;
+    readonly label?: string;
+  };
+  readonly customLocation?: { readonly label?: string };
+}
+
+export type SendUpdates = "all" | "externalOnly" | "none";
 
 export interface GoogleDriveFile {
   readonly id: string;
@@ -160,6 +214,94 @@ export interface CalendarEventInput {
   readonly createGoogleMeet?: boolean;
   readonly visibility?: GoogleCalendarEvent["visibility"];
   readonly transparency?: GoogleCalendarEvent["transparency"];
+  readonly colorId?: string;
+  readonly guestsCanInviteOthers?: boolean;
+  readonly guestsCanModify?: boolean;
+  readonly guestsCanSeeOtherGuests?: boolean;
+  readonly eventType?: GoogleEventType;
+  readonly focusTimeProperties?: GoogleFocusTimeProperties;
+  readonly outOfOfficeProperties?: GoogleOutOfOfficeProperties;
+  readonly workingLocationProperties?: GoogleWorkingLocationProperties;
+  readonly sendUpdates?: SendUpdates;
+}
+
+export type NotesProjectionMode = "disabled" | "notes-only" | "mirrored";
+export type ConflictPolicy = "prefer-google" | "prefer-local" | "ask";
+
+export interface WorkspacePreferences {
+  readonly schemaVersion: 1;
+  readonly notesProjectionMode: NotesProjectionMode;
+  readonly conflictPolicy: ConflictPolicy;
+  readonly appearance: "system" | "light" | "dark";
+  readonly density: "comfortable" | "compact";
+  readonly accentColor: string;
+  readonly fontFamily: "system" | "serif" | "monospace";
+  readonly fontScale: number;
+  readonly taskListPaneWidth: number;
+  readonly weekStartsOn: 0 | 1 | 6;
+  readonly hourCycle: "h12" | "h23";
+  readonly displayTimeZone: string;
+  readonly workdayStartHour: number;
+  readonly workdayEndHour: number;
+  readonly visibleCalendarIds: readonly string[];
+  readonly undoRetentionDays: number;
+  readonly undoMaximumEntries: number;
+  readonly quickCapture: QuickCapturePreferences;
+}
+
+export interface QuickCapturePreferences {
+  readonly defaultTaskListId?: string;
+  readonly defaultCalendarId?: string;
+  readonly defaultEventDurationMinutes: number;
+  readonly removeRecognizedText: boolean;
+  readonly taskAliases: readonly string[];
+  readonly eventAliases: readonly string[];
+  readonly highPriorityAliases: readonly string[];
+  readonly mediumPriorityAliases: readonly string[];
+  readonly lowPriorityAliases: readonly string[];
+}
+
+export interface SavedSearch {
+  readonly id: string;
+  readonly name: string;
+  readonly query: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface WorkspaceConflict {
+  readonly id: string;
+  readonly resourceKind: "task" | "event";
+  readonly operation: "update" | "delete" | "respond";
+  readonly resourceId: string;
+  readonly calendarId?: string;
+  readonly localIntent: unknown;
+  readonly latestRemote: unknown;
+  readonly etag?: string;
+  readonly createdAt: string;
+  readonly retryState: "pending" | "resolved";
+  readonly reason: "conflict" | "gone" | "authorization";
+}
+
+export interface UndoEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly resourceKind: "task" | "event";
+  readonly before: unknown;
+  readonly after: unknown;
+  readonly mutationIds: readonly string[];
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly state: "undoable" | "redoable";
+}
+
+export interface ReminderState {
+  readonly id: string;
+  readonly calendarId: string;
+  readonly eventId: string;
+  readonly triggerAt: string;
+  readonly state: "dismissed" | "snoozed" | "delivered";
+  readonly updatedAt: string;
 }
 
 export interface SyncCheckpoint {
