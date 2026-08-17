@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarPanel } from "@/components/CalendarPanel";
 import { CommandPalette, type CalendarHistory, type DriveHistory, type PaletteAction } from "@/components/CommandPalette";
 import { Onboarding } from "@/components/Onboarding";
+import { QuickCaptureDialog } from "@/components/QuickCaptureDialog";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { TaskPanel, type TaskPanelCommand } from "@/components/TaskPanel";
 import type { CalendarPanelCommand } from "@/components/CalendarPanel";
@@ -19,6 +20,7 @@ export default function App(): React.JSX.Element {
   const [calendarCommand, setCalendarCommand] = useState<CalendarPanelCommand>();
   const [calendarHistory, setCalendarHistory] = useState<CalendarHistory>({ status: "idle", documents: [] });
   const [driveHistory, setDriveHistory] = useState<DriveHistory>({ status: "idle", files: [] });
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const paletteButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -112,6 +114,9 @@ export default function App(): React.JSX.Element {
       case "new-task":
         setView("tasks");
         setTaskCommand({ id, type: "new-task" });
+        return;
+      case "quick-capture":
+        setQuickCaptureOpen(true);
         return;
       case "open-task":
         setView("tasks");
@@ -242,6 +247,7 @@ export default function App(): React.JSX.Element {
         />
       )}
       <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
+      {quickCaptureOpen && <QuickCaptureDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} preferences={workspace.preferences.quickCapture} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} close={() => setQuickCaptureOpen(false)} />}
     </main>
   );
 }

@@ -65,10 +65,12 @@ export function QuickCaptureDialog({ taskLists, calendars, preferences, createTa
         if (!parsed.eventReady || !parsed.date) throw new Error("Choose a date for this event");
         const start = parsed.time ? dateTime(parsed.date, parsed.time) : undefined;
         const end = start ? new Date(new Date(start).getTime() + parsed.eventDurationMinutes * 60_000).toISOString() : undefined;
+        const allDayEnd = new Date(`${parsed.date}T00:00:00`);
+        allDayEnd.setDate(allDayEnd.getDate() + 1);
         await createEvent(calendarId, {
           summary: parsed.parsedTitle,
           start: start ? { dateTime: start, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : { date: parsed.date },
-          end: end ? { dateTime: end, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : { date: new Date(`${parsed.date}T00:00:00`).toISOString().slice(0, 10) },
+          end: end ? { dateTime: end, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : { date: `${allDayEnd.getFullYear()}-${String(allDayEnd.getMonth() + 1).padStart(2, "0")}-${String(allDayEnd.getDate()).padStart(2, "0")}` },
           recurrence: parsed.recurrence ? [parsed.recurrence.rrule] : undefined
         });
       }

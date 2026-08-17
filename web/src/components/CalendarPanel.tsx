@@ -7,7 +7,7 @@ import {
   CalendarManagerDialog,
   type AvailabilitySlot
 } from "@/components/CalendarTools";
-import type { EventConflict } from "@/features/useWorkspace";
+import type { BulkOperationResult, EventBulkOperation, EventConflict } from "@/features/useWorkspace";
 import type {
   CalendarInput,
   CalendarEventInput,
@@ -15,7 +15,9 @@ import type {
   GoogleCalendarEvent,
   GoogleDriveFile,
   GoogleEventAttachment,
-  GoogleFreeBusyResponse
+  GoogleFreeBusyResponse,
+  GoogleEventType,
+  SendUpdates
 } from "@/types";
 
 type CalendarView = "day" | "week" | "month" | "agenda";
@@ -49,6 +51,7 @@ interface CalendarPanelProps {
   dismissEventConflict(): void;
   authorizeDrive(): Promise<void>;
   searchDrive(query: string): Promise<GoogleDriveFile[]>;
+  bulkEvents?(events: readonly GoogleCalendarEvent[], operation: EventBulkOperation): Promise<BulkOperationResult>;
 }
 
 interface RecurrenceDraft {
@@ -59,6 +62,24 @@ interface RecurrenceDraft {
   readonly until: string;
   readonly count: string;
   readonly advanced: string;
+}
+
+interface AdvancedEventDraft {
+  readonly colorId: string;
+  readonly transparency: "opaque" | "transparent";
+  readonly visibility: "default" | "public" | "private" | "confidential";
+  readonly reminderMinutes: string;
+  readonly useDefaultReminders: boolean;
+  readonly guestsCanInviteOthers: boolean;
+  readonly guestsCanModify: boolean;
+  readonly guestsCanSeeOtherGuests: boolean;
+  readonly sendUpdates: SendUpdates;
+  readonly eventType: GoogleEventType;
+  readonly focusAutoDecline: "declineNone" | "declineAllConflictingInvitations" | "declineOnlyNewConflictingInvitations";
+  readonly focusChatStatus: "available" | "doNotDisturb";
+  readonly declineMessage: string;
+  readonly workingLocationType: "homeOffice" | "officeLocation" | "customLocation";
+  readonly workingLocationLabel: string;
 }
 
 const weekDays = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
@@ -250,7 +271,8 @@ function eventInputFromDraft(
   recurrence: RecurrenceDraft,
   attendeeText: string,
   attachments: readonly GoogleEventAttachment[],
-  meet: boolean
+  meet: boolean,
+  advanced: AdvancedEventDraft
 ): CalendarEventInput {
   if (!title.trim()) {
     throw new Error("Enter an event title");
@@ -282,7 +304,28 @@ function eventInputFromDraft(
     recurrence: recurrenceLines(recurrence),
     attendees,
     attachments,
-    createGoogleMeet: meet
+    createGoogleMeet: meet,
+    colorId: advanced.colorId || undefined,
+    transparency: advanced.transparency,
+    visibility: advanced.visibility,
+    reminders: advanced.useDefaultReminders ? { useDefault: true } : (() => {
+      const minutes = Number(advanced.reminderMinutes);
+      if (!Number.isInteger(minutes) || minutes < 0 || minutes > 40_320) {
+        throw new Error("Popup reminder minutes must be between 0 and 40,320");
+      }
+      return { useDefault: false, overrides: [{ method: "popup" as const, minutes }] };
+    })(),
+    guestsCanInviteOthers: advanced.guestsCanInviteOthers,
+    guestsCanModify: advanced.guestsCanModify,
+    guestsCanSeeOtherGuests: advanced.guestsCanSeeOtherGuests,
+    sendUpdates: advanced.sendUpdates,
+    eventType: advanced.eventType,
+    focusTimeProperties: advanced.eventType === "focusTime" ? { autoDeclineMode: advanced.focusAutoDecline, chatStatus: advanced.focusChatStatus, declineMessage: advanced.declineMessage.trim() || undefined } : undefined,
+    outOfOfficeProperties: advanced.eventType === "outOfOffice" ? { autoDeclineMode: advanced.focusAutoDecline, declineMessage: advanced.declineMessage.trim() || undefined } : undefined,
+    workingLocationProperties: advanced.eventType === "workingLocation" ? {
+      type: advanced.workingLocationType,
+      ...(advanced.workingLocationType === "customLocation" ? { customLocation: { label: advanced.workingLocationLabel.trim() || undefined } } : advanced.workingLocationType === "officeLocation" ? { officeLocation: { label: advanced.workingLocationLabel.trim() || undefined } } : {})
+    } : undefined
   };
 }
 

@@ -40,7 +40,7 @@ interface TaskPanelProps {
   createTaskList(title: string): Promise<void>;
   updateTaskList(taskList: GoogleTaskList, title: string): Promise<void>;
   deleteTaskList(taskList: GoogleTaskList): Promise<void>;
-  createTask(listId: string, task: TaskInput): Promise<void>;
+  createTask(listId: string, task: TaskInput): Promise<unknown>;
   updateTask(task: GoogleTask, patch: Partial<GoogleTask>): Promise<void>;
   toggleTask(task: GoogleTask): Promise<void>;
   deleteTask(task: GoogleTask): Promise<void>;

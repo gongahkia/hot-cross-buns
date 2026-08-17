@@ -20,6 +20,7 @@ export type PaletteAction =
   | { readonly type: "navigate"; readonly view: "tasks" | "calendar" | "settings" }
   | { readonly type: "sync" }
   | { readonly type: "refresh-tasks" }
+  | { readonly type: "quick-capture" }
   | { readonly type: "new-task" }
   | { readonly type: "new-event" }
   | { readonly type: "find-time" }
@@ -65,11 +66,12 @@ function actionItems(busy: boolean): PaletteItem[] {
     { id: "go-calendar", title: "Go to Calendar", detail: "Navigation", score: 1, action: { type: "navigate", view: "calendar" } },
     { id: "go-settings", title: "Go to Settings", detail: "Navigation", score: 2, action: { type: "navigate", view: "settings" } },
     { id: "new-task", title: "New task", detail: "Action", score: 3, action: { type: "new-task" } },
-    { id: "new-event", title: "New event", detail: "Action", score: 4, action: { type: "new-event" } },
-    { id: "find-time", title: "Find a free time", detail: "Calendar action", score: 5, action: { type: "find-time" } },
-    { id: "manage-calendars", title: "Manage calendars", detail: "Calendar action", score: 6, action: { type: "manage-calendars" } },
-    { id: "sync", title: "Sync now", detail: busy ? "Currently syncing" : "Action", score: 7, action: { type: "sync" } },
-    { id: "refresh-tasks", title: "Refresh all Tasks from Google", detail: "Rebuilds this browser's task cache", score: 8, action: { type: "refresh-tasks" } }
+    { id: "quick-capture", title: "Quick capture", detail: "Parse a task or event before creating it", score: 4, action: { type: "quick-capture" } },
+    { id: "new-event", title: "New event", detail: "Action", score: 5, action: { type: "new-event" } },
+    { id: "find-time", title: "Find a free time", detail: "Calendar action", score: 6, action: { type: "find-time" } },
+    { id: "manage-calendars", title: "Manage calendars", detail: "Calendar action", score: 7, action: { type: "manage-calendars" } },
+    { id: "sync", title: "Sync now", detail: busy ? "Currently syncing" : "Action", score: 8, action: { type: "sync" } },
+    { id: "refresh-tasks", title: "Refresh all Tasks from Google", detail: "Rebuilds this browser's task cache", score: 9, action: { type: "refresh-tasks" } }
   ];
 }
 
