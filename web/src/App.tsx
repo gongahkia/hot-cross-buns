@@ -166,6 +166,10 @@ export default function App(): React.JSX.Element {
         <TaskPanel
           taskLists={workspace.workspace.taskLists}
           tasks={workspace.workspace.tasks}
+          calendars={workspace.workspace.calendars}
+          metadata={workspace.taskMetadata}
+          scheduledTaskBlocks={workspace.scheduledTaskBlocks}
+          notesProjectionMode={workspace.preferences.notesProjectionMode}
           search=""
           command={taskCommand}
           createTaskList={workspace.createTaskList}
@@ -176,6 +180,10 @@ export default function App(): React.JSX.Element {
           toggleTask={workspace.toggleTask}
           deleteTask={workspace.deleteTask}
           moveTask={workspace.moveTask}
+          saveTaskMetadata={workspace.saveTaskMetadata}
+          scheduleTask={workspace.scheduleTask}
+          unscheduleTask={workspace.unscheduleTask}
+          bulkTasks={workspace.bulkTasks}
         />
       )}
       {view === "calendar" && (
@@ -215,6 +223,11 @@ export default function App(): React.JSX.Element {
           cancelSync={workspace.cancelSync}
           disconnect={workspace.disconnect}
           clearLocalData={workspace.clearLocalData}
+          preferences={workspace.preferences}
+          undoEntries={workspace.undoEntries}
+          savePreferences={workspace.savePreferences}
+          undo={workspace.undo}
+          redo={workspace.redo}
         />
       )}
       <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />

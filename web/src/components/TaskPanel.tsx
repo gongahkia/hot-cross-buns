@@ -265,6 +265,9 @@ export function TaskPanel({
     collect(editingTask.id);
     return listTasks.filter((task) => task.id !== editingTask.id && !descendants.has(task.id));
   }, [editingTask, listTasks]);
+  const editingMetadata = editingTask ? metadataByTaskId.get(editingTask.id) : undefined;
+  const editingRecurrence = editingTask ? parseTaskRecurrenceNotes(editingTask.notes) : undefined;
+  const scheduledBlock = editingTask ? scheduledTaskBlocks.find((block) => block.taskId === editingTask.id) : undefined;
 
   useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => tasks.some((task) => task.id === id && !task.deleted)));
@@ -318,6 +321,71 @@ export function TaskPanel({
     }
   }
 
+  async function runBulk(operation: TaskBulkOperation): Promise<void> {
+    if (!bulkTasks || selectedTaskIds.length === 0) {
+      return;
+    }
+    setError("");
+    setBulkResult(undefined);
+    try {
+      const result = await bulkTasks(selectedTaskIds, operation);
+      setBulkResult(result);
+      if (result.failed.length === 0) {
+        setSelectedTaskIds([]);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The selected tasks could not be changed");
+    }
+  }
+
+  function recurrenceNotes(form: FormData, task: GoogleTask, title: string, due: string, priority: TaskMetadata["priority"], dueTimeZone: string): string | undefined {
+    const userNotes = String(form.get("notes") ?? "");
+    const selectedFrequency = String(form.get("recurrence") ?? "none") as "none" | TaskRecurrenceFrequency;
+    const existing = parseTaskRecurrenceNotes(task.notes);
+    if (selectedFrequency === "none") {
+      return userNotes || undefined;
+    }
+    if (task.parent) {
+      throw new Error("Subtasks cannot use managed recurrence");
+    }
+    if (!due) {
+      throw new Error("A recurring task needs a due date");
+    }
+    const interval = Number(form.get("recurrenceInterval") ?? "1");
+    if (!Number.isInteger(interval) || interval < 1 || interval > 1_000) {
+      throw new Error("Choose a recurrence interval between 1 and 1,000");
+    }
+    const endKind = String(form.get("recurrenceEnd") ?? "never");
+    const end = endKind === "until"
+      ? { kind: "until" as const, untilDate: String(form.get("recurrenceUntil") ?? "") }
+      : endKind === "count"
+        ? { kind: "count" as const, count: Number(form.get("recurrenceCount") ?? "") }
+        : { kind: "never" as const };
+    const seriesId = existing.marker?.seriesId ?? crypto.randomUUID();
+    const ordinal = existing.marker?.ordinal ?? 0;
+    const marker = {
+      seriesId,
+      occurrenceId: `${seriesId}:${ordinal}`,
+      ordinal,
+      frequency: selectedFrequency,
+      interval,
+      anchorDate: existing.marker?.anchorDate ?? due,
+      timeZone: dueTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      end,
+      recurrenceRule: existing.marker?.recurrenceRule ?? "",
+      exclusionDates: existing.marker?.exclusionDates ?? [],
+      additionDates: existing.marker?.additionDates ?? [],
+      templateTitle: title,
+      templateDueDate: due,
+      templatePriority: priority
+    };
+    const serialized = serializeTaskRecurrenceNotes(userNotes, marker);
+    if (!serialized.notes) {
+      throw new Error(serialized.error ?? "The recurrence marker could not be saved");
+    }
+    return serialized.notes;
+  }
+
   async function finishEdit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editingTask) {
@@ -327,6 +395,8 @@ export function TaskPanel({
     const newTitle = String(form.get("title") ?? "").trim();
     const newNotes = String(form.get("notes") ?? "");
     const newDue = String(form.get("due") ?? "");
+    const priority = String(form.get("priority") ?? "none") as TaskMetadata["priority"];
+    const dueTimeZone = String(form.get("dueTimeZone") ?? "");
     const newListId = String(form.get("list") ?? editingTask.listId);
     const newParent = String(form.get("parent") ?? "") || undefined;
     if (!newTitle) {
@@ -349,7 +419,9 @@ export function TaskPanel({
         await moveTask(taskForMove, { parent: newParent });
         taskForMove = { ...taskForMove, parent: newParent };
       }
-      await updateTask(taskForMove, { title: newTitle, notes: newNotes || undefined, due: dueTimestamp(newDue) });
+      const notes = recurrenceNotes(form, taskForMove, newTitle, newDue, priority, dueTimeZone);
+      await updateTask(taskForMove, { title: newTitle, notes: (notes ?? newNotes) || undefined, due: dueTimestamp(newDue) });
+      await saveTaskMetadata?.(taskForMove.id, { priority, dueTimeZone: dueTimeZone || undefined });
       setEditingTask(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task could not be updated");
@@ -378,6 +450,23 @@ export function TaskPanel({
       setEditingTask(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task could not be deleted");
+    }
+  }
+
+  async function scheduleEditingTask(container: HTMLElement): Promise<void> {
+    if (!editingTask || !scheduleTask) return;
+    const calendarId = (container.querySelector("select[name='scheduleCalendar']") as HTMLSelectElement | null)?.value ?? "";
+    const start = (container.querySelector("input[name='scheduleStart']") as HTMLInputElement | null)?.value ?? "";
+    const end = (container.querySelector("input[name='scheduleEnd']") as HTMLInputElement | null)?.value ?? "";
+    if (!calendarId || !start || !end) {
+      setError("Choose a calendar, start, and end time");
+      return;
+    }
+    setError("");
+    try {
+      await scheduleTask(editingTask, calendarId, new Date(start).toISOString(), new Date(end).toISOString());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The task could not be scheduled");
     }
   }
 
@@ -436,9 +525,12 @@ export function TaskPanel({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Google Tasks</p>
-          <h2 id="tasks-heading">Tasks and notes</h2>
+          <h2 id="tasks-heading">Tasks</h2>
         </div>
-        <p className="field-help">Drag a task onto another task to make it a subtask. Drop near its top or bottom to reorder it.</p>
+        <div className="button-row">
+          <p className="field-help">Drag a task onto another task to make it a subtask. Drop near its top or bottom to reorder it.</p>
+          {notesProjectionMode !== "disabled" && <div className="view-switcher" role="group" aria-label="Task projection"><button type="button" className={surface === "tasks" ? "active" : ""} onClick={() => setSurface("tasks")}>Tasks</button><button type="button" className={surface === "notes" ? "active" : ""} onClick={() => setSurface("notes")}>Notes</button></div>}
+        </div>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="task-workspace">
@@ -454,7 +546,15 @@ export function TaskPanel({
             </form>
           </aside>
           <div className="task-main">
-            {taskLists.length === 0 ? (
+            {surface === "notes" ? (
+              <>
+                <div className="task-list-heading"><div><strong>Notes</strong><p className="field-help">Undated root Google Tasks. Changes remain ordinary Google Tasks.</p></div></div>
+                <ul className="task-list">
+                  {notes.map((task) => <SortableTaskRow key={task.id} task={task} depth={0} priority={metadataByTaskId.get(task.id)?.priority} selected={selectedTaskIds.includes(task.id)} onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])} onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))} onEdit={() => setEditingTask(task)} />)}
+                </ul>
+                {notes.length === 0 && <p className="empty-state">No undated root tasks qualify as notes.</p>}
+              </>
+            ) : taskLists.length === 0 ? (
               <p className="empty-state">No Google Task lists were found.</p>
             ) : (
               <>
@@ -469,7 +569,9 @@ export function TaskPanel({
                   <input ref={quickAddRef} aria-label="New task title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a task — details can be added after" />
                   <button type="submit">Add task</button>
                 </form>
+                {selectedTaskIds.length > 0 && bulkTasks && <fieldset className="bulk-actions"><legend>{selectedTaskIds.length} selected task{selectedTaskIds.length === 1 ? "" : "s"}</legend><div className="button-row"><button type="button" onClick={() => void runBulk({ kind: "complete" })}>Complete</button><button type="button" className="danger-button" onClick={() => void runBulk({ kind: "delete" })}>Delete</button><select aria-label="Bulk priority" defaultValue=""><option value="" disabled>Set priority…</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">Clear priority</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "priority", priority: select.value as TaskMetadata["priority"] }); }}>Apply priority</button><button type="button" onClick={() => setSelectedTaskIds([])}>Clear selection</button></div><div className="bulk-form"><label>Move to<select aria-label="Bulk destination list" defaultValue=""> <option value="">Choose task list</option>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling?.querySelector("select") as HTMLSelectElement | null; if (select?.value) void runBulk({ kind: "move", destinationListId: select.value }); }}>Move selected</button><label>Due date<input aria-label="Bulk due date" type="date" /></label><button type="button" onClick={(event) => { const input = event.currentTarget.previousElementSibling?.querySelector("input") as HTMLInputElement | null; void runBulk({ kind: "due", due: dueTimestamp(input?.value ?? "") }); }}>Set due date</button></div></fieldset>}
                 {error && <p className="error" role="alert">{error}</p>}
+                {bulkResult && <p className={bulkResult.failed.length ? "error" : "status"} role="status">{bulkResult.succeeded.length} changed{bulkResult.failed.length ? `; ${bulkResult.failed.length} need attention: ${bulkResult.failed.map((entry) => entry.error).join(" · ")}` : ""}</p>}
                 <SortableContext items={visibleTasks.map(({ task }) => `task:${task.id}`)} strategy={verticalListSortingStrategy}>
                   <ul className="task-list">
                     {visibleTasks.map(({ task, depth }) => (
@@ -477,6 +579,9 @@ export function TaskPanel({
                         key={task.id}
                         task={task}
                         depth={depth}
+                        priority={metadataByTaskId.get(task.id)?.priority}
+                        selected={selectedTaskIds.includes(task.id)}
+                        onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])}
                         onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}
                         onEdit={() => setEditingTask(task)}
                       />
@@ -497,10 +602,17 @@ export function TaskPanel({
               <button type="button" onClick={() => setEditingTask(undefined)}>Close</button>
             </div>
             <label>Title<input ref={taskTitleRef} name="title" defaultValue={editingTask.title} required /></label>
-            <label>Notes<textarea name="notes" defaultValue={editingTask.notes ?? ""} rows={4} /></label>
+            <datalist id="time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
+            {editingRecurrence?.state === "malformed" && <p className="error" role="alert">{editingRecurrence.diagnostic}. Saving without recurrence will preserve this text as notes.</p>}
+            {editingRecurrence?.state === "unsupported-version" && <p className="error" role="alert">{editingRecurrence.diagnostic}. This browser will not silently modify it.</p>}
+            <label>Notes<textarea name="notes" defaultValue={editingRecurrence?.userNotes ?? editingTask.notes ?? ""} rows={4} /></label>
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
+            <label>Due date time zone<input name="dueTimeZone" list="time-zones" defaultValue={editingMetadata?.dueTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone} /></label>
+            <label>Priority<select name="priority" defaultValue={editingMetadata?.priority ?? "none"}><option value="none">No local priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+            <fieldset className="recurrence-editor"><legend>Managed task recurrence</legend><p className="field-help">This writes the portable HCB marker to Google Task notes; Google Tasks itself has no recurrence field.</p><label>Repeat<select name="recurrence" defaultValue={editingRecurrence?.marker?.frequency ?? "none"}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label><label>Every <input name="recurrenceInterval" type="number" min="1" max="1000" defaultValue={editingRecurrence?.marker?.interval ?? 1} /></label><label>Ends<select name="recurrenceEnd" defaultValue={editingRecurrence?.marker?.end.kind ?? "never"}><option value="never">Never</option><option value="until">On date</option><option value="count">After count</option></select></label><label>Final date<input name="recurrenceUntil" type="date" defaultValue={editingRecurrence?.marker?.end.kind === "until" ? editingRecurrence.marker.end.untilDate : ""} /></label><label>Occurrence count<input name="recurrenceCount" type="number" min="1" max="10000" defaultValue={editingRecurrence?.marker?.end.kind === "count" ? editingRecurrence.marker.end.count : ""} /></label>{editingRecurrence?.marker && <p className="field-help">{taskRecurrenceSummary(editingRecurrence.marker)}</p>}</fieldset>
             <label>Task list<select name="list" defaultValue={editingTask.listId}>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
             <label>Parent task<select name="parent" defaultValue={editingTask.parent ?? ""}><option value="">No parent</option>{parentChoices.map((task) => <option key={task.id} value={task.id}>{task.title || "Untitled task"}</option>)}</select></label>
+            <fieldset className="recurrence-editor"><legend>Schedule in Calendar</legend>{scheduledBlock ? <><p className="field-help">Scheduled on {calendars.find((calendar) => calendar.id === scheduledBlock.calendarId)?.summary ?? scheduledBlock.calendarId}. The event is retained if you unschedule this task.</p><button type="button" onClick={() => void unscheduleTask?.(editingTask.id)}>Unschedule task</button></> : scheduleTask ? <><label>Calendar<select name="scheduleCalendar"><option value="">Choose calendar</option>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label><label>Starts<input name="scheduleStart" type="datetime-local" /></label><label>Ends<input name="scheduleEnd" type="datetime-local" /></label><button type="button" onClick={(event) => void scheduleEditingTask(event.currentTarget.parentElement!)}>Schedule task</button></> : <p className="field-help">Calendar scheduling is unavailable until Calendar access is connected.</p>}</fieldset>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="button-row"><button type="submit">Save task</button><button type="button" className="danger-button" onClick={() => void removeTask()}>Delete task</button></div>
           </form>
