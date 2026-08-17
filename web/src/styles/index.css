@@ -74,7 +74,7 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 .field-help, small { color: #6e6258; font-size: 0.875rem; }
 .primary-button { margin-top: 0.5rem; width: 100%; background: #b55639; border-color: #b55639; color: #fffaf3; }
 .primary-button:hover:not(:disabled) { background: #914229; }
-.status, .global-status { color: #63574e; }
+.status { color: #63574e; }
 .error { color: #992d25; font-weight: 700; }
 
 .app-shell { margin: 0 auto; max-width: 80rem; padding: clamp(1rem, 3vw, 2.5rem); }
@@ -84,7 +84,6 @@ code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padd
 .command-palette-trigger { align-items: center; display: flex; gap: 0.65rem; justify-content: space-between; min-width: min(100%, 17rem); text-align: start; }
 kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; color: #50332a; font-size: 0.78em; padding: 0.12rem 0.32rem; }
 .primary-nav { display: flex; gap: 0.55rem; margin: 1.5rem 0 0.75rem; }
-.global-status { margin: 0.5rem 0 1rem; min-height: 1.3rem; }
 .update-ready { background: #f5dfbb; border: 1px solid #d8a55a; border-radius: 0.65rem; margin: 0 0 1rem; padding: 0.7rem 0.85rem; }
 .sync-progress { align-items: center; background: #f5dfbb; border: 1px solid #d8a55a; border-radius: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.55rem 1rem; justify-content: space-between; margin: 0 0 1rem; padding: 0.7rem 0.85rem; }
 .sync-progress span { color: #6e6258; font-size: 0.88rem; }
@@ -253,7 +252,7 @@ button:hover:not(:disabled), button.active { background: var(--hcb-accent); bord
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline-color: #2383e2; }
 code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); color: inherit; }
 .workspace-panel, .onboarding-card, .modal-card { background: var(--hcb-surface); border-color: var(--hcb-border); box-shadow: 0 8px 28px rgb(15 15 15 / 6%); }
-.field-help, small, .status, .global-status, .task p, .agenda-list p, .task .task-content span { color: var(--hcb-muted); }
+.field-help, small, .status, .task p, .agenda-list p, .task .task-content span { color: var(--hcb-muted); }
 .eyebrow, .calendar-range-label, .agenda-list time { color: var(--hcb-muted); }
 .primary-button { background: var(--hcb-accent); border-color: var(--hcb-accent); color: var(--hcb-bg); }
 .primary-button:hover:not(:disabled) { filter: brightness(0.9); }
@@ -272,7 +271,6 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .icon-button svg { height: 1.25rem; width: 1.25rem; }
 .icon-button:hover:not(:disabled), .icon-button.active { background: var(--hcb-text); color: var(--hcb-bg); }
 .app-content { min-width: 0; padding: clamp(1rem, 2.4vw, 2.25rem); }
-.global-status { font-size: 0.82rem; margin: 0 0 0.75rem; min-height: 1rem; }
 .primary-nav, .app-header, .sync-progress { display: none; }
 .workspace-panel { border-radius: 0.75rem; padding: clamp(1rem, 1.8vw, 1.5rem); }
 .panel-heading { gap: 0.75rem; margin-bottom: 0.9rem; }
@@ -415,10 +413,6 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .spotlight-results-container .saved-search-control { background: var(--hcb-surface); margin: 0 0 0.5rem; }
 .spotlight-results-container .saved-searches { margin: 0 0 0.5rem; }
 .spotlight-more { margin: 0.55rem 0.2rem 0.1rem; width: calc(100% - 0.4rem); }
-.spotlight-shortcut { align-items: center; background: color-mix(in srgb, var(--hcb-surface) 92%, transparent); border: 0; border-radius: 999px; box-shadow: 0 8px 25px rgb(0 0 0 / 18%); color: var(--hcb-text); display: inline-flex; flex: 0 0 auto; height: 3.5rem; justify-content: center; padding: 0; width: 3.5rem; }
-.spotlight-shortcut:hover:not(:disabled), .spotlight-shortcut:focus-visible { background: var(--hcb-surface); color: var(--hcb-text); }
-.spotlight-shortcut svg { height: 1.35rem; stroke-width: 1.45; width: 1.35rem; }
-
 @media (max-width: 48rem) {
   .app-shell { display: block; padding-bottom: 4.5rem; }
   .app-sidebar-nav { background: var(--hcb-surface); border-block-start: 1px solid var(--hcb-border); border-inline-end: 0; bottom: 0; flex-direction: row; height: auto; justify-content: space-around; left: 0; padding: 0.4rem 0.6rem; position: fixed; right: 0; top: auto; z-index: 7; }
@@ -442,6 +436,5 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
   .modal-card { border-radius: 0.8rem; max-height: calc(100dvh - 1rem); }
   .spotlight-cluster { align-items: stretch; flex-direction: column; }
   .spotlight-card.command-palette { width: 100%; }
-  .spotlight-shortcut { display: none; }
   .time-zone-choice { grid-template-columns: 1fr; }
 }
