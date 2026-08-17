@@ -18,7 +18,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { ModalDialog } from "@/components/ModalDialog";
-import type { GoogleTask, GoogleTaskList, TaskInput, TaskMoveInput } from "@/types";
+import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSummary, type TaskRecurrenceFrequency } from "@/features/taskRecurrence";
+import type { GoogleCalendar, GoogleTask, GoogleTaskList, NotesProjectionMode, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
+import type { BulkOperationResult, TaskBulkOperation } from "@/features/useWorkspace";
 
 export interface TaskPanelCommand {
   readonly id: string;
@@ -29,6 +31,10 @@ export interface TaskPanelCommand {
 interface TaskPanelProps {
   readonly taskLists: readonly GoogleTaskList[];
   readonly tasks: readonly GoogleTask[];
+  readonly calendars?: readonly GoogleCalendar[];
+  readonly metadata?: readonly TaskMetadata[];
+  readonly scheduledTaskBlocks?: readonly ScheduledTaskBlock[];
+  readonly notesProjectionMode?: NotesProjectionMode;
   readonly search: string;
   readonly command?: TaskPanelCommand;
   createTaskList(title: string): Promise<void>;
@@ -39,6 +45,10 @@ interface TaskPanelProps {
   toggleTask(task: GoogleTask): Promise<void>;
   deleteTask(task: GoogleTask): Promise<void>;
   moveTask(task: GoogleTask, move: TaskMoveInput): Promise<void>;
+  saveTaskMetadata?(taskId: string, update: Pick<TaskMetadata, "priority" | "dueTimeZone">): Promise<void>;
+  scheduleTask?(task: GoogleTask, calendarId: string, start: string, end: string): Promise<void>;
+  unscheduleTask?(taskId: string): Promise<void>;
+  bulkTasks?(taskIds: readonly string[], operation: TaskBulkOperation): Promise<BulkOperationResult>;
 }
 
 interface FlatTask {
@@ -52,6 +62,10 @@ function taskSort(left: GoogleTask, right: GoogleTask): number {
     (left.position ?? "").localeCompare(right.position ?? "") ||
     left.title.localeCompare(right.title)
   );
+}
+
+function priorityRank(priority: TaskMetadata["priority"] | undefined): number {
+  return priority === "high" ? 0 : priority === "medium" ? 1 : priority === "low" ? 2 : 3;
 }
 
 function taskDueDate(task: GoogleTask): string {
@@ -123,11 +137,17 @@ function TaskListDropTarget({
 function SortableTaskRow({
   task,
   depth,
+  priority,
+  selected,
+  onSelect,
   onToggle,
   onEdit
 }: {
   readonly task: GoogleTask;
   readonly depth: number;
+  readonly priority?: TaskMetadata["priority"];
+  readonly selected: boolean;
+  onSelect(): void;
   onToggle(): void;
   onEdit(): void;
 }): React.JSX.Element {
@@ -139,6 +159,7 @@ function SortableTaskRow({
       style={{ transform: CSS.Transform.toString(transform), transition, marginInlineStart: `${depth * 1.35}rem`, opacity: isDragging ? 0.45 : 1 }}
     >
       <button className="drag-handle" type="button" aria-label={`Move ${task.title || "untitled task"}`} {...attributes} {...listeners}>⠿</button>
+      <input aria-label={`Select ${task.title || "untitled task"}`} checked={selected} type="checkbox" onChange={onSelect} />
       <input
         aria-label={`Mark ${task.title} ${task.status === "completed" ? "incomplete" : "complete"}`}
         checked={task.status === "completed"}
@@ -149,6 +170,8 @@ function SortableTaskRow({
         <strong>{task.title || "Untitled task"}</strong>
         {task.notes && <span>{task.notes}</span>}
         {task.due && <small>Due {new Date(task.due).toLocaleDateString()}</small>}
+        {priority && priority !== "none" && <small>Priority: {priority}</small>}
+        {parseTaskRecurrenceNotes(task.notes).marker && <small>{taskRecurrenceSummary(parseTaskRecurrenceNotes(task.notes).marker!)}</small>}
       </button>
     </li>
   );
@@ -157,6 +180,10 @@ function SortableTaskRow({
 export function TaskPanel({
   taskLists,
   tasks,
+  calendars = [],
+  metadata = [],
+  scheduledTaskBlocks = [],
+  notesProjectionMode = "mirrored",
   search,
   command,
   createTaskList,
@@ -166,13 +193,20 @@ export function TaskPanel({
   updateTask,
   toggleTask,
   deleteTask,
-  moveTask
+  moveTask,
+  saveTaskMetadata,
+  scheduleTask,
+  unscheduleTask,
+  bulkTasks
 }: TaskPanelProps): React.JSX.Element {
   const [selectedListId, setSelectedListId] = useState("");
   const [newListTitle, setNewListTitle] = useState("");
   const [listTitle, setListTitle] = useState("");
   const [title, setTitle] = useState("");
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
+  const [selectedTaskIds, setSelectedTaskIds] = useState<readonly string[]>([]);
+  const [surface, setSurface] = useState<"tasks" | "notes">(notesProjectionMode === "notes-only" ? "notes" : "tasks");
+  const [bulkResult, setBulkResult] = useState<BulkOperationResult | undefined>();
   const [error, setError] = useState("");
   const quickAddRef = useRef<HTMLInputElement>(null);
   const taskTitleRef = useRef<HTMLInputElement>(null);
@@ -213,7 +247,10 @@ export function TaskPanel({
     [selectedListId, tasks]
   );
   const query = search.trim().toLocaleLowerCase();
-  const visibleTasks = useMemo(() => flattenTaskTree(listTasks, query), [listTasks, query]);
+  const metadataByTaskId = useMemo(() => new Map(metadata.map((entry) => [entry.taskId, entry])), [metadata]);
+  const visibleTasks = useMemo(() => flattenTaskTree(listTasks, query)
+    .sort((left, right) => priorityRank(metadataByTaskId.get(left.task.id)?.priority) - priorityRank(metadataByTaskId.get(right.task.id)?.priority) || taskSort(left.task, right.task)), [listTasks, metadataByTaskId, query]);
+  const notes = useMemo(() => tasks.filter((task) => !task.deleted && !task.parent && !task.due).filter((task) => matchesTask(task, query)), [query, tasks]);
   const parentChoices = useMemo(() => {
     if (!editingTask) {
       return [];
@@ -228,6 +265,18 @@ export function TaskPanel({
     collect(editingTask.id);
     return listTasks.filter((task) => task.id !== editingTask.id && !descendants.has(task.id));
   }, [editingTask, listTasks]);
+
+  useEffect(() => {
+    setSelectedTaskIds((current) => current.filter((id) => tasks.some((task) => task.id === id && !task.deleted)));
+  }, [tasks]);
+
+  useEffect(() => {
+    if (notesProjectionMode === "disabled" || notesProjectionMode === "mirrored") {
+      setSurface("tasks");
+    } else {
+      setSurface("notes");
+    }
+  }, [notesProjectionMode]);
 
   async function submitNewList(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

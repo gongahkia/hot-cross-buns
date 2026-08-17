@@ -8,7 +8,8 @@ import {
   type BrowserAccessToken
 } from "@/auth/googleIdentity";
 import { TokenSession } from "@/auth/tokenSession";
-import { localStore, type StorageEstimate } from "@/data/localStore";
+import { defaultWorkspacePreferences, localStore, type StorageEstimate } from "@/data/localStore";
+import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSuccessor } from "@/features/taskRecurrence";
 import {
   GOOGLE_SCOPES,
   INITIAL_GOOGLE_SCOPES,
@@ -21,7 +22,12 @@ import {
   type GoogleTask,
   type GoogleTaskList,
   type TaskInput,
+  type TaskMetadata,
   type TaskMoveInput,
+  type WorkspaceConflict,
+  type WorkspacePreferences,
+  type ScheduledTaskBlock,
+  type UndoEntry,
   type WorkspaceSnapshot
 } from "@/types";
 
@@ -32,6 +38,29 @@ export interface EventConflict {
   readonly kind: "update" | "delete";
   readonly latest: GoogleCalendarEvent;
   readonly localInput?: CalendarEventInput;
+}
+
+export type TaskBulkOperation =
+  | { readonly kind: "complete" }
+  | { readonly kind: "delete" }
+  | { readonly kind: "move"; readonly destinationListId: string }
+  | { readonly kind: "reparent"; readonly parent?: string }
+  | { readonly kind: "due"; readonly due?: string }
+  | { readonly kind: "priority"; readonly priority: TaskMetadata["priority"] }
+  | { readonly kind: "replace-text"; readonly find: string; readonly replace: string };
+
+export type EventBulkOperation =
+  | { readonly kind: "delete" }
+  | { readonly kind: "move"; readonly calendarId: string }
+  | { readonly kind: "color"; readonly colorId?: string }
+  | { readonly kind: "availability"; readonly transparency: "opaque" | "transparent" }
+  | { readonly kind: "visibility"; readonly visibility: NonNullable<GoogleCalendarEvent["visibility"]> }
+  | { readonly kind: "shift"; readonly minutes: number }
+  | { readonly kind: "replace-text"; readonly find: string; readonly replace: string };
+
+export interface BulkOperationResult {
+  readonly succeeded: readonly string[];
+  readonly failed: readonly { readonly id: string; readonly error: string }[];
 }
 
 export interface SyncProgress {
@@ -65,6 +94,11 @@ export interface WorkspaceController {
   readonly connected: boolean;
   readonly driveAuthorized: boolean;
   readonly eventConflict: EventConflict | undefined;
+  readonly preferences: WorkspacePreferences;
+  readonly taskMetadata: readonly TaskMetadata[];
+  readonly scheduledTaskBlocks: readonly ScheduledTaskBlock[];
+  readonly conflicts: readonly WorkspaceConflict[];
+  readonly undoEntries: readonly UndoEntry[];
   saveClientId(clientId: string): Promise<void>;
   connect(): Promise<void>;
   sync(): Promise<void>;
@@ -85,11 +119,19 @@ export interface WorkspaceController {
   toggleTask(task: GoogleTask): Promise<void>;
   deleteTask(task: GoogleTask): Promise<void>;
   moveTask(task: GoogleTask, move: TaskMoveInput): Promise<void>;
+  savePreferences(update: Partial<WorkspacePreferences>): Promise<void>;
+  saveTaskMetadata(taskId: string, update: Pick<TaskMetadata, "priority" | "dueTimeZone">): Promise<void>;
+  scheduleTask(task: GoogleTask, calendarId: string, start: string, end: string): Promise<void>;
+  unscheduleTask(taskId: string): Promise<void>;
+  bulkTasks(taskIds: readonly string[], operation: TaskBulkOperation): Promise<BulkOperationResult>;
+  bulkEvents(events: readonly GoogleCalendarEvent[], operation: EventBulkOperation): Promise<BulkOperationResult>;
+  undo(): Promise<void>;
+  redo(): Promise<void>;
   createEvent(calendarId: string, event: CalendarEventInput): Promise<void>;
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
   getEvent(calendarId: string, eventId: string): Promise<GoogleCalendarEvent>;
-  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction"): Promise<GoogleCalendarEvent>;
+  respondToEvent(event: GoogleCalendarEvent, responseStatus: "accepted" | "declined" | "tentative" | "needsAction", comment?: string): Promise<GoogleCalendarEvent>;
   resolveEventConflict(resolution: "keep-local" | "use-google"): Promise<void>;
   dismissEventConflict(): void;
   disconnect(): Promise<void>;
@@ -145,7 +187,15 @@ function eventFromInput(event: GoogleCalendarEvent, input: CalendarEventInput): 
     reminders: input.reminders,
     attachments: input.attachments,
     visibility: input.visibility,
-    transparency: input.transparency
+    transparency: input.transparency,
+    colorId: input.colorId,
+    guestsCanInviteOthers: input.guestsCanInviteOthers,
+    guestsCanModify: input.guestsCanModify,
+    guestsCanSeeOtherGuests: input.guestsCanSeeOtherGuests,
+    eventType: input.eventType,
+    focusTimeProperties: input.focusTimeProperties,
+    outOfOfficeProperties: input.outOfOfficeProperties,
+    workingLocationProperties: input.workingLocationProperties
   };
 }
 
@@ -230,12 +280,32 @@ export function useWorkspace(): WorkspaceController {
   const [status, setStatus] = useState("Configure your Google Web OAuth client to begin");
   const [syncProgress, setSyncProgress] = useState<SyncProgress>(idleSyncProgress);
   const [eventConflict, setEventConflict] = useState<EventConflict | undefined>();
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(defaultWorkspacePreferences);
+  const [taskMetadata, setTaskMetadata] = useState<readonly TaskMetadata[]>([]);
+  const [scheduledTaskBlocks, setScheduledTaskBlocks] = useState<readonly ScheduledTaskBlock[]>([]);
+  const [conflicts, setConflicts] = useState<readonly WorkspaceConflict[]>([]);
+  const [undoEntries, setUndoEntries] = useState<readonly UndoEntry[]>([]);
   const workspaceRef = useRef<WorkspaceSnapshot | undefined>(workspace);
   const syncAbortRef = useRef<AbortController | undefined>(undefined);
 
   const replaceWorkspace = useCallback((next: WorkspaceSnapshot | undefined) => {
     workspaceRef.current = next;
     setWorkspace(next);
+  }, []);
+
+  const loadSubjectState = useCallback(async (subject: string) => {
+    const [nextPreferences, metadata, blocks, storedConflicts, storedUndo] = await Promise.all([
+      localStore.readPreferences(subject),
+      localStore.readTaskMetadata(subject),
+      localStore.readScheduledTaskBlocks(subject),
+      localStore.readConflicts(subject),
+      localStore.readUndoEntries(subject)
+    ]);
+    setPreferences(nextPreferences);
+    setTaskMetadata(metadata);
+    setScheduledTaskBlocks(blocks);
+    setConflicts(storedConflicts);
+    setUndoEntries(storedUndo);
   }, []);
 
   useEffect(() => {
@@ -249,6 +319,7 @@ export function useWorkspace(): WorkspaceController {
           const snapshot = await localStore.readSnapshot(activeSubject);
           if (snapshot) {
             replaceWorkspace(snapshot);
+            await loadSubjectState(activeSubject);
             setStatus("Showing browser-local data. Connect Google to sync.");
           }
         }
@@ -258,7 +329,7 @@ export function useWorkspace(): WorkspaceController {
         setReady(true);
       }
     })();
-  }, [replaceWorkspace]);
+  }, [loadSubjectState, replaceWorkspace]);
 
   const api = useMemo(() => new GoogleApiClient(() => session.accessToken()), []);
 
@@ -291,7 +362,17 @@ export function useWorkspace(): WorkspaceController {
       tasks: snapshot.tasks.map((item) => item.id === previousId ? task : item),
       updatedAt: new Date().toISOString()
     }));
-  }, [updateCachedWorkspace]);
+    if (previousId !== task.id && workspaceRef.current) {
+      const subject = workspaceRef.current.identity.subject;
+      const metadata = taskMetadata.find((entry) => entry.taskId === previousId);
+      if (metadata) {
+        await localStore.removeTaskMetadata(subject, previousId);
+        const remapped = { ...metadata, taskId: task.id, updatedAt: new Date().toISOString() };
+        await localStore.saveTaskMetadata(subject, remapped);
+        setTaskMetadata((entries) => entries.map((entry) => entry.taskId === previousId ? remapped : entry));
+      }
+    }
+  }, [taskMetadata, updateCachedWorkspace]);
 
   const replaceEvent = useCallback(async (event: GoogleCalendarEvent, previousId = event.id) => {
     await updateCachedWorkspace((snapshot) => ({
@@ -301,6 +382,52 @@ export function useWorkspace(): WorkspaceController {
     }));
   }, [updateCachedWorkspace]);
 
+  const savePreferences = useCallback(async (update: Partial<WorkspacePreferences>) => {
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before changing preferences");
+    const next = await localStore.updatePreferences(current.identity.subject, update);
+    setPreferences(next);
+  }, []);
+
+  const saveTaskMetadata = useCallback(async (
+    taskId: string,
+    update: Pick<TaskMetadata, "priority" | "dueTimeZone">
+  ) => {
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before changing task metadata");
+    if (!current.tasks.some((task) => task.id === taskId)) throw new Error("The task is no longer available");
+    const previous = taskMetadata.find((entry) => entry.taskId === taskId);
+    const next: TaskMetadata = { taskId, priority: update.priority, dueTimeZone: update.dueTimeZone, updatedAt: new Date().toISOString() };
+    await localStore.saveTaskMetadata(current.identity.subject, next);
+    setTaskMetadata((entries) => previous ? entries.map((entry) => entry.taskId === taskId ? next : entry) : [...entries, next]);
+  }, [taskMetadata]);
+
+  const recordUndo = useCallback(async (
+    label: string,
+    resourceKind: UndoEntry["resourceKind"],
+    before: unknown,
+    after: unknown,
+    mutationIds: readonly string[] = []
+  ) => {
+    const current = workspaceRef.current;
+    if (!current) return;
+    const createdAt = new Date();
+    const entry: UndoEntry = {
+      id: crypto.randomUUID(),
+      label,
+      resourceKind,
+      before,
+      after,
+      mutationIds,
+      createdAt: createdAt.toISOString(),
+      expiresAt: new Date(createdAt.getTime() + preferences.undoRetentionDays * 86_400_000).toISOString(),
+      state: "undoable"
+    };
+    await localStore.saveUndoEntry(current.identity.subject, entry);
+    await localStore.cleanupUndoEntries(current.identity.subject, preferences.undoMaximumEntries);
+    setUndoEntries(await localStore.readUndoEntries(current.identity.subject));
+  }, [preferences.undoMaximumEntries, preferences.undoRetentionDays]);
+
   const saveConflict = useCallback(async (
     kind: EventConflict["kind"],
     calendarId: string,
@@ -308,9 +435,32 @@ export function useWorkspace(): WorkspaceController {
     localInput?: CalendarEventInput
   ) => {
     const latest = await api.getEvent(calendarId, eventId);
+    const current = workspaceRef.current;
+    if (current) {
+      const stored: WorkspaceConflict = {
+        id: crypto.randomUUID(),
+        resourceKind: "event",
+        operation: kind,
+        resourceId: eventId,
+        calendarId,
+        localIntent: localInput ?? { delete: true },
+        latestRemote: latest,
+        etag: latest.etag,
+        createdAt: new Date().toISOString(),
+        retryState: "pending",
+        reason: "conflict"
+      };
+      await localStore.saveConflict(current.identity.subject, stored);
+      setConflicts((items) => [stored, ...items]);
+    }
+    if (preferences.conflictPolicy === "prefer-google") {
+      await replaceEvent(latest);
+      setStatus("Google's newer event version was kept. The local intent is available in conflict history.");
+      return;
+    }
     setEventConflict({ kind, latest, localInput });
-    setStatus("This event changed in Google. Choose which version to keep.");
-  }, [api]);
+    setStatus(preferences.conflictPolicy === "prefer-local" ? "Google changed this event; review and confirm the local overwrite." : "This event changed in Google. Choose which version to keep.");
+  }, [api, preferences.conflictPolicy, replaceEvent]);
 
   const flushPending = useCallback(async (subject: string) => {
     const pending = await localStore.pendingMutations(subject);
@@ -670,6 +820,7 @@ export function useWorkspace(): WorkspaceController {
         updatedAt: new Date().toISOString()
       };
       await saveWorkspace({ ...initial, identity });
+      await loadSubjectState(identity.subject);
       const controller = new AbortController();
       syncAbortRef.current = controller;
       await synchronize(controller.signal);
@@ -680,7 +831,7 @@ export function useWorkspace(): WorkspaceController {
       syncAbortRef.current = undefined;
       setBusy(false);
     }
-  }, [clientId, saveWorkspace, synchronize]);
+  }, [clientId, loadSubjectState, saveWorkspace, synchronize]);
 
   const sync = useCallback(async () => {
     if (syncAbortRef.current) {
@@ -891,6 +1042,7 @@ export function useWorkspace(): WorkspaceController {
         tasks: [...snapshot.tasks, created],
         updatedAt: new Date().toISOString()
       }));
+      await recordUndo(`Create task “${created.title || "Untitled task"}”`, "task", undefined, created);
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -908,9 +1060,10 @@ export function useWorkspace(): WorkspaceController {
         tasks: [...snapshot.tasks, { id: temporaryId, listId, status: "needsAction", ...task }],
         updatedAt: new Date().toISOString()
       }));
+      await recordUndo(`Create task “${task.title}”`, "task", undefined, { id: temporaryId, listId, status: "needsAction", ...task });
       setStatus("Task saved locally and will sync after you reconnect Google");
     }
-  }, [api, updateCachedWorkspace]);
+  }, [api, recordUndo, updateCachedWorkspace]);
 
   const updateTask = useCallback(async (task: GoogleTask, patch: Partial<GoogleTask>) => {
     const current = workspaceRef.current;
@@ -923,6 +1076,7 @@ export function useWorkspace(): WorkspaceController {
     try {
       const updated = await api.updateTask(task.listId, task.id, patch);
       await replaceTask(updated);
+      await recordUndo(`Edit task “${task.title || "Untitled task"}”`, "task", task, updated);
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -935,15 +1089,36 @@ export function useWorkspace(): WorkspaceController {
         payload: { listId: task.listId, taskId: task.id, patch }
       });
       await replaceTask({ ...task, ...patch });
+      await recordUndo(`Edit task “${task.title || "Untitled task"}”`, "task", task, { ...task, ...patch });
       setStatus("Task change saved locally and will sync after you reconnect Google");
     }
-  }, [api, replaceTask]);
+  }, [api, recordUndo, replaceTask]);
 
   const toggleTask = useCallback(async (task: GoogleTask) => {
     await updateTask(task, task.status === "completed"
       ? { status: "needsAction", completed: undefined }
       : { status: "completed", completed: new Date().toISOString() });
-  }, [updateTask]);
+    if (task.status === "completed" || task.parent) return;
+    const recurrence = parseTaskRecurrenceNotes(task.notes);
+    const successor = recurrence.state === "managed" && recurrence.marker ? taskRecurrenceSuccessor(recurrence.marker) : undefined;
+    if (!successor || !workspaceRef.current) return;
+    const duplicate = workspaceRef.current.tasks.some((candidate) => parseTaskRecurrenceNotes(candidate.notes).marker?.occurrenceId === successor.occurrenceId);
+    if (duplicate) return;
+    const notes = serializeTaskRecurrenceNotes(recurrence.userNotes, successor);
+    if (!notes.notes) {
+      setStatus(notes.error ?? "The recurring task could not create its successor");
+      return;
+    }
+    await createTask(task.listId, {
+      title: successor.templateTitle,
+      notes: notes.notes,
+      due: `${successor.templateDueDate}T12:00:00.000Z`
+    });
+    const successorTask = workspaceRef.current?.tasks.find((candidate) => parseTaskRecurrenceNotes(candidate.notes).marker?.occurrenceId === successor.occurrenceId);
+    if (successorTask) {
+      await saveTaskMetadata(successorTask.id, { priority: successor.templatePriority, dueTimeZone: successor.timeZone });
+    }
+  }, [createTask, saveTaskMetadata, updateTask]);
 
   const deleteTask = useCallback(async (task: GoogleTask) => {
     const current = workspaceRef.current;
@@ -958,9 +1133,17 @@ export function useWorkspace(): WorkspaceController {
       tasks: snapshot.tasks.filter((item) => item.id !== task.id),
       updatedAt: new Date().toISOString()
     }));
+    const removeLocalLinks = async () => {
+      await localStore.removeTaskMetadata(current.identity.subject, task.id);
+      await localStore.removeScheduledTaskBlock(current.identity.subject, task.id);
+      setTaskMetadata((entries) => entries.filter((entry) => entry.taskId !== task.id));
+      setScheduledTaskBlocks((entries) => entries.filter((entry) => entry.taskId !== task.id));
+    };
     try {
       await api.deleteTask(task.listId, task.id);
       await remove();
+      await removeLocalLinks();
+      await recordUndo(`Delete task “${task.title || "Untitled task"}”`, "task", task, undefined);
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -973,9 +1156,11 @@ export function useWorkspace(): WorkspaceController {
         payload: { listId: task.listId, taskId: task.id }
       });
       await remove();
+      await removeLocalLinks();
+      await recordUndo(`Delete task “${task.title || "Untitled task"}”`, "task", task, undefined);
       setStatus("Task deleted locally and will sync after you reconnect Google");
     }
-  }, [api, updateCachedWorkspace]);
+  }, [api, recordUndo, updateCachedWorkspace]);
 
   const moveTask = useCallback(async (task: GoogleTask, move: TaskMoveInput) => {
     const current = workspaceRef.current;
@@ -997,6 +1182,7 @@ export function useWorkspace(): WorkspaceController {
     try {
       const moved = await api.moveTask(task.listId, task.id, move);
       await replaceTask(moved);
+      await recordUndo(`Move task “${task.title || "Untitled task"}”`, "task", task, moved);
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -1009,9 +1195,10 @@ export function useWorkspace(): WorkspaceController {
         payload: { listId: task.listId, taskId: task.id, move }
       });
       await replaceTask(optimistic);
+      await recordUndo(`Move task “${task.title || "Untitled task"}”`, "task", task, optimistic);
       setStatus("Task move saved locally and will sync after you reconnect Google");
     }
-  }, [api, replaceTask]);
+  }, [api, recordUndo, replaceTask]);
 
   const createCalendar = useCallback(async (input: CalendarInput) => {
     const normalized = input.summary.trim();
@@ -1089,6 +1276,7 @@ export function useWorkspace(): WorkspaceController {
         events: [...snapshot.events, created],
         updatedAt: new Date().toISOString()
       }));
+      await recordUndo(`Create event “${created.summary || "Untitled event"}”`, "event", undefined, created);
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -1107,7 +1295,15 @@ export function useWorkspace(): WorkspaceController {
         reminders: event.reminders,
         attachments: event.attachments,
         visibility: event.visibility,
-        transparency: event.transparency
+        transparency: event.transparency,
+        colorId: event.colorId,
+        guestsCanInviteOthers: event.guestsCanInviteOthers,
+        guestsCanModify: event.guestsCanModify,
+        guestsCanSeeOtherGuests: event.guestsCanSeeOtherGuests,
+        eventType: event.eventType,
+        focusTimeProperties: event.focusTimeProperties,
+        outOfOfficeProperties: event.outOfOfficeProperties,
+        workingLocationProperties: event.workingLocationProperties
       };
       await localStore.queueMutation({
         id: crypto.randomUUID(),
@@ -1121,9 +1317,10 @@ export function useWorkspace(): WorkspaceController {
         events: [...snapshot.events, localEvent],
         updatedAt: new Date().toISOString()
       }));
+      await recordUndo(`Create event “${event.summary || "Untitled event"}”`, "event", undefined, localEvent);
       setStatus("Event saved locally and will sync after you reconnect Google");
     }
-  }, [api, updateCachedWorkspace]);
+  }, [api, recordUndo, updateCachedWorkspace]);
 
   const getEvent = useCallback(async (calendarId: string, eventId: string) => {
     if (!workspaceRef.current) {
@@ -1134,7 +1331,8 @@ export function useWorkspace(): WorkspaceController {
 
   const respondToEvent = useCallback(async (
     event: GoogleCalendarEvent,
-    responseStatus: "accepted" | "declined" | "tentative" | "needsAction"
+    responseStatus: "accepted" | "declined" | "tentative" | "needsAction",
+    comment?: string
   ) => {
     if (!workspaceRef.current) {
       throw new Error("Authorize Google before responding to an event");
@@ -1142,7 +1340,7 @@ export function useWorkspace(): WorkspaceController {
     if (isLocalId(event.id)) {
       throw new Error("Reconnect Google before responding to an event that is still waiting to be created");
     }
-    const updated = await api.updateAttendeeResponse(event.calendarId, event.id, responseStatus);
+    const updated = await api.updateAttendeeResponse(event.calendarId, event.id, responseStatus, comment, event.etag);
     await replaceEvent(updated);
     setStatus(`Invitation response saved: ${responseStatus}`);
     return updated;
@@ -1159,6 +1357,7 @@ export function useWorkspace(): WorkspaceController {
     try {
       const updated = await api.updateEvent(event.calendarId, event.id, input, event.etag);
       await replaceEvent(updated);
+      await recordUndo(`Edit event “${event.summary || "Untitled event"}”`, "event", event, updated);
       return "updated";
     } catch (error) {
       if (error instanceof GoogleApiError && error.status === 412) {
@@ -1176,10 +1375,11 @@ export function useWorkspace(): WorkspaceController {
         payload: { calendarId: event.calendarId, eventId: event.id, patch: input, etag: event.etag }
       });
       await replaceEvent(eventFromInput(event, input));
+      await recordUndo(`Edit event “${event.summary || "Untitled event"}”`, "event", event, eventFromInput(event, input));
       setStatus("Event change saved locally and will sync after you reconnect Google");
       return "updated";
     }
-  }, [api, replaceEvent, saveConflict]);
+  }, [api, recordUndo, replaceEvent, saveConflict]);
 
   const deleteEvent = useCallback(async (event: GoogleCalendarEvent): Promise<"deleted" | "conflict"> => {
     const current = workspaceRef.current;
@@ -1197,6 +1397,7 @@ export function useWorkspace(): WorkspaceController {
     try {
       await api.deleteEvent(event.calendarId, event.id, event.etag);
       await remove();
+      await recordUndo(`Delete event “${event.summary || "Untitled event"}”`, "event", event, undefined);
       return "deleted";
     } catch (error) {
       if (error instanceof GoogleApiError && error.status === 412) {
@@ -1214,10 +1415,192 @@ export function useWorkspace(): WorkspaceController {
         payload: { calendarId: event.calendarId, eventId: event.id, etag: event.etag }
       });
       await remove();
+      await recordUndo(`Delete event “${event.summary || "Untitled event"}”`, "event", event, undefined);
       setStatus("Event deleted locally and will sync after you reconnect Google");
       return "deleted";
     }
-  }, [api, saveConflict, updateCachedWorkspace]);
+  }, [api, recordUndo, saveConflict, updateCachedWorkspace]);
+
+  const scheduleTask = useCallback(async (task: GoogleTask, calendarId: string, start: string, end: string) => {
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before scheduling a task");
+    if (scheduledTaskBlocks.some((block) => block.taskId === task.id)) throw new Error("This task is already scheduled. Move or unschedule its existing block first.");
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (Number.isNaN(startDate.valueOf()) || Number.isNaN(endDate.valueOf()) || endDate <= startDate) throw new Error("Choose an end time after the start time");
+    const event: CalendarEventInput = {
+      summary: task.title || "Untitled task",
+      description: task.notes ? `Scheduled task\n\n${parseTaskRecurrenceNotes(task.notes).userNotes}` : "Scheduled task",
+      start: { dateTime: startDate.toISOString(), timeZone: preferences.displayTimeZone },
+      end: { dateTime: endDate.toISOString(), timeZone: preferences.displayTimeZone },
+      transparency: "opaque"
+    };
+    try {
+      const created = await api.createEvent(calendarId, event);
+      await updateCachedWorkspace((snapshot) => ({ ...snapshot, events: [...snapshot.events, created], updatedAt: new Date().toISOString() }));
+      const block: ScheduledTaskBlock = { taskId: task.id, calendarId, eventId: created.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await localStore.saveScheduledTaskBlock(current.identity.subject, block);
+      setScheduledTaskBlocks((blocks) => [...blocks, block]);
+      await recordUndo(`Schedule task “${task.title || "Untitled task"}”`, "event", undefined, created);
+    } catch (error) {
+      if (!queueable(error)) throw error;
+      const eventId = `local-event-${crypto.randomUUID()}`;
+      const block: ScheduledTaskBlock = { taskId: task.id, calendarId, eventId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await localStore.queueMutation({ id: crypto.randomUUID(), subject: current.identity.subject, kind: "event-create", createdAt: new Date().toISOString(), payload: { calendarId, temporaryId: eventId, event } });
+      await localStore.saveScheduledTaskBlock(current.identity.subject, block);
+      await updateCachedWorkspace((snapshot) => ({ ...snapshot, events: [...snapshot.events, { id: eventId, calendarId, summary: event.summary, description: event.description, start: event.start, end: event.end, transparency: "opaque" }], updatedAt: new Date().toISOString() }));
+      setScheduledTaskBlocks((blocks) => [...blocks, block]);
+      setStatus("Scheduled task saved locally and will sync after you reconnect Google");
+    }
+  }, [api, preferences.displayTimeZone, recordUndo, scheduledTaskBlocks, updateCachedWorkspace]);
+
+  const unscheduleTask = useCallback(async (taskId: string) => {
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before unscheduling a task");
+    const block = scheduledTaskBlocks.find((candidate) => candidate.taskId === taskId);
+    if (!block) return;
+    await localStore.removeScheduledTaskBlock(current.identity.subject, taskId);
+    setScheduledTaskBlocks((blocks) => blocks.filter((candidate) => candidate.taskId !== taskId));
+    setStatus("The task is now unscheduled. Its Calendar event was kept.");
+  }, [scheduledTaskBlocks]);
+
+  const bulkTasks = useCallback(async (taskIds: readonly string[], operation: TaskBulkOperation): Promise<BulkOperationResult> => {
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before changing tasks");
+    const succeeded: string[] = [];
+    const failed: Array<{ id: string; error: string }> = [];
+    for (const taskId of [...new Set(taskIds)]) {
+      const task = workspaceRef.current?.tasks.find((candidate) => candidate.id === taskId);
+      if (!task) { failed.push({ id: taskId, error: "Task is no longer available" }); continue; }
+      try {
+        if (operation.kind === "complete") await toggleTask(task);
+        if (operation.kind === "delete") await deleteTask(task);
+        if (operation.kind === "move") await moveTask(task, { destinationListId: operation.destinationListId });
+        if (operation.kind === "reparent") await moveTask(task, { parent: operation.parent });
+        if (operation.kind === "due") await updateTask(task, { due: operation.due });
+        if (operation.kind === "priority") await saveTaskMetadata(task.id, { priority: operation.priority, dueTimeZone: taskMetadata.find((metadata) => metadata.taskId === task.id)?.dueTimeZone });
+        if (operation.kind === "replace-text") {
+          if (!operation.find) throw new Error("Enter text to replace");
+          const parsed = parseTaskRecurrenceNotes(task.notes);
+          const changedUserNotes = parsed.userNotes.replaceAll(operation.find, operation.replace);
+          const notes = parsed.marker ? serializeTaskRecurrenceNotes(changedUserNotes, parsed.marker).notes : changedUserNotes;
+          if (!notes) throw new Error("The recurring-task marker is invalid and could not be preserved");
+          await updateTask(task, { title: task.title.replaceAll(operation.find, operation.replace), notes: notes || undefined });
+        }
+        succeeded.push(taskId);
+      } catch (error) {
+        failed.push({ id: taskId, error: asErrorMessage(error) });
+      }
+    }
+    return { succeeded, failed };
+  }, [deleteTask, moveTask, saveTaskMetadata, taskMetadata, toggleTask, updateTask]);
+
+  const inputFromEvent = useCallback((event: GoogleCalendarEvent): CalendarEventInput => ({
+    summary: event.summary,
+    description: event.description,
+    location: event.location,
+    start: event.start,
+    end: event.end,
+    recurrence: event.recurrence,
+    attendees: event.attendees?.map((attendee) => ({ email: attendee.email })),
+    reminders: event.reminders,
+    attachments: event.attachments,
+    visibility: event.visibility,
+    transparency: event.transparency,
+    colorId: event.colorId,
+    guestsCanInviteOthers: event.guestsCanInviteOthers,
+    guestsCanModify: event.guestsCanModify,
+    guestsCanSeeOtherGuests: event.guestsCanSeeOtherGuests,
+    eventType: event.eventType,
+    focusTimeProperties: event.focusTimeProperties,
+    outOfOfficeProperties: event.outOfOfficeProperties,
+    workingLocationProperties: event.workingLocationProperties
+  }), []);
+
+  const bulkEvents = useCallback(async (events: readonly GoogleCalendarEvent[], operation: EventBulkOperation): Promise<BulkOperationResult> => {
+    const succeeded: string[] = [];
+    const failed: Array<{ id: string; error: string }> = [];
+    for (const event of events) {
+      const id = `${event.calendarId}:${event.id}`;
+      try {
+        if (operation.kind === "delete") await deleteEvent(event);
+        if (operation.kind === "move") {
+          const copy = await api.createEvent(operation.calendarId, inputFromEvent(event));
+          await api.deleteEvent(event.calendarId, event.id, event.etag);
+          await updateCachedWorkspace((snapshot) => ({ ...snapshot, events: snapshot.events.filter((candidate) => candidate.id !== event.id || candidate.calendarId !== event.calendarId).concat(copy), updatedAt: new Date().toISOString() }));
+        }
+        if (operation.kind === "color") await updateEvent(event, { ...inputFromEvent(event), colorId: operation.colorId });
+        if (operation.kind === "availability") await updateEvent(event, { ...inputFromEvent(event), transparency: operation.transparency });
+        if (operation.kind === "visibility") await updateEvent(event, { ...inputFromEvent(event), visibility: operation.visibility });
+        if (operation.kind === "shift") {
+          if (event.start.date || event.end.date) throw new Error("All-day events require an explicit day move");
+          const shift = (value: string | undefined) => value ? new Date(new Date(value).getTime() + operation.minutes * 60_000).toISOString() : undefined;
+          await updateEvent(event, { ...inputFromEvent(event), start: { ...event.start, dateTime: shift(event.start.dateTime) }, end: { ...event.end, dateTime: shift(event.end.dateTime) } });
+        }
+        if (operation.kind === "replace-text") {
+          if (!operation.find) throw new Error("Enter text to replace");
+          await updateEvent(event, { ...inputFromEvent(event), summary: event.summary.replaceAll(operation.find, operation.replace), description: event.description?.replaceAll(operation.find, operation.replace), location: event.location?.replaceAll(operation.find, operation.replace) });
+        }
+        succeeded.push(id);
+      } catch (error) {
+        failed.push({ id, error: asErrorMessage(error) });
+      }
+    }
+    return { succeeded, failed };
+  }, [api, deleteEvent, inputFromEvent, updateCachedWorkspace, updateEvent]);
+
+  const applyUndoEntry = useCallback(async (entry: UndoEntry, direction: "undo" | "redo") => {
+    const target = (direction === "undo" ? entry.before : entry.after) as GoogleTask | GoogleCalendarEvent | undefined;
+    const source = (direction === "undo" ? entry.after : entry.before) as GoogleTask | GoogleCalendarEvent | undefined;
+    const current = workspaceRef.current;
+    if (!current) throw new Error("Authorize Google before changing history");
+    if (entry.resourceKind === "task") {
+      const sourceTask = source as GoogleTask | undefined;
+      const targetTask = target as GoogleTask | undefined;
+      if (!targetTask && sourceTask) {
+        await api.deleteTask(sourceTask.listId, sourceTask.id);
+        await updateCachedWorkspace((snapshot) => ({ ...snapshot, tasks: snapshot.tasks.filter((task) => task.id !== sourceTask.id), updatedAt: new Date().toISOString() }));
+      } else if (targetTask && !sourceTask) {
+        const created = await api.createTask(targetTask.listId, { title: targetTask.title, notes: targetTask.notes, due: targetTask.due, status: targetTask.status, completed: targetTask.completed });
+        await updateCachedWorkspace((snapshot) => ({ ...snapshot, tasks: [...snapshot.tasks, created], updatedAt: new Date().toISOString() }));
+      } else if (targetTask && sourceTask) {
+        const updated = await api.updateTask(targetTask.listId, targetTask.id, { title: targetTask.title, notes: targetTask.notes, due: targetTask.due, status: targetTask.status, completed: targetTask.completed });
+        await replaceTask(updated);
+      }
+    } else {
+      const sourceEvent = source as GoogleCalendarEvent | undefined;
+      const targetEvent = target as GoogleCalendarEvent | undefined;
+      if (!targetEvent && sourceEvent) {
+        const latest = await api.getEvent(sourceEvent.calendarId, sourceEvent.id);
+        await api.deleteEvent(latest.calendarId, latest.id, latest.etag);
+        await updateCachedWorkspace((snapshot) => ({ ...snapshot, events: snapshot.events.filter((event) => event.id !== latest.id || event.calendarId !== latest.calendarId), updatedAt: new Date().toISOString() }));
+      } else if (targetEvent && !sourceEvent) {
+        const created = await api.createEvent(targetEvent.calendarId, inputFromEvent(targetEvent));
+        await updateCachedWorkspace((snapshot) => ({ ...snapshot, events: [...snapshot.events, created], updatedAt: new Date().toISOString() }));
+      } else if (targetEvent && sourceEvent) {
+        const latest = await api.getEvent(targetEvent.calendarId, targetEvent.id);
+        const updated = await api.updateEvent(latest.calendarId, latest.id, inputFromEvent(targetEvent), latest.etag);
+        await replaceEvent(updated);
+      }
+    }
+    const next = { ...entry, state: direction === "undo" ? "redoable" as const : "undoable" as const };
+    await localStore.saveUndoEntry(current.identity.subject, next);
+    setUndoEntries(await localStore.readUndoEntries(current.identity.subject));
+  }, [api, inputFromEvent, replaceEvent, replaceTask, updateCachedWorkspace]);
+
+  const undo = useCallback(async () => {
+    const entry = undoEntries.find((candidate) => candidate.state === "undoable" && candidate.expiresAt > new Date().toISOString());
+    if (!entry) throw new Error("There is no undoable change");
+    await applyUndoEntry(entry, "undo");
+    setStatus(`Undid: ${entry.label}`);
+  }, [applyUndoEntry, undoEntries]);
+
+  const redo = useCallback(async () => {
+    const entry = undoEntries.find((candidate) => candidate.state === "redoable" && candidate.expiresAt > new Date().toISOString());
+    if (!entry) throw new Error("There is no redoable change");
+    await applyUndoEntry(entry, "redo");
+    setStatus(`Redid: ${entry.label}`);
+  }, [applyUndoEntry, undoEntries]);
 
   const resolveEventConflict = useCallback(async (resolution: "keep-local" | "use-google") => {
     const conflict = eventConflict;
@@ -1290,6 +1673,11 @@ export function useWorkspace(): WorkspaceController {
       session.clear();
       setClientId("");
       setEventConflict(undefined);
+      setPreferences(defaultWorkspacePreferences());
+      setTaskMetadata([]);
+      setScheduledTaskBlocks([]);
+      setConflicts([]);
+      setUndoEntries([]);
       replaceWorkspace(undefined);
       setStatus("Browser-local Hot Cross Buns data was cleared");
     } finally {
@@ -1307,6 +1695,11 @@ export function useWorkspace(): WorkspaceController {
     connected: Boolean(session.accessToken() && workspace),
     driveAuthorized: session.hasScope(GOOGLE_SCOPES.driveMetadata),
     eventConflict,
+    preferences,
+    taskMetadata,
+    scheduledTaskBlocks,
+    conflicts,
+    undoEntries,
     saveClientId,
     connect,
     sync,
@@ -1327,6 +1720,14 @@ export function useWorkspace(): WorkspaceController {
     toggleTask,
     deleteTask,
     moveTask,
+    savePreferences,
+    saveTaskMetadata,
+    scheduleTask,
+    unscheduleTask,
+    bulkTasks,
+    bulkEvents,
+    undo,
+    redo,
     createEvent,
     updateEvent,
     deleteEvent,
