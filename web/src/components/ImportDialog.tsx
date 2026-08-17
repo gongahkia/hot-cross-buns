@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { LoadingState } from "@/components/LoadingState";
 import { ModalDialog } from "@/components/ModalDialog";
 import type { ImportPreview, ImportedEvent, ImportedTask } from "@/features/importParser";
 import { serializeTaskRecurrenceNotes } from "@/features/taskRecurrence";
@@ -59,12 +60,16 @@ export function ImportDialog({ taskLists, calendars, createTask, createEvent, sa
   const [preview, setPreview] = useState<ImportPreview>();
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
+  const [working, setWorking] = useState(false);
 
   useEffect(() => {
     const worker = new Worker(new URL("../workers/importWorker.ts", import.meta.url), { type: "module" });
     workerRef.current = worker;
     worker.onmessage = (event: MessageEvent<{ readonly id: number; readonly preview: ImportPreview }>) => {
-      if (event.data.id === requestRef.current) setPreview(event.data.preview);
+      if (event.data.id === requestRef.current) {
+        setPreview(event.data.preview);
+        setWorking(false);
+      }
     };
     return () => worker.terminate();
   }, []);
@@ -72,8 +77,9 @@ export function ImportDialog({ taskLists, calendars, createTask, createEvent, sa
   async function load(file: File | undefined): Promise<void> {
     if (!file) return;
     setError("");
+    setWorking(true);
     setProgress(`Reading ${file.name}…`);
-    if (file.size > 5 * 1024 * 1024) { setError("Import source exceeds 5 MiB"); setProgress(""); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Import source exceeds 5 MiB"); setProgress(""); setWorking(false); return; }
     const text = await file.text();
     const id = requestRef.current + 1;
     requestRef.current = id;
@@ -89,36 +95,41 @@ export function ImportDialog({ taskLists, calendars, createTask, createEvent, sa
     const records = preview?.rows.flatMap((row) => row.record ? [row.record] : []) ?? [];
     if (records.length === 0) return;
     setError("");
+    setWorking(true);
     let succeeded = 0;
     const failed: string[] = [];
-    for (const record of records) {
-      try {
-        if (record.kind === "task") {
-          const list = taskLists.find((candidate) => candidate.id === record.list || candidate.title.localeCompare(record.list ?? "", undefined, { sensitivity: "accent" }) === 0) ?? taskLists[0];
-          if (!list) throw new Error("No Google Task list is available");
-          const task = await createTask(list.id, taskInput(record));
-          await saveTaskMetadata(task.id, { priority: record.priority, dueTimeZone: record.due ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined });
-        } else {
-          const calendar = calendars.find((candidate) => candidate.id === record.calendar || candidate.summary.localeCompare(record.calendar ?? "", undefined, { sensitivity: "accent" }) === 0) ?? calendars.find((candidate) => candidate.primary) ?? calendars[0];
-          if (!calendar) throw new Error("No Google Calendar is available");
-          await createEvent(calendar.id, calendarInput(record));
+    try {
+      for (const record of records) {
+        try {
+          if (record.kind === "task") {
+            const list = taskLists.find((candidate) => candidate.id === record.list || candidate.title.localeCompare(record.list ?? "", undefined, { sensitivity: "accent" }) === 0) ?? taskLists[0];
+            if (!list) throw new Error("No Google Task list is available");
+            const task = await createTask(list.id, taskInput(record));
+            await saveTaskMetadata(task.id, { priority: record.priority, dueTimeZone: record.due ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined });
+          } else {
+            const calendar = calendars.find((candidate) => candidate.id === record.calendar || candidate.summary.localeCompare(record.calendar ?? "", undefined, { sensitivity: "accent" }) === 0) ?? calendars.find((candidate) => candidate.primary) ?? calendars[0];
+            if (!calendar) throw new Error("No Google Calendar is available");
+            await createEvent(calendar.id, calendarInput(record));
+          }
+          succeeded += 1;
+        } catch (reason) {
+          failed.push(reason instanceof Error ? reason.message : "Unknown import error");
         }
-        succeeded += 1;
-      } catch (reason) {
-        failed.push(reason instanceof Error ? reason.message : "Unknown import error");
+        setProgress(`${succeeded + failed.length} of ${records.length} records committed…`);
       }
-      setProgress(`${succeeded + failed.length} of ${records.length} records committed…`);
+      setProgress(`${succeeded} committed${failed.length ? `; ${failed.length} failed` : ""}`);
+      if (failed.length) setError(failed.join(" · "));
+    } finally {
+      setWorking(false);
     }
-    setProgress(`${succeeded} committed${failed.length ? `; ${failed.length} failed` : ""}`);
-    if (failed.length) setError(failed.join(" · "));
   }
 
   return <ModalDialog className="import-dialog" labelledBy="import-heading" initialFocusRef={inputRef} onClose={close}>
     <div className="panel-heading"><div><p className="eyebrow">Browser-local import</p><h2 id="import-heading">Import tasks and events</h2></div><button type="button" onClick={close}>Close</button></div>
     <p className="field-help">Choose or drop UTF-8 delimited text, the documented CSV schema, or iCalendar (.ics). Files stay in this browser and every record is previewed before a mutation is queued.</p>
     <div className="import-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void load(event.dataTransfer.files[0]); }}><input ref={inputRef} aria-label="Import file" type="file" accept=".txt,.hcb,.csv,.ics,.ical,text/plain,text/csv,text/calendar" onChange={(event) => void load(event.target.files?.[0])} /><span>Drag a file here or use the picker (5 MiB / 1,000 records maximum).</span></div>
-    {progress && <p className="status" role="status">{progress}</p>}
-    {preview && <section className="import-preview"><h3>Preview</h3>{preview.errors.map((message) => <p key={message} className="error">{message}</p>)}<ul>{preview.rows.map((row) => <li key={row.line} className={row.errors.length ? "error" : ""}><strong>Line {row.line}</strong> {row.record ? `${row.record.kind}: ${row.record.title}` : row.errors.join(" · ")}{row.warnings.length > 0 && <small> Warning: {row.warnings.join(" · ")}</small>}</li>)}</ul><div className="button-row"><button type="button" disabled={preview.rows.every((row) => !row.record)} onClick={() => void commit()}>Commit accepted records</button></div></section>}
+    {working ? <LoadingState label={progress || "Importing"} variant="Drive" className="import-loader" /> : progress && <p className="status" role="status">{progress}</p>}
+    {preview && <section className="import-preview"><h3>Preview</h3>{preview.errors.map((message) => <p key={message} className="error">{message}</p>)}<ul>{preview.rows.map((row) => <li key={row.line} className={row.errors.length ? "error" : ""}><strong>Line {row.line}</strong> {row.record ? `${row.record.kind}: ${row.record.title}` : row.errors.join(" · ")}{row.warnings.length > 0 && <small> Warning: {row.warnings.join(" · ")}</small>}</li>)}</ul><div className="button-row"><button type="button" disabled={working || preview.rows.every((row) => !row.record)} onClick={() => void commit()}>Commit accepted records</button></div></section>}
     {error && <p className="error" role="alert">{error}</p>}
   </ModalDialog>;
 }

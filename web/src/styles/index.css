@@ -307,6 +307,43 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .rich-description blockquote { border-inline-start: 3px solid var(--hcb-border); color: var(--hcb-muted); margin: 0.55rem 0; padding-inline-start: 0.75rem; }
 .rich-description pre { background: var(--hcb-subtle); border: 1px solid var(--hcb-border); border-radius: 0.4rem; overflow-x: auto; padding: 0.6rem; white-space: pre-wrap; }
 .rich-description a { color: #2383e2; text-decoration: underline; }
+.rich-description img { border: 1px solid var(--hcb-border); border-radius: 0.45rem; display: block; height: auto; margin: 0.65rem 0; max-width: 100%; }
+.rich-description table { border-collapse: collapse; display: block; margin: 0.6rem 0; max-width: 100%; overflow-x: auto; width: max-content; }
+.rich-description th, .rich-description td { border: 1px solid var(--hcb-border); padding: 0.4rem 0.55rem; text-align: start; }
+.rich-description th { background: var(--hcb-subtle); }
+.rich-description input[type="checkbox"] { margin-inline-end: 0.45rem; width: auto; }
+.markdown-editor { display: grid; gap: 0.55rem; margin: 0.75rem 0; min-width: 0; }
+.markdown-editor-tabs { border-bottom: 1px solid var(--hcb-border); display: flex; gap: 0.35rem; }
+.markdown-editor-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--hcb-muted); padding: 0.35rem 0.6rem; }
+.markdown-editor-tabs button.active { background: transparent; border-bottom-color: var(--hcb-text); color: var(--hcb-text); }
+.markdown-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.markdown-toolbar button { background: var(--hcb-subtle); border-color: var(--hcb-border); border-radius: 0.35rem; color: var(--hcb-text); min-height: 2rem; min-width: 2rem; padding: 0.2rem 0.38rem; }
+.markdown-toolbar button:hover:not(:disabled) { background: var(--hcb-text); color: var(--hcb-bg); }
+.markdown-composer { position: relative; }
+.markdown-composer textarea { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.5; min-height: 10rem; resize: vertical; }
+.markdown-preview { border: 1px solid var(--hcb-border); border-radius: 0.55rem; min-height: 10rem; padding: 0.7rem; }
+.emoji-popover { background: var(--hcb-surface); border: 1px solid var(--hcb-border); border-radius: 0.55rem; bottom: calc(100% + 0.35rem); box-shadow: 0 10px 28px rgb(15 15 15 / 18%); left: 0; max-width: min(27rem, 100%); padding: 0.55rem; position: absolute; z-index: 8; }
+.emoji-popover > p { align-items: center; display: flex; font-size: 0.82rem; justify-content: space-between; margin: 0 0 0.4rem; }
+.emoji-popover > p span { color: var(--hcb-muted); }
+.emoji-grid { display: grid; gap: 0.2rem; grid-template-columns: repeat(9, minmax(2rem, 1fr)); max-height: 12rem; overflow-y: auto; }
+.emoji-grid button { background: transparent; border: 0; border-radius: 0.35rem; color: inherit; font-size: 1.2rem; line-height: 1; min-height: 2rem; min-width: 2rem; padding: 0.22rem; }
+.emoji-grid button:hover, .emoji-grid button.active { background: var(--hcb-subtle); color: inherit; }
+.markdown-insert-dialog { max-width: 32rem; }
+.markdown-insert-dialog label, .markdown-drive-images { display: grid; gap: 0.38rem; margin-top: 0.8rem; }
+.markdown-drive-images { border: 1px solid var(--hcb-border); border-radius: 0.55rem; padding: 0.75rem; }
+.loading-state { align-items: center; display: inline-flex; gap: 0.62rem; max-width: 100%; }
+.loading-grid { display: grid; flex: 0 0 auto; gap: 1.5px; grid-template-columns: repeat(3, 4px); }
+.loading-grid > span { animation: hcb-pixel-on 650ms ease-in-out infinite; background: currentColor; border-radius: 1px; height: 4px; opacity: 0.15; width: 4px; }
+.loading-grid > span.round { border-radius: 999px; }
+.loading-grid > span:nth-child(5) { animation: none; opacity: 0.07; }
+.loading-label { animation: hcb-shimmer 1.4s linear infinite; background: linear-gradient(90deg, var(--hcb-muted) 35%, var(--hcb-text) 50%, var(--hcb-muted) 65%); background-clip: text; background-size: 200% 100%; color: transparent; font-size: 0.82rem; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loading-elapsed { color: var(--hcb-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.loading-screen .loading-state { font-size: 1.05rem; }
+.onboarding-loader, .sync-loader { justify-content: center; margin: 0.75rem auto; }
+.inline-loader, .import-loader { margin: 0.5rem 0; }
+@keyframes hcb-pixel-on { 50% { opacity: 1; transform: scale(1.2); } }
+@keyframes hcb-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .loading-grid > span, .loading-label { animation: none; } }
 .agenda-description { color: var(--hcb-muted); font-size: 0.9rem; margin-top: 0.35rem; }
 .calendar-panel { min-height: 0; }
 .calendar-event { background: var(--hcb-subtle); border-color: color-mix(in srgb, currentColor 18%, transparent); border-inline-start-width: 0.28rem; border-radius: 0.35rem; min-width: 0; overflow: hidden; }
@@ -330,11 +367,7 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .modal-backdrop { background: rgb(15 15 15 / 48%); }
 .modal-card { background: var(--hcb-surface); border-color: var(--hcb-border); }
 .sync-dialog { align-items: center; justify-items: center; max-width: 27rem; text-align: center; }
-.sync-orbit { align-items: center; animation: hcb-pulse 1.4s ease-in-out infinite; background: var(--hcb-subtle); border-radius: 999px; display: grid; height: 4.75rem; place-items: center; width: 4.75rem; }
-.sync-orbit svg { height: 2rem; width: 2rem; }
 .sync-detail { margin: 0; min-height: 2.8rem; }
-.sync-meter { background: var(--hcb-border); border-radius: 99px; height: 0.35rem; overflow: hidden; width: 100%; }
-.sync-meter span { background: var(--hcb-text); display: block; height: 100%; min-width: 12%; transition: width 180ms ease; }
 .sync-dialog-meta { color: var(--hcb-muted); display: flex; font-size: 0.85rem; justify-content: space-between; width: 100%; }
 .sync-dialog-actions { justify-content: center; margin-top: 0; }
 .health-list { display: grid; gap: 0.55rem; list-style: none; margin: 1rem 0 0; padding: 0; }

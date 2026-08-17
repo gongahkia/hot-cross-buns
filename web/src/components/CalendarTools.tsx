@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { LoadingState } from "@/components/LoadingState";
 import { ModalDialog } from "@/components/ModalDialog";
 import type {
   CalendarInput,
@@ -264,8 +265,9 @@ export function AvailabilityAssistant({
         <form onSubmit={(event) => void find(event)}>
           <fieldset className="calendar-sources"><legend>Check calendars</legend>{calendars.map((calendar) => <label key={calendar.id}><input type="checkbox" checked={calendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /> {calendar.summary}</label>)}</fieldset>
           <div className="event-time-fields"><label>From<input ref={startRef} type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} required /></label><label>Until<input type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} required /></label><label>Length<select value={duration} onChange={(event) => setDuration(event.target.value)}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">90 minutes</option></select></label></div>
-          <button type="submit" disabled={busy}>{busy ? "Checking…" : "Find times"}</button>
+          <button type="submit" disabled={busy}>Find times</button>
         </form>
+        {busy && <LoadingState label="Checking availability" variant="Dots" className="inline-loader" />}
         {error && <p className="error" role="alert">{error}</p>}
         {unavailable.length > 0 && <p className="field-help">Google could not check: {unavailable.map((id) => calendars.find((calendar) => calendar.id === id)?.summary ?? id).join(", ")}.</p>}
         {slots.length > 0 && <ol className="availability-slots">{slots.map((slot) => <li key={slot.start}><time>{new Date(slot.start).toLocaleString()} – {new Date(slot.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time><button type="button" onClick={() => useSlot(slot)}>Use this time</button></li>)}</ol>}

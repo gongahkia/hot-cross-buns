@@ -3,6 +3,7 @@ import type { Emoji, EmojiMartData } from "@emoji-mart/data";
 import { useMemo, useRef, useState } from "react";
 
 import { ModalDialog } from "@/components/ModalDialog";
+import { LoadingState } from "@/components/LoadingState";
 import { RichDescription } from "@/components/RichDescription";
 import type { GoogleDriveFile } from "@/types";
 
@@ -107,7 +108,7 @@ function InsertDialog({ kind, selection, drive, close, insert }: { readonly kind
     <label>{image ? "Image description" : "Link text"}<input value={text} onChange={(event) => setText(event.target.value)} /></label>
     <label>{image ? "Image URL" : "Link URL"}<input ref={urlRef} type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /></label>
     <div className="button-row"><button type="button" onClick={() => insertUrl()}>Insert {image ? "image" : "link"}</button></div>
-    {image && drive && <fieldset className="markdown-drive-images"><legend>Google Drive image</legend>{!drive.authorized ? <button type="button" onClick={() => void drive.authorize().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Drive authorization failed"))}>Authorize Drive metadata</button> : <><div className="inline-form"><input aria-label="Search Drive images" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search image files" /><button type="button" disabled={busy || !query.trim()} onClick={() => void searchDrive()}>{busy ? "Searching…" : "Search"}</button></div><ul className="drive-results">{results.map((file) => <li key={file.id}><span>{file.name}</span><button type="button" onClick={() => insertUrl(file.webContentLink, file.name)}>Use image</button></li>)}</ul><p className="field-help">Only Drive images with a direct HTTPS content link can be embedded. Google sharing permissions still apply.</p></>}</fieldset>}
+    {image && drive && <fieldset className="markdown-drive-images"><legend>Google Drive image</legend>{!drive.authorized ? <button type="button" onClick={() => void drive.authorize().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Drive authorization failed"))}>Authorize Drive metadata</button> : <><div className="inline-form"><input aria-label="Search Drive images" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search image files" /><button type="button" disabled={busy || !query.trim()} onClick={() => void searchDrive()}>Search</button></div>{busy && <LoadingState label="Searching Drive images" variant="Dots" className="inline-loader" />}<ul className="drive-results">{results.map((file) => <li key={file.id}><span>{file.name}</span><button type="button" onClick={() => insertUrl(file.webContentLink, file.name)}>Use image</button></li>)}</ul><p className="field-help">Only Drive images with a direct HTTPS content link can be embedded. Google sharing permissions still apply.</p></>}</fieldset>}
     {error && <p className="error" role="alert">{error}</p>}
   </ModalDialog>;
 }
