@@ -264,8 +264,6 @@ export function CommandPalette({
   const [limit, setLimit] = useState(12);
   const [saveName, setSaveName] = useState("");
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
-  const [spotlightHovered, setSpotlightHovered] = useState(false);
-  const [hoveredShortcut, setHoveredShortcut] = useState<number>();
   const [hoveredResult, setHoveredResult] = useState<number>();
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -377,7 +375,7 @@ export function CommandPalette({
   const items = useMemo(() => {
     const commands = actionItems(busy);
     if (!query.trim()) {
-      return commands;
+      return [];
     }
     const commandsMatching = parsedQuery.filters.types.length === 0 && !parsedQuery.filters.calendarQuery && !parsedQuery.filters.due && parsedQuery.filters.completed === undefined && !parsedQuery.filters.date
       ? commands.flatMap((item) => {
@@ -467,8 +465,7 @@ export function CommandPalette({
     focusable[nextIndex]?.focus();
   }
 
-  const shortcuts = actionItems(busy).filter((item) => ["go-tasks", "go-calendar", "new-task", "new-event"].includes(item.id));
-  const spotlightItem = hoveredShortcut === undefined ? (hoveredResult === undefined ? undefined : items[hoveredResult]) : shortcuts[hoveredShortcut];
+  const spotlightItem = hoveredResult === undefined ? undefined : items[hoveredResult];
   const placeholder = spotlightItem?.title ?? "Search tasks, events, calendars, Drive, or commands";
   const transition = { type: "spring" as const, stiffness: 550, damping: 50 };
 
@@ -483,7 +480,7 @@ export function CommandPalette({
       onClick={close}
     >
       <svg className="spotlight-filter" aria-hidden="true"><filter id="hcb-spotlight-blob"><feGaussianBlur stdDeviation="10" in="SourceGraphic" /><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 18 -9" result="blob" /><feBlend in="SourceGraphic" in2="blob" /></filter></svg>
-      <div className="spotlight-cluster" style={{ filter: "url(#hcb-spotlight-blob)" }} onMouseEnter={() => setSpotlightHovered(true)} onFocusCapture={() => setSpotlightHovered(true)} onMouseLeave={() => { setSpotlightHovered(false); setHoveredShortcut(undefined); setHoveredResult(undefined); }} onClick={(event) => event.stopPropagation()}>
+      <div className="spotlight-cluster" style={{ filter: "url(#hcb-spotlight-blob)" }} onMouseLeave={() => setHoveredResult(undefined)} onClick={(event) => event.stopPropagation()}>
         <motion.section layout="position" ref={dialogRef} className="modal-card command-palette spotlight-card" role="dialog" aria-modal="true" aria-labelledby="command-palette-heading" onKeyDown={trapFocus}>
           <h2 id="command-palette-heading" className="visually-hidden">Command palette</h2>
           <div className="spotlight-input-row">
@@ -515,9 +512,6 @@ export function CommandPalette({
             </motion.div>}
           </AnimatePresence>
         </motion.section>
-        <AnimatePresence>
-          {spotlightHovered && !query && shortcuts.map((item, index) => <motion.button key={item.id} className="spotlight-shortcut" type="button" title={item.title} aria-label={item.title} initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72, x: -20 }} animate={{ opacity: 0.42, scale: 1, x: 0 }} whileHover={{ opacity: 1, scale: 1.04 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72, x: 20 }} transition={{ ...transition, delay: index * 0.045 }} onMouseEnter={() => setHoveredShortcut(index)} onFocus={() => setHoveredShortcut(index)} onClick={() => choose(item)}>{paletteItemIcon(item)}</motion.button>)}
-        </AnimatePresence>
       </div>
     </motion.div>}
   </AnimatePresence>;

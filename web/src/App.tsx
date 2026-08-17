@@ -316,7 +316,6 @@ export default function App(): React.JSX.Element {
         </div>
       </aside>
       <div className="app-content">
-      <p className="global-status" aria-live="polite">{workspace.status}</p>
       {updateReady && <section className="update-ready" role="status">A new version of Hot Cross Buns is ready. <button type="button" onClick={() => void updateServiceWorker.current?.().then(() => setUpdateReady(false))}>Reload now</button></section>}
       {deepLinkMessage && <p className="error" role="status">{deepLinkMessage}</p>}
       {workspace.syncProgress.phase !== "idle" && (

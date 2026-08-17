@@ -59,17 +59,11 @@ describe("CommandPalette", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("exposes Spotlight quick actions before a query", async () => {
-    const user = userEvent.setup();
-    const close = vi.fn();
-    const run = vi.fn();
-    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={run} />);
+  it("shows only the Spotlight search field until the user enters a query", () => {
+    render(<CommandPalette open workspace={workspace} busy={false} close={vi.fn()} run={vi.fn()} />);
 
-    await user.hover(screen.getByRole("dialog"));
-    await user.click(screen.getByRole("button", { name: "New task" }));
-
-    expect(close).toHaveBeenCalledOnce();
-    expect(run).toHaveBeenCalledWith({ type: "new-task" });
+    expect(screen.queryByRole("listbox", { name: "Command palette results" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Go to Tasks/ })).not.toBeInTheDocument();
   });
 
   it("closes from the Spotlight close control", async () => {
