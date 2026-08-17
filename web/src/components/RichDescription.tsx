@@ -41,6 +41,7 @@ export function RichDescription({ value, className }: RichDescriptionProps): Rea
     document.querySelectorAll<HTMLAnchorElement>("a").forEach((anchor) => {
       if (!isHttps(anchor.getAttribute("href"))) anchor.removeAttribute("href");
       else {
+        anchor.href = new URL(anchor.getAttribute("href")!, window.location.origin).href;
         anchor.target = "_blank";
         anchor.rel = "noreferrer";
       }
