@@ -1,5 +1,6 @@
 import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { ModalDialog } from "@/components/ModalDialog";
@@ -694,6 +695,7 @@ function EventEditor({
   const [responseComment, setResponseComment] = useState("");
   const [error, setError] = useState("");
   const [responding, setResponding] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function loadDraft(source: GoogleCalendarEvent | undefined): void {
     const sourceTimeZone = source?.start.timeZone ?? display.timeZone;
@@ -823,9 +825,7 @@ function EventEditor({
   }
 
   async function remove(): Promise<void> {
-    if (!editingEvent || !window.confirm(`Delete “${editingEvent.summary}”?`)) {
-      return;
-    }
+    if (!editingEvent) return;
     setError("");
     try {
       const result = await deleteEvent(editingEvent);
@@ -854,7 +854,7 @@ function EventEditor({
 
   const selfAttendee = editingEvent?.attendees?.find((attendee) => attendee.self);
 
-  return (
+  return <>
     <ModalDialog className="event-editor" labelledBy="event-editor-heading" initialFocusRef={titleRef} onClose={close}>
       <form onSubmit={(eventSubmit) => void submit(eventSubmit)}>
         <div className="panel-heading">
@@ -912,10 +912,11 @@ function EventEditor({
         {attachments.length > 0 && <ul className="selected-attachments">{attachments.map((attachment) => <li key={attachment.fileUrl}>{attachment.title ?? attachment.fileUrl}<button type="button" onClick={() => setAttachments((current) => current.filter((item) => item.fileUrl !== attachment.fileUrl))}>Remove</button></li>)}</ul>}
         <details className="event-advanced"><summary>Advanced event settings</summary><div className="advanced-fields"><label>Event color ID<input value={advanced.colorId} onChange={(eventInput) => setAdvanced((current) => ({ ...current, colorId: eventInput.target.value }))} placeholder="Google color ID" /></label><label>Availability<select value={advanced.transparency} onChange={(eventInput) => setAdvanced((current) => ({ ...current, transparency: eventInput.target.value as AdvancedEventDraft["transparency"] }))} disabled={advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice" || advanced.eventType === "workingLocation"}><option value="opaque">Busy</option><option value="transparent">Free</option></select></label><label>Visibility<select value={advanced.visibility} onChange={(eventInput) => setAdvanced((current) => ({ ...current, visibility: eventInput.target.value as AdvancedEventDraft["visibility"] }))} disabled={advanced.eventType === "workingLocation"}><option value="default">Calendar default</option><option value="public">Public</option><option value="private">Private</option><option value="confidential">Confidential</option></select></label><label>Invitation email<select value={advanced.sendUpdates} onChange={(eventInput) => setAdvanced((current) => ({ ...current, sendUpdates: eventInput.target.value as SendUpdates }))}><option value="all">Send all updates</option><option value="externalOnly">Send external updates only</option><option value="none">Do not send updates</option></select></label></div><fieldset className="recurrence-editor"><legend>Popup reminder</legend><label className="check-label"><input type="checkbox" checked={advanced.useDefaultReminders} onChange={(eventInput) => setAdvanced((current) => ({ ...current, useDefaultReminders: eventInput.target.checked }))} /> Use Calendar default reminders</label>{!advanced.useDefaultReminders && <label>Minutes before<input type="number" min="0" max="40320" value={advanced.reminderMinutes} onChange={(eventInput) => setAdvanced((current) => ({ ...current, reminderMinutes: eventInput.target.value }))} /></label>}</fieldset><fieldset className="recurrence-editor"><legend>Guest permissions</legend><label className="check-label"><input type="checkbox" checked={advanced.guestsCanInviteOthers} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanInviteOthers: eventInput.target.checked }))} /> Guests can invite others</label><label className="check-label"><input type="checkbox" checked={advanced.guestsCanModify} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanModify: eventInput.target.checked }))} /> Guests can modify event</label><label className="check-label"><input type="checkbox" checked={advanced.guestsCanSeeOtherGuests} onChange={(eventInput) => setAdvanced((current) => ({ ...current, guestsCanSeeOtherGuests: eventInput.target.checked }))} /> Guests can see other guests</label></fieldset>{(advanced.eventType === "focusTime" || advanced.eventType === "outOfOffice") && <fieldset className="recurrence-editor"><legend>Decline conflicting invitations</legend><label>Policy<select value={advanced.focusAutoDecline} onChange={(eventInput) => setAdvanced((current) => ({ ...current, focusAutoDecline: eventInput.target.value as AdvancedEventDraft["focusAutoDecline"] }))}><option value="declineNone">Do not decline</option><option value="declineOnlyNewConflictingInvitations">Decline new conflicts</option><option value="declineAllConflictingInvitations">Decline all conflicts</option></select></label>{advanced.eventType === "focusTime" && <label>Chat status<select value={advanced.focusChatStatus} onChange={(eventInput) => setAdvanced((current) => ({ ...current, focusChatStatus: eventInput.target.value as AdvancedEventDraft["focusChatStatus"] }))}><option value="doNotDisturb">Do not disturb</option><option value="available">Available</option></select></label>}<label>Decline message<textarea value={advanced.declineMessage} onChange={(eventInput) => setAdvanced((current) => ({ ...current, declineMessage: eventInput.target.value }))} rows={2} /></label></fieldset>}{advanced.eventType === "workingLocation" && <fieldset className="recurrence-editor"><legend>Working location</legend><label>Location type<select value={advanced.workingLocationType} onChange={(eventInput) => setAdvanced((current) => ({ ...current, workingLocationType: eventInput.target.value as AdvancedEventDraft["workingLocationType"] }))}><option value="homeOffice">Home office</option><option value="officeLocation">Office</option><option value="customLocation">Custom</option></select></label>{advanced.workingLocationType !== "homeOffice" && <label>Location label<input value={advanced.workingLocationLabel} onChange={(eventInput) => setAdvanced((current) => ({ ...current, workingLocationLabel: eventInput.target.value }))} /></label>}</fieldset>}</details>
         {error && <p className="error" role="alert">{error}</p>}
-        <div className="button-row"><button type="submit">{editingEvent ? "Save event" : "Create event"}</button>{editingEvent && <button type="button" className="danger-button" onClick={() => void remove()}>Delete event</button>}</div>
+        <div className="button-row"><button type="submit">{editingEvent ? "Save event" : "Create event"}</button>{editingEvent && <button type="button" className="danger-button" onClick={() => setConfirmingDelete(true)}>Delete event</button>}</div>
       </form>
     </ModalDialog>
-  );
+    {editingEvent && confirmingDelete && <ConfirmationDialog title={`Delete “${editingEvent.summary || "Untitled event"}”?`} description="This can be recovered from Undo while its retention period lasts." confirmLabel="Delete event" destructive close={() => setConfirmingDelete(false)} confirm={remove} />}
+  </>;
 }
 
 function ConflictDialog({ conflict, resolve, dismiss }: {
@@ -965,6 +966,7 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
 }): React.JSX.Element {
   const display = useContext(CalendarDisplayContext);
   const [error, setError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const calendar = calendars.find((candidate) => candidate.id === event.calendarId);
   const meetUrl = event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri;
   async function duplicate(): Promise<void> {
@@ -977,7 +979,6 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
     }
   }
   async function remove(): Promise<void> {
-    if (!window.confirm(`Delete “${event.summary || "Untitled event"}”?`)) return;
     setError("");
     try {
       const result = await deleteEvent(event);
@@ -987,7 +988,8 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
       setError(reason instanceof Error ? reason.message : "Event could not be deleted");
     }
   }
-  return <ModalDialog className="item-detail event-detail" labelledBy="event-detail-heading" onClose={close}>
+  return <>
+  <ModalDialog className="item-detail event-detail" labelledBy="event-detail-heading" onClose={close}>
     <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="event-detail-heading">{event.summary || "Untitled event"}</h2></div><button type="button" onClick={close}>Close</button></div>
     <dl className="detail-list">
       <div><dt>Calendar</dt><dd>{calendar?.summary ?? "Unknown calendar"}</dd></div>
@@ -1000,8 +1002,10 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
       {meetUrl && <div><dt>Google Meet</dt><dd><a href={meetUrl} target="_blank" rel="noreferrer">Open meeting</a></dd></div>}
     </dl>
     {error && <p className="error" role="alert">{error}</p>}
-    <div className="button-row"><button type="button" onClick={edit}>Edit event</button><button type="button" onClick={() => void duplicate()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/event/${encodeURIComponent(event.calendarId)}/${encodeURIComponent(event.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => void remove()}>Delete</button></div>
-  </ModalDialog>;
+    <div className="button-row"><button type="button" onClick={edit}>Edit event</button><button type="button" onClick={() => void duplicate()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/event/${encodeURIComponent(event.calendarId)}/${encodeURIComponent(event.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => setConfirmingDelete(true)}>Delete</button></div>
+  </ModalDialog>
+  {confirmingDelete && <ConfirmationDialog title={`Delete “${event.summary || "Untitled event"}”?`} description="This can be recovered from Undo while its retention period lasts." confirmLabel="Delete event" destructive close={() => setConfirmingDelete(false)} confirm={remove} />}
+  </>;
 }
 
 export function CalendarPanel({
@@ -1052,6 +1056,7 @@ export function CalendarPanel({
   const [bulkReplace, setBulkReplace] = useState("");
   const [bulkShiftMinutes, setBulkShiftMinutes] = useState("0");
   const [error, setError] = useState("");
+  const [bulkDeleteEvents, setBulkDeleteEvents] = useState<readonly GoogleCalendarEvent[]>();
   const defaultCalendarId = calendars.find((calendar) => calendar.primary)?.id ?? calendars[0]?.id ?? "";
   const range = useMemo(() => viewRange(anchor, view), [anchor, view]);
   const rangeInstants = useMemo(() => ({
@@ -1145,18 +1150,26 @@ export function CalendarPanel({
     setSelectedEventKeys((current) => current.includes(key) ? current.filter((candidate) => candidate !== key) : [...current, key]);
   }
 
-  async function runBulk(operation: EventBulkOperation): Promise<void> {
-    if (!bulkEvents || selectedEvents.length === 0) return;
-    if (operation.kind === "delete" && !window.confirm(`Delete ${selectedEvents.length} selected event${selectedEvents.length === 1 ? "" : "s"}? This can be recovered from Undo while its retention period lasts.`)) return;
+  async function executeBulk(operation: EventBulkOperation, eventsToChange: readonly GoogleCalendarEvent[] = selectedEvents): Promise<void> {
+    if (!bulkEvents || eventsToChange.length === 0) return;
     setError("");
     setBulkResult(undefined);
     try {
-      const result = await bulkEvents(selectedEvents, operation);
+      const result = await bulkEvents(eventsToChange, operation);
       setBulkResult(result);
       if (result.failed.length === 0) setSelectedEventKeys([]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The selected events could not be changed");
     }
+  }
+
+  function runBulk(operation: EventBulkOperation): void {
+    if (!bulkEvents || selectedEvents.length === 0) return;
+    if (operation.kind === "delete") {
+      setBulkDeleteEvents(selectedEvents);
+      return;
+    }
+    void executeBulk(operation);
   }
 
   function closeEditor(): void {
@@ -1237,6 +1250,7 @@ export function CalendarPanel({
       {availabilityOpen && <AvailabilityAssistant calendars={calendars} defaultCalendarIds={selectedCalendarIds} queryAvailability={queryAvailability} useSlot={useAvailabilitySlot} close={() => setAvailabilityOpen(false)} />}
       {inboxOpen && <InvitationInbox invitations={invitations} calendars={calendars} close={() => setInboxOpen(false)} respond={async (event, response, comment) => { try { await respondToEvent(event, response, comment); } catch (reason) { setError(reason instanceof Error ? reason.message : "The invitation response could not be saved"); } }} />}
       {eventConflict && <ConflictDialog conflict={eventConflict} resolve={async (resolution) => { try { await resolveEventConflict(resolution); closeEditor(); } catch (reason) { setError(reason instanceof Error ? reason.message : "The conflict could not be resolved"); } }} dismiss={dismissEventConflict} />}
+      {bulkDeleteEvents && <ConfirmationDialog title={`Delete ${bulkDeleteEvents.length} selected event${bulkDeleteEvents.length === 1 ? "" : "s"}?`} description="This can be recovered from Undo while its retention period lasts." confirmLabel="Delete events" destructive close={() => setBulkDeleteEvents(undefined)} confirm={() => executeBulk({ kind: "delete" }, bulkDeleteEvents)} />}
     </section>
     </CalendarDisplayContext.Provider>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { LoadingState } from "@/components/LoadingState";
 import { ModalDialog } from "@/components/ModalDialog";
 import type {
@@ -118,6 +119,7 @@ export function CalendarManagerDialog({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [removalCandidate, setRemovalCandidate] = useState<GoogleCalendar>();
   const titleRef = useRef<HTMLInputElement>(null);
 
   async function create(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -154,9 +156,6 @@ export function CalendarManagerDialog({
   }
 
   async function remove(calendar: GoogleCalendar): Promise<void> {
-    if (!window.confirm(`Remove “${calendar.summary}” from your Google Calendar list? This does not delete its events or the calendar itself.`)) {
-      return;
-    }
     setError("");
     setMessage("");
     setBusy(true);
@@ -170,7 +169,7 @@ export function CalendarManagerDialog({
     }
   }
 
-  return (
+  return <>
     <ModalDialog className="calendar-manager" labelledBy="calendar-manager-heading" initialFocusRef={titleRef} onClose={close}>
         <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="calendar-manager-heading">Manage calendars</h2></div><button type="button" onClick={close}>Close</button></div>
         <form onSubmit={(event) => void create(event)}>
@@ -190,7 +189,7 @@ export function CalendarManagerDialog({
           <h3>Calendars you can remove from this list</h3>
           <ul className="calendar-management-list">
             {calendars.filter((calendar) => !calendar.primary && calendar.accessRole !== "owner").map((calendar) => (
-              <li key={calendar.id}><span>{calendar.summary}</span><button type="button" className="danger-button" disabled={busy} onClick={() => void remove(calendar)}>Remove from list</button></li>
+              <li key={calendar.id}><span>{calendar.summary}</span><button type="button" className="danger-button" disabled={busy} onClick={() => setRemovalCandidate(calendar)}>Remove from list</button></li>
             ))}
           </ul>
           {calendars.every((calendar) => calendar.primary || calendar.accessRole === "owner") && <p className="field-help">No subscribed calendars can be removed here. Owner and primary calendars stay protected.</p>}
@@ -198,7 +197,8 @@ export function CalendarManagerDialog({
         {error && <p className="error" role="alert">{error}</p>}
         {message && <p className="status" role="status">{message}</p>}
     </ModalDialog>
-  );
+    {removalCandidate && <ConfirmationDialog title={`Remove “${removalCandidate.summary}” from this list?`} description="This does not delete its events or the calendar itself." confirmLabel="Remove calendar" destructive close={() => setRemovalCandidate(undefined)} confirm={() => remove(removalCandidate)} />}
+  </>;
 }
 
 export function AvailabilityAssistant({

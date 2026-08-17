@@ -5,6 +5,7 @@ interface ModalDialogProps {
   readonly children: React.ReactNode;
   readonly className: string;
   readonly labelledBy: string;
+  readonly describedBy?: string;
   readonly initialFocusRef?: React.RefObject<HTMLElement | null>;
   readonly onClose: () => void;
 }
@@ -31,7 +32,7 @@ function focusableElements(container: HTMLElement): HTMLElement[] {
   )].filter((element) => !element.hasAttribute("hidden") && element.getAttribute("aria-hidden") !== "true");
 }
 
-export function ModalDialog({ children, className, labelledBy, initialFocusRef, onClose }: ModalDialogProps): React.JSX.Element | null {
+export function ModalDialog({ children, className, labelledBy, describedBy, initialFocusRef, onClose }: ModalDialogProps): React.JSX.Element | null {
   const id = useRef(crypto.randomUUID()).current;
   const dialogRef = useRef<HTMLElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -118,7 +119,7 @@ export function ModalDialog({ children, className, labelledBy, initialFocusRef, 
   }
   return createPortal(
     <div className="modal-backdrop" role="presentation" data-modal-depth={modalStack.indexOf(id)}>
-      <section ref={dialogRef} className={`modal-card ${className}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1} onKeyDown={onKeyDown}>
+      <section ref={dialogRef} className={`modal-card ${className}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} aria-describedby={describedBy} tabIndex={-1} onKeyDown={onKeyDown}>
         {children}
       </section>
     </div>,

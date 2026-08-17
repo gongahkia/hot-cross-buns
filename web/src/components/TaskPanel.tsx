@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { ModalDialog } from "@/components/ModalDialog";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { RichDescription } from "@/components/RichDescription";
@@ -61,6 +62,12 @@ interface FlatTask {
   readonly task: GoogleTask;
   readonly depth: number;
 }
+
+type TaskConfirmation =
+  | { readonly kind: "bulk-delete"; readonly taskIds: readonly string[] }
+  | { readonly kind: "delete-list"; readonly taskList: GoogleTaskList }
+  | { readonly kind: "delete-editing-task"; readonly task: GoogleTask }
+  | { readonly kind: "delete-viewing-task"; readonly task: GoogleTask };
 
 function taskSort(left: GoogleTask, right: GoogleTask): number {
   return (
@@ -230,6 +237,7 @@ export function TaskPanel({
   const [bulkFind, setBulkFind] = useState("");
   const [bulkReplace, setBulkReplace] = useState("");
   const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState<TaskConfirmation>();
   const quickAddRef = useRef<HTMLInputElement>(null);
   const taskTitleRef = useRef<HTMLInputElement>(null);
   const sensors = useSensors(
@@ -339,17 +347,14 @@ export function TaskPanel({
     }
   }
 
-  async function runBulk(operation: TaskBulkOperation): Promise<void> {
-    if (!bulkTasks || selectedTaskIds.length === 0) {
-      return;
-    }
-    if (operation.kind === "delete" && !window.confirm(`Delete ${selectedTaskIds.length} selected task${selectedTaskIds.length === 1 ? "" : "s"}? This can be recovered from Undo while its retention period lasts.`)) {
+  async function executeBulk(operation: TaskBulkOperation, taskIds = selectedTaskIds): Promise<void> {
+    if (!bulkTasks || taskIds.length === 0) {
       return;
     }
     setError("");
     setBulkResult(undefined);
     try {
-      const result = await bulkTasks(selectedTaskIds, operation);
+      const result = await bulkTasks(taskIds, operation);
       setBulkResult(result);
       if (result.failed.length === 0) {
         setSelectedTaskIds([]);
@@ -357,6 +362,15 @@ export function TaskPanel({
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The selected tasks could not be changed");
     }
+  }
+
+  function runBulk(operation: TaskBulkOperation): void {
+    if (!bulkTasks || selectedTaskIds.length === 0) return;
+    if (operation.kind === "delete") {
+      setConfirmation({ kind: "bulk-delete", taskIds: selectedTaskIds });
+      return;
+    }
+    void executeBulk(operation);
   }
 
   function recurrenceNotes(form: FormData, task: GoogleTask, title: string, due: string, priority: TaskMetadata["priority"], dueTimeZone: string): string | undefined {
@@ -456,26 +470,21 @@ export function TaskPanel({
     }
   }
 
-  async function removeTaskList(): Promise<void> {
-    if (!selectedList || !window.confirm(`Delete the task list “${selectedList.title}” and its tasks?`)) {
-      return;
-    }
+  async function removeTaskList(taskList: GoogleTaskList): Promise<void> {
     setError("");
     try {
-      await deleteTaskList(selectedList);
+      await deleteTaskList(taskList);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task list could not be deleted");
     }
   }
 
-  async function removeTask(): Promise<void> {
-    if (!editingTask || !window.confirm(`Delete “${editingTask.title || "Untitled task"}”?`)) {
-      return;
-    }
+  async function removeTask(task: GoogleTask, source: "editor" | "detail"): Promise<void> {
     setError("");
     try {
-      await deleteTask(editingTask);
-      setEditingTask(undefined);
+      await deleteTask(task);
+      if (source === "editor") setEditingTask(undefined);
+      else setViewingTask(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task could not be deleted");
     }
@@ -494,17 +503,6 @@ export function TaskPanel({
       setViewingTask(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Task could not be duplicated");
-    }
-  }
-
-  async function deleteViewedTask(): Promise<void> {
-    if (!viewingTask || !window.confirm(`Delete “${viewingTask.title || "Untitled task"}”?`)) return;
-    setError("");
-    try {
-      await deleteTask(viewingTask);
-      setViewingTask(undefined);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Task could not be deleted");
     }
   }
 
@@ -617,7 +615,7 @@ export function TaskPanel({
                     <span>Current list</span>
                     <input value={listTitle} onChange={(event) => setListTitle(event.target.value)} onBlur={() => void saveListTitle()} />
                   </label>
-                  <button type="button" className="danger-button" onClick={() => void removeTaskList()}>Delete list</button>
+                  <button type="button" className="danger-button" onClick={() => selectedList && setConfirmation({ kind: "delete-list", taskList: selectedList })}>Delete list</button>
                 </div>
                 <form className="task-create-form" onSubmit={(event) => void submitTask(event)}>
                   <input ref={quickAddRef} aria-label="New task title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a task — details can be added after" />
@@ -662,7 +660,7 @@ export function TaskPanel({
             {scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id) && <div><dt>Calendar block</dt><dd>Scheduled in {calendars.find((calendar) => calendar.id === scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id)?.calendarId)?.summary ?? "Google Calendar"}</dd></div>}
           </dl>
           {error && <p className="error" role="alert">{error}</p>}
-          <div className="button-row"><button type="button" onClick={() => { setEditingTask(viewingTask); setError(""); }}>Edit task</button><button type="button" onClick={() => void toggleTask(viewingTask).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}>{viewingTask.status === "completed" ? "Mark incomplete" : "Complete task"}</button><button type="button" onClick={() => void duplicateTask()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/task/${encodeURIComponent(viewingTask.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => void deleteViewedTask()}>Delete</button></div>
+          <div className="button-row"><button type="button" onClick={() => { setEditingTask(viewingTask); setError(""); }}>Edit task</button><button type="button" onClick={() => void toggleTask(viewingTask).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}>{viewingTask.status === "completed" ? "Mark incomplete" : "Complete task"}</button><button type="button" onClick={() => void duplicateTask()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/task/${encodeURIComponent(viewingTask.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => setConfirmation({ kind: "delete-viewing-task", task: viewingTask })}>Delete</button></div>
         </ModalDialog>
       )}
       {editingTask && (
@@ -685,10 +683,18 @@ export function TaskPanel({
             <label>Parent task<select name="parent" defaultValue={editingTask.parent ?? ""}><option value="">No parent</option>{parentChoices.map((task) => <option key={task.id} value={task.id}>{task.title || "Untitled task"}</option>)}</select></label>
             <fieldset className="recurrence-editor"><legend>Schedule in Calendar</legend>{scheduledBlock ? <><p className="field-help">Scheduled on {calendars.find((calendar) => calendar.id === scheduledBlock.calendarId)?.summary ?? scheduledBlock.calendarId}. The event is retained if you unschedule this task.</p><button type="button" onClick={() => void unscheduleTask?.(editingTask.id)}>Unschedule task</button></> : scheduleTask ? <><label>Calendar<select name="scheduleCalendar"><option value="">Choose calendar</option>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label><label>Starts<input name="scheduleStart" type="datetime-local" /></label><label>Ends<input name="scheduleEnd" type="datetime-local" /></label><button type="button" onClick={(event) => void scheduleEditingTask(event.currentTarget.parentElement!)}>Schedule task</button></> : <p className="field-help">Calendar scheduling is unavailable until Calendar access is connected.</p>}</fieldset>
             {error && <p className="error" role="alert">{error}</p>}
-            <div className="button-row"><button type="submit">Save task</button><button type="button" className="danger-button" onClick={() => void removeTask()}>Delete task</button></div>
+            <div className="button-row"><button type="submit">Save task</button><button type="button" className="danger-button" onClick={() => setConfirmation({ kind: "delete-editing-task", task: editingTask })}>Delete task</button></div>
           </form>
         </ModalDialog>
       )}
+      {confirmation && <ConfirmationDialog
+        title={confirmation.kind === "bulk-delete" ? `Delete ${confirmation.taskIds.length} selected task${confirmation.taskIds.length === 1 ? "" : "s"}?` : confirmation.kind === "delete-list" ? `Delete “${confirmation.taskList.title}”?` : `Delete “${confirmation.task.title || "Untitled task"}”?`}
+        description={confirmation.kind === "bulk-delete" ? "This can be recovered from Undo while its retention period lasts." : confirmation.kind === "delete-list" ? "This deletes the task list and its tasks." : "This can be recovered from Undo while its retention period lasts."}
+        confirmLabel={confirmation.kind === "delete-list" ? "Delete list" : confirmation.kind === "bulk-delete" ? "Delete tasks" : "Delete task"}
+        destructive
+        close={() => setConfirmation(undefined)}
+        confirm={() => confirmation.kind === "bulk-delete" ? executeBulk({ kind: "delete" }, confirmation.taskIds) : confirmation.kind === "delete-list" ? removeTaskList(confirmation.taskList) : removeTask(confirmation.task, confirmation.kind === "delete-editing-task" ? "editor" : "detail")}
+      />}
     </section>
   );
 }

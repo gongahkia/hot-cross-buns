@@ -35,7 +35,7 @@ pick up.
 | W-11 | Advanced event fields: color, transparency, visibility, popup overrides, guest permissions, response comments, and `sendUpdates`; PATCH payloads preserve omitted Meet and attachment data. |
 | W-12 | Primary-calendar Focus Time, Out of Office, and Working Location creation/editing with Google field constraints. |
 | W-13 | Canonical-cache invitation inbox plus online/offline RSVP comments and queued retry/conflict recovery. |
-| W-14 | Structured search aliases (`source`, `status`, `start`, `priority`, `list`, `notes`/`body`), saved searches, explicit More Results behavior, and local-only filtering. |
+| W-14 | Structured search aliases (`source`, `status`, `start`, `priority`, `list`, `notes`/`body`), local-only filtering, and incremental scroll-loaded results. |
 | W-15 | Subject-scoped appearance, density, font, accent, planner, notes, conflict, undo, quick-capture, and calendar-visibility preferences. |
 | W-16 | Worker-based local delimited-text, exact-schema CSV, and iCalendar import preview/commit; drag/drop and picker everywhere, `LaunchQueue`/manifest file handlers where Chromium supports them. |
 | W-17 | Explicit user-initiated redacted diagnostics copy/download with version, capabilities, cache counts, storage, and sync state only. |
