@@ -65,8 +65,10 @@ const defaultPreferences: WorkspacePreferences = {
   conflictPolicy: "prefer-google",
   appearance: "system",
   density: "comfortable",
-  accentColor: "#b55639",
+  accentColor: "#2f3437",
   fontFamily: "system",
+  customFontFamily: "",
+  fontStylesheetUrl: "",
   fontScale: 1,
   taskListPaneWidth: 256,
   weekStartsOn: 0,
@@ -77,6 +79,16 @@ const defaultPreferences: WorkspacePreferences = {
   visibleCalendarIds: [],
   undoRetentionDays: 30,
   undoMaximumEntries: 200,
+  keybindings: {
+    commandPalette: "Meta+K",
+    quickCapture: "Meta+Shift+N",
+    sync: "Meta+Shift+S",
+    tasks: "Meta+1",
+    calendar: "Meta+2",
+    settings: "Meta+3",
+    health: "Meta+4",
+    tutorial: "Meta+/"
+  },
   quickCapture: {
     defaultEventDurationMinutes: 30,
     removeRecognizedText: true,
@@ -323,6 +335,7 @@ export class LocalStore {
     return {
       ...defaultWorkspacePreferences(),
       ...preferences,
+      keybindings: { ...defaultWorkspacePreferences().keybindings, ...preferences.keybindings },
       quickCapture: { ...defaultWorkspacePreferences().quickCapture, ...preferences.quickCapture }
     };
   }

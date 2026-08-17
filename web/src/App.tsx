@@ -7,14 +7,19 @@ import { Onboarding } from "@/components/Onboarding";
 import { ImportDialog } from "@/components/ImportDialog";
 import { DiagnosticsDialog } from "@/components/DiagnosticsDialog";
 import { ForegroundReminders, pendingForegroundReminderCount, requestForegroundNotificationPermission } from "@/components/ForegroundReminders";
+import { HealthPanel } from "@/components/HealthPanel";
+import { Icon, type IconName } from "@/components/Icons";
 import { QuickCaptureDialog } from "@/components/QuickCaptureDialog";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { SyncDialog } from "@/components/SyncDialog";
 import { TaskPanel, type TaskPanelCommand } from "@/components/TaskPanel";
+import { TutorialDialog } from "@/components/TutorialDialog";
 import type { CalendarPanelCommand } from "@/components/CalendarPanel";
 import { localStore } from "@/data/localStore";
+import { formatBinding, matchesBinding } from "@/features/keybindings";
 import { useWorkspace } from "@/features/useWorkspace";
 
-type View = "tasks" | "calendar" | "settings";
+type View = "tasks" | "calendar" | "settings" | "health";
 
 interface LaunchQueueLike {
   setConsumer(consumer: (launchParams: { readonly files: readonly { getFile(): Promise<File> }[] }) => void): void;
@@ -34,6 +39,8 @@ export default function App(): React.JSX.Element {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [deepLinkMessage, setDeepLinkMessage] = useState("");
   const [updateReady, setUpdateReady] = useState(false);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const paletteButtonRef = useRef<HTMLButtonElement>(null);
   const updateServiceWorker = useRef<(() => Promise<void>) | undefined>(undefined);
 
@@ -53,25 +60,69 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
-        event.preventDefault();
-        setPaletteOpen(true);
-      }
+      const bindings = workspace.preferences.keybindings;
+      if (matchesBinding(event, bindings.commandPalette)) { event.preventDefault(); setPaletteOpen(true); return; }
+      if (matchesBinding(event, bindings.quickCapture)) { event.preventDefault(); setQuickCaptureOpen(true); return; }
+      if (matchesBinding(event, bindings.sync)) { event.preventDefault(); setSyncDialogOpen(true); void workspace.sync().catch(() => undefined); return; }
+      if (matchesBinding(event, bindings.tasks)) { event.preventDefault(); setView("tasks"); return; }
+      if (matchesBinding(event, bindings.calendar)) { event.preventDefault(); setView("calendar"); return; }
+      if (matchesBinding(event, bindings.settings)) { event.preventDefault(); setView("settings"); return; }
+      if (matchesBinding(event, bindings.health)) { event.preventDefault(); setView("health"); return; }
+      if (matchesBinding(event, bindings.tutorial)) { event.preventDefault(); setTutorialOpen(true); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [workspace.preferences.keybindings, workspace.sync]);
 
   useEffect(() => {
     const root = document.documentElement;
     const preferences = workspace.preferences;
-    root.dataset.theme = preferences.appearance;
+    root.dataset.theme = preferences.appearance === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : preferences.appearance === "system" ? "light" : preferences.appearance;
     root.dataset.density = preferences.density;
     root.style.setProperty("--hcb-accent", preferences.accentColor);
     root.style.setProperty("--hcb-font-scale", String(preferences.fontScale));
     root.style.setProperty("--hcb-task-pane-width", `${preferences.taskListPaneWidth}px`);
-    root.style.setProperty("--hcb-font-family", preferences.fontFamily === "serif" ? "ui-serif, Georgia, serif" : preferences.fontFamily === "monospace" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif");
+    const stacks = {
+      system: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      sans: "Arial, Helvetica, sans-serif",
+      serif: "ui-serif, Georgia, 'Times New Roman', serif",
+      mono: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      arial: "Arial, Helvetica, sans-serif",
+      georgia: "Georgia, 'Times New Roman', serif",
+      verdana: "Verdana, Geneva, sans-serif",
+      trebuchet: "'Trebuchet MS', Arial, sans-serif",
+      courier: "'Courier New', Courier, monospace",
+      custom: preferences.customFontFamily.trim() ? `"${preferences.customFontFamily.trim().replaceAll('"', "")}", ui-sans-serif, system-ui, sans-serif` : "ui-sans-serif, system-ui, sans-serif"
+    } as const;
+    root.style.setProperty("--hcb-font-family", stacks[preferences.fontFamily]);
+    const previous = document.head.querySelector<HTMLLinkElement>("link[data-hcb-font-stylesheet]");
+    const source = preferences.fontStylesheetUrl.trim();
+    if (!source) {
+      previous?.remove();
+      return;
+    }
+    try {
+      const url = new URL(source);
+      if (url.protocol !== "https:") throw new Error("Only HTTPS font stylesheets are allowed");
+      if (previous?.href === url.href) return;
+      previous?.remove();
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = url.href;
+      link.dataset.hcbFontStylesheet = "true";
+      document.head.append(link);
+    } catch {
+      previous?.remove();
+    }
   }, [workspace.preferences]);
+
+  useEffect(() => {
+    if (workspace.syncProgress.phase === "idle") return;
+    setSyncDialogOpen(true);
+    if (workspace.syncProgress.active) return;
+    const timeout = window.setTimeout(() => setSyncDialogOpen(false), workspace.syncProgress.phase === "error" ? 7_000 : 1_800);
+    return () => window.clearTimeout(timeout);
+  }, [workspace.syncProgress.active, workspace.syncProgress.phase]);
 
   useEffect(() => {
     const current = workspace.workspace;
@@ -191,6 +242,7 @@ export default function App(): React.JSX.Element {
         setView(action.view);
         return;
       case "sync":
+        setSyncDialogOpen(true);
         void workspace.sync().catch(() => undefined);
         return;
       case "refresh-tasks":
@@ -238,23 +290,27 @@ export default function App(): React.JSX.Element {
     return <Onboarding savedClientId={workspace.clientId} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} connect={workspace.connect} />;
   }
 
+  const navigation: ReadonlyArray<{ readonly view: View; readonly icon: IconName; readonly label: string; readonly shortcut: string }> = [
+    { view: "tasks", icon: "tasks", label: "Tasks", shortcut: workspace.preferences.keybindings.tasks },
+    { view: "calendar", icon: "calendar", label: "Calendar", shortcut: workspace.preferences.keybindings.calendar },
+    { view: "settings", icon: "settings", label: "Settings", shortcut: workspace.preferences.keybindings.settings },
+    { view: "health", icon: "health", label: "Health & logs", shortcut: workspace.preferences.keybindings.health }
+  ];
+
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Hot Cross Buns</p>
-          <h1>{workspace.workspace.identity.name ?? workspace.workspace.identity.email ?? "Google workspace"}</h1>
+      <aside className="app-sidebar-nav">
+        <div className="app-mark" aria-label="Hot Cross Buns">H</div>
+        <nav aria-label="Workspace">
+          {navigation.map((item) => <button key={item.view} className={view === item.view ? "icon-button active" : "icon-button"} type="button" title={`${item.label} (${formatBinding(item.shortcut)})`} aria-label={item.label} onClick={() => setView(item.view)}><Icon name={item.icon} /></button>)}
+        </nav>
+        <div className="sidebar-utilities">
+          <button ref={paletteButtonRef} className="icon-button" type="button" title={`Search and command (${formatBinding(workspace.preferences.keybindings.commandPalette)})`} aria-label="Search and command" onClick={() => setPaletteOpen(true)}><Icon name="search" /></button>
+          <button className="icon-button" type="button" title={`Synchronize (${formatBinding(workspace.preferences.keybindings.sync)})`} aria-label="Synchronize" disabled={workspace.busy} onClick={() => { setSyncDialogOpen(true); void workspace.sync().catch(() => undefined); }}><Icon name="sync" /></button>
+          <button className="icon-button" type="button" title={`Tutorial (${formatBinding(workspace.preferences.keybindings.tutorial)})`} aria-label="Open tutorial" onClick={() => setTutorialOpen(true)}><Icon name="help" /></button>
         </div>
-        <button ref={paletteButtonRef} className="command-palette-trigger" type="button" aria-keyshortcuts="Control+K Meta+K" onClick={() => setPaletteOpen(true)}>Search or command <kbd>⌘/Ctrl K</kbd></button>
-        <button type="button" disabled={workspace.busy} onClick={() => void workspace.sync().catch(() => undefined)}>
-          {workspace.busy ? "Working…" : "Sync"}
-        </button>
-      </header>
-      <nav className="primary-nav" aria-label="Workspace">
-        <button className={view === "tasks" ? "active" : ""} type="button" onClick={() => setView("tasks")}>Tasks</button>
-        <button className={view === "calendar" ? "active" : ""} type="button" onClick={() => setView("calendar")}>Calendar</button>
-        <button className={view === "settings" ? "active" : ""} type="button" onClick={() => setView("settings")}>Settings</button>
-      </nav>
+      </aside>
+      <div className="app-content">
       <p className="global-status" aria-live="polite">{workspace.status}</p>
       {updateReady && <section className="update-ready" role="status">A new version of Hot Cross Buns is ready. <button type="button" onClick={() => void updateServiceWorker.current?.().then(() => setUpdateReady(false))}>Reload now</button></section>}
       {deepLinkMessage && <p className="error" role="status">{deepLinkMessage}</p>}
@@ -348,11 +404,15 @@ export default function App(): React.JSX.Element {
           }}
         />
       )}
+      {view === "health" && <HealthPanel subject={workspace.workspace.identity.subject} connected={workspace.connected} status={workspace.status} syncProgress={workspace.syncProgress} openDiagnostics={() => setDiagnosticsOpen(true)} />}
       <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} taskMetadata={workspace.taskMetadata} savedSearches={workspace.savedSearches} saveSearch={workspace.saveSearch} deleteSearch={workspace.deleteSearch} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
       {quickCaptureOpen && <QuickCaptureDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} preferences={workspace.preferences.quickCapture} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} close={() => setQuickCaptureOpen(false)} />}
       {importOpen && <ImportDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} initialFile={importFile} close={() => { setImportOpen(false); setImportFile(undefined); }} />}
       {diagnosticsOpen && <DiagnosticsDialog subject={workspace.workspace.identity.subject} syncProgress={workspace.syncProgress} close={() => setDiagnosticsOpen(false)} />}
+      {syncDialogOpen && <SyncDialog progress={workspace.syncProgress} cancel={workspace.cancelSync} close={() => setSyncDialogOpen(false)} />}
+      {tutorialOpen && <TutorialDialog keybindings={workspace.preferences.keybindings} close={() => setTutorialOpen(false)} />}
       <ForegroundReminders subject={workspace.workspace.identity.subject} events={workspace.workspace.events} calendars={workspace.workspace.calendars} />
+      </div>
     </main>
   );
 }

@@ -141,7 +141,7 @@ function SortableTaskRow({
   selected,
   onSelect,
   onToggle,
-  onEdit
+  onOpen
 }: {
   readonly task: GoogleTask;
   readonly depth: number;
@@ -149,7 +149,7 @@ function SortableTaskRow({
   readonly selected: boolean;
   onSelect(): void;
   onToggle(): void;
-  onEdit(): void;
+  onOpen(): void;
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `task:${task.id}` });
   return (
@@ -166,7 +166,7 @@ function SortableTaskRow({
         type="checkbox"
         onChange={onToggle}
       />
-      <button className="task-content" type="button" onClick={onEdit}>
+      <button className="task-content" type="button" onClick={onOpen}>
         <strong>{task.title || "Untitled task"}</strong>
         {task.notes && <span>{task.notes}</span>}
         {task.due && <small>Due {new Date(task.due).toLocaleDateString()}</small>}
@@ -203,6 +203,7 @@ export function TaskPanel({
   const [newListTitle, setNewListTitle] = useState("");
   const [listTitle, setListTitle] = useState("");
   const [title, setTitle] = useState("");
+  const [viewingTask, setViewingTask] = useState<GoogleTask | undefined>();
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
   const [selectedTaskIds, setSelectedTaskIds] = useState<readonly string[]>([]);
   const [surface, setSurface] = useState<"tasks" | "notes">(notesProjectionMode === "notes-only" ? "notes" : "tasks");
@@ -244,7 +245,7 @@ export function TaskPanel({
     const task = tasks.find((candidate) => candidate.id === command.taskId);
     if (task) {
       setSelectedListId(task.listId);
-      setEditingTask(task);
+      setViewingTask(task);
     }
   }, [command, tasks]);
 
@@ -468,6 +469,33 @@ export function TaskPanel({
     }
   }
 
+  async function duplicateTask(): Promise<void> {
+    if (!viewingTask) return;
+    setError("");
+    try {
+      await createTask(viewingTask.listId, {
+        title: `${viewingTask.title || "Untitled task"} (copy)`,
+        notes: viewingTask.notes,
+        due: viewingTask.due,
+        parent: viewingTask.parent
+      });
+      setViewingTask(undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Task could not be duplicated");
+    }
+  }
+
+  async function deleteViewedTask(): Promise<void> {
+    if (!viewingTask || !window.confirm(`Delete “${viewingTask.title || "Untitled task"}”?`)) return;
+    setError("");
+    try {
+      await deleteTask(viewingTask);
+      setViewingTask(undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Task could not be deleted");
+    }
+  }
+
   async function scheduleEditingTask(container: HTMLElement): Promise<void> {
     if (!editingTask || !scheduleTask) return;
     const calendarId = (container.querySelector("select[name='scheduleCalendar']") as HTMLSelectElement | null)?.value ?? "";
@@ -565,7 +593,7 @@ export function TaskPanel({
               <>
                 <div className="task-list-heading"><div><strong>Notes</strong><p className="field-help">Undated root Google Tasks. Changes remain ordinary Google Tasks.</p></div></div>
                 <ul className="task-list">
-                  {notes.map((task) => <SortableTaskRow key={task.id} task={task} depth={0} priority={metadataByTaskId.get(task.id)?.priority} selected={selectedTaskIds.includes(task.id)} onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])} onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))} onEdit={() => setEditingTask(task)} />)}
+                  {notes.map((task) => <SortableTaskRow key={task.id} task={task} depth={0} priority={metadataByTaskId.get(task.id)?.priority} selected={selectedTaskIds.includes(task.id)} onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])} onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))} onOpen={() => setViewingTask(task)} />)}
                 </ul>
                 {notes.length === 0 && <p className="empty-state">No undated root tasks qualify as notes.</p>}
               </>
@@ -598,7 +626,7 @@ export function TaskPanel({
                         selected={selectedTaskIds.includes(task.id)}
                         onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])}
                         onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}
-                        onEdit={() => setEditingTask(task)}
+                        onOpen={() => setViewingTask(task)}
                       />
                     ))}
                   </ul>
@@ -609,6 +637,21 @@ export function TaskPanel({
           </div>
         </div>
       </DndContext>
+      {viewingTask && !editingTask && (
+        <ModalDialog className="item-detail task-detail" labelledBy="task-detail-heading" onClose={() => setViewingTask(undefined)}>
+          <div className="panel-heading"><div><p className="eyebrow">Google Tasks</p><h2 id="task-detail-heading">{viewingTask.title || "Untitled task"}</h2></div><button type="button" onClick={() => setViewingTask(undefined)}>Close</button></div>
+          <dl className="detail-list">
+            <div><dt>List</dt><dd>{taskLists.find((list) => list.id === viewingTask.listId)?.title ?? "Unknown list"}</dd></div>
+            {viewingTask.due && <div><dt>Due</dt><dd>{new Date(viewingTask.due).toLocaleDateString()}</dd></div>}
+            {metadataByTaskId.get(viewingTask.id)?.priority && metadataByTaskId.get(viewingTask.id)?.priority !== "none" && <div><dt>Priority</dt><dd>{metadataByTaskId.get(viewingTask.id)?.priority}</dd></div>}
+            {viewingTask.notes && <div><dt>Notes</dt><dd className="detail-notes">{parseTaskRecurrenceNotes(viewingTask.notes).userNotes || viewingTask.notes}</dd></div>}
+            {parseTaskRecurrenceNotes(viewingTask.notes).marker && <div><dt>Repeats</dt><dd>{taskRecurrenceSummary(parseTaskRecurrenceNotes(viewingTask.notes).marker!)}</dd></div>}
+            {scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id) && <div><dt>Calendar block</dt><dd>Scheduled in {calendars.find((calendar) => calendar.id === scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id)?.calendarId)?.summary ?? "Google Calendar"}</dd></div>}
+          </dl>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="button-row"><button type="button" onClick={() => { setEditingTask(viewingTask); setError(""); }}>Edit task</button><button type="button" onClick={() => void toggleTask(viewingTask).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}>{viewingTask.status === "completed" ? "Mark incomplete" : "Complete task"}</button><button type="button" onClick={() => void duplicateTask()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/task/${encodeURIComponent(viewingTask.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => void deleteViewedTask()}>Delete</button></div>
+        </ModalDialog>
+      )}
       {editingTask && (
         <ModalDialog className="task-editor" labelledBy="edit-task-heading" initialFocusRef={taskTitleRef} onClose={() => setEditingTask(undefined)}>
           <form onSubmit={(event) => void finishEdit(event)}>

@@ -228,6 +228,18 @@ export interface CalendarEventInput {
 
 export type NotesProjectionMode = "disabled" | "notes-only" | "mirrored";
 export type ConflictPolicy = "prefer-google" | "prefer-local" | "ask";
+export type FontPreset = "system" | "sans" | "serif" | "mono" | "arial" | "georgia" | "verdana" | "trebuchet" | "courier" | "custom";
+
+export interface WorkspaceKeybindings {
+  readonly commandPalette: string;
+  readonly quickCapture: string;
+  readonly sync: string;
+  readonly tasks: string;
+  readonly calendar: string;
+  readonly settings: string;
+  readonly health: string;
+  readonly tutorial: string;
+}
 
 export interface WorkspacePreferences {
   readonly schemaVersion: 1;
@@ -236,7 +248,11 @@ export interface WorkspacePreferences {
   readonly appearance: "system" | "light" | "dark";
   readonly density: "comfortable" | "compact";
   readonly accentColor: string;
-  readonly fontFamily: "system" | "serif" | "monospace";
+  readonly fontFamily: FontPreset;
+  /** A browser-resolvable installed font family, used when fontFamily is custom. */
+  readonly customFontFamily: string;
+  /** Optional HTTPS stylesheet URL, such as a Google Fonts CSS URL. */
+  readonly fontStylesheetUrl: string;
   readonly fontScale: number;
   readonly taskListPaneWidth: number;
   readonly weekStartsOn: 0 | 1 | 6;
@@ -247,6 +263,7 @@ export interface WorkspacePreferences {
   readonly visibleCalendarIds: readonly string[];
   readonly undoRetentionDays: number;
   readonly undoMaximumEntries: number;
+  readonly keybindings: WorkspaceKeybindings;
   readonly quickCapture: QuickCapturePreferences;
 }
 
