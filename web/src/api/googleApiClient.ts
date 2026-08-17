@@ -35,6 +35,35 @@ export class GoogleAuthorizationRequiredError extends Error {
 
 type TokenProvider = () => string | undefined;
 
+export interface GoogleApiTransport {
+  request(path: string, init?: RequestInit): Promise<Response>;
+}
+
+export function browserGoogleTransport(accessToken: TokenProvider): GoogleApiTransport {
+  return {
+    async request(path, init = {}) {
+      const token = accessToken();
+      if (!token) throw new GoogleAuthorizationRequiredError();
+      const headers = new Headers(init.headers);
+      headers.set("Authorization", `Bearer ${token}`);
+      if (init.body) headers.set("Content-Type", "application/json");
+      return fetch(`${GOOGLE_API}${path}`, { ...init, headers });
+    }
+  };
+}
+
+/** Routes the same restricted Google API paths through an HCB managed backend. */
+export function managedGoogleTransport(backendOrigin: string): GoogleApiTransport {
+  const origin = new URL(backendOrigin).origin;
+  return {
+    async request(path, init = {}) {
+      const headers = new Headers(init.headers);
+      if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+      return fetch(`${origin}/api/google${path}`, { ...init, headers, credentials: "include" });
+    }
+  };
+}
+
 export interface GoogleSyncPage<T> {
   readonly items: readonly T[];
   readonly nextSyncToken?: string;
@@ -149,19 +178,14 @@ function createEventPayload(input: CalendarEventInput): Record<string, unknown> 
 }
 
 export class GoogleApiClient {
-  constructor(private readonly accessToken: TokenProvider) {}
+  private readonly transport: GoogleApiTransport;
+
+  constructor(source: TokenProvider | GoogleApiTransport) {
+    this.transport = typeof source === "function" ? browserGoogleTransport(source) : source;
+  }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const token = this.accessToken();
-    if (!token) {
-      throw new GoogleAuthorizationRequiredError();
-    }
-    const headers = new Headers(init.headers);
-    headers.set("Authorization", `Bearer ${token}`);
-    if (init.body) {
-      headers.set("Content-Type", "application/json");
-    }
-    const response = await fetch(`${GOOGLE_API}${path}`, { ...init, headers });
+    const response = await this.transport.request(path, init);
     if (response.status === 401) {
       throw new GoogleAuthorizationRequiredError();
     }

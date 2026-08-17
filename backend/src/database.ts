@@ -8,7 +8,7 @@ export class Database {
   }
 
   query<Row extends QueryResultRow>(text: string, values: readonly unknown[] = []): Promise<{ readonly rows: readonly Row[] }> {
-    return this.pool.query<Row>(text, values).then((result) => ({ rows: result.rows }));
+    return this.pool.query<Row>(text, [...values]).then((result) => ({ rows: result.rows }));
   }
 
   async transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {

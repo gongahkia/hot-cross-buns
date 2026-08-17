@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { GoogleApiClient, GoogleApiError, GoogleAuthorizationRequiredError } from "@/api/googleApiClient";
+import { browserGoogleTransport, GoogleApiClient, GoogleApiError, GoogleAuthorizationRequiredError, managedGoogleTransport } from "@/api/googleApiClient";
 import {
   fetchGoogleIdentity,
   requestGoogleAccessToken,
   revokeGoogleAccessToken,
   type BrowserAccessToken
 } from "@/auth/googleIdentity";
+import { beginManagedAuthorization, disconnectManagedConnection, managedConnectionProfile, readManagedSession } from "@/auth/managedConnection";
 import { TokenSession } from "@/auth/tokenSession";
 import { defaultWorkspacePreferences, localStore, type StorageEstimate } from "@/data/localStore";
 import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSuccessor } from "@/features/taskRecurrence";
@@ -15,10 +16,12 @@ import {
   INITIAL_GOOGLE_SCOPES,
   type CalendarInput,
   type CalendarEventInput,
+  type ConnectionProfile,
   type GoogleCalendar,
   type GoogleCalendarEvent,
   type GoogleDriveFile,
   type GoogleFreeBusyResponse,
+  type GoogleIdentity,
   type GoogleTask,
   type GoogleTaskList,
   type TaskInput,
@@ -87,6 +90,8 @@ const idleSyncProgress: SyncProgress = {
 
 export interface WorkspaceController {
   readonly clientId: string;
+  readonly connectionProfile: ConnectionProfile;
+  readonly managedConnectionAvailable: boolean;
   readonly ready: boolean;
   readonly busy: boolean;
   readonly status: string;
@@ -104,6 +109,8 @@ export interface WorkspaceController {
   readonly savedSearches: readonly SavedSearch[];
   saveClientId(clientId: string): Promise<void>;
   connect(): Promise<void>;
+  connectManaged(): Promise<void>;
+  useDirectConnection(): Promise<void>;
   sync(): Promise<void>;
   cancelSync(): void;
   refreshAllTasks(): Promise<void>;
@@ -302,6 +309,8 @@ function storagePressured(estimate: StorageEstimate): boolean {
 
 export function useWorkspace(): WorkspaceController {
   const [clientId, setClientId] = useState("");
+  const [connectionProfile, setConnectionProfile] = useState<ConnectionProfile>({ mode: "direct" });
+  const [managedSession, setManagedSession] = useState<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>();
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | undefined>(emptyWorkspace);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -317,6 +326,18 @@ export function useWorkspace(): WorkspaceController {
   const [savedSearches, setSavedSearches] = useState<readonly SavedSearch[]>([]);
   const workspaceRef = useRef<WorkspaceSnapshot | undefined>(workspace);
   const syncAbortRef = useRef<AbortController | undefined>(undefined);
+  const connectionProfileRef = useRef<ConnectionProfile>(connectionProfile);
+  const managedSessionRef = useRef<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>();
+
+  const rememberConnectionProfile = useCallback((profile: ConnectionProfile) => {
+    connectionProfileRef.current = profile;
+    setConnectionProfile(profile);
+  }, []);
+
+  const rememberManagedSession = useCallback((next: (GoogleIdentity & { readonly scopes: readonly string[] }) | undefined) => {
+    managedSessionRef.current = next;
+    setManagedSession(next);
+  }, []);
 
   const replaceWorkspace = useCallback((next: WorkspaceSnapshot | undefined) => {
     workspaceRef.current = next;
@@ -344,16 +365,29 @@ export function useWorkspace(): WorkspaceController {
   useEffect(() => {
     void (async () => {
       try {
-        const [storedClientId, activeSubject] = await Promise.all([localStore.getClientId(), localStore.getActiveSubject()]);
+        const [storedClientId, storedProfile, activeSubject] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(), localStore.getActiveSubject()]);
         if (storedClientId) {
           setClientId(storedClientId);
         }
-        if (activeSubject) {
-          const snapshot = await localStore.readSnapshot(activeSubject);
+        rememberConnectionProfile(storedProfile);
+        const managed = storedProfile.mode === "managed" && storedProfile.backendOrigin
+          ? await readManagedSession(storedProfile.backendOrigin).catch(() => undefined)
+          : undefined;
+        rememberManagedSession(managed);
+        const subject = managed?.subject ?? activeSubject;
+        if (subject) {
+          const snapshot = await localStore.readSnapshot(subject);
           if (snapshot) {
             replaceWorkspace(snapshot);
-            await loadSubjectState(activeSubject);
-            setStatus("Showing browser-local data. Select Sync to reconnect Google and update it.");
+            await loadSubjectState(subject);
+            setStatus(managed ? "Connected through the managed Hot Cross Buns service" : "Showing browser-local data. Select Sync to reconnect Google and update it.");
+          } else if (managed) {
+            const initial: WorkspaceSnapshot = { identity: managed, taskLists: [], tasks: [], calendars: [], events: [], updatedAt: new Date().toISOString() };
+            await localStore.setActiveSubject(managed.subject);
+            await localStore.saveSnapshot(initial);
+            replaceWorkspace(initial);
+            await loadSubjectState(managed.subject);
+            setStatus("Connected through the managed Hot Cross Buns service. Syncing Google data is ready.");
           }
         }
       } catch (error) {
@@ -362,7 +396,7 @@ export function useWorkspace(): WorkspaceController {
         setReady(true);
       }
     })();
-  }, [loadSubjectState, replaceWorkspace]);
+  }, [loadSubjectState, rememberConnectionProfile, rememberManagedSession, replaceWorkspace]);
 
   useEffect(() => {
     const subject = workspace?.identity.subject;
@@ -379,7 +413,18 @@ export function useWorkspace(): WorkspaceController {
     return () => { active = false; };
   }, [workspace]);
 
-  const api = useMemo(() => new GoogleApiClient(() => session.accessToken()), []);
+  const api = useMemo(() => new GoogleApiClient({
+    request(path, init) {
+      const profile = connectionProfileRef.current;
+      return profile.mode === "managed" && profile.backendOrigin
+        ? managedGoogleTransport(profile.backendOrigin).request(path, init)
+        : browserGoogleTransport(() => session.accessToken()).request(path, init);
+    }
+  }), []);
+
+  const hasRemoteAccess = useCallback(() => connectionProfileRef.current.mode === "managed"
+    ? Boolean(managedSessionRef.current)
+    : Boolean(session.accessToken()), []);
 
   const saveClientId = useCallback(async (value: string) => {
     const normalized = value.trim();

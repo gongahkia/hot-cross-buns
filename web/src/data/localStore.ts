@@ -1,6 +1,7 @@
 import type {
   GoogleCalendar,
   GoogleCalendarEvent,
+  ConnectionProfile,
   GoogleDriveFile,
   GoogleIdentity,
   GoogleTask,
@@ -227,6 +228,22 @@ export class LocalStore {
 
   async setClientId(clientId: string): Promise<void> {
     await this.put(stores.settings, { key: "googleClientId", value: clientId.trim() } satisfies StoredSetting);
+  }
+
+  async getConnectionProfile(): Promise<ConnectionProfile> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.settings, "readonly");
+    const stored = await requestResult(transaction.objectStore(stores.settings).get("connectionProfile"));
+    await transactionDone(transaction);
+    const value = (stored as StoredSetting | undefined)?.value;
+    if (typeof value === "object" && value !== null && (value as ConnectionProfile).mode === "managed" && typeof (value as ConnectionProfile).backendOrigin === "string") {
+      return { mode: "managed", backendOrigin: (value as ConnectionProfile).backendOrigin };
+    }
+    return { mode: "direct" };
+  }
+
+  async setConnectionProfile(profile: ConnectionProfile): Promise<void> {
+    await this.put(stores.settings, { key: "connectionProfile", value: profile } satisfies StoredSetting);
   }
 
   async getActiveSubject(): Promise<string | undefined> {

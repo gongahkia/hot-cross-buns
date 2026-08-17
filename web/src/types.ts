@@ -11,6 +11,14 @@ export const INITIAL_GOOGLE_SCOPES = [
   GOOGLE_SCOPES.calendar
 ] as const;
 
+export type ConnectionMode = "direct" | "managed";
+
+/** Non-secret local routing preference; managed credentials remain server-side. */
+export interface ConnectionProfile {
+  readonly mode: ConnectionMode;
+  readonly backendOrigin?: string;
+}
+
 export interface GoogleIdentity {
   readonly subject: string;
   readonly email?: string;
