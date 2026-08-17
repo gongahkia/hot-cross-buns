@@ -62,6 +62,15 @@ describe("CalendarPanel", () => {
     }));
   });
 
+  it("makes all-day events use the complete day column in day view", async () => {
+    const user = userEvent.setup();
+    render(panel());
+
+    await user.click(screen.getByRole("button", { name: "Day" }));
+
+    expect(screen.getByText("All day").parentElement?.getAttribute("style")).toContain("repeat(1, minmax(7rem, 1fr))");
+  });
+
   it("explains Calendar conflicts in plain language", async () => {
     const user = userEvent.setup();
     const resolveEventConflict = vi.fn().mockResolvedValue(undefined);

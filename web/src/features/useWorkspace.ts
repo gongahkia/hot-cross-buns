@@ -353,7 +353,7 @@ export function useWorkspace(): WorkspaceController {
           if (snapshot) {
             replaceWorkspace(snapshot);
             await loadSubjectState(activeSubject);
-            setStatus("Showing browser-local data. Connect Google to sync.");
+            setStatus("Showing browser-local data. Select Sync to reconnect Google and update it.");
           }
         }
       } catch (error) {
@@ -997,12 +997,12 @@ export function useWorkspace(): WorkspaceController {
     }
   }, [api, updateCachedWorkspace]);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (fullTaskRefresh = false) => {
     if (!clientId) {
       throw new Error("Save your Google Web OAuth client ID first");
     }
     setBusy(true);
-    setStatus("Waiting for Google authorization");
+    setStatus(workspaceRef.current ? "Reconnecting Google" : "Waiting for Google authorization");
     try {
       const token = await requestGoogleAccessToken(clientId, INITIAL_GOOGLE_SCOPES);
       session.set(token);
@@ -1021,7 +1021,7 @@ export function useWorkspace(): WorkspaceController {
       await loadSubjectState(identity.subject);
       const controller = new AbortController();
       syncAbortRef.current = controller;
-      await synchronize(controller.signal);
+      await synchronize(controller.signal, fullTaskRefresh);
     } catch (error) {
       setStatus(isAbortError(error) ? "Sync paused. Choose Sync now after reconnecting Google to resume Calendar history." : asErrorMessage(error));
       throw error;
@@ -1034,6 +1034,10 @@ export function useWorkspace(): WorkspaceController {
   const sync = useCallback(async () => {
     if (syncAbortRef.current) {
       throw new Error("A synchronization is already running");
+    }
+    if (!session.accessToken()) {
+      await connect();
+      return;
     }
     const controller = new AbortController();
     syncAbortRef.current = controller;
@@ -1060,7 +1064,7 @@ export function useWorkspace(): WorkspaceController {
       }
       setBusy(false);
     }
-  }, [synchronize]);
+  }, [connect, synchronize]);
 
   const cancelSync = useCallback(() => {
     syncAbortRef.current?.abort();
@@ -1069,6 +1073,10 @@ export function useWorkspace(): WorkspaceController {
   const refreshAllTasks = useCallback(async () => {
     if (syncAbortRef.current) {
       throw new Error("A synchronization is already running");
+    }
+    if (!session.accessToken()) {
+      await connect(true);
+      return;
     }
     const controller = new AbortController();
     syncAbortRef.current = controller;
@@ -1090,7 +1098,7 @@ export function useWorkspace(): WorkspaceController {
       }
       setBusy(false);
     }
-  }, [synchronize]);
+  }, [connect, synchronize]);
 
   const authorizeDrive = useCallback(async () => {
     if (!clientId) {

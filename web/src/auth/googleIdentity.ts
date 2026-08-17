@@ -77,7 +77,7 @@ export async function loadGoogleIdentityServices(): Promise<void> {
 export async function requestGoogleAccessToken(
   clientId: string,
   scopes: readonly string[],
-  prompt: "" | "consent" | "select_account" = "consent"
+  prompt: "" | "consent" | "select_account" = ""
 ): Promise<BrowserAccessToken> {
   const normalizedClientId = clientId.trim();
   if (normalizedClientId.length < 10 || normalizedClientId.length > 500 || normalizedClientId.includes("\0")) {

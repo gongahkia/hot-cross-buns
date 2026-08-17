@@ -110,9 +110,9 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
       </details>}
       {syncProgress.storage?.usage !== undefined && syncProgress.storage.quota !== undefined && <p className="field-help">Browser storage estimate: {(syncProgress.storage.usage / (1024 * 1024)).toFixed(1)} MiB used of {(syncProgress.storage.quota / (1024 * 1024)).toFixed(1)} MiB available.</p>}
       {matches("connect authorization sync refresh disconnect import diagnostics notifications browser local data") && <div className="button-row">
-        <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Reconnect Google" : "Connect Google"}</button>
-        <button type="button" disabled={busy || !connected} onClick={() => run(sync)}>Sync now</button>
-        <button type="button" disabled={busy || !connected} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
+        <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Renew Google access" : "Connect Google"}</button>
+        <button type="button" disabled={busy || !clientId} onClick={() => run(sync)}>{connected ? "Sync now" : "Sync and reconnect"}</button>
+        <button type="button" disabled={busy || !clientId} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
         {syncProgress.cancellable && <button type="button" onClick={cancelSync}>Cancel sync</button>}
         <button type="button" disabled={busy || !connected} onClick={() => run(disconnect)}>Disconnect Google</button>
         <button type="button" disabled={busy} onClick={openImport}>Import tasks or events</button>

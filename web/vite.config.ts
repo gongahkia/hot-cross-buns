@@ -20,8 +20,8 @@ export default defineConfig({
         name: "Hot Cross Buns",
         short_name: "Hot Cross Buns",
         description: "A browser-local Google Tasks and Calendar workspace.",
-        theme_color: "#f5efe4",
-        background_color: "#f5efe4",
+        theme_color: "#ffffff",
+        background_color: "#ffffff",
         display: "standalone",
         start_url: "/",
         file_handlers: [{

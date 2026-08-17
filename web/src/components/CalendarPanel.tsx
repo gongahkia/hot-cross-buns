@@ -442,7 +442,7 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
   const allDay = events.filter((event) => event.start.date);
   return (
     <div className="time-grid-wrap">
-      <div className="all-day-lane"><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
+      <div className="all-day-lane" style={{ gridTemplateColumns: `3.75rem repeat(${days.length}, minmax(7rem, 1fr))` }}><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
       <div className="time-grid" role="grid" aria-label={days.length === 1 ? "Day time grid" : "Week time grid"} style={{ gridTemplateColumns: `4.25rem repeat(${days.length}, minmax(8rem, 1fr))` }}>
         <div role="columnheader" />
         {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>)}

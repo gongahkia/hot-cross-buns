@@ -29,7 +29,7 @@ export function HealthPanel({ subject, connected, status, syncProgress, openDiag
     <div className="panel-heading"><div><p className="eyebrow">Local service status</p><h2 id="health-heading">Health & logs</h2></div><button type="button" onClick={openDiagnostics}>Export diagnostic log</button></div>
     <p className="field-help">This page reports browser-local capabilities and synchronization state. It never displays OAuth tokens or Google content.</p>
     <ul className="health-list">
-      <li><div><strong>Google authorization</strong><span>{connected ? "Active for this browser session" : "Reconnect Google to sync"}</span></div>{state(connected)}</li>
+      <li><div><strong>Google authorization</strong><span>{connected ? "Active for this browser session" : "Select Sync to renew Google access"}</span></div>{state(connected)}</li>
       <li><div><strong>Synchronization</strong><span>{syncProgress.active ? syncProgress.detail : status}</span></div>{state(connected && syncProgress.phase !== "error" && syncProgress.phase !== "paused")}</li>
       <li><div><strong>Browser-local database</strong><span>{capabilities?.indexedDb ? `${snapshot?.cache.tasks ?? 0} cached tasks · ${snapshot?.cache.visibleEvents ?? 0} cached events` : "IndexedDB is unavailable"}</span></div>{state(Boolean(capabilities?.indexedDb))}</li>
       <li><div><strong>Offline app shell</strong><span>{capabilities?.serviceWorker ? "Service worker available" : "This browser cannot install the offline shell"}</span></div>{state(Boolean(capabilities?.serviceWorker))}</li>
