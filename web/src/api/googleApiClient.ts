@@ -524,7 +524,7 @@ export class GoogleApiClient {
       q: `trashed = false and name contains '${escapeDriveQuery(trimmed)}'`,
       orderBy: "modifiedTime desc",
       pageSize: "25",
-      fields: "files(id,name,mimeType,webViewLink,iconLink)"
+      fields: "files(id,name,mimeType,webContentLink,webViewLink,iconLink)"
     });
     const response = await this.request<{ files?: GoogleDriveFile[] }>(`/drive/v3/files?${parameters.toString()}`);
     return response.files ?? [];

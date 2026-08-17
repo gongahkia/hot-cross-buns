@@ -18,9 +18,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { ModalDialog } from "@/components/ModalDialog";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { RichDescription } from "@/components/RichDescription";
 import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSummary, type TaskRecurrenceFrequency } from "@/features/taskRecurrence";
-import type { GoogleCalendar, GoogleTask, GoogleTaskList, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
+import type { GoogleCalendar, GoogleDriveFile, GoogleTask, GoogleTaskList, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
 import type { BulkOperationResult, TaskBulkOperation } from "@/features/useWorkspace";
 
 export interface TaskPanelCommand {
@@ -37,6 +38,7 @@ interface TaskPanelProps {
   readonly scheduledTaskBlocks?: readonly ScheduledTaskBlock[];
   readonly panel?: "tasks" | "notes";
   readonly displayTimeZone?: string;
+  readonly driveAuthorized?: boolean;
   readonly search: string;
   readonly command?: TaskPanelCommand;
   createTaskList(title: string): Promise<void>;
@@ -51,6 +53,8 @@ interface TaskPanelProps {
   scheduleTask?(task: GoogleTask, calendarId: string, start: string, end: string): Promise<void>;
   unscheduleTask?(taskId: string): Promise<void>;
   bulkTasks?(taskIds: readonly string[], operation: TaskBulkOperation): Promise<BulkOperationResult>;
+  authorizeDrive?(): Promise<void>;
+  searchDrive?(query: string): Promise<GoogleDriveFile[]>;
 }
 
 interface FlatTask {
@@ -191,6 +195,7 @@ export function TaskPanel({
   scheduledTaskBlocks = [],
   panel = "tasks",
   displayTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  driveAuthorized = false,
   search,
   command,
   createTaskList,
@@ -204,7 +209,9 @@ export function TaskPanel({
   saveTaskMetadata,
   scheduleTask,
   unscheduleTask,
-  bulkTasks
+  bulkTasks,
+  authorizeDrive,
+  searchDrive
 }: TaskPanelProps): React.JSX.Element {
   const [selectedListId, setSelectedListId] = useState("");
   const [newListTitle, setNewListTitle] = useState("");
@@ -212,6 +219,7 @@ export function TaskPanel({
   const [title, setTitle] = useState("");
   const [viewingTask, setViewingTask] = useState<GoogleTask | undefined>();
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
+  const [notesDraft, setNotesDraft] = useState("");
   const [selectedTaskIds, setSelectedTaskIds] = useState<readonly string[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkOperationResult | undefined>();
@@ -286,6 +294,10 @@ export function TaskPanel({
   useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => tasks.some((task) => task.id === id && !task.deleted)));
   }, [tasks]);
+
+  useEffect(() => {
+    if (editingTask) setNotesDraft(parseTaskRecurrenceNotes(editingTask.notes).userNotes ?? editingTask.notes ?? "");
+  }, [editingTask]);
 
   async function submitNewList(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -408,7 +420,8 @@ export function TaskPanel({
     }
     const form = new FormData(event.currentTarget);
     const newTitle = String(form.get("title") ?? "").trim();
-    const newNotes = String(form.get("notes") ?? "");
+    const newNotes = notesDraft;
+    form.set("notes", newNotes);
     const newDue = String(form.get("due") ?? "");
     const priority = String(form.get("priority") ?? "none") as TaskMetadata["priority"];
     const dueTimeZone = String(form.get("dueTimeZone") ?? "");
@@ -663,7 +676,7 @@ export function TaskPanel({
             <datalist id="time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
             {editingRecurrence?.state === "malformed" && <p className="error" role="alert">{editingRecurrence.diagnostic}. Saving without recurrence will preserve this text as notes.</p>}
             {editingRecurrence?.state === "unsupported-version" && <p className="error" role="alert">{editingRecurrence.diagnostic}. This browser will not silently modify it.</p>}
-            <label>Notes<textarea name="notes" defaultValue={editingRecurrence?.userNotes ?? editingTask.notes ?? ""} rows={4} /></label>
+            <MarkdownEditor label="Notes" value={notesDraft} onChange={setNotesDraft} drive={authorizeDrive && searchDrive ? { authorized: driveAuthorized, authorize: authorizeDrive, search: searchDrive } : undefined} />
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
             <label>Due date time zone<input name="dueTimeZone" list="time-zones" defaultValue={editingMetadata?.dueTimeZone ?? displayTimeZone} /></label>
             <label>Priority<select name="priority" defaultValue={editingMetadata?.priority ?? "none"}><option value="none">No local priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>

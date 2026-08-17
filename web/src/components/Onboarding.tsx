@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { LoadingState } from "@/components/LoadingState";
 import type { ConnectionProfile } from "@/types";
 
 interface OnboardingProps {
@@ -78,6 +79,7 @@ export function Onboarding({ savedClientId, displayTimeZone, connectionProfile, 
         <datalist id="onboarding-time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
         <p className="field-help">Calendar times, agenda labels, and new event defaults use this time zone. You can change it later in Settings.</p>
         {error && <p className="error" role="alert">{error}</p>}
+        {busy && <LoadingState label={mode === "managed" ? "Connecting Google" : "Requesting Google access"} variant="Orbit" className="onboarding-loader" />}
         <p className="status" aria-live="polite">{status}</p>
         <button className="primary-button" type="button" disabled={busy || (mode === "direct" && !clientId.trim())} onClick={() => void (mode === "managed" ? connectThroughManagedService() : saveAndConnect())}>
           {busy ? "Connecting…" : mode === "managed" ? "Connect through managed service" : "Save and connect Google"}

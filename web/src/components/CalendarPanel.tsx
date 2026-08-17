@@ -1,6 +1,7 @@
 import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { ModalDialog } from "@/components/ModalDialog";
 import { RichDescription } from "@/components/RichDescription";
 import {
@@ -872,7 +873,7 @@ function EventEditor({
         <label>Title<input ref={titleRef} value={title} onChange={(eventInput) => setTitle(eventInput.target.value)} required /></label>
         <label>Calendar<select value={calendarId} disabled={Boolean(editingEvent)} onChange={(eventInput) => setCalendarId(eventInput.target.value)}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label>
         <label>Location<input value={location} onChange={(eventInput) => setLocation(eventInput.target.value)} placeholder="Optional location" /></label>
-        <label>Description<textarea value={description} onChange={(eventInput) => setDescription(eventInput.target.value)} rows={4} /></label>
+        <MarkdownEditor label="Description" value={description} onChange={setDescription} drive={{ authorized: driveAuthorized, authorize: authorizeDrive, search: searchDrive }} />
         <label className="check-label"><input type="checkbox" checked={allDay} onChange={(eventInput) => toggleAllDay(eventInput.target.checked)} /> All-day event</label>
         <div className="event-time-fields">
           <label>Starts<input type={allDay ? "date" : "datetime-local"} value={start} onChange={(eventInput) => setStart(eventInput.target.value)} required /></label>

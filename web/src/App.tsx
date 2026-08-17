@@ -9,6 +9,7 @@ import { DiagnosticsDialog } from "@/components/DiagnosticsDialog";
 import { ForegroundReminders, pendingForegroundReminderCount, requestForegroundNotificationPermission } from "@/components/ForegroundReminders";
 import { HealthPanel } from "@/components/HealthPanel";
 import { Icon, type IconName } from "@/components/Icons";
+import { LoadingState } from "@/components/LoadingState";
 import { QuickCaptureDialog } from "@/components/QuickCaptureDialog";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SyncDialog } from "@/components/SyncDialog";
@@ -288,7 +289,7 @@ export default function App(): React.JSX.Element {
   }
 
   if (!workspace.ready) {
-    return <main className="loading-screen">Loading browser-local workspace…</main>;
+    return <main className="loading-screen"><LoadingState label="Loading browser-local workspace" variant="Orbit" /></main>;
   }
   if (!workspace.workspace) {
     return <Onboarding savedClientId={workspace.clientId} displayTimeZone={workspace.onboardingDisplayTimeZone} connectionProfile={workspace.connectionProfile} managedConnectionAvailable={workspace.managedConnectionAvailable} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} saveDisplayTimeZone={workspace.saveOnboardingDisplayTimeZone} connect={workspace.connect} connectManaged={workspace.connectManaged} useDirectConnection={workspace.useDirectConnection} />;
@@ -334,6 +335,7 @@ export default function App(): React.JSX.Element {
           scheduledTaskBlocks={workspace.scheduledTaskBlocks}
           panel="tasks"
           displayTimeZone={workspace.preferences.displayTimeZone}
+          driveAuthorized={workspace.driveAuthorized}
           search=""
           command={taskCommand}
           createTaskList={workspace.createTaskList}
@@ -348,6 +350,8 @@ export default function App(): React.JSX.Element {
           scheduleTask={workspace.scheduleTask}
           unscheduleTask={workspace.unscheduleTask}
           bulkTasks={workspace.bulkTasks}
+          authorizeDrive={workspace.authorizeDrive}
+          searchDrive={workspace.searchDrive}
         />
       )}
       {view === "notes" && (
@@ -359,6 +363,7 @@ export default function App(): React.JSX.Element {
           scheduledTaskBlocks={workspace.scheduledTaskBlocks}
           panel="notes"
           displayTimeZone={workspace.preferences.displayTimeZone}
+          driveAuthorized={workspace.driveAuthorized}
           search=""
           createTaskList={workspace.createTaskList}
           updateTaskList={workspace.updateTaskList}
@@ -372,6 +377,8 @@ export default function App(): React.JSX.Element {
           scheduleTask={workspace.scheduleTask}
           unscheduleTask={workspace.unscheduleTask}
           bulkTasks={workspace.bulkTasks}
+          authorizeDrive={workspace.authorizeDrive}
+          searchDrive={workspace.searchDrive}
         />
       )}
       {view === "calendar" && (

@@ -206,6 +206,8 @@ export interface GoogleDriveFile {
   readonly id: string;
   readonly name: string;
   readonly mimeType?: string;
+  /** Direct file content URL supplied by Drive for downloadable binary files. */
+  readonly webContentLink?: string;
   readonly webViewLink?: string;
   readonly iconLink?: string;
 }
