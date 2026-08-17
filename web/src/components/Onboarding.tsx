@@ -4,18 +4,21 @@ import type { ConnectionProfile } from "@/types";
 
 interface OnboardingProps {
   readonly savedClientId: string;
+  readonly displayTimeZone: string;
   readonly connectionProfile: ConnectionProfile;
   readonly managedConnectionAvailable: boolean;
   readonly busy: boolean;
   readonly status: string;
   saveClientId(clientId: string): Promise<void>;
+  saveDisplayTimeZone(timeZone: string): Promise<void>;
   connect(): Promise<void>;
   connectManaged(): Promise<void>;
   useDirectConnection(): Promise<void>;
 }
 
-export function Onboarding({ savedClientId, connectionProfile, managedConnectionAvailable, busy, status, saveClientId, connect, connectManaged, useDirectConnection }: OnboardingProps): React.JSX.Element {
+export function Onboarding({ savedClientId, displayTimeZone, connectionProfile, managedConnectionAvailable, busy, status, saveClientId, saveDisplayTimeZone, connect, connectManaged, useDirectConnection }: OnboardingProps): React.JSX.Element {
   const [clientId, setClientId] = useState(savedClientId);
+  const [timeZone, setTimeZone] = useState(displayTimeZone);
   const [mode, setMode] = useState<ConnectionProfile["mode"]>(connectionProfile.mode);
   const [error, setError] = useState("");
   const origin = window.location.origin;
@@ -23,6 +26,7 @@ export function Onboarding({ savedClientId, connectionProfile, managedConnection
   async function saveAndConnect(): Promise<void> {
     setError("");
     try {
+      await saveDisplayTimeZone(timeZone);
       await useDirectConnection();
       await saveClientId(clientId);
       await connect();
@@ -34,6 +38,7 @@ export function Onboarding({ savedClientId, connectionProfile, managedConnection
   async function connectThroughManagedService(): Promise<void> {
     setError("");
     try {
+      await saveDisplayTimeZone(timeZone);
       await connectManaged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Managed Google setup failed");
@@ -68,6 +73,10 @@ export function Onboarding({ savedClientId, connectionProfile, managedConnection
           <input id="google-client-id" autoComplete="off" spellCheck={false} value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="1234567890-example.apps.googleusercontent.com" />
           <p className="field-help">Do not paste a client secret. A static web app cannot protect one, and this app does not collect it.</p>
         </> : <p className="field-help">The managed service never sends the Google client secret or refresh token to the browser. You will be redirected to Google once to approve access.</p>}
+        <label className="field-label" htmlFor="onboarding-time-zone">Default time zone</label>
+        <div className="time-zone-choice"><input id="onboarding-time-zone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} list="onboarding-time-zones" /><button type="button" onClick={() => setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}>Use device time zone</button></div>
+        <datalist id="onboarding-time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
+        <p className="field-help">Calendar times, agenda labels, and new event defaults use this time zone. You can change it later in Settings.</p>
         {error && <p className="error" role="alert">{error}</p>}
         <p className="status" aria-live="polite">{status}</p>
         <button className="primary-button" type="button" disabled={busy || (mode === "direct" && !clientId.trim())} onClick={() => void (mode === "managed" ? connectThroughManagedService() : saveAndConnect())}>

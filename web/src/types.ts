@@ -243,6 +243,7 @@ export interface WorkspaceKeybindings {
   readonly quickCapture: string;
   readonly sync: string;
   readonly tasks: string;
+  readonly notes: string;
   readonly calendar: string;
   readonly settings: string;
   readonly health: string;

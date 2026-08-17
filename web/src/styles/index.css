@@ -66,6 +66,7 @@ textarea:focus-visible { outline: 3px solid #dc9a48; outline-offset: 2px; }
 .connection-mode-option input { flex: 0 0 auto; margin-top: 0.22rem; width: auto; }
 .connection-mode-option span { display: grid; gap: 0.2rem; }
 .connection-mode-option small { line-height: 1.45; }
+.time-zone-choice { display: grid; gap: 0.55rem; grid-template-columns: minmax(0, 1fr) auto; }
 .setup-steps { display: grid; gap: 0.65rem; line-height: 1.45; padding-left: 1.3rem; }
 code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padding: 0.12rem 0.28rem; }
 .field-label, .compact-field, .event-form > label { display: grid; gap: 0.38rem; font-weight: 700; }
@@ -119,6 +120,7 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .danger-button:hover:not(:disabled) { background: #a52f2b; color: #fff; }
 
 .task-workspace { display: grid; gap: 1.25rem; grid-template-columns: minmax(12rem, var(--hcb-task-pane-width)) minmax(0, 1fr); }
+.task-notes-workspace { display: grid; max-width: 58rem; }
 .task-sidebar { border-inline-end: 1px solid #eadfd3; padding-inline-end: 1rem; }
 .task-list-tabs { display: grid; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
 .task-list-target { border-radius: 0.6rem; }
@@ -298,6 +300,15 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .detail-list dt { color: var(--hcb-muted); font-size: 0.8rem; font-weight: 700; }
 .detail-list dd { margin: 0; overflow-wrap: anywhere; }
 .detail-notes { line-height: 1.55; white-space: pre-wrap; }
+.rich-description { color: inherit; line-height: 1.55; overflow-wrap: anywhere; white-space: normal; }
+.rich-description > :first-child { margin-top: 0; }
+.rich-description > :last-child { margin-bottom: 0; }
+.rich-description p { margin: 0.45rem 0; }
+.rich-description ul, .rich-description ol { margin: 0.45rem 0; padding-inline-start: 1.35rem; }
+.rich-description blockquote { border-inline-start: 3px solid var(--hcb-border); color: var(--hcb-muted); margin: 0.55rem 0; padding-inline-start: 0.75rem; }
+.rich-description pre { background: var(--hcb-subtle); border: 1px solid var(--hcb-border); border-radius: 0.4rem; overflow-x: auto; padding: 0.6rem; white-space: pre-wrap; }
+.rich-description a { color: #2383e2; text-decoration: underline; }
+.agenda-description { color: var(--hcb-muted); font-size: 0.9rem; margin-top: 0.35rem; }
 .calendar-panel { min-height: 0; }
 .calendar-event { background: var(--hcb-subtle); border-color: color-mix(in srgb, currentColor 18%, transparent); border-inline-start-width: 0.28rem; border-radius: 0.35rem; min-width: 0; overflow: hidden; }
 .calendar-event:hover { background: inherit; color: inherit; filter: brightness(0.91); }

@@ -71,7 +71,6 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
       {matches("planner notes conflict week time timezone workday undo quick capture aliases task list calendar") && <details className="settings-group" open>
         <summary>Planner preferences</summary>
         <div className="settings-fields">
-          <label>Notes projection<select value={preferences.notesProjectionMode} onChange={(event) => save({ notesProjectionMode: event.target.value as WorkspacePreferences["notesProjectionMode"] })}><option value="disabled">Disabled</option><option value="notes-only">Notes only</option><option value="mirrored">Tasks and Notes</option></select></label>
           <label>Conflict policy<select value={preferences.conflictPolicy} onChange={(event) => save({ conflictPolicy: event.target.value as WorkspacePreferences["conflictPolicy"] })}><option value="prefer-google">Prefer Google</option><option value="prefer-local">Prefer Local</option><option value="ask">Ask every time</option></select></label>
           <label>Week starts on<select value={preferences.weekStartsOn} onChange={(event) => save({ weekStartsOn: Number(event.target.value) as 0 | 1 | 6 })}><option value="0">Sunday</option><option value="1">Monday</option><option value="6">Saturday</option></select></label>
           <label>Time format<select value={preferences.hourCycle} onChange={(event) => save({ hourCycle: event.target.value as WorkspacePreferences["hourCycle"] })}><option value="h12">12-hour</option><option value="h23">24-hour</option></select></label>

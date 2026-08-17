@@ -1,9 +1,10 @@
 import type { SVGProps } from "react";
 
-export type IconName = "tasks" | "calendar" | "settings" | "health" | "search" | "sync" | "help" | "close" | "edit" | "trash" | "duplicate" | "external";
+export type IconName = "tasks" | "notes" | "calendar" | "settings" | "health" | "search" | "sync" | "help" | "close" | "edit" | "trash" | "duplicate" | "external";
 
 const paths: Readonly<Record<IconName, React.JSX.Element>> = {
   tasks: <><path d="M5 6h14M5 12h14M5 18h14" /><path d="m2.5 6 1 1 2-2M2.5 12l1 1 2-2M2.5 18l1 1 2-2" /></>,
+  notes: <><path d="M6 3h9l3 3v15H6z" /><path d="M15 3v4h4M9 11h6M9 15h6" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.1 2.1-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55v.09h-3v-.09A1.7 1.7 0 0 0 10.7 18.6a1.7 1.7 0 0 0-1.88.34l-.06.06-2.1-2.1.06-.06A1.7 1.7 0 0 0 7.06 15 1.7 1.7 0 0 0 5.5 14H5.4v-3h.1A1.7 1.7 0 0 0 7.06 10a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.1-2.1.06.06A1.7 1.7 0 0 0 10.7 6.36 1.7 1.7 0 0 0 11.73 4.8v-.09h3v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.1 2.1-.06.06A1.7 1.7 0 0 0 19.4 10 1.7 1.7 0 0 0 21 11h.1v3H21A1.7 1.7 0 0 0 19.4 15Z" /></>,
   health: <><path d="M3 12h4l2-6 4 12 2-6h6" /></>,

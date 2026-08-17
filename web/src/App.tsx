@@ -19,7 +19,7 @@ import { localStore } from "@/data/localStore";
 import { formatBinding, matchesBinding } from "@/features/keybindings";
 import { useWorkspace } from "@/features/useWorkspace";
 
-type View = "tasks" | "calendar" | "settings" | "health";
+type View = "tasks" | "notes" | "calendar" | "settings" | "health";
 
 interface LaunchQueueLike {
   setConsumer(consumer: (launchParams: { readonly files: readonly { getFile(): Promise<File> }[] }) => void): void;
@@ -65,6 +65,7 @@ export default function App(): React.JSX.Element {
       if (matchesBinding(event, bindings.quickCapture)) { event.preventDefault(); setQuickCaptureOpen(true); return; }
       if (matchesBinding(event, bindings.sync)) { event.preventDefault(); setSyncDialogOpen(true); void workspace.sync().catch(() => undefined); return; }
       if (matchesBinding(event, bindings.tasks)) { event.preventDefault(); setView("tasks"); return; }
+      if (matchesBinding(event, bindings.notes)) { event.preventDefault(); setView("notes"); return; }
       if (matchesBinding(event, bindings.calendar)) { event.preventDefault(); setView("calendar"); return; }
       if (matchesBinding(event, bindings.settings)) { event.preventDefault(); setView("settings"); return; }
       if (matchesBinding(event, bindings.health)) { event.preventDefault(); setView("health"); return; }
@@ -290,11 +291,12 @@ export default function App(): React.JSX.Element {
     return <main className="loading-screen">Loading browser-local workspace…</main>;
   }
   if (!workspace.workspace) {
-    return <Onboarding savedClientId={workspace.clientId} connectionProfile={workspace.connectionProfile} managedConnectionAvailable={workspace.managedConnectionAvailable} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} connect={workspace.connect} connectManaged={workspace.connectManaged} useDirectConnection={workspace.useDirectConnection} />;
+    return <Onboarding savedClientId={workspace.clientId} displayTimeZone={workspace.onboardingDisplayTimeZone} connectionProfile={workspace.connectionProfile} managedConnectionAvailable={workspace.managedConnectionAvailable} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} saveDisplayTimeZone={workspace.saveOnboardingDisplayTimeZone} connect={workspace.connect} connectManaged={workspace.connectManaged} useDirectConnection={workspace.useDirectConnection} />;
   }
 
   const navigation: ReadonlyArray<{ readonly view: View; readonly icon: IconName; readonly label: string; readonly shortcut: string }> = [
     { view: "tasks", icon: "tasks", label: "Tasks", shortcut: workspace.preferences.keybindings.tasks },
+    { view: "notes", icon: "notes", label: "Notes", shortcut: workspace.preferences.keybindings.notes },
     { view: "calendar", icon: "calendar", label: "Calendar", shortcut: workspace.preferences.keybindings.calendar },
     { view: "settings", icon: "settings", label: "Settings", shortcut: workspace.preferences.keybindings.settings },
     { view: "health", icon: "health", label: "Health & logs", shortcut: workspace.preferences.keybindings.health }
@@ -303,7 +305,6 @@ export default function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <aside className="app-sidebar-nav">
-        <div className="app-mark" aria-label="Hot Cross Buns">H</div>
         <nav aria-label="Workspace">
           {navigation.map((item) => <button key={item.view} className={view === item.view ? "icon-button active" : "icon-button"} type="button" title={`${item.label} (${formatBinding(item.shortcut)})`} aria-label={item.label} onClick={() => setView(item.view)}><Icon name={item.icon} /></button>)}
         </nav>
@@ -331,9 +332,34 @@ export default function App(): React.JSX.Element {
           calendars={workspace.workspace.calendars}
           metadata={workspace.taskMetadata}
           scheduledTaskBlocks={workspace.scheduledTaskBlocks}
-          notesProjectionMode={workspace.preferences.notesProjectionMode}
+          panel="tasks"
+          displayTimeZone={workspace.preferences.displayTimeZone}
           search=""
           command={taskCommand}
+          createTaskList={workspace.createTaskList}
+          updateTaskList={workspace.updateTaskList}
+          deleteTaskList={workspace.deleteTaskList}
+          createTask={workspace.createTask}
+          updateTask={workspace.updateTask}
+          toggleTask={workspace.toggleTask}
+          deleteTask={workspace.deleteTask}
+          moveTask={workspace.moveTask}
+          saveTaskMetadata={workspace.saveTaskMetadata}
+          scheduleTask={workspace.scheduleTask}
+          unscheduleTask={workspace.unscheduleTask}
+          bulkTasks={workspace.bulkTasks}
+        />
+      )}
+      {view === "notes" && (
+        <TaskPanel
+          taskLists={workspace.workspace.taskLists}
+          tasks={workspace.workspace.tasks}
+          calendars={workspace.workspace.calendars}
+          metadata={workspace.taskMetadata}
+          scheduledTaskBlocks={workspace.scheduledTaskBlocks}
+          panel="notes"
+          displayTimeZone={workspace.preferences.displayTimeZone}
+          search=""
           createTaskList={workspace.createTaskList}
           updateTaskList={workspace.updateTaskList}
           deleteTaskList={workspace.deleteTaskList}
@@ -356,6 +382,8 @@ export default function App(): React.JSX.Element {
           search=""
           command={calendarCommand}
           driveAuthorized={workspace.driveAuthorized}
+          displayTimeZone={workspace.preferences.displayTimeZone}
+          hourCycle={workspace.preferences.hourCycle}
           visibleCalendarIds={workspace.preferences.visibleCalendarIds}
           eventConflict={workspace.eventConflict}
           createCalendar={workspace.createCalendar}

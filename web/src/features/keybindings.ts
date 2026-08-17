@@ -7,6 +7,7 @@ export const keybindingLabels: Readonly<Record<keyof WorkspaceKeybindings, strin
   quickCapture: "Quick capture",
   sync: "Synchronize now",
   tasks: "Open Tasks",
+  notes: "Open Notes",
   calendar: "Open Calendar",
   settings: "Open Settings",
   health: "Open Health",

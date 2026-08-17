@@ -85,9 +85,10 @@ const defaultPreferences: WorkspacePreferences = {
     quickCapture: "Meta+Shift+N",
     sync: "Meta+Shift+S",
     tasks: "Meta+1",
-    calendar: "Meta+2",
-    settings: "Meta+3",
-    health: "Meta+4",
+    notes: "Meta+2",
+    calendar: "Meta+3",
+    settings: "Meta+4",
+    health: "Meta+5",
     tutorial: "Meta+/"
   },
   quickCapture: {
@@ -252,6 +253,28 @@ export class LocalStore {
     await this.put(stores.settings, { key: "connectionProfile", value: profile } satisfies StoredSetting);
   }
 
+  async getSetupDisplayTimeZone(): Promise<string> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.settings, "readonly");
+    const stored = await requestResult(transaction.objectStore(stores.settings).get("setupDisplayTimeZone"));
+    await transactionDone(transaction);
+    const value = (stored as StoredSetting | undefined)?.value;
+    if (typeof value === "string") {
+      try {
+        new Intl.DateTimeFormat(undefined, { timeZone: value }).format();
+        return value;
+      } catch {
+        // fall through to this device's supported time zone
+      }
+    }
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  }
+
+  async setSetupDisplayTimeZone(timeZone: string): Promise<void> {
+    new Intl.DateTimeFormat(undefined, { timeZone }).format();
+    await this.put(stores.settings, { key: "setupDisplayTimeZone", value: timeZone } satisfies StoredSetting);
+  }
+
   async getActiveSubject(): Promise<string | undefined> {
     const database = await this.db();
     const transaction = database.transaction(stores.settings, "readonly");
@@ -361,6 +384,14 @@ export class LocalStore {
       keybindings: { ...defaultWorkspacePreferences().keybindings, ...preferences.keybindings },
       quickCapture: { ...defaultWorkspacePreferences().quickCapture, ...preferences.quickCapture }
     };
+  }
+
+  async hasPreferences(subject: string): Promise<boolean> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.preferences, "readonly");
+    const record = await requestResult(transaction.objectStore(stores.preferences).get(subject));
+    await transactionDone(transaction);
+    return Boolean(record);
   }
 
   async savePreferences(subject: string, preferences: WorkspacePreferences): Promise<void> {

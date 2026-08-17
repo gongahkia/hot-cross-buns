@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { DriveAttachmentPicker } from "@/components/DriveAttachmentPicker";
 import { ModalDialog } from "@/components/ModalDialog";
+import { RichDescription } from "@/components/RichDescription";
 import {
   AvailabilityAssistant,
   CalendarManagerDialog,
@@ -37,6 +38,8 @@ interface CalendarPanelProps {
   readonly search: string;
   readonly command?: CalendarPanelCommand;
   readonly driveAuthorized: boolean;
+  readonly displayTimeZone?: string;
+  readonly hourCycle?: "h12" | "h23";
   readonly visibleCalendarIds?: readonly string[];
   readonly eventConflict: EventConflict | undefined;
   createCalendar(input: CalendarInput): Promise<void>;
@@ -117,6 +120,28 @@ const timeZones = typeof Intl.supportedValuesOf === "function"
   ? Intl.supportedValuesOf("timeZone")
   : [Intl.DateTimeFormat().resolvedOptions().timeZone];
 
+interface CalendarDisplay {
+  readonly timeZone: string;
+  readonly hourCycle: "h12" | "h23";
+}
+
+const defaultCalendarDisplay: CalendarDisplay = {
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  hourCycle: "h12"
+};
+
+const CalendarDisplayContext = createContext<CalendarDisplay>(defaultCalendarDisplay);
+
+function validTimeZone(value: string | undefined): string {
+  if (!value) return defaultCalendarDisplay.timeZone;
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: value }).format();
+    return value;
+  } catch {
+    return defaultCalendarDisplay.timeZone;
+  }
+}
+
 function startOfDay(value: Date): Date {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
@@ -185,21 +210,26 @@ function eventOverlapsDay(event: GoogleCalendarEvent, day: Date): boolean {
   return eventEnd(event).getTime() > start && eventStart(event).getTime() < end;
 }
 
-function eventTimeLabel(event: GoogleCalendarEvent): string {
+function eventTimeLabel(event: GoogleCalendarEvent, display: CalendarDisplay): string {
   if (event.start.date) {
     return "All day";
   }
-  return eventStart(event).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return eventStart(event).toLocaleTimeString([], { timeZone: display.timeZone, hour: "numeric", minute: "2-digit", hourCycle: display.hourCycle });
 }
 
-function eventRangeLabel(event: GoogleCalendarEvent): string {
+function eventRangeLabel(event: GoogleCalendarEvent, display: CalendarDisplay): string {
   if (event.start.date) {
     const end = addDays(eventEnd(event), -1);
-    return event.start.date === toYmd(end)
-      ? event.start.date
-      : `${event.start.date} – ${toYmd(end)}`;
+    const date = (value: Date): string => value.toLocaleDateString([], { timeZone: "UTC", weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    return event.start.date === toYmd(end) ? date(dateFromYmd(event.start.date)) : `${date(dateFromYmd(event.start.date))} – ${date(end)}`;
   }
-  return `${eventStart(event).toLocaleString()} – ${eventEnd(event).toLocaleString()}`;
+  const start = eventStart(event);
+  const end = eventEnd(event);
+  const date = new Intl.DateTimeFormat([], { timeZone: display.timeZone, weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const time = new Intl.DateTimeFormat([], { timeZone: display.timeZone, hour: "numeric", minute: "2-digit", hourCycle: display.hourCycle });
+  return date.format(start) === date.format(end)
+    ? `${date.format(start)} · ${time.format(start)} – ${time.format(end)}`
+    : `${date.format(start)} · ${time.format(start)} – ${date.format(end)} · ${time.format(end)}`;
 }
 
 function sortEvents(left: GoogleCalendarEvent, right: GoogleCalendarEvent): number {
@@ -408,9 +438,10 @@ function eventTextColor(color: string | undefined): string | undefined {
 }
 
 function EventCard({ event, color, selected, select, open }: { readonly event: GoogleCalendarEvent; readonly color?: string; readonly selected: boolean; select(): void; open(): void }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   return (
     <div className="calendar-event-row"><input aria-label={`Select ${event.summary || "untitled event"}`} checked={selected} type="checkbox" onChange={select} /><button type="button" className="calendar-event" style={{ borderInlineStartColor: color, backgroundColor: color, color: eventTextColor(color) }} onClick={open}>
-      {!event.start.date && <span>{eventTimeLabel(event)}</span>}
+      {!event.start.date && <span>{eventTimeLabel(event, display)}</span>}
       <strong>{event.summary}</strong>
       {event.recurringEventId || event.recurrence ? <small>Repeats</small> : null}
     </button></div>
@@ -438,6 +469,7 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
   resize(event: GoogleCalendarEvent, end: Date): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   const hours = Array.from({ length: 24 }, (_, hour) => hour);
   const allDay = events.filter((event) => event.start.date);
   return (
@@ -445,9 +477,9 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
       <div className="all-day-lane" style={{ gridTemplateColumns: `3.75rem repeat(${days.length}, minmax(7rem, 1fr))` }}><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
       <div className="time-grid" role="grid" aria-label={days.length === 1 ? "Day time grid" : "Week time grid"} style={{ gridTemplateColumns: `4.25rem repeat(${days.length}, minmax(8rem, 1fr))` }}>
         <div role="columnheader" />
-        {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>)}
+        {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })}</div>)}
         {hours.map((hour) => <Fragment key={`hour-${hour}`}>
-          <div key={`label-${hour}`} className="time-label" role="rowheader">{slotDate(days[0]!, hour).toLocaleTimeString([], { hour: "numeric" })}</div>
+          <div key={`label-${hour}`} className="time-label" role="rowheader">{slotDate(days[0]!, hour).toLocaleTimeString([], { timeZone: display.timeZone, hour: "numeric", hourCycle: display.hourCycle })}</div>
           {days.map((day) => {
             const start = slotDate(day, hour);
             const cellEvents = events.filter((event) => timedEventAt(event, day, hour));
@@ -472,9 +504,10 @@ function DayView({ day, events, colors, selected, select, create, move, resize, 
   resize(event: GoogleCalendarEvent, end: Date): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   return (
     <div className="day-view">
-      <h3>{day.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</h3>
+      <h3>{day.toLocaleDateString([], { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })}</h3>
       <TimeGrid days={[day]} events={events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents)} colors={colors} selected={selected} select={select} create={create} move={move} resize={resize} open={open} />
     </div>
   );
@@ -530,15 +563,16 @@ function AgendaView({ events, colors, selected, select, open }: {
   select(event: GoogleCalendarEvent): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   return (
     <ol className="agenda-list">
       {events.map((event) => (
         <li key={`${event.calendarId}:${event.id}`}>
-          <time dateTime={event.start.dateTime ?? event.start.date}>{eventRangeLabel(event)}</time>
+          <time dateTime={event.start.dateTime ?? event.start.date}>{eventRangeLabel(event, display)}</time>
           <div>
             <EventCard event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />
             {event.location && <small>{event.location}</small>}
-            {event.description && <p>{event.description}</p>}
+            {event.description && <RichDescription className="agenda-description" value={event.description} />}
           </div>
         </li>
       ))}
@@ -587,7 +621,8 @@ function EventEditor({
   const [allDay, setAllDay] = useState(false);
   const [start, setStart] = useState(() => localDateTime(30));
   const [end, setEnd] = useState(() => localDateTime(90));
-  const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const display = useContext(CalendarDisplayContext);
+  const [timeZone, setTimeZone] = useState(display.timeZone);
   const [attendeeText, setAttendeeText] = useState("");
   const [meet, setMeet] = useState(false);
   const [attachments, setAttachments] = useState<GoogleEventAttachment[]>([]);
@@ -823,6 +858,7 @@ function ConflictDialog({ conflict, resolve, dismiss }: {
   resolve(resolution: "keep-local" | "use-google"): Promise<void>;
   dismiss(): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   const isDelete = conflict.kind === "delete";
   const dismissRef = useRef<HTMLButtonElement>(null);
   return (
@@ -830,7 +866,7 @@ function ConflictDialog({ conflict, resolve, dismiss }: {
         <p className="eyebrow">Google Calendar</p>
         <h2 id="conflict-heading">This event changed in Google</h2>
         <p>{isDelete ? "Someone changed this event before you deleted it." : "Someone changed this event while you were editing it."}</p>
-        <p><strong>Google now has:</strong> {conflict.latest.summary} — {eventRangeLabel(conflict.latest)}</p>
+        <p><strong>Google now has:</strong> {conflict.latest.summary} — {eventRangeLabel(conflict.latest, display)}</p>
         <p>{isDelete ? "Delete it anyway, or keep the Google version?" : "Use your changes to update Google, or discard them and use the Google version?"}</p>
         <div className="button-row"><button type="button" onClick={() => void resolve("keep-local")}>{isDelete ? "Delete it anyway" : "Use my changes"}</button><button type="button" onClick={() => void resolve("use-google")}>Use Google version</button><button ref={dismissRef} type="button" onClick={dismiss}>Not now</button></div>
     </ModalDialog>
@@ -843,12 +879,13 @@ function InvitationInbox({ invitations, calendars, respond, close }: {
   respond(event: GoogleCalendarEvent, response: "accepted" | "declined" | "tentative", comment?: string): Promise<void>;
   close(): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
   return <ModalDialog className="invitation-inbox" labelledBy="invitation-inbox-heading" onClose={close}>
     <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="invitation-inbox-heading">Invitation inbox</h2></div><button type="button" onClick={close}>Close</button></div>
     {invitations.length === 0 ? <p className="empty-state">No pending invitations in the synced Calendar cache.</p> : <ul className="invitation-list">{invitations.map((event) => {
       const key = eventKey(event);
-      return <li key={key}><strong>{event.summary || "Untitled event"}</strong><span>{calendars.find((calendar) => calendar.id === event.calendarId)?.summary ?? event.calendarId} · {eventRangeLabel(event)}</span><label>Response comment<textarea value={comments[key] ?? ""} onChange={(input) => setComments((current) => ({ ...current, [key]: input.target.value }))} rows={2} /></label><div className="button-row"><button type="button" onClick={() => void respond(event, "accepted", comments[key])}>Accept</button><button type="button" onClick={() => void respond(event, "tentative", comments[key])}>Maybe</button><button type="button" onClick={() => void respond(event, "declined", comments[key])}>Decline</button></div></li>;
+      return <li key={key}><strong>{event.summary || "Untitled event"}</strong><span>{calendars.find((calendar) => calendar.id === event.calendarId)?.summary ?? event.calendarId} · {eventRangeLabel(event, display)}</span><label>Response comment<textarea value={comments[key] ?? ""} onChange={(input) => setComments((current) => ({ ...current, [key]: input.target.value }))} rows={2} /></label><div className="button-row"><button type="button" onClick={() => void respond(event, "accepted", comments[key])}>Accept</button><button type="button" onClick={() => void respond(event, "tentative", comments[key])}>Maybe</button><button type="button" onClick={() => void respond(event, "declined", comments[key])}>Decline</button></div></li>;
     })}</ul>}
   </ModalDialog>;
 }
@@ -861,6 +898,7 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
   edit(): void;
   close(): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   const [error, setError] = useState("");
   const calendar = calendars.find((candidate) => candidate.id === event.calendarId);
   const meetUrl = event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri;
@@ -888,9 +926,9 @@ function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }
     <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="event-detail-heading">{event.summary || "Untitled event"}</h2></div><button type="button" onClick={close}>Close</button></div>
     <dl className="detail-list">
       <div><dt>Calendar</dt><dd>{calendar?.summary ?? "Unknown calendar"}</dd></div>
-      <div><dt>When</dt><dd>{eventRangeLabel(event)}</dd></div>
+      <div><dt>When</dt><dd>{eventRangeLabel(event, display)}</dd></div>
       {event.location && <div><dt>Location</dt><dd>{event.location}</dd></div>}
-      {event.description && <div><dt>Description</dt><dd className="detail-notes">{event.description}</dd></div>}
+      {event.description && <div><dt>Description</dt><dd><RichDescription className="detail-notes" value={event.description} /></dd></div>}
       {event.recurrence || event.recurringEventId ? <div><dt>Repeats</dt><dd>{event.recurringEventId ? "Part of a recurring series" : "Recurring event"}</dd></div> : null}
       {event.attendees?.length ? <div><dt>Guests</dt><dd>{event.attendees.map((attendee) => attendee.displayName ?? attendee.email).join(", ")}</dd></div> : null}
       {event.transparency && <div><dt>Availability</dt><dd>{event.transparency === "transparent" ? "Free" : "Busy"}</dd></div>}
@@ -908,6 +946,8 @@ export function CalendarPanel({
   search,
   command,
   driveAuthorized,
+  displayTimeZone,
+  hourCycle = "h12",
   visibleCalendarIds = emptyCalendarIds,
   eventConflict,
   createCalendar,
@@ -928,6 +968,7 @@ export function CalendarPanel({
   bulkEvents,
   saveVisibleCalendarIds
 }: CalendarPanelProps): React.JSX.Element {
+  const display = useMemo<CalendarDisplay>(() => ({ timeZone: validTimeZone(displayTimeZone), hourCycle }), [displayTimeZone, hourCycle]);
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
@@ -1096,6 +1137,7 @@ export function CalendarPanel({
   }
 
   return (
+    <CalendarDisplayContext.Provider value={display}>
     <section className="workspace-panel calendar-panel" aria-labelledby="calendar-heading">
       <div className="panel-heading">
         <div><p className="eyebrow">Google Calendar</p><h2 id="calendar-heading">Calendar</h2></div>
@@ -1108,7 +1150,7 @@ export function CalendarPanel({
             <div className="view-switcher" role="group" aria-label="Calendar view">{(["day", "week", "month", "agenda"] as const).map((candidate) => <button key={candidate} type="button" className={view === candidate ? "active" : ""} onClick={() => setView(candidate)}>{candidate[0].toUpperCase()}{candidate.slice(1)}</button>)}</div>
           </div>
           <fieldset className="calendar-sources"><legend>Show calendars</legend>{calendars.map((calendar) => <label key={calendar.id}><input type="checkbox" checked={selectedCalendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /> <span className="calendar-swatch" style={{ backgroundColor: calendar.backgroundColor }} /> {calendar.summary}</label>)}</fieldset>
-          <p className="calendar-range-label">{view === "month" ? anchor.toLocaleDateString([], { month: "long", year: "numeric" }) : `${range.start.toLocaleDateString()} – ${addDays(range.end, -1).toLocaleDateString()}`}</p>
+          <p className="calendar-range-label">{view === "month" ? anchor.toLocaleDateString([], { timeZone: "UTC", month: "long", year: "numeric" }) : `${range.start.toLocaleDateString([], { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })} – ${addDays(range.end, -1).toLocaleDateString([], { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}`}</p>
           {selectedEvents.length > 0 && bulkEvents && <fieldset className="bulk-actions"><legend>{selectedEvents.length} selected event{selectedEvents.length === 1 ? "" : "s"}</legend><div className="button-row"><button type="button" className="danger-button" onClick={() => void runBulk({ kind: "delete" })}>Delete</button><label>Move to<select aria-label="Bulk destination calendar" value={bulkCalendarId} onChange={(event) => setBulkCalendarId(event.target.value)}><option value="">Choose calendar</option>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.summary}</option>)}</select></label><button type="button" disabled={!bulkCalendarId} onClick={() => void runBulk({ kind: "move", calendarId: bulkCalendarId })}>Move selected</button><label>Color ID<input aria-label="Bulk color ID" value={bulkColorId} onChange={(event) => setBulkColorId(event.target.value)} placeholder="Blank clears" /></label><button type="button" onClick={() => void runBulk({ kind: "color", colorId: bulkColorId || undefined })}>Apply color</button><select aria-label="Bulk availability" defaultValue=""><option value="" disabled>Set availability…</option><option value="opaque">Busy</option><option value="transparent">Free</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "availability", transparency: select.value as "opaque" | "transparent" }); }}>Apply availability</button><select aria-label="Bulk visibility" defaultValue=""><option value="" disabled>Set visibility…</option><option value="default">Calendar default</option><option value="public">Public</option><option value="private">Private</option><option value="confidential">Confidential</option></select><button type="button" onClick={(event) => { const select = event.currentTarget.previousElementSibling as HTMLSelectElement; if (select.value) void runBulk({ kind: "visibility", visibility: select.value as NonNullable<GoogleCalendarEvent["visibility"]> }); }}>Apply visibility</button><label>Shift minutes<input aria-label="Shift selected events in minutes" type="number" value={bulkShiftMinutes} onChange={(event) => setBulkShiftMinutes(event.target.value)} /></label><button type="button" onClick={() => void runBulk({ kind: "shift", minutes: Number(bulkShiftMinutes) })}>Shift</button><label>Find text<input aria-label="Bulk find event text" value={bulkFind} onChange={(event) => setBulkFind(event.target.value)} /></label><label>Replace with<input aria-label="Bulk replacement event text" value={bulkReplace} onChange={(event) => setBulkReplace(event.target.value)} /></label><button type="button" disabled={!bulkFind} onClick={() => void runBulk({ kind: "replace-text", find: bulkFind, replace: bulkReplace })}>Replace text</button><button type="button" onClick={() => setSelectedEventKeys([])}>Clear selection</button></div><p className="field-help">For a repeating event, open it first to choose whether an edit affects this occurrence or the series. “This and following” requires a series split, which the direct Google Calendar API does not expose as one mutation.</p></fieldset>}
           {error && <p className="error" role="alert">{error}</p>}
           {bulkResult && <p className={bulkResult.failed.length ? "error" : "status"} role="status">{bulkResult.succeeded.length} changed{bulkResult.failed.length ? `; ${bulkResult.failed.length} need attention: ${bulkResult.failed.map((entry) => entry.error).join(" · ")}` : ""}</p>}
@@ -1125,5 +1167,6 @@ export function CalendarPanel({
       {inboxOpen && <InvitationInbox invitations={invitations} calendars={calendars} close={() => setInboxOpen(false)} respond={async (event, response, comment) => { try { await respondToEvent(event, response, comment); } catch (reason) { setError(reason instanceof Error ? reason.message : "The invitation response could not be saved"); } }} />}
       {eventConflict && <ConflictDialog conflict={eventConflict} resolve={async (resolution) => { try { await resolveEventConflict(resolution); closeEditor(); } catch (reason) { setError(reason instanceof Error ? reason.message : "The conflict could not be resolved"); } }} dismiss={dismissEventConflict} />}
     </section>
+    </CalendarDisplayContext.Provider>
   );
 }

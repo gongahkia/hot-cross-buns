@@ -90,6 +90,7 @@ const idleSyncProgress: SyncProgress = {
 
 export interface WorkspaceController {
   readonly clientId: string;
+  readonly onboardingDisplayTimeZone: string;
   readonly connectionProfile: ConnectionProfile;
   readonly managedConnectionAvailable: boolean;
   readonly ready: boolean;
@@ -108,6 +109,7 @@ export interface WorkspaceController {
   readonly invitationEvents: readonly GoogleCalendarEvent[];
   readonly savedSearches: readonly SavedSearch[];
   saveClientId(clientId: string): Promise<void>;
+  saveOnboardingDisplayTimeZone(timeZone: string): Promise<void>;
   connect(): Promise<void>;
   connectManaged(): Promise<void>;
   useDirectConnection(): Promise<void>;
@@ -309,6 +311,7 @@ function storagePressured(estimate: StorageEstimate): boolean {
 
 export function useWorkspace(): WorkspaceController {
   const [clientId, setClientId] = useState("");
+  const [onboardingDisplayTimeZone, setOnboardingDisplayTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [connectionProfile, setConnectionProfile] = useState<ConnectionProfile>({ mode: "direct" });
   const [managedSession, setManagedSession] = useState<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>();
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | undefined>(emptyWorkspace);
@@ -328,6 +331,7 @@ export function useWorkspace(): WorkspaceController {
   const syncAbortRef = useRef<AbortController | undefined>(undefined);
   const connectionProfileRef = useRef<ConnectionProfile>(connectionProfile);
   const managedSessionRef = useRef<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>(undefined);
+  const onboardingDisplayTimeZoneRef = useRef(onboardingDisplayTimeZone);
 
   const rememberConnectionProfile = useCallback((profile: ConnectionProfile) => {
     connectionProfileRef.current = profile;
@@ -371,7 +375,9 @@ export function useWorkspace(): WorkspaceController {
         window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
       }
       try {
-        const [storedClientId, storedProfile, activeSubject] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(), localStore.getActiveSubject()]);
+        const [storedClientId, storedProfile, activeSubject, setupTimeZone] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(), localStore.getActiveSubject(), localStore.getSetupDisplayTimeZone()]);
+        onboardingDisplayTimeZoneRef.current = setupTimeZone;
+        setOnboardingDisplayTimeZone(setupTimeZone);
         if (storedClientId) {
           setClientId(storedClientId);
         }
@@ -382,6 +388,9 @@ export function useWorkspace(): WorkspaceController {
         rememberManagedSession(managed);
         const subject = managed?.subject ?? activeSubject;
         if (subject) {
+          if (!(await localStore.hasPreferences(subject))) {
+            await localStore.updatePreferences(subject, { displayTimeZone: setupTimeZone });
+          }
           const snapshot = await localStore.readSnapshot(subject);
           if (snapshot) {
             replaceWorkspace(snapshot);
@@ -447,6 +456,18 @@ export function useWorkspace(): WorkspaceController {
     setStatus("Google Web OAuth client ID saved in this browser");
   }, []);
 
+  const saveOnboardingDisplayTimeZone = useCallback(async (timeZone: string) => {
+    const normalized = timeZone.trim();
+    try {
+      new Intl.DateTimeFormat(undefined, { timeZone: normalized }).format();
+    } catch {
+      throw new Error("Choose a valid IANA time zone, such as Asia/Singapore");
+    }
+    await localStore.setSetupDisplayTimeZone(normalized);
+    onboardingDisplayTimeZoneRef.current = normalized;
+    setOnboardingDisplayTimeZone(normalized);
+  }, []);
+
   const saveWorkspace = useCallback(async (next: WorkspaceSnapshot) => {
     replaceWorkspace(next);
     await localStore.saveSnapshot(next);
@@ -504,6 +525,11 @@ export function useWorkspace(): WorkspaceController {
     const current = workspaceRef.current;
     if (!current) throw new Error("Authorize Google before changing preferences");
     const next = await localStore.updatePreferences(current.identity.subject, update);
+    if (update.displayTimeZone !== undefined) {
+      await localStore.setSetupDisplayTimeZone(next.displayTimeZone);
+      onboardingDisplayTimeZoneRef.current = next.displayTimeZone;
+      setOnboardingDisplayTimeZone(next.displayTimeZone);
+    }
     setPreferences(next);
   }, []);
 
@@ -1070,6 +1096,9 @@ export function useWorkspace(): WorkspaceController {
       session.set(token);
       const identity = await fetchGoogleIdentity(token.value);
       await localStore.setActiveSubject(identity.subject);
+      if (!(await localStore.hasPreferences(identity.subject))) {
+        await localStore.updatePreferences(identity.subject, { displayTimeZone: onboardingDisplayTimeZoneRef.current });
+      }
       const cached = await localStore.readSnapshot(identity.subject);
       const initial: WorkspaceSnapshot = cached ?? {
         identity,
@@ -2092,6 +2121,9 @@ export function useWorkspace(): WorkspaceController {
       rememberConnectionProfile({ mode: "direct" });
       rememberManagedSession(undefined);
       setClientId("");
+      const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      onboardingDisplayTimeZoneRef.current = deviceTimeZone;
+      setOnboardingDisplayTimeZone(deviceTimeZone);
       setEventConflict(undefined);
       setPreferences(defaultWorkspacePreferences());
       setTaskMetadata([]);
@@ -2109,6 +2141,7 @@ export function useWorkspace(): WorkspaceController {
 
   return {
     clientId,
+    onboardingDisplayTimeZone,
     connectionProfile,
     managedConnectionAvailable: Boolean(managedConnectionProfile()),
     ready,
@@ -2129,6 +2162,7 @@ export function useWorkspace(): WorkspaceController {
     invitationEvents,
     savedSearches,
     saveClientId,
+    saveOnboardingDisplayTimeZone,
     connect,
     connectManaged,
     useDirectConnection,

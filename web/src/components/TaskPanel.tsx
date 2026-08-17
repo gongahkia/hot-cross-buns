@@ -18,8 +18,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { ModalDialog } from "@/components/ModalDialog";
+import { RichDescription } from "@/components/RichDescription";
 import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSummary, type TaskRecurrenceFrequency } from "@/features/taskRecurrence";
-import type { GoogleCalendar, GoogleTask, GoogleTaskList, NotesProjectionMode, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
+import type { GoogleCalendar, GoogleTask, GoogleTaskList, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
 import type { BulkOperationResult, TaskBulkOperation } from "@/features/useWorkspace";
 
 export interface TaskPanelCommand {
@@ -34,7 +35,8 @@ interface TaskPanelProps {
   readonly calendars?: readonly GoogleCalendar[];
   readonly metadata?: readonly TaskMetadata[];
   readonly scheduledTaskBlocks?: readonly ScheduledTaskBlock[];
-  readonly notesProjectionMode?: NotesProjectionMode;
+  readonly panel?: "tasks" | "notes";
+  readonly displayTimeZone?: string;
   readonly search: string;
   readonly command?: TaskPanelCommand;
   createTaskList(title: string): Promise<void>;
@@ -139,6 +141,8 @@ function SortableTaskRow({
   depth,
   priority,
   selected,
+  selectionMode,
+  draggable,
   onSelect,
   onToggle,
   onOpen
@@ -147,19 +151,21 @@ function SortableTaskRow({
   readonly depth: number;
   readonly priority?: TaskMetadata["priority"];
   readonly selected: boolean;
+  readonly selectionMode: boolean;
+  readonly draggable: boolean;
   onSelect(): void;
   onToggle(): void;
   onOpen(): void;
 }): React.JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `task:${task.id}` });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `task:${task.id}`, disabled: !draggable });
   return (
     <li
       ref={setNodeRef}
       className={task.status === "completed" ? "task completed" : "task"}
       style={{ transform: CSS.Transform.toString(transform), transition, marginInlineStart: `${depth * 1.35}rem`, opacity: isDragging ? 0.45 : 1 }}
     >
-      <button className="drag-handle" type="button" aria-label={`Move ${task.title || "untitled task"}`} {...attributes} {...listeners}>⠿</button>
-      <input aria-label={`Select ${task.title || "untitled task"}`} checked={selected} type="checkbox" onChange={onSelect} />
+      {draggable && <button className="drag-handle" type="button" aria-label={`Move ${task.title || "untitled task"}`} {...attributes} {...listeners}>⠿</button>}
+      {selectionMode && <input aria-label={`Select ${task.title || "untitled task"}`} checked={selected} type="checkbox" onChange={onSelect} />}
       <input
         aria-label={`Mark ${task.title} ${task.status === "completed" ? "incomplete" : "complete"}`}
         checked={task.status === "completed"}
@@ -183,7 +189,8 @@ export function TaskPanel({
   calendars = [],
   metadata = [],
   scheduledTaskBlocks = [],
-  notesProjectionMode = "mirrored",
+  panel = "tasks",
+  displayTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   search,
   command,
   createTaskList,
@@ -206,7 +213,7 @@ export function TaskPanel({
   const [viewingTask, setViewingTask] = useState<GoogleTask | undefined>();
   const [editingTask, setEditingTask] = useState<GoogleTask | undefined>();
   const [selectedTaskIds, setSelectedTaskIds] = useState<readonly string[]>([]);
-  const [surface, setSurface] = useState<"tasks" | "notes">(notesProjectionMode === "notes-only" ? "notes" : "tasks");
+  const [selectionMode, setSelectionMode] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkOperationResult | undefined>();
   const [bulkMoveListId, setBulkMoveListId] = useState("");
   const [bulkParentId, setBulkParentId] = useState("");
@@ -279,14 +286,6 @@ export function TaskPanel({
   useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => tasks.some((task) => task.id === id && !task.deleted)));
   }, [tasks]);
-
-  useEffect(() => {
-    if (notesProjectionMode === "disabled" || notesProjectionMode === "mirrored") {
-      setSurface("tasks");
-    } else {
-      setSurface("notes");
-    }
-  }, [notesProjectionMode]);
 
   async function submitNewList(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -568,16 +567,15 @@ export function TaskPanel({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Google Tasks</p>
-          <h2 id="tasks-heading">Tasks</h2>
+          <h2 id="tasks-heading">{panel === "notes" ? "Notes" : "Tasks"}</h2>
         </div>
         <div className="button-row">
-          <p className="field-help">Drag a task onto another task to make it a subtask. Drop near its top or bottom to reorder it.</p>
-          {notesProjectionMode !== "disabled" && <div className="view-switcher" role="group" aria-label="Task projection"><button type="button" className={surface === "tasks" ? "active" : ""} onClick={() => setSurface("tasks")}>Tasks</button><button type="button" className={surface === "notes" ? "active" : ""} onClick={() => setSurface("notes")}>Notes</button></div>}
+          {panel === "tasks" && <><p className="field-help">Drag a task onto another task to make it a subtask. Drop near its top or bottom to reorder it.</p><button type="button" className={selectionMode ? "active" : ""} onClick={() => { setSelectionMode((current) => !current); setSelectedTaskIds([]); }}>{selectionMode ? "Done selecting" : "Select tasks"}</button></>}
         </div>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="task-workspace">
-          <aside className="task-sidebar" aria-label="Task lists">
+        <div className={panel === "notes" ? "task-notes-workspace" : "task-workspace"}>
+          {panel === "tasks" && <aside className="task-sidebar" aria-label="Task lists">
             <ul className="task-list-tabs">
               {taskLists.map((taskList) => (
                 <TaskListDropTarget key={taskList.id} taskList={taskList} selected={taskList.id === selectedListId} select={() => setSelectedListId(taskList.id)} />
@@ -587,13 +585,13 @@ export function TaskPanel({
               <input aria-label="New task-list name" value={newListTitle} onChange={(event) => setNewListTitle(event.target.value)} placeholder="New list" />
               <button type="submit">Add list</button>
             </form>
-          </aside>
+          </aside>}
           <div className="task-main">
-            {surface === "notes" ? (
+            {panel === "notes" ? (
               <>
                 <div className="task-list-heading"><div><strong>Notes</strong><p className="field-help">Undated root Google Tasks. Changes remain ordinary Google Tasks.</p></div></div>
                 <ul className="task-list">
-                  {notes.map((task) => <SortableTaskRow key={task.id} task={task} depth={0} priority={metadataByTaskId.get(task.id)?.priority} selected={selectedTaskIds.includes(task.id)} onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])} onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))} onOpen={() => setViewingTask(task)} />)}
+                  {notes.map((task) => <SortableTaskRow key={task.id} task={task} depth={0} priority={metadataByTaskId.get(task.id)?.priority} selected={false} selectionMode={false} draggable={false} onSelect={() => undefined} onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))} onOpen={() => setViewingTask(task)} />)}
                 </ul>
                 {notes.length === 0 && <p className="empty-state">No undated root tasks qualify as notes.</p>}
               </>
@@ -624,6 +622,8 @@ export function TaskPanel({
                         depth={depth}
                         priority={metadataByTaskId.get(task.id)?.priority}
                         selected={selectedTaskIds.includes(task.id)}
+                        selectionMode={selectionMode}
+                        draggable
                         onSelect={() => setSelectedTaskIds((current) => current.includes(task.id) ? current.filter((id) => id !== task.id) : [...current, task.id])}
                         onToggle={() => void toggleTask(task).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Task could not be updated"))}
                         onOpen={() => setViewingTask(task)}
@@ -642,9 +642,9 @@ export function TaskPanel({
           <div className="panel-heading"><div><p className="eyebrow">Google Tasks</p><h2 id="task-detail-heading">{viewingTask.title || "Untitled task"}</h2></div><button type="button" onClick={() => setViewingTask(undefined)}>Close</button></div>
           <dl className="detail-list">
             <div><dt>List</dt><dd>{taskLists.find((list) => list.id === viewingTask.listId)?.title ?? "Unknown list"}</dd></div>
-            {viewingTask.due && <div><dt>Due</dt><dd>{new Date(viewingTask.due).toLocaleDateString()}</dd></div>}
+            {viewingTask.due && <div><dt>Due</dt><dd>{new Date(viewingTask.due).toLocaleDateString([], { timeZone: displayTimeZone })}</dd></div>}
             {metadataByTaskId.get(viewingTask.id)?.priority && metadataByTaskId.get(viewingTask.id)?.priority !== "none" && <div><dt>Priority</dt><dd>{metadataByTaskId.get(viewingTask.id)?.priority}</dd></div>}
-            {viewingTask.notes && <div><dt>Notes</dt><dd className="detail-notes">{parseTaskRecurrenceNotes(viewingTask.notes).userNotes || viewingTask.notes}</dd></div>}
+            {viewingTask.notes && <div><dt>Notes</dt><dd><RichDescription className="detail-notes" value={parseTaskRecurrenceNotes(viewingTask.notes).userNotes || viewingTask.notes} /></dd></div>}
             {parseTaskRecurrenceNotes(viewingTask.notes).marker && <div><dt>Repeats</dt><dd>{taskRecurrenceSummary(parseTaskRecurrenceNotes(viewingTask.notes).marker!)}</dd></div>}
             {scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id) && <div><dt>Calendar block</dt><dd>Scheduled in {calendars.find((calendar) => calendar.id === scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id)?.calendarId)?.summary ?? "Google Calendar"}</dd></div>}
           </dl>
@@ -665,7 +665,7 @@ export function TaskPanel({
             {editingRecurrence?.state === "unsupported-version" && <p className="error" role="alert">{editingRecurrence.diagnostic}. This browser will not silently modify it.</p>}
             <label>Notes<textarea name="notes" defaultValue={editingRecurrence?.userNotes ?? editingTask.notes ?? ""} rows={4} /></label>
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
-            <label>Due date time zone<input name="dueTimeZone" list="time-zones" defaultValue={editingMetadata?.dueTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone} /></label>
+            <label>Due date time zone<input name="dueTimeZone" list="time-zones" defaultValue={editingMetadata?.dueTimeZone ?? displayTimeZone} /></label>
             <label>Priority<select name="priority" defaultValue={editingMetadata?.priority ?? "none"}><option value="none">No local priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
             <fieldset className="recurrence-editor"><legend>Managed task recurrence</legend><p className="field-help">This writes the portable HCB marker to Google Task notes; Google Tasks itself has no recurrence field.</p><label>Repeat<select name="recurrence" defaultValue={editingRecurrence?.marker?.frequency ?? "none"}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label><label>Every <input name="recurrenceInterval" type="number" min="1" max="1000" defaultValue={editingRecurrence?.marker?.interval ?? 1} /></label><label>Ends<select name="recurrenceEnd" defaultValue={editingRecurrence?.marker?.end.kind ?? "never"}><option value="never">Never</option><option value="until">On date</option><option value="count">After count</option></select></label><label>Final date<input name="recurrenceUntil" type="date" defaultValue={editingRecurrence?.marker?.end.kind === "until" ? editingRecurrence.marker.end.untilDate : ""} /></label><label>Occurrence count<input name="recurrenceCount" type="number" min="1" max="10000" defaultValue={editingRecurrence?.marker?.end.kind === "count" ? editingRecurrence.marker.end.count : ""} /></label>{editingRecurrence?.marker && <p className="field-help">{taskRecurrenceSummary(editingRecurrence.marker)}</p>}</fieldset>
             <label>Task list<select name="list" defaultValue={editingTask.listId}>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
