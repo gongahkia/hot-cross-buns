@@ -130,6 +130,14 @@ function createEventPayload(input: CalendarEventInput): Record<string, unknown> 
     attendees: input.attendees,
     reminders: input.reminders,
     attachments: input.attachments,
+    colorId: input.colorId,
+    guestsCanInviteOthers: input.guestsCanInviteOthers,
+    guestsCanModify: input.guestsCanModify,
+    guestsCanSeeOtherGuests: input.guestsCanSeeOtherGuests,
+    eventType: input.eventType,
+    focusTimeProperties: input.focusTimeProperties,
+    outOfOfficeProperties: input.outOfOfficeProperties,
+    workingLocationProperties: input.workingLocationProperties,
     visibility: input.visibility,
     transparency: input.transparency,
     conferenceData: input.createGoogleMeet
@@ -410,8 +418,13 @@ export class GoogleApiClient {
   }
 
   async createEvent(calendarId: string, input: CalendarEventInput): Promise<GoogleCalendarEvent> {
+    const parameters = new URLSearchParams({
+      conferenceDataVersion: input.createGoogleMeet ? "1" : "0",
+      supportsAttachments: input.attachments ? "true" : "false",
+      sendUpdates: input.sendUpdates ?? "all"
+    });
     const event = await this.request<RawEvent>(
-      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=${input.createGoogleMeet ? "1" : "0"}&supportsAttachments=true`,
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${parameters.toString()}`,
       { method: "POST", body: JSON.stringify(createEventPayload(input)) }
     );
     return toEvent(calendarId, event);
@@ -423,8 +436,13 @@ export class GoogleApiClient {
     input: CalendarEventInput,
     etag?: string
   ): Promise<GoogleCalendarEvent> {
+    const parameters = new URLSearchParams({
+      conferenceDataVersion: input.createGoogleMeet ? "1" : "0",
+      supportsAttachments: input.attachments ? "true" : "false",
+      sendUpdates: input.sendUpdates ?? "all"
+    });
     const event = await this.request<RawEvent>(
-      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=${input.createGoogleMeet ? "1" : "0"}&supportsAttachments=true`,
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${parameters.toString()}`,
       {
         method: "PATCH",
         headers: etag ? { "If-Match": etag } : undefined,
@@ -434,17 +452,21 @@ export class GoogleApiClient {
     return toEvent(calendarId, event);
   }
 
-  async deleteEvent(calendarId: string, eventId: string, etag?: string): Promise<void> {
+  async deleteEvent(calendarId: string, eventId: string, etag?: string, sendUpdates: "all" | "externalOnly" | "none" = "all"): Promise<void> {
     await this.request<void>(
-      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=${sendUpdates}`,
       { method: "DELETE", headers: etag ? { "If-Match": etag } : undefined }
     );
   }
 
-  async updateAttendeeResponse(calendarId: string, eventId: string, responseStatus: string): Promise<GoogleCalendarEvent> {
+  async updateAttendeeResponse(calendarId: string, eventId: string, responseStatus: string, comment?: string, etag?: string): Promise<GoogleCalendarEvent> {
     const event = await this.request<RawEvent>(
       `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
-      { method: "PATCH", body: JSON.stringify({ attendees: [{ self: true, responseStatus }] }) }
+      {
+        method: "PATCH",
+        headers: etag ? { "If-Match": etag } : undefined,
+        body: JSON.stringify({ attendees: [{ self: true, responseStatus, comment: comment?.trim() || undefined }] })
+      }
     );
     return toEvent(calendarId, event);
   }

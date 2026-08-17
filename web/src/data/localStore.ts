@@ -6,13 +6,20 @@ import type {
   GoogleTask,
   GoogleTaskList,
   PendingMutation,
+  ReminderState,
+  SavedSearch,
+  ScheduledTaskBlock,
   SyncCheckpoint,
+  TaskMetadata,
+  UndoEntry,
+  WorkspaceConflict,
+  WorkspacePreferences,
   WorkspaceSnapshot
 } from "@/types";
 import { calendarSearchDocument, type CalendarSearchDocument } from "@/features/calendarSearch";
 
 const DATABASE_NAME = "hot-cross-buns-web";
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 const stores = {
   settings: "settings",
@@ -25,7 +32,14 @@ const stores = {
   driveFiles: "driveFiles",
   mutations: "mutations",
   checkpoints: "checkpoints",
-  syncRuns: "syncRuns"
+  syncRuns: "syncRuns",
+  preferences: "preferences",
+  taskMetadata: "taskMetadata",
+  scheduledTaskBlocks: "scheduledTaskBlocks",
+  savedSearches: "savedSearches",
+  conflicts: "conflicts",
+  undoEntries: "undoEntries",
+  reminderStates: "reminderStates"
 } as const;
 
 type StoreName = (typeof stores)[keyof typeof stores];
@@ -41,6 +55,41 @@ interface StoredSetting {
 
 interface StoredCheckpoint extends SyncCheckpoint {
   readonly subject: string;
+}
+
+type SubjectRecord<T> = T & { readonly subject: string };
+
+const defaultPreferences: WorkspacePreferences = {
+  schemaVersion: 1,
+  notesProjectionMode: "mirrored",
+  conflictPolicy: "prefer-google",
+  appearance: "system",
+  density: "comfortable",
+  accentColor: "#b55639",
+  fontFamily: "system",
+  fontScale: 1,
+  taskListPaneWidth: 256,
+  weekStartsOn: 0,
+  hourCycle: "h12",
+  displayTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  workdayStartHour: 9,
+  workdayEndHour: 17,
+  visibleCalendarIds: [],
+  undoRetentionDays: 30,
+  undoMaximumEntries: 200,
+  quickCapture: {
+    defaultEventDurationMinutes: 30,
+    removeRecognizedText: true,
+    taskAliases: ["task"],
+    eventAliases: ["event"],
+    highPriorityAliases: ["p1"],
+    mediumPriorityAliases: ["p2"],
+    lowPriorityAliases: ["p3"]
+  }
+};
+
+export function defaultWorkspacePreferences(): WorkspacePreferences {
+  return structuredClone(defaultPreferences);
 }
 
 export interface CalendarSyncRun {
@@ -113,6 +162,15 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (event.oldVersion < 3) {
         createSubjectStore(database, stores.syncRuns, "subject");
+      }
+      if (event.oldVersion < 4) {
+        createSubjectStore(database, stores.preferences, "subject");
+        createSubjectStore(database, stores.taskMetadata, ["subject", "taskId"]);
+        createSubjectStore(database, stores.scheduledTaskBlocks, ["subject", "taskId"]);
+        createSubjectStore(database, stores.savedSearches, ["subject", "id"]);
+        createSubjectStore(database, stores.conflicts, ["subject", "id"]);
+        createSubjectStore(database, stores.undoEntries, ["subject", "id"]);
+        createSubjectStore(database, stores.reminderStates, ["subject", "id"]);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -239,6 +297,121 @@ export class LocalStore {
     return files
       .sort((left, right) => (right.cachedAt ?? "").localeCompare(left.cachedAt ?? ""))
       .map(({ subject: _subject, cachedAt: _cachedAt, ...file }) => file);
+  }
+
+  async readPreferences(subject: string): Promise<WorkspacePreferences> {
+    const database = await this.db();
+    const transaction = database.transaction(stores.preferences, "readonly");
+    const record = await requestResult(transaction.objectStore(stores.preferences).get(subject)) as SubjectRecord<WorkspacePreferences> | undefined;
+    await transactionDone(transaction);
+    if (!record) {
+      return defaultWorkspacePreferences();
+    }
+    const { subject: _subject, ...preferences } = record;
+    return {
+      ...defaultWorkspacePreferences(),
+      ...preferences,
+      quickCapture: { ...defaultWorkspacePreferences().quickCapture, ...preferences.quickCapture }
+    };
+  }
+
+  async savePreferences(subject: string, preferences: WorkspacePreferences): Promise<void> {
+    await this.put(stores.preferences, { ...preferences, subject } satisfies SubjectRecord<WorkspacePreferences>);
+  }
+
+  async updatePreferences(subject: string, update: Partial<WorkspacePreferences>): Promise<WorkspacePreferences> {
+    const current = await this.readPreferences(subject);
+    const next: WorkspacePreferences = {
+      ...current,
+      ...update,
+      quickCapture: { ...current.quickCapture, ...update.quickCapture }
+    };
+    await this.savePreferences(subject, next);
+    return next;
+  }
+
+  async readTaskMetadata(subject: string): Promise<TaskMetadata[]> {
+    return this.readSubjectRecords(stores.taskMetadata, subject);
+  }
+
+  async saveTaskMetadata(subject: string, metadata: TaskMetadata): Promise<void> {
+    await this.put(stores.taskMetadata, { ...metadata, subject } satisfies SubjectRecord<TaskMetadata>);
+  }
+
+  async removeTaskMetadata(subject: string, taskId: string): Promise<void> {
+    await this.delete(stores.taskMetadata, [subject, taskId]);
+  }
+
+  async readScheduledTaskBlocks(subject: string): Promise<ScheduledTaskBlock[]> {
+    return this.readSubjectRecords(stores.scheduledTaskBlocks, subject);
+  }
+
+  async saveScheduledTaskBlock(subject: string, block: ScheduledTaskBlock): Promise<void> {
+    await this.put(stores.scheduledTaskBlocks, { ...block, subject } satisfies SubjectRecord<ScheduledTaskBlock>);
+  }
+
+  async removeScheduledTaskBlock(subject: string, taskId: string): Promise<void> {
+    await this.delete(stores.scheduledTaskBlocks, [subject, taskId]);
+  }
+
+  async readSavedSearches(subject: string): Promise<SavedSearch[]> {
+    const searches = await this.readSubjectRecords<SavedSearch>(stores.savedSearches, subject);
+    return searches.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async saveSavedSearch(subject: string, search: SavedSearch): Promise<void> {
+    await this.put(stores.savedSearches, { ...search, subject } satisfies SubjectRecord<SavedSearch>);
+  }
+
+  async removeSavedSearch(subject: string, id: string): Promise<void> {
+    await this.delete(stores.savedSearches, [subject, id]);
+  }
+
+  async readConflicts(subject: string): Promise<WorkspaceConflict[]> {
+    const conflicts = await this.readSubjectRecords<WorkspaceConflict>(stores.conflicts, subject);
+    return conflicts.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async saveConflict(subject: string, conflict: WorkspaceConflict): Promise<void> {
+    await this.put(stores.conflicts, { ...conflict, subject } satisfies SubjectRecord<WorkspaceConflict>);
+  }
+
+  async removeConflict(subject: string, id: string): Promise<void> {
+    await this.delete(stores.conflicts, [subject, id]);
+  }
+
+  async readUndoEntries(subject: string): Promise<UndoEntry[]> {
+    const entries = await this.readSubjectRecords<UndoEntry>(stores.undoEntries, subject);
+    return entries.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async saveUndoEntry(subject: string, entry: UndoEntry): Promise<void> {
+    await this.put(stores.undoEntries, { ...entry, subject } satisfies SubjectRecord<UndoEntry>);
+  }
+
+  async removeUndoEntry(subject: string, id: string): Promise<void> {
+    await this.delete(stores.undoEntries, [subject, id]);
+  }
+
+  async cleanupUndoEntries(subject: string, maximumEntries: number, now = new Date().toISOString()): Promise<void> {
+    const entries = await this.readUndoEntries(subject);
+    const keep = entries
+      .filter((entry) => entry.expiresAt > now)
+      .slice(0, Math.max(1, Math.min(maximumEntries, 200)));
+    const keepIds = new Set(keep.map((entry) => entry.id));
+    await Promise.all(entries.filter((entry) => !keepIds.has(entry.id)).map((entry) => this.removeUndoEntry(subject, entry.id)));
+  }
+
+  async readReminderStates(subject: string): Promise<ReminderState[]> {
+    return this.readSubjectRecords(stores.reminderStates, subject);
+  }
+
+  async saveReminderState(subject: string, state: ReminderState): Promise<void> {
+    await this.put(stores.reminderStates, { ...state, subject } satisfies SubjectRecord<ReminderState>);
+  }
+
+  async removeReminderState(subject: string, id: string): Promise<void> {
+    await this.delete(stores.reminderStates, [subject, id]);
   }
 
   async queueMutation(mutation: PendingMutation): Promise<void> {
@@ -526,6 +699,21 @@ export class LocalStore {
     const transaction = database.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).put(value);
     await transactionDone(transaction);
+  }
+
+  private async delete(storeName: StoreName, key: IDBValidKey): Promise<void> {
+    const database = await this.db();
+    const transaction = database.transaction(storeName, "readwrite");
+    transaction.objectStore(storeName).delete(key);
+    await transactionDone(transaction);
+  }
+
+  private async readSubjectRecords<T>(storeName: StoreName, subject: string): Promise<T[]> {
+    const database = await this.db();
+    const transaction = database.transaction(storeName, "readonly");
+    const records = await this.recordsForSubject<SubjectRecord<T>>(transaction.objectStore(storeName), subject);
+    await transactionDone(transaction);
+    return records.map((record) => withoutSubject(record) as T);
   }
 
   private async recordsForSubject<T>(store: IDBObjectStore, subject: string): Promise<T[]> {
