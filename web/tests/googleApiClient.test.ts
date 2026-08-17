@@ -1,11 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GoogleApiClient, GoogleAuthorizationRequiredError } from "@/api/googleApiClient";
+import { GoogleApiClient, GoogleAuthorizationRequiredError, managedGoogleTransport } from "@/api/googleApiClient";
 
 describe("GoogleApiClient", () => {
   it("requires a current in-memory token", async () => {
     const client = new GoogleApiClient(() => undefined);
     await expect(client.listTaskLists()).rejects.toBeInstanceOf(GoogleAuthorizationRequiredError);
+  });
+
+  it("routes managed-mode requests through the configured backend with a cookie session", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ id: "list-1", title: "Inbox" }] })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GoogleApiClient(managedGoogleTransport("https://api.example.com/ignored-path"));
+
+    await expect(client.listTaskLists()).resolves.toEqual([{ id: "list-1", title: "Inbox", updated: undefined }]);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/api/google/tasks/v1/users/@me/lists?maxResults=100");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: "include" });
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBeNull();
+    vi.unstubAllGlobals();
   });
 
   it("paginates direct Google Tasks requests and sends the bearer token", async () => {

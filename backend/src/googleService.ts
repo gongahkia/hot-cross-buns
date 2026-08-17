@@ -150,7 +150,8 @@ function validatedGoogleUrl(path: string): string {
   if (target.origin !== googleApiOrigin || !(
     target.pathname.startsWith("/tasks/v1/") ||
     target.pathname.startsWith("/calendar/v3/") ||
-    target.pathname.startsWith("/drive/v3/files")
+    target.pathname === "/drive/v3/files" ||
+    target.pathname.startsWith("/drive/v3/files/")
   )) throw new ManagedGooglePathError();
   return target.toString();
 }

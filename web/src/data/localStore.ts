@@ -236,9 +236,10 @@ export class LocalStore {
     const stored = await requestResult(transaction.objectStore(stores.settings).get("connectionProfile"));
     await transactionDone(transaction);
     const value = (stored as StoredSetting | undefined)?.value;
-    if (typeof value === "object" && value !== null && (value as ConnectionProfile).mode === "managed" && typeof (value as ConnectionProfile).backendOrigin === "string") {
+    const backendOrigin = typeof value === "object" && value !== null ? (value as ConnectionProfile).backendOrigin : undefined;
+    if (typeof value === "object" && value !== null && (value as ConnectionProfile).mode === "managed" && typeof backendOrigin === "string") {
       try {
-        const backend = new URL((value as ConnectionProfile).backendOrigin);
+        const backend = new URL(backendOrigin);
         if (backend.protocol === "http:" || backend.protocol === "https:") return { mode: "managed", backendOrigin: backend.origin };
       } catch {
         // a malformed browser-local setting must not turn into a network target
