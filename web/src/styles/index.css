@@ -1,9 +1,21 @@
 :root {
   color: #27211c;
   background: #f5efe4;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --hcb-accent: #b55639;
+  --hcb-font-scale: 1;
+  --hcb-task-pane-width: 16rem;
+  --hcb-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--hcb-font-family);
+  font-size: calc(16px * var(--hcb-font-scale));
   font-synthesis: none;
 }
+
+:root[data-theme="dark"] { background: #211c18; color: #f8eee2; }
+:root[data-theme="dark"] body { background: #211c18; }
+:root[data-theme="dark"] .workspace-panel, :root[data-theme="dark"] .modal-card, :root[data-theme="dark"] .onboarding-card { background: #302822; border-color: #66594f; color: #f8eee2; }
+:root[data-theme="dark"] input, :root[data-theme="dark"] select, :root[data-theme="dark"] textarea, :root[data-theme="dark"] button { background: #3c322b; border-color: #88786a; color: #f8eee2; }
+:root[data-density="compact"] .workspace-panel { padding: 0.8rem; }
+:root[data-density="compact"] .task, :root[data-density="compact"] .calendar-day, :root[data-density="compact"] .month-day { padding: 0.35rem; }
 
 * { box-sizing: border-box; }
 
@@ -92,7 +104,7 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .danger-button { border-color: #a52f2b; color: #a52f2b; }
 .danger-button:hover:not(:disabled) { background: #a52f2b; color: #fff; }
 
-.task-workspace { display: grid; gap: 1.25rem; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); }
+.task-workspace { display: grid; gap: 1.25rem; grid-template-columns: minmax(12rem, var(--hcb-task-pane-width)) minmax(0, 1fr); }
 .task-sidebar { border-inline-end: 1px solid #eadfd3; padding-inline-end: 1rem; }
 .task-list-tabs { display: grid; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
 .task-list-target { border-radius: 0.6rem; }
@@ -109,6 +121,13 @@ kbd { border: 1px solid #cdbfae; border-radius: 0.35rem; background: #eee4d8; co
 .task .task-content { border: 0; color: inherit; display: grid; flex: 1; gap: 0.15rem; padding: 0.2rem; text-align: start; }
 .task .task-content:hover { background: transparent; color: inherit; }
 .task .task-content span { color: #62564d; font-weight: 400; white-space: pre-wrap; }
+.bulk-actions, .settings-group { border: 1px solid #dacbbc; border-radius: 0.6rem; margin: 0 0 1rem; padding: 0.8rem; }
+.bulk-actions legend { font-weight: 800; }
+.bulk-form, .settings-fields { display: grid; gap: 0.65rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); margin-top: 0.7rem; }
+.bulk-form label, .settings-fields label { display: grid; gap: 0.35rem; font-weight: 700; }
+.settings-group summary { cursor: pointer; font-weight: 800; }
+.settings-group[open] summary { margin-bottom: 0.8rem; }
+.undo-controls { border-top: 1px solid #eadfd3; margin-top: 1rem; padding-top: 1rem; }
 .modal-backdrop { align-items: start; background: rgb(39 33 28 / 50%); display: flex; inset: 0; justify-content: center; overflow-y: auto; overscroll-behavior: contain; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); position: fixed; z-index: 10; }
 .modal-card { background: #fffaf3; border: 1px solid #d9cdbf; border-radius: 1rem; box-shadow: 0 18px 55px rgb(39 33 28 / 32%); display: grid; gap: 0.85rem; margin: auto 0; max-width: 48rem; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: clamp(1rem, 3vw, 1.6rem); width: 100%; }
 .modal-card label, .recurrence-editor > label, .event-time-fields label { display: grid; gap: 0.35rem; font-weight: 700; }

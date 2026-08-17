@@ -114,7 +114,7 @@ export interface WorkspaceController {
   createTaskList(title: string): Promise<void>;
   updateTaskList(taskList: GoogleTaskList, title: string): Promise<void>;
   deleteTaskList(taskList: GoogleTaskList): Promise<void>;
-  createTask(listId: string, task: TaskInput): Promise<void>;
+  createTask(listId: string, task: TaskInput): Promise<GoogleTask>;
   updateTask(task: GoogleTask, patch: Partial<GoogleTask>): Promise<void>;
   toggleTask(task: GoogleTask): Promise<void>;
   deleteTask(task: GoogleTask): Promise<void>;
@@ -1043,6 +1043,7 @@ export function useWorkspace(): WorkspaceController {
         updatedAt: new Date().toISOString()
       }));
       await recordUndo(`Create task “${created.title || "Untitled task"}”`, "task", undefined, created);
+      return created;
     } catch (error) {
       if (!queueable(error)) {
         throw error;
@@ -1055,13 +1056,15 @@ export function useWorkspace(): WorkspaceController {
         createdAt: new Date().toISOString(),
         payload: { listId, temporaryId, task }
       });
+      const localTask: GoogleTask = { id: temporaryId, listId, status: "needsAction", ...task };
       await updateCachedWorkspace((snapshot) => ({
         ...snapshot,
-        tasks: [...snapshot.tasks, { id: temporaryId, listId, status: "needsAction", ...task }],
+        tasks: [...snapshot.tasks, localTask],
         updatedAt: new Date().toISOString()
       }));
-      await recordUndo(`Create task “${task.title}”`, "task", undefined, { id: temporaryId, listId, status: "needsAction", ...task });
+      await recordUndo(`Create task “${task.title}”`, "task", undefined, localTask);
       setStatus("Task saved locally and will sync after you reconnect Google");
+      return localTask;
     }
   }, [api, recordUndo, updateCachedWorkspace]);
 

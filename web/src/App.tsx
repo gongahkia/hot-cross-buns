@@ -33,6 +33,17 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const preferences = workspace.preferences;
+    root.dataset.theme = preferences.appearance;
+    root.dataset.density = preferences.density;
+    root.style.setProperty("--hcb-accent", preferences.accentColor);
+    root.style.setProperty("--hcb-font-scale", String(preferences.fontScale));
+    root.style.setProperty("--hcb-task-pane-width", `${preferences.taskListPaneWidth}px`);
+    root.style.setProperty("--hcb-font-family", preferences.fontFamily === "serif" ? "ui-serif, Georgia, serif" : preferences.fontFamily === "monospace" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif");
+  }, [workspace.preferences]);
+
+  useEffect(() => {
     const current = workspace.workspace;
     if (!paletteOpen || !current) {
       return;
