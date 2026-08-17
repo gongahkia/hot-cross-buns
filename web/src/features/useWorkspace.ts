@@ -327,7 +327,7 @@ export function useWorkspace(): WorkspaceController {
   const workspaceRef = useRef<WorkspaceSnapshot | undefined>(workspace);
   const syncAbortRef = useRef<AbortController | undefined>(undefined);
   const connectionProfileRef = useRef<ConnectionProfile>(connectionProfile);
-  const managedSessionRef = useRef<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>();
+  const managedSessionRef = useRef<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>(undefined);
 
   const rememberConnectionProfile = useCallback((profile: ConnectionProfile) => {
     connectionProfileRef.current = profile;
@@ -364,6 +364,12 @@ export function useWorkspace(): WorkspaceController {
 
   useEffect(() => {
     void (async () => {
+      const managedResult = new URLSearchParams(window.location.search).get("managed");
+      if (managedResult === "connected" || managedResult === "error") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("managed");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      }
       try {
         const [storedClientId, storedProfile, activeSubject] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(), localStore.getActiveSubject()]);
         if (storedClientId) {
@@ -389,6 +395,11 @@ export function useWorkspace(): WorkspaceController {
             await loadSubjectState(managed.subject);
             setStatus("Connected through the managed Hot Cross Buns service. Syncing Google data is ready.");
           }
+        }
+        if (managedResult === "error") {
+          setStatus("Managed Google authorization was not completed. Your browser-local data is unchanged; try connecting again.");
+        } else if (managedResult === "connected" && !managed) {
+          setStatus("Managed Google authorization completed, but the browser could not read the new session. Check the managed service’s cookie and allowed-origin settings.");
         }
       } catch (error) {
         setStatus(`Browser storage is unavailable: ${asErrorMessage(error)}`);

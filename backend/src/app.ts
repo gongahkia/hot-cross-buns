@@ -7,7 +7,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { driveMetadataScope, managedGoogleScopes, type BackendConfig } from "./config.js";
 import { CredentialCipher } from "./credentialCipher.js";
 import { Database } from "./database.js";
-import { ManagedAuthorizationError, ManagedGoogleService } from "./googleService.js";
+import { ManagedAuthorizationError, ManagedGoogleService, ManagedGooglePathError } from "./googleService.js";
 import { ManagedStore, type ManagedSession } from "./managedStore.js";
 
 const sessionCookie = "hcb_session";
@@ -57,9 +57,15 @@ function requireAllowedOrigin(config: BackendConfig, request: FastifyRequest): v
   if (!origin || !config.frontendOrigins.includes(origin)) throw new PublicError(403, "This request must come from the configured Hot Cross Buns app");
 }
 
-async function requireSession(store: ManagedStore, request: FastifyRequest): Promise<ManagedSession> {
+function renewSessionCookie(config: BackendConfig, request: FastifyRequest, reply: { setCookie(name: string, value: string, options: Record<string, unknown>): unknown }): void {
+  const token = request.cookies[sessionCookie];
+  if (token) reply.setCookie(sessionCookie, token, { ...cookieOptions(config), maxAge: config.sessionTtlDays * 86_400 });
+}
+
+async function requireSession(store: ManagedStore, config: BackendConfig, request: FastifyRequest, reply: { setCookie(name: string, value: string, options: Record<string, unknown>): unknown }): Promise<ManagedSession> {
   const session = await store.sessionForToken(request.cookies[sessionCookie]);
   if (!session) throw new PublicError(401, "Sign in with Google to continue");
+  renewSessionCookie(config, request, reply);
   return session;
 }
 
@@ -81,7 +87,7 @@ function proxyPath(request: FastifyRequest): string {
 
 export async function buildApp(config: BackendConfig, database: Database): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 1_048_576, trustProxy: config.cookieSecure });
-  const store = new ManagedStore(database, new CredentialCipher(config.encryptionKeys));
+  const store = new ManagedStore(database, new CredentialCipher(config.encryptionKeys), config.sessionTtlDays);
   const google = new ManagedGoogleService(config, store);
   const limiter = new PerSessionRateLimiter();
 
@@ -128,8 +134,9 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
     }
   });
 
-  app.get("/api/session", async (request) => {
+  app.get("/api/session", async (request, reply) => {
     const session = await store.sessionForToken(request.cookies[sessionCookie]);
+    if (session) renewSessionCookie(config, request, reply);
     return { authenticated: Boolean(session), user: session ? { subject: session.subject, email: session.email, name: session.name, picture: session.picture, scopes: session.scopes } : undefined };
   });
 
@@ -142,7 +149,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
 
   app.post("/api/auth/google/disconnect", async (request, reply) => {
     requireAllowedOrigin(config, request);
-    const session = await requireSession(store, request);
+    const session = await requireSession(store, config, request, reply);
     const refreshToken = await store.disconnect(session.subject);
     google.forgetAccessToken(session.subject);
     await google.revoke(refreshToken);
@@ -156,7 +163,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
     handler: async (request, reply) => {
       requireAllowedOrigin(config, request);
       if (!permittedMethods.has(request.method)) throw new PublicError(405, "Unsupported Google API method");
-      const session = await requireSession(store, request);
+      const session = await requireSession(store, config, request, reply);
       if (!limiter.consume(session.subject)) throw new PublicError(429, "Too many Google API requests; retry in one minute");
       const body = request.body === undefined ? undefined : JSON.stringify(request.body);
       const response = await google.proxy(session.subject, proxyPath(request), {
@@ -171,6 +178,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof PublicError) return reply.code(error.statusCode).send({ error: { message: error.message } });
+    if (error instanceof ManagedGooglePathError) return reply.code(400).send({ error: { message: error.message } });
     if (error instanceof ManagedAuthorizationError) return reply.code(401).send({ error: { message: error.message } });
     app.log.error({ error: error instanceof Error ? error.name : "unknown" }, "Unhandled managed backend error");
     return reply.code(500).send({ error: { message: "The managed service could not complete this request" } });

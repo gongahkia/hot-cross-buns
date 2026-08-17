@@ -1,0 +1,19 @@
+- main [ref=e4]:
+  - region [ref=e5]:
+    - paragraph [ref=e6]: Google workspace connection
+    - heading "Choose how to connect Google" [level=1] [ref=e7]
+    - paragraph [ref=e8]: Both choices keep your tasks, calendar cache, preferences, and pending changes in this browser. They differ only in where Google authorization is maintained.
+    - radiogroup "Google connection model" [ref=e9]:
+      - generic [ref=e10] [cursor=pointer]:
+        - radio "Direct browser connection Use your own Google Cloud OAuth client. Google access is kept only in this browser session, so Google may require a reconnect after it expires." [ref=e11]
+        - generic [ref=e12]:
+          - strong [ref=e13]: Direct browser connection
+          - generic [ref=e14]: Use your own Google Cloud OAuth client. Google access is kept only in this browser session, so Google may require a reconnect after it expires.
+      - generic [ref=e15] [cursor=pointer]:
+        - radio "Managed connection Use this deployment’s server-side authorization. The service stores an encrypted Google refresh token and keeps an HttpOnly session so routine sync can continue without browser-token expiry." [checked] [active] [ref=e16]
+        - generic [ref=e17]:
+          - strong [ref=e18]: Managed connection
+          - generic [ref=e19]: Use this deployment’s server-side authorization. The service stores an encrypted Google refresh token and keeps an HttpOnly session so routine sync can continue without browser-token expiry.
+    - paragraph [ref=e33]: The managed service never sends the Google client secret or refresh token to the browser. You will be redirected to Google once to approve access.
+    - paragraph [ref=e31]: Configure your Google Web OAuth client to begin
+    - button "Connect through managed service" [ref=e34] [cursor=pointer]

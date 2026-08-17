@@ -9,7 +9,7 @@ describe("Onboarding", () => {
     const user = userEvent.setup();
     const saveClientId = vi.fn().mockResolvedValue(undefined);
     const connect = vi.fn().mockResolvedValue(undefined);
-    render(<Onboarding savedClientId="" busy={false} status="Ready" saveClientId={saveClientId} connect={connect} />);
+    render(<Onboarding savedClientId="" connectionProfile={{ mode: "direct" }} managedConnectionAvailable={false} busy={false} status="Ready" saveClientId={saveClientId} connect={connect} connectManaged={vi.fn()} useDirectConnection={vi.fn().mockResolvedValue(undefined)} />);
 
     expect(screen.getByText(/Do not paste a client secret/i)).toBeVisible();
     expect(screen.queryByLabelText(/client secret/i)).not.toBeInTheDocument();

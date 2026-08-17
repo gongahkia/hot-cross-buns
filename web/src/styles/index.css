@@ -60,6 +60,12 @@ textarea:focus-visible { outline: 3px solid #dc9a48; outline-offset: 2px; }
 .onboarding-card { width: min(100%, 48rem); padding: clamp(1.4rem, 4vw, 3rem); }
 .onboarding-card h1, .app-header h1, .panel-heading h2, .settings-panel h2 { margin: 0.15rem 0 0.75rem; }
 .onboarding-card p { line-height: 1.6; }
+.connection-mode-options { display: grid; gap: 0.65rem; margin: 1.25rem 0; }
+.connection-mode-option { align-items: flex-start; border: 1px solid var(--hcb-border); border-radius: 0.65rem; cursor: pointer; display: flex; gap: 0.7rem; padding: 0.8rem; }
+.connection-mode-option.active { background: var(--hcb-subtle); border-color: var(--hcb-text); }
+.connection-mode-option input { flex: 0 0 auto; margin-top: 0.22rem; width: auto; }
+.connection-mode-option span { display: grid; gap: 0.2rem; }
+.connection-mode-option small { line-height: 1.45; }
 .setup-steps { display: grid; gap: 0.65rem; line-height: 1.45; padding-left: 1.3rem; }
 code { border-radius: 0.3rem; background: #eee4d8; overflow-wrap: anywhere; padding: 0.12rem 0.28rem; }
 .field-label, .compact-field, .event-form > label { display: grid; gap: 0.38rem; font-weight: 700; }

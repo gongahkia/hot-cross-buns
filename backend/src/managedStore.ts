@@ -55,7 +55,11 @@ function credentialAssociatedData(subject: string): string {
 }
 
 export class ManagedStore {
-  constructor(private readonly database: Database, private readonly cipher: CredentialCipher) {}
+  constructor(
+    private readonly database: Database,
+    private readonly cipher: CredentialCipher,
+    private readonly sessionTtlDays: number
+  ) {}
 
   async cleanExpired(): Promise<void> {
     await Promise.all([
@@ -129,7 +133,10 @@ export class ManagedStore {
     );
     const row = result.rows[0];
     if (!row) return undefined;
-    await this.database.query("UPDATE managed_sessions SET last_seen_at = now() WHERE token_hash = $1", [hashOpaqueValue(token)]);
+    await this.database.query(
+      "UPDATE managed_sessions SET last_seen_at = now(), expires_at = $2 WHERE token_hash = $1",
+      [hashOpaqueValue(token), new Date(Date.now() + this.sessionTtlDays * 86_400_000)]
+    );
     return { subject: row.subject, email: row.email ?? undefined, name: row.name ?? undefined, picture: row.picture ?? undefined, scopes: row.scopes };
   }
 

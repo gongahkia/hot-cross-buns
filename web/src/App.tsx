@@ -411,7 +411,7 @@ export default function App(): React.JSX.Element {
           }}
         />
       )}
-      {view === "health" && <HealthPanel subject={workspace.workspace.identity.subject} connected={workspace.connected} status={workspace.status} syncProgress={workspace.syncProgress} openDiagnostics={() => setDiagnosticsOpen(true)} />}
+      {view === "health" && <HealthPanel subject={workspace.workspace.identity.subject} connected={workspace.connected} connectionProfile={workspace.connectionProfile} status={workspace.status} syncProgress={workspace.syncProgress} openDiagnostics={() => setDiagnosticsOpen(true)} />}
       <CommandPalette open={paletteOpen} workspace={workspace.workspace} busy={workspace.busy} taskMetadata={workspace.taskMetadata} savedSearches={workspace.savedSearches} saveSearch={workspace.saveSearch} deleteSearch={workspace.deleteSearch} calendarHistory={calendarHistory} driveHistory={driveHistory} close={closePalette} run={runPaletteAction} />
       {quickCaptureOpen && <QuickCaptureDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} preferences={workspace.preferences.quickCapture} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} close={() => setQuickCaptureOpen(false)} />}
       {importOpen && <ImportDialog taskLists={workspace.workspace.taskLists} calendars={workspace.workspace.calendars} createTask={workspace.createTask} createEvent={workspace.createEvent} saveTaskMetadata={workspace.saveTaskMetadata} initialFile={importFile} close={() => { setImportOpen(false); setImportFile(undefined); }} />}

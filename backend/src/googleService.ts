@@ -33,6 +33,13 @@ export class ManagedAuthorizationError extends Error {
   }
 }
 
+export class ManagedGooglePathError extends Error {
+  constructor() {
+    super("Unsupported Google API path");
+    this.name = "ManagedGooglePathError";
+  }
+}
+
 export class ManagedGoogleService {
   private readonly accessTokens = new Map<string, CachedAccessToken>();
 
@@ -105,11 +112,19 @@ export class ManagedGoogleService {
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${token}`);
     const response = await fetch(target, { ...init, headers });
-    if (response.status === 401) {
+    if (response.status !== 401) return response;
+
+    // A rejected cached token can be slightly stale even before its local expiry.
+    // Retry once with a freshly minted access token before requiring a new Google grant.
+    this.forgetAccessToken(subject);
+    const renewedToken = await this.accessTokenFor(subject);
+    headers.set("Authorization", `Bearer ${renewedToken}`);
+    const retried = await fetch(target, { ...init, headers });
+    if (retried.status === 401) {
       this.forgetAccessToken(subject);
       throw new ManagedAuthorizationError();
     }
-    return response;
+    return retried;
   }
 
   async revoke(refreshToken: string | undefined): Promise<void> {
@@ -130,12 +145,12 @@ export class ManagedGoogleService {
 }
 
 function validatedGoogleUrl(path: string): string {
-  if (!path.startsWith("/") || path.includes("\\") || path.includes("://")) throw new Error("Unsupported Google API path");
+  if (!path.startsWith("/") || path.includes("\\") || path.includes("://")) throw new ManagedGooglePathError();
   const target = new URL(path, googleApiOrigin);
   if (target.origin !== googleApiOrigin || !(
     target.pathname.startsWith("/tasks/v1/") ||
     target.pathname.startsWith("/calendar/v3/") ||
     target.pathname.startsWith("/drive/v3/files")
-  )) throw new Error("Unsupported Google API path");
+  )) throw new ManagedGooglePathError();
   return target.toString();
 }
