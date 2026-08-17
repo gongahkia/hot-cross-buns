@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { CalendarClock, CalendarDays, CalendarPlus, CheckSquare2, ChevronRight, FileText, ListTodo, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import {
@@ -63,6 +65,33 @@ interface PaletteItem {
   readonly detail: string;
   readonly score: number;
   readonly action: PaletteAction | "deep-search";
+}
+
+function paletteItemIcon(item: PaletteItem): ReactNode {
+  if (item.action === "deep-search") return <Search />;
+  switch (item.action.type) {
+    case "navigate":
+      return item.action.view === "calendar" ? <CalendarDays /> : item.action.view === "settings" ? <Settings /> : <ListTodo />;
+    case "sync":
+    case "refresh-tasks":
+      return <RefreshCw />;
+    case "quick-capture":
+      return <Zap />;
+    case "new-task":
+      return <Plus />;
+    case "new-event":
+      return <CalendarPlus />;
+    case "find-time":
+      return <CalendarClock />;
+    case "manage-calendars":
+      return <SlidersHorizontal />;
+    case "open-task":
+      return <CheckSquare2 />;
+    case "open-event":
+      return <CalendarDays />;
+    case "open-drive-file":
+      return <FileText />;
+  }
 }
 
 function actionItems(busy: boolean): PaletteItem[] {
