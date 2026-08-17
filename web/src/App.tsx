@@ -79,7 +79,10 @@ export default function App(): React.JSX.Element {
     const preferences = workspace.preferences;
     root.dataset.theme = preferences.appearance === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : preferences.appearance === "system" ? "light" : preferences.appearance;
     root.dataset.density = preferences.density;
-    root.style.setProperty("--hcb-accent", preferences.accentColor);
+    // The neutral default becomes a high-contrast light gray in dark mode;
+    // explicitly chosen accent colors remain unchanged in both themes.
+    if (preferences.accentColor === "#2f3437" && root.dataset.theme === "dark") root.style.removeProperty("--hcb-accent");
+    else root.style.setProperty("--hcb-accent", preferences.accentColor);
     root.style.setProperty("--hcb-font-scale", String(preferences.fontScale));
     root.style.setProperty("--hcb-task-pane-width", `${preferences.taskListPaneWidth}px`);
     const stacks = {

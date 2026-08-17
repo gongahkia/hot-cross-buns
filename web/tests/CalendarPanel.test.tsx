@@ -105,6 +105,8 @@ describe("CalendarPanel", () => {
       }
     }));
 
+    expect(await screen.findByRole("heading", { name: "Historic launch review" })).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Edit event" }));
     expect(await screen.findByRole("heading", { name: "Edit event" })).toBeVisible();
     expect(screen.getByLabelText("Title")).toHaveValue("Historic launch review");
     expect(screen.getByRole("button", { name: "Day" })).toHaveClass("active");

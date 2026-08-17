@@ -853,6 +853,54 @@ function InvitationInbox({ invitations, calendars, respond, close }: {
   </ModalDialog>;
 }
 
+function EventDetail({ event, calendars, createEvent, deleteEvent, edit, close }: {
+  readonly event: GoogleCalendarEvent;
+  readonly calendars: readonly GoogleCalendar[];
+  createEvent(calendarId: string, input: CalendarEventInput): Promise<void>;
+  deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
+  edit(): void;
+  close(): void;
+}): React.JSX.Element {
+  const [error, setError] = useState("");
+  const calendar = calendars.find((candidate) => candidate.id === event.calendarId);
+  const meetUrl = event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri;
+  async function duplicate(): Promise<void> {
+    setError("");
+    try {
+      await createEvent(event.calendarId, { ...eventInputFromExisting(event), summary: `${event.summary || "Untitled event"} (copy)` });
+      close();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Event could not be duplicated");
+    }
+  }
+  async function remove(): Promise<void> {
+    if (!window.confirm(`Delete “${event.summary || "Untitled event"}”?`)) return;
+    setError("");
+    try {
+      const result = await deleteEvent(event);
+      if (result === "deleted") close();
+      else setError("Google changed this event before deletion. Resolve the conflict before retrying.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Event could not be deleted");
+    }
+  }
+  return <ModalDialog className="item-detail event-detail" labelledBy="event-detail-heading" onClose={close}>
+    <div className="panel-heading"><div><p className="eyebrow">Google Calendar</p><h2 id="event-detail-heading">{event.summary || "Untitled event"}</h2></div><button type="button" onClick={close}>Close</button></div>
+    <dl className="detail-list">
+      <div><dt>Calendar</dt><dd>{calendar?.summary ?? "Unknown calendar"}</dd></div>
+      <div><dt>When</dt><dd>{eventRangeLabel(event)}</dd></div>
+      {event.location && <div><dt>Location</dt><dd>{event.location}</dd></div>}
+      {event.description && <div><dt>Description</dt><dd className="detail-notes">{event.description}</dd></div>}
+      {event.recurrence || event.recurringEventId ? <div><dt>Repeats</dt><dd>{event.recurringEventId ? "Part of a recurring series" : "Recurring event"}</dd></div> : null}
+      {event.attendees?.length ? <div><dt>Guests</dt><dd>{event.attendees.map((attendee) => attendee.displayName ?? attendee.email).join(", ")}</dd></div> : null}
+      {event.transparency && <div><dt>Availability</dt><dd>{event.transparency === "transparent" ? "Free" : "Busy"}</dd></div>}
+      {meetUrl && <div><dt>Google Meet</dt><dd><a href={meetUrl} target="_blank" rel="noreferrer">Open meeting</a></dd></div>}
+    </dl>
+    {error && <p className="error" role="alert">{error}</p>}
+    <div className="button-row"><button type="button" onClick={edit}>Edit event</button><button type="button" onClick={() => void duplicate()}>Duplicate</button><button type="button" onClick={() => void navigator.clipboard?.writeText(`${window.location.origin}/event/${encodeURIComponent(event.calendarId)}/${encodeURIComponent(event.id)}`)}>Copy link</button><button type="button" className="danger-button" onClick={() => void remove()}>Delete</button></div>
+  </ModalDialog>;
+}
+
 export function CalendarPanel({
   calendars,
   events,
@@ -883,6 +931,7 @@ export function CalendarPanel({
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
+  const [viewingEvent, setViewingEvent] = useState<GoogleCalendarEvent | undefined>();
   const [editingEvent, setEditingEvent] = useState<GoogleCalendarEvent | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
   const [calendarManagerOpen, setCalendarManagerOpen] = useState(false);
@@ -913,6 +962,7 @@ export function CalendarPanel({
       return;
     }
     if (command.type === "new-event") {
+      setViewingEvent(undefined);
       setEditingEvent(undefined);
       setComposerPrefill(undefined);
       setComposerOpen(true);
@@ -937,7 +987,7 @@ export function CalendarPanel({
       setSelectedCalendarIds([event.calendarId]);
       setComposerOpen(false);
       setComposerPrefill(undefined);
-      setEditingEvent(event);
+      setViewingEvent(event);
     }
   }, [command, events]);
 
@@ -975,7 +1025,7 @@ export function CalendarPanel({
   function openEvent(event: GoogleCalendarEvent): void {
     setComposerOpen(false);
     setComposerPrefill(undefined);
-    setEditingEvent(event);
+    setViewingEvent(event);
   }
 
   function toggleEventSelection(event: GoogleCalendarEvent): void {
@@ -1006,12 +1056,14 @@ export function CalendarPanel({
   function useAvailabilitySlot(slot: AvailabilitySlot): void {
     setAvailabilityOpen(false);
     setEditingEvent(undefined);
+    setViewingEvent(undefined);
     setComposerPrefill(slot);
     setComposerOpen(true);
   }
 
   function createTimeSlot(slot: AvailabilitySlot): void {
     setEditingEvent(undefined);
+    setViewingEvent(undefined);
     setComposerPrefill(slot);
     setComposerOpen(true);
   }
@@ -1047,7 +1099,7 @@ export function CalendarPanel({
     <section className="workspace-panel calendar-panel" aria-labelledby="calendar-heading">
       <div className="panel-heading">
         <div><p className="eyebrow">Google Calendar</p><h2 id="calendar-heading">Calendar</h2></div>
-        <div className="button-row"><button type="button" onClick={() => setInboxOpen(true)}>Invitations{invitations.length ? ` (${invitations.length})` : ""}</button><button type="button" onClick={() => setAvailabilityOpen(true)}>Find time</button><button type="button" onClick={() => setCalendarManagerOpen(true)}>Manage calendars</button><button type="button" disabled={!defaultCalendarId} onClick={() => { setEditingEvent(undefined); setComposerPrefill(undefined); setComposerOpen(true); }}>New event</button></div>
+        <div className="button-row"><button type="button" onClick={() => setInboxOpen(true)}>Invitations{invitations.length ? ` (${invitations.length})` : ""}</button><button type="button" onClick={() => setAvailabilityOpen(true)}>Find time</button><button type="button" onClick={() => setCalendarManagerOpen(true)}>Manage calendars</button><button type="button" disabled={!defaultCalendarId} onClick={() => { setViewingEvent(undefined); setEditingEvent(undefined); setComposerPrefill(undefined); setComposerOpen(true); }}>New event</button></div>
       </div>
       {calendars.length === 0 ? <p className="empty-state">No Google Calendars were found.</p> : (
         <>
@@ -1066,6 +1118,7 @@ export function CalendarPanel({
           {view === "agenda" && (visibleEvents.length > 0 ? <AgendaView events={visibleEvents} colors={colors} selected={selectedEventSet} select={toggleEventSelection} open={openEvent} /> : <p className="empty-state">No events in this range.</p>)}
         </>
       )}
+      {viewingEvent && !editingEvent && !composerOpen && <EventDetail event={viewingEvent} calendars={calendars} createEvent={createEvent} deleteEvent={deleteEvent} edit={() => setEditingEvent(viewingEvent)} close={() => setViewingEvent(undefined)} />}
       {(composerOpen || editingEvent) && <EventEditor calendars={calendars} event={editingEvent} prefill={composerPrefill} defaultCalendarId={defaultCalendarId} driveAuthorized={driveAuthorized} createEvent={createEvent} updateEvent={updateEvent} deleteEvent={deleteEvent} getEvent={getEvent} respondToEvent={respondToEvent} authorizeDrive={authorizeDrive} searchDrive={searchDrive} splitRecurringEvent={splitRecurringEvent ?? (async () => { throw new Error("Recurring series splitting is unavailable in this workspace"); })} close={closeEditor} />}
       {calendarManagerOpen && <CalendarManagerDialog calendars={calendars} createCalendar={createCalendar} subscribeCalendar={subscribeCalendar} removeCalendarFromList={removeCalendarFromList} close={() => setCalendarManagerOpen(false)} />}
       {availabilityOpen && <AvailabilityAssistant calendars={calendars} defaultCalendarIds={selectedCalendarIds} queryAvailability={queryAvailability} useSlot={useAvailabilitySlot} close={() => setAvailabilityOpen(false)} />}

@@ -1,5 +1,8 @@
+import { useState } from "react";
+
+import { bindingFromKeyboardEvent, formatBinding, keybindingLabels } from "@/features/keybindings";
 import type { SyncProgress } from "@/features/useWorkspace";
-import type { GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspacePreferences } from "@/types";
+import type { GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspaceKeybindings, WorkspacePreferences } from "@/types";
 
 interface SettingsPanelProps {
   readonly clientId: string;
@@ -27,9 +30,24 @@ interface SettingsPanelProps {
   requestNotifications(): Promise<void>;
 }
 
+function KeybindingField({ binding, value, save }: { readonly binding: keyof WorkspaceKeybindings; readonly value: string; save(value: string): void }): React.JSX.Element {
+  const [capturing, setCapturing] = useState(false);
+  return <label className="keybinding-field"><span>{keybindingLabels[binding]}</span><button type="button" className={capturing ? "keybinding-capture active" : "keybinding-capture"} onClick={() => setCapturing(true)} onKeyDown={(event) => {
+    if (!capturing) return;
+    const captured = bindingFromKeyboardEvent(event);
+    if (!captured) return;
+    event.preventDefault();
+    event.stopPropagation();
+    save(captured);
+    setCapturing(false);
+  }} onBlur={() => setCapturing(false)}>{capturing ? "Press shortcut…" : <kbd>{formatBinding(value)}</kbd>}</button></label>;
+}
+
 export function SettingsPanel({ clientId, status, connected, busy, connect, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, conflicts, taskLists, calendars, savePreferences, undo, redo, dismissConflict, openImport, openDiagnostics, requestNotifications }: SettingsPanelProps): React.JSX.Element {
+  const [filter, setFilter] = useState("");
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   const save = (update: Partial<WorkspacePreferences>): void => run(() => savePreferences(update));
+  const matches = (terms: string): boolean => !filter.trim() || terms.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
   return (
     <section className="workspace-panel settings-panel" aria-labelledby="settings-heading">
       <p className="eyebrow">local privacy controls</p>
@@ -39,10 +57,11 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         <div><dt>Authorization</dt><dd>{connected ? "Active in this browser session" : "Not active"}</dd></div>
         <div><dt>Stored by Hot Cross Buns</dt><dd>Only browser-local cached data and this non-secret client ID.</dd></div>
         <div><dt>Calendar synchronization</dt><dd>Google Calendar uses browser-local sync tokens. Google Tasks uses timestamp-based changes because its API has no sync-token endpoint.</dd></div>
-        <div><dt>Keyboard</dt><dd><kbd>⌘/Ctrl K</kbd> opens cached search and commands. Use ↑ ↓ and Enter inside the palette.</dd></div>
+        <div><dt>Keyboard</dt><dd><kbd>{formatBinding(preferences.keybindings.commandPalette)}</kbd> opens cached search and commands. Workspace shortcuts are configurable below; use ↑ ↓ and Enter inside the palette.</dd></div>
       </dl>
       <p className="status" aria-live="polite">{status}</p>
-      <details className="settings-group" open>
+      <label className="settings-search"><span>Search settings</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search appearance, sync, shortcuts, import…" /></label>
+      {matches("planner notes conflict week time timezone workday undo quick capture aliases task list calendar") && <details className="settings-group" open>
         <summary>Planner preferences</summary>
         <div className="settings-fields">
           <label>Notes projection<select value={preferences.notesProjectionMode} onChange={(event) => save({ notesProjectionMode: event.target.value as WorkspacePreferences["notesProjectionMode"] })}><option value="disabled">Disabled</option><option value="notes-only">Notes only</option><option value="mirrored">Tasks and Notes</option></select></label>
@@ -63,26 +82,34 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
           <label>Priority aliases high / medium / low<input value={`${preferences.quickCapture.highPriorityAliases.join(",")}; ${preferences.quickCapture.mediumPriorityAliases.join(",")}; ${preferences.quickCapture.lowPriorityAliases.join(",")}`} onChange={(event) => { const [high = "", medium = "", low = ""] = event.target.value.split(";"); const list = (value: string) => value.split(",").map((entry) => entry.trim()).filter(Boolean); save({ quickCapture: { ...preferences.quickCapture, highPriorityAliases: list(high), mediumPriorityAliases: list(medium), lowPriorityAliases: list(low) } }); }} /></label>
         </div>
         <datalist id="settings-time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
-      </details>
-      <details className="settings-group">
+      </details>}
+      {matches("appearance light dark monochrome density accent color font local google stylesheet scale task list pane") && <details className="settings-group" open={Boolean(filter)}>
         <summary>Appearance</summary>
         <div className="settings-fields">
           <label>Appearance<select value={preferences.appearance} onChange={(event) => save({ appearance: event.target.value as WorkspacePreferences["appearance"] })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
           <label>Density<select value={preferences.density} onChange={(event) => save({ density: event.target.value as WorkspacePreferences["density"] })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
           <label>Accent color<input type="color" value={preferences.accentColor} onChange={(event) => save({ accentColor: event.target.value })} /></label>
-          <label>Font<select value={preferences.fontFamily} onChange={(event) => save({ fontFamily: event.target.value as WorkspacePreferences["fontFamily"] })}><option value="system">System</option><option value="serif">Serif</option><option value="monospace">Monospace</option></select></label>
+          <label>Font<select value={preferences.fontFamily} onChange={(event) => save({ fontFamily: event.target.value as WorkspacePreferences["fontFamily"] })}><option value="system">System UI</option><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="mono">Monospace</option><option value="arial">Arial</option><option value="georgia">Georgia</option><option value="verdana">Verdana</option><option value="trebuchet">Trebuchet MS</option><option value="courier">Courier New</option><option value="custom">Custom / installed font</option></select></label>
+          <label>Custom or installed font family<input value={preferences.customFontFamily} onChange={(event) => save({ customFontFamily: event.target.value })} placeholder="e.g. Aptos, Atkinson Hyperlegible" disabled={preferences.fontFamily !== "custom"} /></label>
+          <label>Font stylesheet URL<input type="url" value={preferences.fontStylesheetUrl} onChange={(event) => save({ fontStylesheetUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?family=…" /></label>
           <label>Font scale<input type="number" min="0.8" max="1.4" step="0.05" value={preferences.fontScale} onChange={(event) => save({ fontScale: Number(event.target.value) })} /></label>
           <label>Task list pane width<input type="number" min="180" max="480" value={preferences.taskListPaneWidth} onChange={(event) => save({ taskListPaneWidth: Number(event.target.value) })} /></label>
         </div>
-      </details>
+        <p className="field-help">Choose a bundled browser font, enter a locally installed font name, or paste an HTTPS stylesheet URL such as Google Fonts. The selected family name is saved only in this browser.</p>
+      </details>}
+      {matches("keyboard shortcut keybinding search quick capture sync tasks calendar settings health tutorial") && <details className="settings-group" open={Boolean(filter)}>
+        <summary>Keyboard shortcuts</summary>
+        <p className="field-help">Select a shortcut then press the new key combination. Workspace shortcuts are saved locally and update every visible shortcut hint.</p>
+        <div className="keybinding-grid">{(Object.keys(keybindingLabels) as Array<keyof WorkspaceKeybindings>).map((binding) => <KeybindingField key={binding} binding={binding} value={preferences.keybindings[binding]} save={(value) => save({ keybindings: { ...preferences.keybindings, [binding]: value } })} />)}</div>
+      </details>}
       <section className="undo-controls" aria-label="Undo history"><p className="field-help">{undoEntries.find((entry) => entry.state === "undoable")?.label ?? "No undoable local change"}</p><div className="button-row"><button type="button" disabled={!undoEntries.some((entry) => entry.state === "undoable")} onClick={() => run(undo)}>Undo</button><button type="button" disabled={!undoEntries.some((entry) => entry.state === "redoable")} onClick={() => run(redo)}>Redo</button></div></section>
-      <details className="settings-group" open={conflicts.some((conflict) => conflict.retryState === "pending")}>
+      {matches("conflict history google retry local") && <details className="settings-group" open={conflicts.some((conflict) => conflict.retryState === "pending") || Boolean(filter)}>
         <summary>Conflict history{conflicts.length ? ` (${conflicts.length})` : ""}</summary>
         {conflicts.length === 0 ? <p className="field-help">No task, event, or invitation conflicts are awaiting review.</p> : <ul className="conflict-history">{conflicts.map((conflict) => <li key={conflict.id}><div><strong>{conflict.resourceKind === "task" ? "Task" : "Event"} {conflict.operation}</strong><p className="field-help">{conflict.reason === "authorization" ? "Authorization expired" : conflict.reason === "gone" ? "The Google resource no longer exists" : "Google changed the resource"}. {conflict.retryState === "pending" ? "The local intent is retained for review." : "Resolved."}</p><p className="field-help">{new Date(conflict.createdAt).toLocaleString()}</p></div><button type="button" onClick={() => run(() => dismissConflict(conflict.id))}>Dismiss record</button></li>)}</ul>}
         <p className="field-help">Prefer Google replaces the local cache when a current remote version is available. Prefer Local and Ask retain the local intent; reopen the affected item to make an explicit retry.</p>
-      </details>
+      </details>}
       {syncProgress.storage?.usage !== undefined && syncProgress.storage.quota !== undefined && <p className="field-help">Browser storage estimate: {(syncProgress.storage.usage / (1024 * 1024)).toFixed(1)} MiB used of {(syncProgress.storage.quota / (1024 * 1024)).toFixed(1)} MiB available.</p>}
-      <div className="button-row">
+      {matches("connect authorization sync refresh disconnect import diagnostics notifications browser local data") && <div className="button-row">
         <button type="button" disabled={busy || !clientId} onClick={() => run(connect)}>{connected ? "Reconnect Google" : "Connect Google"}</button>
         <button type="button" disabled={busy || !connected} onClick={() => run(sync)}>Sync now</button>
         <button type="button" disabled={busy || !connected} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
@@ -92,7 +119,7 @@ export function SettingsPanel({ clientId, status, connected, busy, connect, sync
         <button type="button" disabled={busy} onClick={openDiagnostics}>Diagnostics</button>
         <button type="button" disabled={busy} onClick={() => run(requestNotifications)}>Enable foreground reminders</button>
         <button className="danger-button" type="button" disabled={busy} onClick={() => run(clearLocalData)}>Clear browser-local data</button>
-      </div>
+      </div>}
     </section>
   );
 }

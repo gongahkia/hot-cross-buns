@@ -233,6 +233,7 @@ export function CommandPalette({
   const [historyIndexed, setHistoryIndexed] = useState(false);
   const [limit, setLimit] = useState(12);
   const [saveName, setSaveName] = useState("");
+  const [saveSearchOpen, setSaveSearchOpen] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | undefined>(undefined);
@@ -329,6 +330,7 @@ export function CommandPalette({
       setDeepSearch(false);
       setSelected(0);
       setLimit(12);
+      setSaveSearchOpen(false);
       queueMicrotask(() => inputRef.current?.focus());
     }
   }, [open]);
@@ -446,9 +448,7 @@ export function CommandPalette({
           <span>Search cached work and commands</span>
           <input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setDeepSearch(false); setSelected(0); }} placeholder="Search tasks, events, calendars, Drive, or commands" />
         </label>
-        <p className="field-help">Use ↑ ↓ to move, Enter to open, and Escape to close. Filters: <code>type:task</code>, <code>due:today</code>, <code>completed:false</code>, <code>date:2026-08-01..2026-08-31</code>, <code>in:&quot;Primary&quot;</code>.</p>
-        <p className="field-help">Also available: <code>list:</code>, <code>priority:</code>, <code>status:</code>, <code>start:</code>, <code>source:google</code>, and <code>notes:</code>/<code>body:</code> for an intentional deep search.</p>
-        {saveSearch && query.trim() && <div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Save this search as…" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => setSaveName("")); }}>Save search</button></div>}
+        {saveSearch && query.trim() && <details className="saved-search-control" open={saveSearchOpen} onToggle={(event) => setSaveSearchOpen(event.currentTarget.open)}><summary>Save this search</summary><div className="saved-search-create"><input aria-label="Saved search name" value={saveName} onChange={(event) => setSaveName(event.target.value)} placeholder="Name this search" /><button type="button" disabled={!saveName.trim()} onClick={() => { void saveSearch(saveName, query).then(() => { setSaveName(""); setSaveSearchOpen(false); }); }}>Save</button></div></details>}
         {savedSearches.length > 0 && <div className="saved-searches" aria-label="Saved searches">{savedSearches.map((search) => <span key={search.id}><button type="button" onClick={() => { setQuery(search.query); setDeepSearch(false); setSelected(0); }}>{search.name}</button>{deleteSearch && <button type="button" aria-label={`Delete saved search ${search.name}`} onClick={() => void deleteSearch(search.id)}>×</button>}</span>)}</div>}
         <p className="field-help">Calendar and Drive results are browser-local; Drive results use metadata already cached after Drive authorization and an attachment search.</p>
         {calendarHistory.status === "loading" && <p className="field-help" role="status">Indexing your synced Calendar history…</p>}
