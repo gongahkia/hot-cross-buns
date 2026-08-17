@@ -12,7 +12,10 @@ const markdown = new MarkdownIt({ html: true, breaks: true, linkify: true, typog
   .use(markdownItEmoji);
 
 function withTaskListInputs(value: string): string {
-  return value.replace(/^(\s*[-*+]\s+)\[([ xX])\]\s+/gm, (_match, prefix: string, state: string) => `${prefix}<input type="checkbox" disabled${state.toLocaleLowerCase() === "x" ? " checked" : ""}> `);
+  return value.replace(/^(\s*[-*+]\s+)\[([ xX])\]\s+/gm, (_match, prefix: string, state: string) => {
+    const complete = state.toLocaleLowerCase() === "x";
+    return `${prefix}<input type="checkbox" disabled aria-label="${complete ? "Completed" : "Incomplete"} checklist item"${complete ? " checked" : ""}> `;
+  });
 }
 
 function isHttps(value: string | null): boolean {
@@ -30,7 +33,7 @@ export function RichDescription({ value, className }: RichDescriptionProps): Rea
     const rendered = markdown.render(withTaskListInputs(value.trim()));
     return DOMPurify.sanitize(rendered, {
       ALLOWED_TAGS: ["a", "b", "blockquote", "br", "code", "del", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "img", "input", "li", "ol", "p", "pre", "s", "span", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul"],
-      ALLOWED_ATTR: ["align", "alt", "checked", "class", "disabled", "height", "href", "src", "title", "type", "width"],
+      ALLOWED_ATTR: ["align", "alt", "aria-label", "checked", "class", "disabled", "height", "href", "src", "title", "type", "width"],
       ALLOW_DATA_ATTR: false
     });
   }, [value]);

@@ -22,8 +22,8 @@ describe("RichDescription", () => {
   it("renders task lists, tables, emoji shortcodes, and safe HTML images", () => {
     render(<RichDescription value={'- [x] Finished\n- [ ] Remaining\n\n| Name | State |\n| --- | --- |\n| Build | Ready |\n\n:rocket:\n\n<img src="https://example.com/cover.png" alt="Cover">'} />);
 
-    expect(screen.getByRole("checkbox", { name: "" })).toBeChecked();
-    expect(screen.getAllByRole("checkbox")[1]).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Completed checklist item" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Incomplete checklist item" })).not.toBeChecked();
     expect(screen.getByRole("columnheader", { name: "Name" })).toBeVisible();
     expect(screen.getByText("🚀")).toBeVisible();
     expect(screen.getByRole("img", { name: "Cover" })).toHaveAttribute("src", "https://example.com/cover.png");
