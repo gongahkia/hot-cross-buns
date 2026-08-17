@@ -21,4 +21,15 @@ describe("LoadingState", () => {
     rerender(<LoadingState variant="Drive" />);
     expect(container.querySelectorAll(".loading-grid .round")).toHaveLength(0);
   });
+
+  it("keeps the first status visible before rotating the startup labels", () => {
+    vi.useFakeTimers();
+    const labels = ["Loading Hot Cross Buns…", "Reading local workspace…", "Searching cached work…"];
+    render(<LoadingState rotatingLabels={labels} labelRotationMs={1_000} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading Hot Cross Buns…");
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(screen.getByRole("status")).toHaveTextContent("Reading local workspace…");
+    vi.useRealTimers();
+  });
 });

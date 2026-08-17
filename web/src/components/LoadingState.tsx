@@ -6,6 +6,9 @@ interface LoadingStateProps {
   readonly label?: string;
   readonly variant?: LoadingVariant;
   readonly className?: string;
+  /** Optional startup/status sequence; the first label is shown before rotation begins. */
+  readonly rotatingLabels?: readonly string[];
+  readonly labelRotationMs?: number;
 }
 
 const chevron = Array.from({ length: 9 }, (_, index) => {
@@ -34,13 +37,43 @@ function useElapsed(): string {
   return total < 60 ? `${total.toFixed(1)}s` : `${Math.floor(total / 60)}m ${(total % 60).toFixed(1)}s`;
 }
 
+function usePrefersReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true);
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!media) return;
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return reducedMotion;
+}
+
+function useRotatingLabel(label: string, rotatingLabels: readonly string[] | undefined, rotationMs: number): string {
+  const [index, setIndex] = useState(0);
+  const reducedMotion = usePrefersReducedMotion();
+  const rotationKey = rotatingLabels?.join("\u0000") ?? "";
+  const labelCount = rotatingLabels?.length ?? 0;
+
+  useEffect(() => {
+    setIndex(0);
+    if (reducedMotion || labelCount < 2) return;
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % labelCount), rotationMs);
+    return () => window.clearInterval(timer);
+  }, [labelCount, reducedMotion, rotationKey, rotationMs]);
+
+  return labelCount > 0 ? rotatingLabels?.[index % labelCount] ?? label : label;
+}
+
 /** Pixel-grid feedback for blocking, long-running, and short inline asynchronous work. */
-export function LoadingState({ label = "Working", variant = "Drive", className }: LoadingStateProps): React.JSX.Element {
+export function LoadingState({ label = "Working", variant = "Drive", className, rotatingLabels, labelRotationMs = 1_100 }: LoadingStateProps): React.JSX.Element {
   const elapsed = useElapsed();
+  const visibleLabel = useRotatingLabel(label, rotatingLabels, labelRotationMs);
   const pattern = patterns[variant];
   return <div className={className ? `loading-state ${className}` : "loading-state"} role="status" aria-live="polite">
     <span className="loading-grid" aria-hidden="true">{pattern.delays.map((delay, index) => <span key={index} className={pattern.round ? "round" : ""} style={delay === null ? undefined : { animationDelay: `${delay}ms`, animationDuration: `${pattern.duration}ms` }} />)}</span>
-    <span className="loading-label">{label}</span>
+    <span className="loading-label">{visibleLabel}</span>
     <span className="loading-elapsed">{elapsed}</span>
   </div>;
 }

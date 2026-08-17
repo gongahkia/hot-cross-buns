@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -26,9 +26,9 @@ describe("CommandPalette", () => {
     const user = userEvent.setup();
     const close = vi.fn();
     const run = vi.fn();
-    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={run} />);
+    render(<CommandPalette open workspace={workspace} close={close} run={run} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "prepare");
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "prepare");
     expect(screen.getByRole("button", { name: /Prepare launch/ })).toBeVisible();
     await user.keyboard("{Enter}");
 
@@ -41,9 +41,9 @@ describe("CommandPalette", () => {
 
   it("keeps body-text search explicit", async () => {
     const user = userEvent.setup();
-    render(<CommandPalette open workspace={workspace} busy={false} close={vi.fn()} run={vi.fn()} />);
+    render(<CommandPalette open workspace={workspace} close={vi.fn()} run={vi.fn()} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "announcement");
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "announcement");
     expect(screen.queryByRole("button", { name: /Prepare launch/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Search notes and descriptions/ }));
     expect(screen.getByRole("button", { name: /Prepare launch/ })).toBeVisible();
@@ -52,7 +52,7 @@ describe("CommandPalette", () => {
   it("closes with Escape", async () => {
     const user = userEvent.setup();
     const close = vi.fn();
-    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={vi.fn()} />);
+    render(<CommandPalette open workspace={workspace} close={close} run={vi.fn()} />);
 
     await user.keyboard("{Escape}");
 
@@ -60,7 +60,7 @@ describe("CommandPalette", () => {
   });
 
   it("shows only the Spotlight search field until the user enters a query", () => {
-    render(<CommandPalette open workspace={workspace} busy={false} close={vi.fn()} run={vi.fn()} />);
+    render(<CommandPalette open workspace={workspace} close={vi.fn()} run={vi.fn()} />);
 
     expect(screen.queryByRole("listbox", { name: "Command palette results" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Go to Tasks/ })).not.toBeInTheDocument();
@@ -69,24 +69,25 @@ describe("CommandPalette", () => {
   it("closes from the Spotlight close control", async () => {
     const user = userEvent.setup();
     const close = vi.fn();
-    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={vi.fn()} />);
+    render(<CommandPalette open workspace={workspace} close={close} run={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: "Close command palette" }));
 
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("exposes the full Google Tasks refresh command", async () => {
+  it("does not expose workspace action shortcuts or commands", async () => {
     const user = userEvent.setup();
     const close = vi.fn();
     const run = vi.fn();
-    render(<CommandPalette open workspace={workspace} busy={false} close={close} run={run} />);
+    render(<CommandPalette open workspace={workspace} close={close} run={run} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "refresh all tasks");
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "refresh all tasks");
     await user.keyboard("{Enter}");
 
-    expect(close).toHaveBeenCalledOnce();
-    expect(run).toHaveBeenCalledWith({ type: "refresh-tasks" });
+    expect(screen.queryByRole("button", { name: /Refresh all Tasks/ })).not.toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("finds a historic canonical event that is not in the visible calendar range", async () => {
@@ -104,14 +105,13 @@ describe("CommandPalette", () => {
       <CommandPalette
         open
         workspace={workspace}
-        busy={false}
         calendarHistory={{ status: "ready", documents: historic ? [historic] : [] }}
         close={close}
         run={run}
       />
     );
 
-    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "historic");
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "historic");
     await user.click(await screen.findByRole("button", { name: /Historic launch review/ }));
 
     expect(close).toHaveBeenCalledOnce();
@@ -130,9 +130,9 @@ describe("CommandPalette", () => {
         { id: "completed-due", listId: "inbox", title: "Prepare archive", status: "completed" as const, due: "2026-08-20T00:00:00.000Z" }
       ]
     };
-    render(<CommandPalette open workspace={filteredWorkspace} busy={false} close={vi.fn()} run={vi.fn()} />);
+    render(<CommandPalette open workspace={filteredWorkspace} close={vi.fn()} run={vi.fn()} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Search cached work and commands" }), "type:task due:2026-08-20 completed:false");
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "type:task due:2026-08-20 completed:false");
 
     expect(screen.getByRole("button", { name: /Prepare launch.*Inbox.*Due.*Open/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: /Prepare archive/ })).not.toBeInTheDocument();
@@ -152,7 +152,6 @@ describe("CommandPalette", () => {
       <CommandPalette
         open
         workspace={workspace}
-        busy={false}
         calendarHistory={{ status: "ready", documents: historic ? [historic] : [] }}
         driveHistory={{ status: "ready", files: [{ id: "brief", name: "Launch brief", mimeType: "application/vnd.google-apps.document", webViewLink: "https://drive.example.test/brief" }] }}
         close={vi.fn()}
@@ -160,7 +159,7 @@ describe("CommandPalette", () => {
       />
     );
 
-    const input = screen.getByRole("textbox", { name: "Search cached work and commands" });
+    const input = screen.getByRole("textbox", { name: "Search cached work" });
     await user.type(input, "type:event date:2021-03-12 historic");
     expect(await screen.findByRole("button", { name: /Historic launch review.*Primary.*3\/12\/2021/ })).toBeVisible();
 
@@ -171,5 +170,34 @@ describe("CommandPalette", () => {
       type: "open-drive-file",
       file: expect.objectContaining({ id: "brief" })
     }));
+  });
+
+  it("loads more cached results when the result pane reaches its end", async () => {
+    const user = userEvent.setup();
+    const manyResults = {
+      ...workspace,
+      tasks: Array.from({ length: 20 }, (_, index) => ({
+        id: `task-${index}`,
+        listId: "inbox",
+        title: `Queued result ${index}`,
+        status: "needsAction" as const
+      }))
+    };
+    render(<CommandPalette open workspace={manyResults} close={vi.fn()} run={vi.fn()} />);
+
+    await user.type(screen.getByRole("textbox", { name: "Search cached work" }), "queued");
+    expect(screen.getAllByRole("button", { name: /Queued result/ })).toHaveLength(12);
+    expect(screen.queryByRole("button", { name: "More results" })).not.toBeInTheDocument();
+
+    const resultContainer = screen.getByRole("listbox", { name: "Command palette results" }).parentElement as HTMLDivElement;
+    Object.defineProperties(resultContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, value: 450 }
+    });
+    fireEvent.scroll(resultContainer);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading more results");
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Queued result/ })).toHaveLength(20));
   });
 });

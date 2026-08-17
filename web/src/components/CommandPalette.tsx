@@ -486,7 +486,7 @@ export function CommandPalette({
                     <span className="spotlight-result-icon" aria-hidden="true">{paletteItemIcon(item)}</span><span className="spotlight-result-copy"><strong>{item.title}</strong><span>{item.detail}</span></span><ChevronRight className="spotlight-result-chevron" aria-hidden="true" />
                   </button>
                 </motion.li>)}
-                {items.length === 0 && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
+                {items.length === 0 && !historySearching && calendarHistory.status !== "loading" && driveHistory.status !== "loading" && <li className="empty-state">No cached results. Try a shorter title, a different filter, or continue into notes.</li>}
               </ul>
             </motion.div>}
           </AnimatePresence>

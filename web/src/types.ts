@@ -290,14 +290,6 @@ export interface QuickCapturePreferences {
   readonly lowPriorityAliases: readonly string[];
 }
 
-export interface SavedSearch {
-  readonly id: string;
-  readonly name: string;
-  readonly query: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
 export interface WorkspaceConflict {
   readonly id: string;
   readonly resourceKind: "task" | "event";

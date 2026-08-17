@@ -30,7 +30,6 @@ import {
   type WorkspaceConflict,
   type WorkspacePreferences,
   type ScheduledTaskBlock,
-  type SavedSearch,
   type UndoEntry,
   type WorkspaceSnapshot
 } from "@/types";
@@ -107,7 +106,6 @@ export interface WorkspaceController {
   readonly conflicts: readonly WorkspaceConflict[];
   readonly undoEntries: readonly UndoEntry[];
   readonly invitationEvents: readonly GoogleCalendarEvent[];
-  readonly savedSearches: readonly SavedSearch[];
   saveClientId(clientId: string): Promise<void>;
   saveOnboardingDisplayTimeZone(timeZone: string): Promise<void>;
   connect(): Promise<void>;
@@ -139,8 +137,6 @@ export interface WorkspaceController {
   bulkEvents(events: readonly GoogleCalendarEvent[], operation: EventBulkOperation): Promise<BulkOperationResult>;
   undo(): Promise<void>;
   redo(): Promise<void>;
-  saveSearch(name: string, query: string): Promise<void>;
-  deleteSearch(id: string): Promise<void>;
   createEvent(calendarId: string, event: CalendarEventInput): Promise<void>;
   updateEvent(event: GoogleCalendarEvent, input: CalendarEventInput): Promise<"updated" | "conflict">;
   deleteEvent(event: GoogleCalendarEvent): Promise<"deleted" | "conflict">;
@@ -326,7 +322,6 @@ export function useWorkspace(): WorkspaceController {
   const [conflicts, setConflicts] = useState<readonly WorkspaceConflict[]>([]);
   const [undoEntries, setUndoEntries] = useState<readonly UndoEntry[]>([]);
   const [invitationEvents, setInvitationEvents] = useState<readonly GoogleCalendarEvent[]>([]);
-  const [savedSearches, setSavedSearches] = useState<readonly SavedSearch[]>([]);
   const workspaceRef = useRef<WorkspaceSnapshot | undefined>(workspace);
   const syncAbortRef = useRef<AbortController | undefined>(undefined);
   const connectionProfileRef = useRef<ConnectionProfile>(connectionProfile);
@@ -349,12 +344,11 @@ export function useWorkspace(): WorkspaceController {
   }, []);
 
   const loadSubjectState = useCallback(async (subject: string) => {
-    const [nextPreferences, metadata, blocks, storedConflicts, searches] = await Promise.all([
+    const [nextPreferences, metadata, blocks, storedConflicts] = await Promise.all([
       localStore.readPreferences(subject),
       localStore.readTaskMetadata(subject),
       localStore.readScheduledTaskBlocks(subject),
-      localStore.readConflicts(subject),
-      localStore.readSavedSearches(subject)
+      localStore.readConflicts(subject)
     ]);
     await localStore.cleanupUndoEntries(subject, nextPreferences.undoMaximumEntries);
     const storedUndo = await localStore.readUndoEntries(subject);
@@ -363,7 +357,6 @@ export function useWorkspace(): WorkspaceController {
     setScheduledTaskBlocks(blocks);
     setConflicts(storedConflicts);
     setUndoEntries(storedUndo);
-    setSavedSearches(searches);
   }, []);
 
   useEffect(() => {
@@ -2009,25 +2002,6 @@ export function useWorkspace(): WorkspaceController {
     setStatus(`Redid: ${entry.label}`);
   }, [applyUndoEntry, undoEntries]);
 
-  const saveSearch = useCallback(async (name: string, query: string) => {
-    const current = workspaceRef.current;
-    const normalizedName = name.trim();
-    const normalizedQuery = query.trim();
-    if (!current || !normalizedName || !normalizedQuery) throw new Error("Enter a name and query for the saved search");
-    const existing = savedSearches.find((search) => search.name.localeCompare(normalizedName, undefined, { sensitivity: "accent" }) === 0);
-    const now = new Date().toISOString();
-    const search: SavedSearch = existing ? { ...existing, query: normalizedQuery, updatedAt: now } : { id: crypto.randomUUID(), name: normalizedName, query: normalizedQuery, createdAt: now, updatedAt: now };
-    await localStore.saveSavedSearch(current.identity.subject, search);
-    setSavedSearches(await localStore.readSavedSearches(current.identity.subject));
-  }, [savedSearches]);
-
-  const deleteSearch = useCallback(async (id: string) => {
-    const current = workspaceRef.current;
-    if (!current) return;
-    await localStore.removeSavedSearch(current.identity.subject, id);
-    setSavedSearches((searches) => searches.filter((search) => search.id !== id));
-  }, []);
-
   const dismissConflict = useCallback(async (id: string) => {
     const current = workspaceRef.current;
     if (!current) return;
@@ -2141,7 +2115,6 @@ export function useWorkspace(): WorkspaceController {
       setConflicts([]);
       setUndoEntries([]);
       setInvitationEvents([]);
-      setSavedSearches([]);
       replaceWorkspace(undefined);
       setStatus("Browser-local Hot Cross Buns data was cleared");
     } finally {
@@ -2170,7 +2143,6 @@ export function useWorkspace(): WorkspaceController {
     conflicts,
     undoEntries,
     invitationEvents,
-    savedSearches,
     saveClientId,
     saveOnboardingDisplayTimeZone,
     connect,
@@ -2203,8 +2175,6 @@ export function useWorkspace(): WorkspaceController {
     splitRecurringEvent,
     undo,
     redo,
-    saveSearch,
-    deleteSearch,
     createEvent,
     updateEvent,
     deleteEvent,

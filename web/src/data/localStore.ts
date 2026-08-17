@@ -8,7 +8,6 @@ import type {
   GoogleTaskList,
   PendingMutation,
   ReminderState,
-  SavedSearch,
   ScheduledTaskBlock,
   SyncCheckpoint,
   TaskMetadata,
@@ -20,7 +19,7 @@ import type {
 import { calendarSearchDocument, type CalendarSearchDocument } from "@/features/calendarSearch";
 
 const DATABASE_NAME = "hot-cross-buns-web";
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 const stores = {
   settings: "settings",
@@ -37,7 +36,6 @@ const stores = {
   preferences: "preferences",
   taskMetadata: "taskMetadata",
   scheduledTaskBlocks: "scheduledTaskBlocks",
-  savedSearches: "savedSearches",
   conflicts: "conflicts",
   undoEntries: "undoEntries",
   reminderStates: "reminderStates"
@@ -193,10 +191,12 @@ function openDatabase(): Promise<IDBDatabase> {
         createSubjectStore(database, stores.preferences, "subject");
         createSubjectStore(database, stores.taskMetadata, ["subject", "taskId"]);
         createSubjectStore(database, stores.scheduledTaskBlocks, ["subject", "taskId"]);
-        createSubjectStore(database, stores.savedSearches, ["subject", "id"]);
         createSubjectStore(database, stores.conflicts, ["subject", "id"]);
         createSubjectStore(database, stores.undoEntries, ["subject", "id"]);
         createSubjectStore(database, stores.reminderStates, ["subject", "id"]);
+      }
+      if (event.oldVersion < 5 && database.objectStoreNames.contains("savedSearches")) {
+        database.deleteObjectStore("savedSearches");
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -431,19 +431,6 @@ export class LocalStore {
 
   async removeScheduledTaskBlock(subject: string, taskId: string): Promise<void> {
     await this.delete(stores.scheduledTaskBlocks, [subject, taskId]);
-  }
-
-  async readSavedSearches(subject: string): Promise<SavedSearch[]> {
-    const searches = await this.readSubjectRecords<SavedSearch>(stores.savedSearches, subject);
-    return searches.sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  async saveSavedSearch(subject: string, search: SavedSearch): Promise<void> {
-    await this.put(stores.savedSearches, { ...search, subject } satisfies SubjectRecord<SavedSearch>);
-  }
-
-  async removeSavedSearch(subject: string, id: string): Promise<void> {
-    await this.delete(stores.savedSearches, [subject, id]);
   }
 
   async readConflicts(subject: string): Promise<WorkspaceConflict[]> {

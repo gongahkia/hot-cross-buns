@@ -26,6 +26,13 @@ interface LaunchQueueLike {
   setConsumer(consumer: (launchParams: { readonly files: readonly { getFile(): Promise<File> }[] }) => void): void;
 }
 
+const workspaceLoadingLabels = [
+  "Loading Hot Cross Buns…",
+  "Reading local workspace…",
+  "Searching cached work…",
+  "Thinking through your schedule…"
+] as const;
+
 export default function App(): React.JSX.Element {
   const workspace = useWorkspace();
   const [view, setView] = useState<View>("tasks");
@@ -263,7 +270,7 @@ export default function App(): React.JSX.Element {
   }
 
   if (!workspace.ready) {
-    return <main className="loading-screen"><LoadingState label="Loading browser-local workspace" variant="Orbit" /></main>;
+    return <main className="loading-screen"><LoadingState label={workspaceLoadingLabels[0]} rotatingLabels={workspaceLoadingLabels} variant="Orbit" /></main>;
   }
   if (!workspace.workspace) {
     return <Onboarding savedClientId={workspace.clientId} displayTimeZone={workspace.onboardingDisplayTimeZone} connectionProfile={workspace.connectionProfile} managedConnectionAvailable={workspace.managedConnectionAvailable} busy={workspace.busy} status={workspace.status} saveClientId={workspace.saveClientId} saveDisplayTimeZone={workspace.saveOnboardingDisplayTimeZone} connect={workspace.connect} connectManaged={workspace.connectManaged} useDirectConnection={workspace.useDirectConnection} />;
