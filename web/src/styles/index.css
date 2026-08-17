@@ -268,7 +268,6 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
 .app-sidebar-nav { align-items: center; background: var(--hcb-subtle); border-inline-end: 1px solid var(--hcb-border); display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem 0.65rem; position: sticky; top: 0; height: 100vh; }
 .app-sidebar-nav nav, .sidebar-utilities { display: grid; gap: 0.45rem; }
 .sidebar-utilities { margin-top: auto; }
-.app-mark { align-items: center; background: var(--hcb-text); border-radius: 0.6rem; color: var(--hcb-bg); display: grid; font-size: 0.82rem; font-weight: 900; height: 2.25rem; place-items: center; width: 2.25rem; }
 .icon-button { align-items: center; background: transparent; border: 0; border-radius: 0.55rem; display: inline-flex; height: 2.6rem; justify-content: center; padding: 0; width: 2.6rem; }
 .icon-button svg { height: 1.25rem; width: 1.25rem; }
 .icon-button:hover:not(:disabled), .icon-button.active { background: var(--hcb-text); color: var(--hcb-bg); }
@@ -357,7 +356,7 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
   .app-sidebar-nav { background: var(--hcb-surface); border-block-start: 1px solid var(--hcb-border); border-inline-end: 0; bottom: 0; flex-direction: row; height: auto; justify-content: space-around; left: 0; padding: 0.4rem 0.6rem; position: fixed; right: 0; top: auto; z-index: 7; }
   .app-sidebar-nav nav, .sidebar-utilities { display: flex; gap: 0.2rem; }
   .sidebar-utilities { margin-top: 0; }
-  .app-mark, .sidebar-utilities .icon-button:nth-child(2), .sidebar-utilities .icon-button:nth-child(3) { display: none; }
+  .sidebar-utilities .icon-button:nth-child(2), .sidebar-utilities .icon-button:nth-child(3) { display: none; }
   .app-content { padding: 1rem; }
   .app-header { align-items: stretch; grid-template-columns: 1fr; }
   .panel-heading { align-items: stretch; flex-direction: column; }
@@ -373,4 +372,5 @@ code, kbd { background: var(--hcb-subtle); border-color: var(--hcb-border); colo
   .all-day-lane, .time-grid { min-width: 52rem; }
   .sync-progress { align-items: stretch; flex-direction: column; }
   .modal-card { border-radius: 0.8rem; max-height: calc(100dvh - 1rem); }
+  .time-zone-choice { grid-template-columns: 1fr; }
 }

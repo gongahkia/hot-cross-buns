@@ -164,13 +164,68 @@ function toYmd(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function toLocalDateTime(value: Date): string {
-  const offset = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 16);
+interface ZonedDateParts {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+  readonly hour: number;
+  readonly minute: number;
 }
 
-function localDateTime(minutesFromNow: number): string {
-  return toLocalDateTime(new Date(Date.now() + minutesFromNow * 60_000));
+function zonedDateParts(value: Date, timeZone: string): ZonedDateParts {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(value);
+  const part = (name: Intl.DateTimeFormatPartTypes): number => Number(parts.find((item) => item.type === name)?.value ?? 0);
+  return { year: part("year"), month: part("month"), day: part("day"), hour: part("hour"), minute: part("minute") };
+}
+
+function zonedYmd(value: Date, timeZone: string): string {
+  const { year, month, day } = zonedDateParts(value, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Converts a wall-clock value in an IANA zone to the matching instant. */
+function zonedDateTime(value: string, timeZone: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(value);
+  if (!match) return new Date(Number.NaN);
+  const [, yearText, monthText, dayText, hourText = "00", minuteText = "00"] = match;
+  const target = {
+    year: Number(yearText),
+    month: Number(monthText),
+    day: Number(dayText),
+    hour: Number(hourText),
+    minute: Number(minuteText)
+  };
+  const targetMillis = Date.UTC(target.year, target.month - 1, target.day, target.hour, target.minute);
+  let instant = targetMillis;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const observed = zonedDateParts(new Date(instant), timeZone);
+    const observedMillis = Date.UTC(observed.year, observed.month - 1, observed.day, observed.hour, observed.minute);
+    const difference = targetMillis - observedMillis;
+    if (difference === 0) break;
+    instant += difference;
+  }
+  return new Date(instant);
+}
+
+function toZonedDateTimeInput(value: Date, timeZone: string): string {
+  const { year, month, day, hour, minute } = zonedDateParts(value, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function dateTimeInput(minutesFromNow: number, timeZone: string): string {
+  return toZonedDateTimeInput(new Date(Date.now() + minutesFromNow * 60_000), timeZone);
+}
+
+function formattedHour(hour: number, hourCycle: CalendarDisplay["hourCycle"]): string {
+  return new Intl.DateTimeFormat([], { timeZone: "UTC", hour: "numeric", hourCycle }).format(new Date(Date.UTC(2000, 0, 1, hour)));
 }
 
 function startOfWeek(value: Date): Date {
@@ -204,10 +259,16 @@ function eventEnd(event: GoogleCalendarEvent): Date {
   return event.end.date ? dateFromYmd(event.end.date) : new Date(event.end.dateTime ?? 0);
 }
 
-function eventOverlapsDay(event: GoogleCalendarEvent, day: Date): boolean {
-  const start = startOfDay(day).getTime();
-  const end = addDays(startOfDay(day), 1).getTime();
-  return eventEnd(event).getTime() > start && eventStart(event).getTime() < end;
+function eventOverlapsDay(event: GoogleCalendarEvent, day: Date, display: CalendarDisplay): boolean {
+  const dayKey = toYmd(day);
+  if (event.start.date && event.end.date) {
+    return event.start.date <= dayKey && event.end.date > dayKey;
+  }
+  const start = eventStart(event);
+  const end = eventEnd(event);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return false;
+  const endInclusive = new Date(end.getTime() - 1);
+  return zonedYmd(start, display.timeZone) <= dayKey && zonedYmd(endInclusive, display.timeZone) >= dayKey;
 }
 
 function eventTimeLabel(event: GoogleCalendarEvent, display: CalendarDisplay): string {
@@ -356,8 +417,8 @@ function eventInputFromDraft(
         return { start: { date: start }, end: { date: toYmd(addDays(dateFromYmd(end), 1)) } };
       })()
     : (() => {
-        const startDate = new Date(start);
-        const endDate = new Date(end);
+        const startDate = zonedDateTime(start, timeZone);
+        const endDate = zonedDateTime(end, timeZone);
         if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate <= startDate) {
           throw new Error("Choose an end time after the start time");
         }
@@ -448,14 +509,14 @@ function EventCard({ event, color, selected, select, open }: { readonly event: G
   );
 }
 
-function slotDate(day: Date, hour: number): Date {
-  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0, 0, 0);
+function slotDate(day: Date, hour: number, display: CalendarDisplay): Date {
+  return zonedDateTime(`${toYmd(day)}T${String(hour).padStart(2, "0")}:00`, display.timeZone);
 }
 
-function timedEventAt(event: GoogleCalendarEvent, day: Date, hour: number): boolean {
+function timedEventAt(event: GoogleCalendarEvent, day: Date, hour: number, display: CalendarDisplay): boolean {
   if (event.start.date || !event.start.dateTime) return false;
-  const start = eventStart(event);
-  return start.getFullYear() === day.getFullYear() && start.getMonth() === day.getMonth() && start.getDate() === day.getDate() && start.getHours() === hour;
+  const start = zonedDateParts(eventStart(event), display.timeZone);
+  return `${start.year}-${String(start.month).padStart(2, "0")}-${String(start.day).padStart(2, "0")}` === toYmd(day) && start.hour === hour;
 }
 
 function TimeGrid({ days, events, colors, selected, select, create, move, resize, open }: {
@@ -474,15 +535,15 @@ function TimeGrid({ days, events, colors, selected, select, create, move, resize
   const allDay = events.filter((event) => event.start.date);
   return (
     <div className="time-grid-wrap">
-      <div className="all-day-lane" style={{ gridTemplateColumns: `3.75rem repeat(${days.length}, minmax(7rem, 1fr))` }}><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
+      <div className="all-day-lane" style={{ gridTemplateColumns: `3.75rem repeat(${days.length}, minmax(7rem, 1fr))` }}><strong>All day</strong>{days.map((day) => <div key={toYmd(day)}>{allDay.filter((event) => eventOverlapsDay(event, day, display)).map((event) => <EventCard key={eventKey(event)} event={event} color={eventColor(event, colors.get(event.calendarId))} selected={selected.has(eventKey(event))} select={() => select(event)} open={() => open(event)} />)}</div>)}</div>
       <div className="time-grid" role="grid" aria-label={days.length === 1 ? "Day time grid" : "Week time grid"} style={{ gridTemplateColumns: `4.25rem repeat(${days.length}, minmax(8rem, 1fr))` }}>
         <div role="columnheader" />
         {days.map((day) => <div key={toYmd(day)} role="columnheader" className="time-grid-day">{day.toLocaleDateString([], { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })}</div>)}
         {hours.map((hour) => <Fragment key={`hour-${hour}`}>
-          <div key={`label-${hour}`} className="time-label" role="rowheader">{slotDate(days[0]!, hour).toLocaleTimeString([], { timeZone: display.timeZone, hour: "numeric", hourCycle: display.hourCycle })}</div>
+          <div key={`label-${hour}`} className="time-label" role="rowheader">{formattedHour(hour, display.hourCycle)}</div>
           {days.map((day) => {
-            const start = slotDate(day, hour);
-            const cellEvents = events.filter((event) => timedEventAt(event, day, hour));
+            const start = slotDate(day, hour, display);
+            const cellEvents = events.filter((event) => timedEventAt(event, day, hour, display));
             return <div key={`${toYmd(day)}-${hour}`} className="time-cell" role="gridcell" tabIndex={0} aria-label={`Create event ${toYmd(day)} ${String(hour).padStart(2, "0")}:00`} onClick={(event) => { if (event.currentTarget === event.target) create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); create({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() }); } }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const key = event.dataTransfer.getData("application/x-hcb-event"); const moved = events.find((candidate) => eventKey(candidate) === key); if (moved) move(moved, start); }}>
               {cellEvents.map((calendarEvent) => <div key={eventKey(calendarEvent)} className="time-grid-event" draggable onDragStart={(event) => event.dataTransfer.setData("application/x-hcb-event", eventKey(calendarEvent))}><EventCard event={calendarEvent} color={eventColor(calendarEvent, colors.get(calendarEvent.calendarId))} selected={selected.has(eventKey(calendarEvent))} select={() => select(calendarEvent)} open={() => open(calendarEvent)} /><div className="time-grid-event-actions"><button type="button" aria-label={`Move ${calendarEvent.summary} 30 minutes later`} onClick={() => move(calendarEvent, new Date(eventStart(calendarEvent).getTime() + 30 * 60_000))}>↓</button><button type="button" aria-label={`Extend ${calendarEvent.summary} by 30 minutes`} onClick={() => resize(calendarEvent, new Date(eventEnd(calendarEvent).getTime() + 30 * 60_000))}>↘</button></div></div>)}
             </div>;
@@ -508,7 +569,7 @@ function DayView({ day, events, colors, selected, select, create, move, resize, 
   return (
     <div className="day-view">
       <h3>{day.toLocaleDateString([], { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })}</h3>
-      <TimeGrid days={[day]} events={events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents)} colors={colors} selected={selected} select={select} create={create} move={move} resize={resize} open={open} />
+      <TimeGrid days={[day]} events={events.filter((event) => eventOverlapsDay(event, day, display)).sort(sortEvents)} colors={colors} selected={selected} select={select} create={create} move={move} resize={resize} open={open} />
     </div>
   );
 }
@@ -537,13 +598,14 @@ function MonthView({ anchor, events, colors, selected, select, open }: {
   select(event: GoogleCalendarEvent): void;
   open(event: GoogleCalendarEvent): void;
 }): React.JSX.Element {
+  const display = useContext(CalendarDisplayContext);
   const start = viewRange(anchor, "month").start;
   return (
     <div className="month-grid">
       {weekDays.map((day) => <strong key={day} className="month-label">{weekDayLabels[day]}</strong>)}
       {Array.from({ length: 42 }, (_, index) => {
         const day = addDays(start, index);
-        const daily = events.filter((event) => eventOverlapsDay(event, day)).sort(sortEvents);
+        const daily = events.filter((event) => eventOverlapsDay(event, day, display)).sort(sortEvents);
         return (
           <section key={toYmd(day)} className={day.getMonth() === anchor.getMonth() ? "month-day" : "month-day muted"}>
             <span>{day.getDate()}</span>
@@ -612,6 +674,7 @@ function EventEditor({
   close(): void;
 }): React.JSX.Element {
   const titleRef = useRef<HTMLInputElement>(null);
+  const display = useContext(CalendarDisplayContext);
   const [editingEvent, setEditingEvent] = useState(event);
   const [scope, setScope] = useState<"instance" | "following" | "series">("instance");
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
@@ -619,9 +682,8 @@ function EventEditor({
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [allDay, setAllDay] = useState(false);
-  const [start, setStart] = useState(() => localDateTime(30));
-  const [end, setEnd] = useState(() => localDateTime(90));
-  const display = useContext(CalendarDisplayContext);
+  const [start, setStart] = useState(() => dateTimeInput(30, display.timeZone));
+  const [end, setEnd] = useState(() => dateTimeInput(90, display.timeZone));
   const [timeZone, setTimeZone] = useState(display.timeZone);
   const [attendeeText, setAttendeeText] = useState("");
   const [meet, setMeet] = useState(false);
@@ -633,6 +695,7 @@ function EventEditor({
   const [responding, setResponding] = useState(false);
 
   function loadDraft(source: GoogleCalendarEvent | undefined): void {
+    const sourceTimeZone = source?.start.timeZone ?? display.timeZone;
     setEditingEvent(source);
     setCalendarId(source?.calendarId ?? defaultCalendarId);
     setTitle(source?.summary ?? "");
@@ -640,9 +703,9 @@ function EventEditor({
     setLocation(source?.location ?? "");
     const sourceAllDay = Boolean(source?.start.date);
     setAllDay(sourceAllDay);
-    setStart(sourceAllDay ? source?.start.date ?? toYmd(new Date()) : source?.start.dateTime ? toLocalDateTime(new Date(source.start.dateTime)) : prefill ? toLocalDateTime(new Date(prefill.start)) : localDateTime(30));
-    setEnd(sourceAllDay ? toYmd(addDays(dateFromYmd(source?.end.date ?? source?.start.date ?? toYmd(new Date())), -1)) : source?.end.dateTime ? toLocalDateTime(new Date(source.end.dateTime)) : prefill ? toLocalDateTime(new Date(prefill.end)) : localDateTime(90));
-    setTimeZone(source?.start.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setStart(sourceAllDay ? source?.start.date ?? toYmd(new Date()) : source?.start.dateTime ? toZonedDateTimeInput(new Date(source.start.dateTime), sourceTimeZone) : prefill ? toZonedDateTimeInput(new Date(prefill.start), display.timeZone) : dateTimeInput(30, display.timeZone));
+    setEnd(sourceAllDay ? toYmd(addDays(dateFromYmd(source?.end.date ?? source?.start.date ?? toYmd(new Date())), -1)) : source?.end.dateTime ? toZonedDateTimeInput(new Date(source.end.dateTime), sourceTimeZone) : prefill ? toZonedDateTimeInput(new Date(prefill.end), display.timeZone) : dateTimeInput(90, display.timeZone));
+    setTimeZone(sourceTimeZone);
     setAttendeeText(source?.attendees?.map((attendee) => attendee.email).join(", ") ?? "");
     setMeet(false);
     setAttachments(source?.attachments ? [...source.attachments] : []);
@@ -686,9 +749,10 @@ function EventEditor({
           const start = event.originalStartTime ?? event.start;
           const end = event.end;
           setAllDay(Boolean(start.date));
-          setStart(start.date ?? (start.dateTime ? toLocalDateTime(new Date(start.dateTime)) : localDateTime(30)));
-          setEnd(end.date ? toYmd(addDays(dateFromYmd(end.date), -1)) : end.dateTime ? toLocalDateTime(new Date(end.dateTime)) : localDateTime(90));
-          setTimeZone(start.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+          const occurrenceTimeZone = start.timeZone ?? display.timeZone;
+          setStart(start.date ?? (start.dateTime ? toZonedDateTimeInput(new Date(start.dateTime), occurrenceTimeZone) : dateTimeInput(30, occurrenceTimeZone)));
+          setEnd(end.date ? toYmd(addDays(dateFromYmd(end.date), -1)) : end.dateTime ? toZonedDateTimeInput(new Date(end.dateTime), occurrenceTimeZone) : dateTimeInput(90, occurrenceTimeZone));
+          setTimeZone(occurrenceTimeZone);
         }
       } else {
         loadDraft(event);
@@ -701,8 +765,8 @@ function EventEditor({
 
   function toggleAllDay(next: boolean): void {
     if (next) {
-      setStart(toYmd(new Date(start)));
-      setEnd(toYmd(new Date(end)));
+      setStart(start.slice(0, 10));
+      setEnd(end.slice(0, 10));
     } else {
       setStart(`${start}T09:00`);
       setEnd(`${end}T10:00`);
@@ -989,6 +1053,10 @@ export function CalendarPanel({
   const [error, setError] = useState("");
   const defaultCalendarId = calendars.find((calendar) => calendar.primary)?.id ?? calendars[0]?.id ?? "";
   const range = useMemo(() => viewRange(anchor, view), [anchor, view]);
+  const rangeInstants = useMemo(() => ({
+    start: zonedDateTime(`${toYmd(range.start)}T00:00`, display.timeZone),
+    end: zonedDateTime(`${toYmd(range.end)}T00:00`, display.timeZone)
+  }), [display.timeZone, range.end, range.start]);
 
   useEffect(() => {
     setSelectedCalendarIds((current) => {
@@ -1020,7 +1088,7 @@ export function CalendarPanel({
     const event = command.event;
     if (event) {
       const date = event.originalStartTime ?? event.start;
-      const anchor = date.date ? dateFromYmd(date.date) : date.dateTime ? new Date(date.dateTime) : undefined;
+      const anchor = date.date ? dateFromYmd(date.date) : date.dateTime ? dateFromYmd(zonedYmd(new Date(date.dateTime), display.timeZone)) : undefined;
       if (anchor && !Number.isNaN(anchor.getTime())) {
         setAnchor(anchor);
         setView("day");
@@ -1030,18 +1098,20 @@ export function CalendarPanel({
       setComposerPrefill(undefined);
       setViewingEvent(event);
     }
-  }, [command, events]);
+  }, [command, display.timeZone, events]);
 
   useEffect(() => {
-    void loadCalendarRange(range.start.toISOString(), range.end.toISOString()).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Calendar events could not be loaded"));
-  }, [loadCalendarRange, range.end, range.start]);
+    void loadCalendarRange(rangeInstants.start.toISOString(), rangeInstants.end.toISOString()).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Calendar events could not be loaded"));
+  }, [loadCalendarRange, rangeInstants.end, rangeInstants.start]);
 
   const query = search.trim().toLocaleLowerCase();
   const visibleEvents = useMemo(() => events
     .filter((event) => selectedCalendarIds.includes(event.calendarId))
-    .filter((event) => eventEnd(event) > range.start && eventStart(event) < range.end)
+    .filter((event) => event.start.date && event.end.date
+      ? event.start.date < toYmd(range.end) && event.end.date > toYmd(range.start)
+      : eventEnd(event) > rangeInstants.start && eventStart(event) < rangeInstants.end)
     .filter((event) => matchesEvent(event, query))
-    .sort(sortEvents), [events, query, range.end, range.start, selectedCalendarIds]);
+    .sort(sortEvents), [events, query, range.end, range.start, rangeInstants.end, rangeInstants.start, selectedCalendarIds]);
   const colors = useMemo(() => new Map(calendars.map((calendar) => [calendar.id, calendar.backgroundColor])), [calendars]);
   const selectedEventSet = useMemo(() => new Set(selectedEventKeys), [selectedEventKeys]);
   const selectedEvents = useMemo(() => events.filter((event) => selectedEventSet.has(eventKey(event))), [events, selectedEventSet]);
