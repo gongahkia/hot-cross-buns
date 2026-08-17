@@ -139,7 +139,7 @@ as the baseline; progressively enhance installed Chromium PWAs with
 feature-detected file handlers, protocol handlers, and app badges. The PWA
 must show an in-app fallback wherever an enhancement is unavailable.
 
-### P1 — high-value planner features that fit the current static PWA
+### Planner capabilities
 
 #### W-03: Dedicated Notes projection and settings
 
@@ -148,7 +148,7 @@ projection and offers disabled, notes-only, and mirrored modes. The PWA has no
 `Notes` view, no projection preference, and no separation between undated root
 tasks and normal Tasks.
 
-**Recommended port.** Add a `notesProjectionMode` setting to IndexedDB;
+**Implementation.** Add a `notesProjectionMode` setting to IndexedDB;
 derive notes from tasks with no `due` and no `parent`; add a Notes navigation
 surface that reuses the task editor/mutation pipeline. Keep the Google payload
 unchanged—there is no separate remote Notes type.
@@ -166,7 +166,7 @@ parent ceases to qualify for the projection.
 **Web gap.** Native supports local task priorities and records due-zone
 metadata. The web task model/editor only uses Google’s date-only `due` field.
 
-**Recommended port.** Add a subject-scoped `taskMetadata` IndexedDB store
+**Implementation.** Add a subject-scoped `taskMetadata` IndexedDB store
 keyed by `(subject, taskId)` for `priority` and `dueTimeZone`. Display and
 filter the metadata locally; never pretend it is a Google Tasks field. Delete
 or remap the metadata when a task is deleted or cross-list moved and obtains a
@@ -187,7 +187,7 @@ visible marker in task notes, validates it, creates successor tasks, and
 detects/reconciles divergent duplicate successors. The web task model has no
 marker parser, recurrence editor, recurrence worker, or recovery UI.
 
-**Recommended port.** Extract a small TypeScript recurrence-marker codec with
+**Implementation.** Extract a small TypeScript recurrence-marker codec with
 the same versioned wire format as native, then add: editor validation; a
 subject-scoped recurrence schedule/index; idempotent successor generation at
 completion/sync; duplicate/recovery diagnostics; and tests using shared marker
@@ -208,7 +208,7 @@ loss.
 and text-replace actions with recurrence-aware scope. The PWA exposes only
 single-task edits and drag movement.
 
-**Recommended port.** Introduce explicit selection state in `TaskPanel`, a
+**Implementation.** Introduce explicit selection state in `TaskPanel`, a
 preview/confirmation dialog, and operation-specific outbox records. Apply
 optimistic changes in one IndexedDB transaction and flush individual Google
 Tasks calls with per-record outcomes; retain failed rows for retry.
@@ -226,7 +226,7 @@ wholly successful when any mutation remains pending or failed.
 external moves/resizes/deletes, and show unscheduled work. The PWA has no
 scheduled-task link model or UI.
 
-**Recommended port.** Add an IndexedDB `scheduledTaskBlocks` store keyed by
+**Implementation.** Add an IndexedDB `scheduledTaskBlocks` store keyed by
 subject/task ID with `calendarId` and `eventId`; create the Calendar event and
 link record as one logical operation, then reconcile it during sync. Render an
 unscheduled task section and offer `Schedule`, `Move`, and `Unschedule`.
@@ -243,7 +243,7 @@ link rather than silently recreating duplicate Calendar events.
 priority, and recurrence before creating a task or event. The PWA palette’s
 `New task`/`New event` actions open ordinary editors.
 
-**Recommended port.** Move the pure parsing contract from
+**Implementation.** Move the pure parsing contract from
 `native/src/core/QuickCaptureParser.*` into a TypeScript parser with fixture
 tests. Add a palette action/dialog that shows parsed chips, permits removing a
 recognition, and uses IndexedDB-backed defaults for the destination list,
@@ -311,7 +311,7 @@ event invitations communicate their email effect before send.
 **Web gap.** Native models these Google Calendar status-event types and their
 properties. The PWA event types and editor only model ordinary events.
 
-**Recommended port.** Add `eventType` and status-property unions to the web
+**Implementation.** Add `eventType` and status-property unions to the web
 event model, then add a type selector that applies Google’s required field
 rules before submission. Only expose choices when the selected primary calendar
 and account can use them; otherwise explain why the option is unavailable.
@@ -330,10 +330,11 @@ Google requirements are documented in the reference link below.
 and sends RSVP status plus an optional comment. The PWA can change the signed-
 in attendee’s status only after opening an event; it has no inbox or comment.
 
-**Recommended port.** Derive an `InvitationInbox` from cached events whose
+**Implementation.** Derive an `InvitationInbox` from cached events whose
 self-attendee status is `needsAction`; include date/calendar context, action
 buttons, and an optional comment editor. Add a dedicated API method with an
-ETag/refresh path and a queued mutation policy if offline RSVP is supported.
+ETag/refresh path and an ordinary queued mutation so an offline RSVP is
+persisted and retried with the same conflict policy as other event updates.
 
 **Decision.** Derive the inbox from the full canonical event cache and filter
 locally, so pending future invitations are independent of the visible range.
@@ -349,7 +350,7 @@ silently clearing the invitation.
 `source:`, `status:`, `start:`, `priority:`, `list:`, `calendar:`, and
 `notes:`/`body:` filters, saved searches, and bounded/paginated results.
 
-**Recommended port.** Keep the PWA’s title-first/deep-search interaction, but
+**Implementation.** Keep the PWA’s title-first/deep-search interaction, but
 extend `paletteFilters.ts` and the Calendar worker index with a versioned query
 AST. Store saved search name/query pairs subject-scoped in IndexedDB. Add an
 explicit "more results" flow rather than silently capping at 12 results.
@@ -371,8 +372,13 @@ size, calendar visibility, and quick-capture defaults. PWA Settings is limited
 to connection/sync/privacy controls and the UI has hard-coded visual choices.
 
 **Decision.** Add versioned, per-Google-subject preferences in IndexedDB. Do
-not use Drive or another remote settings store. Use CSS custom properties and
-`Intl`; changing display timezone must never change stored all-day dates.
+not use Drive or another remote settings store. Implement appearance, visual
+density, palette mode, accent color, font family/scale, task-list-pane width,
+week start, 12/24-hour time, display timezone, work hours, calendar visibility,
+sidebar tabs, Notes mode, conflict policy, undo retention/maximum entries, and
+quick-capture defaults/aliases. Use CSS custom properties and `Intl`; changing
+display timezone must never change stored all-day dates. Do not add the native
+external-browser preference because browser links use the user agent.
 
 **Acceptance.** Changing timezone must not alter stored all-day dates; calendar
 visibility is independent of Google Calendar-list subscription state.
@@ -421,12 +427,12 @@ portable path.
 redaction, diagnostic snapshots, and JSON export. The PWA has status strings
 but no support bundle or internal state inspection.
 
-**Recommended port.** Add a diagnostics page that builds a redacted JSON Blob
+**Implementation.** Add a diagnostics page that builds a redacted JSON Blob
 for user download. Include app/build version, browser capability checks,
 sanitized sync phase/error class, cache counts, storage estimate, pending
-mutation counts, and feature flags. Exclude OAuth client ID unless explicitly
-needed and redact account email/subject, event/task content, tokens, URLs that
-contain sensitive query parameters, and raw Google responses.
+mutation counts, and feature flags. Exclude OAuth client ID, account
+email/subject, event/task content, tokens, URLs that contain sensitive query
+parameters, and raw Google responses.
 
 **Decision.** Produce diagnostics only as a user-initiated local download.
 Remote support upload is out of scope for the static PWA.
@@ -467,7 +473,7 @@ notification APIs, or closed-app reminders.
 
 **Acceptance.** Email reminders never become browser notifications; denied
 permission is non-fatal; reopened tabs do not reissue a dismissed/snoozed
-reminder; snooze duration is configurable or matches native’s ten minutes.
+reminder; Snooze is always ten minutes.
 
 #### W-20: Deep links and event URLs
 
