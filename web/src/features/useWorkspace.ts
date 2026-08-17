@@ -524,8 +524,18 @@ export function useWorkspace(): WorkspaceController {
   const savePreferences = useCallback(async (update: Partial<WorkspacePreferences>) => {
     const current = workspaceRef.current;
     if (!current) throw new Error("Authorize Google before changing preferences");
-    const next = await localStore.updatePreferences(current.identity.subject, update);
-    if (update.displayTimeZone !== undefined) {
+    const { displayTimeZone: requestedDisplayTimeZone, ...otherUpdates } = update;
+    const displayTimeZone = requestedDisplayTimeZone?.trim();
+    if (displayTimeZone !== undefined) {
+      try {
+        new Intl.DateTimeFormat(undefined, { timeZone: displayTimeZone }).format();
+      } catch {
+        throw new Error("Choose a valid IANA time zone, such as Asia/Singapore");
+      }
+    }
+    const normalizedUpdate = displayTimeZone === undefined ? otherUpdates : { ...otherUpdates, displayTimeZone };
+    const next = await localStore.updatePreferences(current.identity.subject, normalizedUpdate);
+    if (displayTimeZone !== undefined) {
       await localStore.setSetupDisplayTimeZone(next.displayTimeZone);
       onboardingDisplayTimeZoneRef.current = next.displayTimeZone;
       setOnboardingDisplayTimeZone(next.displayTimeZone);

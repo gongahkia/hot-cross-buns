@@ -56,4 +56,28 @@ describe("TaskPanel", () => {
     await user.click(screen.getByRole("button", { name: "Edit task" }));
     expect(await screen.findByRole("heading", { name: "Edit task" })).toBeVisible();
   });
+
+  it("shows only the completion checkbox until bulk selection is explicitly enabled", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskPanel
+        taskLists={[{ id: "inbox", title: "Inbox" }]}
+        tasks={[{ id: "task-1", listId: "inbox", title: "Prepare launch", status: "needsAction" }]}
+        search=""
+        createTaskList={vi.fn().mockResolvedValue(undefined)}
+        updateTaskList={vi.fn().mockResolvedValue(undefined)}
+        deleteTaskList={vi.fn().mockResolvedValue(undefined)}
+        createTask={vi.fn().mockResolvedValue(undefined)}
+        updateTask={vi.fn().mockResolvedValue(undefined)}
+        toggleTask={vi.fn().mockResolvedValue(undefined)}
+        deleteTask={vi.fn().mockResolvedValue(undefined)}
+        moveTask={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    expect(screen.getByRole("checkbox", { name: /mark prepare launch complete/i })).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: /select prepare launch/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /select tasks/i }));
+    expect(screen.getByRole("checkbox", { name: /select prepare launch/i })).toBeVisible();
+  });
 });

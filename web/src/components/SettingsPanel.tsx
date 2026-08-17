@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { bindingFromKeyboardEvent, formatBinding, keybindingLabels } from "@/features/keybindings";
 import type { SyncProgress } from "@/features/useWorkspace";
@@ -49,11 +49,28 @@ function KeybindingField({ binding, value, save }: { readonly binding: keyof Wor
 
 export function SettingsPanel({ clientId, connectionProfile, managedConnectionAvailable, status, connected, busy, connect, connectManaged, useDirectConnection, sync, refreshAllTasks, syncProgress, cancelSync, disconnect, clearLocalData, preferences, undoEntries, conflicts, taskLists, calendars, savePreferences, undo, redo, dismissConflict, openImport, openDiagnostics, requestNotifications }: SettingsPanelProps): React.JSX.Element {
   const [filter, setFilter] = useState("");
+  const [timeZoneDraft, setTimeZoneDraft] = useState(preferences.displayTimeZone);
+  const [timeZoneError, setTimeZoneError] = useState("");
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   const save = (update: Partial<WorkspacePreferences>): void => run(() => savePreferences(update));
   const matches = (terms: string): boolean => !filter.trim() || terms.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
   const managed = connectionProfile.mode === "managed";
   const canConnect = managed || Boolean(clientId);
+  useEffect(() => {
+    setTimeZoneDraft(preferences.displayTimeZone);
+  }, [preferences.displayTimeZone]);
+
+  async function saveTimeZone(): Promise<void> {
+    const timeZone = timeZoneDraft.trim();
+    try {
+      new Intl.DateTimeFormat(undefined, { timeZone }).format();
+      await savePreferences({ displayTimeZone: timeZone });
+      setTimeZoneError("");
+    } catch {
+      setTimeZoneError("Choose a valid IANA time zone, such as Asia/Singapore.");
+    }
+  }
+
   return (
     <section className="workspace-panel settings-panel" aria-labelledby="settings-heading">
       <p className="eyebrow">connection and local privacy controls</p>
@@ -74,7 +91,7 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
           <label>Conflict policy<select value={preferences.conflictPolicy} onChange={(event) => save({ conflictPolicy: event.target.value as WorkspacePreferences["conflictPolicy"] })}><option value="prefer-google">Prefer Google</option><option value="prefer-local">Prefer Local</option><option value="ask">Ask every time</option></select></label>
           <label>Week starts on<select value={preferences.weekStartsOn} onChange={(event) => save({ weekStartsOn: Number(event.target.value) as 0 | 1 | 6 })}><option value="0">Sunday</option><option value="1">Monday</option><option value="6">Saturday</option></select></label>
           <label>Time format<select value={preferences.hourCycle} onChange={(event) => save({ hourCycle: event.target.value as WorkspacePreferences["hourCycle"] })}><option value="h12">12-hour</option><option value="h23">24-hour</option></select></label>
-          <label>Display timezone<input value={preferences.displayTimeZone} onChange={(event) => save({ displayTimeZone: event.target.value })} list="settings-time-zones" /></label>
+          <label>Display time zone<div className="time-zone-choice"><input value={timeZoneDraft} onChange={(event) => setTimeZoneDraft(event.target.value)} list="settings-time-zones" /><button type="button" onClick={() => void saveTimeZone()}>Save time zone</button></div>{timeZoneError && <small className="error" role="alert">{timeZoneError}</small>}<small className="field-help">Used for Calendar display, agenda labels, and defaults for new timed events.</small></label>
           <label>Workday starts<input type="number" min="0" max="23" value={preferences.workdayStartHour} onChange={(event) => save({ workdayStartHour: Number(event.target.value) })} /></label>
           <label>Workday ends<input type="number" min="1" max="24" value={preferences.workdayEndHour} onChange={(event) => save({ workdayEndHour: Number(event.target.value) })} /></label>
           <label>Undo retention (days)<input type="number" min="1" max="30" value={preferences.undoRetentionDays} onChange={(event) => save({ undoRetentionDays: Number(event.target.value) })} /></label>
