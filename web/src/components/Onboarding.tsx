@@ -50,8 +50,8 @@ export function Onboarding({ savedClientId, displayTimeZone, connectionProfile, 
     <main className="onboarding-shell">
       <section className="onboarding-card" aria-labelledby="onboarding-title">
         <p className="eyebrow">Google workspace connection</p>
-        <h1 id="onboarding-title">Choose how to connect Google</h1>
-        <p>Both choices keep your tasks, calendar cache, preferences, and pending changes in this browser. They differ only in where Google authorization is maintained.</p>
+        <h1 id="onboarding-title">Connect Google</h1>
+        <p>Your public HCB data stays in this browser. A reliable connection is available only when you run the full stack on infrastructure you control.</p>
         <div className="connection-mode-options" role="radiogroup" aria-label="Google connection model">
           <label className={mode === "direct" ? "connection-mode-option active" : "connection-mode-option"}>
             <input type="radio" name="connection-mode" value="direct" checked={mode === "direct"} onChange={() => setMode("direct")} />
@@ -59,7 +59,7 @@ export function Onboarding({ savedClientId, displayTimeZone, connectionProfile, 
           </label>
           {managedConnectionAvailable && <label className={mode === "managed" ? "connection-mode-option active" : "connection-mode-option"}>
             <input type="radio" name="connection-mode" value="managed" checked={mode === "managed"} onChange={() => setMode("managed")} />
-            <span><strong>Managed connection</strong><small>Use this deployment’s server-side authorization. The service stores an encrypted Google refresh token and keeps an HttpOnly session so routine sync can continue without browser-token expiry.</small></span>
+            <span><strong>Self-hosted reliable connection</strong><small>Run the documented full stack yourself. It stores an encrypted Google refresh token, a Calendar and Task mirror, and this device's Web Push subscription in your own PostgreSQL database.</small></span>
           </label>}
         </div>
         {mode === "direct" ? <>
@@ -73,16 +73,16 @@ export function Onboarding({ savedClientId, displayTimeZone, connectionProfile, 
           <label className="field-label" htmlFor="google-client-id">Google Web OAuth client ID</label>
           <input id="google-client-id" autoComplete="off" spellCheck={false} value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="1234567890-example.apps.googleusercontent.com" />
           <p className="field-help">Do not paste a client secret. A static web app cannot protect one, and this app does not collect it.</p>
-        </> : <p className="field-help">The managed service never sends the Google client secret or refresh token to the browser. You will be redirected to Google once to approve access.</p>}
+        </> : <p className="field-help">Your self-hosted server never sends its Google client secret or refresh token to the browser. You will be redirected to Google once to approve access. Calendar and Task polling runs every five minutes; Web Push is best effort, not a delivery guarantee.</p>}
         <label className="field-label" htmlFor="onboarding-time-zone">Default time zone</label>
         <div className="time-zone-choice"><input id="onboarding-time-zone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} list="onboarding-time-zones" /><button type="button" onClick={() => setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}>Use device time zone</button></div>
         <datalist id="onboarding-time-zones">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [Intl.DateTimeFormat().resolvedOptions().timeZone]).map((zone) => <option key={zone} value={zone} />)}</datalist>
         <p className="field-help">Calendar times, agenda labels, and new event defaults use this time zone. You can change it later in Settings.</p>
         {error && <p className="error" role="alert">{error}</p>}
-        {busy && <LoadingState label={mode === "managed" ? "Connecting Google" : "Requesting Google access"} variant="Orbit" className="onboarding-loader" />}
+        {busy && <LoadingState label={mode === "managed" ? "Connecting self-hosted Google" : "Requesting Google access"} variant="Orbit" className="onboarding-loader" />}
         <p className="status" aria-live="polite">{status}</p>
         <button className="primary-button" type="button" disabled={busy || (mode === "direct" && !clientId.trim())} onClick={() => void (mode === "managed" ? connectThroughManagedService() : saveAndConnect())}>
-          {busy ? "Connecting…" : mode === "managed" ? "Connect through managed service" : "Save and connect Google"}
+          {busy ? "Connecting…" : mode === "managed" ? "Connect through self-hosted service" : "Save and connect Google"}
         </button>
       </section>
     </main>

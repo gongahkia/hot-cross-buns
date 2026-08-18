@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseTaskRecurrenceNotes,
+  serializeTaskNotes,
   serializeTaskRecurrenceNotes,
   taskRecurrenceDate,
   taskRecurrenceSuccessor
@@ -52,6 +53,28 @@ describe("task recurrence marker", () => {
     expect(parseTaskRecurrenceNotes(futureMarker)).toMatchObject({
       state: "unsupported-version",
       userNotes: futureMarker
+    });
+  });
+
+  it("keeps one explicit reminder with a recurring successor in the portable task envelope", () => {
+    const serialized = serializeTaskNotes("Personal context", marker, { time: "09:30", timeZone: "Asia/Singapore" });
+
+    expect(serialized.error).toBeUndefined();
+    expect(parseTaskRecurrenceNotes(serialized.notes)).toEqual({
+      state: "managed",
+      userNotes: "Personal context",
+      marker,
+      reminder: { time: "09:30", timeZone: "Asia/Singapore" }
+    });
+  });
+
+  it("stores a reminder without making a task recurrent", () => {
+    const serialized = serializeTaskNotes("Pay rent", undefined, { time: "08:00", timeZone: "Asia/Singapore" });
+
+    expect(parseTaskRecurrenceNotes(serialized.notes)).toEqual({
+      state: "unmanaged",
+      userNotes: "Pay rent",
+      reminder: { time: "08:00", timeZone: "Asia/Singapore" }
     });
   });
 });

@@ -13,10 +13,9 @@ export const INITIAL_GOOGLE_SCOPES = [
 
 export type ConnectionMode = "direct" | "managed";
 
-/** Non-secret local routing preference; managed credentials remain server-side. */
+/** Non-secret local connection preference; a reliable service is always self-hosted. */
 export interface ConnectionProfile {
   readonly mode: ConnectionMode;
-  readonly backendOrigin?: string;
 }
 
 export interface GoogleIdentity {

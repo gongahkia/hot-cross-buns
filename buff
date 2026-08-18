@@ -1,0 +1,82 @@
+  4. The wrapper lacks important calendar-product primitives and a distinctive
+     planning surface.
+     Calendar sharing/ACL management is explicitly deferred (README2.md:64).
+     There is no appointment-schedule/booking-page implementation, and no
+     unified task-and-event timeline: CalendarPanel receives events, not
+     scheduled tasks (web/src/components/CalendarPanel.tsx:36).
+
+     Also, task priorities and task-to-event scheduling links live only in
+     IndexedDB (web/src/data/localStore.ts:36). A user changing browsers/
+     devices will see Google events and Tasks, but loses HCB-only scheduling
+     context.
+
+  5. Release evidence is not credible yet.
+     The full unit suite currently fails: 68/69 tests pass, but all-day
+     recurring event creation times out in the full run. It passes alone, so
+     this is likely a suite-level timing/flakiness issue, not a proven product
+     defect.
+
+     The E2E gate also fails: one of only two browser tests expects an obsolete
+     onboarding heading. The other only checks PWA manifest/service-worker
+     registration (web/tests/e2e/onboarding.spec.ts:3). There are no browser
+     tests for sync, mutations, offline recovery, recurrence, OAuth expiry, or
+     managed OAuth.
+
+     The backend is not in CI (.github/workflows/ci.yml:22); locally, its
+     typecheck/build and 5 unit tests pass, but they cover config and
+     encryption—not PostgreSQL, OAuth callbacks, sessions, proxying, or Google
+     failures. The live-Google web procedure exists but has no recorded
+     acceptance evidence.
+
+  ## Competitive reality
+
+   Product                 Google Calendar
+   Baseline users receive  Shared calendars plus booking pages/availability
+                           controls.
+   HCB web gap             Sharing is deferred; no booking experience. Google
+                           sharing (https://support.google.com/calendar/
+                           answer/37082), appointment schedules (https://
+                           support.google.com/calendar/answer/10729749)
+  ─────────────────────────────────────────────────────────────────────────────
+   Product                 Notion Calendar
+   Baseline users receive  Web scheduling links, availability blocking,
+                           conferencing connections.
+   HCB web gap             HCB can find free time but cannot publish/book it.
+                           Notion availability (https://www.notion.com/help/
+                           availability-blocking-and-time-zones)
+  ─────────────────────────────────────────────────────────────────────────────
+   Product                 TickTick
+   Baseline users receive  Calendar/task integration, collaboration, multi-
+                           channel reminders, focused work tools.
+   HCB web gap             HCB has a local queue and task-event links, but not
+                           a portable unified planner or reliable
+                           notifications. TickTick features (https://
+                           ticktick.com/features?language=en_US)
+  ─────────────────────────────────────────────────────────────────────────────
+   Product                 Things 3 / Sorted³
+   Baseline users receive  Clear daily planning; Things adds reminders and
+                           calendar context, Sorted³ adds a unified timeline
+                           and auto-scheduling.
+   HCB web gap             HCB’s task and calendar views remain separate; its
+                           strongest task-to-calendar feature is hidden in task
+                           editing. Things (https://culturedcode.com/things/
+                           features/), Sorted³ (https://www.sortedapp.com/how-
+                           it-works)
+  ─────────────────────────────────────────────────────────────────────────────
+   Product                 Apple Calendar
+   Baseline users receive  Account-level refresh/push and delegation
+                           expectations.
+   HCB web gap             HCB’s foreground-only browser model cannot match
+                           that trust level. Apple Calendar accounts (https://
+                           support.apple.com/en-ie/guide/calendar/icl26669/mac)
+
+  The product has real strengths: local-first cache, incremental Calendar sync
+  design, durable queued writes, keyboard-led interaction, Google-native
+  recurrence, and a comparatively serious conflict model. But those are not
+  enough to outweigh the setup and trust costs for a normal user.
+
+  My recommendation is to settle one product decision before building more
+  parity: is HCB a privacy-first BYO-OAuth single-browser tool, or is it a
+  hosted, verified, managed-OAuth calendar product? The current repo tries to
+  support both, but neither path is complete enough to be the default adoption
+  story.

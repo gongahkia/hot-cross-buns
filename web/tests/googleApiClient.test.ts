@@ -8,13 +8,13 @@ describe("GoogleApiClient", () => {
     await expect(client.listTaskLists()).rejects.toBeInstanceOf(GoogleAuthorizationRequiredError);
   });
 
-  it("routes managed-mode requests through the configured backend with a cookie session", async () => {
+  it("routes managed-mode requests through the same-origin API with a cookie session", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ id: "list-1", title: "Inbox" }] })));
     vi.stubGlobal("fetch", fetchMock);
-    const client = new GoogleApiClient(managedGoogleTransport("https://api.example.com/ignored-path"));
+    const client = new GoogleApiClient(managedGoogleTransport());
 
     await expect(client.listTaskLists()).resolves.toEqual([{ id: "list-1", title: "Inbox", updated: undefined }]);
-    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/api/google/tasks/v1/users/@me/lists?maxResults=100");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/google/tasks/v1/users/@me/lists?maxResults=100");
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: "include" });
     expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("Authorization")).toBeNull();
     vi.unstubAllGlobals();

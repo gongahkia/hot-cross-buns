@@ -52,14 +52,13 @@ export function browserGoogleTransport(accessToken: TokenProvider): GoogleApiTra
   };
 }
 
-/** Routes the same restricted Google API paths through an HCB managed backend. */
-export function managedGoogleTransport(backendOrigin: string): GoogleApiTransport {
-  const origin = new URL(backendOrigin).origin;
+/** Routes the same restricted Google API paths through a same-origin self-hosted backend. */
+export function managedGoogleTransport(): GoogleApiTransport {
   return {
     async request(path, init = {}) {
       const headers = new Headers(init.headers);
       if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-      return fetch(`${origin}/api/google${path}`, { ...init, headers, credentials: "include" });
+      return fetch(`/api/google${path}`, { ...init, headers, credentials: "include" });
     }
   };
 }

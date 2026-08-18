@@ -18,6 +18,7 @@ import { TutorialDialog } from "@/components/TutorialDialog";
 import type { CalendarPanelCommand } from "@/components/CalendarPanel";
 import { localStore } from "@/data/localStore";
 import { formatBinding, matchesBinding } from "@/features/keybindings";
+import { enableReliablePush } from "@/features/reliablePush";
 import { useWorkspace } from "@/features/useWorkspace";
 
 type View = "tasks" | "notes" | "calendar" | "settings" | "health";
@@ -137,6 +138,19 @@ export default function App(): React.JSX.Element {
   }, [workspace.syncProgress.active, workspace.syncProgress.phase]);
 
   useEffect(() => {
+    if (workspace.connectionProfile.mode !== "managed" || !workspace.connected) return;
+    const synchronize = (): void => {
+      if (document.visibilityState === "visible") void workspace.sync().catch(() => undefined);
+    };
+    const onVisibility = (): void => { if (document.visibilityState === "visible") synchronize(); };
+    synchronize();
+    window.addEventListener("online", synchronize);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(synchronize, 5 * 60_000);
+    return () => { window.removeEventListener("online", synchronize); document.removeEventListener("visibilitychange", onVisibility); window.clearInterval(timer); };
+  }, [workspace.connected, workspace.connectionProfile.mode, workspace.sync]);
+
+  useEffect(() => {
     const current = workspace.workspace;
     if (!current) return;
     try {
@@ -180,7 +194,7 @@ export default function App(): React.JSX.Element {
     const update = (): void => {
       void Promise.all([
         localStore.pendingMutations(subject),
-        pendingForegroundReminderCount(subject, workspace.workspace?.events ?? [], workspace.workspace?.calendars ?? [])
+        pendingForegroundReminderCount(subject, workspace.workspace?.events ?? [], workspace.workspace?.calendars ?? [], workspace.workspace?.tasks ?? [])
       ]).then(([mutations, reminders]) => {
         if (!active) return;
         const count = mutations.length + reminders;
@@ -420,7 +434,11 @@ export default function App(): React.JSX.Element {
           dismissConflict={workspace.dismissConflict}
           openImport={() => setImportOpen(true)}
           openDiagnostics={() => setDiagnosticsOpen(true)}
-          requestNotifications={async () => {
+          requestNotifications={async (contentMode) => {
+            if (workspace.connectionProfile.mode === "managed") {
+              await enableReliablePush(contentMode ?? "details");
+              return;
+            }
             const permission = await requestForegroundNotificationPermission();
             if (permission !== "granted") throw new Error("Notifications were not enabled; reminders remain visible while the PWA is open");
           }}
@@ -433,7 +451,7 @@ export default function App(): React.JSX.Element {
       {diagnosticsOpen && <DiagnosticsDialog subject={workspace.workspace.identity.subject} syncProgress={workspace.syncProgress} close={() => setDiagnosticsOpen(false)} />}
       {syncDialogOpen && <SyncDialog progress={workspace.syncProgress} cancel={workspace.cancelSync} close={() => setSyncDialogOpen(false)} />}
       {tutorialOpen && <TutorialDialog keybindings={workspace.preferences.keybindings} close={() => setTutorialOpen(false)} />}
-      <ForegroundReminders subject={workspace.workspace.identity.subject} events={workspace.workspace.events} calendars={workspace.workspace.calendars} />
+      <ForegroundReminders subject={workspace.workspace.identity.subject} events={workspace.workspace.events} calendars={workspace.workspace.calendars} tasks={workspace.workspace.tasks} />
       </div>
     </main>
   );

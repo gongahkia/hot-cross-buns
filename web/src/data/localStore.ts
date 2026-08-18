@@ -231,22 +231,17 @@ export class LocalStore {
     await this.put(stores.settings, { key: "googleClientId", value: clientId.trim() } satisfies StoredSetting);
   }
 
-  async getConnectionProfile(): Promise<ConnectionProfile> {
+  async getConnectionProfile(fallback: ConnectionProfile = { mode: "direct" }): Promise<ConnectionProfile> {
     const database = await this.db();
     const transaction = database.transaction(stores.settings, "readonly");
     const stored = await requestResult(transaction.objectStore(stores.settings).get("connectionProfile"));
     await transactionDone(transaction);
     const value = (stored as StoredSetting | undefined)?.value;
-    const backendOrigin = typeof value === "object" && value !== null ? (value as ConnectionProfile).backendOrigin : undefined;
-    if (typeof value === "object" && value !== null && (value as ConnectionProfile).mode === "managed" && typeof backendOrigin === "string") {
-      try {
-        const backend = new URL(backendOrigin);
-        if (backend.protocol === "http:" || backend.protocol === "https:") return { mode: "managed", backendOrigin: backend.origin };
-      } catch {
-        // a malformed browser-local setting must not turn into a network target
-      }
+    if (typeof value === "object" && value !== null) {
+      if ((value as ConnectionProfile).mode === "direct") return { mode: "direct" };
+      if ((value as ConnectionProfile).mode === "managed") return { mode: "managed" };
     }
-    return { mode: "direct" };
+    return fallback;
   }
 
   async setConnectionProfile(profile: ConnectionProfile): Promise<void> {

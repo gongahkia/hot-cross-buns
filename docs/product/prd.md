@@ -2,7 +2,7 @@
 
 ## Product
 
-Hot Cross Buns is a macOS-first local desktop client for a user's Google Calendar and Google Tasks account. It keeps an on-device cache and mutation journal for speed and offline work; it does not operate an HCB cloud backend. Notes are an optional HCB projection of undated Google Tasks and sync as ordinary Google Tasks.
+Hot Cross Buns is a local desktop client and web client for a user's Google Calendar and Google Tasks account. It keeps an on-device cache and mutation journal for speed and offline work. The public web build is direct-only; an optional reliable web stack is self-hosted by its user and never operated by Hot Cross Buns. Notes are an optional HCB projection of undated Google Tasks and sync as ordinary Google Tasks.
 
 ## Target user
 
@@ -13,7 +13,7 @@ An individual who needs a fast, keyboard-accessible planner that is a credible d
 - User supplies a Google Desktop OAuth client and connects their own account through PKCE loopback authorization.
 - Tasks support lists, hierarchy, create/edit/complete/delete/move/reparent/reorder, batch actions, and durable offline mutations.
 - Notes can be disabled, shown only as undated task projections, or mirrored in Tasks and Notes.
-- HCB-managed recurring tasks preserve portable marker metadata and reconcile successor duplicates.
+- HCB recurring tasks preserve portable marker metadata and reconcile successor duplicates. The web can additionally store one exact portable task reminder time per task; the self-hosted worker considers only tasks with that explicit marker.
 - Calendar supports agenda/day/week/month views, search, structured create/edit/delete/move/bulk actions, arbitrary Google recurrence round-tripping, Google-resolved instances, Meet creation, Drive metadata attachment picking, invitations/RSVP comments, free-busy, calendar creation/subscription, and Focus/OOO/working-location fields where Google exposes them.
 - Calendar popup reminders create local macOS notifications with Snooze 10 minutes and Dismiss.
 - Search is local-first, structured, saved, ranked, and does not query Google per keystroke.

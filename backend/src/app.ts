@@ -1,7 +1,6 @@
 import type { IncomingHttpHeaders } from "node:http";
 
 import cookie from "@fastify/cookie";
-import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
 import { driveMetadataScope, managedGoogleScopes, type BackendConfig } from "./config.js";
@@ -9,6 +8,7 @@ import { CredentialCipher } from "./credentialCipher.js";
 import { Database } from "./database.js";
 import { ManagedAuthorizationError, ManagedGoogleService, ManagedGooglePathError } from "./googleService.js";
 import { ManagedStore, type ManagedSession } from "./managedStore.js";
+import { ReliableSyncService, validatePushSubscription } from "./reliableSyncService.js";
 
 const sessionCookie = "hcb_session";
 const oauthAttemptCookie = "hcb_oauth_attempt";
@@ -85,20 +85,18 @@ function proxyPath(request: FastifyRequest): string {
   return rawUrl.slice(prefix.length);
 }
 
+function object(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
 export async function buildApp(config: BackendConfig, database: Database): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, bodyLimit: 1_048_576, trustProxy: config.cookieSecure });
   const store = new ManagedStore(database, new CredentialCipher(config.encryptionKeys), config.sessionTtlDays);
   const google = new ManagedGoogleService(config, store);
+  const reliable = new ReliableSyncService(config, database, store, google);
   const limiter = new PerSessionRateLimiter();
 
   await app.register(cookie);
-  await app.register(cors, {
-    credentials: true,
-    origin(origin, callback) {
-      callback(null, !origin || config.frontendOrigins.includes(origin));
-    }
-  });
-
   app.addHook("onRequest", async (_request, reply) => {
     reply.header("Cache-Control", "no-store");
     reply.header("Referrer-Policy", "no-referrer");
@@ -123,6 +121,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
       reply.clearCookie(oauthAttemptCookie, cookieOptions(config));
       const exchanged = await google.exchangeCode(request.query.code, attempt.verifier);
       await store.saveCredential(exchanged.identity, exchanged.refreshToken, [...new Set([...attempt.scopes, ...exchanged.scopes])]);
+      await reliable.requestSync(exchanged.identity.subject);
       const session = await store.createSession(exchanged.identity.subject, config.sessionTtlDays);
       reply.setCookie(sessionCookie, session, { ...cookieOptions(config), maxAge: config.sessionTtlDays * 86_400 });
       return reply.redirect(callbackUrl(config, "connected"));
@@ -140,6 +139,43 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
     return { authenticated: Boolean(session), user: session ? { subject: session.subject, email: session.email, name: session.name, picture: session.picture, scopes: session.scopes } : undefined };
   });
 
+  app.get("/api/reliability/status", async (request, reply) => {
+    const session = await requireSession(store, config, request, reply);
+    return reliable.status(session.subject);
+  });
+
+  app.get("/api/push/public-key", async (request, reply) => {
+    await requireSession(store, config, request, reply);
+    const publicKey = reliable.publicKey();
+    if (!publicKey) throw new PublicError(404, "Web Push is not enabled on this self-hosted deployment");
+    return { publicKey };
+  });
+
+  app.put("/api/push/subscription", async (request, reply) => {
+    requireAllowedOrigin(config, request);
+    const session = await requireSession(store, config, request, reply);
+    const body = object(request.body);
+    const subscription = validatePushSubscription(body?.subscription);
+    const contentMode = body?.contentMode;
+    if (!subscription || (contentMode !== "details" && contentMode !== "generic")) throw new PublicError(400, "The Web Push subscription is invalid");
+    await reliable.savePushSubscription(session.subject, subscription, contentMode);
+    return reply.code(204).send();
+  });
+
+  app.delete("/api/push/subscription", async (request, reply) => {
+    requireAllowedOrigin(config, request);
+    const session = await requireSession(store, config, request, reply);
+    const body = object(request.body);
+    if (typeof body?.endpoint !== "string" || body.endpoint.length > 4096) throw new PublicError(400, "The Web Push endpoint is invalid");
+    await reliable.deletePushSubscription(session.subject, body.endpoint);
+    return reply.code(204).send();
+  });
+
+  app.post("/api/webhooks/google/calendar", async (request, reply) => {
+    const accepted = await reliable.handleCalendarWebhook(request.headers);
+    return reply.code(accepted ? 204 : 404).send();
+  });
+
   app.post("/api/auth/logout", async (request, reply) => {
     requireAllowedOrigin(config, request);
     await store.deleteSession(request.cookies[sessionCookie]);
@@ -150,6 +186,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
   app.post("/api/auth/google/disconnect", async (request, reply) => {
     requireAllowedOrigin(config, request);
     const session = await requireSession(store, config, request, reply);
+    await reliable.disconnect(session.subject);
     const refreshToken = await store.disconnect(session.subject);
     google.forgetAccessToken(session.subject);
     await google.revoke(refreshToken);
@@ -172,6 +209,7 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
         body
       });
       const contentType = response.headers.get("content-type") ?? "application/json; charset=utf-8";
+      if (response.ok && request.method !== "GET") await reliable.requestSync(session.subject);
       return reply.code(response.status).type(contentType).send(Buffer.from(await response.arrayBuffer()));
     }
   });
@@ -180,8 +218,8 @@ export async function buildApp(config: BackendConfig, database: Database): Promi
     if (error instanceof PublicError) return reply.code(error.statusCode).send({ error: { message: error.message } });
     if (error instanceof ManagedGooglePathError) return reply.code(400).send({ error: { message: error.message } });
     if (error instanceof ManagedAuthorizationError) return reply.code(401).send({ error: { message: error.message } });
-    app.log.error({ error: error instanceof Error ? error.name : "unknown" }, "Unhandled managed backend error");
-    return reply.code(500).send({ error: { message: "The managed service could not complete this request" } });
+    app.log.error({ error: error instanceof Error ? error.name : "unknown" }, "Unhandled self-hosted backend error");
+    return reply.code(500).send({ error: { message: "The self-hosted service could not complete this request" } });
   });
 
   return app;

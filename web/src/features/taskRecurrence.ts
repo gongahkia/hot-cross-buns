@@ -24,16 +24,25 @@ export interface TaskRecurrenceMarker {
   readonly templatePriority: TaskPriority;
 }
 
+/** A single portable reminder bound to the task's own due date. */
+export interface TaskReminder {
+  readonly time: string;
+  readonly timeZone: string;
+}
+
 export interface TaskRecurrenceNotes {
   readonly state: "unmanaged" | "managed" | "malformed" | "unsupported-version";
   readonly userNotes: string;
   readonly marker?: TaskRecurrenceMarker;
+  readonly reminder?: TaskReminder;
   readonly diagnostic?: string;
 }
 
 const notesLimit = 8_192;
 const markerPrefix = "[HCB-RECURRENCE v";
 const markerSuffix = "\n[/HCB-RECURRENCE]";
+const taskMarkerPrefix = "[HCB-TASK v";
+const taskMarkerSuffix = "\n[/HCB-TASK]";
 const frequencies = new Set<TaskRecurrenceFrequency>(["daily", "weekly", "monthly", "yearly"]);
 const priorities = new Set<TaskPriority>(["none", "low", "medium", "high"]);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -110,6 +119,12 @@ function validTitle(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 500 && value.trim() === value && !value.includes("\0");
 }
 
+function validReminder(value: unknown): value is { readonly t: string; readonly z: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const reminder = value as Record<string, unknown>;
+  return Object.keys(reminder).length === 2 && typeof reminder.t === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.t) && validTimeZone(reminder.z);
+}
+
 function integer(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && Number.isSafeInteger(value);
 }
@@ -177,7 +192,7 @@ function payloadToMarker(payload: unknown, version: number): TaskRecurrenceMarke
   return validate(marker) ? undefined : marker;
 }
 
-export function parseTaskRecurrenceNotes(notes = ""): TaskRecurrenceNotes {
+function parseLegacyRecurrenceNotes(notes: string): TaskRecurrenceNotes {
   const start = notes.indexOf(markerPrefix);
   if (start < 0) return { state: "unmanaged", userNotes: notes };
   if (notes.indexOf(markerPrefix, start + markerPrefix.length) >= 0) return { state: "malformed", userNotes: notes, diagnostic: "HCB recurrence marker is malformed: multiple marker headers exist" };
@@ -199,14 +214,62 @@ export function parseTaskRecurrenceNotes(notes = ""): TaskRecurrenceNotes {
   }
 }
 
+function parseTaskEnvelope(notes: string): TaskRecurrenceNotes {
+  const start = notes.indexOf(taskMarkerPrefix);
+  if (start < 0) return parseLegacyRecurrenceNotes(notes);
+  if (notes.indexOf(taskMarkerPrefix, start + taskMarkerPrefix.length) >= 0) return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: multiple marker headers exist" };
+  const headerEnd = notes.indexOf("]\n", start + taskMarkerPrefix.length);
+  if (start < 2 || notes.slice(start - 2, start) !== "\n\n" || headerEnd < 0) return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: marker boundary is invalid" };
+  const version = Number(notes.slice(start + taskMarkerPrefix.length, headerEnd));
+  const end = notes.indexOf(taskMarkerSuffix, headerEnd + 2);
+  if (!Number.isInteger(version) || version < 1 || end < 0 || end + taskMarkerSuffix.length !== notes.length) return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: marker envelope is invalid" };
+  if (version !== 1) return { state: "unsupported-version", userNotes: notes, diagnostic: "HCB task marker version is unsupported" };
+  const payloadText = notes.slice(headerEnd + 2, end);
+  if (!payloadText || payloadText.includes("\n") || utf8Bytes(payloadText) > notesLimit) return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: marker payload is invalid" };
+  try {
+    const payload = JSON.parse(payloadText) as Record<string, unknown>;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).some((key) => key !== "m" && key !== "r") || (!("m" in payload) && !("r" in payload))) {
+      return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: payload fields are invalid" };
+    }
+    const reminder = "m" in payload ? validReminder(payload.m) ? { time: payload.m.t, timeZone: payload.m.z } : undefined : undefined;
+    const marker = "r" in payload ? payloadToMarker(payload.r, 2) : undefined;
+    if (("m" in payload && !reminder) || ("r" in payload && !marker)) return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: payload fields are invalid" };
+    return marker ? { state: "managed", userNotes: notes.slice(0, start - 2), marker, reminder } : { state: "unmanaged", userNotes: notes.slice(0, start - 2), reminder };
+  } catch {
+    return { state: "malformed", userNotes: notes, diagnostic: "HCB task marker is malformed: marker payload is not a JSON object" };
+  }
+}
+
+export function parseTaskRecurrenceNotes(notes = ""): TaskRecurrenceNotes {
+  return notes.includes(taskMarkerPrefix) ? parseTaskEnvelope(notes) : parseLegacyRecurrenceNotes(notes);
+}
+
+function recurrencePayload(marker: TaskRecurrenceMarker): Record<string, unknown> {
+  const end = marker.end.kind === "never" ? { k: "never" } : marker.end.kind === "until" ? { k: "until", u: marker.end.untilDate } : { c: marker.end.count, k: "count" };
+  return { a: marker.anchorDate, d: marker.additionDates, e: end, i: marker.interval, n: marker.ordinal, o: marker.occurrenceId, q: marker.recurrenceRule, r: marker.frequency, s: marker.seriesId, t: { d: marker.templateDueDate, p: marker.templatePriority, t: marker.templateTitle }, x: marker.exclusionDates, z: marker.timeZone };
+}
+
 export function serializeTaskRecurrenceNotes(userNotes: string, marker: TaskRecurrenceMarker): { readonly notes?: string; readonly error?: string } {
   if (userNotes.includes("\0")) return { error: "Task notes contain a null character" };
   const error = validate(marker);
   if (error) return { error: `HCB recurrence marker is invalid: ${error}` };
-  const end = marker.end.kind === "never" ? { k: "never" } : marker.end.kind === "until" ? { k: "until", u: marker.end.untilDate } : { c: marker.end.count, k: "count" };
-  const payload = { a: marker.anchorDate, d: marker.additionDates, e: end, i: marker.interval, n: marker.ordinal, o: marker.occurrenceId, q: marker.recurrenceRule, r: marker.frequency, s: marker.seriesId, t: { d: marker.templateDueDate, p: marker.templatePriority, t: marker.templateTitle }, x: marker.exclusionDates, z: marker.timeZone };
-  const notes = `${userNotes}\n\n${markerPrefix}2]\n${JSON.stringify(payload)}${markerSuffix}`;
+  const notes = `${userNotes}\n\n${markerPrefix}2]\n${JSON.stringify(recurrencePayload(marker))}${markerSuffix}`;
   return utf8Bytes(notes) <= notesLimit ? { notes } : { error: "Task notes and recurrence marker exceed Google Tasks limit" };
+}
+
+/**
+ * Saves recurrence and reminder metadata together only when a task needs a reminder.
+ * Existing recurrence-only tasks retain their v2 envelope for backward compatibility.
+ */
+export function serializeTaskNotes(userNotes: string, marker?: TaskRecurrenceMarker, reminder?: TaskReminder): { readonly notes?: string; readonly error?: string } {
+  if (!reminder) return marker ? serializeTaskRecurrenceNotes(userNotes, marker) : { notes: userNotes || undefined };
+  if (userNotes.includes("\0")) return { error: "Task notes contain a null character" };
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.time) || !validTimeZone(reminder.timeZone)) return { error: "Task reminder time or time zone is invalid" };
+  const recurrenceError = marker ? validate(marker) : undefined;
+  if (recurrenceError) return { error: `HCB recurrence marker is invalid: ${recurrenceError}` };
+  const payload = marker ? { m: { t: reminder.time, z: reminder.timeZone }, r: recurrencePayload(marker) } : { m: { t: reminder.time, z: reminder.timeZone } };
+  const notes = `${userNotes}\n\n${taskMarkerPrefix}1]\n${JSON.stringify(payload)}${taskMarkerSuffix}`;
+  return utf8Bytes(notes) <= notesLimit ? { notes } : { error: "Task notes and reminder marker exceed Google Tasks limit" };
 }
 
 function parseDateOnlyRule(rule: string): ParsedRule | undefined {

@@ -4,9 +4,9 @@ The `web/` directory contains a browser-only Hot Cross Buns application. It is s
 
 ## Privacy model
 
-The web app is a static frontend. It has no Hot Cross Buns API, account system, database, analytics backend, client-secret store, or refresh-token store.
+The public web connection is a static frontend with no Hot Cross Buns API, account system, database, analytics backend, client-secret store, refresh-token store, sync mirror, or notification service. The optional reliable mode is **self-host only**: its operator runs the documented same-origin PWA, API, scheduler, and PostgreSQL stack under `selfhost/`; it is never an HCB-operated hosted service.
 
-Google Tasks, Calendar, and Drive API requests go directly from the browser to Google. The browser keeps a replaceable IndexedDB cache for quick startup, local search, and pending offline edits. OAuth access tokens stay only in page memory and are never written to browser storage. Clearing site data removes the cache and saved non-secret client ID.
+Direct connections send Google Tasks, Calendar, and Drive API requests from the browser to Google. Self-hosted reliable connections send the same restricted requests through the user-operated same-origin API. In both cases the browser keeps a replaceable IndexedDB cache for quick startup, local search, and pending offline edits. Direct OAuth access tokens stay only in page memory and are never written to browser storage. Clearing site data removes the cache and saved non-secret client ID.
 
 ## Local development
 
@@ -44,7 +44,7 @@ Google’s browser token model returns short-lived access tokens. When a token e
 
 ## Browser support and installation
 
-Core Tasks, Calendar, local search, offline cache/outbox, import, and foreground reminders are supported in current Chrome, Edge, Firefox, and Safari on desktop and mobile. The PWA requires HTTPS in production and IndexedDB; Google work and browser reminders run only while an authorized PWA tab is open. Closing every tab stops reminders and sync, by design; no access or refresh token is persisted.
+Core Tasks, Calendar, local search, offline cache/outbox, import, and foreground reminders are supported in current Chrome, Edge, Firefox, and Safari on desktop and mobile. The public direct PWA requires HTTPS in production and IndexedDB; its Google work and browser reminders run only while an authorized PWA tab is open. Closing every tab stops direct-mode reminders and sync, by design; no access or refresh token is persisted. A self-hosted reliable deployment polls its mirror every five minutes and can use standards Web Push where supported; delivery is best effort, not guaranteed.
 
 Install from the browser’s normal **Install app** / **Add to Home Screen** command. The 192px and 512px manifest icons and static-only service worker make the shell available after an offline restart. An update is presented by the PWA registration flow; reload when the browser says an update is ready. Google API and OAuth responses are never cached by the service worker.
 
@@ -66,5 +66,7 @@ Calendar sharing and access-control-list management are deliberately deferred. T
 ## Cloudflare Pages deployment
 
 Create a Cloudflare Pages project with `web` as the repository root, `npm run build` as the build command, and `dist` as the output directory. The generated site is fully static, so no Worker, D1 database, KV namespace, cache service, or Cloudflare secret is needed.
+
+Do not set `VITE_HCB_SELF_HOSTED_RELIABILITY_ENABLED` on this public Pages build. It is direct-only. To deploy the user-operated reliable stack, follow [selfhost/README.md](selfhost/README.md); it serves the PWA and `/api/*` on the same HTTPS origin.
 
 After the first production deployment, use that exact HTTPS origin in each user’s Google Cloud OAuth client configuration.

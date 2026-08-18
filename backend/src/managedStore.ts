@@ -35,6 +35,10 @@ interface CredentialRow extends QueryResultRow {
   readonly revision: number;
 }
 
+interface SubjectRow extends QueryResultRow {
+  readonly subject: string;
+}
+
 interface OAuthAttemptRow extends QueryResultRow {
   readonly nonce_hash: string;
   readonly code_verifier: string;
@@ -160,8 +164,8 @@ export class ManagedStore {
         "DELETE FROM managed_google_credentials WHERE subject = $1 RETURNING encrypted_refresh_token, scopes, revision",
         [subject]
       );
-      await client.query("DELETE FROM managed_sessions WHERE subject = $1", [subject]);
       const encrypted = result.rows[0]?.encrypted_refresh_token;
+      await client.query("DELETE FROM managed_users WHERE subject = $1", [subject]);
       return encrypted ? this.cipher.decrypt(encrypted, credentialAssociatedData(subject)) : undefined;
     });
   }
@@ -173,5 +177,10 @@ export class ManagedStore {
     );
     const credential = result.rows[0];
     return credential ? this.cipher.decrypt(credential.encrypted_refresh_token, credentialAssociatedData(subject)) : undefined;
+  }
+
+  async connectedSubjects(): Promise<readonly string[]> {
+    const result = await this.database.query<SubjectRow>("SELECT subject FROM managed_google_credentials ORDER BY subject");
+    return result.rows.map((row) => row.subject);
   }
 }

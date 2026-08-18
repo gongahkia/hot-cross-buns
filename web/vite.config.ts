@@ -65,11 +65,21 @@ export default defineConfig({
       "@": resolve(rootDirectory, "./src")
     }
   },
+  server: {
+    proxy: {
+      "/api": {
+        target: process.env.HCB_LOCAL_BACKEND_ORIGIN ?? "http://127.0.0.1:8787",
+        changeOrigin: true
+      }
+    }
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     exclude: ["tests/e2e/**", "node_modules/**", "dist/**"],
     globals: true,
-    clearMocks: true
+    clearMocks: true,
+    minWorkers: 1,
+    maxWorkers: 2
   }
 });

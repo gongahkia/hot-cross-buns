@@ -21,7 +21,7 @@ import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { ModalDialog } from "@/components/ModalDialog";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { RichDescription } from "@/components/RichDescription";
-import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSummary, type TaskRecurrenceFrequency } from "@/features/taskRecurrence";
+import { parseTaskRecurrenceNotes, serializeTaskNotes, taskRecurrenceSummary, type TaskRecurrenceFrequency } from "@/features/taskRecurrence";
 import type { GoogleCalendar, GoogleDriveFile, GoogleTask, GoogleTaskList, ScheduledTaskBlock, TaskInput, TaskMetadata, TaskMoveInput } from "@/types";
 import type { BulkOperationResult, TaskBulkOperation } from "@/features/useWorkspace";
 
@@ -377,6 +377,10 @@ export function TaskPanel({
     const userNotes = String(form.get("notes") ?? "");
     const selectedFrequency = String(form.get("recurrence") ?? "none") as "none" | TaskRecurrenceFrequency;
     const existing = parseTaskRecurrenceNotes(task.notes);
+    const reminderEnabled = form.get("taskReminder") === "on";
+    const reminderTime = String(form.get("taskReminderTime") ?? "");
+    const reminder = reminderEnabled ? { time: reminderTime, timeZone: dueTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone } : undefined;
+    if (reminderEnabled && !due) throw new Error("A task reminder needs a due date");
     if (selectedFrequency === "none") {
       if (existing.state === "unsupported-version") {
         if (userNotes !== existing.userNotes) {
@@ -384,7 +388,9 @@ export function TaskPanel({
         }
         return task.notes;
       }
-      return userNotes || undefined;
+      const serialized = serializeTaskNotes(userNotes, undefined, reminder);
+      if (!serialized.notes && serialized.error) throw new Error(serialized.error);
+      return serialized.notes;
     }
     if (task.parent) {
       throw new Error("Subtasks cannot use managed recurrence");
@@ -420,7 +426,7 @@ export function TaskPanel({
       templateDueDate: due,
       templatePriority: priority
     };
-    const serialized = serializeTaskRecurrenceNotes(userNotes, marker);
+    const serialized = serializeTaskNotes(userNotes, marker, reminder);
     if (!serialized.notes) {
       throw new Error(serialized.error ?? "The recurrence marker could not be saved");
     }
@@ -657,6 +663,7 @@ export function TaskPanel({
             {metadataByTaskId.get(viewingTask.id)?.priority && metadataByTaskId.get(viewingTask.id)?.priority !== "none" && <div><dt>Priority</dt><dd>{metadataByTaskId.get(viewingTask.id)?.priority}</dd></div>}
             {viewingTask.notes && <div><dt>Notes</dt><dd><RichDescription className="detail-notes" value={parseTaskRecurrenceNotes(viewingTask.notes).userNotes || viewingTask.notes} /></dd></div>}
             {parseTaskRecurrenceNotes(viewingTask.notes).marker && <div><dt>Repeats</dt><dd>{taskRecurrenceSummary(parseTaskRecurrenceNotes(viewingTask.notes).marker!)}</dd></div>}
+            {parseTaskRecurrenceNotes(viewingTask.notes).reminder && <div><dt>Reminder</dt><dd>{parseTaskRecurrenceNotes(viewingTask.notes).reminder!.time} ({parseTaskRecurrenceNotes(viewingTask.notes).reminder!.timeZone})</dd></div>}
             {scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id) && <div><dt>Calendar block</dt><dd>Scheduled in {calendars.find((calendar) => calendar.id === scheduledTaskBlocks.find((block) => block.taskId === viewingTask.id)?.calendarId)?.summary ?? "Google Calendar"}</dd></div>}
           </dl>
           {error && <p className="error" role="alert">{error}</p>}
@@ -678,6 +685,7 @@ export function TaskPanel({
             <label>Due date<input name="due" type="date" defaultValue={taskDueDate(editingTask)} /></label>
             <label>Due date time zone<input name="dueTimeZone" list="time-zones" defaultValue={editingMetadata?.dueTimeZone ?? displayTimeZone} /></label>
             <label>Priority<select name="priority" defaultValue={editingMetadata?.priority ?? "none"}><option value="none">No local priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+            <fieldset className="recurrence-editor"><legend>Portable task reminder</legend><p className="field-help">Stores one exact local time in Google Task notes. A self-hosted reliable connection can send best-effort Web Push; recurring successors use their own due date at this same time.</p><label className="check-label"><input name="taskReminder" type="checkbox" defaultChecked={Boolean(editingRecurrence?.reminder)} /> Remind me</label><label>Reminder time<input name="taskReminderTime" type="time" defaultValue={editingRecurrence?.reminder?.time ?? "09:00"} /></label></fieldset>
             <fieldset className="recurrence-editor"><legend>Managed task recurrence</legend><p className="field-help">This writes the portable HCB marker to Google Task notes; Google Tasks itself has no recurrence field.</p><label>Repeat<select name="recurrence" defaultValue={editingRecurrence?.marker?.frequency ?? "none"}><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label><label>Every <input name="recurrenceInterval" type="number" min="1" max="1000" defaultValue={editingRecurrence?.marker?.interval ?? 1} /></label><label>Ends<select name="recurrenceEnd" defaultValue={editingRecurrence?.marker?.end.kind ?? "never"}><option value="never">Never</option><option value="until">On date</option><option value="count">After count</option></select></label><label>Final date<input name="recurrenceUntil" type="date" defaultValue={editingRecurrence?.marker?.end.kind === "until" ? editingRecurrence.marker.end.untilDate : ""} /></label><label>Occurrence count<input name="recurrenceCount" type="number" min="1" max="10000" defaultValue={editingRecurrence?.marker?.end.kind === "count" ? editingRecurrence.marker.end.count : ""} /></label>{editingRecurrence?.marker && <p className="field-help">{taskRecurrenceSummary(editingRecurrence.marker)}</p>}</fieldset>
             <label>Task list<select name="list" defaultValue={editingTask.listId}>{taskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
             <label>Parent task<select name="parent" defaultValue={editingTask.parent ?? ""}><option value="">No parent</option>{parentChoices.map((task) => <option key={task.id} value={task.id}>{task.title || "Untitled task"}</option>)}</select></label>

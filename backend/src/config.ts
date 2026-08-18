@@ -24,6 +24,15 @@ export interface BackendConfig {
   readonly sessionTtlDays: number;
   readonly cookieSecure: boolean;
   readonly cookieSameSite: "lax" | "none";
+  /** Enables the user-operated mirror, scheduler, and Web Push endpoints. */
+  readonly reliableSyncEnabled: boolean;
+  readonly vapid?: {
+    readonly subject: string;
+    readonly publicKey: string;
+    readonly privateKey: string;
+  };
+  /** Optional public callback used by Google Calendar watch channels. */
+  readonly googleCalendarWebhookUrl?: string;
 }
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -43,6 +52,12 @@ function positiveInteger(value: string | undefined, fallback: number, name: stri
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > maximum) throw new Error(`${name} must be an integer between 1 and ${maximum}`);
   return parsed;
+}
+
+function enabled(value: string | undefined, name: string): boolean {
+  if (!value || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error(`${name} must be true or false`);
 }
 
 function parseKeyRing(environment: NodeJS.ProcessEnv): EncryptionKeyRing {
@@ -68,6 +83,30 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Backen
   const frontendOrigins = required(environment, "HCB_FRONTEND_ORIGINS").split(",").map((entry) => normalizeOrigin(entry.trim(), "HCB_FRONTEND_ORIGINS"));
   const cookieSameSite = environment.HCB_SESSION_SAME_SITE === "none" ? "none" : "lax";
   const cookieSecure = publicOrigin.startsWith("https:");
+  const reliableSyncEnabled = enabled(environment.HCB_RELIABLE_SYNC_ENABLED, "HCB_RELIABLE_SYNC_ENABLED");
+  if (reliableSyncEnabled && (frontendOrigins.length !== 1 || frontendOrigins[0] !== publicOrigin)) {
+    throw new Error("HCB_RELIABLE_SYNC_ENABLED=true requires HCB_FRONTEND_ORIGINS to contain only HCB_PUBLIC_ORIGIN");
+  }
+  const vapidPublicKey = environment.HCB_VAPID_PUBLIC_KEY?.trim();
+  const vapidPrivateKey = environment.HCB_VAPID_PRIVATE_KEY?.trim();
+  const vapidSubject = environment.HCB_VAPID_SUBJECT?.trim();
+  if (reliableSyncEnabled && (!vapidPublicKey || !vapidPrivateKey || !vapidSubject)) {
+    throw new Error("HCB_VAPID_SUBJECT, HCB_VAPID_PUBLIC_KEY, and HCB_VAPID_PRIVATE_KEY are required when HCB_RELIABLE_SYNC_ENABLED=true");
+  }
+  if ((vapidPublicKey || vapidPrivateKey || vapidSubject) && (!vapidPublicKey || !vapidPrivateKey || !vapidSubject)) {
+    throw new Error("HCB VAPID configuration must include subject, public key, and private key together");
+  }
+  if (vapidSubject && !/^mailto:[^\s@]+@[^\s@]+$|^https:\/\//.test(vapidSubject)) {
+    throw new Error("HCB_VAPID_SUBJECT must be a mailto: address or HTTPS URL");
+  }
+  const configuredWebhook = environment.HCB_GOOGLE_CALENDAR_WEBHOOK_URL?.trim();
+  const googleCalendarWebhookUrl = configuredWebhook ? new URL(configuredWebhook).toString() : undefined;
+  if (googleCalendarWebhookUrl) {
+    const webhook = new URL(googleCalendarWebhookUrl);
+    if (webhook.protocol !== "https:" || webhook.origin !== publicOrigin || webhook.pathname !== "/api/webhooks/google/calendar" || webhook.search || webhook.hash) {
+      throw new Error("HCB_GOOGLE_CALENDAR_WEBHOOK_URL must be the HTTPS same-origin /api/webhooks/google/calendar URL");
+    }
+  }
   if (cookieSameSite === "none" && !cookieSecure) throw new Error("HCB_SESSION_SAME_SITE=none requires an HTTPS HCB_PUBLIC_ORIGIN");
   return {
     port: positiveInteger(environment.PORT, 8787, "PORT", 65_535),
@@ -79,6 +118,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Backen
     encryptionKeys: parseKeyRing(environment),
     sessionTtlDays: positiveInteger(environment.HCB_SESSION_TTL_DAYS, 30, "HCB_SESSION_TTL_DAYS"),
     cookieSecure,
-    cookieSameSite
+    cookieSameSite,
+    reliableSyncEnabled,
+    vapid: vapidPublicKey && vapidPrivateKey && vapidSubject ? { subject: vapidSubject, publicKey: vapidPublicKey, privateKey: vapidPrivateKey } : undefined,
+    googleCalendarWebhookUrl
   };
 }

@@ -24,13 +24,13 @@ describe("Onboarding", () => {
     expect(connect).toHaveBeenCalledOnce();
   });
 
-  it("offers the managed connection only when this PWA build configures one", async () => {
+  it("offers the self-hosted reliable connection only when this PWA build configures one", async () => {
     const user = userEvent.setup();
     const connectManaged = vi.fn().mockResolvedValue(undefined);
     render(<Onboarding savedClientId="" displayTimeZone="Asia/Singapore" connectionProfile={{ mode: "direct" }} managedConnectionAvailable busy={false} status="Ready" saveClientId={vi.fn()} saveDisplayTimeZone={vi.fn().mockResolvedValue(undefined)} connect={vi.fn()} connectManaged={connectManaged} useDirectConnection={vi.fn()} />);
 
-    await user.click(screen.getByRole("radio", { name: /managed connection/i }));
-    await user.click(screen.getByRole("button", { name: /connect through managed service/i }));
+    await user.click(screen.getByRole("radio", { name: /self-hosted reliable connection/i }));
+    await user.click(screen.getByRole("button", { name: /connect through self-hosted service/i }));
 
     expect(connectManaged).toHaveBeenCalledOnce();
     expect(screen.queryByLabelText(/Google Web OAuth client ID/i)).not.toBeInTheDocument();

@@ -28,4 +28,22 @@ describe("loadConfig", () => {
   it("rejects third-party cookie configuration without HTTPS", () => {
     expect(() => loadConfig(environment({ HCB_SESSION_SAME_SITE: "none" }))).toThrow("requires an HTTPS");
   });
+
+  it("requires VAPID keys when the self-hosted reliability worker is enabled", () => {
+    expect(() => loadConfig(environment({ HCB_RELIABLE_SYNC_ENABLED: "true", HCB_FRONTEND_ORIGINS: "http://127.0.0.1:8787" }))).toThrow("VAPID");
+  });
+
+  it("accepts same-origin Google Calendar webhook configuration", () => {
+    const config = loadConfig(environment({
+      HCB_PUBLIC_ORIGIN: "https://calendar.example.test",
+      HCB_FRONTEND_ORIGINS: "https://calendar.example.test",
+      HCB_RELIABLE_SYNC_ENABLED: "true",
+      HCB_VAPID_SUBJECT: "mailto:admin@example.test",
+      HCB_VAPID_PUBLIC_KEY: "public-key",
+      HCB_VAPID_PRIVATE_KEY: "private-key",
+      HCB_GOOGLE_CALENDAR_WEBHOOK_URL: "https://calendar.example.test/api/webhooks/google/calendar"
+    }));
+
+    expect(config.googleCalendarWebhookUrl).toBe("https://calendar.example.test/api/webhooks/google/calendar");
+  });
 });

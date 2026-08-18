@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bindingFromKeyboardEvent, formatBinding, keybindingLabels } from "@/features/keybindings";
 import type { SyncProgress } from "@/features/useWorkspace";
 import type { ConnectionProfile, GoogleCalendar, GoogleTaskList, UndoEntry, WorkspaceConflict, WorkspaceKeybindings, WorkspacePreferences } from "@/types";
+import { savedPushContentMode, type PushContentMode } from "@/features/reliablePush";
 
 interface SettingsPanelProps {
   readonly clientId: string;
@@ -31,7 +32,7 @@ interface SettingsPanelProps {
   dismissConflict(id: string): Promise<void>;
   openImport(): void;
   openDiagnostics(): void;
-  requestNotifications(): Promise<void>;
+  requestNotifications(contentMode?: PushContentMode): Promise<void>;
 }
 
 function KeybindingField({ binding, value, save }: { readonly binding: keyof WorkspaceKeybindings; readonly value: string; save(value: string): void }): React.JSX.Element {
@@ -51,6 +52,7 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
   const [filter, setFilter] = useState("");
   const [timeZoneDraft, setTimeZoneDraft] = useState(preferences.displayTimeZone);
   const [timeZoneError, setTimeZoneError] = useState("");
+  const [pushContentMode, setPushContentMode] = useState<PushContentMode>(savedPushContentMode);
   const run = (action: () => Promise<void>): void => { void action().catch(() => undefined); };
   const save = (update: Partial<WorkspacePreferences>): void => run(() => savePreferences(update));
   const matches = (terms: string): boolean => !filter.trim() || terms.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
@@ -76,14 +78,15 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
       <p className="eyebrow">connection and local privacy controls</p>
       <h2 id="settings-heading">Settings</h2>
       <dl>
-        <div><dt>Connection model</dt><dd>{managed ? "Managed server connection" : "Direct browser connection"}</dd></div>
-        <div><dt>OAuth client ID</dt><dd>{managed ? "Configured on the managed service" : clientId || "Not configured"}</dd></div>
-        <div><dt>Authorization</dt><dd>{connected ? managed ? "Active through the managed service" : "Active in this browser session" : "Not active"}</dd></div>
-        <div><dt>Stored by Hot Cross Buns</dt><dd>{managed ? "Browser-local cache plus an encrypted Google refresh token and opaque session on the configured managed service." : "Only browser-local cached data and this non-secret client ID."}</dd></div>
+        <div><dt>Connection model</dt><dd>{managed ? "Self-hosted reliable connection" : "Direct browser connection"}</dd></div>
+        <div><dt>OAuth client ID</dt><dd>{managed ? "Configured on your self-hosted service" : clientId || "Not configured"}</dd></div>
+        <div><dt>Authorization</dt><dd>{connected ? managed ? "Active through your self-hosted service" : "Active in this browser session" : "Not active"}</dd></div>
+        <div><dt>Stored by Hot Cross Buns</dt><dd>{managed ? "Nothing. Your browser-local cache plus an encrypted Google refresh token, mirror, and Web Push subscription stay in the PostgreSQL service you operate. Disconnect deletes live records there." : "Only browser-local cached data and this non-secret client ID."}</dd></div>
         <div><dt>Calendar synchronization</dt><dd>Google Calendar uses browser-local sync tokens. Google Tasks uses timestamp-based changes because its API has no sync-token endpoint.</dd></div>
         <div><dt>Keyboard</dt><dd><kbd>{formatBinding(preferences.keybindings.commandPalette)}</kbd> opens cached search. Workspace shortcuts are configurable below; use ↑ ↓ and Enter inside the palette.</dd></div>
       </dl>
       <p className="status" aria-live="polite">{status}</p>
+      {managed && <p className="field-help">Your self-hosted operator controls the service data policy. Web Push delivery is best effort and cannot guarantee operating-system delivery.</p>}
       <label className="settings-search"><span>Search settings</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search appearance, sync, shortcuts, import…" /></label>
       {matches("planner notes conflict week time timezone workday undo quick capture aliases task list calendar") && <details className="settings-group" open>
         <summary>Planner preferences</summary>
@@ -133,16 +136,17 @@ export function SettingsPanel({ clientId, connectionProfile, managedConnectionAv
       </details>}
       {syncProgress.storage?.usage !== undefined && syncProgress.storage.quota !== undefined && <p className="field-help">Browser storage estimate: {(syncProgress.storage.usage / (1024 * 1024)).toFixed(1)} MiB used of {(syncProgress.storage.quota / (1024 * 1024)).toFixed(1)} MiB available.</p>}
       {matches("connect authorization managed direct sync refresh disconnect import diagnostics notifications browser local data") && <div className="button-row">
-        {managedConnectionAvailable && !managed && <button type="button" disabled={busy} onClick={() => run(connectManaged)}>Use managed connection</button>}
+        {managedConnectionAvailable && !managed && <button type="button" disabled={busy} onClick={() => run(connectManaged)}>Use self-hosted reliable connection</button>}
         {managed && <button type="button" disabled={busy} onClick={() => run(useDirectConnection)}>Use direct browser connection</button>}
-        <button type="button" disabled={busy || !canConnect} onClick={() => run(connect)}>{connected ? managed ? "Reconnect managed Google" : "Renew Google access" : "Connect Google"}</button>
+        <button type="button" disabled={busy || !canConnect} onClick={() => run(connect)}>{connected ? managed ? "Reconnect self-hosted Google" : "Renew Google access" : "Connect Google"}</button>
         <button type="button" disabled={busy || !canConnect} onClick={() => run(sync)}>{connected ? "Sync now" : "Sync and reconnect"}</button>
         <button type="button" disabled={busy || !canConnect} onClick={() => run(refreshAllTasks)}>Refresh all Tasks from Google</button>
         {syncProgress.cancellable && <button type="button" onClick={cancelSync}>Cancel sync</button>}
         <button type="button" disabled={busy || !connected} onClick={() => run(disconnect)}>Disconnect Google</button>
         <button type="button" disabled={busy} onClick={openImport}>Import tasks or events</button>
         <button type="button" disabled={busy} onClick={openDiagnostics}>Diagnostics</button>
-        <button type="button" disabled={busy} onClick={() => run(requestNotifications)}>Enable foreground reminders</button>
+        {managed && <label>Push content<select value={pushContentMode} onChange={(event) => setPushContentMode(event.target.value as PushContentMode)}><option value="details">Title and time</option><option value="generic">Generic only</option></select></label>}
+        <button type="button" disabled={busy} onClick={() => run(() => requestNotifications(managed ? pushContentMode : undefined))}>{managed ? "Enable background Web Push" : "Enable foreground reminders"}</button>
         <button className="danger-button" type="button" disabled={busy} onClick={() => run(clearLocalData)}>Clear browser-local data</button>
       </div>}
     </section>

@@ -10,7 +10,7 @@ import {
 import { beginManagedAuthorization, disconnectManagedConnection, managedConnectionProfile, readManagedSession } from "@/auth/managedConnection";
 import { TokenSession } from "@/auth/tokenSession";
 import { defaultWorkspacePreferences, localStore, type StorageEstimate } from "@/data/localStore";
-import { parseTaskRecurrenceNotes, serializeTaskRecurrenceNotes, taskRecurrenceSuccessor } from "@/features/taskRecurrence";
+import { parseTaskRecurrenceNotes, serializeTaskNotes, taskRecurrenceSuccessor } from "@/features/taskRecurrence";
 import {
   GOOGLE_SCOPES,
   INITIAL_GOOGLE_SCOPES,
@@ -308,7 +308,7 @@ function storagePressured(estimate: StorageEstimate): boolean {
 export function useWorkspace(): WorkspaceController {
   const [clientId, setClientId] = useState("");
   const [onboardingDisplayTimeZone, setOnboardingDisplayTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-  const [connectionProfile, setConnectionProfile] = useState<ConnectionProfile>({ mode: "direct" });
+  const [connectionProfile, setConnectionProfile] = useState<ConnectionProfile>(() => managedConnectionProfile() ?? { mode: "direct" });
   const [managedSession, setManagedSession] = useState<(GoogleIdentity & { readonly scopes: readonly string[] }) | undefined>();
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | undefined>(emptyWorkspace);
   const [ready, setReady] = useState(false);
@@ -368,15 +368,17 @@ export function useWorkspace(): WorkspaceController {
         window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
       }
       try {
-        const [storedClientId, storedProfile, activeSubject, setupTimeZone] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(), localStore.getActiveSubject(), localStore.getSetupDisplayTimeZone()]);
+        const [storedClientId, storedProfile, activeSubject, setupTimeZone] = await Promise.all([localStore.getClientId(), localStore.getConnectionProfile(managedConnectionProfile() ?? { mode: "direct" }), localStore.getActiveSubject(), localStore.getSetupDisplayTimeZone()]);
+        const availableManagedProfile = managedConnectionProfile();
+        const effectiveProfile = storedProfile.mode === "managed" && !availableManagedProfile ? { mode: "direct" as const } : storedProfile;
         onboardingDisplayTimeZoneRef.current = setupTimeZone;
         setOnboardingDisplayTimeZone(setupTimeZone);
         if (storedClientId) {
           setClientId(storedClientId);
         }
-        rememberConnectionProfile(storedProfile);
-        const managed = storedProfile.mode === "managed" && storedProfile.backendOrigin
-          ? await readManagedSession(storedProfile.backendOrigin).catch(() => undefined)
+        rememberConnectionProfile(effectiveProfile);
+        const managed = effectiveProfile.mode === "managed" && availableManagedProfile
+          ? await readManagedSession().catch(() => undefined)
           : undefined;
         rememberManagedSession(managed);
         const subject = managed?.subject ?? activeSubject;
@@ -388,20 +390,20 @@ export function useWorkspace(): WorkspaceController {
           if (snapshot) {
             replaceWorkspace(snapshot);
             await loadSubjectState(subject);
-            setStatus(managed ? "Connected through the managed Hot Cross Buns service" : "Showing browser-local data. Select Sync to reconnect Google and update it.");
+            setStatus(managed ? "Connected through your self-hosted reliable service" : "Showing browser-local data. Select Sync to reconnect Google and update it.");
           } else if (managed) {
             const initial: WorkspaceSnapshot = { identity: managed, taskLists: [], tasks: [], calendars: [], events: [], updatedAt: new Date().toISOString() };
             await localStore.setActiveSubject(managed.subject);
             await localStore.saveSnapshot(initial);
             replaceWorkspace(initial);
             await loadSubjectState(managed.subject);
-            setStatus("Connected through the managed Hot Cross Buns service. Syncing Google data is ready.");
+            setStatus("Connected through your self-hosted reliable service. Syncing Google data is ready.");
           }
         }
         if (managedResult === "error") {
-          setStatus("Managed Google authorization was not completed. Your browser-local data is unchanged; try connecting again.");
+          setStatus("Self-hosted Google authorization was not completed. Your browser-local data is unchanged; try connecting again.");
         } else if (managedResult === "connected" && !managed) {
-          setStatus("Managed Google authorization completed, but the browser could not read the new session. Check the managed service’s cookie and allowed-origin settings.");
+          setStatus("Self-hosted Google authorization completed, but the browser could not read the new session. Check the same-origin cookie and reverse-proxy settings.");
         }
       } catch (error) {
         setStatus(`Browser storage is unavailable: ${asErrorMessage(error)}`);
@@ -429,8 +431,8 @@ export function useWorkspace(): WorkspaceController {
   const api = useMemo(() => new GoogleApiClient({
     request(path, init) {
       const profile = connectionProfileRef.current;
-      return profile.mode === "managed" && profile.backendOrigin
-        ? managedGoogleTransport(profile.backendOrigin).request(path, init)
+      return profile.mode === "managed"
+        ? managedGoogleTransport().request(path, init)
         : browserGoogleTransport(() => session.accessToken()).request(path, init);
     }
   }), []);
@@ -796,7 +798,7 @@ export function useWorkspace(): WorkspaceController {
       if (parsed.state !== "managed" || !parsed.marker) continue;
       const successor = taskRecurrenceSuccessor(parsed.marker);
       if (!successor || knownOccurrenceIds.has(successor.occurrenceId)) continue;
-      const serialized = serializeTaskRecurrenceNotes(parsed.userNotes, successor);
+      const serialized = serializeTaskNotes(parsed.userNotes, successor, parsed.reminder);
       if (!serialized.notes) continue;
       try {
         const created = await api.createTask(task.listId, {
@@ -1084,9 +1086,7 @@ export function useWorkspace(): WorkspaceController {
 
   const connect = useCallback(async (fullTaskRefresh = false) => {
     if (connectionProfileRef.current.mode === "managed") {
-      const backendOrigin = connectionProfileRef.current.backendOrigin;
-      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
-      beginManagedAuthorization(backendOrigin);
+      beginManagedAuthorization();
       return;
     }
     if (!clientId) {
@@ -1127,13 +1127,13 @@ export function useWorkspace(): WorkspaceController {
 
   const connectManaged = useCallback(async () => {
     const profile = managedConnectionProfile();
-    if (!profile?.backendOrigin) throw new Error("This app build does not have a managed backend configured");
+    if (!profile) throw new Error("This app build does not have a self-hosted reliable service configured");
     await localStore.setConnectionProfile(profile);
     rememberConnectionProfile(profile);
     session.clear();
     rememberManagedSession(undefined);
-    setStatus("Opening managed Google authorization");
-    beginManagedAuthorization(profile.backendOrigin);
+    setStatus("Opening self-hosted Google authorization");
+    beginManagedAuthorization();
   }, [rememberConnectionProfile, rememberManagedSession]);
 
   const useDirectConnection = useCallback(async () => {
@@ -1216,9 +1216,7 @@ export function useWorkspace(): WorkspaceController {
 
   const authorizeDrive = useCallback(async () => {
     if (connectionProfileRef.current.mode === "managed") {
-      const backendOrigin = connectionProfileRef.current.backendOrigin;
-      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
-      beginManagedAuthorization(backendOrigin, "drive");
+      beginManagedAuthorization("drive");
       return;
     }
     if (!clientId) {
@@ -1440,7 +1438,7 @@ export function useWorkspace(): WorkspaceController {
     if (!successor || !workspaceRef.current) return;
     const duplicate = workspaceRef.current.tasks.some((candidate) => parseTaskRecurrenceNotes(candidate.notes).marker?.occurrenceId === successor.occurrenceId);
     if (duplicate) return;
-    const notes = serializeTaskRecurrenceNotes(recurrence.userNotes, successor);
+    const notes = serializeTaskNotes(recurrence.userNotes, successor, recurrence.reminder);
     if (!notes.notes) {
       setStatus(notes.error ?? "The recurring task could not create its successor");
       return;
@@ -1856,7 +1854,7 @@ export function useWorkspace(): WorkspaceController {
           const changedUserNotes = parsed.userNotes.replaceAll(operation.find, operation.replace);
           if (parsed.state === "unsupported-version") throw new Error("This task has an unsupported recurrence marker and was left unchanged");
           const changedTitle = task.title.replaceAll(operation.find, operation.replace);
-          const notes = parsed.marker ? serializeTaskRecurrenceNotes(changedUserNotes, { ...parsed.marker, templateTitle: changedTitle }).notes : changedUserNotes;
+          const notes = parsed.marker ? serializeTaskNotes(changedUserNotes, { ...parsed.marker, templateTitle: changedTitle }, parsed.reminder).notes : serializeTaskNotes(changedUserNotes, undefined, parsed.reminder).notes;
           if (!notes) throw new Error("The recurring-task marker is invalid and could not be preserved");
           await updateTask(task, { title: changedTitle, notes: notes || undefined });
         }
@@ -2072,11 +2070,9 @@ export function useWorkspace(): WorkspaceController {
 
   const disconnect = useCallback(async () => {
     if (connectionProfileRef.current.mode === "managed") {
-      const backendOrigin = connectionProfileRef.current.backendOrigin;
-      if (!backendOrigin) throw new Error("The managed backend URL is not configured for this build");
       setBusy(true);
       try {
-        await disconnectManagedConnection(backendOrigin);
+        await disconnectManagedConnection();
         rememberManagedSession(undefined);
         setStatus("Managed Google access was disconnected. Browser-local data remains until you clear it.");
       } finally {

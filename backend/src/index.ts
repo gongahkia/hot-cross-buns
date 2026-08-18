@@ -8,7 +8,7 @@ await database.migrate();
 const app = await buildApp(config, database);
 
 async function shutdown(signal: string): Promise<void> {
-  app.log.info({ signal }, "Shutting down managed backend");
+  app.log.info({ signal }, "Shutting down self-hosted backend");
   await app.close();
   await database.close();
 }

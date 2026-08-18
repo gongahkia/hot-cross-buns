@@ -50,6 +50,12 @@ describe("LocalStore", () => {
     expect(await store.readSnapshot(subject)).toBeUndefined();
   });
 
+  it("uses the self-hosted reliable fallback only until a browser has saved a connection choice", async () => {
+    expect(await store.getConnectionProfile({ mode: "managed" })).toEqual({ mode: "managed" });
+    await store.setConnectionProfile({ mode: "direct" });
+    expect(await store.getConnectionProfile({ mode: "managed" })).toEqual({ mode: "direct" });
+  });
+
   it("keeps cached Drive metadata partitioned by Google subject and retains prior local palette results", async () => {
     await store.saveDriveFiles(subject, [{
       id: "brief",
