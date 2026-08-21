@@ -35,7 +35,7 @@ class MacOSNotifier:
 
     _SCRIPT = (
         "on run argv\n"
-        'set answer to display dialog (item 2 of argv) with title (item 1 of argv) '
+        "set answer to display dialog (item 2 of argv) with title (item 1 of argv) "
         'buttons {"Dismiss", "Snooze 10m"} default button "Dismiss" giving up after 30\n'
         'if gave up of answer then return "delivered"\n'
         "return button returned of answer\n"

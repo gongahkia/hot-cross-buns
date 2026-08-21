@@ -365,8 +365,11 @@ def tasks_schedule(
     time_zone: str | None = typer.Option(None, "--time-zone"),
 ) -> None:
     item = _state(ctx).runtime.application.schedule_task(
-        _account(ctx), task_id, calendar,
-        _event_point(start, False, time_zone), _event_point(end, False, time_zone),
+        _account(ctx),
+        task_id,
+        calendar,
+        _event_point(start, False, time_zone),
+        _event_point(end, False, time_zone),
     )
     _emit(ctx, item)
 
@@ -383,9 +386,7 @@ def tasks_unschedule(
 def tasks_repair_schedule(ctx: typer.Context, task_id: str, event_id: str) -> None:
     _emit(
         ctx,
-        _state(ctx).runtime.application.repair_task_schedule(
-            _account(ctx), task_id, event_id
-        ),
+        _state(ctx).runtime.application.repair_task_schedule(_account(ctx), task_id, event_id),
     )
 
 
@@ -439,7 +440,8 @@ def notes_mode(ctx: typer.Context, mode: str | None = typer.Argument(None)) -> N
     application = _state(ctx).runtime.application
     value = (
         application.set_notes_projection(_account(ctx), mode)
-        if mode is not None else application.notes_projection(_account(ctx))
+        if mode is not None
+        else application.notes_projection(_account(ctx))
     )
     _emit(ctx, {"mode": value.value})
 
@@ -536,10 +538,7 @@ def events_create(
         visibility=visibility,
         transparency=transparency,
         color_id=color_id,
-        conference=(
-            {"createRequest": {"requestId": uuid4().hex}}
-            if meet else None
-        ),
+        conference=({"createRequest": {"requestId": uuid4().hex}} if meet else None),
         send_updates=send_updates,
         supports_attachments=bool(attachments_json),
         conference_data_version=1 if meet else 0,
@@ -819,7 +818,8 @@ def remote_freebusy(
     state = _state(ctx)
     account = _account(ctx)
     selected = calendars or [
-        item.remote_id for item in state.runtime.storage.list_calendars(account)
+        item.remote_id
+        for item in state.runtime.storage.list_calendars(account)
         if item.selected and item.remote_id
     ]
     body = {"timeMin": start, "timeMax": end, "items": [{"id": item} for item in selected]}
@@ -1307,11 +1307,13 @@ def daemon_run(
         if preferences.reminder_sync_interval_minutes and preferences.reminder_sync_mode != "off":
             engine = runtime.sync_engine(account)
             if preferences.reminder_sync_mode == "pull":
+
                 def pull_sync() -> object:
                     return engine.sync_task_lists(account), engine.sync_calendars(account)
 
                 sync_callback = pull_sync
             else:
+
                 def full_sync() -> object:
                     return engine.sync(account)
 

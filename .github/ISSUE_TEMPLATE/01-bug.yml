@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: App version
-      placeholder: "5.0.0"
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: dropdown
@@ -38,10 +38,9 @@ body:
     attributes:
       label: Install source
       options:
-        - DMG
-        - AppImage
-        - NSIS
-        - source
+        - uv tool
+        - pipx
+        - source checkout
         - other
     validations:
       required: true

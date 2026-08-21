@@ -1,10 +1,17 @@
 # Local TUI parity matrix
 
-This document is the **acceptance source of truth** for pivoting Hot Cross Buns from the current multi-surface repo (React PWA, optional self-hosted reliability stack, C++/Qt desktop) to a **local, offline-first TUI plus a complete non-interactive CLI**.
+This document is the **acceptance source of truth** for the completed repository
+pivot from the former React PWA, self-hosted reliability stack, and C++/Qt
+desktop to a **local, offline-first TUI plus a complete non-interactive CLI**.
 
-It is implementation-neutral: it states product behavior, not libraries, widgets, or package layout. The planned delivery is a locally installed Python program; that does not change the rules below.
+It is implementation-neutral: it states product behavior, not libraries,
+widgets, or package layout. The delivery is a locally installed Python program;
+that does not change the rules below.
 
-Until this matrix is satisfied on both the TUI and the CLI (where a surface applies), `web/` remains the most complete **executable** specification. Native docs and tests remain the most complete **durable-cache / OS-credential / reminder** specification. Neither is copied blindly.
+Legacy paths and documents named below are historical evidence available through
+Git history, not current files or products. The destructive retirement was
+authorized with the live Google gate explicitly waived and unexecuted; that
+waiver does not count as a live acceptance pass.
 
 ## Status labels
 

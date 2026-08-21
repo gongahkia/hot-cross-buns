@@ -1,33 +1,16 @@
 # Support
 
-Use GitHub issues for public support requests:
+Use GitHub issues for reproducible TUI/CLI bugs, Python installation problems,
+Google sync failures, documentation gaps, and feature requests. Use
+[SECURITY.md](SECURITY.md) for private vulnerability reports.
 
-- bugs
-- install or launch failures
-- checksum problems
-- docs gaps
-- feature requests
+Before asking for help, run `hcb doctor` and include the HCB version, Python
+version, operating system, installation method, command or TUI action,
+expected behavior, actual behavior, and sanitized output. Also state whether
+the problem occurs before authentication, during `hcb sync`, or with local-only
+operations.
 
-Use [SECURITY.md](SECURITY.md) for private vulnerability reports.
-
-## Downloads
-
-Latest release:
-
-https://github.com/gongahkia/hot-cross-buns/releases/latest
-
-Platform support docs:
-
-- [macOS support](docs/support/mac-preview-support.md)
-- [Linux support](docs/support/linux-preview-support.md)
-- [Windows support](docs/support/windows-preview-support.md)
-
-## Known Linux Limits
-
-Linux currently does not support tray/status-area surfaces, notifications, global shortcuts, deep links, autostart, or in-place updates.
-
-## Before Asking For Help
-
-Include app version, operating system, install source, reproduction steps, expected behavior, actual behavior, and redacted logs or screenshots.
-
-Do not share OAuth credentials, MCP bearer tokens, signing material, local databases, raw Google payloads, or unredacted diagnostics.
+Do not share OAuth client JSON, tokens, keyring contents, local databases,
+exports containing personal data, raw Google payloads, or unredacted
+diagnostics. The supported product is the Python TUI/CLI; retired desktop,
+browser, and self-hosted implementations are not supported.

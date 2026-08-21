@@ -320,9 +320,7 @@ def test_schedule_bulk_undo_redo_and_import_dialogs(
     runtime = seeded_runtime(tmp_path)
     database = runtime.paths.database_file
     source = tmp_path / "import.json"
-    source.write_text(
-        '{"version":1,"records":[{"kind":"task","title":"Imported in TUI"}]}'
-    )
+    source.write_text('{"version":1,"records":[{"kind":"task","title":"Imported in TUI"}]}')
     app = HcbApp(runtime)
 
     async def actions(pilot: object) -> None:
@@ -359,9 +357,7 @@ def test_schedule_bulk_undo_redo_and_import_dialogs(
         app.screen.query_one("#import-path", Input).value = str(source)
         await pilot.click("#import-preview")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
-        assert "Accepted: 1" in str(
-            app.screen.query_one("#import-summary", Static).render()
-        )
+        assert "Accepted: 1" in str(app.screen.query_one("#import-summary", Static).render())
         await pilot.click("#import-apply")  # type: ignore[attr-defined]
         await pilot.press("y")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]

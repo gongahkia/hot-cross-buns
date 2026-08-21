@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hot Cross Buns">
-  <rect width="64" height="64" rx="14" fill="#b65a3c"/>
-  <path d="M17 25c0-8 6-14 15-14s15 6 15 14v18c0 6-5 10-15 10s-15-4-15-10V25Z" fill="#f5c881"/>
-  <path d="M22 26h20M32 16v20" stroke="#fff8eb" stroke-width="4" stroke-linecap="round"/>
-</svg>

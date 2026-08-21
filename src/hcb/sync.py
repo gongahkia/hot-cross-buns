@@ -109,9 +109,7 @@ def task_from_google(
     )
 
 
-def calendar_from_google(
-    account_id: str, item: Json, *, local_id: str | None = None
-) -> Calendar:
+def calendar_from_google(account_id: str, item: Json, *, local_id: str | None = None) -> Calendar:
     remote_id = str(item["id"])
     return Calendar(
         id=local_id or remote_id,
@@ -179,15 +177,18 @@ def event_from_google(
         anyone_can_add_self=item.get("anyoneCanAddSelf"),
         focus_time_properties=(
             item.get("focusTimeProperties")
-            if isinstance(item.get("focusTimeProperties"), dict) else None
+            if isinstance(item.get("focusTimeProperties"), dict)
+            else None
         ),
         out_of_office_properties=(
             item.get("outOfOfficeProperties")
-            if isinstance(item.get("outOfOfficeProperties"), dict) else None
+            if isinstance(item.get("outOfOfficeProperties"), dict)
+            else None
         ),
         working_location_properties=(
             item.get("workingLocationProperties")
-            if isinstance(item.get("workingLocationProperties"), dict) else None
+            if isinstance(item.get("workingLocationProperties"), dict)
+            else None
         ),
     )
 
@@ -254,9 +255,7 @@ class SyncEngine:
                             self.storage.set_cursor(
                                 SyncCursor(account_id, final_cursor_scope, page.next_sync_token)
                             )
-                        self.storage.finish_checkpoint(
-                            checkpoint, cursor=page.next_sync_token
-                        )
+                        self.storage.finish_checkpoint(checkpoint, cursor=page.next_sync_token)
                 if token is None:
                     break
         except Exception as exc:
@@ -345,9 +344,7 @@ class SyncEngine:
                 )
 
             try:
-                result = self._paged(
-                    account_id, scope, fetch, apply, final_cursor_scope=scope
-                )
+                result = self._paged(account_id, scope, fetch, apply, final_cursor_scope=scope)
                 break
             except GoogleApiError as exc:
                 if exc.status != 410 or reset:
@@ -445,11 +442,11 @@ class SyncEngine:
 
     @staticmethod
     def _non_idempotent_create(mutation: PendingMutation) -> bool:
-        if (
-            mutation.operation is MutationOperation.CREATE
-            and mutation.entity_type
-            in {EntityType.TASK, EntityType.TASK_LIST, EntityType.CALENDAR}
-        ):
+        if mutation.operation is MutationOperation.CREATE and mutation.entity_type in {
+            EntityType.TASK,
+            EntityType.TASK_LIST,
+            EntityType.CALENDAR,
+        }:
             return True
         return (
             mutation.entity_type is EntityType.TASK
@@ -631,9 +628,7 @@ class SyncEngine:
             task = self.storage.get_task(account_id, mutation.entity_id)
             remote = task.remote_id if task else payload.get("remote_id")
             local_list_id = payload.get("list_id") or (task.list_id if task else None)
-            list_id = self._remote_list(
-                account_id, _required_remote(local_list_id, "task list")
-            )
+            list_id = self._remote_list(account_id, _required_remote(local_list_id, "task list"))
             if mutation.operation is MutationOperation.CREATE:
                 return self.gateway.create_task(list_id, body)
             if mutation.operation is MutationOperation.UPDATE:
@@ -653,9 +648,7 @@ class SyncEngine:
                     parent=payload.get("parent"),
                     previous=payload.get("previous"),
                 )
-            self.gateway.delete_task(
-                list_id, _required_remote(remote, "task"), etag=etag
-            )
+            self.gateway.delete_task(list_id, _required_remote(remote, "task"), etag=etag)
             return None
         if mutation.entity_type is EntityType.CALENDAR:
             calendar = self.storage.get_calendar(account_id, mutation.entity_id)
@@ -663,9 +656,7 @@ class SyncEngine:
             if mutation.operation is MutationOperation.CREATE:
                 return self.gateway.create_calendar(body)
             if mutation.operation is MutationOperation.SUBSCRIBE:
-                return self.gateway.subscribe_calendar(
-                    _required_remote(remote, "calendar")
-                )
+                return self.gateway.subscribe_calendar(_required_remote(remote, "calendar"))
             if mutation.operation is MutationOperation.REMOVE:
                 self.gateway.remove_calendar(_required_remote(remote, "calendar"))
                 return None
@@ -677,9 +668,7 @@ class SyncEngine:
             return None
         event = self.storage.get_event(account_id, mutation.entity_id)
         remote = event.remote_id if event else payload.get("remote_id")
-        local_calendar_id = payload.get("calendar_id") or (
-            event.calendar_id if event else None
-        )
+        local_calendar_id = payload.get("calendar_id") or (event.calendar_id if event else None)
         calendar_id = self._remote_calendar(
             account_id, _required_remote(local_calendar_id, "calendar")
         )

@@ -1,10 +1,3 @@
-build/
-web/node_modules/
-web/dist/
-web/playwright-report/
-web/test-results/
-web/.cache/
-
 .DS_Store
 *.log
 AGENTS.md
@@ -16,6 +9,10 @@ dist/
 *.egg-info/
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/

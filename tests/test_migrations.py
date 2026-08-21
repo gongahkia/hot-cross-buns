@@ -61,9 +61,7 @@ def test_fresh_database_and_repeated_open_are_idempotent(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize("version", [1, 2, 3, 4])
-def test_v1_v2_v3_v4_migrate_to_current_without_data_loss(
-    tmp_path: Path, version: int
-) -> None:
+def test_v1_v2_v3_v4_migrate_to_current_without_data_loss(tmp_path: Path, version: int) -> None:
     path = tmp_path / f"v{version}.db"
     _legacy_database(path, version)
 
@@ -71,9 +69,7 @@ def test_v1_v2_v3_v4_migrate_to_current_without_data_loss(
         assert migrated.connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert migrated.get_account("legacy") is not None
         assert migrated.get_task_list("legacy", "inbox").title == "Legacy inbox"
-        columns = {
-            row["name"] for row in migrated.connection.execute("PRAGMA table_info(events)")
-        }
+        columns = {row["name"] for row in migrated.connection.execute("PRAGMA table_info(events)")}
         assert "working_location_properties" in columns
         outbox_columns = {
             row["name"] for row in migrated.connection.execute("PRAGMA table_info(outbox)")

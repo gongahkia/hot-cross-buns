@@ -470,9 +470,7 @@ def test_crash_after_task_success_does_not_blindly_retry_and_can_mark_delivered(
         if phase == "after-remote-success":
             raise RuntimeError("crash after remote success")
 
-    with Storage(path) as storage, pytest.raises(
-        RuntimeError, match="crash after remote success"
-    ):
+    with Storage(path) as storage, pytest.raises(RuntimeError, match="crash after remote success"):
         SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
     assert len([call for call in gateway.calls if call[0] == "create-task"]) == 1
 
@@ -484,9 +482,7 @@ def test_crash_after_task_success_does_not_blindly_retry_and_can_mark_delivered(
         application = ApplicationService(restarted)
         with pytest.raises(ValueError, match="remote-id"):
             application.resolve_uncertain_delivery("a", conflict.id, "delivered")
-        application.resolve_uncertain_delivery(
-            "a", conflict.id, "delivered", remote_id="task-r"
-        )
+        application.resolve_uncertain_delivery("a", conflict.id, "delivered", remote_id="task-r")
         assert restarted.get_task("a", "local").remote_id == "task-r"
         assert restarted.pending_mutations("a") == []
 
@@ -505,9 +501,7 @@ def test_user_can_retry_create_after_verifying_it_was_not_delivered(tmp_path: Pa
     with Storage(path) as restarted:
         SyncEngine(restarted, gateway).recover_interrupted_deliveries("a")
         conflict = restarted.list_conflicts("a")[0]
-        ApplicationService(restarted).resolve_uncertain_delivery(
-            "a", conflict.id, "retry"
-        )
+        ApplicationService(restarted).resolve_uncertain_delivery("a", conflict.id, "retry")
         assert len(restarted.pending_mutations("a")) == 1
         assert SyncEngine(restarted, gateway).flush_outbox("a").pushed == 1
         assert restarted.pending_mutations("a") == []
@@ -537,9 +531,7 @@ def test_event_create_retries_same_google_id_after_success_crash(tmp_path: Path)
         if phase == "after-remote-success":
             raise RuntimeError("event response lost")
 
-    with Storage(path) as storage, pytest.raises(
-        RuntimeError, match="event response lost"
-    ):
+    with Storage(path) as storage, pytest.raises(RuntimeError, match="event response lost"):
         SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
     with Storage(path) as restarted:
         result = SyncEngine(restarted, gateway).flush_outbox("a")

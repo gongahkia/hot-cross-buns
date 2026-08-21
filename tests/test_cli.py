@@ -277,9 +277,7 @@ def test_advanced_cli_equivalence_for_tui_workflows(
     list_id = seed_list(runner)
     calendar_id = seed_calendar(runner)
     task = json.loads(
-        invoke(
-            runner, ["--json", "tasks", "create", "Block me", "--list", list_id]
-        ).stdout
+        invoke(runner, ["--json", "tasks", "create", "Block me", "--list", list_id]).stdout
     )
     event = json.loads(
         invoke(
@@ -309,9 +307,7 @@ def test_advanced_cli_equivalence_for_tui_workflows(
         runner,
         ["events", "set-properties", event["id"], json.dumps(properties)],
     )
-    shown = json.loads(
-        invoke(runner, ["--json", "events", "show", event["id"]]).stdout
-    )
+    shown = json.loads(invoke(runner, ["--json", "events", "show", event["id"]]).stdout)
     assert shown["event_type"] == "focusTime"
     assert shown["focus_time_properties"]["autoDeclineMode"] == "declineNone"
 

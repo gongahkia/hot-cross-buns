@@ -6,22 +6,17 @@ on:
     branches:
       - main
   workflow_dispatch:
-  schedule:
-    - cron: "23 10 * * 1"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CI: true
-
 permissions:
   contents: read
 
 jobs:
-  python-tui:
-    name: Python TUI/CLI checks
+  python:
+    name: Python checks
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -30,444 +25,38 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
         with:
-          python-version: "3.12"
-          cache: pip
+          version: "0.8.13"
+          enable-cache: true
 
-      - name: Install Python quality dependencies
-        run: python -m pip install --disable-pip-version-check -e ".[dev]" build
+      - name: Set up Python
+        run: uv python install 3.12
 
-      - name: Run Python tests and quality checks
-        run: |
-          pytest
-          ruff check src tests tools/benchmark_python.py
-          mypy src
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
 
-      - name: Build wheel and source archive
-        run: python -m build
+      - name: Check formatting
+        run: uv run ruff format --check src tests tools/benchmark_python.py
+
+      - name: Lint
+        run: uv run ruff check src tests tools/benchmark_python.py
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Test
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run pytest
+
+      - name: Build distributions
+        run: uv build
 
       - name: Test isolated wheel install and entrypoint
         run: |
-          python -m venv "$RUNNER_TEMP/hcb-wheel"
-          "$RUNNER_TEMP/hcb-wheel/bin/python" -m pip install --disable-pip-version-check dist/*.whl
+          uv venv --python 3.12 "$RUNNER_TEMP/hcb-wheel"
+          uv pip install --python "$RUNNER_TEMP/hcb-wheel/bin/python" dist/*.whl
           test "$("$RUNNER_TEMP/hcb-wheel/bin/hcb" --json-schema-version)" = "1"
           TERM=dumb NO_COLOR=1 "$RUNNER_TEMP/hcb-wheel/bin/hcb" --help > /dev/null
-
-  web:
-    name: Web PWA checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web dependencies
-        run: npm ci
-
-      - name: Type-check web app
-        run: npm run typecheck
-
-      - name: Run web unit tests
-        run: npm run test:run
-
-      - name: Build web PWA
-        run: npm run build
-
-      - name: Install browser test dependency
-        run: npx playwright install --with-deps chromium
-
-      - name: Run web browser tests
-        run: npm run test:e2e
-
-  backend:
-    name: Self-hosted backend checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install backend dependencies
-        run: npm ci
-
-      - name: Type-check self-hosted backend
-        run: npm run typecheck
-
-      - name: Test self-hosted backend
-        run: npm test
-
-      - name: Build self-hosted backend
-        run: npm run build
-
-  native-macos:
-    name: Native Qt build and tests (macOS)
-    runs-on: macos-14
-    timeout-minutes: 35
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install native build dependencies
-        run: brew install cmake ninja qt
-
-      - name: Configure native debug build
-        run: cmake --preset macos-debug
-
-      - name: Build native targets
-        run: cmake --build --preset macos-debug --parallel 3
-
-      - name: Run native tests
-        run: ctest --preset macos-debug --output-on-failure
-
-      - name: Upload native test diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-macos-test-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: build/macos-debug-xcode/Testing/Temporary/**
-
-  native-quality:
-    name: Native format, static analysis, and sanitizers (macOS)
-    runs-on: macos-14
-    timeout-minutes: 55
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install native quality dependencies
-        run: brew install cmake ninja qt llvm
-
-      - name: Configure format check
-        run: cmake --preset macos-format
-
-      - name: Check native formatting
-        run: cmake --build --preset macos-format --parallel 3
-
-      - name: Configure static analysis
-        run: cmake --preset macos-analysis
-
-      - name: Run static analysis
-        run: cmake --build --preset macos-analysis --parallel 3
-
-      - name: Configure sanitizer build
-        run: cmake --preset macos-sanitize
-
-      - name: Build sanitizer targets
-        run: cmake --build --preset macos-sanitize --parallel 3
-
-      - name: Run sanitizer tests
-        run: ctest --preset macos-sanitize --output-on-failure
-
-      - name: Upload quality diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-quality-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: |
-            build/macos-analysis/compile_commands.json
-            build/macos-sanitize-xcode/Testing/Temporary/**
-
-  native-linux:
-    name: Native Qt build and tests (Linux)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Restore Qt SDK cache
-        id: qt-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          key: qt-6.11.1-linux-gcc-64-v3-${{ hashFiles('native/dependencies/manifest.json') }}
-          path: ${{ runner.temp }}/Qt
-
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libegl1 \
-            libgl1-mesa-dev \
-            libxcb-cursor0 \
-            libxcb-icccm4 \
-            libxcb-image0 \
-            libxcb-keysyms1 \
-            libxcb-randr0 \
-            libxcb-render-util0 \
-            libxcb-shape0 \
-            libxcb-xinerama0 \
-            libxkbcommon-x11-0 \
-            ninja-build \
-            xvfb
-
-      - name: Install Qt 6.11.1
-        if: steps.qt-cache.outputs.cache-hit != 'true'
-        run: |
-          python3 -m venv "$RUNNER_TEMP/hcb-aqt-venv"
-          "$RUNNER_TEMP/hcb-aqt-venv/bin/python" -m pip install --disable-pip-version-check \
-            "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
-          "$RUNNER_TEMP/hcb-aqt-venv/bin/python" -m aqt --config "$GITHUB_WORKSPACE/.github/aqtinstall-ci.ini" install-qt linux desktop 6.11.1 linux_gcc_64 --outputdir "$RUNNER_TEMP/Qt" --archives icu qtbase qtdeclarative qtsvg qttools qttranslations qtwayland
-
-      - name: Configure native debug build
-        run: cmake --preset linux-debug -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/Qt/6.11.1/gcc_64"
-
-      - name: Build native targets
-        run: cmake --build --preset linux-debug --parallel 3
-
-      - name: Run native tests
-        run: xvfb-run -a ctest --preset linux-debug --output-on-failure
-
-      - name: Upload native test diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-linux-test-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: build/linux-debug/Testing/Temporary/**
-
-  native-fedora43:
-    name: Native Qt build and tests (Fedora 43)
-    runs-on: ubuntu-24.04
-    container: fedora:43
-    timeout-minutes: 40
-    steps:
-      - name: Install Fedora build dependencies
-        run: |
-          dnf install -y \
-            cmake \
-            gcc-c++ \
-            git \
-            ninja-build \
-            qt6-qtbase-devel \
-            qt6-qtdeclarative-devel \
-            qt6-qtwayland \
-            rpm-build \
-            sqlite-devel \
-            systemd-rpm-macros
-
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Configure native Fedora debug build
-        run: cmake --preset fedora43-debug
-
-      - name: Build native Fedora targets
-        run: cmake --build --preset fedora43-debug --parallel 3
-
-      - name: Run native Fedora tests
-        run: QT_QPA_PLATFORM=offscreen ctest --preset fedora43-debug --output-on-failure
-
-      - name: Build and inspect Fedora RPM
-        run: |
-          mkdir -p "$HOME/rpmbuild/SOURCES"
-          git archive --format=tar --prefix=hot-cross-buns-6.0.0/ HEAD | \
-            gzip -n > "$HOME/rpmbuild/SOURCES/hot-cross-buns-6.0.0.tar.gz"
-          rpmbuild -ba packaging/fedora/hot-cross-buns.spec
-          rpm_path="$(find "$HOME/rpmbuild/RPMS" -name 'hot-cross-buns-*.rpm' -print -quit)"
-          test -n "$rpm_path"
-          rpm -qlp "$rpm_path" | grep -Fx /usr/bin/hot-cross-buns
-          rpm -qlp "$rpm_path" | grep -Fx /usr/libexec/hot-cross-buns/hcb-reminderd
-          rpm -qlp "$rpm_path" | grep -Fx /usr/share/applications/hot-cross-buns.desktop
-
-      - name: Upload unsigned Fedora RPM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: hot-cross-buns-fedora43-x86_64-unsigned-${{ github.run_id }}
-          if-no-files-found: error
-          retention-days: 14
-          path: ~/rpmbuild/RPMS/x86_64/hot-cross-buns-*.rpm
-
-      - name: Upload native Fedora test diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-fedora43-test-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: build/fedora43-debug/Testing/Temporary/**
-
-  native-windows:
-    name: Native Qt build and tests (Windows)
-    runs-on: windows-2022
-    timeout-minutes: 40
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Restore Qt SDK cache
-        id: qt-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          key: qt-6.11.1-windows-msvc2022-64-v3-${{ hashFiles('native/dependencies/manifest.json') }}
-          path: ${{ runner.temp }}\Qt
-
-      - name: Install Qt 6.11.1
-        if: steps.qt-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          python -m venv "$env:RUNNER_TEMP\hcb-aqt-venv"
-          & "$env:RUNNER_TEMP\hcb-aqt-venv\Scripts\python.exe" -m pip install --disable-pip-version-check "git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e"
-          & "$env:RUNNER_TEMP\hcb-aqt-venv\Scripts\python.exe" -m aqt --config "$env:GITHUB_WORKSPACE\.github\aqtinstall-ci.ini" install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "$env:RUNNER_TEMP\Qt" --archives d3dcompiler_47 opengl32sw qtbase qtdeclarative qtsvg qttools qttranslations
-
-      - name: Configure native debug build
-        shell: pwsh
-        run: cmake --preset windows-debug -A x64 -DCMAKE_PREFIX_PATH="$env:RUNNER_TEMP\Qt\6.11.1\msvc2022_64"
-
-      - name: Build native targets
-        run: cmake --build --preset windows-debug --parallel 3
-
-      - name: Run native tests
-        shell: pwsh
-        run: |
-          $env:QT_QPA_PLATFORM = "offscreen"
-          ctest --preset windows-debug --output-on-failure
-
-      - name: Upload native test diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-windows-test-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: build/windows-debug/Testing/Temporary/**
-
-  native-macos-smoke:
-    name: Native Qt shell smoke (macOS)
-    runs-on: macos-14
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install native build dependencies
-        run: brew install cmake ninja qt
-
-      - name: Configure native debug build
-        run: cmake --preset macos-debug
-
-      - name: Build native shell smoke targets
-        run: cmake --build --preset macos-debug --target hcb_native hcb_native_qml_shell_smoke --parallel 3
-
-      - name: Run native shell smoke test
-        run: ctest --preset macos-debug --tests-regex '^hcb_native_qml_shell_smoke$' --output-on-failure
-
-      - name: Upload native shell smoke diagnostics
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-macos-smoke-diagnostics-${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: build/macos-debug-xcode/Testing/Temporary/**
-
-  native-performance-report:
-    name: Native performance report
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: macos-14
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install native build dependencies
-        run: brew install cmake ninja qt
-
-      - name: Configure native build
-        run: cmake --preset macos-debug
-
-      - name: Build release-scale benchmarks
-        run: >-
-          cmake --build --preset macos-debug --config Release --parallel 3 --target
-          hcb_native hcb_performance_report hcb_wrapper_scale_performance_fixture
-          hcb_local_search_benchmark hcb_task_scroll_benchmark hcb_calendar_navigation_benchmark
-          hcb_sync_apply_benchmark
-
-      - name: Generate and enforce native-wrapper scale reports
-        run: |
-          mkdir -p artifacts/native-performance
-          build/macos-debug-xcode/native/Release/hcb_wrapper_scale_performance_fixture \
-            > artifacts/native-performance/wrapper-scale-fixture.json
-          build/macos-debug-xcode/native/Release/hcb_performance_report \
-            --executable "build/macos-debug-xcode/native/Release/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
-            --launch-iterations 1 \
-            --idle-duration-ms 1000 \
-            --timeout-ms 30000 \
-            -- -platform offscreen \
-            > artifacts/native-performance/macos-cold.json
-          build/macos-debug-xcode/native/Release/hcb_performance_report \
-            --executable "build/macos-debug-xcode/native/Release/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns" \
-            --launch-iterations 3 \
-            --idle-duration-ms 1000 \
-            --timeout-ms 30000 \
-            -- -platform offscreen \
-            > artifacts/native-performance/macos-warm.json
-          build/macos-debug-xcode/native/Release/hcb_local_search_benchmark \
-            > artifacts/native-performance/local-search.json
-          build/macos-debug-xcode/native/Release/hcb_task_scroll_benchmark -platform offscreen \
-            > artifacts/native-performance/task-scroll.json
-          build/macos-debug-xcode/native/Release/hcb_calendar_navigation_benchmark -platform offscreen \
-            > artifacts/native-performance/calendar-navigation.json
-          build/macos-debug-xcode/native/Release/hcb_sync_apply_benchmark \
-            > artifacts/native-performance/sync-apply.json
-          {
-            sw_vers
-            uname -a
-            sysctl -n machdep.cpu.brand_string 2>/dev/null || true
-            cmake --version
-            git rev-parse HEAD
-          } > artifacts/native-performance/environment.txt
-          bash .github/scripts/check-native-wrapper-performance.sh artifacts/native-performance
-
-      - name: Upload native performance report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: native-performance-report-${{ github.run_id }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: artifacts/native-performance/**

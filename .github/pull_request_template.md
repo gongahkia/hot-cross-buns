@@ -2,33 +2,27 @@
 
 - TBD
 
-# User-Visible Behavior
+# User-visible behavior
 
 - TBD
 
-# Platform Impact
-
-- [ ] macOS
-- [ ] Linux
-- [ ] Windows
-- [ ] no platform-specific impact
-
-# Security And Privacy
+# Security and privacy
 
 - [ ] no security/privacy impact
-- [ ] touches credentials, OAuth, MCP, IPC, SQLite, diagnostics, release artifacts, or signing
-- [ ] docs updated for any user-facing security/privacy change
+- [ ] touches OAuth, keyring storage, Google transport, SQLite, imports/exports,
+      reminders, or diagnostics
+- [ ] user-facing security/privacy documentation updated
 
-# Tests
+# Validation
 
-- [ ] `cmake --build --preset macos-debug --parallel 3`
-- [ ] `ctest --preset macos-debug --output-on-failure`
-- [ ] `cmake --build --preset macos-format --parallel 3`
+- [ ] `uv run ruff format --check src tests tools/benchmark_python.py`
+- [ ] `uv run ruff check src tests tools/benchmark_python.py`
+- [ ] `uv run mypy src`
+- [ ] `PYTHONDONTWRITEBYTECODE=1 uv run pytest`
+- [ ] `uv build`
 - [ ] not run; explain:
 
-# Release / Docs
+# Documentation
 
-- [ ] docs updated
-- [ ] release notes updated
-- [ ] checksums/artifacts unaffected
-- [ ] known limitations documented
+- [ ] docs updated or not required
+- [ ] live Google acceptance impact recorded

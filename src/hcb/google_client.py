@@ -52,9 +52,7 @@ class GoogleGateway(Protocol):
     def update_task(
         self, task_list_id: str, task_id: str, body: Json, *, etag: str | None = None
     ) -> Json: ...
-    def delete_task(
-        self, task_list_id: str, task_id: str, *, etag: str | None = None
-    ) -> None: ...
+    def delete_task(self, task_list_id: str, task_id: str, *, etag: str | None = None) -> None: ...
     def move_task(
         self,
         task_list_id: str,
@@ -65,17 +63,32 @@ class GoogleGateway(Protocol):
     ) -> Json: ...
 
     def create_event(
-        self, calendar_id: str, body: Json, *, send_updates: str = "none",
-        supports_attachments: bool = False, conference_data_version: int = 0
+        self,
+        calendar_id: str,
+        body: Json,
+        *,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
+        conference_data_version: int = 0,
     ) -> Json: ...
     def update_event(
-        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None,
-        send_updates: str = "none", supports_attachments: bool = False,
-        conference_data_version: int = 0
+        self,
+        calendar_id: str,
+        event_id: str,
+        body: Json,
+        *,
+        etag: str | None = None,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
+        conference_data_version: int = 0,
     ) -> Json: ...
     def delete_event(
-        self, calendar_id: str, event_id: str, *, etag: str | None = None,
-        send_updates: str = "none"
+        self,
+        calendar_id: str,
+        event_id: str,
+        *,
+        etag: str | None = None,
+        send_updates: str = "none",
     ) -> None: ...
     def move_event(self, calendar_id: str, event_id: str, destination: str) -> Json: ...
     def respond_event(
@@ -92,9 +105,7 @@ class GoogleGateway(Protocol):
     def create_calendar(self, body: Json) -> Json: ...
     def subscribe_calendar(self, calendar_id: str) -> Json: ...
     def remove_calendar(self, calendar_id: str) -> None: ...
-    def update_calendar(
-        self, calendar_id: str, body: Json, *, etag: str | None = None
-    ) -> Json: ...
+    def update_calendar(self, calendar_id: str, body: Json, *, etag: str | None = None) -> Json: ...
     def delete_calendar(self, calendar_id: str, *, etag: str | None = None) -> None: ...
     def freebusy(self, body: Json) -> Json: ...
     def drive_metadata(self, file_id: str, *, fields: str = "*") -> Json: ...
@@ -256,12 +267,8 @@ class GoogleApiClient:
             self.tasks.tasks().patch(tasklist=task_list_id, task=task_id, body=body), etag=etag
         )
 
-    def delete_task(
-        self, task_list_id: str, task_id: str, *, etag: str | None = None
-    ) -> None:
-        self._void(
-            self.tasks.tasks().delete(tasklist=task_list_id, task=task_id), etag=etag
-        )
+    def delete_task(self, task_list_id: str, task_id: str, *, etag: str | None = None) -> None:
+        self._void(self.tasks.tasks().delete(tasklist=task_list_id, task=task_id), etag=etag)
 
     def move_task(
         self,
@@ -288,28 +295,43 @@ class GoogleApiClient:
     ) -> Json:
         return self._execute(
             self.calendar.events().insert(
-                calendarId=calendar_id, body=body, sendUpdates=send_updates,
+                calendarId=calendar_id,
+                body=body,
+                sendUpdates=send_updates,
                 supportsAttachments=supports_attachments,
                 conferenceDataVersion=conference_data_version,
             )
         )
 
     def update_event(
-        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None,
-        send_updates: str = "none", supports_attachments: bool = False,
+        self,
+        calendar_id: str,
+        event_id: str,
+        body: Json,
+        *,
+        etag: str | None = None,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
         conference_data_version: int = 0,
     ) -> Json:
         return self._execute(
             self.calendar.events().patch(
-                calendarId=calendar_id, eventId=event_id, body=body
-                ,sendUpdates=send_updates, supportsAttachments=supports_attachments,
-                conferenceDataVersion=conference_data_version
+                calendarId=calendar_id,
+                eventId=event_id,
+                body=body,
+                sendUpdates=send_updates,
+                supportsAttachments=supports_attachments,
+                conferenceDataVersion=conference_data_version,
             ),
             etag=etag,
         )
 
     def delete_event(
-        self, calendar_id: str, event_id: str, *, etag: str | None = None,
+        self,
+        calendar_id: str,
+        event_id: str,
+        *,
+        etag: str | None = None,
         send_updates: str = "none",
     ) -> None:
         self._void(
@@ -342,9 +364,7 @@ class GoogleApiClient:
         if comment is not None:
             attendee["comment"] = comment
         body = {"attendees": [attendee]}
-        return self.update_event(
-            calendar_id, event_id, body, etag=etag, send_updates=send_updates
-        )
+        return self.update_event(calendar_id, event_id, body, etag=etag, send_updates=send_updates)
 
     def create_calendar(self, body: Json) -> Json:
         return self._execute(self.calendar.calendars().insert(body=body))
@@ -355,9 +375,7 @@ class GoogleApiClient:
     def remove_calendar(self, calendar_id: str) -> None:
         self._void(self.calendar.calendarList().delete(calendarId=calendar_id))
 
-    def update_calendar(
-        self, calendar_id: str, body: Json, *, etag: str | None = None
-    ) -> Json:
+    def update_calendar(self, calendar_id: str, body: Json, *, etag: str | None = None) -> Json:
         return self._execute(
             self.calendar.calendars().patch(calendarId=calendar_id, body=body), etag=etag
         )
@@ -380,9 +398,7 @@ class GoogleApiClient:
         response = self._execute(
             self.drive.files().list(
                 q=f"name contains '{escaped}' and trashed = false",
-                fields=(
-                    "nextPageToken,files(id,name,mimeType,webViewLink,iconLink,modifiedTime)"
-                ),
+                fields=("nextPageToken,files(id,name,mimeType,webViewLink,iconLink,modifiedTime)"),
                 pageToken=page_token,
                 pageSize=max(1, min(page_size, 1000)),
                 orderBy="modifiedTime desc",

@@ -1,37 +1,45 @@
-# Product PRD
+# Product requirements
 
 ## Product
 
-Hot Cross Buns is a local desktop client and web client for a user's Google Calendar and Google Tasks account. It keeps an on-device cache and mutation journal for speed and offline work. The public web build is direct-only; an optional reliable web stack is self-hosted by its user and never operated by Hot Cross Buns. Notes are an optional HCB projection of undated Google Tasks and sync as ordinary Google Tasks.
+Hot Cross Buns is an installed Python terminal application for one or more
+Google Calendar and Google Tasks accounts. Running `hcb` opens a keyboard-first
+Textual workspace; subcommands expose the same operations for scripts.
 
-## Target user
+## Product goals
 
-An individual who needs a fast, keyboard-accessible planner that is a credible desktop alternative to Apple Calendar while retaining Google Calendar and Google Tasks as the authoritative services.
+- Fast local reads, search, and optimistic edits through an SQLite mirror.
+- Durable offline mutations with explicit sync and recoverable conflicts.
+- Task lists, hierarchy, completion, notes projection, recurrence markers,
+  batch actions, import/export, and quick capture.
+- Calendar agenda and time-grid workflows, event mutation, recurrence
+  round-tripping, reminders, invitations, free/busy, and saved search.
+- Desktop OAuth with user-supplied credentials and OS-keyring token storage.
+- Stable JSON/TSV output, useful exit codes, and noninteractive parity for core
+  TUI operations.
+- Optional local reminders that do not depend on the TUI remaining open.
 
-## Release success
+## Product boundaries
 
-- User supplies a Google Desktop OAuth client and connects their own account through PKCE loopback authorization.
-- Tasks support lists, hierarchy, create/edit/complete/delete/move/reparent/reorder, batch actions, and durable offline mutations.
-- Notes can be disabled, shown only as undated task projections, or mirrored in Tasks and Notes.
-- HCB recurring tasks preserve portable marker metadata and reconcile successor duplicates. The web can additionally store one exact portable task reminder time per task; the self-hosted worker considers only tasks with that explicit marker.
-- Calendar supports agenda/day/week/month views, search, structured create/edit/delete/move/bulk actions, arbitrary Google recurrence round-tripping, Google-resolved instances, Meet creation, Drive metadata attachment picking, invitations/RSVP comments, free-busy, calendar creation/subscription, and Focus/OOO/working-location fields where Google exposes them.
-- Calendar popup reminders create local macOS notifications with Snooze 10 minutes and Dismiss.
-- Search is local-first, structured, saved, ranked, and does not query Google per keystroke.
-- Presentation settings cover appearance, density, week start, 12/24-hour time, display timezone, work hours, calendar visibility, event colors, and reminders.
-- The app has a macOS native bundle, automated C++/QML/shell coverage, and a redacted live Google account smoke procedure.
+Google Calendar and Google Tasks remain authoritative for synchronized data.
+HCB does not host accounts, operate a sync backend, or provide a web, Electron,
+Qt, or other GUI product. It does not reimplement Google Calendar recurrence
+expansion; concrete recurring instances come from Google.
 
-## Explicit exclusions
+Task due dates follow Google Tasks' date-only model. Timed task blocks are
+Calendar events linked to their source tasks in local metadata.
 
-- HCB cloud storage or multi-user collaboration outside Google Calendar sharing.
-- A global quick-capture shortcut.
-- A separate remote notes schema.
-- Reimplementing Google Calendar RFC recurrence expansion locally.
-- Linux/Windows release parity before macOS acceptance.
-- Full Google Calendar administrator ACL management; this is deferred as a dedicated issue.
+## Privacy and reliability
 
-## Product rules
+Refresh tokens belong in the operating-system credential store, access tokens
+remain in memory, and neither tokens nor OAuth secrets may enter SQLite, logs,
+exports, or diagnostics. Every schema change requires a tested migration.
+Queued user writes must not be silently discarded.
 
-- Google Calendar/Tasks behavior wins by default during sync conflict resolution; alternatives are user-selectable in Settings.
-- Cross-list task moves recreate on the destination and delete the original, so the remote task ID changes.
-- Calendar recurrence stores and sends valid Google recurrence lines unchanged. Google’s instances API resolves exceptions, cancellations, and concrete instances.
-- Task due values follow the Google Tasks date-only API constraint. Timed work is modeled as Calendar events.
+## Acceptance
+
+Automated tests, type checking, linting, package builds, and the local TUI smoke
+test are required. The live Google acceptance gate for this Python pivot was
+explicitly waived and not executed before legacy retirement. Therefore Google
+integration is not considered live-account accepted until
+`docs/testing/live-google-tui-smoke.md` is completed and recorded.

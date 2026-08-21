@@ -270,9 +270,7 @@ def parse_quick_capture(
     task_alias = _alias_match(text, preferences.task_aliases)
     event_alias = _alias_match(text, preferences.event_aliases)
     first_alias: tuple[QuickCaptureKind, re.Match[str], str] | None
-    if task_alias is None or (
-        event_alias is not None and event_alias.start() < task_alias.start()
-    ):
+    if task_alias is None or (event_alias is not None and event_alias.start() < task_alias.start()):
         first_alias = ("event", event_alias, "Event") if event_alias is not None else None
     else:
         first_alias = ("task", task_alias, "Task")
@@ -303,11 +301,7 @@ def parse_quick_capture(
         interval = int(recurrence_match.group(1) or "1")
         unit = recurrence_match.group(2).lower()
         frequency = _FREQUENCIES[unit]
-        label = (
-            f"Repeats every {unit}"
-            if interval == 1
-            else f"Repeats every {interval} {unit}s"
-        )
+        label = f"Repeats every {unit}" if interval == 1 else f"Repeats every {interval} {unit}s"
         if _use_span(
             spans, disabled, _span_for(recurrence_match, "recurrence", label), recognitions
         ):
@@ -317,9 +311,7 @@ def parse_quick_capture(
                 rrule=f"RRULE:FREQ={frequency.upper()};INTERVAL={interval}",
             )
 
-    event_duration_minutes = max(
-        1, min(1_440, preferences.default_event_duration_minutes or 30)
-    )
+    event_duration_minutes = max(1, min(1_440, preferences.default_event_duration_minutes or 30))
     if kind == "event":
         duration = _DURATION.search(text)
         if duration:
@@ -358,9 +350,7 @@ def parse_quick_capture(
         date = _local_date(_add_days(current, 1) if today_at_time <= current else current)
 
     parsed_title = (
-        text.strip()
-        if preferences.remove_recognized_text is False
-        else _remove_spans(text, spans)
+        text.strip() if preferences.remove_recognized_text is False else _remove_spans(text, spans)
     )
     return QuickCaptureResult(
         kind=kind,

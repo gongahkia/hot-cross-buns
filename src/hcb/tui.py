@@ -343,11 +343,7 @@ class ImportScreen(ModalScreen[None]):
             self.hcb.notify(str(exc), severity="error")
 
     def _apply_confirmed(self, confirmed: bool | None) -> None:
-        if (
-            not confirmed
-            or self.preview is None
-            or self.hcb.account_id is None
-        ):
+        if not confirmed or self.preview is None or self.hcb.account_id is None:
             return
         try:
             result = self.hcb.runtime.application.apply_import(
@@ -414,9 +410,7 @@ class ConflictScreen(ModalScreen[None]):
             conflict = next(
                 (
                     item
-                    for item in self.hcb.runtime.storage.list_conflicts(
-                        self.hcb.account_id
-                    )
+                    for item in self.hcb.runtime.storage.list_conflicts(self.hcb.account_id)
                     if item.id == self.conflict_id
                 ),
                 None,
@@ -433,9 +427,7 @@ class ConflictScreen(ModalScreen[None]):
                     self.hcb.runtime.application.resolve_uncertain_delivery(
                         self.hcb.account_id,
                         self.conflict_id,
-                        "retry"
-                        if resolution is ConflictStatus.KEEP_LOCAL
-                        else "delivered",
+                        "retry" if resolution is ConflictStatus.KEEP_LOCAL else "delivered",
                         remote_id=self.query_one("#conflict-remote-id", Input).value.strip()
                         or None,
                     )
@@ -1058,15 +1050,14 @@ class HcbApp(App[None]):
                 tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
             projection = (
                 self.runtime.application.notes_projection(self.account_id)
-                if self.account_id else None
+                if self.account_id
+                else None
             )
             if self.surface == "Notes":
                 tasks = (
-                    tuple(
-                        task for task in tasks
-                        if task.due is None and task.parent_id is None
-                    )
-                    if projection is not None and projection.value != "disabled" else ()
+                    tuple(task for task in tasks if task.due is None and task.parent_id is None)
+                    if projection is not None and projection.value != "disabled"
+                    else ()
                 )
             elif projection is not None and projection.value == "notes-only":
                 tasks = tuple(
@@ -1417,9 +1408,7 @@ class HcbApp(App[None]):
         if not ids:
             self.notify("Select a task to complete", severity="warning")
             return
-        targets = [
-            item for item in self.cache.tasks if item.id in ids
-        ]
+        targets = [item for item in self.cache.tasks if item.id in ids]
         completed = not all(item.status is TaskStatus.COMPLETED for item in targets)
         self.runtime.application.complete_tasks(
             self.account_id, [item.id for item in targets], completed=completed
@@ -1592,9 +1581,7 @@ class HcbApp(App[None]):
         if self.account_id is None:
             raise ValueError("connect an account before querying Google")
         day = date.fromisoformat(raw_day)
-        start = datetime.combine(day, datetime.min.time(), UTC) + timedelta(
-            hours=int(raw_start)
-        )
+        start = datetime.combine(day, datetime.min.time(), UTC) + timedelta(hours=int(raw_start))
         end = datetime.combine(day, datetime.min.time(), UTC) + timedelta(hours=int(raw_end))
         calendars: list[dict[str, str]] = []
         for item_id, _summary, selected in self.cache.calendars:

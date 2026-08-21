@@ -228,7 +228,8 @@ class ApplicationService:
         if self.notes_projection(account_id) is NotesProjection.DISABLED:
             return ()
         return tuple(
-            task for task in self.storage.list_tasks(account_id)
+            task
+            for task in self.storage.list_tasks(account_id)
             if task.due is None and task.parent_id is None
         )
 
@@ -695,8 +696,7 @@ class ApplicationService:
     def delete_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
         with self.storage.transaction():
             return tuple(
-                self.delete_task(account_id, task_id)
-                for task_id in dict.fromkeys(task_ids)
+                self.delete_task(account_id, task_id) for task_id in dict.fromkeys(task_ids)
             )
 
     def move_task(
@@ -866,7 +866,10 @@ class ApplicationService:
         with self.storage.transaction():
             self.storage.upsert_calendar(item)
             self._enqueue(
-                account_id, EntityType.CALENDAR, item.id, MutationOperation.SUBSCRIBE,
+                account_id,
+                EntityType.CALENDAR,
+                item.id,
+                MutationOperation.SUBSCRIBE,
                 {"remote_id": remote_calendar_id},
             )
         return item
@@ -961,7 +964,10 @@ class ApplicationService:
         with self.storage.transaction():
             self.storage.upsert_calendar(deleted)
             self._enqueue(
-                account_id, EntityType.CALENDAR, calendar_id, MutationOperation.REMOVE,
+                account_id,
+                EntityType.CALENDAR,
+                calendar_id,
+                MutationOperation.REMOVE,
                 {"remote_id": current.remote_id},
             )
         return deleted
@@ -1008,9 +1014,7 @@ class ApplicationService:
         if not summary.strip():
             raise ValueError("event summary is required")
         self._validate_event_times(start, end)
-        self._validate_event_options(
-            send_updates, supports_attachments, conference_data_version
-        )
+        self._validate_event_options(send_updates, supports_attachments, conference_data_version)
         event = Event(
             id or _id(),
             account_id,
@@ -1047,7 +1051,8 @@ class ApplicationService:
                 event.id,
                 MutationOperation.CREATE,
                 {
-                    "calendar_id": calendar_id, "body": self._event_body(event),
+                    "calendar_id": calendar_id,
+                    "body": self._event_body(event),
                     "send_updates": send_updates,
                     "supports_attachments": supports_attachments,
                     "conference_data_version": conference_data_version,
@@ -1099,9 +1104,7 @@ class ApplicationService:
         current = self._require_event(account_id, event_id)
         if scope not in {"this", "series"}:
             raise ValueError("event scope must be this or series")
-        self._validate_event_options(
-            send_updates, supports_attachments, conference_data_version
-        )
+        self._validate_event_options(send_updates, supports_attachments, conference_data_version)
         if summary is not None and not summary.strip():
             raise ValueError("event summary is required")
         next_start, next_end = start or current.start, end or current.end
@@ -1117,12 +1120,12 @@ class ApplicationService:
             recurrence=recurrence if recurrence is not None else current.recurrence,
             attendees=attendees if attendees is not None else current.attendees,
             reminder_use_default=(
-                reminder_use_default if reminder_use_default is not None
+                reminder_use_default
+                if reminder_use_default is not None
                 else current.reminder_use_default
             ),
             reminder_overrides=(
-                reminder_overrides if reminder_overrides is not None
-                else current.reminder_overrides
+                reminder_overrides if reminder_overrides is not None else current.reminder_overrides
             ),
             event_type=event_type if event_type is not None else current.event_type,
             transparency=transparency if transparency is not None else current.transparency,
@@ -1131,24 +1134,25 @@ class ApplicationService:
             attachments=attachments if attachments is not None else current.attachments,
             conference=conference if conference is not None else current.conference,
             guests_can_invite_others=(
-                guests_can_invite_others if guests_can_invite_others is not None
+                guests_can_invite_others
+                if guests_can_invite_others is not None
                 else current.guests_can_invite_others
             ),
             guests_can_modify=(
                 guests_can_modify if guests_can_modify is not None else current.guests_can_modify
             ),
             guests_can_see_other_guests=(
-                guests_can_see_other_guests if guests_can_see_other_guests is not None
+                guests_can_see_other_guests
+                if guests_can_see_other_guests is not None
                 else current.guests_can_see_other_guests
             ),
             anyone_can_add_self=(
-                anyone_can_add_self if anyone_can_add_self is not None
+                anyone_can_add_self
+                if anyone_can_add_self is not None
                 else current.anyone_can_add_self
             ),
             focus_time_properties=focus_time_properties or current.focus_time_properties,
-            out_of_office_properties=(
-                out_of_office_properties or current.out_of_office_properties
-            ),
+            out_of_office_properties=(out_of_office_properties or current.out_of_office_properties),
             working_location_properties=(
                 working_location_properties or current.working_location_properties
             ),
@@ -1169,7 +1173,8 @@ class ApplicationService:
                     "remote_id": current.remote_id,
                     "target_remote_id": (
                         current.canonical_id
-                        if scope == "series" and current.is_occurrence else current.remote_id
+                        if scope == "series" and current.is_occurrence
+                        else current.remote_id
                     ),
                     "send_updates": send_updates,
                     "supports_attachments": supports_attachments,
@@ -1215,8 +1220,13 @@ class ApplicationService:
         return updated
 
     def respond_event(
-        self, account_id: str, event_id: str, response_status: ResponseStatus,
-        *, comment: str | None = None, send_updates: str = "all"
+        self,
+        account_id: str,
+        event_id: str,
+        response_status: ResponseStatus,
+        *,
+        comment: str | None = None,
+        send_updates: str = "all",
     ) -> PendingMutation:
         current = self._require_event(account_id, event_id)
         if response_status not in {"accepted", "declined", "tentative", "needsAction"}:
@@ -1310,7 +1320,8 @@ class ApplicationService:
                     "remote_id": current.remote_id,
                     "target_remote_id": (
                         current.canonical_id
-                        if scope == "series" and current.is_occurrence else current.remote_id
+                        if scope == "series" and current.is_occurrence
+                        else current.remote_id
                     ),
                     "etag": current.metadata.etag,
                     "send_updates": send_updates,
@@ -1343,12 +1354,12 @@ class ApplicationService:
             cutoff = (split_value.astimezone(UTC) - timedelta(seconds=1)).strftime("%Y%m%dT%H%M%SZ")
         else:
             cutoff = (split_value - timedelta(days=1)).strftime("%Y%m%d")
-        old_rule = ";".join(
-            part for part in rule.split(";") if not part.startswith("UNTIL=")
-        ) + f";UNTIL={cutoff}"
+        old_rule = (
+            ";".join(part for part in rule.split(";") if not part.startswith("UNTIL="))
+            + f";UNTIL={cutoff}"
+        )
         new_rule = ";".join(
-            part for part in rule.split(";")
-            if not part.startswith(("UNTIL=", "COUNT="))
+            part for part in rule.split(";") if not part.startswith(("UNTIL=", "COUNT="))
         )
         with self.storage.transaction():
             old = self.update_event(
@@ -1523,7 +1534,8 @@ class ApplicationService:
         task = self._require_task(account_id, task_id)
         with self.storage.transaction():
             active = [
-                link for link in self.list_task_event_links(account_id)
+                link
+                for link in self.list_task_event_links(account_id)
                 if link.task_id == task_id and not link.orphaned
             ]
             if active:
@@ -1545,7 +1557,8 @@ class ApplicationService:
 
     def unschedule_task(self, account_id: str, task_id: str) -> Event | None:
         links = [
-            link for link in self.list_task_event_links(account_id)
+            link
+            for link in self.list_task_event_links(account_id)
             if link.task_id == task_id and not link.orphaned
         ]
         if not links:
@@ -1555,9 +1568,7 @@ class ApplicationService:
             self.unlink_task_event(account_id, task_id, event.id)
         return event
 
-    def repair_task_schedule(
-        self, account_id: str, task_id: str, event_id: str
-    ) -> TaskEventLink:
+    def repair_task_schedule(self, account_id: str, task_id: str, event_id: str) -> TaskEventLink:
         self._require_task(account_id, task_id)
         self._require_event(account_id, event_id)
         with self.storage.transaction():
@@ -1570,10 +1581,15 @@ class ApplicationService:
     def cache_drive_metadata(self, account_id: str, items: list[Json]) -> tuple[DriveFile, ...]:
         result = tuple(
             DriveFile(
-                str(item["id"]), account_id, str(item.get("name", "")),
-                item.get("mimeType"), item.get("webViewLink"), item.get("iconLink"),
+                str(item["id"]),
+                account_id,
+                str(item.get("name", "")),
+                item.get("mimeType"),
+                item.get("webViewLink"),
+                item.get("iconLink"),
                 datetime.fromisoformat(item["modifiedTime"].replace("Z", "+00:00"))
-                if item.get("modifiedTime") else None,
+                if item.get("modifiedTime")
+                else None,
             )
             for item in items
         )
@@ -1862,11 +1878,7 @@ class ApplicationService:
         if normalized == "delivered" and not remote_id:
             raise ValueError("delivered reconciliation requires --remote-id")
 
-        status = (
-            ConflictStatus.KEEP_LOCAL
-            if normalized == "retry"
-            else ConflictStatus.KEEP_REMOTE
-        )
+        status = ConflictStatus.KEEP_LOCAL if normalized == "retry" else ConflictStatus.KEEP_REMOTE
         with self.storage.transaction():
             if normalized == "retry":
                 self.storage.enqueue(

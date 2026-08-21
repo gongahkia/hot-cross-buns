@@ -1,29 +1,28 @@
-name: Platform install or update issue
-description: Report a DMG, AppImage, NSIS, checksum, launch, or update-check problem.
-title: "[Platform]: "
+name: Python installation issue
+description: Report a uv, pipx, Python, entrypoint, or first-launch problem.
+title: "[Install]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this for install, checksum, first launch, update-check, or package identity issues.
+        Use this for Python installation, dependency, entrypoint, or first-launch issues.
         Do not include credentials, tokens, local databases, or unredacted diagnostics.
   - type: dropdown
     id: package
     attributes:
       label: Package
       options:
-        - macOS DMG
-        - Linux AppImage
-        - Windows NSIS
-        - source/dev
+        - uv tool
+        - pipx
+        - source checkout
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: App version
-      placeholder: "5.0.0"
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: input
@@ -38,14 +37,14 @@ body:
     attributes:
       label: Checks completed
       options:
-        - label: I downloaded from the latest GitHub release.
-        - label: I verified the SHA-256 checksum where applicable.
-        - label: I checked the platform support docs.
+        - label: I am using Python 3.12 or newer.
+        - label: I tried the command in README.md.
+        - label: I included my installer and Python versions.
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      placeholder: Describe the install, launch, checksum, or update-check failure.
+      placeholder: Describe the install, dependency, entrypoint, or first-launch failure.
     validations:
       required: true
   - type: textarea

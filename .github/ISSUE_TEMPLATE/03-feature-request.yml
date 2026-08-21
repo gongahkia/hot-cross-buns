@@ -26,8 +26,9 @@ body:
         - calendar
         - notes
         - sync
-        - MCP/CLI/automation
-        - platform packaging
+        - TUI
+        - CLI/automation
+        - Python packaging
         - settings/customization
         - security/privacy
         - docs/site

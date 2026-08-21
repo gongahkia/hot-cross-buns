@@ -42,6 +42,5 @@ def test_macos_permission_denial_is_typed(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_noop_adapter_is_portable() -> None:
     assert (
-        NoOpNotifier().notify(Notification("title", "body", "id"))
-        is NotificationAction.DELIVERED
+        NoOpNotifier().notify(Notification("title", "body", "id")) is NotificationAction.DELIVERED
     )

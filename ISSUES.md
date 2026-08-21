@@ -15,11 +15,14 @@ Do not open public issues for security reports. Use [SECURITY.md](SECURITY.md) i
 Include:
 
 - app version
+- Python version
 - operating system and version
-- install source: DMG, AppImage, NSIS, or source
+- install source: uv tool, pipx, or source checkout
+- whether the failure is in the TUI, a CLI command, local storage, or Google sync
 - steps to reproduce
 - expected behavior
 - actual behavior
 - screenshots or logs, with secrets redacted
 
-Never include Google OAuth tokens, OAuth client secrets, MCP bearer tokens, signing material, local databases, raw Google payloads, or unredacted diagnostics.
+Never include Google OAuth tokens, OAuth client JSON, keyring contents, local
+databases, personal exports, raw Google payloads, or unredacted diagnostics.

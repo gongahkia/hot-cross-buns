@@ -501,8 +501,10 @@ class Storage:
                 calendar.selected,
                 *self._meta_values(calendar.metadata),
                 json.dumps(
-                    [{"method": item.method, "minutes": item.minutes}
-                     for item in calendar.default_reminders]
+                    [
+                        {"method": item.method, "minutes": item.minutes}
+                        for item in calendar.default_reminders
+                    ]
                 ),
             ),
         )
@@ -607,8 +609,10 @@ class Storage:
                 *self._meta_values(event.metadata),
                 event.reminder_use_default,
                 json.dumps(
-                    [{"method": item.method, "minutes": item.minutes}
-                     for item in event.reminder_overrides]
+                    [
+                        {"method": item.method, "minutes": item.minutes}
+                        for item in event.reminder_overrides
+                    ]
                 ),
                 json.dumps(event.attendees),
                 event.attendee_response,
@@ -623,11 +627,14 @@ class Storage:
                 event.guests_can_see_other_guests,
                 event.anyone_can_add_self,
                 json.dumps(event.focus_time_properties)
-                if event.focus_time_properties is not None else None,
+                if event.focus_time_properties is not None
+                else None,
                 json.dumps(event.out_of_office_properties)
-                if event.out_of_office_properties is not None else None,
+                if event.out_of_office_properties is not None
+                else None,
                 json.dumps(event.working_location_properties)
-                if event.working_location_properties is not None else None,
+                if event.working_location_properties is not None
+                else None,
             ),
         )
 
@@ -672,14 +679,16 @@ class Storage:
             conference=json.loads(row["conference"]) if row["conference"] else None,
             guests_can_invite_others=(
                 bool(row["guests_can_invite_others"])
-                if row["guests_can_invite_others"] is not None else None
+                if row["guests_can_invite_others"] is not None
+                else None
             ),
             guests_can_modify=(
                 bool(row["guests_can_modify"]) if row["guests_can_modify"] is not None else None
             ),
             guests_can_see_other_guests=(
                 bool(row["guests_can_see_other_guests"])
-                if row["guests_can_see_other_guests"] is not None else None
+                if row["guests_can_see_other_guests"] is not None
+                else None
             ),
             anyone_can_add_self=(
                 bool(row["anyone_can_add_self"]) if row["anyone_can_add_self"] is not None else None
@@ -689,11 +698,13 @@ class Storage:
             ),
             out_of_office_properties=(
                 json.loads(row["out_of_office_properties"])
-                if row["out_of_office_properties"] else None
+                if row["out_of_office_properties"]
+                else None
             ),
             working_location_properties=(
                 json.loads(row["working_location_properties"])
-                if row["working_location_properties"] else None
+                if row["working_location_properties"]
+                else None
             ),
         )
 
@@ -760,16 +771,26 @@ class Storage:
             mime_type=excluded.mime_type,web_view_link=excluded.web_view_link,
             icon_link=excluded.icon_link,modified_time=excluded.modified_time""",
             (
-                item.id, item.account_id, item.name, item.mime_type, item.web_view_link,
-                item.icon_link, _iso(item.modified_time),
+                item.id,
+                item.account_id,
+                item.name,
+                item.mime_type,
+                item.web_view_link,
+                item.icon_link,
+                _iso(item.modified_time),
             ),
         )
 
     def list_drive_files(self, account_id: str) -> list[DriveFile]:
         return [
             DriveFile(
-                row["id"], row["account_id"], row["name"], row["mime_type"],
-                row["web_view_link"], row["icon_link"], _datetime(row["modified_time"]),
+                row["id"],
+                row["account_id"],
+                row["name"],
+                row["mime_type"],
+                row["web_view_link"],
+                row["icon_link"],
+                _datetime(row["modified_time"]),
             )
             for row in self.connection.execute(
                 "SELECT * FROM drive_files WHERE account_id=? ORDER BY name", (account_id,)

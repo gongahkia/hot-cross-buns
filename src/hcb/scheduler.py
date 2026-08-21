@@ -175,8 +175,10 @@ def run_loop(
         try:
             scheduler.run_once(account_id)
             monotonic = time.monotonic()
-            if sync and sync_interval > 0 and (
-                last_sync is None or monotonic - last_sync >= sync_interval
+            if (
+                sync
+                and sync_interval > 0
+                and (last_sync is None or monotonic - last_sync >= sync_interval)
             ):
                 sync()
                 last_sync = monotonic
