@@ -268,3 +268,69 @@ def test_expected_not_found_uses_stable_exit_without_traceback(
     assert result.exit_code == 3
     assert "does not exist" in result.stderr
     assert "Traceback" not in result.output
+
+
+def test_advanced_cli_equivalence_for_tui_workflows(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    list_id = seed_list(runner)
+    calendar_id = seed_calendar(runner)
+    task = json.loads(
+        invoke(
+            runner, ["--json", "tasks", "create", "Block me", "--list", list_id]
+        ).stdout
+    )
+    event = json.loads(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "create",
+                "Specialist",
+                "--calendar",
+                calendar_id,
+                "--start",
+                "2026-08-22",
+                "--end",
+                "2026-08-23",
+                "--all-day",
+            ],
+        ).stdout
+    )
+    properties = {
+        "eventType": "focusTime",
+        "visibility": "private",
+        "attendees": [{"email": "guest@example.test"}],
+        "focusTimeProperties": {"autoDeclineMode": "declineNone"},
+    }
+    invoke(
+        runner,
+        ["events", "set-properties", event["id"], json.dumps(properties)],
+    )
+    shown = json.loads(
+        invoke(runner, ["--json", "events", "show", event["id"]]).stdout
+    )
+    assert shown["event_type"] == "focusTime"
+    assert shown["focus_time_properties"]["autoDeclineMode"] == "declineNone"
+
+    invoke(
+        runner,
+        [
+            "tasks",
+            "schedule",
+            task["id"],
+            "--calendar",
+            calendar_id,
+            "--start",
+            "2026-08-22T09:00:00Z",
+            "--end",
+            "2026-08-22T10:00:00Z",
+        ],
+    )
+    invoke(runner, ["tasks", "unschedule", task["id"], "--yes"])
+    invoke(runner, ["tasks", "complete-many", task["id"]])
+    invoke(runner, ["undo"])
+    invoke(runner, ["redo"])
+    invoke(runner, ["events", "delete-many", event["id"], "--yes"])

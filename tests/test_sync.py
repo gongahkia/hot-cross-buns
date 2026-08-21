@@ -99,25 +99,33 @@ class FakeGateway:
     def create_calendar(self, body):
         return {"id": "cal-r"}
 
+    def subscribe_calendar(self, calendar_id):
+        self.calls.append(("subscribe-calendar", calendar_id))
+        return {"id": calendar_id}
+
+    def remove_calendar(self, calendar_id):
+        self.calls.append(("remove-calendar", calendar_id))
+
     def update_calendar(self, calendar_id, body, *, etag=None):
         return {"id": calendar_id}
 
     def delete_calendar(self, calendar_id, *, etag=None):
         return None
 
-    def create_event(self, calendar_id, body):
+    def create_event(self, calendar_id, body, **kwargs):
+        self.calls.append(("create-event", calendar_id, body, kwargs))
         return {"id": "event-r"}
 
-    def update_event(self, calendar_id, event_id, body, *, etag=None):
+    def update_event(self, calendar_id, event_id, body, *, etag=None, **kwargs):
         return {"id": event_id}
 
-    def delete_event(self, calendar_id, event_id, *, etag=None):
+    def delete_event(self, calendar_id, event_id, *, etag=None, **kwargs):
         return None
 
     def move_event(self, calendar_id, event_id, destination):
         return {"id": event_id}
 
-    def respond_event(self, calendar_id, event_id, response_status, *, etag=None):
+    def respond_event(self, calendar_id, event_id, response_status, *, etag=None, **kwargs):
         return {"id": event_id}
 
     def freebusy(self, body):
@@ -125,6 +133,9 @@ class FakeGateway:
 
     def drive_metadata(self, file_id, *, fields="*"):
         return {"id": file_id}
+
+    def search_drive_metadata(self, query, *, page_token=None, page_size=100):
+        return Page(({"id": "drive-1", "name": query},))
 
 
 @pytest.fixture
@@ -261,3 +272,31 @@ def test_pull_preserves_dirty_local_write_and_accounts_are_isolated(store):
     SyncEngine(store, gateway).sync_tasks("a", store.get_task_list("a", "list"))
     assert store.get_task("a", "local").title == "Local"
     assert store.list_tasks("b") == []
+
+
+def test_calendar_list_mutations_use_distinct_gateway_resources(store):
+    gateway = FakeGateway()
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.CALENDAR,
+            "cal",
+            MutationOperation.SUBSCRIBE,
+            {"remote_id": "shared@example.test"},
+        )
+    )
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.CALENDAR,
+            "cal",
+            MutationOperation.REMOVE,
+            {"remote_id": "shared@example.test"},
+        )
+    )
+    result = SyncEngine(store, gateway).flush_outbox("a")
+    assert result.pushed == 2
+    assert ("subscribe-calendar", "cal-r") in gateway.calls
+    assert ("remove-calendar", "cal-r") in gateway.calls

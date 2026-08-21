@@ -26,6 +26,7 @@ from .models import (
     Conflict,
     ConflictStatus,
     DateTimeKind,
+    DriveFile,
     EntityType,
     Event,
     EventDateTime,
@@ -34,6 +35,7 @@ from .models import (
     MutationOperation,
     NotesProjection,
     PendingMutation,
+    ReminderOverride,
     Task,
     TaskList,
     TaskPriority,
@@ -48,6 +50,11 @@ from .quick_capture import (
 )
 from .search import matches_calendar_result, matches_event, matches_task, parse_palette_query
 from .storage import Storage
+from .task_recurrence import (
+    parse_task_recurrence_notes,
+    serialize_task_notes,
+    task_recurrence_successor,
+)
 
 Json = dict[str, Any]
 ResponseStatus = Literal["accepted", "declined", "tentative", "needsAction"]
@@ -209,6 +216,22 @@ class ApplicationService:
         ).fetchone()
         return NotesProjection(row["value"]) if row else NotesProjection.MIRRORED
 
+    def task_listing(self, account_id: str) -> tuple[Task, ...]:
+        tasks = tuple(self.storage.list_tasks(account_id))
+        if self.notes_projection(account_id) is NotesProjection.NOTES_ONLY:
+            return tuple(
+                task for task in tasks if task.due is not None or task.parent_id is not None
+            )
+        return tasks
+
+    def notes_listing(self, account_id: str) -> tuple[Task, ...]:
+        if self.notes_projection(account_id) is NotesProjection.DISABLED:
+            return ()
+        return tuple(
+            task for task in self.storage.list_tasks(account_id)
+            if task.due is None and task.parent_id is None
+        )
+
     def set_notes_projection(
         self, account_id: str, projection: NotesProjection | str
     ) -> NotesProjection:
@@ -293,6 +316,31 @@ class ApplicationService:
             body["location"] = event.location
         if event.recurrence:
             body["recurrence"] = list(event.recurrence)
+        body["reminders"] = {
+            "useDefault": event.reminder_use_default,
+            "overrides": [
+                {"method": item.method, "minutes": item.minutes}
+                for item in event.reminder_overrides
+            ],
+        }
+        for key, value in (
+            ("attendees", list(event.attendees)),
+            ("eventType", event.event_type),
+            ("transparency", event.transparency),
+            ("visibility", event.visibility),
+            ("colorId", event.color_id),
+            ("attachments", list(event.attachments)),
+            ("conferenceData", event.conference),
+            ("guestsCanInviteOthers", event.guests_can_invite_others),
+            ("guestsCanModify", event.guests_can_modify),
+            ("guestsCanSeeOtherGuests", event.guests_can_see_other_guests),
+            ("anyoneCanAddSelf", event.anyone_can_add_self),
+            ("focusTimeProperties", event.focus_time_properties),
+            ("outOfOfficeProperties", event.out_of_office_properties),
+            ("workingLocationProperties", event.working_location_properties),
+        ):
+            if value not in (None, [], ()):
+                body[key] = value
         return body
 
     @staticmethod
@@ -323,6 +371,17 @@ class ApplicationService:
                 raise ValueError("naive timed events require explicit IANA time zones")
         if end.value <= start.value:
             raise ValueError("event end must be after start")
+
+    @staticmethod
+    def _validate_event_options(
+        send_updates: str, supports_attachments: bool, conference_data_version: int
+    ) -> None:
+        if send_updates not in {"none", "all", "externalOnly"}:
+            raise ValueError("send_updates must be none, all, or externalOnly")
+        if not isinstance(supports_attachments, bool):
+            raise ValueError("supports_attachments must be boolean")
+        if conference_data_version not in {0, 1}:
+            raise ValueError("conference_data_version must be 0 or 1")
 
     def create_task_list(
         self, account_id: str, title: str, *, position: int = 0, id: str | None = None
@@ -586,7 +645,59 @@ class ApplicationService:
                 before,
                 self._snapshot("tasks", account_id, task_id),
             )
+            if completed:
+                self._ensure_recurrence_successor(updated)
         return updated
+
+    def _ensure_recurrence_successor(self, task: Task) -> Task | None:
+        parsed = parse_task_recurrence_notes(task.notes or "")
+        if parsed.state != "managed" or parsed.marker is None:
+            return None
+        successor = task_recurrence_successor(parsed.marker)
+        if successor is None:
+            return None
+        for candidate in self.storage.list_tasks(task.account_id, include_deleted=True):
+            marker = parse_task_recurrence_notes(candidate.notes or "").marker
+            if marker and marker.occurrence_id == successor.occurrence_id:
+                return candidate
+        serialized = serialize_task_notes(parsed.user_notes, successor, parsed.reminder)
+        if serialized.error:
+            raise ValueError(serialized.error)
+        return self.create_task(
+            task.account_id,
+            task.list_id,
+            successor.template_title,
+            notes=serialized.notes,
+            due=date.fromisoformat(successor.template_due_date),
+            due_time_zone=successor.time_zone,
+            priority=successor.template_priority,
+        )
+
+    def reconcile_task_recurrence(self, account_id: str) -> tuple[Task, ...]:
+        created: list[Task] = []
+        with self.storage.transaction():
+            for task in self.storage.list_tasks(account_id):
+                if task.status is TaskStatus.COMPLETED:
+                    successor = self._ensure_recurrence_successor(task)
+                    if successor and successor.id != task.id:
+                        created.append(successor)
+        return tuple(created)
+
+    def complete_tasks(
+        self, account_id: str, task_ids: list[str], *, completed: bool = True
+    ) -> tuple[Task, ...]:
+        with self.storage.transaction():
+            return tuple(
+                self.complete_task(account_id, task_id, completed=completed)
+                for task_id in dict.fromkeys(task_ids)
+            )
+
+    def delete_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
+        with self.storage.transaction():
+            return tuple(
+                self.delete_task(account_id, task_id)
+                for task_id in dict.fromkeys(task_ids)
+            )
 
     def move_task(
         self,
@@ -638,6 +749,7 @@ class ApplicationService:
                     "parent": parent_id,
                     "previous": previous_id,
                     "remote_id": current.remote_id,
+                    "body": self._task_body(updated, self.notes_projection(account_id)),
                 },
             )
             self._intent(
@@ -735,6 +847,30 @@ class ApplicationService:
             )
         return item
 
+    def subscribe_calendar(
+        self, account_id: str, remote_calendar_id: str, *, summary: str | None = None
+    ) -> Calendar:
+        self._account(account_id)
+        if not remote_calendar_id.strip():
+            raise ValueError("remote calendar id is required")
+        existing = self.storage.get_calendar_by_remote(account_id, remote_calendar_id)
+        if existing and not existing.metadata.deleted:
+            raise ValueError("calendar is already in the calendar list")
+        item = Calendar(
+            existing.id if existing else _id(),
+            account_id,
+            summary or remote_calendar_id,
+            remote_id=remote_calendar_id,
+            metadata=_dirty(existing.metadata if existing else Metadata()),
+        )
+        with self.storage.transaction():
+            self.storage.upsert_calendar(item)
+            self._enqueue(
+                account_id, EntityType.CALENDAR, item.id, MutationOperation.SUBSCRIBE,
+                {"remote_id": remote_calendar_id},
+            )
+        return item
+
     def update_calendar(
         self,
         account_id: str,
@@ -751,6 +887,9 @@ class ApplicationService:
             raise ValueError("calendar summary is required")
         if not isinstance(time_zone, _Unset):
             self._validate_zone(time_zone)
+        remote_change = summary is not None or any(
+            not isinstance(value, _Unset) for value in (description, time_zone)
+        )
         updated = replace(
             current,
             summary=summary.strip() if summary is not None else current.summary,
@@ -758,7 +897,7 @@ class ApplicationService:
             time_zone=current.time_zone if isinstance(time_zone, _Unset) else time_zone,
             color=current.color if isinstance(color, _Unset) else color,
             selected=selected if selected is not None else current.selected,
-            metadata=_dirty(current.metadata),
+            metadata=_dirty(current.metadata) if remote_change else current.metadata,
         )
         body: Json = {
             "summary": updated.summary,
@@ -768,13 +907,14 @@ class ApplicationService:
         with self.storage.transaction():
             before = self._snapshot("calendars", account_id, calendar_id)
             self.storage.upsert_calendar(updated)
-            self._enqueue(
-                account_id,
-                EntityType.CALENDAR,
-                calendar_id,
-                MutationOperation.UPDATE,
-                {"body": body, "etag": current.metadata.etag, "remote_id": current.remote_id},
-            )
+            if remote_change:
+                self._enqueue(
+                    account_id,
+                    EntityType.CALENDAR,
+                    calendar_id,
+                    MutationOperation.UPDATE,
+                    {"body": body, "etag": current.metadata.etag, "remote_id": current.remote_id},
+                )
             self._intent(
                 account_id,
                 "update",
@@ -813,6 +953,19 @@ class ApplicationService:
             )
         return deleted
 
+    def remove_calendar_from_list(self, account_id: str, calendar_id: str) -> Calendar:
+        current = self._require_calendar(account_id, calendar_id)
+        if not current.remote_id:
+            raise ValueError("an unsynchronized calendar cannot be removed from CalendarList")
+        deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
+        with self.storage.transaction():
+            self.storage.upsert_calendar(deleted)
+            self._enqueue(
+                account_id, EntityType.CALENDAR, calendar_id, MutationOperation.REMOVE,
+                {"remote_id": current.remote_id},
+            )
+        return deleted
+
     def _require_event(self, account_id: str, event_id: str) -> Event:
         item = self.storage.get_event(account_id, event_id)
         if item is None or item.metadata.deleted:
@@ -830,12 +983,34 @@ class ApplicationService:
         description: str | None = None,
         location: str | None = None,
         recurrence: tuple[str, ...] = (),
+        reminder_use_default: bool = True,
+        reminder_overrides: tuple[ReminderOverride, ...] = (),
+        attendees: tuple[dict[str, Any], ...] = (),
+        event_type: str | None = None,
+        transparency: str | None = None,
+        visibility: str | None = None,
+        color_id: str | None = None,
+        attachments: tuple[dict[str, Any], ...] = (),
+        conference: dict[str, Any] | None = None,
+        guests_can_invite_others: bool | None = None,
+        guests_can_modify: bool | None = None,
+        guests_can_see_other_guests: bool | None = None,
+        anyone_can_add_self: bool | None = None,
+        focus_time_properties: dict[str, Any] | None = None,
+        out_of_office_properties: dict[str, Any] | None = None,
+        working_location_properties: dict[str, Any] | None = None,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
+        conference_data_version: int = 0,
         id: str | None = None,
     ) -> Event:
         self._require_calendar(account_id, calendar_id)
         if not summary.strip():
             raise ValueError("event summary is required")
         self._validate_event_times(start, end)
+        self._validate_event_options(
+            send_updates, supports_attachments, conference_data_version
+        )
         event = Event(
             id or _id(),
             account_id,
@@ -847,6 +1022,22 @@ class ApplicationService:
             location=location,
             recurrence=recurrence,
             metadata=_dirty(Metadata()),
+            reminder_use_default=reminder_use_default,
+            reminder_overrides=reminder_overrides,
+            attendees=attendees,
+            event_type=event_type,
+            transparency=transparency,
+            visibility=visibility,
+            color_id=color_id,
+            attachments=attachments,
+            conference=conference,
+            guests_can_invite_others=guests_can_invite_others,
+            guests_can_modify=guests_can_modify,
+            guests_can_see_other_guests=guests_can_see_other_guests,
+            anyone_can_add_self=anyone_can_add_self,
+            focus_time_properties=focus_time_properties,
+            out_of_office_properties=out_of_office_properties,
+            working_location_properties=working_location_properties,
         )
         with self.storage.transaction():
             self.storage.upsert_event(event)
@@ -855,7 +1046,12 @@ class ApplicationService:
                 EntityType.EVENT,
                 event.id,
                 MutationOperation.CREATE,
-                {"calendar_id": calendar_id, "body": self._event_body(event)},
+                {
+                    "calendar_id": calendar_id, "body": self._event_body(event),
+                    "send_updates": send_updates,
+                    "supports_attachments": supports_attachments,
+                    "conference_data_version": conference_data_version,
+                },
             )
             self._intent(
                 account_id,
@@ -879,8 +1075,33 @@ class ApplicationService:
         location: str | None | _Unset = _UNSET,
         status: EventStatus | str | None = None,
         recurrence: tuple[str, ...] | None = None,
+        attendees: tuple[dict[str, Any], ...] | None = None,
+        reminder_use_default: bool | None = None,
+        reminder_overrides: tuple[ReminderOverride, ...] | None = None,
+        event_type: str | None = None,
+        transparency: str | None = None,
+        visibility: str | None = None,
+        color_id: str | None = None,
+        attachments: tuple[dict[str, Any], ...] | None = None,
+        conference: dict[str, Any] | None = None,
+        guests_can_invite_others: bool | None = None,
+        guests_can_modify: bool | None = None,
+        guests_can_see_other_guests: bool | None = None,
+        anyone_can_add_self: bool | None = None,
+        focus_time_properties: dict[str, Any] | None = None,
+        out_of_office_properties: dict[str, Any] | None = None,
+        working_location_properties: dict[str, Any] | None = None,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
+        conference_data_version: int = 0,
+        scope: Literal["this", "series"] = "this",
     ) -> Event:
         current = self._require_event(account_id, event_id)
+        if scope not in {"this", "series"}:
+            raise ValueError("event scope must be this or series")
+        self._validate_event_options(
+            send_updates, supports_attachments, conference_data_version
+        )
         if summary is not None and not summary.strip():
             raise ValueError("event summary is required")
         next_start, next_end = start or current.start, end or current.end
@@ -894,6 +1115,43 @@ class ApplicationService:
             location=current.location if isinstance(location, _Unset) else location,
             status=EventStatus(status) if status is not None else current.status,
             recurrence=recurrence if recurrence is not None else current.recurrence,
+            attendees=attendees if attendees is not None else current.attendees,
+            reminder_use_default=(
+                reminder_use_default if reminder_use_default is not None
+                else current.reminder_use_default
+            ),
+            reminder_overrides=(
+                reminder_overrides if reminder_overrides is not None
+                else current.reminder_overrides
+            ),
+            event_type=event_type if event_type is not None else current.event_type,
+            transparency=transparency if transparency is not None else current.transparency,
+            visibility=visibility if visibility is not None else current.visibility,
+            color_id=color_id if color_id is not None else current.color_id,
+            attachments=attachments if attachments is not None else current.attachments,
+            conference=conference if conference is not None else current.conference,
+            guests_can_invite_others=(
+                guests_can_invite_others if guests_can_invite_others is not None
+                else current.guests_can_invite_others
+            ),
+            guests_can_modify=(
+                guests_can_modify if guests_can_modify is not None else current.guests_can_modify
+            ),
+            guests_can_see_other_guests=(
+                guests_can_see_other_guests if guests_can_see_other_guests is not None
+                else current.guests_can_see_other_guests
+            ),
+            anyone_can_add_self=(
+                anyone_can_add_self if anyone_can_add_self is not None
+                else current.anyone_can_add_self
+            ),
+            focus_time_properties=focus_time_properties or current.focus_time_properties,
+            out_of_office_properties=(
+                out_of_office_properties or current.out_of_office_properties
+            ),
+            working_location_properties=(
+                working_location_properties or current.working_location_properties
+            ),
             metadata=_dirty(current.metadata),
         )
         with self.storage.transaction():
@@ -909,6 +1167,13 @@ class ApplicationService:
                     "body": self._event_body(updated),
                     "etag": current.metadata.etag,
                     "remote_id": current.remote_id,
+                    "target_remote_id": (
+                        current.canonical_id
+                        if scope == "series" and current.is_occurrence else current.remote_id
+                    ),
+                    "send_updates": send_updates,
+                    "supports_attachments": supports_attachments,
+                    "conference_data_version": conference_data_version,
                 },
             )
             self._intent(
@@ -950,7 +1215,8 @@ class ApplicationService:
         return updated
 
     def respond_event(
-        self, account_id: str, event_id: str, response_status: ResponseStatus
+        self, account_id: str, event_id: str, response_status: ResponseStatus,
+        *, comment: str | None = None, send_updates: str = "all"
     ) -> PendingMutation:
         current = self._require_event(account_id, event_id)
         if response_status not in {"accepted", "declined", "tentative", "needsAction"}:
@@ -960,6 +1226,8 @@ class ApplicationService:
             "response_status": response_status,
             "remote_id": current.remote_id,
             "etag": current.metadata.etag,
+            "comment": comment,
+            "send_updates": send_updates,
         }
         with self.storage.transaction():
             mutation_id = self._enqueue(
@@ -981,15 +1249,53 @@ class ApplicationService:
         )
 
     def respond_events(
-        self, account_id: str, event_ids: list[str], response_status: ResponseStatus
+        self,
+        account_id: str,
+        event_ids: list[str],
+        response_status: ResponseStatus,
+        *,
+        comment: str | None = None,
+        send_updates: str = "all",
     ) -> tuple[PendingMutation, ...]:
         with self.storage.transaction():
             return tuple(
-                self.respond_event(account_id, event_id, response_status) for event_id in event_ids
+                self.respond_event(
+                    account_id,
+                    event_id,
+                    response_status,
+                    comment=comment,
+                    send_updates=send_updates,
+                )
+                for event_id in dict.fromkeys(event_ids)
             )
 
-    def delete_event(self, account_id: str, event_id: str) -> Event:
+    def delete_events(self, account_id: str, event_ids: list[str]) -> tuple[Event, ...]:
+        with self.storage.transaction():
+            return tuple(
+                self.delete_event(account_id, event_id) for event_id in dict.fromkeys(event_ids)
+            )
+
+    def move_events(
+        self, account_id: str, event_ids: list[str], calendar_id: str
+    ) -> tuple[Event, ...]:
+        with self.storage.transaction():
+            return tuple(
+                self.move_event(account_id, event_id, calendar_id)
+                for event_id in dict.fromkeys(event_ids)
+            )
+
+    def delete_event(
+        self,
+        account_id: str,
+        event_id: str,
+        *,
+        scope: Literal["this", "series"] = "this",
+        send_updates: str = "none",
+    ) -> Event:
         current = self._require_event(account_id, event_id)
+        if scope not in {"this", "series"}:
+            raise ValueError("event scope must be this or series")
+        self._validate_event_options(send_updates, False, 0)
         deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
@@ -1002,7 +1308,12 @@ class ApplicationService:
                 {
                     "calendar_id": current.calendar_id,
                     "remote_id": current.remote_id,
+                    "target_remote_id": (
+                        current.canonical_id
+                        if scope == "series" and current.is_occurrence else current.remote_id
+                    ),
                     "etag": current.metadata.etag,
+                    "send_updates": send_updates,
                 },
             )
             self._intent(
@@ -1014,6 +1325,54 @@ class ApplicationService:
                 self._snapshot("events", account_id, event_id),
             )
         return deleted
+
+    def split_recurring_event(
+        self, account_id: str, event_id: str, *, send_updates: str = "none"
+    ) -> tuple[Event, Event]:
+        occurrence = self._require_event(account_id, event_id)
+        if not occurrence.is_occurrence or not occurrence.canonical_id:
+            raise ValueError("split requires a synchronized recurring event instance")
+        series = self.storage.get_event_by_remote(account_id, occurrence.canonical_id)
+        if series is None or not series.recurrence:
+            raise ValueError("the canonical recurring series is not cached")
+        rule = next((line for line in series.recurrence if line.startswith("RRULE:")), None)
+        if rule is None or "COUNT=" in rule:
+            raise ValueError("split is unsupported for recurrence rules using COUNT")
+        split_value = occurrence.start.value
+        if isinstance(split_value, datetime):
+            cutoff = (split_value.astimezone(UTC) - timedelta(seconds=1)).strftime("%Y%m%dT%H%M%SZ")
+        else:
+            cutoff = (split_value - timedelta(days=1)).strftime("%Y%m%d")
+        old_rule = ";".join(
+            part for part in rule.split(";") if not part.startswith("UNTIL=")
+        ) + f";UNTIL={cutoff}"
+        new_rule = ";".join(
+            part for part in rule.split(";")
+            if not part.startswith(("UNTIL=", "COUNT="))
+        )
+        with self.storage.transaction():
+            old = self.update_event(
+                account_id,
+                series.id,
+                recurrence=tuple(old_rule if line == rule else line for line in series.recurrence),
+                send_updates=send_updates,
+                scope="series",
+            )
+            new = self.create_event(
+                account_id,
+                occurrence.calendar_id,
+                occurrence.summary,
+                occurrence.start,
+                occurrence.end,
+                description=occurrence.description,
+                location=occurrence.location,
+                recurrence=tuple(new_rule if line == rule else line for line in series.recurrence),
+                attendees=occurrence.attendees,
+                reminder_use_default=occurrence.reminder_use_default,
+                reminder_overrides=occurrence.reminder_overrides,
+                send_updates=send_updates,
+            )
+        return old, new
 
     def save_search(
         self, account_id: str, name: str, query: str, *, id: str | None = None
@@ -1163,6 +1522,16 @@ class ApplicationService:
         """Create a calendar block and its durable local task link atomically."""
         task = self._require_task(account_id, task_id)
         with self.storage.transaction():
+            active = [
+                link for link in self.list_task_event_links(account_id)
+                if link.task_id == task_id and not link.orphaned
+            ]
+            if active:
+                event = self._require_event(account_id, active[0].event_id)
+                updated = self.update_event(
+                    account_id, event.id, summary=summary or task.title, start=start, end=end
+                )
+                return updated, active[0]
             event = self.create_event(
                 account_id,
                 calendar_id,
@@ -1173,6 +1542,45 @@ class ApplicationService:
             )
             link = self.link_task_event(account_id, task_id, event.id)
         return event, link
+
+    def unschedule_task(self, account_id: str, task_id: str) -> Event | None:
+        links = [
+            link for link in self.list_task_event_links(account_id)
+            if link.task_id == task_id and not link.orphaned
+        ]
+        if not links:
+            return None
+        with self.storage.transaction():
+            event = self.delete_event(account_id, links[0].event_id)
+            self.unlink_task_event(account_id, task_id, event.id)
+        return event
+
+    def repair_task_schedule(
+        self, account_id: str, task_id: str, event_id: str
+    ) -> TaskEventLink:
+        self._require_task(account_id, task_id)
+        self._require_event(account_id, event_id)
+        with self.storage.transaction():
+            self.storage.connection.execute(
+                "DELETE FROM task_event_links WHERE account_id=? AND task_id=?",
+                (account_id, task_id),
+            )
+            return self.link_task_event(account_id, task_id, event_id)
+
+    def cache_drive_metadata(self, account_id: str, items: list[Json]) -> tuple[DriveFile, ...]:
+        result = tuple(
+            DriveFile(
+                str(item["id"]), account_id, str(item.get("name", "")),
+                item.get("mimeType"), item.get("webViewLink"), item.get("iconLink"),
+                datetime.fromisoformat(item["modifiedTime"].replace("Z", "+00:00"))
+                if item.get("modifiedTime") else None,
+            )
+            for item in items
+        )
+        with self.storage.transaction():
+            for item in result:
+                self.storage.upsert_drive_file(item)
+        return result
 
     def unlink_task_event(self, account_id: str, task_id: str, event_id: str) -> None:
         with self.storage.transaction():
@@ -1284,8 +1692,8 @@ class ApplicationService:
         default_task_list_id: str | None = None,
         default_calendar_id: str | None = None,
     ) -> ImportApplyResult:
-        if preview.errors or any(row.errors or row.record is None for row in preview.rows):
-            raise ValueError("cannot apply an import preview containing errors")
+        if preview.errors:
+            raise ValueError("cannot apply an import preview containing global errors")
         records = tuple(row.record for row in preview.rows if row.record is not None)
         tasks: list[Task] = []
         events: list[Event] = []
@@ -1419,10 +1827,11 @@ class ApplicationService:
             )
             return
         columns = tuple(snapshot)
-        updates = ",".join(f"{column}=?" for column in columns)
+        placeholders = ",".join("?" for _ in columns)
         self.storage.connection.execute(
-            f"UPDATE {table} SET {updates} WHERE account_id=? AND id=?",  # noqa: S608
-            (*snapshot.values(), account_id, entity_id),
+            f"INSERT OR REPLACE INTO {table} ({','.join(columns)}) "  # noqa: S608
+            f"VALUES ({placeholders})",
+            tuple(snapshot.values()),
         )
 
     def _intent_change(self, account_id: str, *, redo: bool) -> int | None:

@@ -16,6 +16,7 @@ from .models import (
     Conflict,
     ConflictStatus,
     DateTimeKind,
+    DriveFile,
     EntityType,
     Event,
     EventDateTime,
@@ -34,7 +35,7 @@ from .models import (
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -158,6 +159,27 @@ CREATE INDEX reminder_deliveries_due
 ON reminder_deliveries(account_id, scheduled_at, delivered_at, dismissed_at);
 """
 
+_MIGRATION_4 = """
+ALTER TABLE events ADD COLUMN guests_can_invite_others INTEGER;
+ALTER TABLE events ADD COLUMN guests_can_modify INTEGER;
+ALTER TABLE events ADD COLUMN guests_can_see_other_guests INTEGER;
+ALTER TABLE events ADD COLUMN anyone_can_add_self INTEGER;
+ALTER TABLE events ADD COLUMN focus_time_properties TEXT;
+ALTER TABLE events ADD COLUMN out_of_office_properties TEXT;
+ALTER TABLE events ADD COLUMN working_location_properties TEXT;
+DELETE FROM task_event_links
+WHERE rowid NOT IN (
+    SELECT MAX(rowid) FROM task_event_links GROUP BY account_id,task_id
+);
+CREATE UNIQUE INDEX one_active_task_block
+ON task_event_links(account_id, task_id);
+CREATE TABLE drive_files (
+    id TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, mime_type TEXT, web_view_link TEXT, icon_link TEXT,
+    modified_time TEXT, PRIMARY KEY(account_id,id)
+);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -211,6 +233,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_3)
                 self.connection.execute("PRAGMA user_version = 3")
+            version = 3
+        if version == 3:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_4)
+                self.connection.execute("PRAGMA user_version = 4")
 
     def close(self) -> None:
         self.connection.close()
@@ -519,7 +546,10 @@ class Storage:
                 description,location,status,recurrence,etag,remote_updated_at,local_updated_at,
                 deleted,dirty,reminder_use_default,reminder_overrides,attendees,
                 attendee_response,event_type,transparency,visibility,color_id,attachments,conference
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ,guests_can_invite_others,guests_can_modify,guests_can_see_other_guests,
+                anyone_can_add_self,focus_time_properties,out_of_office_properties,
+                working_location_properties
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(account_id,id) DO UPDATE SET calendar_id=excluded.calendar_id,
             summary=excluded.summary, start_kind=excluded.start_kind,
             start_value=excluded.start_value, start_time_zone=excluded.start_time_zone,
@@ -535,7 +565,14 @@ class Storage:
             attendee_response=excluded.attendee_response,event_type=excluded.event_type,
             transparency=excluded.transparency,visibility=excluded.visibility,
             color_id=excluded.color_id,attachments=excluded.attachments,
-            conference=excluded.conference""",
+            conference=excluded.conference,
+            guests_can_invite_others=excluded.guests_can_invite_others,
+            guests_can_modify=excluded.guests_can_modify,
+            guests_can_see_other_guests=excluded.guests_can_see_other_guests,
+            anyone_can_add_self=excluded.anyone_can_add_self,
+            focus_time_properties=excluded.focus_time_properties,
+            out_of_office_properties=excluded.out_of_office_properties,
+            working_location_properties=excluded.working_location_properties""",
             (
                 event.id,
                 event.account_id,
@@ -568,6 +605,16 @@ class Storage:
                 event.color_id,
                 json.dumps(event.attachments),
                 json.dumps(event.conference) if event.conference is not None else None,
+                event.guests_can_invite_others,
+                event.guests_can_modify,
+                event.guests_can_see_other_guests,
+                event.anyone_can_add_self,
+                json.dumps(event.focus_time_properties)
+                if event.focus_time_properties is not None else None,
+                json.dumps(event.out_of_office_properties)
+                if event.out_of_office_properties is not None else None,
+                json.dumps(event.working_location_properties)
+                if event.working_location_properties is not None else None,
             ),
         )
 
@@ -610,6 +657,31 @@ class Storage:
             color_id=row["color_id"],
             attachments=tuple(json.loads(row["attachments"])),
             conference=json.loads(row["conference"]) if row["conference"] else None,
+            guests_can_invite_others=(
+                bool(row["guests_can_invite_others"])
+                if row["guests_can_invite_others"] is not None else None
+            ),
+            guests_can_modify=(
+                bool(row["guests_can_modify"]) if row["guests_can_modify"] is not None else None
+            ),
+            guests_can_see_other_guests=(
+                bool(row["guests_can_see_other_guests"])
+                if row["guests_can_see_other_guests"] is not None else None
+            ),
+            anyone_can_add_self=(
+                bool(row["anyone_can_add_self"]) if row["anyone_can_add_self"] is not None else None
+            ),
+            focus_time_properties=(
+                json.loads(row["focus_time_properties"]) if row["focus_time_properties"] else None
+            ),
+            out_of_office_properties=(
+                json.loads(row["out_of_office_properties"])
+                if row["out_of_office_properties"] else None
+            ),
+            working_location_properties=(
+                json.loads(row["working_location_properties"])
+                if row["working_location_properties"] else None
+            ),
         )
 
     def get_event(self, account_id: str, event_id: str) -> Event | None:
@@ -667,6 +739,29 @@ class Storage:
         self.connection.execute(
             "DELETE FROM events WHERE account_id=? AND id=?", (account_id, event_id)
         )
+
+    def upsert_drive_file(self, item: DriveFile) -> None:
+        self.connection.execute(
+            """INSERT INTO drive_files VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(account_id,id) DO UPDATE SET name=excluded.name,
+            mime_type=excluded.mime_type,web_view_link=excluded.web_view_link,
+            icon_link=excluded.icon_link,modified_time=excluded.modified_time""",
+            (
+                item.id, item.account_id, item.name, item.mime_type, item.web_view_link,
+                item.icon_link, _iso(item.modified_time),
+            ),
+        )
+
+    def list_drive_files(self, account_id: str) -> list[DriveFile]:
+        return [
+            DriveFile(
+                row["id"], row["account_id"], row["name"], row["mime_type"],
+                row["web_view_link"], row["icon_link"], _datetime(row["modified_time"]),
+            )
+            for row in self.connection.execute(
+                "SELECT * FROM drive_files WHERE account_id=? ORDER BY name", (account_id,)
+            )
+        ]
 
     def enqueue(self, mutation: PendingMutation) -> int:
         cursor = self.connection.execute(

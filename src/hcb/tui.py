@@ -6,6 +6,7 @@ import calendar
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import ClassVar, cast
 
 from rich.text import Text
@@ -28,7 +29,8 @@ from textual.widgets import (
 
 from .application import ResponseStatus, SearchResult, TimeSlot
 from .errors import AuthenticationRequired, HcbError
-from .models import DateTimeKind, Event, EventDateTime, Task, TaskStatus
+from .import_export import ImportPreview
+from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
 from .runtime import Runtime
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
@@ -39,6 +41,11 @@ PALETTE_COMMANDS = (
     ("Calendars", "calendars"),
     ("Settings", "settings"),
     ("Doctor", "doctor"),
+    ("Bulk actions", "bulk"),
+    ("Schedule task", "schedule"),
+    ("Import", "import"),
+    ("Conflicts", "conflicts"),
+    ("First-run setup", "onboarding"),
 )
 
 
@@ -149,6 +156,267 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "confirm")
+
+
+class OnboardingScreen(ModalScreen[dict[str, str] | None]):
+    """First-run setup; no network action occurs inside this screen."""
+
+    BINDINGS = [Binding("escape", "offline", "Stay offline")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="onboarding-dialog"):
+            yield Label("First-run setup", id="dialog-title")
+            yield Static("Google is optional until you explicitly confirm connection.")
+            yield Input(placeholder="Desktop OAuth client JSON path", id="onboard-client")
+            yield Input(placeholder="Local account identifier", id="onboard-account")
+            yield Input(placeholder="Account email", id="onboard-email")
+            yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
+            yield Input(value="system", placeholder="system/dark/light/mono", id="onboard-theme")
+            yield Input(value="true", placeholder="Reminders: true/false", id="onboard-reminders")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Save offline", id="onboard-offline")
+                yield Button("Save and connect", variant="primary", id="onboard-connect")
+
+    def action_offline(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id not in {"onboard-offline", "onboard-connect"}:
+            return
+        self.dismiss(
+            {
+                "client_json": self.query_one("#onboard-client", Input).value.strip(),
+                "account_id": self.query_one("#onboard-account", Input).value.strip(),
+                "email": self.query_one("#onboard-email", Input).value.strip(),
+                "time_zone": self.query_one("#onboard-timezone", Input).value.strip(),
+                "theme": self.query_one("#onboard-theme", Input).value.strip(),
+                "reminders": self.query_one("#onboard-reminders", Input).value.strip(),
+                "connect": str(event.button.id == "onboard-connect").lower(),
+            }
+        )
+
+
+class ScheduleScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp, task_id: str = "") -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.task_id = task_id
+
+    def compose(self) -> ComposeResult:
+        default_calendar = self.hcb.cache.calendars[0][0] if self.hcb.cache.calendars else ""
+        with Vertical(id="schedule-dialog"):
+            yield Label("Task schedule block", id="dialog-title")
+            yield Input(value=self.task_id, placeholder="Task id", id="schedule-task")
+            yield Input(value=default_calendar, placeholder="Calendar id", id="schedule-calendar")
+            yield Input(placeholder="Existing event id for repair", id="schedule-event")
+            yield Input(placeholder="Start ISO timestamp", id="schedule-start")
+            yield Input(placeholder="End ISO timestamp", id="schedule-end")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Schedule / move", variant="primary", id="schedule-save")
+                yield Button("Unschedule", variant="error", id="schedule-remove")
+                yield Button("Repair link", id="schedule-repair")
+                yield Button("Close", id="schedule-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "schedule-close":
+            self.dismiss(None)
+            return
+        if self.hcb.account_id is None:
+            return
+        task_id = self.query_one("#schedule-task", Input).value.strip()
+        try:
+            if event.button.id == "schedule-remove":
+                self.app.push_screen(
+                    ConfirmScreen("Delete this task's active calendar block?"),
+                    lambda confirmed: self._unschedule(task_id, confirmed),
+                )
+                return
+            elif event.button.id == "schedule-repair":
+                self.hcb.runtime.application.repair_task_schedule(
+                    self.hcb.account_id,
+                    task_id,
+                    self.query_one("#schedule-event", Input).value.strip(),
+                )
+            else:
+                self.hcb.runtime.application.schedule_task(
+                    self.hcb.account_id,
+                    task_id,
+                    self.query_one("#schedule-calendar", Input).value.strip(),
+                    self.hcb._parse_event_point(
+                        self.query_one("#schedule-start", Input).value.strip()
+                    ),
+                    self.hcb._parse_event_point(
+                        self.query_one("#schedule-end", Input).value.strip()
+                    ),
+                )
+        except (ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify("Schedule updated")
+
+    def _unschedule(self, task_id: str, confirmed: bool | None) -> None:
+        if confirmed and self.hcb.account_id is not None:
+            self.hcb.runtime.application.unschedule_task(self.hcb.account_id, task_id)
+            self.hcb.refresh_workspace()
+            self.hcb.notify("Task unscheduled")
+
+
+class BulkScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="bulk-dialog"):
+            yield Label(
+                f"Bulk actions · {len(self.hcb.marked)} task(s), "
+                f"{len(self.hcb.marked_events)} event(s)"
+            )
+            yield Button("Complete marked", variant="primary", id="bulk-complete")
+            yield Button("RSVP to marked events", id="bulk-rsvp")
+            yield Button("Delete marked…", variant="error", id="bulk-delete")
+            yield Button("Close", id="bulk-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "bulk-close":
+            self.dismiss(None)
+        elif event.button.id == "bulk-complete":
+            self.dismiss(None)
+            self.hcb.action_complete()
+        elif event.button.id == "bulk-delete":
+            self.dismiss(None)
+            self.hcb.action_delete()
+        elif event.button.id == "bulk-rsvp":
+            self.dismiss(None)
+            self.hcb.action_rsvp()
+
+
+class ImportScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.preview: ImportPreview | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="import-dialog"):
+            yield Label("Import preview", id="dialog-title")
+            yield Input(placeholder="CSV, JSON, or ICS path", id="import-path")
+            yield Static("Choose Preview; nothing is written until Apply.", id="import-summary")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Preview", variant="primary", id="import-preview")
+                yield Button("Apply accepted rows", id="import-apply")
+                yield Button("Close", id="import-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "import-close":
+            self.dismiss(None)
+            return
+        if self.hcb.account_id is None:
+            return
+        try:
+            if event.button.id == "import-preview":
+                target = Path(self.query_one("#import-path", Input).value).expanduser()
+                self.preview = self.hcb.runtime.application.preview_import(
+                    target.name, target.read_bytes()
+                )
+                accepted = sum(row.record is not None for row in self.preview.rows)
+                skipped = len(self.preview.rows) - accepted
+                self.query_one("#import-summary", Static).update(
+                    f"Accepted: {accepted} · skipped: {skipped} · errors: "
+                    f"{len(self.preview.errors)}"
+                )
+            elif self.preview is None:
+                raise ValueError("preview the import before applying it")
+            else:
+                self.app.push_screen(
+                    ConfirmScreen("Apply all accepted import rows atomically?"),
+                    self._apply_confirmed,
+                )
+        except (OSError, ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+
+    def _apply_confirmed(self, confirmed: bool | None) -> None:
+        if (
+            not confirmed
+            or self.preview is None
+            or self.hcb.account_id is None
+        ):
+            return
+        try:
+            result = self.hcb.runtime.application.apply_import(
+                self.hcb.account_id,
+                self.preview,
+                default_task_list_id=(
+                    self.hcb.cache.task_lists[0][0] if self.hcb.cache.task_lists else None
+                ),
+                default_calendar_id=(
+                    self.hcb.cache.calendars[0][0] if self.hcb.cache.calendars else None
+                ),
+            )
+        except (ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify(f"Imported {len(result.tasks)} tasks and {len(result.events)} events")
+
+
+class ConflictScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.conflict_id: int | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="conflict-dialog"):
+            yield Label("Sync conflicts", id="dialog-title")
+            yield ListView(id="conflict-list")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Keep local", id="conflict-local")
+                yield Button("Keep Google", id="conflict-remote")
+                yield Button("Close", id="conflict-close")
+
+    def on_mount(self) -> None:
+        if self.hcb.account_id is None:
+            return
+        view = self.query_one("#conflict-list", ListView)
+        for conflict in self.hcb.runtime.storage.list_conflicts(self.hcb.account_id):
+            view.append(
+                EntityRow(
+                    f"{conflict.id} · {conflict.entity_type.value} · {conflict.entity_id}",
+                    kind="conflict",
+                    item_id=str(conflict.id),
+                )
+            )
+        if view.children:
+            view.index = 0
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        if isinstance(event.item, EntityRow):
+            self.conflict_id = int(event.item.item_id)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "conflict-close":
+            self.dismiss(None)
+        elif self.conflict_id is not None and self.hcb.account_id is not None:
+            resolution = (
+                ConflictStatus.KEEP_LOCAL
+                if event.button.id == "conflict-local"
+                else ConflictStatus.KEEP_REMOTE
+            )
+            self.hcb.runtime.application.resolve_conflict(
+                self.hcb.account_id, self.conflict_id, resolution
+            )
+            self.dismiss(None)
+            self.hcb.notify("Conflict resolved")
 
 
 class EventEditorScreen(ModalScreen[dict[str, str] | None]):
@@ -348,6 +616,7 @@ class FindTimeScreen(ModalScreen[None]):
             yield Input(value="17", placeholder="Day ends (hour)", id="find-end")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Find local slots", variant="primary", id="find-local")
+                yield Button("Query Google free/busy", id="find-remote")
                 yield Button("Close", id="find-close")
             yield Static(
                 "Remote freebusy is never queried here; use explicit sync separately.",
@@ -385,6 +654,27 @@ class FindTimeScreen(ModalScreen[None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "find-local":
             self.calculate()
+        elif event.button.id == "find-remote":
+            try:
+                result = self.hcb.remote_freebusy(
+                    self.query_one("#find-date", Input).value,
+                    self.query_one("#find-start", Input).value,
+                    self.query_one("#find-end", Input).value,
+                )
+            except (ValueError, HcbError) as exc:
+                self.hcb.notify(str(exc), severity="error")
+                return
+            calendars = result.get("calendars", {})
+            busy = 0
+            if isinstance(calendars, dict):
+                for value in calendars.values():
+                    if isinstance(value, dict):
+                        intervals = value.get("busy", ())
+                        if isinstance(intervals, (list, tuple)):
+                            busy += len(intervals)
+            self.query_one("#find-disclosure", Static).update(
+                f"Explicit Google free/busy complete · {busy} busy interval(s)"
+            )
         else:
             self.dismiss(None)
 
@@ -470,6 +760,8 @@ class HcbApp(App[None]):
         Binding("g", "jump", "Date"),
         Binding("x", "mark", "Mark"),
         Binding("v", "rsvp", "RSVP"),
+        Binding("u", "undo", "Undo"),
+        Binding("ctrl+r", "redo", "Redo"),
         Binding("1", "surface('Tasks')", "Tasks", show=False),
         Binding("2", "surface('Notes')", "Notes", show=False),
         Binding("3", "surface('Agenda')", "Agenda", show=False),
@@ -495,6 +787,7 @@ class HcbApp(App[None]):
         self.selected: tuple[str, str] | None = None
         self.resource_filter: tuple[str, str] | None = None
         self.marked: set[str] = set()
+        self.marked_events: set[str] = set()
         self.syncing = False
         config = self.runtime.config
         forced_mono = (
@@ -558,6 +851,57 @@ class HcbApp(App[None]):
         except AuthenticationRequired:
             self.account_id = None
         self.refresh_workspace()
+        if self.account_id is None and not self.runtime.storage.list_accounts():
+            self.call_after_refresh(
+                lambda: self.push_screen(OnboardingScreen(), self._onboarding_result)
+            )
+
+    def _onboarding_result(self, result: dict[str, str] | None) -> None:
+        if result is None:
+            self.notify("Offline mode; setup can be reopened later")
+            return
+        reminders = result["reminders"].casefold()
+        if reminders not in {"true", "false"}:
+            self.notify("Reminders must be true or false", severity="error")
+            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            return
+        if result["connect"] == "true" and not result["client_json"]:
+            self.notify("Desktop OAuth client JSON is required to connect", severity="error")
+            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            return
+        try:
+            self.runtime.save_onboarding(
+                client_json=result["client_json"],
+                account_id=result["account_id"],
+                email=result["email"],
+                time_zone=result["time_zone"],
+                theme=result["theme"],
+                reminders_enabled=reminders == "true",
+            )
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            return
+        self.account_id = result["account_id"]
+        self.refresh_workspace()
+        if result["connect"] == "true":
+            self.push_screen(
+                ConfirmScreen("Open the browser and connect this Google account now?"),
+                self._onboarding_connect_confirmed,
+            )
+        else:
+            self.notify("Offline account created; Google remains disconnected")
+
+    def _onboarding_connect_confirmed(self, confirmed: bool | None) -> None:
+        if not confirmed or self.account_id is None:
+            self.notify("Google connection skipped; local cache remains available")
+            return
+        try:
+            self.runtime.authenticator.connect(self.account_id)
+        except Exception as exc:
+            self.notify(f"Google connection failed: {exc}", severity="error")
+            return
+        self.notify("Google connected; sync remains explicit")
 
     def _bind_configured_keys(self) -> None:
         keys = self.runtime.config.keys
@@ -591,6 +935,12 @@ class HcbApp(App[None]):
             self._render_onboarding()
             return
         snapshot = self.runtime.application.workspace(self.account_id)
+        notes_enabled = (
+            self.runtime.application.notes_projection(self.account_id).value != "disabled"
+        )
+        self.query_one("#surface-notes", Button).display = notes_enabled
+        if not notes_enabled and self.surface == "Notes":
+            self.surface = "Tasks"
         self.cache = CachedWorkspace(
             identity=snapshot.account.email,
             tasks=snapshot.tasks,
@@ -675,8 +1025,22 @@ class HcbApp(App[None]):
             tasks = self.cache.tasks
             if self.resource_filter and self.resource_filter[0] == "task-list":
                 tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
+            projection = (
+                self.runtime.application.notes_projection(self.account_id)
+                if self.account_id else None
+            )
             if self.surface == "Notes":
-                tasks = tuple(task for task in tasks if task.notes)
+                tasks = (
+                    tuple(
+                        task for task in tasks
+                        if task.due is None and task.parent_id is None
+                    )
+                    if projection is not None and projection.value != "disabled" else ()
+                )
+            elif projection is not None and projection.value == "notes-only":
+                tasks = tuple(
+                    task for task in tasks if task.due is not None or task.parent_id is not None
+                )
             for task, indent in self._task_rows(tasks):
                 marked = "*" if task.id in self.marked else " "
                 status = "✓" if task.status is TaskStatus.COMPLETED else "·"
@@ -695,9 +1059,10 @@ class HcbApp(App[None]):
             events = self._events_for_surface()
             for event in events:
                 when = event.start.value.isoformat()
+                marked = "*" if event.id in self.marked_events else " "
                 content.append(
                     EntityRow(
-                        f"{when}  {event.summary}",
+                        f"{marked} {when}  {event.summary}",
                         kind="event",
                         item_id=event.id,
                     )
@@ -773,11 +1138,32 @@ class HcbApp(App[None]):
             return
         event = self._selected_event()
         if event:
+            details = (
+                f"Type: {event.event_type or 'default'}\n"
+                f"Visibility: {event.visibility or 'default'}\n"
+                f"Transparency: {event.transparency or 'default'}\n"
+                f"Color: {event.color_id or 'default'}\n"
+                f"Attendees: {len(event.attendees)}\n"
+                f"RSVP: {event.attendee_response or 'none'}\n"
+                "Reminders: "
+                f"{'default' if event.reminder_use_default else len(event.reminder_overrides)}\n"
+                f"Attachments: {len(event.attachments)}\n"
+                f"Conference: {'yes' if event.conference else 'no'}\n"
+                f"Guest flags: invite={event.guests_can_invite_others}, "
+                f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
+            )
+            properties = (
+                event.focus_time_properties
+                or event.out_of_office_properties
+                or event.working_location_properties
+            )
             self.query_one("#inspection", Static).update(
                 Text(
                     f"{event.summary}\n\n{event.start.value.isoformat()} → "
                     f"{event.end.value.isoformat()}\n{event.location or ''}\n\n"
-                    f"{event.description or 'No description'}"
+                    f"{event.description or 'No description'}\n\n{details}"
+                    + (f"\nProperties: {properties}" if properties else "")
+                    + "\n\nStructured CLI editing preserves specialist fields."
                 )
             )
 
@@ -825,6 +1211,17 @@ class HcbApp(App[None]):
             self.push_screen(SettingsScreen(self), self._settings_result)
         elif kind == "find-time":
             self.push_screen(FindTimeScreen(self))
+        elif kind == "bulk":
+            self.push_screen(BulkScreen(self))
+        elif kind == "schedule":
+            task = self._selected_task()
+            self.push_screen(ScheduleScreen(self, task.id if task else ""))
+        elif kind == "import":
+            self.push_screen(ImportScreen(self))
+        elif kind == "conflicts":
+            self.push_screen(ConflictScreen(self))
+        elif kind == "onboarding":
+            self.push_screen(OnboardingScreen(), self._onboarding_result)
         elif kind in {"task", "event"}:
             self.surface = "Tasks" if kind == "task" else "Agenda"
             self.selected = (kind, value)
@@ -960,18 +1357,24 @@ class HcbApp(App[None]):
         self.notify("Event updated")
 
     def action_rsvp(self) -> None:
-        if self._selected_event() is None:
+        if self._selected_event() is None and not self.marked_events:
             self.notify("Select an event to RSVP", severity="warning")
             return
         self.push_screen(RsvpScreen(), self._rsvp_result)
 
     def _rsvp_result(self, response: str | None) -> None:
         event = self._selected_event()
-        if response is None or event is None or self.account_id is None:
+        if (
+            response is None
+            or (event is None and not self.marked_events)
+            or self.account_id is None
+        ):
             return
-        self.runtime.application.respond_event(
-            self.account_id, event.id, cast(ResponseStatus, response)
+        event_ids = list(self.marked_events) or ([event.id] if event else [])
+        self.runtime.application.respond_events(
+            self.account_id, event_ids, cast(ResponseStatus, response)
         )
+        self.marked_events.clear()
         self.refresh_workspace()
         self.notify(f"RSVP {response} queued")
 
@@ -983,41 +1386,43 @@ class HcbApp(App[None]):
         if not ids:
             self.notify("Select a task to complete", severity="warning")
             return
-        for task_id in ids:
-            item = next(
-                (candidate for candidate in self.cache.tasks if candidate.id == task_id),
-                None,
-            )
-            if item:
-                self.runtime.application.complete_task(
-                    self.account_id,
-                    task_id,
-                    completed=item.status is not TaskStatus.COMPLETED,
-                )
+        targets = [
+            item for item in self.cache.tasks if item.id in ids
+        ]
+        completed = not all(item.status is TaskStatus.COMPLETED for item in targets)
+        self.runtime.application.complete_tasks(
+            self.account_id, [item.id for item in targets], completed=completed
+        )
         self.marked.clear()
         self.refresh_workspace()
         self.notify(f"Updated {len(ids)} task(s)")
 
     def action_mark(self) -> None:
         task = self._selected_task()
-        if task is None:
-            return
-        if task.id in self.marked:
-            self.marked.remove(task.id)
-        else:
-            self.marked.add(task.id)
+        event = self._selected_event()
+        if task is not None:
+            if task.id in self.marked:
+                self.marked.remove(task.id)
+            else:
+                self.marked.add(task.id)
+        elif event is not None:
+            if event.id in self.marked_events:
+                self.marked_events.remove(event.id)
+            else:
+                self.marked_events.add(event.id)
         self._render_surface()
 
     def action_delete(self) -> None:
         task = self._selected_task()
         event = self._selected_event()
         ids = set(self.marked)
+        event_ids = set(self.marked_events)
         if not ids and task:
             ids.add(task.id)
-        if not ids and event is None:
+        if not ids and not event_ids and event is None:
             self.notify("Select an item to delete", severity="warning")
             return
-        count = len(ids) or 1
+        count = len(ids) + len(event_ids) or 1
         self.push_screen(
             ConfirmScreen(f"Delete {count} selected item(s)?"),
             self._delete_result,
@@ -1028,17 +1433,33 @@ class HcbApp(App[None]):
             return
         event = self._selected_event()
         ids = set(self.marked)
+        event_ids = set(self.marked_events)
         task = self._selected_task()
         if not ids and task:
             ids.add(task.id)
-        for task_id in ids:
-            self.runtime.application.delete_task(self.account_id, task_id)
-        if event and not ids:
-            self.runtime.application.delete_event(self.account_id, event.id)
+        if ids:
+            self.runtime.application.delete_tasks(self.account_id, list(ids))
+        if event and not ids and not event_ids:
+            event_ids.add(event.id)
+        if event_ids:
+            self.runtime.application.delete_events(self.account_id, list(event_ids))
         self.marked.clear()
+        self.marked_events.clear()
         self.selected = None
         self.refresh_workspace()
         self.notify("Deleted")
+
+    def action_undo(self) -> None:
+        if self.account_id is not None:
+            changed = self.runtime.application.undo(self.account_id)
+            self.refresh_workspace()
+            self.notify("Nothing to undo" if changed is None else "Undone")
+
+    def action_redo(self) -> None:
+        if self.account_id is not None:
+            changed = self.runtime.application.redo(self.account_id)
+            self.refresh_workspace()
+            self.notify("Nothing to redo" if changed is None else "Redone")
 
     def calendar_rows(self) -> tuple[tuple[str, str, bool], ...]:
         return self.cache.calendars
@@ -1135,6 +1556,28 @@ class HcbApp(App[None]):
             day_start=int(raw_start),
             day_end=int(raw_end),
         )
+
+    def remote_freebusy(self, raw_day: str, raw_start: str, raw_end: str) -> dict[str, object]:
+        if self.account_id is None:
+            raise ValueError("connect an account before querying Google")
+        day = date.fromisoformat(raw_day)
+        start = datetime.combine(day, datetime.min.time(), UTC) + timedelta(
+            hours=int(raw_start)
+        )
+        end = datetime.combine(day, datetime.min.time(), UTC) + timedelta(hours=int(raw_end))
+        calendars: list[dict[str, str]] = []
+        for item_id, _summary, selected in self.cache.calendars:
+            calendar_item = self.runtime.storage.get_calendar(self.account_id, item_id)
+            if selected and calendar_item and calendar_item.remote_id:
+                calendars.append({"id": calendar_item.remote_id})
+        result = self.runtime.sync_engine(self.account_id).gateway.freebusy(
+            {
+                "timeMin": start.isoformat().replace("+00:00", "Z"),
+                "timeMax": end.isoformat().replace("+00:00", "Z"),
+                "items": calendars,
+            }
+        )
+        return result
 
     def action_jump(self) -> None:
         self.push_screen(

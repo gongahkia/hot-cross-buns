@@ -10,6 +10,7 @@ DEFAULT_SCOPES = (
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/tasks",
     "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
 )
 KEYRING_SERVICE = "hot-cross-buns"
 
@@ -142,14 +143,16 @@ class GoogleAuthenticator:
             scopes=self.scopes,
         )
 
-    def disconnect(self, account_id: str, *, storage: Any | None = None) -> bool:
-        """Remove local credentials and, optionally, all account-partitioned data.
+    def disconnect(
+        self, account_id: str, *, storage: Any | None = None, reset_local_data: bool = False
+    ) -> bool:
+        """Remove local credentials while retaining cached data by default.
 
         Revocation is intentionally not implicit: disconnect remains reliable offline and
         never claims remote revocation succeeded when the network is unavailable.
         """
         removed = self.token_store.delete(account_id)
-        if storage is not None:
+        if storage is not None and reset_local_data:
             with storage.transaction():
                 storage.delete_account(account_id)
         return removed

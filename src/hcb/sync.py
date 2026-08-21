@@ -171,6 +171,22 @@ def event_from_google(
         conference=item.get("conferenceData")
         if isinstance(item.get("conferenceData"), dict)
         else None,
+        guests_can_invite_others=item.get("guestsCanInviteOthers"),
+        guests_can_modify=item.get("guestsCanModify"),
+        guests_can_see_other_guests=item.get("guestsCanSeeOtherGuests"),
+        anyone_can_add_self=item.get("anyoneCanAddSelf"),
+        focus_time_properties=(
+            item.get("focusTimeProperties")
+            if isinstance(item.get("focusTimeProperties"), dict) else None
+        ),
+        out_of_office_properties=(
+            item.get("outOfOfficeProperties")
+            if isinstance(item.get("outOfOfficeProperties"), dict) else None
+        ),
+        working_location_properties=(
+            item.get("workingLocationProperties")
+            if isinstance(item.get("workingLocationProperties"), dict) else None
+        ),
     )
 
 
@@ -503,6 +519,12 @@ class SyncEngine:
                     list_id, _required_remote(remote, "task"), body, etag=etag
                 )
             if mutation.operation is MutationOperation.MOVE:
+                source_local = payload.get("source_list_id")
+                if source_local and source_local != local_list_id:
+                    source = self._remote_list(account_id, source_local)
+                    created = self.gateway.create_task(list_id, body)
+                    self.gateway.delete_task(source, _required_remote(remote, "task"), etag=etag)
+                    return created
                 return self.gateway.move_task(
                     list_id,
                     _required_remote(remote, "task"),
@@ -518,6 +540,13 @@ class SyncEngine:
             remote = calendar.remote_id if calendar else payload.get("remote_id")
             if mutation.operation is MutationOperation.CREATE:
                 return self.gateway.create_calendar(body)
+            if mutation.operation is MutationOperation.SUBSCRIBE:
+                return self.gateway.subscribe_calendar(
+                    _required_remote(remote, "calendar")
+                )
+            if mutation.operation is MutationOperation.REMOVE:
+                self.gateway.remove_calendar(_required_remote(remote, "calendar"))
+                return None
             if mutation.operation is MutationOperation.UPDATE:
                 return self.gateway.update_calendar(
                     _required_remote(remote, "calendar"), body, etag=etag
@@ -533,10 +562,22 @@ class SyncEngine:
             account_id, _required_remote(local_calendar_id, "calendar")
         )
         if mutation.operation is MutationOperation.CREATE:
-            return self.gateway.create_event(calendar_id, body)
+            return self.gateway.create_event(
+                calendar_id,
+                body,
+                send_updates=payload.get("send_updates", "none"),
+                supports_attachments=bool(payload.get("supports_attachments", False)),
+                conference_data_version=int(payload.get("conference_data_version", 0)),
+            )
         if mutation.operation is MutationOperation.UPDATE:
             return self.gateway.update_event(
-                calendar_id, _required_remote(remote, "event"), body, etag=etag
+                calendar_id,
+                _required_remote(payload.get("target_remote_id") or remote, "event"),
+                body,
+                etag=etag,
+                send_updates=payload.get("send_updates", "none"),
+                supports_attachments=bool(payload.get("supports_attachments", False)),
+                conference_data_version=int(payload.get("conference_data_version", 0)),
             )
         if mutation.operation is MutationOperation.MOVE:
             destination = self._remote_calendar(account_id, payload["destination"])
@@ -549,9 +590,14 @@ class SyncEngine:
                 _required_remote(remote, "event"),
                 payload["response_status"],
                 etag=etag,
+                comment=payload.get("comment"),
+                send_updates=payload.get("send_updates", "all"),
             )
         self.gateway.delete_event(
-            calendar_id, _required_remote(remote, "event"), etag=etag
+            calendar_id,
+            _required_remote(payload.get("target_remote_id") or remote, "event"),
+            etag=etag,
+            send_updates=payload.get("send_updates", "none"),
         )
         return None
 

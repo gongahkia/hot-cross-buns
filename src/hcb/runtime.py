@@ -15,6 +15,7 @@ from .auth import GoogleAuthenticator, TokenStore
 from .config import Config, ConfigError, load, save
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
+from .models import Account
 from .paths import AppPaths
 from .storage import Storage
 from .sync import SyncEngine
@@ -81,7 +82,10 @@ class Runtime:
         )
 
     def _client_config(self) -> dict[str, Any]:
-        raw = self.environ.get("HCB_GOOGLE_CLIENT_CONFIG")
+        raw = (
+            self.environ.get("HCB_GOOGLE_CLIENT_CONFIG")
+            or self.config.preferences.google_client_json
+        )
         if not raw:
             raise ConfigurationError(
                 "HCB_GOOGLE_CLIENT_CONFIG must name a Google OAuth client JSON file"
@@ -95,6 +99,42 @@ class Runtime:
         if not isinstance(value, dict):
             raise ConfigurationError("Google OAuth client configuration must be an object")
         return value
+
+    def save_onboarding(
+        self,
+        *,
+        client_json: str,
+        account_id: str,
+        email: str,
+        time_zone: str,
+        theme: str,
+        reminders_enabled: bool,
+    ) -> None:
+        if not account_id.strip() or any(character.isspace() for character in account_id):
+            raise ValueError("account identifier is required and cannot contain whitespace")
+        if "@" not in email or email.strip() != email:
+            raise ValueError("a valid account email is required")
+        if client_json and not Path(client_json).expanduser().is_file():
+            raise ValueError("Desktop OAuth client JSON path does not exist")
+        if theme not in {"system", "dark", "light", "mono"}:
+            raise ValueError("theme must be system, dark, light, or mono")
+        preferences = replace(
+            self.config.preferences,
+            default_account_id=account_id,
+            time_zone=time_zone,
+            google_client_json=str(Path(client_json).expanduser()) if client_json else "",
+            reminders_enabled=reminders_enabled,
+        )
+        updated = replace(
+            self.config,
+            preferences=preferences,
+            theme=replace(self.config.theme, name=theme),
+        )
+        # Constructing Preferences validates the IANA zone before any state is written.
+        save(updated, self.paths.config_file)
+        with self.storage.transaction():
+            self.storage.upsert_account(Account(account_id, email))
+        self.__dict__["config"] = updated
 
     @cached_property
     def authenticator(self) -> GoogleAuthenticator:

@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 import typer
 from typer import _click as click
@@ -32,6 +33,7 @@ from .models import (
     DateTimeKind,
     Event,
     EventDateTime,
+    ReminderOverride,
     Task,
 )
 from .notifications import default_notifier
@@ -76,6 +78,7 @@ config_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage co
 daemon_app = typer.Typer(
     cls=HcbGroup, context_settings=CONTEXT, help="Inspect sync daemon support."
 )
+drive_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Search Drive metadata.")
 
 app.add_typer(tasks_app, name="tasks")
 app.add_typer(lists_app, name="task-lists")
@@ -88,6 +91,7 @@ app.add_typer(import_app, name="import")
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
 app.add_typer(daemon_app, name="daemon")
+app.add_typer(drive_app, name="drive")
 
 
 @dataclass(slots=True)
@@ -219,7 +223,10 @@ def tasks_list(
     task_list: str | None = typer.Option(None, "--list"),
     completed: bool = typer.Option(False, "--completed"),
 ) -> None:
-    items = _state(ctx).runtime.storage.list_tasks(_account(ctx), task_list)
+    application = _state(ctx).runtime.application
+    items = list(application.task_listing(_account(ctx)))
+    if task_list:
+        items = [item for item in items if item.list_id == task_list]
     if not completed:
         items = [item for item in items if item.status.value != "completed"]
     _emit(
@@ -314,6 +321,63 @@ def tasks_move(
     _emit(ctx, item, human=lambda value: f"Moved task {value.id} to {value.list_id}")
 
 
+@tasks_app.command("complete-many")
+def tasks_complete_many(
+    ctx: typer.Context, task_ids: list[str], reopen: bool = typer.Option(False, "--reopen")
+) -> None:
+    items = _state(ctx).runtime.application.complete_tasks(
+        _account(ctx), task_ids, completed=not reopen
+    )
+    _emit(ctx, items, human=lambda value: f"{value.id}\t{value.status.value}")
+
+
+@tasks_app.command("delete-many")
+def tasks_delete_many(
+    ctx: typer.Context, task_ids: list[str], yes: bool = typer.Option(False, "--yes", "-y")
+) -> None:
+    _confirm(yes, f"Delete {len(task_ids)} tasks?")
+    _emit(ctx, _state(ctx).runtime.application.delete_tasks(_account(ctx), task_ids))
+
+
+@tasks_app.command("schedule")
+def tasks_schedule(
+    ctx: typer.Context,
+    task_id: str,
+    calendar: str = typer.Option(...),
+    start: str = typer.Option(...),
+    end: str = typer.Option(...),
+    time_zone: str | None = typer.Option(None, "--time-zone"),
+) -> None:
+    item = _state(ctx).runtime.application.schedule_task(
+        _account(ctx), task_id, calendar,
+        _event_point(start, False, time_zone), _event_point(end, False, time_zone),
+    )
+    _emit(ctx, item)
+
+
+@tasks_app.command("unschedule")
+def tasks_unschedule(
+    ctx: typer.Context, task_id: str, yes: bool = typer.Option(False, "--yes", "-y")
+) -> None:
+    _confirm(yes, f"Delete the active calendar block for task {task_id}?")
+    _emit(ctx, {"event": _state(ctx).runtime.application.unschedule_task(_account(ctx), task_id)})
+
+
+@tasks_app.command("repair-schedule")
+def tasks_repair_schedule(ctx: typer.Context, task_id: str, event_id: str) -> None:
+    _emit(
+        ctx,
+        _state(ctx).runtime.application.repair_task_schedule(
+            _account(ctx), task_id, event_id
+        ),
+    )
+
+
+@tasks_app.command("reconcile-recurrence")
+def tasks_reconcile_recurrence(ctx: typer.Context) -> None:
+    _emit(ctx, _state(ctx).runtime.application.reconcile_task_recurrence(_account(ctx)))
+
+
 # Task lists
 @lists_app.command("list")
 def lists_list(ctx: typer.Context) -> None:
@@ -348,6 +412,22 @@ def lists_delete(
 
 
 # Notes are task-note conveniences.
+@notes_app.command("list")
+def notes_list(ctx: typer.Context) -> None:
+    items = _state(ctx).runtime.application.notes_listing(_account(ctx))
+    _emit(ctx, items, fields=("id", "list_id", "title", "notes"))
+
+
+@notes_app.command("mode")
+def notes_mode(ctx: typer.Context, mode: str | None = typer.Argument(None)) -> None:
+    application = _state(ctx).runtime.application
+    value = (
+        application.set_notes_projection(_account(ctx), mode)
+        if mode is not None else application.notes_projection(_account(ctx))
+    )
+    _emit(ctx, {"mode": value.value})
+
+
 @notes_app.command("show")
 def notes_show(ctx: typer.Context, task_id: str) -> None:
     item = _state(ctx).runtime.storage.get_task(_account(ctx), task_id)
@@ -411,6 +491,15 @@ def events_create(
     time_zone: str | None = typer.Option(None, "--time-zone"),
     description: str | None = typer.Option(None),
     location: str | None = typer.Option(None),
+    attendees_json: str | None = typer.Option(None, "--attendees-json"),
+    reminders_json: str | None = typer.Option(None, "--reminders-json"),
+    attachments_json: str | None = typer.Option(None, "--attachments-json"),
+    event_type: str | None = typer.Option(None, "--event-type"),
+    visibility: str | None = typer.Option(None),
+    transparency: str | None = typer.Option(None),
+    color_id: str | None = typer.Option(None, "--color-id"),
+    meet: bool = typer.Option(False, "--meet"),
+    send_updates: str = typer.Option("none", "--send-updates"),
 ) -> None:
     item = _state(ctx).runtime.application.create_event(
         _account(ctx),
@@ -420,6 +509,24 @@ def events_create(
         _event_point(end, all_day, time_zone),
         description=description,
         location=location,
+        attendees=tuple(json.loads(attendees_json)) if attendees_json else (),
+        reminder_use_default=reminders_json is None,
+        reminder_overrides=tuple(
+            ReminderOverride(item["method"], int(item["minutes"]))
+            for item in (json.loads(reminders_json) if reminders_json else ())
+        ),
+        attachments=tuple(json.loads(attachments_json)) if attachments_json else (),
+        event_type=event_type,
+        visibility=visibility,
+        transparency=transparency,
+        color_id=color_id,
+        conference=(
+            {"createRequest": {"requestId": uuid4().hex}}
+            if meet else None
+        ),
+        send_updates=send_updates,
+        supports_attachments=bool(attachments_json),
+        conference_data_version=1 if meet else 0,
     )
     _emit(ctx, item, human=lambda value: f"Created event {value.id}: {value.summary}")
 
@@ -435,6 +542,8 @@ def events_edit(
     time_zone: str | None = typer.Option(None, "--time-zone"),
     description: str | None = typer.Option(None),
     location: str | None = typer.Option(None),
+    scope: str = typer.Option("this", "--scope"),
+    send_updates: str = typer.Option("none", "--send-updates"),
 ) -> None:
     account = _account(ctx)
     state = _state(ctx)
@@ -451,16 +560,27 @@ def events_edit(
         end=_event_point(end, all_day, time_zone) if end else None,
         description=current.description if description is None else description,
         location=current.location if location is None else location,
+        scope=scope,  # type: ignore[arg-type]
+        send_updates=send_updates,
     )
     _emit(ctx, item, human=lambda value: f"Updated event {value.id}: {value.summary}")
 
 
 @events_app.command("delete")
 def events_delete(
-    ctx: typer.Context, event_id: str, yes: bool = typer.Option(False, "--yes", "-y")
+    ctx: typer.Context,
+    event_id: str,
+    yes: bool = typer.Option(False, "--yes", "-y"),
+    scope: str = typer.Option("this", "--scope"),
+    send_updates: str = typer.Option("none", "--send-updates"),
 ) -> None:
     _confirm(yes, f"Delete event {event_id}?")
-    item = _state(ctx).runtime.application.delete_event(_account(ctx), event_id)
+    item = _state(ctx).runtime.application.delete_event(
+        _account(ctx),
+        event_id,
+        scope=scope,  # type: ignore[arg-type]
+        send_updates=send_updates,
+    )
     _emit(ctx, item, human=lambda value: f"Deleted event {value.id}")
 
 
@@ -470,14 +590,122 @@ def events_move(ctx: typer.Context, event_id: str, calendar: str = typer.Option(
     _emit(ctx, item, human=lambda value: f"Moved event {value.id} to {value.calendar_id}")
 
 
+@events_app.command("show")
+def events_show(ctx: typer.Context, event_id: str) -> None:
+    item = _state(ctx).runtime.storage.get_event(_account(ctx), event_id)
+    if item is None:
+        from .errors import NotFoundError
+
+        raise NotFoundError(f"Event {event_id!r} does not exist")
+    _emit(ctx, item)
+
+
+@events_app.command("set-properties")
+def events_set_properties(
+    ctx: typer.Context,
+    event_id: str,
+    properties_json: str,
+    send_updates: str = typer.Option("none", "--send-updates"),
+) -> None:
+    """Set retained specialist Google event fields from a structured JSON object."""
+    value = json.loads(properties_json)
+    if not isinstance(value, dict):
+        raise ValueError("properties_json must be a JSON object")
+    reminders = value.get("reminders")
+    if reminders is not None and not isinstance(reminders, list):
+        raise ValueError("reminders must be an array")
+    item = _state(ctx).runtime.application.update_event(
+        _account(ctx),
+        event_id,
+        attendees=tuple(value["attendees"]) if "attendees" in value else None,
+        reminder_use_default=value.get("reminderUseDefault"),
+        reminder_overrides=(
+            tuple(ReminderOverride(entry["method"], int(entry["minutes"])) for entry in reminders)
+            if reminders is not None
+            else None
+        ),
+        event_type=value.get("eventType"),
+        transparency=value.get("transparency"),
+        visibility=value.get("visibility"),
+        color_id=value.get("colorId"),
+        attachments=tuple(value["attachments"]) if "attachments" in value else None,
+        conference=value.get("conferenceData"),
+        guests_can_invite_others=value.get("guestsCanInviteOthers"),
+        guests_can_modify=value.get("guestsCanModify"),
+        guests_can_see_other_guests=value.get("guestsCanSeeOtherGuests"),
+        anyone_can_add_self=value.get("anyoneCanAddSelf"),
+        focus_time_properties=value.get("focusTimeProperties"),
+        out_of_office_properties=value.get("outOfOfficeProperties"),
+        working_location_properties=value.get("workingLocationProperties"),
+        send_updates=send_updates,
+        supports_attachments="attachments" in value,
+        conference_data_version=1 if "conferenceData" in value else 0,
+    )
+    _emit(ctx, item)
+
+
 @events_app.command("respond")
-def events_respond(ctx: typer.Context, event_id: str, response: str) -> None:
+def events_respond(
+    ctx: typer.Context,
+    event_id: str,
+    response: str,
+    comment: str | None = typer.Option(None),
+    send_updates: str = typer.Option("all", "--send-updates"),
+) -> None:
     item = _state(ctx).runtime.application.respond_event(
         _account(ctx),
         event_id,
         response,  # type: ignore[arg-type]
+        comment=comment,
+        send_updates=send_updates,
     )
     _emit(ctx, item, human=lambda value: f"Queued {response} response for {value.entity_id}")
+
+
+@events_app.command("delete-many")
+def events_delete_many(
+    ctx: typer.Context, event_ids: list[str], yes: bool = typer.Option(False, "--yes", "-y")
+) -> None:
+    _confirm(yes, f"Delete {len(event_ids)} events?")
+    _emit(ctx, _state(ctx).runtime.application.delete_events(_account(ctx), event_ids))
+
+
+@events_app.command("respond-many")
+def events_respond_many(
+    ctx: typer.Context,
+    event_ids: list[str],
+    response: str = typer.Option(...),
+    comment: str | None = typer.Option(None),
+    send_updates: str = typer.Option("all", "--send-updates"),
+) -> None:
+    _emit(
+        ctx,
+        _state(ctx).runtime.application.respond_events(
+            _account(ctx),
+            event_ids,
+            response,  # type: ignore[arg-type]
+            comment=comment,
+            send_updates=send_updates,
+        ),
+    )
+
+
+@events_app.command("move-many")
+def events_move_many(
+    ctx: typer.Context, event_ids: list[str], calendar: str = typer.Option(...)
+) -> None:
+    _emit(
+        ctx,
+        _state(ctx).runtime.application.move_events(_account(ctx), event_ids, calendar),
+    )
+
+
+@events_app.command("split")
+def events_split(
+    ctx: typer.Context, event_id: str, yes: bool = typer.Option(False, "--yes", "-y")
+) -> None:
+    _confirm(yes, "Split this recurring event and following instances?")
+    _emit(ctx, _state(ctx).runtime.application.split_recurring_event(_account(ctx), event_id))
 
 
 # Calendars
@@ -506,9 +734,11 @@ def calendars_create(
 
 
 @calendars_app.command("subscribe")
-def calendars_subscribe(ctx: typer.Context, calendar_id: str) -> None:
-    item = _state(ctx).runtime.application.update_calendar(
-        _account(ctx), calendar_id, selected=True
+def calendars_subscribe(
+    ctx: typer.Context, remote_calendar_id: str, summary: str | None = typer.Option(None)
+) -> None:
+    item = _state(ctx).runtime.application.subscribe_calendar(
+        _account(ctx), remote_calendar_id, summary=summary
     )
     _emit(ctx, item, human=lambda value: f"Subscribed to calendar {value.id}")
 
@@ -518,7 +748,7 @@ def calendars_remove(
     ctx: typer.Context, calendar_id: str, yes: bool = typer.Option(False, "--yes", "-y")
 ) -> None:
     _confirm(yes, f"Remove calendar {calendar_id} and its local events?")
-    item = _state(ctx).runtime.application.delete_calendar(_account(ctx), calendar_id)
+    item = _state(ctx).runtime.application.remove_calendar_from_list(_account(ctx), calendar_id)
     _emit(ctx, item, human=lambda value: f"Removed calendar {value.id}")
 
 
@@ -560,6 +790,39 @@ def find_time(
         fields=("start", "end"),
         human=lambda slot: f"{slot.start.isoformat()}\t{slot.end.isoformat()}",
     )
+
+
+@app.command("freebusy")
+def remote_freebusy(
+    ctx: typer.Context,
+    start: str = typer.Option(...),
+    end: str = typer.Option(...),
+    calendars: list[str] | None = typer.Option(None, "--calendar"),  # noqa: B008
+) -> None:
+    """Explicitly query Google's remote free/busy endpoint."""
+    state = _state(ctx)
+    account = _account(ctx)
+    selected = calendars or [
+        item.remote_id for item in state.runtime.storage.list_calendars(account)
+        if item.selected and item.remote_id
+    ]
+    body = {"timeMin": start, "timeMax": end, "items": [{"id": item} for item in selected]}
+    _emit(ctx, state.runtime.sync_engine(account).gateway.freebusy(body))
+
+
+@drive_app.command("search")
+def drive_search(ctx: typer.Context, query: str) -> None:
+    """Explicitly search remote Drive metadata and cache the result."""
+    state = _state(ctx)
+    account = _account(ctx)
+    page = state.runtime.sync_engine(account).gateway.search_drive_metadata(query)
+    items = state.runtime.application.cache_drive_metadata(account, list(page.items))
+    _emit(ctx, items, fields=("id", "name", "mime_type", "web_view_link"))
+
+
+@drive_app.command("list")
+def drive_list(ctx: typer.Context) -> None:
+    _emit(ctx, _state(ctx).runtime.storage.list_drive_files(_account(ctx)))
 
 
 @saved_app.command("list")
@@ -794,10 +1057,8 @@ def auth_status(ctx: typer.Context) -> None:
 def auth_disconnect(
     ctx: typer.Context,
     account_id: str | None = typer.Argument(None),
-    yes: bool = typer.Option(False, "--yes", "-y"),
 ) -> None:
     target = account_id or _account(ctx)
-    _confirm(yes, f"Disconnect {target} and remove its local data?")
     state = _state(ctx)
     removed = state.runtime.authenticator.disconnect(target, storage=state.runtime.storage)
     _emit(
@@ -805,6 +1066,31 @@ def auth_disconnect(
         {"account_id": target, "credentials_removed": removed},
         human=lambda value: f"Disconnected {value['account_id']}",
     )
+
+
+@auth_app.command("reset")
+def auth_reset(
+    ctx: typer.Context,
+    account_id: str | None = typer.Argument(None),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+) -> None:
+    target = account_id or _account(ctx)
+    _confirm(yes, f"Permanently remove all cached data for {target}?")
+    state = _state(ctx)
+    removed = state.runtime.authenticator.disconnect(
+        target, storage=state.runtime.storage, reset_local_data=True
+    )
+    _emit(ctx, {"account_id": target, "credentials_removed": removed, "cache_removed": True})
+
+
+@app.command("undo")
+def undo(ctx: typer.Context) -> None:
+    _emit(ctx, {"intent_id": _state(ctx).runtime.application.undo(_account(ctx))})
+
+
+@app.command("redo")
+def redo(ctx: typer.Context) -> None:
+    _emit(ctx, {"intent_id": _state(ctx).runtime.application.redo(_account(ctx))})
 
 
 # Configuration

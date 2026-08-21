@@ -10,10 +10,17 @@ from hcb.models import (
     DateTimeKind,
     EventDateTime,
     NotesProjection,
+    ReminderOverride,
     TaskList,
     TaskPriority,
 )
 from hcb.storage import Storage
+from hcb.task_recurrence import (
+    RecurrenceEnd,
+    TaskRecurrenceMarker,
+    parse_task_recurrence_notes,
+    serialize_task_notes,
+)
 
 
 @pytest.fixture
@@ -97,3 +104,105 @@ def test_import_apply_is_atomic_and_diagnostics_are_redacted(
     diagnostics = app.diagnostics()
     assert diagnostics["path"] == "<redacted>"
     assert "private@example.test" not in str(diagnostics)
+
+
+def test_event_fields_round_trip_through_storage_and_outbox(app: ApplicationService) -> None:
+    start = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC), "UTC")
+    end = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC), "UTC")
+    event = app.create_event(
+        "a",
+        "cal",
+        "Focus",
+        start,
+        end,
+        attendees=({"email": "guest@example.test", "optional": True},),
+        reminder_use_default=False,
+        reminder_overrides=(ReminderOverride("popup", 10),),
+        event_type="focusTime",
+        visibility="private",
+        transparency="opaque",
+        color_id="5",
+        attachments=({"fileId": "drive-1", "title": "Brief"},),
+        conference={"createRequest": {"requestId": "stable-request"}},
+        guests_can_modify=False,
+        focus_time_properties={"autoDeclineMode": "declineAllConflictingInvitations"},
+        send_updates="all",
+        supports_attachments=True,
+        conference_data_version=1,
+    )
+    assert app.storage.get_event("a", event.id) == event
+    payload = app.storage.pending_mutations("a")[-1].payload
+    assert payload["body"]["attendees"][0]["optional"] is True
+    assert payload["body"]["reminders"]["overrides"] == [{"method": "popup", "minutes": 10}]
+    assert payload["body"]["focusTimeProperties"]["autoDeclineMode"].startswith("decline")
+    assert (
+        payload["send_updates"],
+        payload["supports_attachments"],
+        payload["conference_data_version"],
+    ) == ("all", True, 1)
+
+
+def test_calendar_list_operations_notes_projection_and_schedule_idempotency(
+    app: ApplicationService,
+) -> None:
+    subscribed = app.subscribe_calendar("a", "shared@example.test", summary="Shared")
+    assert app.storage.pending_mutations("a")[-1].operation.value == "subscribe"
+    app.remove_calendar_from_list("a", subscribed.id)
+    assert app.storage.pending_mutations("a")[-1].operation.value == "remove"
+
+    note = app.create_task("a", "inbox", "Undated root")
+    dated = app.create_task("a", "inbox", "Dated", due=date(2026, 8, 22))
+    app.set_notes_projection("a", "notes-only")
+    assert {item.id for item in app.notes_listing("a")} == {note.id}
+    assert {item.id for item in app.task_listing("a")} == {dated.id}
+
+    start = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC), "UTC")
+    end = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC), "UTC")
+    first, _ = app.schedule_task("a", dated.id, "cal", start, end)
+    moved, _ = app.schedule_task("a", dated.id, "cal", start, end)
+    assert moved.id == first.id
+    assert len([link for link in app.list_task_event_links("a") if link.task_id == dated.id]) == 1
+
+
+def test_completed_recurring_task_creates_one_successor(app: ApplicationService) -> None:
+    series = "3a21dc8d-2cb4-4b9a-980f-7aaf75ae2f43"
+    marker = TaskRecurrenceMarker(
+        series,
+        f"{series}:0",
+        0,
+        "daily",
+        1,
+        "2026-08-21",
+        "UTC",
+        RecurrenceEnd("count", count=2),
+        "",
+        (),
+        (),
+        "Daily task",
+        "2026-08-21",
+        "none",
+    )
+    notes = serialize_task_notes("memo", marker).notes
+    task = app.create_task(
+        "a", "inbox", "Daily task", notes=notes, due=date(2026, 8, 21), due_time_zone="UTC"
+    )
+    app.complete_task("a", task.id)
+    app.reconcile_task_recurrence("a")
+    occurrences = [
+        parse_task_recurrence_notes(item.notes or "").marker
+        for item in app.storage.list_tasks("a")
+        if parse_task_recurrence_notes(item.notes or "").marker
+    ]
+    assert [item.occurrence_id for item in occurrences].count(f"{series}:1") == 1
+
+
+def test_undo_redo_unpushed_create_restores_projection_and_outbox(
+    app: ApplicationService,
+) -> None:
+    task = app.create_task("a", "inbox", "Undo me")
+    app.undo("a")
+    assert app.storage.get_task("a", task.id) is None
+    assert all(item.entity_id != task.id for item in app.storage.pending_mutations("a"))
+    app.redo("a")
+    assert app.storage.get_task("a", task.id).title == "Undo me"
+    assert app.storage.pending_mutations("a")[-1].operation.value == "create"

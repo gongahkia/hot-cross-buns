@@ -51,13 +51,15 @@ def test_credentials_are_built_without_network() -> None:
     assert credentials.client_id == "client-id.apps.googleusercontent.com"
 
 
-def test_disconnect_removes_secret_and_partition(tmp_path: Path) -> None:
+def test_disconnect_retains_cache_and_explicit_reset_removes_it(tmp_path: Path) -> None:
     tokens = TokenStore(FakeKeyring())
     tokens.set("account", "refresh")
     auth = GoogleAuthenticator(CLIENT_CONFIG, tokens)
     with Storage(tmp_path / "db.sqlite") as store:
         store.upsert_account(Account("account", "person@example.test"))
         assert auth.disconnect("account", storage=store)
+        assert store.get_account("account") is not None
+        auth.disconnect("account", storage=store, reset_local_data=True)
         assert store.get_account("account") is None
     assert tokens.get("account") is None
 

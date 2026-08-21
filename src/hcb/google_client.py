@@ -63,12 +63,18 @@ class GoogleGateway(Protocol):
         previous: str | None = None,
     ) -> Json: ...
 
-    def create_event(self, calendar_id: str, body: Json) -> Json: ...
+    def create_event(
+        self, calendar_id: str, body: Json, *, send_updates: str = "none",
+        supports_attachments: bool = False, conference_data_version: int = 0
+    ) -> Json: ...
     def update_event(
-        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None
+        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None,
+        send_updates: str = "none", supports_attachments: bool = False,
+        conference_data_version: int = 0
     ) -> Json: ...
     def delete_event(
-        self, calendar_id: str, event_id: str, *, etag: str | None = None
+        self, calendar_id: str, event_id: str, *, etag: str | None = None,
+        send_updates: str = "none"
     ) -> None: ...
     def move_event(self, calendar_id: str, event_id: str, destination: str) -> Json: ...
     def respond_event(
@@ -78,15 +84,22 @@ class GoogleGateway(Protocol):
         response_status: str,
         *,
         etag: str | None = None,
+        comment: str | None = None,
+        send_updates: str = "all",
     ) -> Json: ...
 
     def create_calendar(self, body: Json) -> Json: ...
+    def subscribe_calendar(self, calendar_id: str) -> Json: ...
+    def remove_calendar(self, calendar_id: str) -> None: ...
     def update_calendar(
         self, calendar_id: str, body: Json, *, etag: str | None = None
     ) -> Json: ...
     def delete_calendar(self, calendar_id: str, *, etag: str | None = None) -> None: ...
     def freebusy(self, body: Json) -> Json: ...
     def drive_metadata(self, file_id: str, *, fields: str = "*") -> Json: ...
+    def search_drive_metadata(
+        self, query: str, *, page_token: str | None = None, page_size: int = 100
+    ) -> Page: ...
 
 
 def _error_from_http(exc: BaseException) -> GoogleApiError:
@@ -259,24 +272,45 @@ class GoogleApiClient:
             )
         )
 
-    def create_event(self, calendar_id: str, body: Json) -> Json:
-        return self._execute(self.calendar.events().insert(calendarId=calendar_id, body=body))
+    def create_event(
+        self,
+        calendar_id: str,
+        body: Json,
+        *,
+        send_updates: str = "none",
+        supports_attachments: bool = False,
+        conference_data_version: int = 0,
+    ) -> Json:
+        return self._execute(
+            self.calendar.events().insert(
+                calendarId=calendar_id, body=body, sendUpdates=send_updates,
+                supportsAttachments=supports_attachments,
+                conferenceDataVersion=conference_data_version,
+            )
+        )
 
     def update_event(
-        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None
+        self, calendar_id: str, event_id: str, body: Json, *, etag: str | None = None,
+        send_updates: str = "none", supports_attachments: bool = False,
+        conference_data_version: int = 0,
     ) -> Json:
         return self._execute(
             self.calendar.events().patch(
                 calendarId=calendar_id, eventId=event_id, body=body
+                ,sendUpdates=send_updates, supportsAttachments=supports_attachments,
+                conferenceDataVersion=conference_data_version
             ),
             etag=etag,
         )
 
     def delete_event(
-        self, calendar_id: str, event_id: str, *, etag: str | None = None
+        self, calendar_id: str, event_id: str, *, etag: str | None = None,
+        send_updates: str = "none",
     ) -> None:
         self._void(
-            self.calendar.events().delete(calendarId=calendar_id, eventId=event_id),
+            self.calendar.events().delete(
+                calendarId=calendar_id, eventId=event_id, sendUpdates=send_updates
+            ),
             etag=etag,
         )
 
@@ -296,12 +330,25 @@ class GoogleApiClient:
         response_status: str,
         *,
         etag: str | None = None,
+        comment: str | None = None,
+        send_updates: str = "all",
     ) -> Json:
-        body = {"attendees": [{"self": True, "responseStatus": response_status}]}
-        return self.update_event(calendar_id, event_id, body, etag=etag)
+        attendee: Json = {"self": True, "responseStatus": response_status}
+        if comment is not None:
+            attendee["comment"] = comment
+        body = {"attendees": [attendee]}
+        return self.update_event(
+            calendar_id, event_id, body, etag=etag, send_updates=send_updates
+        )
 
     def create_calendar(self, body: Json) -> Json:
         return self._execute(self.calendar.calendars().insert(body=body))
+
+    def subscribe_calendar(self, calendar_id: str) -> Json:
+        return self._execute(self.calendar.calendarList().insert(body={"id": calendar_id}))
+
+    def remove_calendar(self, calendar_id: str) -> None:
+        self._void(self.calendar.calendarList().delete(calendarId=calendar_id))
 
     def update_calendar(
         self, calendar_id: str, body: Json, *, etag: str | None = None
@@ -318,6 +365,25 @@ class GoogleApiClient:
 
     def drive_metadata(self, file_id: str, *, fields: str = "*") -> Json:
         return self._execute(self.drive.files().get(fileId=file_id, fields=fields))
+
+    def search_drive_metadata(
+        self, query: str, *, page_token: str | None = None, page_size: int = 100
+    ) -> Page:
+        if not query.strip():
+            raise ValueError("Drive metadata search query is required")
+        escaped = query.replace("\\", "\\\\").replace("'", "\\'")
+        response = self._execute(
+            self.drive.files().list(
+                q=f"name contains '{escaped}' and trashed = false",
+                fields=(
+                    "nextPageToken,files(id,name,mimeType,webViewLink,iconLink,modifiedTime)"
+                ),
+                pageToken=page_token,
+                pageSize=max(1, min(page_size, 1000)),
+                orderBy="modifiedTime desc",
+            )
+        )
+        return Page(tuple(response.get("files", ())), response.get("nextPageToken"))
 
 
 def rfc3339(value: datetime) -> str:

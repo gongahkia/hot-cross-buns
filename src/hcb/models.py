@@ -21,6 +21,7 @@ class EntityType(StrEnum):
     TASK = "task"
     CALENDAR = "calendar"
     EVENT = "event"
+    DRIVE_FILE = "drive_file"
 
 
 class TaskStatus(StrEnum):
@@ -45,6 +46,8 @@ class MutationOperation(StrEnum):
     DELETE = "delete"
     MOVE = "move"
     RESPOND = "respond"
+    SUBSCRIBE = "subscribe"
+    REMOVE = "remove"
 
 
 class ConflictStatus(StrEnum):
@@ -177,10 +180,28 @@ class Event:
     color_id: str | None = None
     attachments: tuple[dict[str, Any], ...] = ()
     conference: dict[str, Any] | None = None
+    guests_can_invite_others: bool | None = None
+    guests_can_modify: bool | None = None
+    guests_can_see_other_guests: bool | None = None
+    anyone_can_add_self: bool | None = None
+    focus_time_properties: dict[str, Any] | None = None
+    out_of_office_properties: dict[str, Any] | None = None
+    working_location_properties: dict[str, Any] | None = None
 
     @property
     def is_occurrence(self) -> bool:
         return self.canonical_id is not None or self.occurrence_id is not None
+
+
+@dataclass(frozen=True, slots=True)
+class DriveFile:
+    id: str
+    account_id: str
+    name: str
+    mime_type: str | None = None
+    web_view_link: str | None = None
+    icon_link: str | None = None
+    modified_time: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,6 +262,8 @@ class Preferences:
     reminder_jitter_seconds: int = 5
     reminder_sync_interval_minutes: int = 0
     reminder_sync_mode: str = "all"
+    time_zone: str = "UTC"
+    google_client_json: str = ""
 
     def __post_init__(self) -> None:
         if not 0 <= self.week_starts_on <= 6:
@@ -255,3 +278,9 @@ class Preferences:
             raise ValueError("reminder_sync_interval_minutes must be non-negative")
         if self.reminder_sync_mode not in {"all", "pull", "off"}:
             raise ValueError("reminder_sync_mode must be all, pull, or off")
+        try:
+            from zoneinfo import ZoneInfo
+
+            ZoneInfo(self.time_zone)
+        except (ValueError, KeyError) as exc:
+            raise ValueError("time_zone must be a valid IANA time zone") from exc
