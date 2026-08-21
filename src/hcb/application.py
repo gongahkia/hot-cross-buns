@@ -1,0 +1,1501 @@
+"""UI-independent, optimistic application services.
+
+All provider-backed writes in this module update the local projection and append
+an outbox record inside one SQLite transaction.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, replace
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal
+from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from .errors import ConflictError, NotFoundError
+from .import_export import (
+    ImportedEvent,
+    ImportedTask,
+    ImportPreview,
+    parse_import,
+)
+from .models import (
+    Calendar,
+    Conflict,
+    ConflictStatus,
+    DateTimeKind,
+    EntityType,
+    Event,
+    EventDateTime,
+    EventStatus,
+    Metadata,
+    MutationOperation,
+    NotesProjection,
+    PendingMutation,
+    Task,
+    TaskList,
+    TaskPriority,
+    TaskStatus,
+    utc_now,
+)
+from .quick_capture import (
+    QuickCaptureKind,
+    QuickCapturePreferences,
+    QuickCaptureResult,
+    parse_quick_capture,
+)
+from .search import matches_calendar_result, matches_event, matches_task, parse_palette_query
+from .storage import Storage
+
+Json = dict[str, Any]
+ResponseStatus = Literal["accepted", "declined", "tentative", "needsAction"]
+
+
+class _Unset:
+    pass
+
+
+_UNSET = _Unset()
+
+
+@dataclass(frozen=True, slots=True)
+class SavedSearch:
+    id: str
+    account_id: str
+    name: str
+    query: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TaskEventLink:
+    account_id: str
+    task_id: str
+    event_id: str
+    created_at: datetime
+    orphaned: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SearchResult:
+    kind: Literal["task", "event", "calendar"]
+    item: Task | Event | Calendar
+    score: int
+
+
+@dataclass(frozen=True, slots=True)
+class ImportApplyResult:
+    tasks: tuple[Task, ...] = ()
+    events: tuple[Event, ...] = ()
+
+
+def _id() -> str:
+    return uuid4().hex
+
+
+def _dirty(metadata: Metadata, *, deleted: bool | None = None) -> Metadata:
+    return replace(
+        metadata,
+        dirty=True,
+        deleted=metadata.deleted if deleted is None else deleted,
+        local_updated_at=utc_now(),
+    )
+
+
+def _event_point(value: EventDateTime) -> Json:
+    if value.kind is DateTimeKind.DATE:
+        return {"date": value.value.isoformat()}
+    result: Json = {"dateTime": value.value.isoformat()}
+    if value.time_zone:
+        result["timeZone"] = value.time_zone
+    return result
+
+
+class ApplicationService:
+    """Optimistic local domain boundary used by every UI."""
+
+    def __init__(
+        self,
+        storage: Storage,
+        *,
+        notes_projection: NotesProjection | str | None = None,
+    ) -> None:
+        self.storage = storage
+        self._notes_projection = NotesProjection(notes_projection) if notes_projection else None
+
+    def _account(self, account_id: str) -> None:
+        if self.storage.get_account(account_id) is None:
+            raise NotFoundError(f"Account {account_id!r} does not exist")
+
+    def notes_projection(self, account_id: str) -> NotesProjection:
+        if self._notes_projection is not None:
+            return self._notes_projection
+        row = self.storage.connection.execute(
+            "SELECT value FROM app_settings WHERE account_id=? AND key='notes_projection'",
+            (account_id,),
+        ).fetchone()
+        return NotesProjection(row["value"]) if row else NotesProjection.MIRRORED
+
+    def set_notes_projection(
+        self, account_id: str, projection: NotesProjection | str
+    ) -> NotesProjection:
+        self._account(account_id)
+        value = NotesProjection(projection)
+        with self.storage.transaction():
+            self.storage.connection.execute(
+                """INSERT INTO app_settings(account_id,key,value) VALUES (?,?,?)
+                ON CONFLICT(account_id,key) DO UPDATE SET value=excluded.value""",
+                (account_id, "notes_projection", value.value),
+            )
+        return value
+
+    def _enqueue(
+        self,
+        account_id: str,
+        entity_type: EntityType,
+        entity_id: str,
+        operation: MutationOperation,
+        payload: Json,
+    ) -> int:
+        return self.storage.enqueue(
+            PendingMutation(None, account_id, entity_type, entity_id, operation, payload)
+        )
+
+    def _snapshot(self, table: str, account_id: str, entity_id: str) -> Json | None:
+        row = self.storage.connection.execute(
+            f"SELECT * FROM {table} WHERE account_id=? AND id=?",  # noqa: S608
+            (account_id, entity_id),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def _intent(
+        self,
+        account_id: str,
+        action: str,
+        entity_type: EntityType,
+        entity_id: str,
+        before: Json | None,
+        after: Json | None,
+    ) -> None:
+        self.storage.connection.execute(
+            "DELETE FROM intents WHERE account_id=? AND state='undone'", (account_id,)
+        )
+        self.storage.connection.execute(
+            """INSERT INTO intents(account_id,action,entity_type,entity_id,before_payload,
+            after_payload,state,created_at) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                account_id,
+                action,
+                entity_type.value,
+                entity_id,
+                json.dumps(before, sort_keys=True) if before is not None else None,
+                json.dumps(after, sort_keys=True) if after is not None else None,
+                "applied",
+                utc_now().isoformat(),
+            ),
+        )
+
+    @staticmethod
+    def _task_body(task: Task, projection: NotesProjection) -> Json:
+        body: Json = {"title": task.title, "status": task.status.value}
+        if projection is not NotesProjection.DISABLED and task.notes is not None:
+            body["notes"] = task.notes
+        if task.due is not None:
+            body["due"] = datetime.combine(task.due, datetime.min.time(), UTC).isoformat()
+        if task.completed_at is not None:
+            body["completed"] = task.completed_at.isoformat()
+        return body
+
+    @staticmethod
+    def _event_body(event: Event) -> Json:
+        body: Json = {
+            "summary": event.summary,
+            "start": _event_point(event.start),
+            "end": _event_point(event.end),
+            "status": event.status.value,
+        }
+        if event.description is not None:
+            body["description"] = event.description
+        if event.location is not None:
+            body["location"] = event.location
+        if event.recurrence:
+            body["recurrence"] = list(event.recurrence)
+        return body
+
+    @staticmethod
+    def _validate_zone(value: str | None) -> None:
+        if value is None:
+            return
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"invalid time zone {value!r}") from exc
+
+    @classmethod
+    def _validate_event_times(cls, start: EventDateTime, end: EventDateTime) -> None:
+        if start.kind is not end.kind:
+            raise ValueError("event start and end must both be dates or both be date-times")
+        cls._validate_zone(start.time_zone)
+        cls._validate_zone(end.time_zone)
+        if start.kind is DateTimeKind.DATE:
+            if start.time_zone or end.time_zone:
+                raise ValueError("all-day events cannot have a time zone")
+        else:
+            start_value = start.value
+            end_value = end.value
+            assert isinstance(start_value, datetime) and isinstance(end_value, datetime)
+            if (start_value.tzinfo is None) != (end_value.tzinfo is None):
+                raise ValueError("timed event endpoints must use matching timezone awareness")
+            if start_value.tzinfo is None and not (start.time_zone and end.time_zone):
+                raise ValueError("naive timed events require explicit IANA time zones")
+        if end.value <= start.value:
+            raise ValueError("event end must be after start")
+
+    def create_task_list(
+        self, account_id: str, title: str, *, position: int = 0, id: str | None = None
+    ) -> TaskList:
+        self._account(account_id)
+        if not title.strip():
+            raise ValueError("task list title is required")
+        item = TaskList(
+            id or _id(), account_id, title.strip(), position=position, metadata=_dirty(Metadata())
+        )
+        with self.storage.transaction():
+            self.storage.upsert_task_list(item)
+            self._enqueue(
+                account_id,
+                EntityType.TASK_LIST,
+                item.id,
+                MutationOperation.CREATE,
+                {"body": {"title": item.title}},
+            )
+            self._intent(
+                account_id,
+                "create",
+                EntityType.TASK_LIST,
+                item.id,
+                None,
+                self._snapshot("task_lists", account_id, item.id),
+            )
+        return item
+
+    def update_task_list(
+        self,
+        account_id: str,
+        list_id: str,
+        *,
+        title: str | None = None,
+        position: int | None = None,
+    ) -> TaskList:
+        current = self._require_task_list(account_id, list_id)
+        if title is not None and not title.strip():
+            raise ValueError("task list title is required")
+        updated = replace(
+            current,
+            title=title.strip() if title is not None else current.title,
+            position=position if position is not None else current.position,
+            metadata=_dirty(current.metadata),
+        )
+        with self.storage.transaction():
+            before = self._snapshot("task_lists", account_id, list_id)
+            self.storage.upsert_task_list(updated)
+            self._enqueue(
+                account_id,
+                EntityType.TASK_LIST,
+                list_id,
+                MutationOperation.UPDATE,
+                {
+                    "body": {"title": updated.title},
+                    "etag": current.metadata.etag,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "update",
+                EntityType.TASK_LIST,
+                list_id,
+                before,
+                self._snapshot("task_lists", account_id, list_id),
+            )
+        return updated
+
+    def delete_task_list(self, account_id: str, list_id: str) -> TaskList:
+        current = self._require_task_list(account_id, list_id)
+        deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
+        with self.storage.transaction():
+            before = self._snapshot("task_lists", account_id, list_id)
+            self.storage.upsert_task_list(deleted)
+            self.storage.connection.execute(
+                """UPDATE tasks SET deleted=1,dirty=1,local_updated_at=?
+                WHERE account_id=? AND list_id=?""",
+                (utc_now().isoformat(), account_id, list_id),
+            )
+            self._enqueue(
+                account_id,
+                EntityType.TASK_LIST,
+                list_id,
+                MutationOperation.DELETE,
+                {"remote_id": current.remote_id, "etag": current.metadata.etag},
+            )
+            self._intent(
+                account_id,
+                "delete",
+                EntityType.TASK_LIST,
+                list_id,
+                before,
+                self._snapshot("task_lists", account_id, list_id),
+            )
+        return deleted
+
+    def _require_task_list(self, account_id: str, list_id: str) -> TaskList:
+        item = self.storage.get_task_list(account_id, list_id)
+        if item is None or item.metadata.deleted:
+            raise NotFoundError(f"Task list {list_id!r} does not exist")
+        return item
+
+    def _require_task(self, account_id: str, task_id: str) -> Task:
+        item = self.storage.get_task(account_id, task_id)
+        if item is None or item.metadata.deleted:
+            raise NotFoundError(f"Task {task_id!r} does not exist")
+        return item
+
+    def create_task(
+        self,
+        account_id: str,
+        list_id: str,
+        title: str,
+        *,
+        notes: str | None = None,
+        due: date | None = None,
+        due_time_zone: str | None = None,
+        priority: TaskPriority | str = TaskPriority.NONE,
+        parent_id: str | None = None,
+        position: str | None = None,
+        id: str | None = None,
+    ) -> Task:
+        self._require_task_list(account_id, list_id)
+        if not title.strip():
+            raise ValueError("task title is required")
+        if isinstance(due, datetime):
+            raise ValueError("task due values are date-only")
+        self._validate_zone(due_time_zone)
+        if due is None and due_time_zone is not None:
+            raise ValueError("a due time zone requires a due date")
+        if parent_id is not None:
+            parent = self._require_task(account_id, parent_id)
+            if parent.list_id != list_id:
+                raise ValueError("a task parent must be in the same list")
+        task = Task(
+            id=id or _id(),
+            account_id=account_id,
+            list_id=list_id,
+            title=title.strip(),
+            notes=notes,
+            due=due,
+            parent_id=parent_id,
+            position=position,
+            metadata=_dirty(Metadata()),
+            priority=TaskPriority(priority),
+            due_time_zone=due_time_zone,
+        )
+        with self.storage.transaction():
+            self.storage.upsert_task(task)
+            self._enqueue(
+                account_id,
+                EntityType.TASK,
+                task.id,
+                MutationOperation.CREATE,
+                {
+                    "list_id": list_id,
+                    "body": self._task_body(task, self.notes_projection(account_id)),
+                    "parent": parent_id,
+                    "previous": position,
+                },
+            )
+            self._intent(
+                account_id,
+                "create",
+                EntityType.TASK,
+                task.id,
+                None,
+                self._snapshot("tasks", account_id, task.id),
+            )
+        return task
+
+    def update_task(
+        self,
+        account_id: str,
+        task_id: str,
+        *,
+        title: str | None = None,
+        notes: str | None | _Unset = _UNSET,
+        due: date | None = None,
+        clear_due: bool = False,
+        due_time_zone: str | None = None,
+        priority: TaskPriority | str | None = None,
+    ) -> Task:
+        current = self._require_task(account_id, task_id)
+        if title is not None and not title.strip():
+            raise ValueError("task title is required")
+        if isinstance(due, datetime):
+            raise ValueError("task due values are date-only")
+        next_due = None if clear_due else (due if due is not None else current.due)
+        next_zone = due_time_zone if due_time_zone is not None else current.due_time_zone
+        if clear_due:
+            next_zone = None
+        self._validate_zone(next_zone)
+        if next_due is None and next_zone is not None:
+            raise ValueError("a due time zone requires a due date")
+        updated = replace(
+            current,
+            title=title.strip() if title is not None else current.title,
+            notes=current.notes if isinstance(notes, _Unset) else notes,
+            due=next_due,
+            due_time_zone=next_zone,
+            priority=TaskPriority(priority) if priority is not None else current.priority,
+            metadata=_dirty(current.metadata),
+        )
+        with self.storage.transaction():
+            before = self._snapshot("tasks", account_id, task_id)
+            self.storage.upsert_task(updated)
+            self._enqueue(
+                account_id,
+                EntityType.TASK,
+                task_id,
+                MutationOperation.UPDATE,
+                {
+                    "list_id": current.list_id,
+                    "body": self._task_body(updated, self.notes_projection(account_id)),
+                    "etag": current.metadata.etag,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "update",
+                EntityType.TASK,
+                task_id,
+                before,
+                self._snapshot("tasks", account_id, task_id),
+            )
+        return updated
+
+    def complete_task(
+        self, account_id: str, task_id: str, *, completed: bool = True
+    ) -> Task:
+        current = self._require_task(account_id, task_id)
+        now = utc_now() if completed else None
+        updated = replace(
+            current,
+            status=TaskStatus.COMPLETED if completed else TaskStatus.NEEDS_ACTION,
+            completed_at=now,
+            metadata=_dirty(current.metadata),
+        )
+        with self.storage.transaction():
+            before = self._snapshot("tasks", account_id, task_id)
+            self.storage.upsert_task(updated)
+            self._enqueue(
+                account_id,
+                EntityType.TASK,
+                task_id,
+                MutationOperation.UPDATE,
+                {
+                    "list_id": current.list_id,
+                    "body": self._task_body(updated, self.notes_projection(account_id)),
+                    "etag": current.metadata.etag,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "complete",
+                EntityType.TASK,
+                task_id,
+                before,
+                self._snapshot("tasks", account_id, task_id),
+            )
+        return updated
+
+    def move_task(
+        self,
+        account_id: str,
+        task_id: str,
+        *,
+        list_id: str | None = None,
+        parent_id: str | None = None,
+        previous_id: str | None = None,
+    ) -> Task:
+        current = self._require_task(account_id, task_id)
+        destination = list_id or current.list_id
+        self._require_task_list(account_id, destination)
+        if parent_id == task_id:
+            raise ValueError("a task cannot parent itself")
+        if parent_id:
+            parent = self._require_task(account_id, parent_id)
+            if parent.list_id != destination:
+                raise ValueError("a task parent must be in the destination list")
+            cursor = parent
+            seen = {task_id}
+            while cursor.parent_id:
+                if cursor.parent_id in seen:
+                    raise ValueError("task move would create a parent cycle")
+                seen.add(cursor.parent_id)
+                cursor = self._require_task(account_id, cursor.parent_id)
+        if previous_id:
+            previous = self._require_task(account_id, previous_id)
+            if previous.list_id != destination or previous.parent_id != parent_id:
+                raise ValueError("previous task must be a sibling in the destination list")
+        updated = replace(
+            current,
+            list_id=destination,
+            parent_id=parent_id,
+            position=previous_id,
+            metadata=_dirty(current.metadata),
+        )
+        with self.storage.transaction():
+            before = self._snapshot("tasks", account_id, task_id)
+            self.storage.upsert_task(updated)
+            self._enqueue(
+                account_id,
+                EntityType.TASK,
+                task_id,
+                MutationOperation.MOVE,
+                {
+                    "source_list_id": current.list_id,
+                    "list_id": destination,
+                    "parent": parent_id,
+                    "previous": previous_id,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "move",
+                EntityType.TASK,
+                task_id,
+                before,
+                self._snapshot("tasks", account_id, task_id),
+            )
+        return updated
+
+    reparent_task = move_task
+    reorder_task = move_task
+
+    def delete_task(self, account_id: str, task_id: str) -> Task:
+        current = self._require_task(account_id, task_id)
+        deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
+        with self.storage.transaction():
+            before = self._snapshot("tasks", account_id, task_id)
+            self.storage.upsert_task(deleted)
+            self._enqueue(
+                account_id,
+                EntityType.TASK,
+                task_id,
+                MutationOperation.DELETE,
+                {
+                    "list_id": current.list_id,
+                    "remote_id": current.remote_id,
+                    "etag": current.metadata.etag,
+                },
+            )
+            self._intent(
+                account_id,
+                "delete",
+                EntityType.TASK,
+                task_id,
+                before,
+                self._snapshot("tasks", account_id, task_id),
+            )
+        return deleted
+
+    def _require_calendar(self, account_id: str, calendar_id: str) -> Calendar:
+        item = self.storage.get_calendar(account_id, calendar_id)
+        if item is None or item.metadata.deleted:
+            raise NotFoundError(f"Calendar {calendar_id!r} does not exist")
+        return item
+
+    def create_calendar(
+        self,
+        account_id: str,
+        summary: str,
+        *,
+        description: str | None = None,
+        time_zone: str | None = None,
+        color: str | None = None,
+        selected: bool = True,
+        id: str | None = None,
+    ) -> Calendar:
+        self._account(account_id)
+        if not summary.strip():
+            raise ValueError("calendar summary is required")
+        self._validate_zone(time_zone)
+        item = Calendar(
+            id or _id(),
+            account_id,
+            summary.strip(),
+            description=description,
+            time_zone=time_zone,
+            color=color,
+            selected=selected,
+            metadata=_dirty(Metadata()),
+        )
+        body = {"summary": item.summary}
+        if description is not None:
+            body["description"] = description
+        if time_zone is not None:
+            body["timeZone"] = time_zone
+        with self.storage.transaction():
+            self.storage.upsert_calendar(item)
+            self._enqueue(
+                account_id,
+                EntityType.CALENDAR,
+                item.id,
+                MutationOperation.CREATE,
+                {"body": body},
+            )
+            self._intent(
+                account_id,
+                "create",
+                EntityType.CALENDAR,
+                item.id,
+                None,
+                self._snapshot("calendars", account_id, item.id),
+            )
+        return item
+
+    def update_calendar(
+        self,
+        account_id: str,
+        calendar_id: str,
+        *,
+        summary: str | None = None,
+        description: str | None | _Unset = _UNSET,
+        time_zone: str | None | _Unset = _UNSET,
+        color: str | None | _Unset = _UNSET,
+        selected: bool | None = None,
+    ) -> Calendar:
+        current = self._require_calendar(account_id, calendar_id)
+        if summary is not None and not summary.strip():
+            raise ValueError("calendar summary is required")
+        if not isinstance(time_zone, _Unset):
+            self._validate_zone(time_zone)
+        updated = replace(
+            current,
+            summary=summary.strip() if summary is not None else current.summary,
+            description=current.description
+            if isinstance(description, _Unset)
+            else description,
+            time_zone=current.time_zone if isinstance(time_zone, _Unset) else time_zone,
+            color=current.color if isinstance(color, _Unset) else color,
+            selected=selected if selected is not None else current.selected,
+            metadata=_dirty(current.metadata),
+        )
+        body: Json = {
+            "summary": updated.summary,
+            "description": updated.description,
+            "timeZone": updated.time_zone,
+        }
+        with self.storage.transaction():
+            before = self._snapshot("calendars", account_id, calendar_id)
+            self.storage.upsert_calendar(updated)
+            self._enqueue(
+                account_id,
+                EntityType.CALENDAR,
+                calendar_id,
+                MutationOperation.UPDATE,
+                {"body": body, "etag": current.metadata.etag, "remote_id": current.remote_id},
+            )
+            self._intent(
+                account_id,
+                "update",
+                EntityType.CALENDAR,
+                calendar_id,
+                before,
+                self._snapshot("calendars", account_id, calendar_id),
+            )
+        return updated
+
+    def delete_calendar(self, account_id: str, calendar_id: str) -> Calendar:
+        current = self._require_calendar(account_id, calendar_id)
+        deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
+        with self.storage.transaction():
+            before = self._snapshot("calendars", account_id, calendar_id)
+            self.storage.upsert_calendar(deleted)
+            self.storage.connection.execute(
+                """UPDATE events SET deleted=1,dirty=1,local_updated_at=?
+                WHERE account_id=? AND calendar_id=?""",
+                (utc_now().isoformat(), account_id, calendar_id),
+            )
+            self._enqueue(
+                account_id,
+                EntityType.CALENDAR,
+                calendar_id,
+                MutationOperation.DELETE,
+                {"remote_id": current.remote_id, "etag": current.metadata.etag},
+            )
+            self._intent(
+                account_id,
+                "delete",
+                EntityType.CALENDAR,
+                calendar_id,
+                before,
+                self._snapshot("calendars", account_id, calendar_id),
+            )
+        return deleted
+
+    def _require_event(self, account_id: str, event_id: str) -> Event:
+        item = self.storage.get_event(account_id, event_id)
+        if item is None or item.metadata.deleted:
+            raise NotFoundError(f"Event {event_id!r} does not exist")
+        return item
+
+    def create_event(
+        self,
+        account_id: str,
+        calendar_id: str,
+        summary: str,
+        start: EventDateTime,
+        end: EventDateTime,
+        *,
+        description: str | None = None,
+        location: str | None = None,
+        recurrence: tuple[str, ...] = (),
+        id: str | None = None,
+    ) -> Event:
+        self._require_calendar(account_id, calendar_id)
+        if not summary.strip():
+            raise ValueError("event summary is required")
+        self._validate_event_times(start, end)
+        event = Event(
+            id or _id(),
+            account_id,
+            calendar_id,
+            summary.strip(),
+            start,
+            end,
+            description=description,
+            location=location,
+            recurrence=recurrence,
+            metadata=_dirty(Metadata()),
+        )
+        with self.storage.transaction():
+            self.storage.upsert_event(event)
+            self._enqueue(
+                account_id,
+                EntityType.EVENT,
+                event.id,
+                MutationOperation.CREATE,
+                {"calendar_id": calendar_id, "body": self._event_body(event)},
+            )
+            self._intent(
+                account_id,
+                "create",
+                EntityType.EVENT,
+                event.id,
+                None,
+                self._snapshot("events", account_id, event.id),
+            )
+        return event
+
+    def update_event(
+        self,
+        account_id: str,
+        event_id: str,
+        *,
+        summary: str | None = None,
+        start: EventDateTime | None = None,
+        end: EventDateTime | None = None,
+        description: str | None | _Unset = _UNSET,
+        location: str | None | _Unset = _UNSET,
+        status: EventStatus | str | None = None,
+        recurrence: tuple[str, ...] | None = None,
+    ) -> Event:
+        current = self._require_event(account_id, event_id)
+        if summary is not None and not summary.strip():
+            raise ValueError("event summary is required")
+        next_start, next_end = start or current.start, end or current.end
+        self._validate_event_times(next_start, next_end)
+        updated = replace(
+            current,
+            summary=summary.strip() if summary is not None else current.summary,
+            start=next_start,
+            end=next_end,
+            description=current.description
+            if isinstance(description, _Unset)
+            else description,
+            location=current.location if isinstance(location, _Unset) else location,
+            status=EventStatus(status) if status is not None else current.status,
+            recurrence=recurrence if recurrence is not None else current.recurrence,
+            metadata=_dirty(current.metadata),
+        )
+        with self.storage.transaction():
+            before = self._snapshot("events", account_id, event_id)
+            self.storage.upsert_event(updated)
+            self._enqueue(
+                account_id,
+                EntityType.EVENT,
+                event_id,
+                MutationOperation.UPDATE,
+                {
+                    "calendar_id": current.calendar_id,
+                    "body": self._event_body(updated),
+                    "etag": current.metadata.etag,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "update",
+                EntityType.EVENT,
+                event_id,
+                before,
+                self._snapshot("events", account_id, event_id),
+            )
+        return updated
+
+    def move_event(self, account_id: str, event_id: str, calendar_id: str) -> Event:
+        current = self._require_event(account_id, event_id)
+        self._require_calendar(account_id, calendar_id)
+        updated = replace(
+            current, calendar_id=calendar_id, metadata=_dirty(current.metadata)
+        )
+        with self.storage.transaction():
+            before = self._snapshot("events", account_id, event_id)
+            self.storage.upsert_event(updated)
+            self._enqueue(
+                account_id,
+                EntityType.EVENT,
+                event_id,
+                MutationOperation.MOVE,
+                {
+                    "calendar_id": current.calendar_id,
+                    "destination": calendar_id,
+                    "remote_id": current.remote_id,
+                },
+            )
+            self._intent(
+                account_id,
+                "move",
+                EntityType.EVENT,
+                event_id,
+                before,
+                self._snapshot("events", account_id, event_id),
+            )
+        return updated
+
+    def respond_event(
+        self, account_id: str, event_id: str, response_status: ResponseStatus
+    ) -> PendingMutation:
+        current = self._require_event(account_id, event_id)
+        if response_status not in {"accepted", "declined", "tentative", "needsAction"}:
+            raise ValueError("invalid RSVP response")
+        payload = {
+            "calendar_id": current.calendar_id,
+            "response_status": response_status,
+            "remote_id": current.remote_id,
+            "etag": current.metadata.etag,
+        }
+        with self.storage.transaction():
+            mutation_id = self._enqueue(
+                account_id,
+                EntityType.EVENT,
+                event_id,
+                MutationOperation.RESPOND,
+                payload,
+            )
+        return replace(
+            PendingMutation(
+                mutation_id,
+                account_id,
+                EntityType.EVENT,
+                event_id,
+                MutationOperation.RESPOND,
+                payload,
+            )
+        )
+
+    def respond_events(
+        self, account_id: str, event_ids: list[str], response_status: ResponseStatus
+    ) -> tuple[PendingMutation, ...]:
+        with self.storage.transaction():
+            return tuple(
+                self.respond_event(account_id, event_id, response_status)
+                for event_id in event_ids
+            )
+
+    def delete_event(self, account_id: str, event_id: str) -> Event:
+        current = self._require_event(account_id, event_id)
+        deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
+        with self.storage.transaction():
+            before = self._snapshot("events", account_id, event_id)
+            self.storage.upsert_event(deleted)
+            self._enqueue(
+                account_id,
+                EntityType.EVENT,
+                event_id,
+                MutationOperation.DELETE,
+                {
+                    "calendar_id": current.calendar_id,
+                    "remote_id": current.remote_id,
+                    "etag": current.metadata.etag,
+                },
+            )
+            self._intent(
+                account_id,
+                "delete",
+                EntityType.EVENT,
+                event_id,
+                before,
+                self._snapshot("events", account_id, event_id),
+            )
+        return deleted
+
+    def save_search(
+        self, account_id: str, name: str, query: str, *, id: str | None = None
+    ) -> SavedSearch:
+        self._account(account_id)
+        if not name.strip() or not query.strip():
+            raise ValueError("saved search name and query are required")
+        item = SavedSearch(id or _id(), account_id, name.strip(), query.strip(), utc_now())
+        with self.storage.transaction():
+            self.storage.connection.execute(
+                """INSERT INTO saved_searches VALUES (?,?,?,?,?)
+                ON CONFLICT(account_id,name) DO UPDATE SET query=excluded.query""",
+                (item.id, item.account_id, item.name, item.query, item.created_at.isoformat()),
+            )
+        row = self.storage.connection.execute(
+            "SELECT * FROM saved_searches WHERE account_id=? AND name=?",
+            (account_id, item.name),
+        ).fetchone()
+        assert row is not None
+        return SavedSearch(
+            row["id"],
+            row["account_id"],
+            row["name"],
+            row["query"],
+            datetime.fromisoformat(row["created_at"]),
+        )
+
+    def list_saved_searches(self, account_id: str) -> tuple[SavedSearch, ...]:
+        rows = self.storage.connection.execute(
+            "SELECT * FROM saved_searches WHERE account_id=? ORDER BY name", (account_id,)
+        )
+        return tuple(
+            SavedSearch(
+                row["id"],
+                row["account_id"],
+                row["name"],
+                row["query"],
+                datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        )
+
+    def delete_saved_search(self, account_id: str, search_id: str) -> None:
+        with self.storage.transaction():
+            cursor = self.storage.connection.execute(
+                "DELETE FROM saved_searches WHERE account_id=? AND id=?",
+                (account_id, search_id),
+            )
+            if cursor.rowcount == 0:
+                raise NotFoundError(f"Saved search {search_id!r} does not exist")
+
+    @staticmethod
+    def _score(title: str, text: str, body: str | None = None) -> int:
+        if not text:
+            return 1
+        needle, candidate = text.casefold(), title.casefold()
+        if candidate == needle:
+            return 100
+        if candidate.startswith(needle):
+            return 80
+        if needle in candidate:
+            return 60
+        return 20 if body and needle in body.casefold() else 0
+
+    def search(
+        self, account_id: str, query: str, *, today: date | None = None, limit: int = 50
+    ) -> tuple[SearchResult, ...]:
+        parsed = parse_palette_query(query)
+        lists = {item.id: item.title for item in self.storage.list_task_lists(account_id)}
+        calendars = {item.id: item.summary for item in self.storage.list_calendars(account_id)}
+        results: list[SearchResult] = []
+        for task in self.storage.list_tasks(account_id):
+            if matches_task(
+                task,
+                parsed,
+                today=today,
+                metadata=task,
+                list_name=lists.get(task.list_id),
+            ):
+                results.append(
+                    SearchResult(
+                        "task",
+                        task,
+                        self._score(
+                            task.title,
+                            parsed.text,
+                            task.notes if parsed.search_body else None,
+                        ),
+                    )
+                )
+        for event in self.storage.list_events(account_id):
+            if matches_event(
+                event, parsed, calendar_name=calendars.get(event.calendar_id), today=today
+            ):
+                body = " ".join(value for value in (event.description, event.location) if value)
+                results.append(
+                    SearchResult(
+                        "event",
+                        event,
+                        self._score(
+                            event.summary,
+                            parsed.text,
+                            body if parsed.search_body else None,
+                        ),
+                    )
+                )
+        for calendar in self.storage.list_calendars(account_id):
+            if matches_calendar_result(calendar, parsed):
+                results.append(
+                    SearchResult(
+                        "calendar", calendar, self._score(calendar.summary, parsed.text)
+                    )
+                )
+        results.sort(key=lambda result: (-result.score, result.kind, result.item.id))
+        return tuple(results[:limit])
+
+    def run_saved_search(
+        self, account_id: str, search_id: str, *, today: date | None = None
+    ) -> tuple[SearchResult, ...]:
+        item = next(
+            (saved for saved in self.list_saved_searches(account_id) if saved.id == search_id),
+            None,
+        )
+        if item is None:
+            raise NotFoundError(f"Saved search {search_id!r} does not exist")
+        return self.search(account_id, item.query, today=today)
+
+    def link_task_event(
+        self, account_id: str, task_id: str, event_id: str
+    ) -> TaskEventLink:
+        self._require_task(account_id, task_id)
+        self._require_event(account_id, event_id)
+        created = utc_now()
+        with self.storage.transaction():
+            self.storage.connection.execute(
+                "INSERT OR IGNORE INTO task_event_links VALUES (?,?,?,?)",
+                (account_id, task_id, event_id, created.isoformat()),
+            )
+        return TaskEventLink(account_id, task_id, event_id, created)
+
+    def schedule_task(
+        self,
+        account_id: str,
+        task_id: str,
+        calendar_id: str,
+        start: EventDateTime,
+        end: EventDateTime,
+        *,
+        summary: str | None = None,
+    ) -> tuple[Event, TaskEventLink]:
+        """Create a calendar block and its durable local task link atomically."""
+        task = self._require_task(account_id, task_id)
+        with self.storage.transaction():
+            event = self.create_event(
+                account_id,
+                calendar_id,
+                summary or task.title,
+                start,
+                end,
+                description=task.notes,
+            )
+            link = self.link_task_event(account_id, task_id, event.id)
+        return event, link
+
+    def unlink_task_event(self, account_id: str, task_id: str, event_id: str) -> None:
+        with self.storage.transaction():
+            self.storage.connection.execute(
+                "DELETE FROM task_event_links WHERE account_id=? AND task_id=? AND event_id=?",
+                (account_id, task_id, event_id),
+            )
+
+    def list_task_event_links(
+        self, account_id: str, *, orphaned_only: bool = False
+    ) -> tuple[TaskEventLink, ...]:
+        rows = self.storage.connection.execute(
+            """SELECT l.*,
+            (t.id IS NULL OR t.deleted=1 OR e.id IS NULL OR e.deleted=1) AS orphaned
+            FROM task_event_links l
+            LEFT JOIN tasks t ON t.account_id=l.account_id AND t.id=l.task_id
+            LEFT JOIN events e ON e.account_id=l.account_id AND e.id=l.event_id
+            WHERE l.account_id=? ORDER BY l.created_at""",
+            (account_id,),
+        )
+        links = tuple(
+            TaskEventLink(
+                row["account_id"],
+                row["task_id"],
+                row["event_id"],
+                datetime.fromisoformat(row["created_at"]),
+                bool(row["orphaned"]),
+            )
+            for row in rows
+        )
+        return tuple(link for link in links if link.orphaned) if orphaned_only else links
+
+    def orphaned_task_event_links(self, account_id: str) -> tuple[TaskEventLink, ...]:
+        return self.list_task_event_links(account_id, orphaned_only=True)
+
+    def quick_capture(
+        self,
+        account_id: str,
+        text: str,
+        requested_kind: QuickCaptureKind,
+        *,
+        task_list_id: str | None = None,
+        calendar_id: str | None = None,
+        preferences: QuickCapturePreferences | None = None,
+        disabled_recognition_ids: tuple[str, ...] = (),
+        now: datetime | None = None,
+        time_zone: str | None = None,
+    ) -> Task | Event:
+        parsed = parse_quick_capture(
+            text, requested_kind, preferences, disabled_recognition_ids, now
+        )
+        title = parsed.parsed_title or parsed.raw_title
+        if parsed.kind == "task":
+            if task_list_id is None:
+                raise ValueError("quick-captured tasks require a task list")
+            return self.create_task(
+                account_id,
+                task_list_id,
+                title,
+                due=date.fromisoformat(parsed.date) if parsed.date else None,
+                due_time_zone=time_zone if parsed.date else None,
+                priority=TaskPriority(parsed.task_priority),
+            )
+        if calendar_id is None:
+            raise ValueError("quick-captured events require a calendar")
+        if not parsed.event_ready or parsed.date is None:
+            raise ValueError("quick-captured events require a date")
+        return self._event_from_capture(account_id, calendar_id, title, parsed, time_zone)
+
+    def _event_from_capture(
+        self,
+        account_id: str,
+        calendar_id: str,
+        title: str,
+        parsed: QuickCaptureResult,
+        time_zone: str | None,
+    ) -> Event:
+        day = date.fromisoformat(parsed.date or "")
+        if parsed.all_day:
+            start = EventDateTime(DateTimeKind.DATE, day)
+            end = EventDateTime(DateTimeKind.DATE, day + timedelta(days=1))
+        else:
+            if not parsed.time:
+                raise ValueError("timed quick capture requires a time")
+            clock = datetime.strptime(parsed.time, "%H:%M").time()
+            start_value = datetime.combine(day, clock)
+            if time_zone is None:
+                raise ValueError("timed quick capture requires an IANA time zone")
+            zone = ZoneInfo(time_zone)
+            start_value = start_value.replace(tzinfo=zone)
+            start = EventDateTime(DateTimeKind.DATETIME, start_value, time_zone)
+            end = EventDateTime(
+                DateTimeKind.DATETIME,
+                start_value + timedelta(minutes=parsed.event_duration_minutes),
+                time_zone,
+            )
+        recurrence = (parsed.recurrence.rrule,) if parsed.recurrence else ()
+        return self.create_event(
+            account_id, calendar_id, title, start, end, recurrence=recurrence
+        )
+
+    @staticmethod
+    def preview_import(filename: str, source: str | bytes) -> ImportPreview:
+        return parse_import(filename, source)
+
+    def apply_import(
+        self,
+        account_id: str,
+        preview: ImportPreview,
+        *,
+        default_task_list_id: str | None = None,
+        default_calendar_id: str | None = None,
+    ) -> ImportApplyResult:
+        if preview.errors or any(row.errors or row.record is None for row in preview.rows):
+            raise ValueError("cannot apply an import preview containing errors")
+        records = tuple(row.record for row in preview.rows if row.record is not None)
+        tasks: list[Task] = []
+        events: list[Event] = []
+        with self.storage.transaction():
+            for record in records:
+                if isinstance(record, ImportedTask):
+                    list_id = self._resolve_list(account_id, record, default_task_list_id)
+                    tasks.append(
+                        self.create_task(
+                            account_id,
+                            list_id,
+                            record.title,
+                            notes=record.notes,
+                            due=date.fromisoformat(record.due) if record.due else None,
+                            priority=TaskPriority(record.priority),
+                        )
+                    )
+                else:
+                    calendar_id = self._resolve_calendar(
+                        account_id, record, default_calendar_id
+                    )
+                    events.append(self._create_imported_event(account_id, calendar_id, record))
+        return ImportApplyResult(tuple(tasks), tuple(events))
+
+    def _resolve_list(
+        self, account_id: str, record: ImportedTask, default: str | None
+    ) -> str:
+        if record.list:
+            match = next(
+                (
+                    item
+                    for item in self.storage.list_task_lists(account_id)
+                    if item.id == record.list or item.title.casefold() == record.list.casefold()
+                ),
+                None,
+            )
+            if match:
+                return match.id
+        if default:
+            self._require_task_list(account_id, default)
+            return default
+        raise ValueError(f"no task list resolved for imported task {record.title!r}")
+
+    def _resolve_calendar(
+        self, account_id: str, record: ImportedEvent, default: str | None
+    ) -> str:
+        if record.calendar:
+            match = next(
+                (
+                    item
+                    for item in self.storage.list_calendars(account_id)
+                    if item.id == record.calendar
+                    or item.summary.casefold() == record.calendar.casefold()
+                ),
+                None,
+            )
+            if match:
+                return match.id
+        if default:
+            self._require_calendar(account_id, default)
+            return default
+        raise ValueError(f"no calendar resolved for imported event {record.title!r}")
+
+    def _create_imported_event(
+        self, account_id: str, calendar_id: str, record: ImportedEvent
+    ) -> Event:
+        if record.all_day:
+            start = EventDateTime(DateTimeKind.DATE, date.fromisoformat(record.start))
+            end = EventDateTime(DateTimeKind.DATE, date.fromisoformat(record.end))
+        else:
+            start_value = datetime.fromisoformat(record.start.replace("Z", "+00:00"))
+            end_value = datetime.fromisoformat(record.end.replace("Z", "+00:00"))
+            start = EventDateTime(DateTimeKind.DATETIME, start_value, record.time_zone)
+            end = EventDateTime(DateTimeKind.DATETIME, end_value, record.time_zone)
+        return self.create_event(
+            account_id,
+            calendar_id,
+            record.title,
+            start,
+            end,
+            description=record.description,
+            location=record.location,
+            recurrence=record.recurrence,
+        )
+
+    def resolve_conflict(
+        self,
+        account_id: str,
+        conflict_id: int,
+        resolution: ConflictStatus | str,
+        *,
+        merged_payload: Json | None = None,
+    ) -> Conflict:
+        status = ConflictStatus(resolution)
+        if status is ConflictStatus.OPEN:
+            raise ValueError("conflict resolution cannot be open")
+        conflict = next(
+            (
+                item
+                for item in self.storage.list_conflicts(account_id, open_only=False)
+                if item.id == conflict_id
+            ),
+            None,
+        )
+        if conflict is None:
+            raise NotFoundError(f"Conflict {conflict_id} does not exist")
+        if conflict.status is not ConflictStatus.OPEN:
+            raise ConflictError(f"Conflict {conflict_id} is already resolved")
+        payload = (
+            conflict.local_payload
+            if status is ConflictStatus.KEEP_LOCAL
+            else conflict.remote_payload
+            if status is ConflictStatus.KEEP_REMOTE
+            else merged_payload
+        )
+        if status is ConflictStatus.MERGED and payload is None:
+            raise ValueError("merged conflict resolution requires merged_payload")
+        with self.storage.transaction():
+            if status in {ConflictStatus.KEEP_LOCAL, ConflictStatus.MERGED}:
+                self._enqueue(
+                    account_id,
+                    conflict.entity_type,
+                    conflict.entity_id,
+                    MutationOperation.UPDATE,
+                    payload or {},
+                )
+            self.storage.resolve_conflict(account_id, conflict_id, status)
+        return replace(conflict, status=status, resolved_at=utc_now())
+
+    def _restore_snapshot(
+        self, table: str, account_id: str, entity_id: str, snapshot: Json | None
+    ) -> None:
+        if snapshot is None:
+            self.storage.connection.execute(
+                f"DELETE FROM {table} WHERE account_id=? AND id=?",  # noqa: S608
+                (account_id, entity_id),
+            )
+            return
+        columns = tuple(snapshot)
+        updates = ",".join(f"{column}=?" for column in columns)
+        self.storage.connection.execute(
+            f"UPDATE {table} SET {updates} WHERE account_id=? AND id=?",  # noqa: S608
+            (*snapshot.values(), account_id, entity_id),
+        )
+
+    def _intent_change(self, account_id: str, *, redo: bool) -> int | None:
+        state, next_state = ("undone", "applied") if redo else ("applied", "undone")
+        order = "ASC" if redo else "DESC"
+        row = self.storage.connection.execute(
+            f"""SELECT * FROM intents WHERE account_id=? AND state=?
+            ORDER BY id {order} LIMIT 1""",  # noqa: S608
+            (account_id, state),
+        ).fetchone()
+        if row is None:
+            return None
+        entity_type = EntityType(row["entity_type"])
+        table = {
+            EntityType.TASK_LIST: "task_lists",
+            EntityType.TASK: "tasks",
+            EntityType.CALENDAR: "calendars",
+            EntityType.EVENT: "events",
+        }[entity_type]
+        target_raw = row["after_payload"] if redo else row["before_payload"]
+        target = json.loads(target_raw) if target_raw else None
+        with self.storage.transaction():
+            self._restore_snapshot(table, account_id, row["entity_id"], target)
+            self.storage.connection.execute(
+                "DELETE FROM outbox WHERE account_id=? AND entity_type=? AND entity_id=?",
+                (account_id, entity_type.value, row["entity_id"]),
+            )
+            operation = (
+                MutationOperation.DELETE
+                if target is None
+                else MutationOperation.CREATE
+                if (row["before_payload"] is None and redo)
+                else MutationOperation.UPDATE
+            )
+            # Undoing an unpushed create only cancels that create; there is
+            # nothing at Google to delete.
+            if not (target is None and row["before_payload"] is None and not redo):
+                self._enqueue(
+                    account_id,
+                    entity_type,
+                    row["entity_id"],
+                    operation,
+                    self._payload_for_snapshot(entity_type, target),
+                )
+            self.storage.connection.execute(
+                "UPDATE intents SET state=? WHERE id=?", (next_state, row["id"])
+            )
+        return int(row["id"])
+
+    @staticmethod
+    def _payload_for_snapshot(entity_type: EntityType, snapshot: Json | None) -> Json:
+        if snapshot is None:
+            return {}
+        remote_id = snapshot.get("remote_id")
+        if entity_type is EntityType.TASK_LIST:
+            return {"remote_id": remote_id, "body": {"title": snapshot["title"]}}
+        if entity_type is EntityType.TASK:
+            body: Json = {
+                "title": snapshot["title"],
+                "status": snapshot["status"],
+            }
+            if snapshot.get("notes") is not None:
+                body["notes"] = snapshot["notes"]
+            if snapshot.get("due") is not None:
+                body["due"] = snapshot["due"]
+            return {
+                "remote_id": remote_id,
+                "list_id": snapshot["list_id"],
+                "body": body,
+            }
+        if entity_type is EntityType.CALENDAR:
+            return {
+                "remote_id": remote_id,
+                "body": {
+                    "summary": snapshot["summary"],
+                    "description": snapshot.get("description"),
+                    "timeZone": snapshot.get("time_zone"),
+                },
+            }
+        return {
+            "remote_id": remote_id,
+            "calendar_id": snapshot["calendar_id"],
+            "body": {
+                "summary": snapshot["summary"],
+                "start": {
+                    snapshot["start_kind"]: snapshot["start_value"],
+                    **(
+                        {"timeZone": snapshot["start_time_zone"]}
+                        if snapshot.get("start_time_zone")
+                        else {}
+                    ),
+                },
+                "end": {
+                    snapshot["end_kind"]: snapshot["end_value"],
+                    **(
+                        {"timeZone": snapshot["end_time_zone"]}
+                        if snapshot.get("end_time_zone")
+                        else {}
+                    ),
+                },
+            },
+        }
+
+    def undo(self, account_id: str) -> int | None:
+        return self._intent_change(account_id, redo=False)
+
+    def redo(self, account_id: str) -> int | None:
+        return self._intent_change(account_id, redo=True)
+
+    def diagnostics(self) -> Json:
+        result = dict(self.storage.diagnostics())
+        result["path"] = "<redacted>"
+        result["accounts"] = len(self.storage.list_accounts())
+        result["saved_searches"] = self.storage.connection.execute(
+            "SELECT count(*) FROM saved_searches"
+        ).fetchone()[0]
+        result["orphaned_links"] = self.storage.connection.execute(
+            """SELECT count(*) FROM task_event_links l
+            LEFT JOIN tasks t ON t.account_id=l.account_id AND t.id=l.task_id
+            LEFT JOIN events e ON e.account_id=l.account_id AND e.id=l.event_id
+            WHERE t.id IS NULL OR t.deleted=1 OR e.id IS NULL OR e.deleted=1"""
+        ).fetchone()[0]
+        return result
+
+
+Application = ApplicationService
+

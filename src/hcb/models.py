@@ -54,6 +54,23 @@ class ConflictStatus(StrEnum):
     MERGED = "merged"
 
 
+class TaskPriority(StrEnum):
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class NotesProjection(StrEnum):
+    DISABLED = "disabled"
+    NOTES_ONLY = "notes-only"
+    MIRRORED = "mirrored"
+
+
+NotesProjectionMode = NotesProjection
+Priority = TaskPriority
+
+
 @dataclass(frozen=True, slots=True)
 class Account:
     id: str
@@ -97,6 +114,8 @@ class Task:
     position: str | None = None
     remote_id: str | None = None
     metadata: Metadata = field(default_factory=Metadata)
+    priority: TaskPriority = TaskPriority.NONE
+    due_time_zone: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

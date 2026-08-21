@@ -27,12 +27,13 @@ from .models import (
     SyncCursor,
     Task,
     TaskList,
+    TaskPriority,
     TaskStatus,
     utc_now,
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -106,6 +107,33 @@ CREATE TABLE reminder_state (
 );
 """
 
+_MIGRATION_2 = """
+ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE tasks ADD COLUMN due_time_zone TEXT;
+CREATE TABLE saved_searches (
+    id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, query TEXT NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(account_id, name)
+);
+CREATE TABLE task_event_links (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    task_id TEXT NOT NULL, event_id TEXT NOT NULL, created_at TEXT NOT NULL,
+    PRIMARY KEY(account_id, task_id, event_id)
+);
+CREATE TABLE intents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+    before_payload TEXT, after_payload TEXT, state TEXT NOT NULL DEFAULT 'applied',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX intents_account_state ON intents(account_id, state, id);
+CREATE TABLE app_settings (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(account_id, key)
+);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -148,7 +176,12 @@ class Storage:
         if version == 0:
             with self.transaction():
                 self.connection.executescript(_SCHEMA)
-                self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                self.connection.execute("PRAGMA user_version = 1")
+            version = 1
+        if version == 1:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_2)
+                self.connection.execute("PRAGMA user_version = 2")
 
     def close(self) -> None:
         self.connection.close()
@@ -288,7 +321,11 @@ class Storage:
 
     def upsert_task(self, task: Task) -> None:
         self.connection.execute(
-            """INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """INSERT INTO tasks(
+                id,account_id,list_id,title,notes,status,due,completed_at,parent_id,
+                position,remote_id,etag,remote_updated_at,local_updated_at,deleted,dirty,
+                priority,due_time_zone
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(account_id,id) DO UPDATE SET list_id=excluded.list_id,
             title=excluded.title, notes=excluded.notes, status=excluded.status,
             due=excluded.due, completed_at=excluded.completed_at,
@@ -296,7 +333,8 @@ class Storage:
             remote_id=excluded.remote_id, etag=excluded.etag,
             remote_updated_at=excluded.remote_updated_at,
             local_updated_at=excluded.local_updated_at, deleted=excluded.deleted,
-            dirty=excluded.dirty""",
+            dirty=excluded.dirty, priority=excluded.priority,
+            due_time_zone=excluded.due_time_zone""",
             (
                 task.id,
                 task.account_id,
@@ -310,6 +348,8 @@ class Storage:
                 task.position,
                 task.remote_id,
                 *self._meta_values(task.metadata),
+                task.priority.value,
+                task.due_time_zone,
             ),
         )
 
@@ -327,6 +367,8 @@ class Storage:
             position=row["position"],
             remote_id=row["remote_id"],
             metadata=_metadata(row),
+            priority=TaskPriority(row["priority"]),
+            due_time_zone=row["due_time_zone"],
         )
 
     def get_task(self, account_id: str, task_id: str) -> Task | None:
