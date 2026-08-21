@@ -9,3 +9,5 @@ web/.cache/
 *.log
 AGENTS.md
 CLAUDE.md
+khal/
+gcalcli/
