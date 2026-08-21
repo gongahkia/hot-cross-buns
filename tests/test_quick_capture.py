@@ -60,7 +60,10 @@ def test_preserves_task_time_while_extracting_metadata() -> None:
     assert result.recurrence is not None
     assert result.recurrence.rrule == "RRULE:FREQ=DAILY;INTERVAL=1"
     assert result.parsed_title == "Call Sam at 5pm"
-    assert any(item.label == "17:00 remains in task title" and item.removable is False for item in result.recognitions)
+    time_note = by_prefix(result, "time")
+    assert time_note is not None
+    assert time_note.label == "17:00 remains in task title"
+    assert time_note.removable is False
     assert result.event_ready is True
 
 

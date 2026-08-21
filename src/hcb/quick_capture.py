@@ -8,9 +8,10 @@ fields the same way JavaScript ``Date`` local getters do.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, Sequence
+from typing import Literal
 
 QuickCaptureKind = Literal["task", "event"]
 TaskPriority = Literal["none", "low", "medium", "high"]
@@ -53,6 +54,12 @@ _MONTHS = (
     "november",
     "december",
 )
+_FREQUENCIES: dict[str, RecurrenceFrequency] = {
+    "day": "daily",
+    "week": "weekly",
+    "month": "monthly",
+    "year": "yearly",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,7 +166,9 @@ def _use_span(
     return True
 
 
-def _try_datetime(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> datetime | None:
+def _try_datetime(
+    year: int, month: int, day: int, hour: int = 0, minute: int = 0
+) -> datetime | None:
     try:
         return datetime(year, month, day, hour, minute)
     except ValueError:
@@ -201,15 +210,15 @@ def _parse_date(text: str, now: datetime) -> tuple[str, _Span] | None:
         month = _MONTHS.index(named.group(1).lower()) + 1
         day = int(named.group(2))
         year = int(named.group(3)) if named.group(3) else now.year
-        date = _try_datetime(year, month, day)
-        if date is None:
+        named_date = _try_datetime(year, month, day)
+        if named_date is None:
             return None
-        if named.group(3) is None and date < datetime(now.year, now.month, now.day):
-            year += 1
-            date = _try_datetime(year, month, day)
-            if date is None:
+        if named.group(3) is None and named_date < datetime(now.year, now.month, now.day):
+            rolled = _try_datetime(year + 1, month, day)
+            if rolled is None:
                 return None
-        return _local_date(date), _span_for(named, "date", _local_date(date))
+            named_date = rolled
+        return _local_date(named_date), _span_for(named, "date", _local_date(named_date))
     return None
 
 
@@ -234,7 +243,11 @@ def _parse_time(text: str) -> tuple[str, _Span] | None:
 
 def _remove_spans(text: str, spans: Sequence[_Span]) -> str:
     result = text
-    removable = sorted((span for span in spans if span.removable), key=lambda span: span.start, reverse=True)
+    removable = sorted(
+        (span for span in spans if span.removable),
+        key=lambda span: span.start,
+        reverse=True,
+    )
     for span in removable:
         result = f"{result[: span.start]}{result[span.start + span.length :]}"
     return re.sub(r"\s+", " ", result).strip()
@@ -256,6 +269,7 @@ def parse_quick_capture(
 
     task_alias = _alias_match(text, preferences.task_aliases)
     event_alias = _alias_match(text, preferences.event_aliases)
+    first_alias: tuple[QuickCaptureKind, re.Match[str], str] | None
     if task_alias is None or (
         event_alias is not None and event_alias.start() < task_alias.start()
     ):
@@ -270,14 +284,15 @@ def parse_quick_capture(
 
     task_priority: TaskPriority = "none"
     if kind == "task":
-        for aliases, priority, label in (
+        priorities: tuple[tuple[tuple[str, ...], TaskPriority, str], ...] = (
             (preferences.high_priority_aliases, "high", "High priority"),
             (preferences.medium_priority_aliases, "medium", "Medium priority"),
             (preferences.low_priority_aliases, "low", "Low priority"),
-        ):
-            match = _alias_match(text, aliases)
-            if match and _use_span(
-                spans, disabled, _span_for(match, "priority", label), recognitions
+        )
+        for aliases, priority, label in priorities:
+            priority_match = _alias_match(text, aliases)
+            if priority_match and _use_span(
+                spans, disabled, _span_for(priority_match, "priority", label), recognitions
             ):
                 task_priority = priority
                 break
@@ -287,7 +302,7 @@ def parse_quick_capture(
     if recurrence_match:
         interval = int(recurrence_match.group(1) or "1")
         unit = recurrence_match.group(2).lower()
-        frequency = f"{unit}ly".replace("dayly", "daily")
+        frequency = _FREQUENCIES[unit]
         label = (
             f"Repeats every {unit}"
             if interval == 1
@@ -297,7 +312,7 @@ def parse_quick_capture(
             spans, disabled, _span_for(recurrence_match, "recurrence", label), recognitions
         ):
             recurrence = QuickCaptureRecurrence(
-                frequency=frequency,  # type: ignore[arg-type]
+                frequency=frequency,
                 interval=interval,
                 rrule=f"RRULE:FREQ={frequency.upper()};INTERVAL={interval}",
             )

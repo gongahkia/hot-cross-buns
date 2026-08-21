@@ -6,9 +6,10 @@ import dataclasses
 import json
 import os
 import sys
+from collections.abc import Iterable, Mapping
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Iterable, Mapping, TextIO
+from typing import Any, TextIO
 
 
 def color_enabled(stream: TextIO = sys.stdout, *, requested: bool | None = None) -> bool:
@@ -21,7 +22,10 @@ def color_enabled(stream: TextIO = sys.stdout, *, requested: bool | None = None)
 
 def to_primitive(value: Any) -> Any:
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return {field.name: to_primitive(getattr(value, field.name)) for field in dataclasses.fields(value)}
+        return {
+            field.name: to_primitive(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, (datetime, date)):

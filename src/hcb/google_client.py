@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, cast
@@ -27,7 +28,9 @@ class GoogleGateway(Protocol):
     def list_tasks(
         self, task_list_id: str, *, page_token: str | None = None, updated_min: str | None = None
     ) -> Page: ...
-    def list_calendars(self, *, page_token: str | None = None) -> Page: ...
+    def list_calendars(
+        self, *, page_token: str | None = None, sync_token: str | None = None
+    ) -> Page: ...
     def list_events(
         self,
         calendar_id: str,
@@ -40,7 +43,9 @@ class GoogleGateway(Protocol):
     ) -> Page: ...
 
     def create_task_list(self, body: Json) -> Json: ...
-    def update_task_list(self, task_list_id: str, body: Json, *, etag: str | None = None) -> Json: ...
+    def update_task_list(
+        self, task_list_id: str, body: Json, *, etag: str | None = None
+    ) -> Json: ...
     def delete_task_list(self, task_list_id: str, *, etag: str | None = None) -> None: ...
     def create_task(self, task_list_id: str, body: Json) -> Json: ...
     def update_task(
@@ -91,10 +96,8 @@ def _error_from_http(exc: BaseException) -> GoogleApiError:
     headers = response if isinstance(response, Mapping) else {}
     raw_retry = headers.get("retry-after") or headers.get("Retry-After")
     if raw_retry is not None:
-        try:
+        with suppress(TypeError, ValueError):
             retry_after = float(raw_retry)
-        except (TypeError, ValueError):
-            pass
     reason: str | None = None
     message = f"Google API request failed ({status or 'unknown status'})"
     content = getattr(exc, "content", b"")
@@ -177,11 +180,16 @@ class GoogleApiClient:
         )
         return self._page(self._execute(request))
 
-    def list_calendars(self, *, page_token: str | None = None) -> Page:
+    def list_calendars(
+        self, *, page_token: str | None = None, sync_token: str | None = None
+    ) -> Page:
         return self._page(
             self._execute(
                 self.calendar.calendarList().list(
-                    pageToken=page_token, showDeleted=True, showHidden=True
+                    pageToken=page_token,
+                    syncToken=sync_token,
+                    showDeleted=True,
+                    showHidden=True,
                 )
             )
         )
