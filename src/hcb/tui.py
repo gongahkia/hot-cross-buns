@@ -379,6 +379,10 @@ class ConflictScreen(ModalScreen[None]):
         with Vertical(id="conflict-dialog"):
             yield Label("Sync conflicts", id="dialog-title")
             yield ListView(id="conflict-list")
+            yield Input(
+                placeholder="Remote ID (required when uncertain create was delivered)",
+                id="conflict-remote-id",
+            )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Keep local", id="conflict-local")
                 yield Button("Keep Google", id="conflict-remote")
@@ -407,14 +411,41 @@ class ConflictScreen(ModalScreen[None]):
         if event.button.id == "conflict-close":
             self.dismiss(None)
         elif self.conflict_id is not None and self.hcb.account_id is not None:
+            conflict = next(
+                (
+                    item
+                    for item in self.hcb.runtime.storage.list_conflicts(
+                        self.hcb.account_id
+                    )
+                    if item.id == self.conflict_id
+                ),
+                None,
+            )
+            if conflict is None:
+                return
             resolution = (
                 ConflictStatus.KEEP_LOCAL
                 if event.button.id == "conflict-local"
                 else ConflictStatus.KEEP_REMOTE
             )
-            self.hcb.runtime.application.resolve_conflict(
-                self.hcb.account_id, self.conflict_id, resolution
-            )
+            try:
+                if conflict.local_payload.get("kind") == "uncertain-delivery":
+                    self.hcb.runtime.application.resolve_uncertain_delivery(
+                        self.hcb.account_id,
+                        self.conflict_id,
+                        "retry"
+                        if resolution is ConflictStatus.KEEP_LOCAL
+                        else "delivered",
+                        remote_id=self.query_one("#conflict-remote-id", Input).value.strip()
+                        or None,
+                    )
+                else:
+                    self.hcb.runtime.application.resolve_conflict(
+                        self.hcb.account_id, self.conflict_id, resolution
+                    )
+            except (ValueError, HcbError) as exc:
+                self.hcb.notify(str(exc), severity="error")
+                return
             self.dismiss(None)
             self.hcb.notify("Conflict resolved")
 

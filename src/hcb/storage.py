@@ -23,6 +23,7 @@ from .models import (
     EventStatus,
     Metadata,
     MutationOperation,
+    OutboxDeliveryState,
     PendingMutation,
     Provider,
     ReminderOverride,
@@ -35,7 +36,7 @@ from .models import (
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -180,6 +181,13 @@ CREATE TABLE drive_files (
 );
 """
 
+_MIGRATION_5 = """
+ALTER TABLE outbox ADD COLUMN delivery_state TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE outbox ADD COLUMN request_id TEXT;
+ALTER TABLE outbox ADD COLUMN sending_started_at TEXT;
+CREATE INDEX outbox_delivery_state ON outbox(account_id,delivery_state,id);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -238,6 +246,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_4)
                 self.connection.execute("PRAGMA user_version = 4")
+            version = 4
+        if version == 4:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_5)
+                self.connection.execute("PRAGMA user_version = 5")
 
     def close(self) -> None:
         self.connection.close()
@@ -766,7 +779,8 @@ class Storage:
     def enqueue(self, mutation: PendingMutation) -> int:
         cursor = self.connection.execute(
             """INSERT INTO outbox(account_id,entity_type,entity_id,operation,payload,created_at,
-            attempts,last_error) VALUES (?,?,?,?,?,?,?,?)""",
+            attempts,last_error,delivery_state,request_id,sending_started_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 mutation.account_id,
                 mutation.entity_type.value,
@@ -776,15 +790,32 @@ class Storage:
                 _iso(mutation.created_at),
                 mutation.attempts,
                 mutation.last_error,
+                mutation.delivery_state.value,
+                mutation.request_id,
+                _iso(mutation.sending_started_at),
             ),
         )
         if cursor.lastrowid is None:
             raise RuntimeError("SQLite did not return an outbox id")
         return cursor.lastrowid
 
-    def pending_mutations(self, account_id: str, *, limit: int = 100) -> list[PendingMutation]:
+    def pending_mutations(
+        self,
+        account_id: str,
+        *,
+        limit: int = 100,
+        delivery_state: OutboxDeliveryState | None = None,
+    ) -> list[PendingMutation]:
+        state_sql = " AND delivery_state=?" if delivery_state is not None else ""
+        arguments: tuple[Any, ...] = (
+            (account_id, delivery_state.value, limit)
+            if delivery_state is not None
+            else (account_id, limit)
+        )
         rows = self.connection.execute(
-            "SELECT * FROM outbox WHERE account_id=? ORDER BY id LIMIT ?", (account_id, limit)
+            f"""SELECT * FROM outbox WHERE account_id=?{state_sql}
+            ORDER BY id LIMIT ?""",  # noqa: S608
+            arguments,
         )
         return [
             PendingMutation(
@@ -797,9 +828,57 @@ class Storage:
                 datetime.fromisoformat(row["created_at"]),
                 row["attempts"],
                 row["last_error"],
+                OutboxDeliveryState(row["delivery_state"]),
+                row["request_id"],
+                _datetime(row["sending_started_at"]),
             )
             for row in rows
         ]
+
+    def get_mutation(self, account_id: str, mutation_id: int) -> PendingMutation | None:
+        return next(
+            (
+                item
+                for item in self.pending_mutations(account_id, limit=1_000_000)
+                if item.id == mutation_id
+            ),
+            None,
+        )
+
+    def mark_mutation_sending(
+        self,
+        account_id: str,
+        mutation_id: int,
+        *,
+        request_id: str | None,
+        started_at: datetime,
+    ) -> None:
+        cursor = self.connection.execute(
+            """UPDATE outbox SET delivery_state=?,request_id=?,sending_started_at=?,
+            last_error=NULL WHERE account_id=? AND id=? AND delivery_state=?""",
+            (
+                OutboxDeliveryState.SENDING.value,
+                request_id,
+                _iso(started_at),
+                account_id,
+                mutation_id,
+                OutboxDeliveryState.PENDING.value,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise RuntimeError(f"outbox mutation {mutation_id} is not pending")
+
+    def reset_mutation_pending(self, account_id: str, mutation_id: int, error: str) -> None:
+        self.connection.execute(
+            """UPDATE outbox SET delivery_state=?,sending_started_at=NULL,
+            attempts=attempts+1,last_error=? WHERE account_id=? AND id=?""",
+            (
+                OutboxDeliveryState.PENDING.value,
+                error,
+                account_id,
+                mutation_id,
+            ),
+        )
 
     def complete_mutation(self, account_id: str, mutation_id: int) -> None:
         self.connection.execute(
@@ -807,11 +886,7 @@ class Storage:
         )
 
     def fail_mutation(self, account_id: str, mutation_id: int, error: str) -> None:
-        self.connection.execute(
-            """UPDATE outbox SET attempts=attempts+1,last_error=?
-            WHERE account_id=? AND id=?""",
-            (error, account_id, mutation_id),
-        )
+        self.reset_mutation_pending(account_id, mutation_id, error)
 
     def set_cursor(self, cursor: SyncCursor) -> None:
         self.connection.execute(

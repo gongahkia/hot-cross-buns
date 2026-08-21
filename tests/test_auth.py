@@ -1,9 +1,12 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from hcb.auth import GoogleAuthenticator, TokenStore
 from hcb.models import Account
+from hcb.paths import AppPaths
+from hcb.runtime import Runtime
 from hcb.storage import Storage
 
 
@@ -70,3 +73,35 @@ def test_invalid_client_and_missing_credentials() -> None:
     auth = GoogleAuthenticator(CLIENT_CONFIG, TokenStore(FakeKeyring()))
     with pytest.raises(LookupError):
         auth.credentials("missing")
+
+
+def test_diagnostics_config_and_sqlite_dump_never_contain_credentials(
+    tmp_path: Path,
+) -> None:
+    refresh_token = "refresh-token-sentinel-never-export"
+    access_token = "access-token-sentinel-never-export"
+    backend = FakeKeyring()
+    tokens = TokenStore(backend)
+    tokens.set("account", refresh_token)
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    client_file = tmp_path / "desktop-client.json"
+    client_file.write_text(json.dumps(CLIENT_CONFIG))
+    runtime = Runtime(paths, environ={}, token_store=tokens)
+    runtime.save_onboarding(
+        client_json=str(client_file),
+        account_id="account",
+        email="redacted@example.test",
+        time_zone="UTC",
+        theme="mono",
+        reminders_enabled=False,
+    )
+
+    diagnostics = json.dumps(runtime.application.diagnostics(), sort_keys=True)
+    config_text = paths.config_file.read_text()
+    sqlite_dump = "\n".join(runtime.storage.connection.iterdump())
+    combined = diagnostics + config_text + sqlite_dump
+    assert refresh_token not in combined
+    assert access_token not in combined
+    assert "client_secret" not in config_text
+    assert "redacted@example.test" not in diagnostics
+    runtime.close()

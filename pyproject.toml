@@ -27,6 +27,17 @@ dev = ["pytest", "ruff", "mypy"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/hcb"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/hcb",
+  "/tests",
+  "/tools/benchmark_python.py",
+  "/docs/testing/local-tui-smoke.md",
+  "/docs/testing/live-google-tui-smoke.md",
+  "/pyproject.toml",
+]
+exclude = ["**/__pycache__", "**/*.pyc"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

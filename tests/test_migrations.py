@@ -20,6 +20,9 @@ def _legacy_database(path: Path, version: int) -> None:
     if version >= 3:
         connection.executescript(storage_module._MIGRATION_3)
         connection.execute("PRAGMA user_version = 3")
+    if version >= 4:
+        connection.executescript(storage_module._MIGRATION_4)
+        connection.execute("PRAGMA user_version = 4")
     connection.execute(
         """INSERT INTO accounts(id,email,display_name,provider,enabled,created_at)
         VALUES ('legacy','redacted@example.test',NULL,'google',1,'2026-08-21T00:00:00+00:00')"""
@@ -30,6 +33,14 @@ def _legacy_database(path: Path, version: int) -> None:
             local_updated_at,deleted,dirty
         ) VALUES ('inbox','legacy','Legacy inbox',NULL,0,NULL,NULL,
                   '2026-08-21T00:00:00+00:00',0,0)"""
+    )
+    connection.execute(
+        """INSERT INTO outbox(
+            account_id,entity_type,entity_id,operation,payload,created_at,attempts,last_error
+        ) VALUES (
+            'legacy','task','local-task','create','{"body":{"title":"Legacy intent"}}',
+            '2026-08-21T00:00:00+00:00',0,NULL
+        )"""
     )
     connection.commit()
     connection.close()
@@ -45,11 +56,12 @@ def test_fresh_database_and_repeated_open_are_idempotent(tmp_path: Path) -> None
     for _ in range(3):
         with Storage(path) as reopened:
             assert reopened.get_task_list("fresh", "inbox") is not None
-            assert reopened.connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+            version = reopened.connection.execute("PRAGMA user_version").fetchone()[0]
+            assert version == SCHEMA_VERSION
 
 
-@pytest.mark.parametrize("version", [1, 2, 3])
-def test_v1_v2_v3_migrate_to_current_without_data_loss(
+@pytest.mark.parametrize("version", [1, 2, 3, 4])
+def test_v1_v2_v3_v4_migrate_to_current_without_data_loss(
     tmp_path: Path, version: int
 ) -> None:
     path = tmp_path / f"v{version}.db"
@@ -63,6 +75,13 @@ def test_v1_v2_v3_migrate_to_current_without_data_loss(
             row["name"] for row in migrated.connection.execute("PRAGMA table_info(events)")
         }
         assert "working_location_properties" in columns
+        outbox_columns = {
+            row["name"] for row in migrated.connection.execute("PRAGMA table_info(outbox)")
+        }
+        assert {"delivery_state", "request_id", "sending_started_at"} <= outbox_columns
+        mutation = migrated.pending_mutations("legacy")[0]
+        assert mutation.delivery_state.value == "pending"
+        assert mutation.payload["body"]["title"] == "Legacy intent"
         assert migrated.connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
 
     with Storage(path) as repeated:

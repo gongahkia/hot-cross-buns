@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
-from .errors import AuthenticationRequired, GoogleApiError
+from .errors import AuthenticationRequired, GoogleApiError, RequestNotSentError
 from .google_client import GoogleGateway, Json, Page, rfc3339
 from .models import (
     Calendar,
@@ -18,6 +19,7 @@ from .models import (
     EventStatus,
     Metadata,
     MutationOperation,
+    OutboxDeliveryState,
     PendingMutation,
     ReminderOverride,
     SyncCursor,
@@ -207,10 +209,12 @@ class SyncEngine:
         gateway: GoogleGateway,
         *,
         now: Callable[[], datetime] = utc_now,
+        crash_hook: Callable[[str, PendingMutation], None] | None = None,
     ) -> None:
         self.storage = storage
         self.gateway = gateway
         self.now = now
+        self.crash_hook = crash_hook or (lambda _phase, _mutation: None)
 
     def sync(self, account_id: str) -> SyncResult:
         if self.storage.get_account(account_id) is None:
@@ -439,19 +443,135 @@ class SyncEngine:
             if token is None:
                 return result
 
-    def flush_outbox(self, account_id: str) -> SyncResult:
-        pushed = conflicts = 0
-        for mutation in self.storage.pending_mutations(account_id):
+    @staticmethod
+    def _non_idempotent_create(mutation: PendingMutation) -> bool:
+        if (
+            mutation.operation is MutationOperation.CREATE
+            and mutation.entity_type
+            in {EntityType.TASK, EntityType.TASK_LIST, EntityType.CALENDAR}
+        ):
+            return True
+        return (
+            mutation.entity_type is EntityType.TASK
+            and mutation.operation is MutationOperation.MOVE
+            and bool(mutation.payload.get("source_list_id"))
+            and mutation.payload.get("source_list_id") != mutation.payload.get("list_id")
+        )
+
+    @staticmethod
+    def _event_request_id(mutation: PendingMutation) -> str:
+        identity = (
+            f"{mutation.account_id}\0{mutation.entity_type.value}\0"
+            f"{mutation.entity_id}\0{mutation.operation.value}"
+        )
+        # Google Calendar event IDs accept base32hex characters. A SHA-256 hex
+        # prefix is therefore valid, deterministic, and safely below its limit.
+        return "hcb" + hashlib.sha256(identity.encode()).hexdigest()[:40]
+
+    @staticmethod
+    def _uncertain_payload(mutation: PendingMutation) -> Json:
+        return {
+            "kind": "uncertain-delivery",
+            "mutation": {
+                "entity_type": mutation.entity_type.value,
+                "entity_id": mutation.entity_id,
+                "operation": mutation.operation.value,
+                "payload": mutation.payload,
+                "request_id": mutation.request_id,
+            },
+        }
+
+    def _quarantine_uncertain_create(self, mutation: PendingMutation, reason: str) -> None:
+        assert mutation.id is not None
+        with self.storage.transaction():
+            self.storage.add_conflict(
+                Conflict(
+                    None,
+                    mutation.account_id,
+                    mutation.entity_type,
+                    mutation.entity_id,
+                    self._uncertain_payload(mutation),
+                    {
+                        "kind": "delivery-status-unknown",
+                        "reason": reason,
+                        "required_action": "verify Google, then choose delivered or retry",
+                    },
+                )
+            )
+            self.storage.complete_mutation(mutation.account_id, mutation.id)
+
+    def recover_interrupted_deliveries(self, account_id: str) -> int:
+        """Recover persisted ``sending`` rows without blindly replaying creates."""
+        conflicts = 0
+        inflight = self.storage.pending_mutations(
+            account_id, delivery_state=OutboxDeliveryState.SENDING
+        )
+        for mutation in inflight:
             assert mutation.id is not None
+            if self._non_idempotent_create(mutation):
+                self._quarantine_uncertain_create(mutation, "process stopped while sending")
+                conflicts += 1
+            else:
+                # Event creates carry a deterministic Google event ID. Updates,
+                # deletes, moves and responses are repeatable against a remote ID.
+                self.storage.reset_mutation_pending(
+                    account_id, mutation.id, "recovering interrupted delivery"
+                )
+        return conflicts
+
+    def flush_outbox(self, account_id: str) -> SyncResult:
+        pushed = 0
+        conflicts = self.recover_interrupted_deliveries(account_id)
+        for mutation in self.storage.pending_mutations(
+            account_id, delivery_state=OutboxDeliveryState.PENDING
+        ):
+            assert mutation.id is not None
+            request_id = mutation.request_id
+            if (
+                mutation.entity_type is EntityType.EVENT
+                and mutation.operation is MutationOperation.CREATE
+            ):
+                request_id = request_id or self._event_request_id(mutation)
+            self.storage.mark_mutation_sending(
+                account_id,
+                mutation.id,
+                request_id=request_id,
+                started_at=self.now(),
+            )
+            sending = self.storage.get_mutation(account_id, mutation.id)
+            if sending is None:
+                raise RuntimeError(f"outbox mutation {mutation.id} disappeared")
+            self.crash_hook("before-request", sending)
             try:
-                response = self._push(mutation)
+                response = self._push(sending)
+            except RequestNotSentError as exc:
+                self.storage.reset_mutation_pending(account_id, mutation.id, str(exc))
+                return SyncResult(
+                    pushed=pushed,
+                    conflicts=conflicts,
+                    retry_pending=True,
+                    retry_after=min(300.0, float(2 ** min(mutation.attempts, 8))),
+                )
             except GoogleApiError as exc:
-                if exc.status in {401, 403} and exc.reason not in RATE_LIMIT_REASONS:
+                if (
+                    sending.entity_type is EntityType.EVENT
+                    and sending.operation is MutationOperation.CREATE
+                    and sending.request_id is not None
+                    and exc.status == 409
+                ):
+                    response = {"id": sending.request_id}
+                elif self._non_idempotent_create(sending) and exc.status >= 500:
+                    self._quarantine_uncertain_create(
+                        sending, f"Google returned ambiguous status {exc.status}"
+                    )
+                    conflicts += 1
+                    continue
+                elif exc.status in {401, 403} and exc.reason not in RATE_LIMIT_REASONS:
                     self.storage.fail_mutation(account_id, mutation.id, str(exc))
                     raise AuthenticationRequired(
                         "Google authorization is required", hint="Reconnect this account"
                     ) from exc
-                if exc.is_conflict:
+                elif exc.is_conflict:
                     with self.storage.transaction():
                         self.storage.add_conflict(
                             Conflict(
@@ -466,18 +586,20 @@ class SyncEngine:
                         self.storage.complete_mutation(account_id, mutation.id)
                     conflicts += 1
                     continue
-                self.storage.fail_mutation(account_id, mutation.id, str(exc))
-                retryable = exc.retryable or exc.reason in RATE_LIMIT_REASONS
-                return SyncResult(
-                    pushed=pushed,
-                    conflicts=conflicts,
-                    retry_pending=retryable,
-                    retry_after=exc.retry_after
-                    if exc.retry_after is not None
-                    else min(300.0, float(2 ** min(mutation.attempts, 8))),
-                )
+                else:
+                    self.storage.fail_mutation(account_id, mutation.id, str(exc))
+                    retryable = exc.retryable or exc.reason in RATE_LIMIT_REASONS
+                    return SyncResult(
+                        pushed=pushed,
+                        conflicts=conflicts,
+                        retry_pending=retryable,
+                        retry_after=exc.retry_after
+                        if exc.retry_after is not None
+                        else min(300.0, float(2 ** min(mutation.attempts, 8))),
+                    )
+            self.crash_hook("after-remote-success", sending)
             with self.storage.transaction():
-                self._accept_push(mutation, response)
+                self._accept_push(sending, response)
                 self.storage.complete_mutation(account_id, mutation.id)
             pushed += 1
         return SyncResult(pushed=pushed, conflicts=conflicts)
@@ -562,6 +684,9 @@ class SyncEngine:
             account_id, _required_remote(local_calendar_id, "calendar")
         )
         if mutation.operation is MutationOperation.CREATE:
+            if mutation.request_id is None:
+                raise ValueError("event create has no deterministic request id")
+            body["id"] = mutation.request_id
             return self.gateway.create_event(
                 calendar_id,
                 body,
@@ -638,10 +763,15 @@ class SyncEngine:
         else:
             current_event = self.storage.get_event(account_id, mutation.entity_id)
             if current_event:
+                remote_id = (
+                    mutation.request_id
+                    if mutation.operation is MutationOperation.CREATE
+                    else response.get("id", current_event.remote_id)
+                )
                 self.storage.upsert_event(
                     replace(
                         current_event,
-                        remote_id=response.get("id", current_event.remote_id),
+                        remote_id=remote_id,
                         metadata=_metadata(response),
                     )
                 )

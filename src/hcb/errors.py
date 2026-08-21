@@ -52,6 +52,10 @@ class StorageError(HcbError):
     exit_code = ExitCode.STORAGE_FAILURE
 
 
+class RequestNotSentError(Exception):
+    """A transport failure that guarantees no remote request was transmitted."""
+
+
 class GoogleApiError(HcbError):
     """A sanitized Google API failure."""
 

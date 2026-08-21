@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import socket
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, cast
 
-from .errors import GoogleApiError
+from .errors import GoogleApiError, RequestNotSentError
 
 Json = dict[str, Any]
 
@@ -163,6 +164,10 @@ class GoogleApiClient:
         except Exception as exc:
             if hasattr(exc, "resp"):
                 raise _error_from_http(exc) from exc
+            if isinstance(exc, (ConnectionRefusedError, socket.gaierror)):
+                raise RequestNotSentError(
+                    "Google request was not sent because the connection could not be established"
+                ) from exc
             raise
 
     @classmethod

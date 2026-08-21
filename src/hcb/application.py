@@ -1796,6 +1796,10 @@ class ApplicationService:
             raise NotFoundError(f"Conflict {conflict_id} does not exist")
         if conflict.status is not ConflictStatus.OPEN:
             raise ConflictError(f"Conflict {conflict_id} is already resolved")
+        if conflict.local_payload.get("kind") == "uncertain-delivery":
+            raise ValueError(
+                "uncertain delivery requires the explicit retry or delivered reconciliation action"
+            )
         payload = (
             conflict.local_payload
             if status is ConflictStatus.KEEP_LOCAL
@@ -1814,6 +1818,82 @@ class ApplicationService:
                     MutationOperation.UPDATE,
                     payload or {},
                 )
+            self.storage.resolve_conflict(account_id, conflict_id, status)
+        return replace(conflict, status=status, resolved_at=utc_now())
+
+    def resolve_uncertain_delivery(
+        self,
+        account_id: str,
+        conflict_id: int,
+        action: str,
+        *,
+        remote_id: str | None = None,
+    ) -> Conflict:
+        conflict = next(
+            (
+                item
+                for item in self.storage.list_conflicts(account_id, open_only=False)
+                if item.id == conflict_id
+            ),
+            None,
+        )
+        if conflict is None:
+            raise NotFoundError(f"Conflict {conflict_id} does not exist")
+        if conflict.status is not ConflictStatus.OPEN:
+            raise ConflictError(f"Conflict {conflict_id} is already resolved")
+        if conflict.local_payload.get("kind") != "uncertain-delivery":
+            raise ValueError("conflict is not an uncertain-delivery create")
+        mutation = conflict.local_payload.get("mutation")
+        if not isinstance(mutation, dict):
+            raise ValueError("uncertain-delivery conflict has invalid mutation data")
+        operation = MutationOperation(str(mutation.get("operation")))
+        entity_type = EntityType(str(mutation.get("entity_type")))
+        entity_id = str(mutation.get("entity_id") or "")
+        payload = mutation.get("payload")
+        if (
+            operation not in {MutationOperation.CREATE, MutationOperation.MOVE}
+            or not entity_id
+            or not isinstance(payload, dict)
+        ):
+            raise ValueError("uncertain-delivery conflict has invalid local intent")
+        normalized = action.casefold()
+        if normalized not in {"retry", "delivered"}:
+            raise ValueError("action must be retry or delivered")
+        if normalized == "delivered" and not remote_id:
+            raise ValueError("delivered reconciliation requires --remote-id")
+
+        status = (
+            ConflictStatus.KEEP_LOCAL
+            if normalized == "retry"
+            else ConflictStatus.KEEP_REMOTE
+        )
+        with self.storage.transaction():
+            if normalized == "retry":
+                self.storage.enqueue(
+                    PendingMutation(
+                        None,
+                        account_id,
+                        entity_type,
+                        entity_id,
+                        operation,
+                        payload,
+                    )
+                )
+            else:
+                table = {
+                    EntityType.TASK_LIST: "task_lists",
+                    EntityType.TASK: "tasks",
+                    EntityType.CALENDAR: "calendars",
+                }.get(entity_type)
+                if table is None:
+                    raise ValueError("delivered reconciliation is unsupported for this entity")
+                cursor = self.storage.connection.execute(
+                    f"""UPDATE {table} SET remote_id=?,dirty=0
+                    WHERE account_id=? AND id=?""",  # noqa: S608
+                    (remote_id, account_id, entity_id),
+                )
+                if cursor.rowcount != 1:
+                    raise NotFoundError(f"{entity_type.value} {entity_id!r} does not exist")
             self.storage.resolve_conflict(account_id, conflict_id, status)
         return replace(conflict, status=status, resolved_at=utc_now())
 

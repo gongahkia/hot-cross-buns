@@ -267,7 +267,12 @@ Legend in the **TUI** column uses the four labels. Evidence is abbreviated: **W*
 **Acceptance — offline**
 
 - Create a task with the network down; restart; the mutation is still queued; coming online applies it once.
-- Crash during apply does not duplicate Google creates (idempotent local mutation ids).
+- Before network I/O, creates persist a `sending` delivery state. Calendar event
+  creates use a deterministic client-assigned Google event ID and may retry safely.
+  Because Google Tasks, task-list create, and calendar create expose no idempotency
+  key, an interrupted `sending` row becomes an explicit uncertain-delivery conflict:
+  it is never blindly replayed, and the user must confirm the remote ID or confirm
+  absence before retry. Local intent is never dropped.
 - Undo of an unpushed create removes the optimistic row and the queued mutation.
 
 ### Reminders and local process
@@ -396,7 +401,7 @@ Use these as the **minimum** contract suite. Rewrite in the new tree; do not lea
 | Native C++/QML: mutations, conflicts, saved searches, notes projection, reminders, OAuth redaction | Durable SQLite + OS reminder + saved search oracles |
 | `docs/testing/live-google-smoke.md` / web smoke | Manual live account; redact |
 
-New tests required by **Fix-gap** rows: notes modes actually change lists; palette commands; unified DSL including real `source:local`; CLI JSON snapshots; scheduler-after-exit reminders; keychain denial; `410` and page-resume; crash recovery of the outbox.
+New tests required by **Fix-gap** rows: notes modes actually change lists; palette commands; unified DSL including real `source:local`; CLI JSON snapshots; scheduler-after-exit reminders; keychain denial; `410` and page-resume; crash recovery of the outbox, including deterministic Calendar event IDs and uncertain-delivery reconciliation for create APIs without idempotency keys.
 
 ---
 

@@ -41,6 +41,8 @@ from .output import to_primitive
 from .runtime import Runtime
 from .scheduler import DaemonState, ReminderScheduler, run_loop
 
+JSON_SCHEMA_VERSION = 1
+
 
 class HcbGroup(typer.core.TyperGroup):
     """Translate expected domain failures into stable, traceback-free exits."""
@@ -105,6 +107,12 @@ class State:
 _runtime_factory: Callable[[], Runtime] = Runtime
 
 
+def _print_json_schema_version(value: bool) -> None:
+    if value:
+        typer.echo(JSON_SCHEMA_VERSION)
+        raise typer.Exit()
+
+
 @app.callback()
 def root(
     ctx: typer.Context,
@@ -114,7 +122,15 @@ def root(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
     tsv: bool = typer.Option(False, "--tsv", help="Emit tab-separated records."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable terminal color."),
+    json_schema_version: bool = typer.Option(
+        False,
+        "--json-schema-version",
+        help="Print the machine-readable output schema version and exit.",
+        is_eager=True,
+        callback=_print_json_schema_version,
+    ),
 ) -> None:
+    del json_schema_version
     if json_output and tsv:
         raise typer.BadParameter("--json and --tsv are mutually exclusive")
     if no_color or os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb":
@@ -938,6 +954,24 @@ def conflicts_resolve(
         _account(ctx), conflict_id, ConflictStatus(resolution), merged_payload=merged
     )
     _emit(ctx, item, human=lambda value: f"Resolved conflict {value.id}: {value.status.value}")
+
+
+@conflicts_app.command("resolve-delivery")
+def conflicts_resolve_delivery(
+    ctx: typer.Context,
+    conflict_id: int,
+    action: str = typer.Option(..., help="retry or delivered"),
+    remote_id: str | None = typer.Option(None, "--remote-id"),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+) -> None:
+    _confirm(yes, f"Resolve uncertain delivery {conflict_id} as {action}?")
+    item = _state(ctx).runtime.application.resolve_uncertain_delivery(
+        _account(ctx),
+        conflict_id,
+        action,
+        remote_id=remote_id,
+    )
+    _emit(ctx, item, human=lambda value: f"Resolved delivery {value.id}: {value.status.value}")
 
 
 # Import/export

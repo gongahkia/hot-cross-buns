@@ -406,3 +406,83 @@ def test_conflict_resolution_and_explicit_remote_freebusy(tmp_path: Path) -> Non
         )
 
     app_test(app, actions)
+
+
+def test_resize_preserves_unicode_selection_and_restores_inspector(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list_id = runtime.application.workspace("work").task_lists[0].id
+    for index in range(35):
+        runtime.application.create_task(
+            "work",
+            task_list_id,
+            f"長い予定 🚆 item {index:02d}",
+        )
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        rows = app.query_one("#content", ListView)
+        rows.index = len(rows.children) - 1
+        await pilot.pause()  # type: ignore[attr-defined]
+        selected = rows.highlighted_child
+        assert selected is not None
+        selected_id = selected.item_id
+        assert "長い予定" in str(selected.query_one("Label").render())
+
+        await pilot.resize_terminal(44, 18)  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.has_class("very-narrow")
+        assert rows.highlighted_child is not None
+        assert rows.highlighted_child.item_id == selected_id
+        assert app.query_one("#inspector").display is False
+
+        await pilot.resize_terminal(120, 38)  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not app.has_class("narrow")
+        assert rows.highlighted_child is not None
+        assert rows.highlighted_child.item_id == selected_id
+        assert app.query_one("#inspector").display is True
+
+    app_test(app, assertions)
+
+
+def test_tui_uncertain_delivery_requires_explicit_remote_id(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task = runtime.application.workspace("work").tasks[0]
+    runtime.storage.connection.execute(
+        "DELETE FROM outbox WHERE account_id=? AND entity_id=?",
+        ("work", task.id),
+    )
+    runtime.storage.add_conflict(
+        Conflict(
+            None,
+            "work",
+            EntityType.TASK,
+            task.id,
+            {
+                "kind": "uncertain-delivery",
+                "mutation": {
+                    "entity_type": "task",
+                    "entity_id": task.id,
+                    "operation": "create",
+                    "payload": {
+                        "list_id": task.list_id,
+                        "body": {"title": task.title},
+                    },
+                    "request_id": None,
+                },
+            },
+            {"kind": "delivery-status-unknown"},
+        )
+    )
+    app = HcbApp(runtime)
+
+    async def actions(pilot: object) -> None:
+        await activate_palette(pilot, app, "Conflicts")
+        assert isinstance(app.screen, ConflictScreen)
+        app.screen.query_one("#conflict-remote-id", Input).value = "remote-task-id"
+        await pilot.click("#conflict-remote")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert runtime.storage.list_conflicts("work") == []
+        assert runtime.storage.get_task("work", task.id).remote_id == "remote-task-id"
+
+    app_test(app, actions)

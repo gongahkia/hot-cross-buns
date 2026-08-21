@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from hcb import cli
-from hcb.models import Account
+from hcb.models import Account, Conflict, EntityType
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
@@ -334,3 +334,118 @@ def test_advanced_cli_equivalence_for_tui_workflows(
     invoke(runner, ["undo"])
     invoke(runner, ["redo"])
     invoke(runner, ["events", "delete-many", event["id"], "--yes"])
+
+
+def test_json_schema_version_task_shape_and_tsv_columns(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    assert invoke(runner, ["--json-schema-version"]).stdout.strip() == "1"
+    list_id = seed_list(runner)
+    task = json.loads(
+        invoke(runner, ["--json", "tasks", "create", "Schema", "--list", list_id]).stdout
+    )
+    assert set(task) == {
+        "account_id",
+        "completed_at",
+        "due",
+        "due_time_zone",
+        "id",
+        "list_id",
+        "metadata",
+        "notes",
+        "parent_id",
+        "position",
+        "priority",
+        "remote_id",
+        "status",
+        "title",
+    }
+    assert set(task["metadata"]) == {
+        "deleted",
+        "dirty",
+        "etag",
+        "local_updated_at",
+        "remote_updated_at",
+    }
+    tsv = invoke(runner, ["--tsv", "tasks", "list"])
+    assert tsv.stdout.splitlines()[0] == "id\tlist_id\ttitle\tstatus\tdue\tpriority"
+    assert all(len(line.split("\t")) == 6 for line in tsv.stdout.splitlines())
+
+
+def test_stable_usage_auth_and_not_found_exits_without_ansi_or_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    monkeypatch.setattr(cli, "_runtime_factory", lambda: Runtime(paths, environ={"TERM": "dumb"}))
+    runner = CliRunner()
+
+    usage = runner.invoke(cli.app, ["events", "agenda", "--from", "not-a-date"])
+    assert usage.exit_code == 2
+    missing_auth = runner.invoke(cli.app, ["tasks", "list"])
+    assert missing_auth.exit_code == 5
+
+    with Storage(paths.database_file) as storage:
+        storage.upsert_account(Account("work", "redacted@example.test"))
+    missing = runner.invoke(cli.app, ["tasks", "complete", "missing"])
+    assert missing.exit_code == 3
+
+    for result in (usage, missing_auth, missing):
+        assert "\x1b[" not in result.output
+        assert "Traceback" not in result.output
+
+
+def test_cli_resolves_uncertain_delivery_with_explicit_action(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, paths = cli_env
+    list_id = seed_list(runner)
+    task = json.loads(
+        invoke(runner, ["--json", "tasks", "create", "Uncertain", "--list", list_id]).stdout
+    )
+    with Storage(paths.database_file) as storage:
+        storage.connection.execute(
+            "DELETE FROM outbox WHERE account_id=? AND entity_id=?",
+            ("work", task["id"]),
+        )
+        conflict_id = storage.add_conflict(
+            Conflict(
+                None,
+                "work",
+                EntityType.TASK,
+                task["id"],
+                {
+                    "kind": "uncertain-delivery",
+                    "mutation": {
+                        "entity_type": "task",
+                        "entity_id": task["id"],
+                        "operation": "create",
+                        "payload": {
+                            "list_id": list_id,
+                            "body": {"title": "Uncertain"},
+                        },
+                        "request_id": None,
+                    },
+                },
+                {"kind": "delivery-status-unknown"},
+            )
+        )
+    invoke(
+        runner,
+        [
+            "conflicts",
+            "resolve-delivery",
+            str(conflict_id),
+            "--action",
+            "retry",
+            "--yes",
+        ],
+    )
+    with Storage(paths.database_file) as storage:
+        retried = [
+            item
+            for item in storage.pending_mutations("work")
+            if item.entity_type is EntityType.TASK and item.entity_id == task["id"]
+        ]
+        assert len(retried) == 1
+        assert storage.list_conflicts("work") == []

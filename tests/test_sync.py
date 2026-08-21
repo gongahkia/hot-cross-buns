@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from hcb.errors import GoogleApiError
+from hcb.application import ApplicationService
+from hcb.errors import GoogleApiError, RequestNotSentError
 from hcb.google_client import Page
 from hcb.models import (
     Account,
@@ -11,6 +12,7 @@ from hcb.models import (
     EntityType,
     Metadata,
     MutationOperation,
+    OutboxDeliveryState,
     PendingMutation,
     SyncCursor,
     Task,
@@ -300,3 +302,331 @@ def test_calendar_list_mutations_use_distinct_gateway_resources(store):
     assert result.pushed == 2
     assert ("subscribe-calendar", "cal-r") in gateway.calls
     assert ("remove-calendar", "cal-r") in gateway.calls
+
+
+def test_calendar_page_resume_survives_database_reopen(tmp_path: Path) -> None:
+    path = tmp_path / "calendar-resume.db"
+    gateway = FakeGateway()
+    gateway.event_pages = {
+        None: Page((EVENT,), next_page_token="p2"),
+        "p2": Page(
+            (
+                {
+                    **EVENT,
+                    "id": "event-second",
+                    "summary": "Second",
+                    "etag": '"event-2"',
+                },
+            ),
+            next_sync_token="sync-2",
+        ),
+    }
+    original = gateway.list_events
+    interrupted = False
+    attempted_pages = []
+
+    def crash_after_first_page(
+        calendar_id,
+        *,
+        page_token=None,
+        sync_token=None,
+        time_min=None,
+        time_max=None,
+        single_events=False,
+    ):
+        nonlocal interrupted
+        attempted_pages.append(page_token)
+        if page_token == "p2" and not interrupted:
+            interrupted = True
+            raise RuntimeError("simulated process crash")
+        return original(
+            calendar_id,
+            page_token=page_token,
+            sync_token=sync_token,
+            time_min=time_min,
+            time_max=time_max,
+            single_events=single_events,
+        )
+
+    gateway.list_events = crash_after_first_page
+    with Storage(path) as first:
+        first.upsert_account(Account("a", "a@example.test"))
+        first.upsert_calendar(Calendar("cal", "a", "Primary", remote_id="cal-r"))
+        with pytest.raises(RuntimeError, match="simulated process crash"):
+            SyncEngine(first, gateway).sync_events("a", first.get_calendar("a", "cal"))
+        assert first.get_event("a", "event-r") is not None
+
+    with Storage(path) as reopened:
+        SyncEngine(reopened, gateway).sync_events("a", reopened.get_calendar("a", "cal"))
+        assert reopened.get_event("a", "event-second") is not None
+        assert reopened.get_cursor("a", "events:cal-r").cursor == "sync-2"
+
+    assert attempted_pages == [None, "p2", "p2"]
+
+
+def test_outbox_restart_and_completed_create_are_not_replayed(tmp_path: Path) -> None:
+    path = tmp_path / "outbox-restart.db"
+    with Storage(path) as first:
+        first.upsert_account(Account("a", "a@example.test"))
+        first.upsert_task_list(TaskList("list", "a", "Inbox", remote_id="list-r"))
+        first.upsert_task(Task("tmp", "a", "list", "Persisted"))
+        first.enqueue(
+            PendingMutation(
+                None,
+                "a",
+                EntityType.TASK,
+                "tmp",
+                MutationOperation.CREATE,
+                {"list_id": "list", "body": {"title": "Persisted"}},
+            )
+        )
+
+    gateway = FakeGateway()
+    with Storage(path) as reopened:
+        assert len(reopened.pending_mutations("a")) == 1
+        result = SyncEngine(reopened, gateway).flush_outbox("a")
+        assert result.pushed == 1
+        assert reopened.pending_mutations("a") == []
+
+    with Storage(path) as second_restart:
+        result = SyncEngine(second_restart, gateway).flush_outbox("a")
+        assert result.pushed == 0
+        assert second_restart.get_task("a", "tmp").remote_id == "task-r"
+
+    assert len([call for call in gateway.calls if call[0] == "create-task"]) == 1
+
+
+def _seed_crash_database(path: Path, *, entity_type: EntityType) -> str:
+    with Storage(path) as storage:
+        storage.upsert_account(Account("a", "a@example.test"))
+        if entity_type is EntityType.TASK:
+            storage.upsert_task_list(TaskList("list", "a", "Inbox", remote_id="list-r"))
+            storage.upsert_task(Task("local", "a", "list", "Crash-safe"))
+            payload = {"list_id": "list", "body": {"title": "Crash-safe"}}
+        else:
+            storage.upsert_calendar(Calendar("cal", "a", "Primary", remote_id="cal-r"))
+            event = {
+                **EVENT,
+                "id": "local",
+                "summary": "Crash-safe event",
+            }
+            from hcb.sync import event_from_google
+
+            storage.upsert_event(event_from_google("a", "cal", event, local_id="local"))
+            payload = {
+                "calendar_id": "cal",
+                "body": {
+                    "summary": "Crash-safe event",
+                    "start": EVENT["start"],
+                    "end": EVENT["end"],
+                },
+            }
+        storage.enqueue(
+            PendingMutation(
+                None,
+                "a",
+                entity_type,
+                "local",
+                MutationOperation.CREATE,
+                payload,
+            )
+        )
+    return "local"
+
+
+def test_crash_before_request_quarantines_non_idempotent_create_on_restart(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "before-request.db"
+    _seed_crash_database(path, entity_type=EntityType.TASK)
+    gateway = FakeGateway()
+
+    def crash(phase: str, _mutation: PendingMutation) -> None:
+        if phase == "before-request":
+            raise RuntimeError("crash before request")
+
+    with Storage(path) as storage:
+        with pytest.raises(RuntimeError, match="crash before request"):
+            SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
+        assert storage.pending_mutations("a")[0].delivery_state is OutboxDeliveryState.SENDING
+    assert not [call for call in gateway.calls if call[0] == "create-task"]
+
+    with Storage(path) as restarted:
+        result = SyncEngine(restarted, gateway).flush_outbox("a")
+        assert result.conflicts == 1
+        assert restarted.pending_mutations("a") == []
+        conflict = restarted.list_conflicts("a")[0]
+        assert conflict.local_payload["kind"] == "uncertain-delivery"
+
+
+def test_crash_after_task_success_does_not_blindly_retry_and_can_mark_delivered(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "after-success.db"
+    _seed_crash_database(path, entity_type=EntityType.TASK)
+    gateway = FakeGateway()
+
+    def crash(phase: str, _mutation: PendingMutation) -> None:
+        if phase == "after-remote-success":
+            raise RuntimeError("crash after remote success")
+
+    with Storage(path) as storage, pytest.raises(
+        RuntimeError, match="crash after remote success"
+    ):
+        SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
+    assert len([call for call in gateway.calls if call[0] == "create-task"]) == 1
+
+    with Storage(path) as restarted:
+        result = SyncEngine(restarted, gateway).flush_outbox("a")
+        assert result.conflicts == 1
+        assert len([call for call in gateway.calls if call[0] == "create-task"]) == 1
+        conflict = restarted.list_conflicts("a")[0]
+        application = ApplicationService(restarted)
+        with pytest.raises(ValueError, match="remote-id"):
+            application.resolve_uncertain_delivery("a", conflict.id, "delivered")
+        application.resolve_uncertain_delivery(
+            "a", conflict.id, "delivered", remote_id="task-r"
+        )
+        assert restarted.get_task("a", "local").remote_id == "task-r"
+        assert restarted.pending_mutations("a") == []
+
+
+def test_user_can_retry_create_after_verifying_it_was_not_delivered(tmp_path: Path) -> None:
+    path = tmp_path / "retry-resolution.db"
+    _seed_crash_database(path, entity_type=EntityType.TASK)
+    gateway = FakeGateway()
+
+    def crash(phase: str, _mutation: PendingMutation) -> None:
+        if phase == "before-request":
+            raise RuntimeError("stopped")
+
+    with Storage(path) as storage, pytest.raises(RuntimeError):
+        SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
+    with Storage(path) as restarted:
+        SyncEngine(restarted, gateway).recover_interrupted_deliveries("a")
+        conflict = restarted.list_conflicts("a")[0]
+        ApplicationService(restarted).resolve_uncertain_delivery(
+            "a", conflict.id, "retry"
+        )
+        assert len(restarted.pending_mutations("a")) == 1
+        assert SyncEngine(restarted, gateway).flush_outbox("a").pushed == 1
+        assert restarted.pending_mutations("a") == []
+    assert len([call for call in gateway.calls if call[0] == "create-task"]) == 1
+
+
+def test_event_create_retries_same_google_id_after_success_crash(tmp_path: Path) -> None:
+    path = tmp_path / "event-idempotency.db"
+    _seed_crash_database(path, entity_type=EntityType.EVENT)
+
+    class IdempotentEventGateway(FakeGateway):
+        def __init__(self):
+            super().__init__()
+            self.event_ids = []
+
+        def create_event(self, calendar_id, body, **kwargs):
+            self.calls.append(("create-event", calendar_id, body, kwargs))
+            event_id = body["id"]
+            self.event_ids.append(event_id)
+            if len(self.event_ids) > 1:
+                raise GoogleApiError(409, "event id already exists")
+            return {"id": event_id, "etag": '"created"'}
+
+    gateway = IdempotentEventGateway()
+
+    def crash(phase: str, _mutation: PendingMutation) -> None:
+        if phase == "after-remote-success":
+            raise RuntimeError("event response lost")
+
+    with Storage(path) as storage, pytest.raises(
+        RuntimeError, match="event response lost"
+    ):
+        SyncEngine(storage, gateway, crash_hook=crash).flush_outbox("a")
+    with Storage(path) as restarted:
+        result = SyncEngine(restarted, gateway).flush_outbox("a")
+        assert result.pushed == 1
+        assert result.conflicts == 0
+        assert restarted.pending_mutations("a") == []
+        assert restarted.get_event("a", "local").remote_id == gateway.event_ids[0]
+    assert gateway.event_ids[0] == gateway.event_ids[1]
+    assert gateway.event_ids[0].startswith("hcb")
+
+
+def test_known_request_not_sent_failure_remains_retryable(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("tmp-safe", "a", "list", "Retryable"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "tmp-safe",
+            MutationOperation.CREATE,
+            {"list_id": "list", "body": {"title": "Retryable"}},
+        )
+    )
+    original = gateway.create_task
+    failed = False
+
+    def not_sent(task_list_id, body):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise RequestNotSentError("connection failed before send")
+        return original(task_list_id, body)
+
+    gateway.create_task = not_sent
+    first = SyncEngine(store, gateway).flush_outbox("a")
+    assert first.retry_pending
+    assert store.pending_mutations("a")[0].delivery_state is OutboxDeliveryState.PENDING
+    assert SyncEngine(store, gateway).flush_outbox("a").pushed == 1
+
+
+@pytest.mark.parametrize(
+    ("entity_type", "operation", "payload"),
+    [
+        (
+            EntityType.TASK,
+            MutationOperation.CREATE,
+            {"list_id": "list", "body": {"title": "Task"}},
+        ),
+        (
+            EntityType.TASK_LIST,
+            MutationOperation.CREATE,
+            {"body": {"title": "List"}},
+        ),
+        (
+            EntityType.CALENDAR,
+            MutationOperation.CREATE,
+            {"body": {"summary": "Calendar"}},
+        ),
+        (
+            EntityType.TASK,
+            MutationOperation.MOVE,
+            {
+                "source_list_id": "source",
+                "list_id": "destination",
+                "body": {"title": "Moved"},
+            },
+        ),
+    ],
+)
+def test_every_non_idempotent_create_path_quarantines_interrupted_sending(
+    store: Storage,
+    entity_type: EntityType,
+    operation: MutationOperation,
+    payload: dict[str, object],
+) -> None:
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            entity_type,
+            f"uncertain-{entity_type.value}-{operation.value}",
+            operation,
+            payload,
+            delivery_state=OutboxDeliveryState.SENDING,
+        )
+    )
+    assert SyncEngine(store, FakeGateway()).recover_interrupted_deliveries("a") == 1
+    assert store.pending_mutations("a") == []
+    assert store.list_conflicts("a")[0].local_payload["kind"] == "uncertain-delivery"

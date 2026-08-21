@@ -50,6 +50,11 @@ class MutationOperation(StrEnum):
     REMOVE = "remove"
 
 
+class OutboxDeliveryState(StrEnum):
+    PENDING = "pending"
+    SENDING = "sending"
+
+
 class ConflictStatus(StrEnum):
     OPEN = "open"
     KEEP_LOCAL = "keep_local"
@@ -215,6 +220,9 @@ class PendingMutation:
     created_at: datetime = field(default_factory=utc_now)
     attempts: int = 0
     last_error: str | None = None
+    delivery_state: OutboxDeliveryState = OutboxDeliveryState.PENDING
+    request_id: str | None = None
+    sending_started_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

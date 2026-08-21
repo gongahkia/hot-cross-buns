@@ -1,8 +1,9 @@
 import json
+import socket
 
 import pytest
 
-from hcb.errors import GoogleApiError
+from hcb.errors import GoogleApiError, RequestNotSentError
 from hcb.google_client import GoogleApiClient
 
 
@@ -48,3 +49,9 @@ def test_execute_applies_if_match_and_returns_json():
     request = Request({"id": "remote"})
     assert GoogleApiClient._execute(request, etag='"v1"') == {"id": "remote"}
     assert request.headers["If-Match"] == '"v1"'
+
+
+@pytest.mark.parametrize("error", [ConnectionRefusedError(), socket.gaierror()])
+def test_pre_connection_failures_are_explicitly_safe_to_retry(error):
+    with pytest.raises(RequestNotSentError):
+        GoogleApiClient._execute(Request(error=error))
