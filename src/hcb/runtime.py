@@ -12,7 +12,7 @@ from typing import Any
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
 from .config import Config, ConfigError, load
-from .errors import AuthenticationRequired, ConfigurationError, NotFoundError
+from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
 from .paths import AppPaths
 from .storage import Storage
@@ -49,7 +49,7 @@ class Runtime:
         try:
             return Storage(self.paths.database_file)
         except Exception as exc:
-            raise ConfigurationError(f"cannot open local database: {exc}") from exc
+            raise StorageError(f"cannot open local database: {exc}") from exc
 
     @cached_property
     def application(self) -> ApplicationService:

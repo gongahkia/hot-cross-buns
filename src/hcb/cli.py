@@ -9,10 +9,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-import click
 import typer
+from typer import _click as click
 
 from .application import SearchResult
 from .config import ConfigError, load, save
@@ -117,7 +117,7 @@ def root(
 
 
 def _state(ctx: typer.Context) -> State:
-    return ctx.find_root().obj
+    return cast(State, ctx.find_root().obj)
 
 
 def _account(ctx: typer.Context) -> str:
@@ -233,11 +233,16 @@ def tasks_create(
     title: str,
     task_list: str = typer.Option(..., "--list"),
     notes: str | None = typer.Option(None),
-    due: date | None = typer.Option(None),  # noqa: B008
+    due: str | None = typer.Option(None),
     priority: str = typer.Option("none"),
 ) -> None:
     item = _state(ctx).runtime.application.create_task(
-        _account(ctx), task_list, title, notes=notes, due=due, priority=priority
+        _account(ctx),
+        task_list,
+        title,
+        notes=notes,
+        due=date.fromisoformat(due) if due else None,
+        priority=priority,
     )
     _emit(ctx, item, human=lambda value: f"Created task {value.id}: {value.title}")
 
@@ -248,16 +253,23 @@ def tasks_edit(
     task_id: str,
     title: str | None = typer.Option(None),
     notes: str | None = typer.Option(None),
-    due: date | None = typer.Option(None),  # noqa: B008
+    due: str | None = typer.Option(None),
     clear_due: bool = typer.Option(False, "--clear-due"),
     priority: str | None = typer.Option(None),
 ) -> None:
-    item = _state(ctx).runtime.application.update_task(
-        _account(ctx),
+    account = _account(ctx)
+    state = _state(ctx)
+    current = state.runtime.storage.get_task(account, task_id)
+    if current is None:
+        from .errors import NotFoundError
+
+        raise NotFoundError(f"Task {task_id!r} does not exist")
+    item = state.runtime.application.update_task(
+        account,
         task_id,
         title=title,
-        notes=notes,
-        due=due,
+        notes=current.notes if notes is None else notes,
+        due=date.fromisoformat(due) if due else None,
         clear_due=clear_due,
         priority=priority,
     )
@@ -368,13 +380,15 @@ def notes_clear(
 @events_app.command("agenda")
 def events_agenda(
     ctx: typer.Context,
-    start: date | None = typer.Option(None, "--from"),  # noqa: B008
-    end: date | None = typer.Option(None, "--to"),  # noqa: B008
+    start: str | None = typer.Option(None, "--from"),
+    end: str | None = typer.Option(None, "--to"),
     calendar: str | None = typer.Option(None),
 ) -> None:
-    start = start or date.today()
-    stop = end or (start + timedelta(days=7))
-    items = _state(ctx).runtime.storage.list_events(_account(ctx), calendar, start=start, end=stop)
+    start_date = date.fromisoformat(start) if start else date.today()
+    stop = date.fromisoformat(end) if end else (start_date + timedelta(days=7))
+    items = _state(ctx).runtime.storage.list_events(
+        _account(ctx), calendar, start=start_date, end=stop
+    )
     _emit(
         ctx,
         items,
@@ -419,14 +433,21 @@ def events_edit(
     description: str | None = typer.Option(None),
     location: str | None = typer.Option(None),
 ) -> None:
-    item = _state(ctx).runtime.application.update_event(
-        _account(ctx),
+    account = _account(ctx)
+    state = _state(ctx)
+    current = state.runtime.storage.get_event(account, event_id)
+    if current is None:
+        from .errors import NotFoundError
+
+        raise NotFoundError(f"Event {event_id!r} does not exist")
+    item = state.runtime.application.update_event(
+        account,
         event_id,
         summary=summary,
         start=_event_point(start, all_day, time_zone) if start else None,
         end=_event_point(end, all_day, time_zone) if end else None,
-        description=description,
-        location=location,
+        description=current.description if description is None else description,
+        location=current.location if location is None else location,
     )
     _emit(ctx, item, human=lambda value: f"Updated event {value.id}: {value.summary}")
 
