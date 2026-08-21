@@ -411,4 +411,3 @@ New tests required by **Fix-gap** rows: notes modes actually change lists; palet
 7. Root documentation describes only the local TUI/CLI product; web/native/self-host are historical.
 
 Until then, do not delete `web/` or `native/` product code.
-)

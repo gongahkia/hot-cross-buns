@@ -10,9 +10,10 @@ import csv
 import io
 import json
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Iterable, Literal, Mapping
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -195,8 +196,10 @@ def _event(fields: Mapping[str, object], line: int) -> ImportPreviewRow:
         errors.append("Event title is required")
     all_day_value = fields.get("all_day", False)
     all_day = all_day_value is True or all_day_value in ("true", "1")
-    start = fields.get("start") if isinstance(fields.get("start"), str) else ""
-    end = fields.get("end") if isinstance(fields.get("end"), str) else ""
+    raw_start = fields.get("start")
+    raw_end = fields.get("end")
+    start = raw_start if isinstance(raw_start, str) else ""
+    end = raw_end if isinstance(raw_end, str) else ""
     if all_day:
         valid_times = _valid_date(start) and _valid_date(end)
     else:
@@ -240,7 +243,7 @@ def _event(fields: Mapping[str, object], line: int) -> ImportPreviewRow:
 def _comparable_datetime(value: str) -> datetime:
     parsed = _datetime(value)
     assert parsed is not None
-    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
 def parse_csv(text: str) -> ImportPreview:
@@ -255,7 +258,9 @@ def parse_csv(text: str) -> ImportPreview:
     output: list[ImportPreviewRow] = []
     for index, values in enumerate(rows[1 : MAX_RECORDS + 1], start=2):
         if len(values) != len(CSV_HEADER):
-            output.append(ImportPreviewRow(index, errors=("CSV row has the wrong number of fields",)))
+            output.append(
+                ImportPreviewRow(index, errors=("CSV row has the wrong number of fields",))
+            )
             continue
         fields = dict(zip(CSV_HEADER, values, strict=True))
         output.append(
@@ -266,9 +271,7 @@ def parse_csv(text: str) -> ImportPreview:
             else ImportPreviewRow(index, errors=("CSV kind must be task or event",))
         )
     errors = (
-        (f"Import accepts at most {MAX_RECORDS} records",)
-        if len(rows) - 1 > MAX_RECORDS
-        else ()
+        (f"Import accepts at most {MAX_RECORDS} records",) if len(rows) - 1 > MAX_RECORDS else ()
     )
     return ImportPreview(tuple(output), errors)
 
@@ -278,7 +281,11 @@ def parse_json(text: str) -> ImportPreview:
         payload: Any = json.loads(text)
     except json.JSONDecodeError:
         return ImportPreview(errors=("JSON is invalid",))
-    if not isinstance(payload, dict) or set(payload) != {"version", "records"} or payload["version"] != 1:
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"version", "records"}
+        or payload["version"] != 1
+    ):
         return ImportPreview(errors=("JSON must be an HCB version 1 export",))
     records = payload["records"]
     if not isinstance(records, list):
@@ -294,9 +301,7 @@ def parse_json(text: str) -> ImportPreview:
         else:
             output.append(ImportPreviewRow(line, errors=("JSON kind must be task or event",)))
     errors = (
-        (f"Import accepts at most {MAX_RECORDS} records",)
-        if len(records) > MAX_RECORDS
-        else ()
+        (f"Import accepts at most {MAX_RECORDS} records",) if len(records) > MAX_RECORDS else ()
     )
     return ImportPreview(tuple(output), errors)
 
@@ -304,9 +309,7 @@ def parse_json(text: str) -> ImportPreview:
 def _unescape_ics(value: str) -> str:
     return re.sub(
         r"\\([nN,;\\])",
-        lambda match: "\n"
-        if match.group(1).lower() == "n"
-        else match.group(1),
+        lambda match: "\n" if match.group(1).lower() == "n" else match.group(1),
         value,
     )
 
@@ -367,6 +370,11 @@ def _content_line(line: str) -> tuple[str, dict[str, str], str] | None:
     return name, params, value
 
 
+def _first_ics(fields: Mapping[str, list[tuple[dict[str, str], str]]], name: str) -> str:
+    values = fields.get(name)
+    return values[0][1] if values else ""
+
+
 def parse_ics(text: str) -> ImportPreview:
     unfolded = re.sub(r"\r?\n[ \t]", "", text)
     lines = unfolded.splitlines()
@@ -424,17 +432,16 @@ def parse_ics(text: str) -> ImportPreview:
             for name in ("RRULE", "EXRULE", "RDATE", "EXDATE")
             for _params, value in fields.get(name, [])
         )
-        first = lambda name: fields.get(name, [({}, "")])[0][1]  # noqa: E731
         row = _event(
             {
-                "title": first("SUMMARY"),
+                "title": _first_ics(fields, "SUMMARY"),
                 "calendar": "",
                 "start": start[0],
                 "end": end[0],
                 "all_day": start[1],
                 "time_zone": zone or "",
-                "description": first("DESCRIPTION"),
-                "location": first("LOCATION"),
+                "description": _first_ics(fields, "DESCRIPTION"),
+                "location": _first_ics(fields, "LOCATION"),
                 "recurrence": list(recurrence),
             },
             index,
@@ -443,9 +450,7 @@ def parse_ics(text: str) -> ImportPreview:
             ImportPreviewRow(row.line, row.record, row.errors, tuple((*row.warnings, *warnings)))
         )
     errors = (
-        (f"Import accepts at most {MAX_RECORDS} records",)
-        if len(components) > MAX_RECORDS
-        else ()
+        (f"Import accepts at most {MAX_RECORDS} records",) if len(components) > MAX_RECORDS else ()
     )
     return ImportPreview(tuple(output), errors)
 
@@ -505,11 +510,11 @@ def export_csv(records: Iterable[ImportedRecord]) -> str:
     writer.writeheader()
     for record in values:
         value = _record_dict(record)
-        row = {name: "" for name in CSV_HEADER}
+        row: dict[str, Any] = {name: "" for name in CSV_HEADER}
         row.update(value)
         row["task_list"] = value.get("list", "")
-        row["all_day"] = "true" if value.get("all_day") is True else (
-            "false" if record.kind == "event" else ""
+        row["all_day"] = (
+            "true" if value.get("all_day") is True else ("false" if record.kind == "event" else "")
         )
         for name in ("exclude", "include", "recurrence"):
             item = value.get(name)
@@ -539,7 +544,7 @@ def _ics_timestamp(value: str, all_day: bool) -> str:
     if parsed is None:
         raise ValueError("Timed event values must be ISO timestamps")
     if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(timezone.utc)
+        parsed = parsed.astimezone(UTC)
         return parsed.strftime("%Y%m%dT%H%M%SZ")
     return parsed.strftime("%Y%m%dT%H%M%S")
 
@@ -555,8 +560,10 @@ def export_ics(records: Iterable[ImportedRecord], *, product_id: str = "-//HCB//
         if not isinstance(record, ImportedEvent):
             continue
         lines.extend(("BEGIN:VEVENT", f"SUMMARY:{_escape_ics(record.title)}"))
-        parameter = ";VALUE=DATE" if record.all_day else (
-            f";TZID={record.time_zone}" if record.time_zone else ""
+        parameter = (
+            ";VALUE=DATE"
+            if record.all_day
+            else (f";TZID={record.time_zone}" if record.time_zone else "")
         )
         lines.append(f"DTSTART{parameter}:{_ics_timestamp(record.start, record.all_day)}")
         lines.append(f"DTEND{parameter}:{_ics_timestamp(record.end, record.all_day)}")

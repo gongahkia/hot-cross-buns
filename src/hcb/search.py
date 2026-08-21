@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 ResultType = Literal["task", "event", "calendar", "drive"]
 WindowKind = Literal["today", "past", "upcoming", "this-week", "next-week", "day", "range"]
@@ -125,9 +126,7 @@ def matches_date_window(
         return key < today_key
     if window.kind == "upcoming":
         return key >= today_key
-    monday = date.fromisoformat(today_key) - timedelta(
-        days=date.fromisoformat(today_key).weekday()
-    )
+    monday = date.fromisoformat(today_key) - timedelta(days=date.fromisoformat(today_key).weekday())
     if window.kind == "this-week":
         return monday.isoformat() <= key <= (monday + timedelta(days=6)).isoformat()
     if window.kind == "next-week":
@@ -139,7 +138,9 @@ def matches_date_window(
 
 
 def _unquote(value: str) -> str:
-    return value[1:-1] if len(value) >= 2 and value.startswith('"') and value.endswith('"') else value
+    return (
+        value[1:-1] if len(value) >= 2 and value.startswith('"') and value.endswith('"') else value
+    )
 
 
 def _completed(value: str) -> bool | None:
@@ -254,9 +255,7 @@ def includes_result_type(filters: PaletteFilters, result_type: ResultType) -> bo
     return not filters.types or result_type in filters.types
 
 
-def matches_calendar(
-    calendar_id: str, calendar_name: str | None, query: str | None
-) -> bool:
+def matches_calendar(calendar_id: str, calendar_name: str | None, query: str | None) -> bool:
     if not query:
         return True
     target = query.casefold()
@@ -286,8 +285,10 @@ def matches_task_filters(
     status = _enum_text(_value(task, "status"))
     if filters.completed is not None and (status == "completed") != filters.completed:
         return False
-    if filters.status and status.lower() != filters.status and not (
-        filters.status == "open" and status == "needsAction"
+    if (
+        filters.status
+        and status.lower() != filters.status
+        and not (filters.status == "open" and status == "needsAction")
     ):
         return False
     task_priority = _enum_text(_value(metadata, "priority")) or "none"
@@ -324,9 +325,9 @@ def matches_event_filters(
     if filters.status and status.lower() != filters.status:
         return False
     calendar_id = str(_value(event, "calendar_id", "calendarId") or "")
-    return matches_calendar(calendar_id, calendar_name, filters.calendar_query) and matches_date_window(
-        event_date_key(event), filters.date, today
-    )
+    return matches_calendar(
+        calendar_id, calendar_name, filters.calendar_query
+    ) and matches_date_window(event_date_key(event), filters.date, today)
 
 
 def _contains(value: object, query: str) -> bool:
@@ -366,8 +367,7 @@ def matches_event(
     if _contains(_value(event, "summary", "title"), parsed.text):
         return True
     return parsed.search_body and any(
-        _contains(_value(event, field), parsed.text)
-        for field in ("description", "location")
+        _contains(_value(event, field), parsed.text) for field in ("description", "location")
     )
 
 

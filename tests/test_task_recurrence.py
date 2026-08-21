@@ -81,9 +81,7 @@ def test_parses_legacy_v1_and_rejects_unknown_or_malformed_markers() -> None:
 
 
 def test_task_v1_envelope_supports_reminder_with_or_without_recurrence() -> None:
-    both = serialize_task_notes(
-        "context", marker(), TaskReminder("09:30", "Asia/Singapore")
-    )
+    both = serialize_task_notes("context", marker(), TaskReminder("09:30", "Asia/Singapore"))
     parsed = parse_task_recurrence_notes(both.notes or "")
     assert parsed.state == "managed"
     assert parsed.marker == marker()
@@ -98,12 +96,8 @@ def test_task_v1_envelope_supports_reminder_with_or_without_recurrence() -> None
 
 def test_strict_validation_and_limits() -> None:
     assert serialize_task_recurrence_notes("", marker(series_id="not-a-uuid")).error
-    assert serialize_task_recurrence_notes(
-        "", marker(recurrence_rule="freq=WEEKLY")
-    ).error
-    assert serialize_task_recurrence_notes(
-        "", marker(exclusion_dates=("2026-08-17",))
-    ).error
+    assert serialize_task_recurrence_notes("", marker(recurrence_rule="freq=WEEKLY")).error
+    assert serialize_task_recurrence_notes("", marker(exclusion_dates=("2026-08-17",))).error
     assert serialize_task_notes("", reminder=TaskReminder("24:00", "UTC")).error
     assert serialize_task_notes("\0", marker()).error
     assert serialize_task_recurrence_notes("x" * 8_192, marker()).error

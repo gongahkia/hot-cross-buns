@@ -31,7 +31,9 @@ def _system_keyring() -> KeyringLike:
 class TokenStore:
     """Stores only long-lived refresh tokens; access tokens remain in memory."""
 
-    def __init__(self, backend: KeyringLike | None = None, *, service: str = KEYRING_SERVICE) -> None:
+    def __init__(
+        self, backend: KeyringLike | None = None, *, service: str = KEYRING_SERVICE
+    ) -> None:
         self.backend = backend or _system_keyring()
         self.service = service
 
@@ -80,7 +82,9 @@ class GoogleAuthenticator:
         scopes: tuple[str, ...] = DEFAULT_SCOPES,
     ) -> None:
         if "installed" not in client_config:
-            raise ValueError("Google OAuth client configuration must contain an 'installed' section")
+            raise ValueError(
+                "Google OAuth client configuration must contain an 'installed' section"
+            )
         self.client_config = client_config
         self.token_store = token_store or TokenStore()
         self.scopes = scopes
@@ -92,7 +96,7 @@ class GoogleAuthenticator:
         open_browser: bool = True,
         timeout_seconds: int = 180,
     ) -> OAuthResult:
-        from google_auth_oauthlib.flow import InstalledAppFlow
+        from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
 
         flow = InstalledAppFlow.from_client_config(
             self.client_config,
@@ -129,7 +133,7 @@ class GoogleAuthenticator:
         if refresh_token is None:
             raise LookupError(f"no credentials stored for account {account_id!r}")
         installed = self.client_config["installed"]
-        return Credentials(
+        return Credentials(  # type: ignore[no-untyped-call]
             token=None,
             refresh_token=refresh_token,
             token_uri=installed.get("token_uri", "https://oauth2.googleapis.com/token"),

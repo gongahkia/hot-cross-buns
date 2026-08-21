@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -7,13 +7,11 @@ from hcb.models import DateTimeKind, EventDateTime, Preferences
 
 def test_event_datetime_enforces_kind() -> None:
     all_day = EventDateTime(DateTimeKind.DATE, date(2026, 8, 21))
-    instant = EventDateTime(
-        DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=timezone.utc)
-    )
+    instant = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC))
     assert all_day.value == date(2026, 8, 21)
     assert instant.time_zone is None
     with pytest.raises(ValueError):
-        EventDateTime(DateTimeKind.DATE, datetime.now(timezone.utc))
+        EventDateTime(DateTimeKind.DATE, datetime.now(UTC))
     with pytest.raises(ValueError):
         EventDateTime(DateTimeKind.DATETIME, date.today())
 

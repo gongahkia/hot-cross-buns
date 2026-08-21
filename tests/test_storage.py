@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -54,8 +54,8 @@ def test_event_occurrences_and_range_queries(store: Storage) -> None:
         "a",
         "cal",
         "Planning",
-        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=timezone.utc)),
-        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=timezone.utc)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC)),
         canonical_id="series",
         occurrence_id="2026-08-21T09:00:00+00:00",
         recurrence=("RRULE:FREQ=WEEKLY",),
@@ -91,7 +91,7 @@ def test_outbox_cursor_conflict_reminder_and_transaction(store: Storage) -> None
     store.resolve_conflict("a", conflict_id, ConflictStatus.KEEP_LOCAL)
     assert store.list_conflicts("a") == []
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     store.set_reminder("a", "event", now)
     assert store.due_reminders("a", now)[0]["event_id"] == "event"
 

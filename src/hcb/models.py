@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Provider(StrEnum):
@@ -43,6 +43,8 @@ class MutationOperation(StrEnum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+    MOVE = "move"
+    RESPOND = "respond"
 
 
 class ConflictStatus(StrEnum):

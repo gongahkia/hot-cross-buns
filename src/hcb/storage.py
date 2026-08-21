@@ -142,7 +142,9 @@ class Storage:
     def _migrate(self) -> None:
         version = int(self.connection.execute("PRAGMA user_version").fetchone()[0])
         if version > SCHEMA_VERSION:
-            raise RuntimeError(f"database schema {version} is newer than supported {SCHEMA_VERSION}")
+            raise RuntimeError(
+                f"database schema {version} is newer than supported {SCHEMA_VERSION}"
+            )
         if version == 0:
             with self.transaction():
                 self.connection.executescript(_SCHEMA)
@@ -251,12 +253,24 @@ class Storage:
 
     def _task_list(self, row: sqlite3.Row) -> TaskList:
         return TaskList(
-            row["id"], row["account_id"], row["title"], row["remote_id"], row["position"], _metadata(row)
+            row["id"],
+            row["account_id"],
+            row["title"],
+            row["remote_id"],
+            row["position"],
+            _metadata(row),
         )
 
     def get_task_list(self, account_id: str, list_id: str) -> TaskList | None:
         row = self.connection.execute(
             "SELECT * FROM task_lists WHERE account_id=? AND id=?", (account_id, list_id)
+        ).fetchone()
+        return self._task_list(row) if row else None
+
+    def get_task_list_by_remote(self, account_id: str, remote_id: str) -> TaskList | None:
+        row = self.connection.execute(
+            "SELECT * FROM task_lists WHERE account_id=? AND remote_id=?",
+            (account_id, remote_id),
         ).fetchone()
         return self._task_list(row) if row else None
 
@@ -321,6 +335,12 @@ class Storage:
         ).fetchone()
         return self._task(row) if row else None
 
+    def get_task_by_remote(self, account_id: str, remote_id: str) -> Task | None:
+        row = self.connection.execute(
+            "SELECT * FROM tasks WHERE account_id=? AND remote_id=?", (account_id, remote_id)
+        ).fetchone()
+        return self._task(row) if row else None
+
     def list_tasks(
         self, account_id: str, list_id: str | None = None, *, include_deleted: bool = False
     ) -> list[Task]:
@@ -343,7 +363,9 @@ class Storage:
         return [self._task(row) for row in rows]
 
     def delete_task(self, account_id: str, task_id: str) -> None:
-        self.connection.execute("DELETE FROM tasks WHERE account_id=? AND id=?", (account_id, task_id))
+        self.connection.execute(
+            "DELETE FROM tasks WHERE account_id=? AND id=?", (account_id, task_id)
+        )
 
     def upsert_calendar(self, calendar: Calendar) -> None:
         self.connection.execute(
@@ -383,6 +405,13 @@ class Storage:
     def get_calendar(self, account_id: str, calendar_id: str) -> Calendar | None:
         row = self.connection.execute(
             "SELECT * FROM calendars WHERE account_id=? AND id=?", (account_id, calendar_id)
+        ).fetchone()
+        return self._calendar(row) if row else None
+
+    def get_calendar_by_remote(self, account_id: str, remote_id: str) -> Calendar | None:
+        row = self.connection.execute(
+            "SELECT * FROM calendars WHERE account_id=? AND remote_id=?",
+            (account_id, remote_id),
         ).fetchone()
         return self._calendar(row) if row else None
 
@@ -439,7 +468,11 @@ class Storage:
     @staticmethod
     def _event_time(kind: str, value: str, zone: str | None) -> EventDateTime:
         parsed: date | datetime
-        parsed = datetime.fromisoformat(value) if kind == DateTimeKind.DATETIME else date.fromisoformat(value)
+        parsed = (
+            datetime.fromisoformat(value)
+            if kind == DateTimeKind.DATETIME
+            else date.fromisoformat(value)
+        )
         return EventDateTime(DateTimeKind(kind), parsed, zone)
 
     def _event(self, row: sqlite3.Row) -> Event:
@@ -466,6 +499,18 @@ class Storage:
         ).fetchone()
         return self._event(row) if row else None
 
+    def get_event_by_remote(
+        self, account_id: str, remote_id: str, *, occurrence_id: str | None = None
+    ) -> Event | None:
+        sql = "SELECT * FROM events WHERE account_id=? AND remote_id=?"
+        args: list[Any] = [account_id, remote_id]
+        if occurrence_id is None:
+            sql += " AND occurrence_id IS NULL"
+        else:
+            sql, args = sql + " AND occurrence_id=?", [*args, occurrence_id]
+        row = self.connection.execute(sql, args).fetchone()
+        return self._event(row) if row else None
+
     def list_events(
         self,
         account_id: str,
@@ -475,7 +520,8 @@ class Storage:
         end: date | datetime | None = None,
         include_deleted: bool = False,
     ) -> list[Event]:
-        sql, args = "SELECT * FROM events WHERE account_id=?", [account_id]
+        sql = "SELECT * FROM events WHERE account_id=?"
+        args: list[Any] = [account_id]
         if calendar_id is not None:
             sql, args = sql + " AND calendar_id=?", [*args, calendar_id]
         if start is not None:
@@ -484,7 +530,9 @@ class Storage:
             sql, args = sql + " AND start_value<?", [*args, _iso(end)]
         if not include_deleted:
             sql += " AND deleted=0"
-        return [self._event(row) for row in self.connection.execute(sql + " ORDER BY start_value", args)]
+        return [
+            self._event(row) for row in self.connection.execute(sql + " ORDER BY start_value", args)
+        ]
 
     def search_events(self, account_id: str, query: str, *, limit: int = 50) -> list[Event]:
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -497,7 +545,9 @@ class Storage:
         return [self._event(row) for row in rows]
 
     def delete_event(self, account_id: str, event_id: str) -> None:
-        self.connection.execute("DELETE FROM events WHERE account_id=? AND id=?", (account_id, event_id))
+        self.connection.execute(
+            "DELETE FROM events WHERE account_id=? AND id=?", (account_id, event_id)
+        )
 
     def enqueue(self, mutation: PendingMutation) -> int:
         cursor = self.connection.execute(
@@ -514,7 +564,9 @@ class Storage:
                 mutation.last_error,
             ),
         )
-        return int(cursor.lastrowid)
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return an outbox id")
+        return cursor.lastrowid
 
     def pending_mutations(self, account_id: str, *, limit: int = 100) -> list[PendingMutation]:
         rows = self.connection.execute(
@@ -559,9 +611,19 @@ class Storage:
             "SELECT * FROM sync_cursors WHERE account_id=? AND scope=?", (account_id, scope)
         ).fetchone()
         return (
-            SyncCursor(row["account_id"], row["scope"], row["cursor"], datetime.fromisoformat(row["updated_at"]))
+            SyncCursor(
+                row["account_id"],
+                row["scope"],
+                row["cursor"],
+                datetime.fromisoformat(row["updated_at"]),
+            )
             if row
             else None
+        )
+
+    def delete_cursor(self, account_id: str, scope: str) -> None:
+        self.connection.execute(
+            "DELETE FROM sync_cursors WHERE account_id=? AND scope=?", (account_id, scope)
         )
 
     def start_checkpoint(self, account_id: str, scope: str) -> int:
@@ -569,7 +631,9 @@ class Storage:
             "INSERT INTO sync_checkpoints(account_id,scope,started_at) VALUES (?,?,?)",
             (account_id, scope, _iso(utc_now())),
         )
-        return int(cursor.lastrowid)
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a checkpoint id")
+        return cursor.lastrowid
 
     def finish_checkpoint(
         self, checkpoint_id: int, *, cursor: str | None = None, error: str | None = None
@@ -577,6 +641,21 @@ class Storage:
         self.connection.execute(
             "UPDATE sync_checkpoints SET completed_at=?,cursor=?,error=? WHERE id=?",
             (_iso(utc_now()), cursor, error, checkpoint_id),
+        )
+
+    def resumable_checkpoint(self, account_id: str, scope: str) -> tuple[int, str | None] | None:
+        row = self.connection.execute(
+            """SELECT id,cursor FROM sync_checkpoints
+            WHERE account_id=? AND scope=? AND completed_at IS NULL
+            ORDER BY id DESC LIMIT 1""",
+            (account_id, scope),
+        ).fetchone()
+        return (row["id"], row["cursor"]) if row else None
+
+    def save_checkpoint_page(self, checkpoint_id: int, page_token: str | None) -> None:
+        self.connection.execute(
+            "UPDATE sync_checkpoints SET cursor=?,error=NULL WHERE id=?",
+            (page_token, checkpoint_id),
         )
 
     def add_conflict(self, conflict: Conflict) -> int:
@@ -594,7 +673,9 @@ class Storage:
                 _iso(conflict.resolved_at),
             ),
         )
-        return int(cursor.lastrowid)
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a conflict id")
+        return cursor.lastrowid
 
     def list_conflicts(self, account_id: str, *, open_only: bool = True) -> list[Conflict]:
         sql, args = "SELECT * FROM conflicts WHERE account_id=?", [account_id]
@@ -663,7 +744,9 @@ class Storage:
             "foreign_keys": bool(self.connection.execute("PRAGMA foreign_keys").fetchone()[0]),
             "integrity": integrity,
             "accounts": self.connection.execute("SELECT count(*) FROM accounts").fetchone()[0],
-            "pending_mutations": self.connection.execute("SELECT count(*) FROM outbox").fetchone()[0],
+            "pending_mutations": self.connection.execute("SELECT count(*) FROM outbox").fetchone()[
+                0
+            ],
             "open_conflicts": self.connection.execute(
                 "SELECT count(*) FROM conflicts WHERE status=?", (ConflictStatus.OPEN.value,)
             ).fetchone()[0],

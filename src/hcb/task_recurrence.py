@@ -26,9 +26,7 @@ _TASK_PREFIX = "[HCB-TASK v"
 _TASK_SUFFIX = "\n[/HCB-TASK]"
 _FREQUENCIES = frozenset(("daily", "weekly", "monthly", "yearly"))
 _PRIORITIES = frozenset(("none", "low", "medium", "high"))
-_UUID = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _DAY_NAMES = {"MO": 1, "TU": 2, "WE": 3, "TH": 4, "FR": 5, "SA": 6, "SU": 7}
 
@@ -252,7 +250,8 @@ def validate_marker(marker: TaskRecurrenceMarker) -> str | None:
     if marker.end.kind == "count" and marker.end.until_date is None:
         return (
             None
-            if _integer(marker.end.count) and marker.end.count is not None
+            if _integer(marker.end.count)
+            and marker.end.count is not None
             and 1 <= marker.end.count <= 10_000
             else "count end condition is invalid"
         )
@@ -271,7 +270,11 @@ def _payload_to_marker(payload: object, version: int) -> TaskRecurrenceMarker | 
         return None
     end = payload["e"]
     template = payload["t"]
-    if not isinstance(end, dict) or not isinstance(template, dict) or set(template) != {"d", "p", "t"}:
+    if (
+        not isinstance(end, dict)
+        or not isinstance(template, dict)
+        or set(template) != {"d", "p", "t"}
+    ):
         return None
     if set(end) == {"k"} and end.get("k") == "never":
         end_value = RecurrenceEnd("never")
@@ -328,12 +331,16 @@ def _parse_envelope(
     label = "task" if task else "recurrence"
     if notes.find(prefix, start + len(prefix)) >= 0:
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic=f"HCB {label} marker is malformed: multiple marker headers exist"
+            "malformed",
+            notes,
+            diagnostic=f"HCB {label} marker is malformed: multiple marker headers exist",
         )
     header_end = notes.find("]\n", start + len(prefix))
     if start < 2 or notes[start - 2 : start] != "\n\n" or header_end < 0:
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic=f"HCB {label} marker is malformed: marker boundary is invalid"
+            "malformed",
+            notes,
+            diagnostic=f"HCB {label} marker is malformed: marker boundary is invalid",
         )
     version_text = notes[start + len(prefix) : header_end]
     end = notes.find(suffix, header_end + 2)
@@ -344,7 +351,9 @@ def _parse_envelope(
         or end + len(suffix) != len(notes)
     ):
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic=f"HCB {label} marker is malformed: marker envelope is invalid"
+            "malformed",
+            notes,
+            diagnostic=f"HCB {label} marker is malformed: marker envelope is invalid",
         )
     version = int(version_text)
     if version not in supported:
@@ -356,7 +365,9 @@ def _parse_envelope(
     payload_text = notes[header_end + 2 : end]
     if not payload_text or "\n" in payload_text or len(payload_text.encode()) > NOTES_LIMIT:
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic=f"HCB {label} marker is malformed: marker payload is invalid"
+            "malformed",
+            notes,
+            diagnostic=f"HCB {label} marker is malformed: marker payload is invalid",
         )
     try:
         payload: Any = json.loads(payload_text)
@@ -373,12 +384,16 @@ def _parse_envelope(
             TaskRecurrenceNotes("managed", user_notes, marker=marker)
             if marker
             else TaskRecurrenceNotes(
-                "malformed", notes, diagnostic="HCB recurrence marker is malformed: payload fields are invalid"
+                "malformed",
+                notes,
+                diagnostic="HCB recurrence marker is malformed: payload fields are invalid",
             )
         )
     if not isinstance(payload, dict) or not set(payload) <= {"m", "r"} or not payload:
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic="HCB task marker is malformed: payload fields are invalid"
+            "malformed",
+            notes,
+            diagnostic="HCB task marker is malformed: payload fields are invalid",
         )
     reminder = None
     if "m" in payload:
@@ -391,13 +406,17 @@ def _parse_envelope(
             or not _valid_zone(value["z"])
         ):
             return TaskRecurrenceNotes(
-                "malformed", notes, diagnostic="HCB task marker is malformed: payload fields are invalid"
+                "malformed",
+                notes,
+                diagnostic="HCB task marker is malformed: payload fields are invalid",
             )
         reminder = TaskReminder(value["t"], value["z"])
     marker = _payload_to_marker(payload["r"], 2) if "r" in payload else None
     if "r" in payload and marker is None:
         return TaskRecurrenceNotes(
-            "malformed", notes, diagnostic="HCB task marker is malformed: payload fields are invalid"
+            "malformed",
+            notes,
+            diagnostic="HCB task marker is malformed: payload fields are invalid",
         )
     return TaskRecurrenceNotes(
         "managed" if marker else "unmanaged", user_notes, marker=marker, reminder=reminder
@@ -522,13 +541,16 @@ def _matches_rule(value: date, anchor: date, rule: _Rule) -> bool:
         month_end = calendar.monthrange(value.year, value.month)[1]
         from_start = (value.day - 1) // 7 + 1
         from_end = -((month_end - value.day) // 7 + 1)
-        if (
-            value.isoweekday() not in rule.ordinal_weekdays.get(from_start, ())
-            and value.isoweekday() not in rule.ordinal_weekdays.get(from_end, ())
-        ):
+        if value.isoweekday() not in rule.ordinal_weekdays.get(
+            from_start, ()
+        ) and value.isoweekday() not in rule.ordinal_weekdays.get(from_end, ()):
             return False
     last_day = calendar.monthrange(value.year, value.month)[1]
-    if rule.month_days and value.day not in rule.month_days and value.day - last_day - 1 not in rule.month_days:
+    if (
+        rule.month_days
+        and value.day not in rule.month_days
+        and value.day - last_day - 1 not in rule.month_days
+    ):
         return False
     if not rule.weekdays and not rule.ordinal_weekdays and not rule.month_days:
         if rule.frequency == "weekly" and value.isoweekday() != anchor.isoweekday():
@@ -586,8 +608,16 @@ def task_recurrence_successor(marker: TaskRecurrenceMarker) -> TaskRecurrenceMar
     due = task_recurrence_date(marker, ordinal)
     if (
         due is None
-        or (marker.end.kind == "until" and marker.end.until_date is not None and due > marker.end.until_date)
-        or (marker.end.kind == "count" and marker.end.count is not None and ordinal >= marker.end.count)
+        or (
+            marker.end.kind == "until"
+            and marker.end.until_date is not None
+            and due > marker.end.until_date
+        )
+        or (
+            marker.end.kind == "count"
+            and marker.end.count is not None
+            and ordinal >= marker.end.count
+        )
     ):
         return None
     return replace(
@@ -608,9 +638,7 @@ def task_recurrence_summary(marker: TaskRecurrenceMarker) -> str:
         return result
     plural = "days" if marker.frequency == "daily" else f"{marker.frequency}s"
     result = (
-        f"Every {marker.frequency}"
-        if marker.interval == 1
-        else f"Every {marker.interval} {plural}"
+        f"Every {marker.frequency}" if marker.interval == 1 else f"Every {marker.interval} {plural}"
     )
     if marker.end.kind == "until":
         result += f" until {marker.end.until_date}"

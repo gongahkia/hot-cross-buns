@@ -130,12 +130,8 @@ def test_ics_export_escapes_text_and_round_trips_all_day_and_timed_events() -> N
 
 
 def test_import_limits_utf8_and_event_validation_are_safe() -> None:
-    assert parse_import("x.json", b"\xff").errors == (
-        "Import source is not valid UTF-8",
-    )
-    assert parse_import("x.json", "x" * (MAX_BYTES + 1)).errors == (
-        "Import source exceeds 5 MiB",
-    )
+    assert parse_import("x.json", b"\xff").errors == ("Import source is not valid UTF-8",)
+    assert parse_import("x.json", "x" * (MAX_BYTES + 1)).errors == ("Import source exceeds 5 MiB",)
     assert parse_import("x.txt", "").errors == (
         "Import format must be .csv, .json, .ics, or .ical",
     )
@@ -151,9 +147,7 @@ def test_import_limits_utf8_and_event_validation_are_safe() -> None:
             }
         ],
     }
-    assert parse_json(json.dumps(bad_event)).rows[0].errors == (
-        "Event end must be after start",
-    )
+    assert parse_json(json.dumps(bad_event)).rows[0].errors == ("Event end must be after start",)
 
 
 def test_export_rejects_recurrence_content_line_injection() -> None:

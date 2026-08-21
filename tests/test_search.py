@@ -26,15 +26,11 @@ from hcb.search import (
 
 
 def test_parses_filters_quotes_free_text_and_unknown_tokens() -> None:
-    parsed = parse_palette_query(
-        'type:event in:"Team Calendar" date:2026-08-01..2026-08-31 launch'
-    )
+    parsed = parse_palette_query('type:event in:"Team Calendar" date:2026-08-01..2026-08-31 launch')
     assert parsed.text == "launch"
     assert parsed.filters.types == ("event",)
     assert parsed.filters.calendar_query == "Team Calendar"
-    assert parsed.filters.date == DateWindow(
-        "range", start="2026-08-01", end="2026-08-31"
-    )
+    assert parsed.filters.date == DateWindow("range", start="2026-08-01", end="2026-08-31")
     assert parsed.has_filters
 
     unknown = parse_palette_query('owner:"Ada Lovelace" "quoted term"')
@@ -53,9 +49,7 @@ def test_date_windows_are_calendar_correct_and_monday_based() -> None:
 
 
 def test_task_filtering_combines_overdue_completion_list_and_priority() -> None:
-    parsed = parse_palette_query(
-        'task:Open list:"My Tasks" due:past completed:false priority:high'
-    )
+    parsed = parse_palette_query('task:Open list:"My Tasks" due:past completed:false priority:high')
     task = {
         "id": "open",
         "listId": "inbox",
