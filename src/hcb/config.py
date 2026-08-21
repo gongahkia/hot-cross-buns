@@ -23,6 +23,15 @@ class Theme:
     warning: str = "yellow"
     danger: str = "red"
     muted: str = "gray"
+    density: str = "comfortable"
+    borders: str = "unicode"
+    mouse: bool = True
+
+    def __post_init__(self) -> None:
+        if self.density not in {"compact", "comfortable"}:
+            raise ValueError("theme.density must be compact or comfortable")
+        if self.borders not in {"unicode", "ascii"}:
+            raise ValueError("theme.borders must be unicode or ascii")
 
 
 @dataclass(frozen=True, slots=True)

@@ -21,6 +21,7 @@ from .import_export import (
     parse_import,
 )
 from .models import (
+    Account,
     Calendar,
     Conflict,
     ConflictStatus,
@@ -90,6 +91,22 @@ class ImportApplyResult:
     events: tuple[Event, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class WorkspaceSnapshot:
+    account: Account
+    tasks: tuple[Task, ...]
+    events: tuple[Event, ...]
+    task_lists: tuple[TaskList, ...]
+    calendars: tuple[Calendar, ...]
+    pending: int
+
+
+@dataclass(frozen=True, slots=True)
+class TimeSlot:
+    start: datetime
+    end: datetime
+
+
 def _id() -> str:
     return uuid4().hex
 
@@ -127,6 +144,61 @@ class ApplicationService:
     def _account(self, account_id: str) -> None:
         if self.storage.get_account(account_id) is None:
             raise NotFoundError(f"Account {account_id!r} does not exist")
+
+    def workspace(self, account_id: str) -> WorkspaceSnapshot:
+        """Return one local-only snapshot for interactive clients."""
+        account = self.storage.get_account(account_id)
+        if account is None:
+            raise NotFoundError(f"Account {account_id!r} does not exist")
+        return WorkspaceSnapshot(
+            account=account,
+            tasks=tuple(self.storage.list_tasks(account_id)),
+            events=tuple(self.storage.list_events(account_id)),
+            task_lists=tuple(self.storage.list_task_lists(account_id)),
+            calendars=tuple(self.storage.list_calendars(account_id)),
+            pending=len(self.storage.pending_mutations(account_id)),
+        )
+
+    def find_time(
+        self,
+        account_id: str,
+        day: date,
+        *,
+        duration_minutes: int = 30,
+        day_start: int = 9,
+        day_end: int = 17,
+        step_minutes: int = 30,
+    ) -> tuple[TimeSlot, ...]:
+        """Find candidate wall-clock slots using only cached selected calendars."""
+        self._account(account_id)
+        if duration_minutes <= 0 or step_minutes <= 0:
+            raise ValueError("duration and step must be positive")
+        if not 0 <= day_start < day_end <= 24:
+            raise ValueError("working hours must satisfy 0 <= start < end <= 24")
+        window_start = datetime.combine(day, datetime.min.time()) + timedelta(hours=day_start)
+        window_end = datetime.combine(day, datetime.min.time()) + timedelta(hours=day_end)
+        selected = {item.id for item in self.storage.list_calendars(account_id) if item.selected}
+        busy: list[tuple[datetime, datetime]] = []
+        for event in self.storage.list_events(account_id, start=day, end=day + timedelta(days=1)):
+            if event.calendar_id not in selected or event.status is EventStatus.CANCELLED:
+                continue
+            if event.start.kind is DateTimeKind.DATE:
+                busy.append((window_start, window_end))
+                continue
+            start = event.start.value
+            end = event.end.value
+            assert isinstance(start, datetime) and isinstance(end, datetime)
+            busy.append((start.replace(tzinfo=None), end.replace(tzinfo=None)))
+        duration = timedelta(minutes=duration_minutes)
+        step = timedelta(minutes=step_minutes)
+        result: list[TimeSlot] = []
+        cursor = window_start
+        while cursor + duration <= window_end:
+            end = cursor + duration
+            if not any(cursor < busy_end and end > busy_start for busy_start, busy_end in busy):
+                result.append(TimeSlot(cursor, end))
+            cursor += step
+        return tuple(result)
 
     def notes_projection(self, account_id: str) -> NotesProjection:
         if self._notes_projection is not None:
@@ -482,9 +554,7 @@ class ApplicationService:
             )
         return updated
 
-    def complete_task(
-        self, account_id: str, task_id: str, *, completed: bool = True
-    ) -> Task:
+    def complete_task(self, account_id: str, task_id: str, *, completed: bool = True) -> Task:
         current = self._require_task(account_id, task_id)
         now = utc_now() if completed else None
         updated = replace(
@@ -684,9 +754,7 @@ class ApplicationService:
         updated = replace(
             current,
             summary=summary.strip() if summary is not None else current.summary,
-            description=current.description
-            if isinstance(description, _Unset)
-            else description,
+            description=current.description if isinstance(description, _Unset) else description,
             time_zone=current.time_zone if isinstance(time_zone, _Unset) else time_zone,
             color=current.color if isinstance(color, _Unset) else color,
             selected=selected if selected is not None else current.selected,
@@ -822,9 +890,7 @@ class ApplicationService:
             summary=summary.strip() if summary is not None else current.summary,
             start=next_start,
             end=next_end,
-            description=current.description
-            if isinstance(description, _Unset)
-            else description,
+            description=current.description if isinstance(description, _Unset) else description,
             location=current.location if isinstance(location, _Unset) else location,
             status=EventStatus(status) if status is not None else current.status,
             recurrence=recurrence if recurrence is not None else current.recurrence,
@@ -858,9 +924,7 @@ class ApplicationService:
     def move_event(self, account_id: str, event_id: str, calendar_id: str) -> Event:
         current = self._require_event(account_id, event_id)
         self._require_calendar(account_id, calendar_id)
-        updated = replace(
-            current, calendar_id=calendar_id, metadata=_dirty(current.metadata)
-        )
+        updated = replace(current, calendar_id=calendar_id, metadata=_dirty(current.metadata))
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(updated)
@@ -921,8 +985,7 @@ class ApplicationService:
     ) -> tuple[PendingMutation, ...]:
         with self.storage.transaction():
             return tuple(
-                self.respond_event(account_id, event_id, response_status)
-                for event_id in event_ids
+                self.respond_event(account_id, event_id, response_status) for event_id in event_ids
             )
 
     def delete_event(self, account_id: str, event_id: str) -> Event:
@@ -1060,9 +1123,7 @@ class ApplicationService:
         for calendar in self.storage.list_calendars(account_id):
             if matches_calendar_result(calendar, parsed):
                 results.append(
-                    SearchResult(
-                        "calendar", calendar, self._score(calendar.summary, parsed.text)
-                    )
+                    SearchResult("calendar", calendar, self._score(calendar.summary, parsed.text))
                 )
         results.sort(key=lambda result: (-result.score, result.kind, result.item.id))
         return tuple(results[:limit])
@@ -1078,9 +1139,7 @@ class ApplicationService:
             raise NotFoundError(f"Saved search {search_id!r} does not exist")
         return self.search(account_id, item.query, today=today)
 
-    def link_task_event(
-        self, account_id: str, task_id: str, event_id: str
-    ) -> TaskEventLink:
+    def link_task_event(self, account_id: str, task_id: str, event_id: str) -> TaskEventLink:
         self._require_task(account_id, task_id)
         self._require_event(account_id, event_id)
         created = utc_now()
@@ -1211,9 +1270,7 @@ class ApplicationService:
                 time_zone,
             )
         recurrence = (parsed.recurrence.rrule,) if parsed.recurrence else ()
-        return self.create_event(
-            account_id, calendar_id, title, start, end, recurrence=recurrence
-        )
+        return self.create_event(account_id, calendar_id, title, start, end, recurrence=recurrence)
 
     @staticmethod
     def preview_import(filename: str, source: str | bytes) -> ImportPreview:
@@ -1247,15 +1304,11 @@ class ApplicationService:
                         )
                     )
                 else:
-                    calendar_id = self._resolve_calendar(
-                        account_id, record, default_calendar_id
-                    )
+                    calendar_id = self._resolve_calendar(account_id, record, default_calendar_id)
                     events.append(self._create_imported_event(account_id, calendar_id, record))
         return ImportApplyResult(tuple(tasks), tuple(events))
 
-    def _resolve_list(
-        self, account_id: str, record: ImportedTask, default: str | None
-    ) -> str:
+    def _resolve_list(self, account_id: str, record: ImportedTask, default: str | None) -> str:
         if record.list:
             match = next(
                 (
@@ -1272,9 +1325,7 @@ class ApplicationService:
             return default
         raise ValueError(f"no task list resolved for imported task {record.title!r}")
 
-    def _resolve_calendar(
-        self, account_id: str, record: ImportedEvent, default: str | None
-    ) -> str:
+    def _resolve_calendar(self, account_id: str, record: ImportedEvent, default: str | None) -> str:
         if record.calendar:
             match = next(
                 (
@@ -1498,4 +1549,3 @@ class ApplicationService:
 
 
 Application = ApplicationService
-

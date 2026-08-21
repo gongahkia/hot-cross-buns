@@ -24,6 +24,7 @@ from .models import (
     MutationOperation,
     PendingMutation,
     Provider,
+    ReminderOverride,
     SyncCursor,
     Task,
     TaskList,
@@ -33,7 +34,7 @@ from .models import (
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -134,6 +135,29 @@ CREATE TABLE app_settings (
 );
 """
 
+_MIGRATION_3 = """
+ALTER TABLE calendars ADD COLUMN default_reminders TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE events ADD COLUMN reminder_use_default INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE events ADD COLUMN reminder_overrides TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE events ADD COLUMN attendees TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE events ADD COLUMN attendee_response TEXT;
+ALTER TABLE events ADD COLUMN event_type TEXT;
+ALTER TABLE events ADD COLUMN transparency TEXT;
+ALTER TABLE events ADD COLUMN visibility TEXT;
+ALTER TABLE events ADD COLUMN color_id TEXT;
+ALTER TABLE events ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE events ADD COLUMN conference TEXT;
+CREATE TABLE reminder_deliveries (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    source_type TEXT NOT NULL, source_id TEXT NOT NULL, occurrence_id TEXT NOT NULL DEFAULT '',
+    scheduled_at TEXT NOT NULL, delivered_at TEXT, dismissed_at TEXT, snoozed_until TEXT,
+    last_error TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(account_id, source_type, source_id, occurrence_id, scheduled_at)
+);
+CREATE INDEX reminder_deliveries_due
+ON reminder_deliveries(account_id, scheduled_at, delivered_at, dismissed_at);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -182,6 +206,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_2)
                 self.connection.execute("PRAGMA user_version = 2")
+            version = 2
+        if version == 2:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_3)
+                self.connection.execute("PRAGMA user_version = 3")
 
     def close(self) -> None:
         self.connection.close()
@@ -411,13 +440,16 @@ class Storage:
 
     def upsert_calendar(self, calendar: Calendar) -> None:
         self.connection.execute(
-            """INSERT INTO calendars VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """INSERT INTO calendars(
+                id,account_id,summary,remote_id,description,time_zone,color,selected,
+                etag,remote_updated_at,local_updated_at,deleted,dirty,default_reminders
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(account_id,id) DO UPDATE SET summary=excluded.summary,
             remote_id=excluded.remote_id, description=excluded.description,
             time_zone=excluded.time_zone, color=excluded.color, selected=excluded.selected,
             etag=excluded.etag, remote_updated_at=excluded.remote_updated_at,
             local_updated_at=excluded.local_updated_at, deleted=excluded.deleted,
-            dirty=excluded.dirty""",
+            dirty=excluded.dirty,default_reminders=excluded.default_reminders""",
             (
                 calendar.id,
                 calendar.account_id,
@@ -428,6 +460,10 @@ class Storage:
                 calendar.color,
                 calendar.selected,
                 *self._meta_values(calendar.metadata),
+                json.dumps(
+                    [{"method": item.method, "minutes": item.minutes}
+                     for item in calendar.default_reminders]
+                ),
             ),
         )
 
@@ -442,6 +478,10 @@ class Storage:
             color=row["color"],
             selected=bool(row["selected"]),
             metadata=_metadata(row),
+            default_reminders=tuple(
+                ReminderOverride(str(item["method"]), int(item["minutes"]))
+                for item in json.loads(row["default_reminders"])
+            ),
         )
 
     def get_calendar(self, account_id: str, calendar_id: str) -> Calendar | None:
@@ -473,7 +513,13 @@ class Storage:
 
     def upsert_event(self, event: Event) -> None:
         self.connection.execute(
-            """INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """INSERT INTO events(
+                id,account_id,calendar_id,summary,start_kind,start_value,start_time_zone,
+                end_kind,end_value,end_time_zone,remote_id,canonical_id,occurrence_id,
+                description,location,status,recurrence,etag,remote_updated_at,local_updated_at,
+                deleted,dirty,reminder_use_default,reminder_overrides,attendees,
+                attendee_response,event_type,transparency,visibility,color_id,attachments,conference
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(account_id,id) DO UPDATE SET calendar_id=excluded.calendar_id,
             summary=excluded.summary, start_kind=excluded.start_kind,
             start_value=excluded.start_value, start_time_zone=excluded.start_time_zone,
@@ -484,7 +530,12 @@ class Storage:
             status=excluded.status, recurrence=excluded.recurrence, etag=excluded.etag,
             remote_updated_at=excluded.remote_updated_at,
             local_updated_at=excluded.local_updated_at, deleted=excluded.deleted,
-            dirty=excluded.dirty""",
+            dirty=excluded.dirty,reminder_use_default=excluded.reminder_use_default,
+            reminder_overrides=excluded.reminder_overrides,attendees=excluded.attendees,
+            attendee_response=excluded.attendee_response,event_type=excluded.event_type,
+            transparency=excluded.transparency,visibility=excluded.visibility,
+            color_id=excluded.color_id,attachments=excluded.attachments,
+            conference=excluded.conference""",
             (
                 event.id,
                 event.account_id,
@@ -504,6 +555,19 @@ class Storage:
                 event.status.value,
                 json.dumps(event.recurrence),
                 *self._meta_values(event.metadata),
+                event.reminder_use_default,
+                json.dumps(
+                    [{"method": item.method, "minutes": item.minutes}
+                     for item in event.reminder_overrides]
+                ),
+                json.dumps(event.attendees),
+                event.attendee_response,
+                event.event_type,
+                event.transparency,
+                event.visibility,
+                event.color_id,
+                json.dumps(event.attachments),
+                json.dumps(event.conference) if event.conference is not None else None,
             ),
         )
 
@@ -533,6 +597,19 @@ class Storage:
             status=EventStatus(row["status"]),
             recurrence=tuple(json.loads(row["recurrence"])),
             metadata=_metadata(row),
+            reminder_use_default=bool(row["reminder_use_default"]),
+            reminder_overrides=tuple(
+                ReminderOverride(str(item["method"]), int(item["minutes"]))
+                for item in json.loads(row["reminder_overrides"])
+            ),
+            attendees=tuple(json.loads(row["attendees"])),
+            attendee_response=row["attendee_response"],
+            event_type=row["event_type"],
+            transparency=row["transparency"],
+            visibility=row["visibility"],
+            color_id=row["color_id"],
+            attachments=tuple(json.loads(row["attachments"])),
+            conference=json.loads(row["conference"]) if row["conference"] else None,
         )
 
     def get_event(self, account_id: str, event_id: str) -> Event | None:
@@ -777,10 +854,75 @@ class Storage:
         )
         return [dict(row) for row in rows]
 
+    def ensure_reminder_delivery(
+        self,
+        account_id: str,
+        source_type: str,
+        source_id: str,
+        scheduled_at: datetime,
+        *,
+        occurrence_id: str | None = None,
+    ) -> None:
+        self.connection.execute(
+            """INSERT OR IGNORE INTO reminder_deliveries(
+                account_id,source_type,source_id,occurrence_id,scheduled_at
+            ) VALUES (?,?,?,?,?)""",
+            (account_id, source_type, source_id, occurrence_id or "", _iso(scheduled_at)),
+        )
+
+    def due_reminder_deliveries(
+        self, account_id: str, now: datetime, earliest: datetime
+    ) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """SELECT * FROM reminder_deliveries
+            WHERE account_id=? AND delivered_at IS NULL AND dismissed_at IS NULL
+            AND (scheduled_at>=? OR snoozed_until IS NOT NULL) AND scheduled_at<=?
+            AND (snoozed_until IS NULL OR snoozed_until<=?)
+            ORDER BY COALESCE(snoozed_until,scheduled_at)""",
+            (account_id, _iso(earliest), _iso(now), _iso(now)),
+        )
+        return [dict(row) for row in rows]
+
+    def update_reminder_delivery(
+        self,
+        row: dict[str, Any],
+        *,
+        delivered_at: datetime | None = None,
+        dismissed_at: datetime | None = None,
+        snoozed_until: datetime | None = None,
+        error: str | None = None,
+    ) -> None:
+        self.connection.execute(
+            """UPDATE reminder_deliveries SET delivered_at=?,dismissed_at=?,
+            snoozed_until=?,last_error=?,attempts=attempts+1
+            WHERE account_id=? AND source_type=? AND source_id=?
+            AND occurrence_id=? AND scheduled_at=?""",
+            (
+                _iso(delivered_at),
+                _iso(dismissed_at),
+                _iso(snoozed_until),
+                error,
+                row["account_id"],
+                row["source_type"],
+                row["source_id"],
+                row["occurrence_id"],
+                row["scheduled_at"],
+            ),
+        )
+
+    def reminder_delivery_rows(self, account_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.connection.execute(
+                "SELECT * FROM reminder_deliveries WHERE account_id=? ORDER BY scheduled_at",
+                (account_id,),
+            )
+        ]
+
     def diagnostics(self) -> dict[str, Any]:
         integrity = self.connection.execute("PRAGMA quick_check").fetchone()[0]
         return {
-            "path": str(self.path),
+            "database": self.path.name,
             "schema_version": self.connection.execute("PRAGMA user_version").fetchone()[0],
             "journal_mode": self.connection.execute("PRAGMA journal_mode").fetchone()[0],
             "foreign_keys": bool(self.connection.execute("PRAGMA foreign_keys").fetchone()[0]),

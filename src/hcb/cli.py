@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -33,8 +34,10 @@ from .models import (
     EventDateTime,
     Task,
 )
+from .notifications import default_notifier
 from .output import to_primitive
 from .runtime import Runtime
+from .scheduler import DaemonState, ReminderScheduler, run_loop
 
 
 class HcbGroup(typer.core.TyperGroup):
@@ -535,6 +538,30 @@ def search(ctx: typer.Context, query: str, limit: int = typer.Option(50)) -> Non
     )
 
 
+@app.command("find-time")
+def find_time(
+    ctx: typer.Context,
+    day: str = typer.Option(..., "--date"),
+    duration: int = typer.Option(30, "--duration"),
+    day_start: int = typer.Option(9, "--day-start"),
+    day_end: int = typer.Option(17, "--day-end"),
+) -> None:
+    """Find free slots using only locally cached selected calendars."""
+    slots = _state(ctx).runtime.application.find_time(
+        _account(ctx),
+        date.fromisoformat(day),
+        duration_minutes=duration,
+        day_start=day_start,
+        day_end=day_end,
+    )
+    _emit(
+        ctx,
+        slots,
+        fields=("start", "end"),
+        human=lambda slot: f"{slot.start.isoformat()}\t{slot.end.isoformat()}",
+    )
+
+
 @saved_app.command("list")
 def saved_list(ctx: typer.Context) -> None:
     items = _state(ctx).runtime.application.list_saved_searches(_account(ctx))
@@ -841,7 +868,7 @@ def doctor(ctx: typer.Context) -> None:
     diagnostics = state.runtime.application.diagnostics()
     diagnostics.update(
         {
-            "config_path": str(state.runtime.paths.config_file),
+            "config": state.runtime.paths.config_file.name,
             "config_valid": True,
             "color": not (
                 os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb"
@@ -857,19 +884,144 @@ def doctor(ctx: typer.Context) -> None:
 
 @daemon_app.command("status")
 def daemon_status(ctx: typer.Context) -> None:
+    state = DaemonState(_state(ctx).runtime.paths.cache_dir)
+    running = False
+    pid: int | None = None
+    if state.pid_file.exists():
+        try:
+            pid = int(state.pid_file.read_text(encoding="ascii"))
+            os.kill(pid, 0)
+            running = True
+        except (OSError, ValueError):
+            pass
+    detail: dict[str, Any] = {}
+    if state.status_file.exists():
+        try:
+            loaded = json.loads(state.status_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                detail = {key: loaded[key] for key in ("status", "updated_at") if key in loaded}
+        except (OSError, json.JSONDecodeError):
+            detail = {"status": "invalid"}
     _emit(
         ctx,
-        {"available": False, "running": False, "message": "daemon not implemented"},
-        human=lambda value: value["message"],
+        {"installed": _launch_agent_path().exists(), "running": running, "pid": pid, **detail},
+        human=lambda value: (
+            f"{'running' if value['running'] else 'stopped'}"
+            f"{' (installed)' if value['installed'] else ''}"
+        ),
     )
 
 
 @daemon_app.command("install")
 def daemon_install() -> None:
-    raise HcbError("daemon installation is not implemented")
+    if sys.platform != "darwin":
+        raise HcbError("LaunchAgent installation is only available on macOS")
+    import subprocess
+
+    target = _launch_agent_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "Label": "com.hot-cross-buns.reminderd",
+        "ProgramArguments": [sys.executable, "-m", "hcb.cli", "daemon", "run"],
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ProcessType": "Background",
+        "StandardOutPath": str(Path.home() / "Library/Logs/hcb-reminderd.log"),
+        "StandardErrorPath": str(Path.home() / "Library/Logs/hcb-reminderd.log"),
+    }
+    temporary = target.with_suffix(".tmp")
+    temporary.write_bytes(plistlib.dumps(payload))
+    temporary.replace(target)
+    subprocess.run(
+        ["launchctl", "bootstrap", f"gui/{os.getuid()}", str(target)],
+        check=False,
+        capture_output=True,
+    )
+    typer.echo(str(target))
+
+
+def _launch_agent_path() -> Path:
+    return Path.home() / "Library/LaunchAgents/com.hot-cross-buns.reminderd.plist"
+
+
+@daemon_app.command("uninstall")
+def daemon_uninstall() -> None:
+    if sys.platform != "darwin":
+        raise HcbError("LaunchAgent installation is only available on macOS")
+    import subprocess
+
+    target = _launch_agent_path()
+    subprocess.run(
+        ["launchctl", "bootout", f"gui/{os.getuid()}", str(target)],
+        check=False,
+        capture_output=True,
+    )
+    target.unlink(missing_ok=True)
+    typer.echo("uninstalled")
+
+
+@daemon_app.command("run")
+def daemon_run(
+    ctx: typer.Context,
+    once: bool = typer.Option(False, "--once", help="Scan and deliver once, then exit."),
+) -> None:
+    runtime = _state(ctx).runtime
+    account = _account(ctx)
+    preferences = runtime.config.preferences
+    if not preferences.reminders_enabled:
+        raise HcbError("local reminders are disabled in preferences")
+    scheduler = ReminderScheduler(
+        runtime.storage,
+        default_notifier(),
+        catch_up=timedelta(minutes=preferences.reminder_catch_up_minutes),
+    )
+    state = DaemonState(runtime.paths.cache_dir)
+    state.write("running")
+    try:
+        if once:
+            result = scheduler.run_once(account)
+            state.write("idle")
+            _emit(ctx, result)
+            return
+        sync_callback: Callable[[], object] | None = None
+        if preferences.reminder_sync_interval_minutes and preferences.reminder_sync_mode != "off":
+            engine = runtime.sync_engine(account)
+            if preferences.reminder_sync_mode == "pull":
+                def pull_sync() -> object:
+                    return engine.sync_task_lists(account), engine.sync_calendars(account)
+
+                sync_callback = pull_sync
+            else:
+                def full_sync() -> object:
+                    return engine.sync(account)
+
+                sync_callback = full_sync
+        run_loop(
+            scheduler,
+            account,
+            interval=preferences.reminder_poll_seconds,
+            jitter=preferences.reminder_jitter_seconds,
+            sync=sync_callback,
+            sync_interval=preferences.reminder_sync_interval_minutes * 60,
+        )
+    except KeyboardInterrupt:
+        state.write("stopped")
+    finally:
+        state.clear()
 
 
 def main() -> None:
+    if len(sys.argv) == 1:
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            from .tui import run_tui
+
+            run_tui(_runtime_factory())
+            return
+        typer.echo(
+            "HCB's interactive workspace requires a TTY. Run `hcb --help` for scriptable commands.",
+            err=True,
+        )
+        return
     app()
 
 

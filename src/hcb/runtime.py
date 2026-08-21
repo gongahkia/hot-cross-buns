@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
+from dataclasses import replace
 from functools import cached_property
 from pathlib import Path
 from typing import Any
 
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
-from .config import Config, ConfigError, load
+from .config import Config, ConfigError, load, save
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
 from .paths import AppPaths
@@ -113,6 +114,32 @@ class Runtime:
             else GoogleApiClient(credentials)
         )
         return SyncEngine(self.storage, gateway)
+
+    def update_tui_settings(
+        self,
+        *,
+        theme: str,
+        density: str,
+        borders: str,
+        mouse: bool,
+        week_starts_on: int,
+    ) -> Config:
+        """Persist interactive presentation settings through the runtime boundary."""
+        current = self.config
+        updated = replace(
+            current,
+            preferences=replace(current.preferences, week_starts_on=week_starts_on),
+            theme=replace(
+                current.theme,
+                name=theme,
+                density=density,
+                borders=borders,
+                mouse=mouse,
+            ),
+        )
+        save(updated, self.paths.config_file)
+        self.__dict__["config"] = updated
+        return updated
 
     def close(self) -> None:
         if "storage" in self.__dict__:

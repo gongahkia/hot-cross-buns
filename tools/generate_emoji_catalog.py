@@ -10,7 +10,6 @@ import re
 import urllib.request
 from pathlib import Path
 
-
 SOURCE_URL = "https://unicode.org/Public/emoji/16.0/emoji-test.txt"
 SOURCE_SHA256 = "24f0c534e86cf142e2496953e8f0e46a3e702392911eddcd29c6cced85139697"
 QUALIFIED = re.compile(r"^([0-9A-F ]+)\s*;\s*fully-qualified\s*#\s*(.*?)\s+E[0-9.]+\s+(.*)$")

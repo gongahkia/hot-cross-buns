@@ -19,6 +19,7 @@ from .models import (
     Metadata,
     MutationOperation,
     PendingMutation,
+    ReminderOverride,
     SyncCursor,
     Task,
     TaskList,
@@ -120,6 +121,11 @@ def calendar_from_google(
         color=item.get("backgroundColor") or item.get("colorId"),
         selected=bool(item.get("selected", True)),
         metadata=_metadata(item, deleted=bool(item.get("deleted"))),
+        default_reminders=tuple(
+            ReminderOverride(str(value.get("method", "")), int(value.get("minutes", 0)))
+            for value in item.get("defaultReminders") or ()
+            if isinstance(value, dict)
+        ),
     )
 
 
@@ -129,6 +135,9 @@ def event_from_google(
     remote_id = str(item["id"])
     original = item.get("originalStartTime") or {}
     occurrence_id = original.get("dateTime") or original.get("date")
+    reminders = item.get("reminders") or {}
+    attendees = tuple(value for value in item.get("attendees") or () if isinstance(value, dict))
+    own_attendee = next((value for value in attendees if value.get("self")), None)
     return Event(
         id=local_id or (f"{remote_id}@{occurrence_id}" if occurrence_id else remote_id),
         account_id=account_id,
@@ -144,6 +153,24 @@ def event_from_google(
         status=EventStatus(item.get("status", EventStatus.CONFIRMED.value)),
         recurrence=tuple(item.get("recurrence") or ()),
         metadata=_metadata(item, deleted=item.get("status") == "cancelled"),
+        reminder_use_default=bool(reminders.get("useDefault", True)),
+        reminder_overrides=tuple(
+            ReminderOverride(str(value.get("method", "")), int(value.get("minutes", 0)))
+            for value in reminders.get("overrides") or ()
+            if isinstance(value, dict)
+        ),
+        attendees=attendees,
+        attendee_response=own_attendee.get("responseStatus") if own_attendee else None,
+        event_type=item.get("eventType"),
+        transparency=item.get("transparency"),
+        visibility=item.get("visibility"),
+        color_id=item.get("colorId"),
+        attachments=tuple(
+            value for value in item.get("attachments") or () if isinstance(value, dict)
+        ),
+        conference=item.get("conferenceData")
+        if isinstance(item.get("conferenceData"), dict)
+        else None,
     )
 
 

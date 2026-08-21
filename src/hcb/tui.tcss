@@ -1,0 +1,209 @@
+$hcb-surface: #11151c;
+$hcb-panel: #171d27;
+$hcb-text: #e7edf5;
+$hcb-muted: #8290a5;
+$hcb-accent: #66aaff;
+
+Screen {
+    background: $hcb-surface;
+    color: $hcb-text;
+}
+
+#topbar {
+    height: 3;
+    padding: 1 2;
+    background: $hcb-panel;
+    color: $hcb-accent;
+    text-style: bold;
+}
+
+#tabs {
+    height: 3;
+    padding: 0 1;
+    background: $hcb-panel;
+}
+
+#tabs Button {
+    min-width: 10;
+    height: 3;
+    border: none;
+    background: transparent;
+}
+
+#workspace {
+    height: 1fr;
+}
+
+#sidebar {
+    width: 27;
+    min-width: 22;
+    border-right: solid $hcb-accent;
+    background: $hcb-panel;
+}
+
+#mini-month {
+    height: 10;
+    padding: 0 1;
+    color: $hcb-muted;
+}
+
+.section-title, #surface-title {
+    height: 3;
+    padding: 1;
+    text-style: bold;
+    color: $hcb-accent;
+}
+
+#resources {
+    height: 1fr;
+}
+
+#sync-state {
+    height: 3;
+    padding: 1;
+    color: $hcb-muted;
+}
+
+#center {
+    width: 1fr;
+}
+
+#content {
+    height: 1fr;
+    padding: 0 1;
+}
+
+ListView > ListItem {
+    padding: 0 1;
+}
+
+ListView > ListItem.--highlight {
+    background: $hcb-accent 25%;
+}
+
+#inspector {
+    width: 32;
+    border-left: solid $hcb-accent;
+    background: $hcb-panel;
+}
+
+#inspection {
+    padding: 1 2;
+}
+
+.density-comfortable ListView > ListItem {
+    height: 2;
+    padding-top: 1;
+}
+
+.density-compact ListView > ListItem {
+    height: 1;
+}
+
+.theme-light {
+    background: #f4f6fa;
+    color: #18202b;
+}
+
+.theme-light #topbar, .theme-light #tabs, .theme-light #sidebar, .theme-light #inspector {
+    background: #e5eaf1;
+    color: #18202b;
+}
+
+.theme-mono, .theme-mono #topbar, .theme-mono #tabs,
+.theme-mono #sidebar, .theme-mono #inspector {
+    background: black;
+    color: white;
+}
+
+.theme-mono #sidebar, .theme-mono #inspector {
+    border: solid white;
+}
+
+.ascii #sidebar {
+    border-right: ascii white;
+}
+
+.ascii #inspector {
+    border-left: ascii white;
+}
+
+#palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
+#rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog {
+    width: 70;
+    max-width: 90%;
+    height: auto;
+    max-height: 80%;
+    padding: 1 2;
+    border: round $hcb-accent;
+    background: $hcb-panel;
+}
+
+#palette-dialog {
+    height: 25;
+}
+
+#event-dialog, #calendar-dialog, #find-time-dialog {
+    height: 30;
+}
+
+#settings-dialog {
+    height: 25;
+}
+
+#rsvp-dialog {
+    width: 40;
+}
+
+#palette-results {
+    height: 1fr;
+}
+
+#calendar-list, #find-results {
+    height: 1fr;
+}
+
+#dialog-title {
+    height: 2;
+    text-style: bold;
+}
+
+#editor-notes {
+    height: 8;
+}
+
+.dialog-buttons {
+    height: 3;
+    align-horizontal: right;
+}
+
+.dialog-buttons Button {
+    margin-left: 1;
+}
+
+PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
+CalendarScreen, SettingsScreen, FindTimeScreen {
+    align: center middle;
+    background: black 50%;
+}
+
+.narrow #inspector {
+    display: none;
+}
+
+.narrow #sidebar {
+    width: 22;
+}
+
+.narrow #tabs Button {
+    min-width: 8;
+}
+
+.very-narrow #sidebar {
+    display: none;
+}
+
+.very-narrow #tabs Button {
+    min-width: 6;
+    padding: 0;
+}

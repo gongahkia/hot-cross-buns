@@ -129,6 +129,7 @@ class Calendar:
     color: str | None = None
     selected: bool = True
     metadata: Metadata = field(default_factory=Metadata)
+    default_reminders: tuple[ReminderOverride, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +143,12 @@ class EventDateTime:
             raise ValueError("DATE values must be date-only")
         if self.kind is DateTimeKind.DATETIME and not isinstance(self.value, datetime):
             raise ValueError("DATETIME values must be datetime instances")
+
+
+@dataclass(frozen=True, slots=True)
+class ReminderOverride:
+    method: str
+    minutes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +167,16 @@ class Event:
     status: EventStatus = EventStatus.CONFIRMED
     recurrence: tuple[str, ...] = ()
     metadata: Metadata = field(default_factory=Metadata)
+    reminder_use_default: bool = True
+    reminder_overrides: tuple[ReminderOverride, ...] = ()
+    attendees: tuple[dict[str, Any], ...] = ()
+    attendee_response: str | None = None
+    event_type: str | None = None
+    transparency: str | None = None
+    visibility: str | None = None
+    color_id: str | None = None
+    attachments: tuple[dict[str, Any], ...] = ()
+    conference: dict[str, Any] | None = None
 
     @property
     def is_occurrence(self) -> bool:
@@ -219,7 +236,22 @@ class Preferences:
     default_task_list_id: str | None = None
     default_calendar_id: str | None = None
     reminders_enabled: bool = True
+    reminder_catch_up_minutes: int = 60
+    reminder_poll_seconds: int = 30
+    reminder_jitter_seconds: int = 5
+    reminder_sync_interval_minutes: int = 0
+    reminder_sync_mode: str = "all"
 
     def __post_init__(self) -> None:
         if not 0 <= self.week_starts_on <= 6:
             raise ValueError("week_starts_on must be between 0 and 6")
+        if self.reminder_catch_up_minutes < 0:
+            raise ValueError("reminder_catch_up_minutes must be non-negative")
+        if self.reminder_poll_seconds < 1:
+            raise ValueError("reminder_poll_seconds must be positive")
+        if self.reminder_jitter_seconds < 0:
+            raise ValueError("reminder_jitter_seconds must be non-negative")
+        if self.reminder_sync_interval_minutes < 0:
+            raise ValueError("reminder_sync_interval_minutes must be non-negative")
+        if self.reminder_sync_mode not in {"all", "pull", "off"}:
+            raise ValueError("reminder_sync_mode must be all, pull, or off")
