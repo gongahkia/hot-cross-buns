@@ -237,6 +237,8 @@ class GoogleApiClient:
         time_max: str | None = None,
         single_events: bool = False,
     ) -> Page:
+        if sync_token is not None and (time_min is not None or time_max is not None):
+            raise ValueError("Google events syncToken cannot be combined with time bounds")
         response = self._execute(
             self.calendar.events().list(
                 calendarId=calendar_id,

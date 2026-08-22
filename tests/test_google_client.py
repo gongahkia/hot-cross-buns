@@ -33,6 +33,59 @@ class Request:
         return self.result
 
 
+class CalendarListResource:
+    def __init__(self, calls):
+        self.calls = calls
+        self.last_request = None
+
+    def patch(self, **kwargs):
+        self.calls.append(("calendarList.patch", kwargs))
+        self.last_request = Request({"id": kwargs["calendarId"]})
+        return self.last_request
+
+
+class ColorsResource:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def get(self, **kwargs):
+        self.calls.append(("colors.get", kwargs))
+        return Request({"calendar": {"1": {"background": "#123456"}}})
+
+
+class EventsResource:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def list(self, **kwargs):
+        self.calls.append(("events.list", kwargs))
+        return Request({"items": [], "nextSyncToken": "next"})
+
+
+class CalendarService:
+    def __init__(self):
+        self.calls = []
+        self._calendar_list = CalendarListResource(self.calls)
+        self._colors = ColorsResource(self.calls)
+        self._events = EventsResource(self.calls)
+
+    def calendarList(self):
+        return self._calendar_list
+
+    def colors(self):
+        return self._colors
+
+    def events(self):
+        return self._events
+
+
+def client_with_calendar_service():
+    calendar = CalendarService()
+    return GoogleApiClient(
+        tasks_service=object(), calendar_service=calendar, drive_service=object()
+    ), calendar
+
+
 @pytest.mark.parametrize("status", [401, 403, 404, 409, 410, 429, 500, 503])
 def test_http_statuses_are_mapped_without_network(status):
     request = Request(error=HttpFailure(status, Retry_After="4"))
@@ -55,3 +108,62 @@ def test_execute_applies_if_match_and_returns_json():
 def test_pre_connection_failures_are_explicitly_safe_to_retry(error):
     with pytest.raises(RequestNotSentError):
         GoogleApiClient._execute(Request(error=error))
+
+
+def test_calendar_list_patch_uses_calendar_list_endpoint_and_if_match():
+    client, calendar = client_with_calendar_service()
+
+    assert client.update_calendar_list(
+        "primary", {"selected": False, "defaultReminders": []}, etag='"list-v1"'
+    ) == {"id": "primary"}
+    name, arguments = calendar.calls[0]
+    assert name == "calendarList.patch"
+    assert arguments == {
+        "calendarId": "primary",
+        "body": {"selected": False, "defaultReminders": []},
+    }
+    assert calendar._calendar_list.last_request.headers == {"If-Match": '"list-v1"'}
+
+
+def test_calendar_colors_uses_colors_get_endpoint():
+    client, calendar = client_with_calendar_service()
+
+    assert client.calendar_colors() == {"calendar": {"1": {"background": "#123456"}}}
+    assert calendar.calls == [("colors.get", {})]
+
+
+def test_expanded_events_request_uses_google_range_contract():
+    client, calendar = client_with_calendar_service()
+
+    page = client.list_events(
+        "primary",
+        page_token="page-2",
+        time_min="2026-08-21T00:00:00Z",
+        time_max="2026-08-28T00:00:00Z",
+        single_events=True,
+    )
+    assert page.next_sync_token == "next"
+    assert calendar.calls == [
+        (
+            "events.list",
+            {
+                "calendarId": "primary",
+                "pageToken": "page-2",
+                "syncToken": None,
+                "timeMin": "2026-08-21T00:00:00Z",
+                "timeMax": "2026-08-28T00:00:00Z",
+                "singleEvents": True,
+                "showDeleted": True,
+            },
+        )
+    ]
+
+
+def test_events_sync_token_rejects_time_bounds():
+    client, calendar = client_with_calendar_service()
+
+    with pytest.raises(ValueError, match="syncToken"):
+        client.list_events(
+            "primary", sync_token="sync-1", time_min="2026-08-21T00:00:00Z"
+        )
+    assert calendar.calls == []
