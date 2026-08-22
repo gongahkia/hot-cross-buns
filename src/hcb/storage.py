@@ -864,9 +864,7 @@ class Storage:
         sql += " ORDER BY calendar_id,start_value,end_value"
         return [dict(row) for row in self.connection.execute(sql, arguments)]
 
-    def mark_instance_ranges_stale(
-        self, account_id: str, calendar_id: str, *, reason: str
-    ) -> int:
+    def mark_instance_ranges_stale(self, account_id: str, calendar_id: str, *, reason: str) -> int:
         """Mark every cached occurrence range stale after a series-affecting change."""
         cursor = self.connection.execute(
             """UPDATE event_instance_ranges
@@ -878,12 +876,10 @@ class Storage:
 
     @staticmethod
     def _range_datetime(value: date | datetime) -> datetime:
-        result = value if isinstance(value, datetime) else datetime.combine(value, datetime.min.time())
-        return (
-            result.astimezone(UTC).replace(tzinfo=None)
-            if result.tzinfo is not None
-            else result
+        result = (
+            value if isinstance(value, datetime) else datetime.combine(value, datetime.min.time())
         )
+        return result.astimezone(UTC).replace(tzinfo=None) if result.tzinfo is not None else result
 
     def instance_cache_status(
         self,

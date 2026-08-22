@@ -163,7 +163,5 @@ def test_events_sync_token_rejects_time_bounds():
     client, calendar = client_with_calendar_service()
 
     with pytest.raises(ValueError, match="syncToken"):
-        client.list_events(
-            "primary", sync_token="sync-1", time_min="2026-08-21T00:00:00Z"
-        )
+        client.list_events("primary", sync_token="sync-1", time_min="2026-08-21T00:00:00Z")
     assert calendar.calls == []

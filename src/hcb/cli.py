@@ -27,6 +27,25 @@ from .import_export import (
     export_ics,
     export_json,
 )
+from .json_contract import (
+    JSON_COMMANDS,
+    JSON_SCHEMA_VERSION,
+)
+from .json_contract import (
+    bundle as json_schema_bundle,
+)
+from .json_contract import (
+    command_name as json_command_name,
+)
+from .json_contract import (
+    command_schema as json_command_schema,
+)
+from .json_contract import (
+    error as json_error,
+)
+from .json_contract import (
+    success as json_success,
+)
 from .models import (
     Account,
     ConflictStatus,
@@ -41,8 +60,6 @@ from .output import to_primitive
 from .runtime import Runtime
 from .scheduler import DaemonState, ReminderScheduler, run_loop
 
-JSON_SCHEMA_VERSION = 1
-
 
 class HcbGroup(typer.core.TyperGroup):
     """Translate expected domain failures into stable, traceback-free exits."""
@@ -51,13 +68,49 @@ class HcbGroup(typer.core.TyperGroup):
         try:
             return super().invoke(ctx)
         except HcbError as exc:
-            click.echo(f"Error: {exc.message}", err=True)
-            if exc.hint:
-                click.echo(f"Hint: {exc.hint}", err=True)
+            self._emit_error(
+                ctx, exc.message, exc.hint, self._error_code(exc.exit_code), int(exc.exit_code)
+            )
             raise click.exceptions.Exit(int(exc.exit_code)) from None
         except (ConfigError, ValueError) as exc:
-            click.echo(f"Error: {exc}", err=True)
+            self._emit_error(ctx, str(exc), None, "invalid_request", int(ExitCode.USAGE))
             raise click.exceptions.Exit(int(ExitCode.USAGE)) from None
+
+    @staticmethod
+    def _emit_error(
+        ctx: click.Context, message: str, hint: str | None, code: str, exit_code: int
+    ) -> None:
+        state = ctx.find_root().obj
+        if isinstance(state, State) and state.json:
+            click.echo(
+                json.dumps(
+                    json_error(
+                        json_command_name(ctx),
+                        code=code,
+                        message=message,
+                        hint=hint,
+                        exit_code=exit_code,
+                    ),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return
+        click.echo(f"Error: {message}", err=True)
+        if hint:
+            click.echo(f"Hint: {hint}", err=True)
+
+    @staticmethod
+    def _error_code(exit_code: ExitCode) -> str:
+        return {
+            ExitCode.NOT_FOUND: "not_found",
+            ExitCode.CONFLICT: "conflict",
+            ExitCode.AUTH_REQUIRED: "authentication_required",
+            ExitCode.OFFLINE: "offline",
+            ExitCode.REMOTE_FAILURE: "remote_failure",
+            ExitCode.STORAGE_FAILURE: "storage_failure",
+            ExitCode.CONFIGURATION: "configuration_error",
+        }.get(exit_code, "hcb_error")
 
 
 CONTEXT = {"help_option_names": ["-h", "--help"]}
@@ -81,6 +134,7 @@ daemon_app = typer.Typer(
     cls=HcbGroup, context_settings=CONTEXT, help="Inspect sync daemon support."
 )
 drive_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Search Drive metadata.")
+schema_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Inspect JSON contracts.")
 
 app.add_typer(tasks_app, name="tasks")
 app.add_typer(lists_app, name="task-lists")
@@ -94,6 +148,7 @@ app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(drive_app, name="drive")
+app.add_typer(schema_app, name="schema")
 
 
 @dataclass(slots=True)
@@ -174,7 +229,14 @@ def _emit(
     state = _state(ctx)
     primitive = to_primitive(value)
     if state.json:
-        typer.echo(json.dumps(primitive, ensure_ascii=False, indent=2, sort_keys=True))
+        typer.echo(
+            json.dumps(
+                json_success(json_command_name(ctx), primitive),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return
     if state.tsv:
         rows = _rows(value)
@@ -677,6 +739,20 @@ def events_instances(
         )
         if item.derived
     ]
+    storage = _state(ctx).runtime.storage
+    account = _account(ctx)
+    calendar_ids = (
+        (calendar,)
+        if calendar is not None
+        else tuple(item.id for item in storage.list_calendars(account))
+    )
+    cache = [
+        storage.instance_cache_status(account, calendar_id, start_value, end_value)
+        for calendar_id in calendar_ids
+    ]
+    if _state(ctx).json:
+        _emit(ctx, {"instances": items, "cache": cache})
+        return
     _emit(
         ctx,
         items,
@@ -698,7 +774,31 @@ def events_refresh_instances(
     items = state.runtime.sync_engine(account).refresh_occurrences(
         account, calendar, _range_datetime(start), _range_datetime(end, end=True)
     )
-    _emit(ctx, {"calendar_id": calendar, "refreshed": len(items), "instances": items})
+    start_value = _range_datetime(start)
+    end_value = _range_datetime(end, end=True)
+    _emit(
+        ctx,
+        {
+            "calendar_id": calendar,
+            "refreshed": len(items),
+            "instances": items,
+            "cache": state.runtime.storage.instance_cache_status(
+                account, calendar, start_value, end_value
+            ),
+        },
+    )
+
+
+@events_app.command("instance-cache")
+def events_instance_cache(
+    ctx: typer.Context,
+    calendar: str | None = typer.Option(None, "--calendar"),
+) -> None:
+    """Inspect raw local instance-cache ranges; this command performs no network I/O."""
+    _emit(
+        ctx,
+        {"ranges": _state(ctx).runtime.storage.list_instance_ranges(_account(ctx), calendar)},
+    )
 
 
 @events_app.command("invitations")
@@ -1319,6 +1419,14 @@ def export(
     if format not in exporters:
         raise ValueError("export format must be json, csv, or ics")
     text = exporters[format](records)
+    if state.json:
+        if output:
+            output.write_text(text, encoding="utf-8")
+            _emit(ctx, {"format": format, "output": str(output)})
+            return
+        content: object = json.loads(text) if format == "json" else text
+        _emit(ctx, {"format": format, "content": content})
+        return
     if output:
         output.write_text(text, encoding="utf-8")
         typer.echo(str(output))
@@ -1413,7 +1521,9 @@ def config_show(ctx: typer.Context) -> None:
 
 @config_app.command("path")
 def config_path(ctx: typer.Context) -> None:
-    typer.echo(str(_state(ctx).runtime.paths.config_file))
+    _emit(
+        ctx, {"path": str(_state(ctx).runtime.paths.config_file)}, human=lambda value: value["path"]
+    )
 
 
 @config_app.command("init")
@@ -1422,7 +1532,7 @@ def config_init(ctx: typer.Context, force: bool = typer.Option(False, "--force")
     if target.exists() and not force:
         raise ValueError(f"{target} already exists; use --force to replace it")
     save(_state(ctx).runtime.config, target)
-    typer.echo(str(target))
+    _emit(ctx, {"path": str(target)}, human=lambda value: value["path"])
 
 
 def _coerce_config(current: Any, raw: str) -> Any:
@@ -1458,6 +1568,25 @@ def config_set(ctx: typer.Context, key: str, value: str) -> None:
         {"key": key, "value": getattr(updated_section, field)},
         human=lambda row: f"{row['key']}={row['value']}",
     )
+
+
+@schema_app.command("list")
+def schema_list(ctx: typer.Context) -> None:
+    """List stable `--json` command contracts bundled with this release."""
+    _emit(
+        ctx,
+        {
+            "schema_version": JSON_SCHEMA_VERSION,
+            "schema_id": json_schema_bundle()["$id"],
+            "commands": list(JSON_COMMANDS),
+        },
+    )
+
+
+@schema_app.command("show")
+def schema_show(ctx: typer.Context, command: str) -> None:
+    """Print the Draft 2020-12 schema fragment for one dotted command name."""
+    _emit(ctx, {"command": command, "schema": json_command_schema(command)})
 
 
 @app.command("doctor")
@@ -1511,7 +1640,7 @@ def daemon_status(ctx: typer.Context) -> None:
 
 
 @daemon_app.command("install")
-def daemon_install() -> None:
+def daemon_install(ctx: typer.Context) -> None:
     if sys.platform != "darwin":
         raise HcbError("LaunchAgent installation is only available on macOS")
     import subprocess
@@ -1535,7 +1664,7 @@ def daemon_install() -> None:
         check=False,
         capture_output=True,
     )
-    typer.echo(str(target))
+    _emit(ctx, {"path": str(target), "installed": True}, human=lambda value: value["path"])
 
 
 def _launch_agent_path() -> Path:
@@ -1543,7 +1672,7 @@ def _launch_agent_path() -> Path:
 
 
 @daemon_app.command("uninstall")
-def daemon_uninstall() -> None:
+def daemon_uninstall(ctx: typer.Context) -> None:
     if sys.platform != "darwin":
         raise HcbError("LaunchAgent installation is only available on macOS")
     import subprocess
@@ -1555,7 +1684,7 @@ def daemon_uninstall() -> None:
         capture_output=True,
     )
     target.unlink(missing_ok=True)
-    typer.echo("uninstalled")
+    _emit(ctx, {"uninstalled": True}, human=lambda _value: "uninstalled")
 
 
 @daemon_app.command("run")

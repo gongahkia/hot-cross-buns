@@ -13,7 +13,7 @@ hcb --tsv COMMAND
 
 Major command groups are `tasks`, `task-lists`, `notes`, `events`, `calendars`,
 `saved-searches`, `conflicts`, `import`, `auth`, `config`, `daemon`, and
-`drive`. Top-level operations include `capture`, `search`, `find-time`,
+`drive`, and `schema`. Top-level operations include `capture`, `search`, `find-time`,
 `freebusy`, `sync`, `export`, `undo`, `redo`, and `doctor`.
 
 Examples:
@@ -26,11 +26,13 @@ hcb tasks create "Prepare agenda" --list LIST_ID --due 2026-08-24
 hcb tasks complete TASK_ID
 hcb events agenda --from 2026-08-21 --to 2026-08-28
 hcb events refresh-instances --calendar CAL_ID --from 2026-08-21 --to 2026-09-21
+hcb events instance-cache --calendar CAL_ID
 hcb events duplicate EVENT_ID --include-attendees
 hcb events invite EVENT_ID guest@example.test --send-updates all
 hcb calendars set-list CAL_ID --color '#4285f4' --selected
 hcb capture "Call Sam tomorrow"
 hcb --json search "Sam"
+hcb schema show events.instances
 hcb import preview tasks.csv
 hcb export --format ics --output calendar.ics
 ```
@@ -38,6 +40,23 @@ hcb export --format ics --output calendar.ics
 `--json` and `--tsv` are mutually exclusive. Human output goes to stdout and
 actionable errors go to stderr. Destructive noninteractive commands require
 `--yes`. `NO_COLOR` and `TERM=dumb` disable decoration.
+
+All `--json` success output has this envelope:
+
+```json
+{
+  "schema_version": 1,
+  "command": "events.instances",
+  "data": {}
+}
+```
+
+Expected JSON failures use `error` instead of `data`, with stable `code`,
+`message`, nullable `hint`, and `exit_code`; they still exit non-zero. The
+scalar `hcb --json-schema-version` intentionally remains `1`. `hcb schema list`
+lists every public JSON command, and `hcb schema show COMMAND` prints its
+self-contained Draft 2020-12 schema. The versioned schema is bundled in both
+the wheel and source distribution.
 
 Account selection uses `--account`, `HCB_ACCOUNT`, or
 `preferences.default_account_id`; a sole configured account is selected
@@ -48,10 +67,14 @@ The default is `accounts/ACCOUNT_ID.env` below HCB's configuration directory;
 token is encrypted in that file and its encryption key is stored in the OS
 keyring.
 
-`events agenda` and `events instances` read SQLite only. Normal `sync` updates
-canonical event records; `events refresh-instances --calendar --from --to` is
-the explicit remote operation that expands a range through Google and updates
-the derived instance cache. `events edit` supports `--rrule` / `--recurrence`,
+`events agenda`, `events instances`, and `events instance-cache` read SQLite
+only. Normal `sync` updates canonical event records; `events refresh-instances
+--calendar --from --to` is the explicit remote operation that expands a range
+through Google and updates the derived instance cache. `events instances`
+returns the queried occurrences together with `fresh`, `partial`, `stale`, or
+`missing` cache coverage for the exact range. A local or remote recurring
+series/instance change marks every cached range for that calendar stale; only a
+named refresh marks coverage fresh again. `events edit` supports `--rrule` / `--recurrence`,
 `--clear-recurrence`, `--clear-description`, and `--clear-location`.
 `events set-properties` accepts a structured JSON object and honours explicit
 JSON `null` and empty arrays as clears. `calendars edit` changes Calendar

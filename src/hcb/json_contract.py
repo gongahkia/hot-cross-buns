@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from importlib.resources import files
-from typing import Any
+from typing import Any, cast
 
 JSON_SCHEMA_VERSION = 1
 SCHEMA_RESOURCE = "hcb-json-v1.schema.json"
@@ -112,7 +112,9 @@ def success(command: str, data: Any) -> dict[str, Any]:
     return {"schema_version": JSON_SCHEMA_VERSION, "command": command, "data": data}
 
 
-def error(command: str, *, code: str, message: str, hint: str | None, exit_code: int) -> dict[str, Any]:
+def error(
+    command: str, *, code: str, message: str, hint: str | None, exit_code: int
+) -> dict[str, Any]:
     return {
         "schema_version": JSON_SCHEMA_VERSION,
         "command": command,
@@ -121,22 +123,29 @@ def error(command: str, *, code: str, message: str, hint: str | None, exit_code:
 
 
 def bundle() -> dict[str, Any]:
-    return json.loads(files("hcb.schemas").joinpath(SCHEMA_RESOURCE).read_text(encoding="utf-8"))
+    document = json.loads(
+        files("hcb.schemas").joinpath(SCHEMA_RESOURCE).read_text(encoding="utf-8")
+    )
+    if not isinstance(document, dict):
+        raise RuntimeError("bundled JSON schema must be an object")
+    return cast(dict[str, Any], document)
 
 
 def command_schema(command: str) -> dict[str, Any]:
     if command not in JSON_COMMANDS:
         raise ValueError(f"unknown JSON command {command!r}; run `hcb schema list`")
+    document = bundle()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": f"https://hot-cross-buns.dev/schemas/json/v1/{command}.schema.json",
         "title": f"HCB JSON v1: {command}",
+        "$defs": document["$defs"],
         "allOf": [
-            {"$ref": "hcb-json-v1.schema.json#/$defs/successEnvelope"},
+            {"$ref": "#/$defs/successEnvelope"},
             {
                 "properties": {
                     "command": {"const": command},
-                    "data": {"$ref": "hcb-json-v1.schema.json#/$defs/jsonValue"},
+                    "data": {"$ref": "#/$defs/jsonValue"},
                 }
             },
         ],

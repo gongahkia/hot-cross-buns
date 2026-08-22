@@ -62,16 +62,33 @@ hcb events agenda --from 2026-08-21 --to 2026-08-28
 hcb events create "Standup" --calendar CAL_ID --start 2026-08-24T09:00:00+08:00 --end 2026-08-24T09:15:00+08:00 --rrule 'FREQ=WEEKLY;BYDAY=MO'
 hcb events refresh-instances --calendar CAL_ID --from 2026-08-21 --to 2026-09-21
 hcb events instances --calendar CAL_ID --from 2026-08-21 --to 2026-09-21
+hcb events instance-cache --calendar CAL_ID
 hcb calendars set-list CAL_ID --color '#4285f4' --selected
 hcb capture "Submit report tomorrow"
 hcb search "report"
 hcb --json tasks list
+hcb schema list
+hcb schema show events.instances
 hcb export --format json --output hcb-export.json
 hcb doctor
 ```
 
 Use `--account`, `HCB_ACCOUNT`, or `preferences.default_account_id` when more
 than one account is configured.
+
+## Machine-readable output
+
+Every successful `--json` command emits a versioned envelope with
+`schema_version`, `command`, and `data`. Expected `--json` failures emit the
+same version and command plus `error.code`, `error.message`, `error.hint`, and
+`error.exit_code`, then return a non-zero process status. `hcb --json-schema-version`
+remains a scalar `1` for lightweight capability checks.
+
+HCB bundles its Draft 2020-12 contract in the installed package. Use
+`hcb schema list` to enumerate covered commands and `hcb schema show COMMAND`
+to print a self-contained schema for one command. The schema is intended for
+shell and program integrations; the human and TSV output formats are separate
+interfaces.
 
 ## Privacy and local data
 

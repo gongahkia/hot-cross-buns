@@ -57,6 +57,7 @@ class CachedWorkspace:
     events: tuple[Event, ...] = ()
     task_lists: tuple[tuple[str, str], ...] = ()
     calendars: tuple[tuple[str, str, bool], ...] = ()
+    instance_ranges: tuple[dict[str, str], ...] = ()
     pending: int = 0
 
 
@@ -977,6 +978,7 @@ class HcbApp(App[None]):
             events=snapshot.events,
             task_lists=tuple((item.id, item.title) for item in snapshot.task_lists),
             calendars=tuple((item.id, item.summary, item.selected) for item in snapshot.calendars),
+            instance_ranges=tuple(self.runtime.storage.list_instance_ranges(self.account_id)),
             pending=snapshot.pending,
         )
         self._render_chrome()
@@ -1015,7 +1017,11 @@ class HcbApp(App[None]):
         for item_id, title, _ in self.cache.calendars:
             resources.append(EntityRow(f"□ {title}", kind="calendar", item_id=item_id))
         state = "syncing…" if self.syncing else "offline cache"
-        self.query_one("#sync-state", Static).update(f"{state} · {self.cache.pending} pending")
+        cache_badge = self._instance_cache_badge()
+        suffix = f" · {cache_badge}" if cache_badge else ""
+        self.query_one("#sync-state", Static).update(
+            f"{state} · {self.cache.pending} pending{suffix}"
+        )
 
     def _month_text(self) -> Text:
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
@@ -1112,19 +1118,61 @@ class HcbApp(App[None]):
     def _event_day(value: date | datetime) -> date:
         return value.date() if isinstance(value, datetime) else value
 
-    def _events_for_surface(self) -> tuple[Event, ...]:
+    def _event_surface_range(self) -> tuple[date, date]:
         day = self.selected_date
         if self.surface == "Day":
-            start, end = day, day + timedelta(days=1)
-        elif self.surface == "Week":
+            return day, day + timedelta(days=1)
+        if self.surface == "Week":
             offset = (day.weekday() - self.runtime.config.preferences.week_starts_on) % 7
             start = day - timedelta(days=offset)
-            end = start + timedelta(days=7)
-        elif self.surface == "Month":
+            return start, start + timedelta(days=7)
+        if self.surface == "Month":
             start = day.replace(day=1)
-            end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
-        else:
-            start, end = day, day + timedelta(days=14)
+            return start, (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return day, day + timedelta(days=14)
+
+    def _instance_cache_badge(self) -> str | None:
+        """Summarize the local-only occurrence-cache state for the visible range."""
+        if self.account_id is None or self.surface in {"Tasks", "Notes"}:
+            return None
+        start, end = self._event_surface_range()
+        calendar_ids = (
+            (self.resource_filter[1],)
+            if self.resource_filter and self.resource_filter[0] == "calendar"
+            else tuple(item_id for item_id, _title, selected in self.cache.calendars if selected)
+        )
+        if not calendar_ids:
+            return "instances: missing"
+        statuses = [
+            self.runtime.storage.instance_cache_status(self.account_id, item_id, start, end)
+            for item_id in calendar_ids
+        ]
+        states = {item["state"] for item in statuses}
+        state = (
+            "fresh"
+            if states == {"fresh"}
+            else "partial"
+            if "fresh" in states
+            else ("stale" if "stale" in states else "missing")
+        )
+        ranges = [item for status in statuses for item in status["ranges"]]
+        refreshed = max(
+            (str(item["refreshed_at"]) for item in ranges if item.get("refreshed_at")),
+            default=None,
+        )
+        stale_reason = next(
+            (str(item["stale_reason"]) for item in ranges if item.get("state") == "stale"),
+            None,
+        )
+        details = f"{start.isoformat()}–{end.isoformat()}"
+        if refreshed:
+            details += f", refreshed {refreshed}"
+        if stale_reason:
+            details += f", {stale_reason.replace('-', ' ')}"
+        return f"instances: {state} ({details})"
+
+    def _events_for_surface(self) -> tuple[Event, ...]:
+        start, end = self._event_surface_range()
         events = tuple(
             event
             for event in self.cache.events
@@ -1160,6 +1208,7 @@ class HcbApp(App[None]):
             return
         row = event.item
         self.resource_filter = None if row.kind == "resource-all" else (row.kind, row.item_id)
+        self._render_chrome()
         self._render_surface()
 
     def _render_inspector(self) -> None:
@@ -1224,6 +1273,7 @@ class HcbApp(App[None]):
             return
         self.surface = name
         self.selected = None
+        self._render_chrome()
         self._render_surface()
 
     def action_palette(self) -> None:
@@ -1264,6 +1314,7 @@ class HcbApp(App[None]):
         elif kind in {"task", "event"}:
             self.surface = "Tasks" if kind == "task" else "Agenda"
             self.selected = (kind, value)
+            self._render_chrome()
             self._render_surface()
             self._render_inspector()
 

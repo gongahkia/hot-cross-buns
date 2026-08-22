@@ -49,14 +49,22 @@ def invoke(runner: CliRunner, args: list[str], input: str | None = None) -> Any:
     return result
 
 
+def json_data(result: Any, command: str | None = None) -> Any:
+    envelope = json.loads(result.stdout)
+    assert envelope["schema_version"] == 1
+    if command is not None:
+        assert envelope["command"] == command
+    return envelope["data"]
+
+
 def seed_list(runner: CliRunner) -> str:
     result = invoke(runner, ["--json", "task-lists", "create", "Inbox"])
-    return str(json.loads(result.stdout)["id"])
+    return str(json_data(result, "task-lists.create")["id"])
 
 
 def seed_calendar(runner: CliRunner) -> str:
     result = invoke(runner, ["--json", "calendars", "create", "Personal"])
-    return str(json.loads(result.stdout)["id"])
+    return str(json_data(result, "calendars.create")["id"])
 
 
 def test_help_has_completion_and_full_command_groups(cli_env: tuple[CliRunner, AppPaths]) -> None:
@@ -108,19 +116,19 @@ def test_task_crud_json_tsv_and_notes(cli_env: tuple[CliRunner, AppPaths]) -> No
             "high",
         ],
     )
-    task = json.loads(created.stdout)
+    task = json_data(created, "tasks.create")
     assert task["title"] == "Ship CLI"
     assert task["due"] == "2026-08-22"
     invoke(runner, ["notes", "set", task["id"], "-"], input="from stdin\n")
     shown = invoke(runner, ["--json", "notes", "show", task["id"]])
-    assert json.loads(shown.stdout)["notes"] == "from stdin\n"
+    assert json_data(shown, "notes.show")["notes"] == "from stdin\n"
     invoke(runner, ["tasks", "complete", task["id"]])
     listed = invoke(runner, ["--tsv", "tasks", "list", "--completed"])
     assert listed.stdout.startswith("id\tlist_id\ttitle\tstatus")
     assert "Ship CLI" in listed.stdout
     invoke(runner, ["tasks", "delete", task["id"], "--yes"])
     empty = invoke(runner, ["--json", "tasks", "list", "--completed"])
-    assert json.loads(empty.stdout) == []
+    assert json_data(empty, "tasks.list") == []
 
 
 def test_destructive_commands_require_yes_when_not_tty(
@@ -154,23 +162,23 @@ def test_events_search_saved_search_and_capture(cli_env: tuple[CliRunner, AppPat
             "--all-day",
         ],
     )
-    event_id = json.loads(event.stdout)["id"]
+    event_id = json_data(event, "events.create")["id"]
     agenda = invoke(
         runner, ["--json", "events", "agenda", "--from", "2026-08-22", "--to", "2026-08-24"]
     )
-    assert json.loads(agenda.stdout)[0]["id"] == event_id
+    assert json_data(agenda, "events.agenda")[0]["id"] == event_id
     found = invoke(runner, ["--json", "search", "Planning"])
-    assert json.loads(found.stdout)[0]["kind"] == "event"
+    assert json_data(found, "search")[0]["kind"] == "event"
     saved = invoke(runner, ["--json", "saved-searches", "save", "plan", "Planning"])
-    saved_id = json.loads(saved.stdout)["id"]
+    saved_id = json_data(saved, "saved-searches.save")["id"]
     rerun = invoke(runner, ["--json", "saved-searches", "run", saved_id])
-    assert json.loads(rerun.stdout)[0]["id"] == event_id
+    assert json_data(rerun, "saved-searches.run")[0]["id"] == event_id
     captured = invoke(
         runner,
         ["--json", "capture", "-", "--list", list_id],
         input="task Buy milk tomorrow p1\n",
     )
-    assert json.loads(captured.stdout)["title"] == "Buy milk"
+    assert json_data(captured, "capture")["title"] == "Buy milk"
 
 
 def test_calendar_preferences_and_event_recurrence_cli_parity(
@@ -178,7 +186,7 @@ def test_calendar_preferences_and_event_recurrence_cli_parity(
 ) -> None:
     runner, _ = cli_env
     calendar_id = seed_calendar(runner)
-    event = json.loads(
+    event = json_data(
         invoke(
             runner,
             [
@@ -195,19 +203,23 @@ def test_calendar_preferences_and_event_recurrence_cli_parity(
                 "--rrule",
                 "FREQ=WEEKLY;BYDAY=MO",
             ],
-        ).stdout
+        ),
+        "events.create",
     )
     assert event["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
-    edited = json.loads(
+    edited = json_data(
         invoke(
             runner,
             ["--json", "events", "edit", event["id"], "--clear-recurrence"],
-        ).stdout
+        ),
+        "events.edit",
     )
     assert edited["recurrence"] == []
-    duplicate = json.loads(invoke(runner, ["--json", "events", "duplicate", event["id"]]).stdout)
+    duplicate = json_data(
+        invoke(runner, ["--json", "events", "duplicate", event["id"]]), "events.duplicate"
+    )
     assert duplicate["id"] != event["id"]
-    updated_calendar = json.loads(
+    updated_calendar = json_data(
         invoke(
             runner,
             [
@@ -221,10 +233,42 @@ def test_calendar_preferences_and_event_recurrence_cli_parity(
                 "--reminders-json",
                 '[{"method":"popup","minutes":10}]',
             ],
-        ).stdout
+        ),
+        "calendars.set-list",
     )
     assert updated_calendar["color"] == "#123456"
     assert not updated_calendar["selected"]
+
+
+def test_instance_cache_cli_reports_coverage_without_network(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    calendar_id = seed_calendar(runner)
+    instances = json_data(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "instances",
+                "--calendar",
+                calendar_id,
+                "--from",
+                "2026-08-21",
+                "--to",
+                "2026-08-28",
+            ],
+        ),
+        "events.instances",
+    )
+    assert instances["instances"] == []
+    assert instances["cache"][0]["state"] == "missing"
+    ranges = json_data(
+        invoke(runner, ["--json", "events", "instance-cache", "--calendar", calendar_id]),
+        "events.instance-cache",
+    )
+    assert ranges == {"ranges": []}
 
 
 def test_import_preview_apply_and_export(
@@ -244,10 +288,10 @@ def test_import_preview_apply_and_export(
         )
     )
     preview = invoke(runner, ["--json", "import", "preview", str(source)])
-    assert json.loads(preview.stdout)["rows"][0]["record"]["title"] == "Imported"
+    assert json_data(preview, "import.preview")["rows"][0]["record"]["title"] == "Imported"
     invoke(runner, ["import", "apply", str(source), "--yes"])
-    exported = invoke(runner, ["export", "--format", "json"])
-    assert json.loads(exported.stdout)["records"][0]["title"] == "Imported"
+    exported = invoke(runner, ["--json", "export", "--format", "json"])
+    assert json_data(exported, "export")["content"]["records"][0]["title"] == "Imported"
     csv_output = tmp_path / "out.csv"
     invoke(runner, ["export", "--format", "csv", "--output", str(csv_output)])
     assert csv_output.read_text().startswith("kind,title,")
@@ -266,7 +310,7 @@ def test_config_commands_and_account_environment(
     invoke(runner, ["config", "init"])
     invoke(runner, ["config", "set", "preferences.week_starts_on", "6"])
     shown = invoke(runner, ["--json", "config", "show"])
-    assert json.loads(shown.stdout)["preferences"]["week_starts_on"] == 6
+    assert json_data(shown, "config.show")["preferences"]["week_starts_on"] == 6
     assert invoke(runner, ["task-lists", "create", "Second"]).exit_code == 0
     with Storage(paths.database_file) as storage:
         assert len(storage.list_task_lists("second")) == 1
@@ -310,7 +354,7 @@ def test_sync_is_explicit_network_boundary(
         lambda: SyncRuntime(paths, environ={}, token_store=MemoryTokens()),  # type: ignore[arg-type]
     )
     result = invoke(runner, ["--json", "sync"])
-    assert json.loads(result.stdout)["pulled"] == 2
+    assert json_data(result, "sync")["pulled"] == 2
     assert calls == ["work"]
 
 
@@ -328,7 +372,7 @@ def test_auth_status_is_local_and_handles_an_offline_account(
     cli_env: tuple[CliRunner, AppPaths],
 ) -> None:
     runner, _ = cli_env
-    status = json.loads(invoke(runner, ["--json", "auth", "status"]).stdout)
+    status = json_data(invoke(runner, ["--json", "auth", "status"]), "auth.status")
     assert len(status) == 1
     assert status[0]["id"] == "work"
     assert status[0]["authenticated"] is False
@@ -340,10 +384,11 @@ def test_advanced_cli_equivalence_for_tui_workflows(
     runner, _ = cli_env
     list_id = seed_list(runner)
     calendar_id = seed_calendar(runner)
-    task = json.loads(
-        invoke(runner, ["--json", "tasks", "create", "Block me", "--list", list_id]).stdout
+    task = json_data(
+        invoke(runner, ["--json", "tasks", "create", "Block me", "--list", list_id]),
+        "tasks.create",
     )
-    event = json.loads(
+    event = json_data(
         invoke(
             runner,
             [
@@ -359,7 +404,8 @@ def test_advanced_cli_equivalence_for_tui_workflows(
                 "2026-08-23",
                 "--all-day",
             ],
-        ).stdout
+        ),
+        "events.create",
     )
     properties = {
         "eventType": "focusTime",
@@ -371,7 +417,7 @@ def test_advanced_cli_equivalence_for_tui_workflows(
         runner,
         ["events", "set-properties", event["id"], json.dumps(properties)],
     )
-    shown = json.loads(invoke(runner, ["--json", "events", "show", event["id"]]).stdout)
+    shown = json_data(invoke(runner, ["--json", "events", "show", event["id"]]), "events.show")
     assert shown["event_type"] == "focusTime"
     assert shown["focus_time_properties"]["autoDeclineMode"] == "declineNone"
 
@@ -402,8 +448,9 @@ def test_json_schema_version_task_shape_and_tsv_columns(
     runner, _ = cli_env
     assert invoke(runner, ["--json-schema-version"]).stdout.strip() == "1"
     list_id = seed_list(runner)
-    task = json.loads(
-        invoke(runner, ["--json", "tasks", "create", "Schema", "--list", list_id]).stdout
+    task = json_data(
+        invoke(runner, ["--json", "tasks", "create", "Schema", "--list", list_id]),
+        "tasks.create",
     )
     assert set(task) == {
         "account_id",
@@ -460,8 +507,9 @@ def test_cli_resolves_uncertain_delivery_with_explicit_action(
 ) -> None:
     runner, paths = cli_env
     list_id = seed_list(runner)
-    task = json.loads(
-        invoke(runner, ["--json", "tasks", "create", "Uncertain", "--list", list_id]).stdout
+    task = json_data(
+        invoke(runner, ["--json", "tasks", "create", "Uncertain", "--list", list_id]),
+        "tasks.create",
     )
     with Storage(paths.database_file) as storage:
         storage.connection.execute(

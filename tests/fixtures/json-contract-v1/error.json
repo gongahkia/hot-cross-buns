@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "command": "tasks.complete",
+  "error": {
+    "code": "not_found",
+    "message": "Task 'missing' does not exist",
+    "hint": null,
+    "exit_code": 3
+  }
+}

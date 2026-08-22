@@ -37,6 +37,11 @@ named remote range refresh materializes Google's concrete recurring instances
 as derived cache rows and records the refreshed range. TUI range views use that
 cache, while the CLI exposes both cached `events instances` and explicit remote
 `events refresh-instances`; HCB does not implement recurrence expansion.
+Each cached range records its refresh time and `fresh`/`stale` state. Local or
+remote changes to a recurring series or instance stale the calendar's cached
+ranges. A named refresh is the only operation that makes its requested coverage
+fresh. The TUI reports the visible range, latest refresh time, and stale reason
+without making an implicit network request.
 
 ## Synchronization invariants
 

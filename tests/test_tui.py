@@ -84,6 +84,27 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
     app_test(app, assertions)
 
 
+def test_event_surface_marks_stale_instance_cache_ranges(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    start = datetime(2026, 8, 21, tzinfo=UTC)
+    runtime.storage.replace_cached_instances("work", calendar_id, start, start.replace(day=28), [])
+    runtime.storage.mark_instance_ranges_stale(
+        "work", calendar_id, reason="local-recurring-event-updated"
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 21))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("3")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        cache_state = str(app.query_one("#sync-state", Static).render())
+        assert "instances: stale" in cache_state
+        assert "local recurring event updated" in cache_state
+        assert "2026-08-21" in cache_state
+
+    app_test(app, assertions)
+
+
 def test_palette_shows_commands_and_title_first_results(tmp_path: Path) -> None:
     app = HcbApp(seeded_runtime(tmp_path))
 
