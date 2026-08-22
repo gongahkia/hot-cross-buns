@@ -16,6 +16,7 @@ from hcb.config import (
     schema,
 )
 from hcb.models import Preferences
+from hcb.paths import AppPaths
 
 
 def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
@@ -40,6 +41,14 @@ def test_json_round_trip(tmp_path: Path) -> None:
     document = json.loads(target.read_text())
     assert document["schema_version"] == 1
     assert document["theme"]["colors"]["accent"] == "#88c0d0"
+
+
+def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    paths.config_dir.mkdir()
+    (paths.config_dir / "config.toml").write_text("[theme]\nname = 'dark'\n")
+    assert paths.config_file.name == "config.json"
+    assert load(paths.config_file) == Config()
 
 
 @pytest.mark.parametrize(
