@@ -37,6 +37,7 @@ SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 PALETTE_COMMANDS = (
     ("Create item", "create"),
     ("Sync now", "sync"),
+    ("Refresh recurring instances", "refresh-instances"),
     ("Find a time", "find-time"),
     ("Calendars", "calendars"),
     ("Settings", "settings"),
@@ -167,7 +168,10 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         with Vertical(id="onboarding-dialog"):
             yield Label("First-run setup", id="dialog-title")
             yield Static("Google is optional until you explicitly confirm connection.")
-            yield Input(placeholder="Desktop OAuth client JSON path", id="onboard-client")
+            yield Input(
+                placeholder="Credential .env path (optional; default is per-account)",
+                id="onboard-env-file",
+            )
             yield Input(placeholder="Local account identifier", id="onboard-account")
             yield Input(placeholder="Account email", id="onboard-email")
             yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
@@ -185,7 +189,7 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
             return
         self.dismiss(
             {
-                "client_json": self.query_one("#onboard-client", Input).value.strip(),
+                "env_file": self.query_one("#onboard-env-file", Input).value.strip(),
                 "account_id": self.query_one("#onboard-account", Input).value.strip(),
                 "email": self.query_one("#onboard-email", Input).value.strip(),
                 "time_zone": self.query_one("#onboard-timezone", Input).value.strip(),
@@ -471,6 +475,11 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                 placeholder="Location",
                 id="event-location",
             )
+            yield Input(
+                value=" | ".join(event.recurrence) if event else "",
+                placeholder="Recurrence lines separated by |",
+                id="event-recurrence",
+            )
             yield TextArea(event.description or "" if event else "", id="event-description")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="event-save")
@@ -493,6 +502,7 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                 "end": self.query_one("#event-end", Input).value.strip(),
                 "calendar": self.query_one("#event-calendar", Input).value.strip(),
                 "location": self.query_one("#event-location", Input).value.strip(),
+                "recurrence": self.query_one("#event-recurrence", Input).value.strip(),
                 "description": self.query_one("#event-description", TextArea).text,
             }
         )
@@ -888,13 +898,8 @@ class HcbApp(App[None]):
             self.notify("Reminders must be true or false", severity="error")
             self.push_screen(OnboardingScreen(), self._onboarding_result)
             return
-        if result["connect"] == "true" and not result["client_json"]:
-            self.notify("Desktop OAuth client JSON is required to connect", severity="error")
-            self.push_screen(OnboardingScreen(), self._onboarding_result)
-            return
         try:
             self.runtime.save_onboarding(
-                client_json=result["client_json"],
                 account_id=result["account_id"],
                 email=result["email"],
                 time_zone=result["time_zone"],
@@ -906,6 +911,8 @@ class HcbApp(App[None]):
             self.push_screen(OnboardingScreen(), self._onboarding_result)
             return
         self.account_id = result["account_id"]
+        if result["env_file"]:
+            self.runtime.credential_file_override = Path(result["env_file"]).expanduser()
         self.refresh_workspace()
         if result["connect"] == "true":
             self.push_screen(
@@ -920,7 +927,7 @@ class HcbApp(App[None]):
             self.notify("Google connection skipped; local cache remains available")
             return
         try:
-            self.runtime.authenticator.connect(self.account_id)
+            self.runtime.authenticator(self.account_id).connect(self.account_id)
         except Exception as exc:
             self.notify(f"Google connection failed: {exc}", severity="error")
             return
@@ -1118,7 +1125,7 @@ class HcbApp(App[None]):
             end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
         else:
             start, end = day, day + timedelta(days=14)
-        return tuple(
+        events = tuple(
             event
             for event in self.cache.events
             if self._event_day(event.end.value) > start and self._event_day(event.start.value) < end
@@ -1127,6 +1134,14 @@ class HcbApp(App[None]):
                 or self.resource_filter[0] != "calendar"
                 or event.calendar_id == self.resource_filter[1]
             )
+        )
+        expanded_series = {
+            event.canonical_id for event in events if event.derived and event.canonical_id
+        }
+        return tuple(
+            event
+            for event in events
+            if event.derived or not event.recurrence or event.remote_id not in expanded_series
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1222,6 +1237,8 @@ class HcbApp(App[None]):
             self.action_create()
         elif kind == "sync":
             self.action_sync()
+        elif kind == "refresh-instances":
+            self.action_refresh_instances()
         elif kind == "calendars":
             self.push_screen(CalendarScreen(self))
         elif kind == "doctor":
@@ -1349,6 +1366,9 @@ class HcbApp(App[None]):
                 self._parse_event_point(result["end"]),
                 description=result["description"] or None,
                 location=result["location"] or None,
+                recurrence=tuple(
+                    item.strip() for item in result["recurrence"].split("|") if item.strip()
+                ),
             )
         except (ValueError, HcbError) as exc:
             self.notify(str(exc), severity="error")
@@ -1371,6 +1391,9 @@ class HcbApp(App[None]):
                 end=self._parse_event_point(result["end"]),
                 description=result["description"] or None,
                 location=result["location"] or None,
+                recurrence=tuple(
+                    item.strip() for item in result["recurrence"].split("|") if item.strip()
+                ),
             )
         except (ValueError, HcbError) as exc:
             self.notify(str(exc), severity="error")
@@ -1638,6 +1661,38 @@ class HcbApp(App[None]):
             )
         finally:
             self.syncing = False
+            self.call_from_thread(self.refresh_workspace)
+
+    @work(thread=True, exclusive=True, group="sync")
+    def action_refresh_instances(self) -> None:
+        """Explicitly refresh Google-expanded instances for the visible local range."""
+        if self.account_id is None:
+            self.call_from_thread(self.notify, "Connect an account first", severity="warning")
+            return
+        selected_event = self._selected_event()
+        calendar_id = (
+            self.resource_filter[1]
+            if self.resource_filter and self.resource_filter[0] == "calendar"
+            else (selected_event.calendar_id if selected_event else None)
+        )
+        if calendar_id is None:
+            calendar_id = next(
+                (item_id for item_id, _, selected in self.cache.calendars if selected), None
+            )
+        if calendar_id is None:
+            self.call_from_thread(self.notify, "Select a calendar first", severity="warning")
+            return
+        start = datetime.combine(self.selected_date, datetime.min.time(), UTC)
+        duration = {"Day": 1, "Week": 7, "Month": 35}.get(self.surface, 14)
+        try:
+            events = self.runtime.sync_engine(self.account_id).refresh_occurrences(
+                self.account_id, calendar_id, start, start + timedelta(days=duration)
+            )
+        except Exception as exc:
+            self.call_from_thread(self.notify, f"Instance refresh failed: {exc}", severity="error")
+        else:
+            self.call_from_thread(self.notify, f"Refreshed {len(events)} recurring instances")
+        finally:
             self.call_from_thread(self.refresh_workspace)
 
 

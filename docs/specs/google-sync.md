@@ -3,9 +3,12 @@
 ## Authentication
 
 HCB uses a user-supplied Google OAuth **Desktop app** client, PKCE, and a
-temporary `127.0.0.1` callback. The client JSON path comes from
-`HCB_GOOGLE_CLIENT_CONFIG` or local preferences. Refresh tokens are stored in
-the OS keyring; access tokens remain in memory.
+temporary `127.0.0.1` callback. Each account reads `HCB_GOOGLE_CLIENT_ID` and
+an optional `HCB_GOOGLE_CLIENT_SECRET` from an owner-only local `.env` file.
+The default file is `accounts/ACCOUNT_ID.env` below HCB's configuration
+directory; `--env-file` and `HCB_ENV_FILE` are process-level overrides.
+Refresh tokens are encrypted in that file with a per-file Fernet key in the OS
+keyring; access tokens remain in memory.
 
 Scopes cover identity/email, Google Tasks, Google Calendar, and read-only Drive
 metadata. Drive access is used only for user-initiated metadata search. Tokens
@@ -34,10 +37,13 @@ hierarchy, order, and deletion state. Local-only metadata includes search,
 presentation state, recurrence markers, mutation state, and links to timed
 Calendar blocks.
 
-Google Calendar backs calendars, events, all-day/timed values, recurrence
-lines, resolved instances, reminders, attendees, status, location, and
-description. HCB stores recurrence masters unchanged and uses Google's
-instances behavior for concrete occurrences.
+Google Calendar backs calendars, CalendarList presentation/preferences, events,
+all-day/timed values, recurrence lines, resolved instances, reminders,
+attendees, status, location, and description. HCB stores recurrence masters
+unchanged. A named `events refresh-instances` operation uses Google's expanded
+event listing for a requested range and persists only recurring instances as
+derived rows. Range views read this cache; HCB never implements recurrence
+expansion itself.
 
 ## Process model and validation
 

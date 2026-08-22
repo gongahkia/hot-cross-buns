@@ -135,9 +135,14 @@ class Calendar:
     description: str | None = None
     time_zone: str | None = None
     color: str | None = None
+    foreground_color: str | None = None
+    location: str | None = None
+    summary_override: str | None = None
+    hidden: bool = False
     selected: bool = True
     metadata: Metadata = field(default_factory=Metadata)
     default_reminders: tuple[ReminderOverride, ...] = ()
+    notification_settings: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +179,7 @@ class Event:
     location: str | None = None
     status: EventStatus = EventStatus.CONFIRMED
     recurrence: tuple[str, ...] = ()
+    derived: bool = False
     metadata: Metadata = field(default_factory=Metadata)
     reminder_use_default: bool = True
     reminder_overrides: tuple[ReminderOverride, ...] = ()
@@ -271,7 +277,6 @@ class Preferences:
     reminder_sync_interval_minutes: int = 0
     reminder_sync_mode: str = "all"
     time_zone: str = "UTC"
-    google_client_json: str = ""
 
     def __post_init__(self) -> None:
         if not 0 <= self.week_starts_on <= 6:

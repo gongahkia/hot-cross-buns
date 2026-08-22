@@ -36,7 +36,7 @@ from .models import (
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -188,6 +188,24 @@ ALTER TABLE outbox ADD COLUMN sending_started_at TEXT;
 CREATE INDEX outbox_delivery_state ON outbox(account_id,delivery_state,id);
 """
 
+_MIGRATION_6 = """
+ALTER TABLE calendars ADD COLUMN foreground_color TEXT;
+ALTER TABLE calendars ADD COLUMN location TEXT;
+ALTER TABLE calendars ADD COLUMN summary_override TEXT;
+ALTER TABLE calendars ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE calendars ADD COLUMN notification_settings TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE events ADD COLUMN derived INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX events_derived_range ON events(account_id,calendar_id,derived,start_value,end_value);
+CREATE TABLE event_instance_ranges (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    calendar_id TEXT NOT NULL,
+    start_value TEXT NOT NULL,
+    end_value TEXT NOT NULL,
+    refreshed_at TEXT NOT NULL,
+    PRIMARY KEY(account_id,calendar_id,start_value,end_value)
+);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -251,6 +269,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_5)
                 self.connection.execute("PRAGMA user_version = 5")
+            version = 5
+        if version == 5:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_6)
+                self.connection.execute("PRAGMA user_version = 6")
 
     def close(self) -> None:
         self.connection.close()
@@ -481,15 +504,20 @@ class Storage:
     def upsert_calendar(self, calendar: Calendar) -> None:
         self.connection.execute(
             """INSERT INTO calendars(
-                id,account_id,summary,remote_id,description,time_zone,color,selected,
-                etag,remote_updated_at,local_updated_at,deleted,dirty,default_reminders
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                id,account_id,summary,remote_id,description,time_zone,color,foreground_color,
+                location,summary_override,hidden,selected,etag,remote_updated_at,local_updated_at,
+                deleted,dirty,default_reminders,notification_settings
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(account_id,id) DO UPDATE SET summary=excluded.summary,
             remote_id=excluded.remote_id, description=excluded.description,
-            time_zone=excluded.time_zone, color=excluded.color, selected=excluded.selected,
+            time_zone=excluded.time_zone, color=excluded.color,
+            foreground_color=excluded.foreground_color,location=excluded.location,
+            summary_override=excluded.summary_override,hidden=excluded.hidden,
+            selected=excluded.selected,
             etag=excluded.etag, remote_updated_at=excluded.remote_updated_at,
             local_updated_at=excluded.local_updated_at, deleted=excluded.deleted,
-            dirty=excluded.dirty,default_reminders=excluded.default_reminders""",
+            dirty=excluded.dirty,default_reminders=excluded.default_reminders,
+            notification_settings=excluded.notification_settings""",
             (
                 calendar.id,
                 calendar.account_id,
@@ -498,6 +526,10 @@ class Storage:
                 calendar.description,
                 calendar.time_zone,
                 calendar.color,
+                calendar.foreground_color,
+                calendar.location,
+                calendar.summary_override,
+                calendar.hidden,
                 calendar.selected,
                 *self._meta_values(calendar.metadata),
                 json.dumps(
@@ -506,6 +538,7 @@ class Storage:
                         for item in calendar.default_reminders
                     ]
                 ),
+                json.dumps(calendar.notification_settings),
             ),
         )
 
@@ -518,12 +551,17 @@ class Storage:
             description=row["description"],
             time_zone=row["time_zone"],
             color=row["color"],
+            foreground_color=row["foreground_color"],
+            location=row["location"],
+            summary_override=row["summary_override"],
+            hidden=bool(row["hidden"]),
             selected=bool(row["selected"]),
             metadata=_metadata(row),
             default_reminders=tuple(
                 ReminderOverride(str(item["method"]), int(item["minutes"]))
                 for item in json.loads(row["default_reminders"])
             ),
+            notification_settings=tuple(json.loads(row["notification_settings"])),
         )
 
     def get_calendar(self, account_id: str, calendar_id: str) -> Calendar | None:
@@ -563,8 +601,11 @@ class Storage:
                 attendee_response,event_type,transparency,visibility,color_id,attachments,conference
                 ,guests_can_invite_others,guests_can_modify,guests_can_see_other_guests,
                 anyone_can_add_self,focus_time_properties,out_of_office_properties,
-                working_location_properties
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                working_location_properties,derived
+            ) VALUES (
+                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+            )
             ON CONFLICT(account_id,id) DO UPDATE SET calendar_id=excluded.calendar_id,
             summary=excluded.summary, start_kind=excluded.start_kind,
             start_value=excluded.start_value, start_time_zone=excluded.start_time_zone,
@@ -587,7 +628,8 @@ class Storage:
             anyone_can_add_self=excluded.anyone_can_add_self,
             focus_time_properties=excluded.focus_time_properties,
             out_of_office_properties=excluded.out_of_office_properties,
-            working_location_properties=excluded.working_location_properties""",
+            working_location_properties=excluded.working_location_properties,
+            derived=excluded.derived""",
             (
                 event.id,
                 event.account_id,
@@ -635,6 +677,7 @@ class Storage:
                 json.dumps(event.working_location_properties)
                 if event.working_location_properties is not None
                 else None,
+                event.derived,
             ),
         )
 
@@ -663,6 +706,7 @@ class Storage:
             location=row["location"],
             status=EventStatus(row["status"]),
             recurrence=tuple(json.loads(row["recurrence"])),
+            derived=bool(row["derived"]),
             metadata=_metadata(row),
             reminder_use_default=bool(row["reminder_use_default"]),
             reminder_overrides=tuple(
@@ -762,6 +806,67 @@ class Storage:
     def delete_event(self, account_id: str, event_id: str) -> None:
         self.connection.execute(
             "DELETE FROM events WHERE account_id=? AND id=?", (account_id, event_id)
+        )
+
+    def replace_cached_instances(
+        self,
+        account_id: str,
+        calendar_id: str,
+        start: date | datetime,
+        end: date | datetime,
+        events: list[Event],
+    ) -> None:
+        """Atomically replace the derived instances intersecting an expanded range."""
+        identifiers = [event.id for event in events]
+        sql = """DELETE FROM events WHERE account_id=? AND calendar_id=? AND derived=1
+        AND deleted=0 AND end_value>? AND start_value<?"""
+        arguments: list[Any] = [account_id, calendar_id, _iso(start), _iso(end)]
+        if identifiers:
+            sql += " AND id NOT IN (" + ",".join("?" for _ in identifiers) + ")"
+            arguments.extend(identifiers)
+        self.connection.execute(sql, arguments)
+        for event in events:
+            if not event.derived:
+                raise ValueError("cached instance events must be marked derived")
+            self.upsert_event(event)
+        self.connection.execute(
+            """INSERT INTO event_instance_ranges(
+            account_id,calendar_id,start_value,end_value,refreshed_at
+            )
+            VALUES (?,?,?,?,?) ON CONFLICT(account_id,calendar_id,start_value,end_value)
+            DO UPDATE SET refreshed_at=excluded.refreshed_at""",
+            (account_id, calendar_id, _iso(start), _iso(end), _iso(utc_now())),
+        )
+
+    def list_instance_ranges(
+        self, account_id: str, calendar_id: str | None = None
+    ) -> list[dict[str, str]]:
+        sql = "SELECT * FROM event_instance_ranges WHERE account_id=?"
+        arguments: list[str] = [account_id]
+        if calendar_id is not None:
+            sql += " AND calendar_id=?"
+            arguments.append(calendar_id)
+        return [dict(row) for row in self.connection.execute(sql, arguments)]
+
+    def clear_calendar_mirror(self, account_id: str, calendar_id: str) -> None:
+        """Clear only server-derived rows, preserving local changes and pending outbox work."""
+        self.connection.execute(
+            "DELETE FROM events WHERE account_id=? AND calendar_id=? AND dirty=0",
+            (account_id, calendar_id),
+        )
+        self.connection.execute(
+            "DELETE FROM event_instance_ranges WHERE account_id=? AND calendar_id=?",
+            (account_id, calendar_id),
+        )
+
+    def hide_cached_series_instances(
+        self, account_id: str, calendar_id: str, canonical_id: str
+    ) -> None:
+        """Remove derived display rows after a canonical series deletion is queued."""
+        self.connection.execute(
+            """UPDATE events SET deleted=1,local_updated_at=?
+            WHERE account_id=? AND calendar_id=? AND derived=1 AND canonical_id=?""",
+            (utc_now().isoformat(), account_id, calendar_id, canonical_id),
         )
 
     def upsert_drive_file(self, item: DriveFile) -> None:

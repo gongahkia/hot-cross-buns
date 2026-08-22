@@ -207,6 +207,31 @@ class ApplicationService:
             cursor += step
         return tuple(result)
 
+    def agenda_events(
+        self,
+        account_id: str,
+        *,
+        start: date | datetime,
+        end: date | datetime,
+        calendar_id: str | None = None,
+    ) -> tuple[Event, ...]:
+        """Return a local range view, preferring refreshed instances over series masters."""
+        events = self.storage.list_events(account_id, calendar_id, start=start, end=end)
+        expanded_series = {
+            event.canonical_id for event in events if event.derived and event.canonical_id
+        }
+        return tuple(
+            event
+            for event in events
+            if event.derived or not event.recurrence or event.remote_id not in expanded_series
+        )
+
+    def invitations(self, account_id: str) -> tuple[Event, ...]:
+        """List cached events where the authenticated attendee has an RSVP state."""
+        return tuple(
+            event for event in self.storage.list_events(account_id) if event.attendee_response
+        )
+
     def notes_projection(self, account_id: str) -> NotesProjection:
         if self._notes_projection is not None:
             return self._notes_projection
@@ -806,6 +831,7 @@ class ApplicationService:
         description: str | None = None,
         time_zone: str | None = None,
         color: str | None = None,
+        location: str | None = None,
         selected: bool = True,
         id: str | None = None,
     ) -> Calendar:
@@ -820,6 +846,7 @@ class ApplicationService:
             description=description,
             time_zone=time_zone,
             color=color,
+            location=location,
             selected=selected,
             metadata=_dirty(Metadata()),
         )
@@ -828,6 +855,8 @@ class ApplicationService:
             body["description"] = description
         if time_zone is not None:
             body["timeZone"] = time_zone
+        if location is not None:
+            body["location"] = location
         with self.storage.transaction():
             self.storage.upsert_calendar(item)
             self._enqueue(
@@ -837,6 +866,19 @@ class ApplicationService:
                 MutationOperation.CREATE,
                 {"body": body},
             )
+            if color is not None or not selected:
+                list_body: Json = {}
+                if color is not None:
+                    list_body["backgroundColor"] = color
+                if not selected:
+                    list_body["selected"] = selected
+                self._enqueue(
+                    account_id,
+                    EntityType.CALENDAR,
+                    item.id,
+                    MutationOperation.UPDATE,
+                    {"body": list_body, "resource": "calendar-list"},
+                )
             self._intent(
                 account_id,
                 "create",
@@ -883,15 +925,33 @@ class ApplicationService:
         description: str | None | _Unset = _UNSET,
         time_zone: str | None | _Unset = _UNSET,
         color: str | None | _Unset = _UNSET,
-        selected: bool | None = None,
+        foreground_color: str | None | _Unset = _UNSET,
+        location: str | None | _Unset = _UNSET,
+        summary_override: str | None | _Unset = _UNSET,
+        hidden: bool | _Unset = _UNSET,
+        selected: bool | _Unset = _UNSET,
+        default_reminders: tuple[ReminderOverride, ...] | _Unset = _UNSET,
+        notification_settings: tuple[dict[str, Any], ...] | _Unset = _UNSET,
     ) -> Calendar:
         current = self._require_calendar(account_id, calendar_id)
         if summary is not None and not summary.strip():
             raise ValueError("calendar summary is required")
         if not isinstance(time_zone, _Unset):
             self._validate_zone(time_zone)
-        remote_change = summary is not None or any(
-            not isinstance(value, _Unset) for value in (description, time_zone)
+        calendar_change = summary is not None or any(
+            not isinstance(value, _Unset) for value in (description, time_zone, location)
+        )
+        list_change = any(
+            not isinstance(value, _Unset)
+            for value in (
+                color,
+                foreground_color,
+                summary_override,
+                hidden,
+                selected,
+                default_reminders,
+                notification_settings,
+            )
         )
         updated = replace(
             current,
@@ -899,24 +959,88 @@ class ApplicationService:
             description=current.description if isinstance(description, _Unset) else description,
             time_zone=current.time_zone if isinstance(time_zone, _Unset) else time_zone,
             color=current.color if isinstance(color, _Unset) else color,
-            selected=selected if selected is not None else current.selected,
-            metadata=_dirty(current.metadata) if remote_change else current.metadata,
+            foreground_color=(
+                current.foreground_color
+                if isinstance(foreground_color, _Unset)
+                else foreground_color
+            ),
+            location=current.location if isinstance(location, _Unset) else location,
+            summary_override=(
+                current.summary_override
+                if isinstance(summary_override, _Unset)
+                else summary_override
+            ),
+            hidden=current.hidden if isinstance(hidden, _Unset) else hidden,
+            selected=current.selected if isinstance(selected, _Unset) else selected,
+            default_reminders=(
+                current.default_reminders
+                if isinstance(default_reminders, _Unset)
+                else default_reminders
+            ),
+            notification_settings=(
+                current.notification_settings
+                if isinstance(notification_settings, _Unset)
+                else notification_settings
+            ),
+            metadata=_dirty(current.metadata)
+            if calendar_change or list_change
+            else current.metadata,
         )
-        body: Json = {
-            "summary": updated.summary,
-            "description": updated.description,
-            "timeZone": updated.time_zone,
-        }
+        calendar_body: Json = {}
+        if summary is not None:
+            calendar_body["summary"] = updated.summary
+        if not isinstance(description, _Unset):
+            calendar_body["description"] = updated.description
+        if not isinstance(time_zone, _Unset):
+            calendar_body["timeZone"] = updated.time_zone
+        if not isinstance(location, _Unset):
+            calendar_body["location"] = updated.location
+        list_body: Json = {}
+        for key, value in (
+            ("backgroundColor", color),
+            ("foregroundColor", foreground_color),
+            ("summaryOverride", summary_override),
+            ("hidden", hidden),
+            ("selected", selected),
+        ):
+            if not isinstance(value, _Unset):
+                list_body[key] = value
+        if not isinstance(default_reminders, _Unset):
+            list_body["defaultReminders"] = [
+                {"method": item.method, "minutes": item.minutes}
+                for item in updated.default_reminders
+            ]
+        if not isinstance(notification_settings, _Unset):
+            list_body["notificationSettings"] = {
+                "notifications": list(updated.notification_settings)
+            }
         with self.storage.transaction():
             before = self._snapshot("calendars", account_id, calendar_id)
             self.storage.upsert_calendar(updated)
-            if remote_change:
+            if calendar_change:
                 self._enqueue(
                     account_id,
                     EntityType.CALENDAR,
                     calendar_id,
                     MutationOperation.UPDATE,
-                    {"body": body, "etag": current.metadata.etag, "remote_id": current.remote_id},
+                    {
+                        "body": calendar_body,
+                        "etag": current.metadata.etag,
+                        "remote_id": current.remote_id,
+                    },
+                )
+            if list_change:
+                self._enqueue(
+                    account_id,
+                    EntityType.CALENDAR,
+                    calendar_id,
+                    MutationOperation.UPDATE,
+                    {
+                        "body": list_body,
+                        "etag": current.metadata.etag,
+                        "remote_id": current.remote_id,
+                        "resource": "calendar-list",
+                    },
                 )
             self._intent(
                 account_id,
@@ -1079,23 +1203,23 @@ class ApplicationService:
         description: str | None | _Unset = _UNSET,
         location: str | None | _Unset = _UNSET,
         status: EventStatus | str | None = None,
-        recurrence: tuple[str, ...] | None = None,
-        attendees: tuple[dict[str, Any], ...] | None = None,
-        reminder_use_default: bool | None = None,
-        reminder_overrides: tuple[ReminderOverride, ...] | None = None,
-        event_type: str | None = None,
-        transparency: str | None = None,
-        visibility: str | None = None,
-        color_id: str | None = None,
-        attachments: tuple[dict[str, Any], ...] | None = None,
-        conference: dict[str, Any] | None = None,
-        guests_can_invite_others: bool | None = None,
-        guests_can_modify: bool | None = None,
-        guests_can_see_other_guests: bool | None = None,
-        anyone_can_add_self: bool | None = None,
-        focus_time_properties: dict[str, Any] | None = None,
-        out_of_office_properties: dict[str, Any] | None = None,
-        working_location_properties: dict[str, Any] | None = None,
+        recurrence: tuple[str, ...] | _Unset = _UNSET,
+        attendees: tuple[dict[str, Any], ...] | _Unset = _UNSET,
+        reminder_use_default: bool | _Unset = _UNSET,
+        reminder_overrides: tuple[ReminderOverride, ...] | _Unset = _UNSET,
+        event_type: str | None | _Unset = _UNSET,
+        transparency: str | None | _Unset = _UNSET,
+        visibility: str | None | _Unset = _UNSET,
+        color_id: str | None | _Unset = _UNSET,
+        attachments: tuple[dict[str, Any], ...] | _Unset = _UNSET,
+        conference: dict[str, Any] | None | _Unset = _UNSET,
+        guests_can_invite_others: bool | None | _Unset = _UNSET,
+        guests_can_modify: bool | None | _Unset = _UNSET,
+        guests_can_see_other_guests: bool | None | _Unset = _UNSET,
+        anyone_can_add_self: bool | None | _Unset = _UNSET,
+        focus_time_properties: dict[str, Any] | None | _Unset = _UNSET,
+        out_of_office_properties: dict[str, Any] | None | _Unset = _UNSET,
+        working_location_properties: dict[str, Any] | None | _Unset = _UNSET,
         send_updates: str = "none",
         supports_attachments: bool = False,
         conference_data_version: int = 0,
@@ -1104,6 +1228,14 @@ class ApplicationService:
         current = self._require_event(account_id, event_id)
         if scope not in {"this", "series"}:
             raise ValueError("event scope must be this or series")
+        if scope == "series" and current.is_occurrence:
+            if not current.canonical_id:
+                raise ValueError("event occurrence has no canonical recurring series")
+            series = self.storage.get_event_by_remote(account_id, current.canonical_id)
+            if series is None:
+                raise ValueError("the canonical recurring series is not cached")
+            current = series
+            event_id = series.id
         self._validate_event_options(send_updates, supports_attachments, conference_data_version)
         if summary is not None and not summary.strip():
             raise ValueError("event summary is required")
@@ -1117,47 +1249,121 @@ class ApplicationService:
             description=current.description if isinstance(description, _Unset) else description,
             location=current.location if isinstance(location, _Unset) else location,
             status=EventStatus(status) if status is not None else current.status,
-            recurrence=recurrence if recurrence is not None else current.recurrence,
-            attendees=attendees if attendees is not None else current.attendees,
+            recurrence=current.recurrence if isinstance(recurrence, _Unset) else recurrence,
+            attendees=current.attendees if isinstance(attendees, _Unset) else attendees,
             reminder_use_default=(
-                reminder_use_default
-                if reminder_use_default is not None
-                else current.reminder_use_default
+                current.reminder_use_default
+                if isinstance(reminder_use_default, _Unset)
+                else reminder_use_default
             ),
             reminder_overrides=(
-                reminder_overrides if reminder_overrides is not None else current.reminder_overrides
+                current.reminder_overrides
+                if isinstance(reminder_overrides, _Unset)
+                else reminder_overrides
             ),
-            event_type=event_type if event_type is not None else current.event_type,
-            transparency=transparency if transparency is not None else current.transparency,
-            visibility=visibility if visibility is not None else current.visibility,
-            color_id=color_id if color_id is not None else current.color_id,
-            attachments=attachments if attachments is not None else current.attachments,
-            conference=conference if conference is not None else current.conference,
+            event_type=current.event_type if isinstance(event_type, _Unset) else event_type,
+            transparency=current.transparency if isinstance(transparency, _Unset) else transparency,
+            visibility=current.visibility if isinstance(visibility, _Unset) else visibility,
+            color_id=current.color_id if isinstance(color_id, _Unset) else color_id,
+            attachments=current.attachments if isinstance(attachments, _Unset) else attachments,
+            conference=current.conference if isinstance(conference, _Unset) else conference,
             guests_can_invite_others=(
-                guests_can_invite_others
-                if guests_can_invite_others is not None
-                else current.guests_can_invite_others
+                current.guests_can_invite_others
+                if isinstance(guests_can_invite_others, _Unset)
+                else guests_can_invite_others
             ),
             guests_can_modify=(
-                guests_can_modify if guests_can_modify is not None else current.guests_can_modify
+                current.guests_can_modify
+                if isinstance(guests_can_modify, _Unset)
+                else guests_can_modify
             ),
             guests_can_see_other_guests=(
-                guests_can_see_other_guests
-                if guests_can_see_other_guests is not None
-                else current.guests_can_see_other_guests
+                current.guests_can_see_other_guests
+                if isinstance(guests_can_see_other_guests, _Unset)
+                else guests_can_see_other_guests
             ),
             anyone_can_add_self=(
-                anyone_can_add_self
-                if anyone_can_add_self is not None
-                else current.anyone_can_add_self
+                current.anyone_can_add_self
+                if isinstance(anyone_can_add_self, _Unset)
+                else anyone_can_add_self
             ),
-            focus_time_properties=focus_time_properties or current.focus_time_properties,
-            out_of_office_properties=(out_of_office_properties or current.out_of_office_properties),
+            focus_time_properties=(
+                current.focus_time_properties
+                if isinstance(focus_time_properties, _Unset)
+                else focus_time_properties
+            ),
+            out_of_office_properties=(
+                current.out_of_office_properties
+                if isinstance(out_of_office_properties, _Unset)
+                else out_of_office_properties
+            ),
             working_location_properties=(
-                working_location_properties or current.working_location_properties
+                current.working_location_properties
+                if isinstance(working_location_properties, _Unset)
+                else working_location_properties
             ),
             metadata=_dirty(current.metadata),
         )
+        body = self._event_body(updated)
+        for key, value, changed in (
+            ("description", updated.description, not isinstance(description, _Unset)),
+            ("location", updated.location, not isinstance(location, _Unset)),
+            ("recurrence", list(updated.recurrence), not isinstance(recurrence, _Unset)),
+            ("attendees", list(updated.attendees), not isinstance(attendees, _Unset)),
+            ("eventType", updated.event_type, not isinstance(event_type, _Unset)),
+            ("transparency", updated.transparency, not isinstance(transparency, _Unset)),
+            ("visibility", updated.visibility, not isinstance(visibility, _Unset)),
+            ("colorId", updated.color_id, not isinstance(color_id, _Unset)),
+            ("attachments", list(updated.attachments), not isinstance(attachments, _Unset)),
+            ("conferenceData", updated.conference, not isinstance(conference, _Unset)),
+            (
+                "guestsCanInviteOthers",
+                updated.guests_can_invite_others,
+                not isinstance(guests_can_invite_others, _Unset),
+            ),
+            (
+                "guestsCanModify",
+                updated.guests_can_modify,
+                not isinstance(guests_can_modify, _Unset),
+            ),
+            (
+                "guestsCanSeeOtherGuests",
+                updated.guests_can_see_other_guests,
+                not isinstance(guests_can_see_other_guests, _Unset),
+            ),
+            (
+                "anyoneCanAddSelf",
+                updated.anyone_can_add_self,
+                not isinstance(anyone_can_add_self, _Unset),
+            ),
+            (
+                "focusTimeProperties",
+                updated.focus_time_properties,
+                not isinstance(focus_time_properties, _Unset),
+            ),
+            (
+                "outOfOfficeProperties",
+                updated.out_of_office_properties,
+                not isinstance(out_of_office_properties, _Unset),
+            ),
+            (
+                "workingLocationProperties",
+                updated.working_location_properties,
+                not isinstance(working_location_properties, _Unset),
+            ),
+        ):
+            if changed:
+                body[key] = value
+        if not isinstance(reminder_use_default, _Unset) or not isinstance(
+            reminder_overrides, _Unset
+        ):
+            body["reminders"] = {
+                "useDefault": updated.reminder_use_default,
+                "overrides": [
+                    {"method": item.method, "minutes": item.minutes}
+                    for item in updated.reminder_overrides
+                ],
+            }
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(updated)
@@ -1168,7 +1374,7 @@ class ApplicationService:
                 MutationOperation.UPDATE,
                 {
                     "calendar_id": current.calendar_id,
-                    "body": self._event_body(updated),
+                    "body": body,
                     "etag": current.metadata.etag,
                     "remote_id": current.remote_id,
                     "target_remote_id": (
@@ -1218,6 +1424,50 @@ class ApplicationService:
                 self._snapshot("events", account_id, event_id),
             )
         return updated
+
+    def duplicate_event(
+        self,
+        account_id: str,
+        event_id: str,
+        *,
+        calendar_id: str | None = None,
+        summary: str | None = None,
+        start: EventDateTime | None = None,
+        end: EventDateTime | None = None,
+        include_recurrence: bool = False,
+        include_attendees: bool = False,
+        send_updates: str = "none",
+    ) -> Event:
+        """Create an independent copy; invitations and recurrence are opt-in."""
+        source = self._require_event(account_id, event_id)
+        target_calendar = calendar_id or source.calendar_id
+        return self.create_event(
+            account_id,
+            target_calendar,
+            summary or source.summary,
+            start or source.start,
+            end or source.end,
+            description=source.description,
+            location=source.location,
+            recurrence=source.recurrence if include_recurrence else (),
+            reminder_use_default=source.reminder_use_default,
+            reminder_overrides=source.reminder_overrides,
+            attendees=source.attendees if include_attendees else (),
+            event_type=source.event_type,
+            transparency=source.transparency,
+            visibility=source.visibility,
+            color_id=source.color_id,
+            attachments=source.attachments,
+            guests_can_invite_others=source.guests_can_invite_others,
+            guests_can_modify=source.guests_can_modify,
+            guests_can_see_other_guests=source.guests_can_see_other_guests,
+            anyone_can_add_self=source.anyone_can_add_self,
+            focus_time_properties=source.focus_time_properties,
+            out_of_office_properties=source.out_of_office_properties,
+            working_location_properties=source.working_location_properties,
+            send_updates=send_updates,
+            supports_attachments=bool(source.attachments),
+        )
 
     def respond_event(
         self,
@@ -1305,11 +1555,25 @@ class ApplicationService:
         current = self._require_event(account_id, event_id)
         if scope not in {"this", "series"}:
             raise ValueError("event scope must be this or series")
+        series_remote_id: str | None = None
+        if scope == "series" and current.is_occurrence:
+            if not current.canonical_id:
+                raise ValueError("event occurrence has no canonical recurring series")
+            series = self.storage.get_event_by_remote(account_id, current.canonical_id)
+            if series is None:
+                raise ValueError("the canonical recurring series is not cached")
+            series_remote_id = current.canonical_id
+            current = series
+            event_id = series.id
         self._validate_event_options(send_updates, False, 0)
         deleted = replace(current, metadata=_dirty(current.metadata, deleted=True))
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(deleted)
+            if series_remote_id:
+                self.storage.hide_cached_series_instances(
+                    account_id, current.calendar_id, series_remote_id
+                )
             self._enqueue(
                 account_id,
                 EntityType.EVENT,

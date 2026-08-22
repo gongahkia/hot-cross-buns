@@ -122,6 +122,12 @@ def root(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
     tsv: bool = typer.Option(False, "--tsv", help="Emit tab-separated records."),
     no_color: bool = typer.Option(False, "--no-color", help="Disable terminal color."),
+    env_file: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--env-file",
+        envvar="HCB_ENV_FILE",
+        help="Per-account Google credential .env file.",
+    ),
     json_schema_version: bool = typer.Option(
         False,
         "--json-schema-version",
@@ -135,7 +141,10 @@ def root(
         raise typer.BadParameter("--json and --tsv are mutually exclusive")
     if no_color or os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb":
         ctx.color = False
-    ctx.obj = State(_runtime_factory(), account, json_output, tsv)
+    runtime = _runtime_factory()
+    if env_file is not None:
+        runtime.credential_file_override = env_file
+    ctx.obj = State(runtime, account, json_output, tsv)
     ctx.call_on_close(ctx.obj.runtime.close)
 
 
@@ -206,6 +215,26 @@ def _event_point(raw: str, all_day: bool, zone: str | None) -> EventDateTime:
         return EventDateTime(DateTimeKind.DATE, date.fromisoformat(raw))
     value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     return EventDateTime(DateTimeKind.DATETIME, value, zone)
+
+
+def _recurrence_rules(values: list[str] | None) -> tuple[str, ...]:
+    """Accept Google recurrence lines or concise RRULE values on the command line."""
+    result: list[str] = []
+    for value in values or ():
+        rule = value.strip()
+        if not rule:
+            raise ValueError("recurrence rules must not be empty")
+        if not rule.startswith(("RRULE:", "EXDATE;", "RDATE;")):
+            rule = f"RRULE:{rule}"
+        result.append(rule)
+    return tuple(result)
+
+
+def _range_datetime(value: str, *, end: bool = False) -> datetime:
+    if len(value) == 10:
+        parsed = datetime.combine(date.fromisoformat(value), datetime.min.time())
+        return parsed + timedelta(days=1) if end else parsed
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _task_record(task: Task, lists: dict[str, str]) -> ImportedTask:
@@ -487,8 +516,8 @@ def events_agenda(
 ) -> None:
     start_date = date.fromisoformat(start) if start else date.today()
     stop = date.fromisoformat(end) if end else (start_date + timedelta(days=7))
-    items = _state(ctx).runtime.storage.list_events(
-        _account(ctx), calendar, start=start_date, end=stop
+    items = _state(ctx).runtime.application.agenda_events(
+        _account(ctx), calendar_id=calendar, start=start_date, end=stop
     )
     _emit(
         ctx,
@@ -509,6 +538,7 @@ def events_create(
     time_zone: str | None = typer.Option(None, "--time-zone"),
     description: str | None = typer.Option(None),
     location: str | None = typer.Option(None),
+    recurrence: list[str] | None = typer.Option(None, "--recurrence", "--rrule"),  # noqa: B008
     attendees_json: str | None = typer.Option(None, "--attendees-json"),
     reminders_json: str | None = typer.Option(None, "--reminders-json"),
     attachments_json: str | None = typer.Option(None, "--attachments-json"),
@@ -527,6 +557,7 @@ def events_create(
         _event_point(end, all_day, time_zone),
         description=description,
         location=location,
+        recurrence=_recurrence_rules(recurrence),
         attendees=tuple(json.loads(attendees_json)) if attendees_json else (),
         reminder_use_default=reminders_json is None,
         reminder_overrides=tuple(
@@ -557,6 +588,10 @@ def events_edit(
     time_zone: str | None = typer.Option(None, "--time-zone"),
     description: str | None = typer.Option(None),
     location: str | None = typer.Option(None),
+    clear_description: bool = typer.Option(False, "--clear-description"),
+    clear_location: bool = typer.Option(False, "--clear-location"),
+    recurrence: list[str] | None = typer.Option(None, "--recurrence", "--rrule"),  # noqa: B008
+    clear_recurrence: bool = typer.Option(False, "--clear-recurrence"),
     scope: str = typer.Option("this", "--scope"),
     send_updates: str = typer.Option("none", "--send-updates"),
 ) -> None:
@@ -567,16 +602,24 @@ def events_edit(
         from .errors import NotFoundError
 
         raise NotFoundError(f"Event {event_id!r} does not exist")
+    if recurrence is not None and clear_recurrence:
+        raise ValueError("--recurrence and --clear-recurrence are mutually exclusive")
+    changes: dict[str, Any] = {}
+    if description is not None or clear_description:
+        changes["description"] = None if clear_description else description
+    if location is not None or clear_location:
+        changes["location"] = None if clear_location else location
+    if recurrence is not None or clear_recurrence:
+        changes["recurrence"] = () if clear_recurrence else _recurrence_rules(recurrence)
     item = state.runtime.application.update_event(
         account,
         event_id,
         summary=summary,
         start=_event_point(start, all_day, time_zone) if start else None,
         end=_event_point(end, all_day, time_zone) if end else None,
-        description=current.description if description is None else description,
-        location=current.location if location is None else location,
         scope=scope,  # type: ignore[arg-type]
         send_updates=send_updates,
+        **changes,
     )
     _emit(ctx, item, human=lambda value: f"Updated event {value.id}: {value.summary}")
 
@@ -615,6 +658,119 @@ def events_show(ctx: typer.Context, event_id: str) -> None:
     _emit(ctx, item)
 
 
+@events_app.command("instances")
+def events_instances(
+    ctx: typer.Context,
+    calendar: str | None = typer.Option(None, "--calendar"),
+    start: str | None = typer.Option(None, "--from"),
+    end: str | None = typer.Option(None, "--to"),
+) -> None:
+    """List locally cached recurring instances; this command performs no network I/O."""
+    start_value = (
+        _range_datetime(start) if start else datetime.combine(date.today(), datetime.min.time())
+    )
+    end_value = _range_datetime(end, end=True) if end else start_value + timedelta(days=7)
+    items = [
+        item
+        for item in _state(ctx).runtime.storage.list_events(
+            _account(ctx), calendar, start=start_value, end=end_value
+        )
+        if item.derived
+    ]
+    _emit(
+        ctx,
+        items,
+        fields=("id", "calendar_id", "canonical_id", "summary", "start", "end"),
+        human=lambda item: f"{item.start.value.isoformat()}\t{item.id}\t{item.summary}",
+    )
+
+
+@events_app.command("refresh-instances")
+def events_refresh_instances(
+    ctx: typer.Context,
+    calendar: str = typer.Option(..., "--calendar"),
+    start: str = typer.Option(..., "--from"),
+    end: str = typer.Option(..., "--to"),
+) -> None:
+    """Explicitly fetch and cache Google-expanded recurring instances for one range."""
+    state = _state(ctx)
+    account = _account(ctx)
+    items = state.runtime.sync_engine(account).refresh_occurrences(
+        account, calendar, _range_datetime(start), _range_datetime(end, end=True)
+    )
+    _emit(ctx, {"calendar_id": calendar, "refreshed": len(items), "instances": items})
+
+
+@events_app.command("invitations")
+def events_invitations(ctx: typer.Context) -> None:
+    _emit(
+        ctx,
+        _state(ctx).runtime.application.invitations(_account(ctx)),
+        fields=("id", "calendar_id", "summary", "attendee_response", "start"),
+        human=lambda item: (
+            f"{item.attendee_response}\t{item.start.value.isoformat()}\t{item.summary}"
+        ),
+    )
+
+
+@events_app.command("duplicate")
+def events_duplicate(
+    ctx: typer.Context,
+    event_id: str,
+    calendar: str | None = typer.Option(None, "--calendar"),
+    summary: str | None = typer.Option(None),
+    start: str | None = typer.Option(None),
+    end: str | None = typer.Option(None),
+    all_day: bool = typer.Option(False, "--all-day"),
+    time_zone: str | None = typer.Option(None, "--time-zone"),
+    include_recurrence: bool = typer.Option(False, "--include-recurrence"),
+    include_attendees: bool = typer.Option(False, "--include-attendees"),
+    send_updates: str = typer.Option("none", "--send-updates"),
+) -> None:
+    if (start is None) != (end is None):
+        raise ValueError("--start and --end must be supplied together")
+    item = _state(ctx).runtime.application.duplicate_event(
+        _account(ctx),
+        event_id,
+        calendar_id=calendar,
+        summary=summary,
+        start=_event_point(start, all_day, time_zone) if start else None,
+        end=_event_point(end, all_day, time_zone) if end else None,
+        include_recurrence=include_recurrence,
+        include_attendees=include_attendees,
+        send_updates=send_updates,
+    )
+    _emit(ctx, item, human=lambda value: f"Duplicated event {value.id}: {value.summary}")
+
+
+@events_app.command("invite")
+def events_invite(
+    ctx: typer.Context,
+    event_id: str,
+    emails: list[str],
+    send_updates: str = typer.Option("all", "--send-updates"),
+) -> None:
+    account = _account(ctx)
+    current = _state(ctx).runtime.storage.get_event(account, event_id)
+    if current is None:
+        from .errors import NotFoundError
+
+        raise NotFoundError(f"Event {event_id!r} does not exist")
+    existing = {
+        str(attendee.get("email", "")).casefold()
+        for attendee in current.attendees
+        if attendee.get("email")
+    }
+    additions = [{"email": email} for email in emails if email.casefold() not in existing]
+    item = _state(ctx).runtime.application.update_event(
+        account,
+        event_id,
+        attendees=tuple((*current.attendees, *additions)),
+        send_updates=send_updates,
+    )
+    _emit(ctx, item, human=lambda value: f"Updated invitees for {value.id}")
+
+
 @events_app.command("set-properties")
 def events_set_properties(
     ctx: typer.Context,
@@ -629,32 +785,46 @@ def events_set_properties(
     reminders = value.get("reminders")
     if reminders is not None and not isinstance(reminders, list):
         raise ValueError("reminders must be an array")
+    changes: dict[str, Any] = {}
+    if "attendees" in value:
+        attendees = value["attendees"]
+        if attendees is not None and not isinstance(attendees, list):
+            raise ValueError("attendees must be an array or null")
+        changes["attendees"] = tuple(attendees or ())
+    if "reminderUseDefault" in value:
+        changes["reminder_use_default"] = value["reminderUseDefault"]
+    if "reminders" in value:
+        changes["reminder_overrides"] = tuple(
+            ReminderOverride(entry["method"], int(entry["minutes"])) for entry in (reminders or ())
+        )
+    for source, target in (
+        ("eventType", "event_type"),
+        ("transparency", "transparency"),
+        ("visibility", "visibility"),
+        ("colorId", "color_id"),
+        ("conferenceData", "conference"),
+        ("guestsCanInviteOthers", "guests_can_invite_others"),
+        ("guestsCanModify", "guests_can_modify"),
+        ("guestsCanSeeOtherGuests", "guests_can_see_other_guests"),
+        ("anyoneCanAddSelf", "anyone_can_add_self"),
+        ("focusTimeProperties", "focus_time_properties"),
+        ("outOfOfficeProperties", "out_of_office_properties"),
+        ("workingLocationProperties", "working_location_properties"),
+    ):
+        if source in value:
+            changes[target] = value[source]
+    if "attachments" in value:
+        attachments = value["attachments"]
+        if attachments is not None and not isinstance(attachments, list):
+            raise ValueError("attachments must be an array or null")
+        changes["attachments"] = tuple(attachments or ())
     item = _state(ctx).runtime.application.update_event(
         _account(ctx),
         event_id,
-        attendees=tuple(value["attendees"]) if "attendees" in value else None,
-        reminder_use_default=value.get("reminderUseDefault"),
-        reminder_overrides=(
-            tuple(ReminderOverride(entry["method"], int(entry["minutes"])) for entry in reminders)
-            if reminders is not None
-            else None
-        ),
-        event_type=value.get("eventType"),
-        transparency=value.get("transparency"),
-        visibility=value.get("visibility"),
-        color_id=value.get("colorId"),
-        attachments=tuple(value["attachments"]) if "attachments" in value else None,
-        conference=value.get("conferenceData"),
-        guests_can_invite_others=value.get("guestsCanInviteOthers"),
-        guests_can_modify=value.get("guestsCanModify"),
-        guests_can_see_other_guests=value.get("guestsCanSeeOtherGuests"),
-        anyone_can_add_self=value.get("anyoneCanAddSelf"),
-        focus_time_properties=value.get("focusTimeProperties"),
-        out_of_office_properties=value.get("outOfOfficeProperties"),
-        working_location_properties=value.get("workingLocationProperties"),
         send_updates=send_updates,
-        supports_attachments="attachments" in value,
-        conference_data_version=1 if "conferenceData" in value else 0,
+        supports_attachments="attachments" in changes,
+        conference_data_version=1 if "conference" in changes else 0,
+        **changes,
     )
     _emit(ctx, item)
 
@@ -741,9 +911,16 @@ def calendars_create(
     summary: str,
     description: str | None = typer.Option(None),
     time_zone: str | None = typer.Option(None, "--time-zone"),
+    location: str | None = typer.Option(None),
+    color: str | None = typer.Option(None, "--color"),
 ) -> None:
     item = _state(ctx).runtime.application.create_calendar(
-        _account(ctx), summary, description=description, time_zone=time_zone
+        _account(ctx),
+        summary,
+        description=description,
+        time_zone=time_zone,
+        location=location,
+        color=color,
     )
     _emit(ctx, item, human=lambda value: f"Created calendar {value.id}: {value.summary}")
 
@@ -758,6 +935,95 @@ def calendars_subscribe(
     _emit(ctx, item, human=lambda value: f"Subscribed to calendar {value.id}")
 
 
+@calendars_app.command("edit")
+def calendars_edit(
+    ctx: typer.Context,
+    calendar_id: str,
+    summary: str | None = typer.Option(None),
+    description: str | None = typer.Option(None),
+    clear_description: bool = typer.Option(False, "--clear-description"),
+    time_zone: str | None = typer.Option(None, "--time-zone"),
+    clear_time_zone: bool = typer.Option(False, "--clear-time-zone"),
+    location: str | None = typer.Option(None),
+    clear_location: bool = typer.Option(False, "--clear-location"),
+) -> None:
+    if (
+        (description is not None and clear_description)
+        or (time_zone is not None and clear_time_zone)
+        or (location is not None and clear_location)
+    ):
+        raise ValueError("a value and its --clear flag are mutually exclusive")
+    changes: dict[str, Any] = {}
+    if description is not None or clear_description:
+        changes["description"] = None if clear_description else description
+    if time_zone is not None or clear_time_zone:
+        changes["time_zone"] = None if clear_time_zone else time_zone
+    if location is not None or clear_location:
+        changes["location"] = None if clear_location else location
+    item = _state(ctx).runtime.application.update_calendar(
+        _account(ctx), calendar_id, summary=summary, **changes
+    )
+    _emit(ctx, item, human=lambda value: f"Updated calendar {value.id}: {value.summary}")
+
+
+@calendars_app.command("set-list")
+def calendars_set_list(
+    ctx: typer.Context,
+    calendar_id: str,
+    color: str | None = typer.Option(None, "--color"),
+    clear_color: bool = typer.Option(False, "--clear-color"),
+    foreground_color: str | None = typer.Option(None, "--foreground-color"),
+    clear_foreground_color: bool = typer.Option(False, "--clear-foreground-color"),
+    summary_override: str | None = typer.Option(None, "--summary-override"),
+    clear_summary_override: bool = typer.Option(False, "--clear-summary-override"),
+    selected: bool | None = typer.Option(None, "--selected/--unselected"),  # noqa: B008
+    hidden: bool | None = typer.Option(None, "--hidden/--shown"),  # noqa: B008
+    reminders_json: str | None = typer.Option(None, "--reminders-json"),
+    notifications_json: str | None = typer.Option(None, "--notifications-json"),
+) -> None:
+    if any(
+        (
+            color is not None and clear_color,
+            foreground_color is not None and clear_foreground_color,
+            summary_override is not None and clear_summary_override,
+        )
+    ):
+        raise ValueError("a value and its --clear flag are mutually exclusive")
+    changes: dict[str, Any] = {}
+    for key, value, clear in (
+        ("color", color, clear_color),
+        ("foreground_color", foreground_color, clear_foreground_color),
+        ("summary_override", summary_override, clear_summary_override),
+    ):
+        if value is not None or clear:
+            changes[key] = None if clear else value
+    if selected is not None:
+        changes["selected"] = selected
+    if hidden is not None:
+        changes["hidden"] = hidden
+    if reminders_json is not None:
+        parsed = json.loads(reminders_json)
+        if not isinstance(parsed, list):
+            raise ValueError("reminders_json must be a JSON array")
+        changes["default_reminders"] = tuple(
+            ReminderOverride(item["method"], int(item["minutes"])) for item in parsed
+        )
+    if notifications_json is not None:
+        parsed = json.loads(notifications_json)
+        if not isinstance(parsed, list) or not all(isinstance(item, dict) for item in parsed):
+            raise ValueError("notifications_json must be a JSON array of objects")
+        changes["notification_settings"] = tuple(parsed)
+    item = _state(ctx).runtime.application.update_calendar(_account(ctx), calendar_id, **changes)
+    _emit(ctx, item, human=lambda value: f"Updated calendar-list preferences for {value.id}")
+
+
+@calendars_app.command("colors")
+def calendars_colors(ctx: typer.Context) -> None:
+    """Explicitly read Google's available calendar and event color IDs."""
+    state = _state(ctx)
+    _emit(ctx, state.runtime.sync_engine(_account(ctx)).gateway.calendar_colors())
+
+
 @calendars_app.command("remove")
 def calendars_remove(
     ctx: typer.Context, calendar_id: str, yes: bool = typer.Option(False, "--yes", "-y")
@@ -765,6 +1031,15 @@ def calendars_remove(
     _confirm(yes, f"Remove calendar {calendar_id} and its local events?")
     item = _state(ctx).runtime.application.remove_calendar_from_list(_account(ctx), calendar_id)
     _emit(ctx, item, human=lambda value: f"Removed calendar {value.id}")
+
+
+@calendars_app.command("delete")
+def calendars_delete(
+    ctx: typer.Context, calendar_id: str, yes: bool = typer.Option(False, "--yes", "-y")
+) -> None:
+    _confirm(yes, f"Permanently delete calendar {calendar_id} from Google?")
+    item = _state(ctx).runtime.application.delete_calendar(_account(ctx), calendar_id)
+    _emit(ctx, item, human=lambda value: f"Deleted calendar {value.id}")
 
 
 # Search and capture
@@ -1060,7 +1335,9 @@ def auth_connect(
     no_browser: bool = typer.Option(False, "--no-browser"),
 ) -> None:
     state = _state(ctx)
-    result = state.runtime.authenticator.connect(account_id, open_browser=not no_browser)
+    result = state.runtime.authenticator(account_id).connect(
+        account_id, open_browser=not no_browser
+    )
     state.runtime.storage.upsert_account(Account(account_id, email))
     _emit(
         ctx,
@@ -1073,7 +1350,10 @@ def auth_connect(
 def auth_status(ctx: typer.Context) -> None:
     state = _state(ctx)
     rows = [
-        {**to_primitive(item), "authenticated": state.runtime.token_store.get(item.id) is not None}
+        {
+            **to_primitive(item),
+            "authenticated": state.runtime.token_store_for(item.id).get(item.id) is not None,
+        }
         for item in state.runtime.storage.list_accounts()
     ]
     _emit(
@@ -1094,7 +1374,7 @@ def auth_disconnect(
 ) -> None:
     target = account_id or _account(ctx)
     state = _state(ctx)
-    removed = state.runtime.authenticator.disconnect(target, storage=state.runtime.storage)
+    removed = state.runtime.disconnect(target)
     _emit(
         ctx,
         {"account_id": target, "credentials_removed": removed},
@@ -1111,9 +1391,7 @@ def auth_reset(
     target = account_id or _account(ctx)
     _confirm(yes, f"Permanently remove all cached data for {target}?")
     state = _state(ctx)
-    removed = state.runtime.authenticator.disconnect(
-        target, storage=state.runtime.storage, reset_local_data=True
-    )
+    removed = state.runtime.disconnect(target, reset_local_data=True)
     _emit(ctx, {"account_id": target, "credentials_removed": removed, "cache_removed": True})
 
 

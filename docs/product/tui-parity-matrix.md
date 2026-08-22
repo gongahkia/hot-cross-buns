@@ -93,7 +93,9 @@ These are not style nits. They decide what “parity” means. **Do not port the
 ### 8. OAuth models are incompatible; pick desktop
 
 - **Web:** user-owned **Web** OAuth client ID; GIS token model; **no refresh token**; reconnect on expiry; client secret forbidden.
-- **Native / google-sync spec:** user-owned **Desktop** OAuth client ID; PKCE loopback; refresh token in OS credential store, never SQLite/QML/logs.
+- **Current desktop implementation:** user-owned **Desktop** OAuth client ID and
+  optional secret in an owner-only local `.env`; PKCE loopback; refresh token
+  encrypted in that file with its key in the OS credential store, never SQLite/QML/logs.
 - **TUI decision:** **Retain native/desktop rules.** Do not port the browser token model. **Retire** Web client IDs and GIS as product requirements.
 
 ### 9. Sync incrementality is documented well and must be kept
@@ -125,9 +127,9 @@ Legend in the **TUI** column uses the four labels. Evidence is abbreviated: **W*
 | Capability | Evidence | TUI |
 | --- | --- | --- |
 | User-supplied Google Cloud project; Tasks + Calendar APIs enabled | W onboarding, N README, D PRD | **Retain** |
-| Desktop OAuth client ID + PKCE loopback; no client secret | N, google-sync spec | **Retain** (replaces web GIS) |
-| Refresh + access tokens in OS keychain/credential store only | N, privacy threat model | **Retain** |
-| Tokens never in SQLite, config files, logs, diagnostics, URLs | N + W diagnostics tests | **Retain** |
+| Desktop OAuth client ID + PKCE loopback; optional local client secret | google-sync spec | **Retain** (replaces web GIS) |
+| Encrypted refresh token in owner-only account file; encryption key in OS credential store | google-sync spec | **Retain** |
+| Tokens never in SQLite, TOML, logs, diagnostics, or URLs; encrypted only in the owner-only account credential file | google-sync spec + diagnostics tests | **Retain** |
 | OpenID subject partitions local data | W `localStore` + tests | **Retain** |
 | Connect / reconnect / disconnect; disconnect does not have to wipe cache without confirmation | W Settings, N | **Retain** |
 | Destructive clear-local-data requires confirmation | W, local-data spec | **Retain** |

@@ -173,6 +173,60 @@ def test_events_search_saved_search_and_capture(cli_env: tuple[CliRunner, AppPat
     assert json.loads(captured.stdout)["title"] == "Buy milk"
 
 
+def test_calendar_preferences_and_event_recurrence_cli_parity(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    calendar_id = seed_calendar(runner)
+    event = json.loads(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "create",
+                "Standup",
+                "--calendar",
+                calendar_id,
+                "--start",
+                "2026-08-22T09:00:00+00:00",
+                "--end",
+                "2026-08-22T09:30:00+00:00",
+                "--rrule",
+                "FREQ=WEEKLY;BYDAY=MO",
+            ],
+        ).stdout
+    )
+    assert event["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
+    edited = json.loads(
+        invoke(
+            runner,
+            ["--json", "events", "edit", event["id"], "--clear-recurrence"],
+        ).stdout
+    )
+    assert edited["recurrence"] == []
+    duplicate = json.loads(invoke(runner, ["--json", "events", "duplicate", event["id"]]).stdout)
+    assert duplicate["id"] != event["id"]
+    updated_calendar = json.loads(
+        invoke(
+            runner,
+            [
+                "--json",
+                "calendars",
+                "set-list",
+                calendar_id,
+                "--color",
+                "#123456",
+                "--unselected",
+                "--reminders-json",
+                '[{"method":"popup","minutes":10}]',
+            ],
+        ).stdout
+    )
+    assert updated_calendar["color"] == "#123456"
+    assert not updated_calendar["selected"]
+
+
 def test_import_preview_apply_and_export(
     cli_env: tuple[CliRunner, AppPaths], tmp_path: Path
 ) -> None:
@@ -268,6 +322,16 @@ def test_expected_not_found_uses_stable_exit_without_traceback(
     assert result.exit_code == 3
     assert "does not exist" in result.stderr
     assert "Traceback" not in result.output
+
+
+def test_auth_status_is_local_and_handles_an_offline_account(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    status = json.loads(invoke(runner, ["--json", "auth", "status"]).stdout)
+    assert len(status) == 1
+    assert status[0]["id"] == "work"
+    assert status[0]["authenticated"] is False
 
 
 def test_advanced_cli_equivalence_for_tui_workflows(

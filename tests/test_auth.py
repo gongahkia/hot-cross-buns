@@ -1,9 +1,11 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from hcb.auth import GoogleAuthenticator, TokenStore
+from hcb.credentials import EncryptedFileTokenStore, load_client_config
 from hcb.models import Account
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
@@ -67,12 +69,45 @@ def test_disconnect_retains_cache_and_explicit_reset_removes_it(tmp_path: Path) 
     assert tokens.get("account") is None
 
 
+def test_runtime_disconnect_does_not_require_a_credential_file(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    runtime = Runtime(paths, environ={}, token_store=TokenStore(FakeKeyring()))
+    runtime.storage.upsert_account(Account("offline", "offline@example.test"))
+    assert not runtime.disconnect("offline")
+    assert runtime.storage.get_account("offline") is not None
+    assert not runtime.disconnect("offline", reset_local_data=True)
+    assert runtime.storage.get_account("offline") is None
+    runtime.close()
+
+
 def test_invalid_client_and_missing_credentials() -> None:
     with pytest.raises(ValueError):
         GoogleAuthenticator({}, TokenStore(FakeKeyring()))
     auth = GoogleAuthenticator(CLIENT_CONFIG, TokenStore(FakeKeyring()))
     with pytest.raises(LookupError):
         auth.credentials("missing")
+
+
+def test_encrypted_environment_token_store_keeps_only_a_key_in_keyring(tmp_path: Path) -> None:
+    credential_file = tmp_path / "account.env"
+    credential_file.write_text(
+        "HCB_GOOGLE_CLIENT_ID=client-id.apps.googleusercontent.com\n"
+        "HCB_GOOGLE_CLIENT_SECRET=not-a-real-secret\n"
+    )
+    os.chmod(credential_file, 0o600)
+    keyring = FakeKeyring()
+    tokens = EncryptedFileTokenStore("account", credential_file, TokenStore(keyring))
+
+    assert (
+        load_client_config(credential_file)["installed"]["client_id"]
+        == CLIENT_CONFIG["installed"]["client_id"]
+    )
+    tokens.set("account", "refresh-token-sentinel")
+    assert tokens.get("account") == "refresh-token-sentinel"
+    assert "refresh-token-sentinel" not in credential_file.read_text()
+    assert len(keyring.values) == 1
+    assert tokens.delete("account")
+    assert tokens.get("account") is None
 
 
 def test_diagnostics_config_and_sqlite_dump_never_contain_credentials(
@@ -82,19 +117,23 @@ def test_diagnostics_config_and_sqlite_dump_never_contain_credentials(
     access_token = "access-token-sentinel-never-export"
     backend = FakeKeyring()
     tokens = TokenStore(backend)
-    tokens.set("account", refresh_token)
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
-    client_file = tmp_path / "desktop-client.json"
-    client_file.write_text(json.dumps(CLIENT_CONFIG))
+    credential_file = paths.config_dir / "accounts" / "account.env"
+    credential_file.parent.mkdir(parents=True)
+    credential_file.write_text(
+        "HCB_GOOGLE_CLIENT_ID=client-id.apps.googleusercontent.com\n"
+        "HCB_GOOGLE_CLIENT_SECRET=not-a-real-secret\n"
+    )
+    os.chmod(credential_file, 0o600)
     runtime = Runtime(paths, environ={}, token_store=tokens)
     runtime.save_onboarding(
-        client_json=str(client_file),
         account_id="account",
         email="redacted@example.test",
         time_zone="UTC",
         theme="mono",
         reminders_enabled=False,
     )
+    runtime.token_store_for("account").set("account", refresh_token)
 
     diagnostics = json.dumps(runtime.application.diagnostics(), sort_keys=True)
     config_text = paths.config_file.read_text()

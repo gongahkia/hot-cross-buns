@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "A local-first terminal client for tasks and calendars"
 requires-python = ">=3.12"
 dependencies = [
+    "cryptography>=46.0.0",
   "textual",
   "typer",
   "rich",

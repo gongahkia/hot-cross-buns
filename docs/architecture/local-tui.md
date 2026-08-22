@@ -13,9 +13,11 @@ require a network round trip. Synchronization reconciles queued writes and
 remote changes.
 
 OAuth uses a Desktop client and a temporary loopback callback with PKCE. The
-refresh token is stored in the operating-system credential store. Tokens must
-not be written to SQLite, TOML, command output, logs, or diagnostics. Drive
-access is requested only for user-initiated metadata searches.
+client ID and optional secret live in an owner-only per-account `.env` file.
+The refresh token is encrypted in that same file; only its per-file encryption
+key is held by the operating-system credential store. Tokens must not be
+written to SQLite, TOML, command output, logs, or diagnostics. Drive access is
+requested only for user-initiated metadata searches.
 
 ## Layers
 
@@ -30,9 +32,11 @@ The `hcb` package is divided into:
 - `auth`: loopback OAuth and credential-store access.
 - `scheduler`: explicit local synchronization and reminder service.
 
-The Google Calendar mirror stores recurrence masters unchanged. Concrete
-instances for displayed ranges come from Google's instances/list behavior;
-HCB does not implement Google Calendar recurrence expansion.
+The Google Calendar mirror stores canonical recurrence masters unchanged. A
+named remote range refresh materializes Google's concrete recurring instances
+as derived cache rows and records the refreshed range. TUI range views use that
+cache, while the CLI exposes both cached `events instances` and explicit remote
+`events refresh-instances`; HCB does not implement recurrence expansion.
 
 ## Synchronization invariants
 

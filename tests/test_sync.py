@@ -111,8 +111,15 @@ class FakeGateway:
     def update_calendar(self, calendar_id, body, *, etag=None):
         return {"id": calendar_id}
 
+    def update_calendar_list(self, calendar_id, body, *, etag=None):
+        self.calls.append(("update-calendar-list", calendar_id, body, etag))
+        return {"id": calendar_id}
+
     def delete_calendar(self, calendar_id, *, etag=None):
         return None
+
+    def calendar_colors(self):
+        return {"calendar": {}, "event": {}}
 
     def create_event(self, calendar_id, body, **kwargs):
         self.calls.append(("create-event", calendar_id, body, kwargs))
@@ -209,6 +216,33 @@ def test_calendar_410_resets_only_expired_calendar_cursor(store):
     assert [call[3] for call in event_calls] == ["old", None]
     assert store.get_cursor("a", "events:cal-r").cursor == "sync-1"
     assert store.get_cursor("a", "events:other").cursor == "keep"
+
+
+def test_explicit_instance_refresh_caches_only_recurring_instances(store):
+    gateway = FakeGateway()
+    gateway.event_pages = {
+        None: Page(
+            (
+                {
+                    **EVENT,
+                    "id": "instance-r",
+                    "recurringEventId": "series-r",
+                    "originalStartTime": {"dateTime": "2026-08-21T09:00:00Z"},
+                },
+                {**EVENT, "id": "ordinary-r"},
+            )
+        )
+    }
+    engine = SyncEngine(store, gateway)
+    instances = engine.refresh_occurrences(
+        "a",
+        "cal",
+        datetime(2026, 8, 21, tzinfo=UTC),
+        datetime(2026, 8, 28, tzinfo=UTC),
+    )
+    assert [item.remote_id for item in instances] == ["instance-r"]
+    assert store.get_event("a", "instance-r@2026-08-21T09:00:00Z").derived
+    assert store.list_instance_ranges("a", "cal")
 
 
 def test_outbox_create_reconciles_id_and_retry_retains_write(store):

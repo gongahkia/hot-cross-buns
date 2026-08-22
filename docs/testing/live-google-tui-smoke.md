@@ -13,8 +13,10 @@ screenshots, or raw logs.
 
 1. Enable Google Tasks, Calendar, and Drive APIs. Create an OAuth **Desktop app**
    client and add the disposable account as a test user when required.
-2. Store the downloaded JSON outside the repository with owner-only permissions.
-   Set `HCB_GOOGLE_CLIENT_CONFIG` to its path. Do not print or copy its contents.
+2. Create an owner-only account `.env` outside the repository with
+   `HCB_GOOGLE_CLIENT_ID` and optional `HCB_GOOGLE_CLIENT_SECRET`; set
+   `HCB_ENV_FILE` to its path when not using HCB's default account path. Do not
+   print or copy its contents.
 3. Use an isolated config/data/cache directory and OS credential store. Confirm the
    requested scopes are Tasks, Calendar, and Drive metadata read-only.
 4. Create one disposable task list, calendar, Drive file, and external test attendee.
@@ -27,6 +29,7 @@ screenshots, or raw logs.
    an actionable error without a traceback.
 2. Restart and sync without authorizing again. Search config, a SQLite dump,
    diagnostics, and any candidate support archive for known token sentinels. Tokens
+   must exist only as encrypted values in the account `.env`; their decryption key
    must exist only in the OS credential store.
 3. Revoke consent, verify sync requests reconnection while preserving cache, then
    reconnect.
@@ -57,8 +60,10 @@ screenshots, or raw logs.
 2. Cause or inject `410 Gone` for one disposable calendar. Verify only that
    calendar's canonical cache/token rebuilds and other calendar tokens remain.
 3. Verify timed events preserve selected IANA wall time and all-day dates remain
-   stable. Test recurrence plus one changed and one cancelled instance; recurrence
-   lines must round-trip unchanged and Google instances remain authoritative.
+   stable. Run `events refresh-instances` for a bounded range. Test recurrence plus
+   one changed and one cancelled instance; recurrence lines must round-trip
+   unchanged, cached instances must appear in `events instances`, and Google
+   instances remain authoritative.
 4. Create/edit/delete/move an event with popup and email reminders, attendees,
    guest permissions, RSVP comment, send-updates choice, Meet conference, and Drive
    metadata attachment. Verify email reminders never become local notifications,

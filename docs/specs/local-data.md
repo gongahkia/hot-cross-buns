@@ -20,7 +20,9 @@ Rules:
   zone data.
 - WAL, bounded transactions, busy timeouts, and one writer transaction at a
   time support CLI/TUI and reminder-process coexistence.
-- Refresh tokens live only in the OS keyring; access tokens remain in memory.
+- Refresh tokens live only as encrypted values in an owner-only per-account
+  credential `.env`; their per-file encryption key lives in the OS keyring and
+  access tokens remain in memory.
 - Destructive recovery requires confirmation. `hcb auth disconnect` keeps
   cached data, while `hcb auth reset --yes` removes the selected account's
   credentials and local rows.

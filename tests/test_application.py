@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -66,6 +67,86 @@ def test_notes_projection_and_date_only_constraint(app: ApplicationService) -> N
     assert "notes" not in app.storage.pending_mutations("a")[-1].payload["body"]
     with pytest.raises(ValueError, match="date-only"):
         app.create_task("a", "inbox", "Bad due", due=datetime.now(UTC))  # type: ignore[arg-type]
+
+
+def test_calendar_list_preferences_and_event_rich_clears(app: ApplicationService) -> None:
+    calendar = app.update_calendar(
+        "a",
+        "cal",
+        color="#112233",
+        selected=False,
+        notification_settings=({"type": "eventCreation", "method": "email"},),
+        default_reminders=(ReminderOverride("popup", 10),),
+    )
+    assert calendar.color == "#112233"
+    mutations = app.storage.pending_mutations("a")
+    assert mutations[-1].payload["resource"] == "calendar-list"
+
+    start = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC))
+    end = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC))
+    event = app.create_event(
+        "a",
+        "cal",
+        "Review",
+        start,
+        end,
+        description="Details",
+        recurrence=("RRULE:FREQ=WEEKLY",),
+        attendees=({"email": "guest@example.test"},),
+    )
+    updated = app.update_event(
+        "a",
+        event.id,
+        description=None,
+        recurrence=(),
+        attendees=(),
+        conference=None,
+    )
+    assert updated.description is None
+    body = app.storage.pending_mutations("a")[-1].payload["body"]
+    assert body["description"] is None
+    assert body["recurrence"] == []
+    assert body["attendees"] == []
+    assert body["conferenceData"] is None
+
+
+def test_event_duplicate_invitations_and_cached_instance_agenda(app: ApplicationService) -> None:
+    start = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC))
+    end = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC))
+    series = app.create_event(
+        "a",
+        "cal",
+        "Standup",
+        start,
+        end,
+        recurrence=("RRULE:FREQ=DAILY",),
+        attendees=({"email": "guest@example.test"},),
+        id="series",
+    )
+    copied = app.duplicate_event("a", series.id)
+    assert copied.recurrence == ()
+    assert copied.attendees == ()
+
+    instance = app.storage.get_event("a", series.id)
+    assert instance is not None
+    app.storage.upsert_event(replace(instance, remote_id="series-remote"))
+    instance = app.storage.get_event("a", series.id)
+    assert instance is not None
+    app.storage.upsert_event(
+        replace(
+            instance,
+            id="instance",
+            remote_id="instance-remote",
+            canonical_id="series-remote",
+            occurrence_id="2026-08-21T09:00:00Z",
+            recurrence=(),
+            derived=True,
+        )
+    )
+    agenda = app.agenda_events(
+        "a", start=date(2026, 8, 21), end=date(2026, 8, 22), calendar_id="cal"
+    )
+    assert {item.id for item in agenda} == {"instance", copied.id}
 
 
 def test_schedule_search_orphan_and_undo_redo(app: ApplicationService) -> None:

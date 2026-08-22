@@ -119,6 +119,10 @@ def calendar_from_google(account_id: str, item: Json, *, local_id: str | None = 
         description=item.get("description"),
         time_zone=item.get("timeZone"),
         color=item.get("backgroundColor") or item.get("colorId"),
+        foreground_color=item.get("foregroundColor"),
+        location=item.get("location"),
+        summary_override=item.get("summaryOverride"),
+        hidden=bool(item.get("hidden", False)),
         selected=bool(item.get("selected", True)),
         metadata=_metadata(item, deleted=bool(item.get("deleted"))),
         default_reminders=tuple(
@@ -126,11 +130,21 @@ def calendar_from_google(account_id: str, item: Json, *, local_id: str | None = 
             for value in item.get("defaultReminders") or ()
             if isinstance(value, dict)
         ),
+        notification_settings=tuple(
+            value
+            for value in ((item.get("notificationSettings") or {}).get("notifications") or ())
+            if isinstance(value, dict)
+        ),
     )
 
 
 def event_from_google(
-    account_id: str, calendar_id: str, item: Json, *, local_id: str | None = None
+    account_id: str,
+    calendar_id: str,
+    item: Json,
+    *,
+    local_id: str | None = None,
+    derived: bool = False,
 ) -> Event:
     remote_id = str(item["id"])
     original = item.get("originalStartTime") or {}
@@ -152,6 +166,7 @@ def event_from_google(
         location=item.get("location"),
         status=EventStatus(item.get("status", EventStatus.CONFIRMED.value)),
         recurrence=tuple(item.get("recurrence") or ()),
+        derived=derived,
         metadata=_metadata(item, deleted=item.get("status") == "cancelled"),
         reminder_use_default=bool(reminders.get("useDefault", True)),
         reminder_overrides=tuple(
@@ -411,15 +426,17 @@ class SyncEngine:
                 # A Calendar sync token expires independently of every other calendar.
                 with self.storage.transaction():
                     self.storage.delete_cursor(account_id, scope)
+                    self.storage.clear_calendar_mirror(account_id, calendar.id)
                     stale = self.storage.resumable_checkpoint(account_id, scope)
                     if stale:
                         self.storage.finish_checkpoint(stale[0], error="sync token expired")
                 cursor = None
                 reset = True
 
-    def load_occurrences(
+    def refresh_occurrences(
         self, account_id: str, calendar_id: str, start: datetime, end: datetime
     ) -> list[Event]:
+        """Fetch an explicit remote range and persist recurring instances locally."""
         calendar = self.storage.get_calendar(account_id, calendar_id)
         if calendar is None or calendar.remote_id is None:
             raise ValueError("calendar is not synchronized")
@@ -434,11 +451,21 @@ class SyncEngine:
                 single_events=True,
             )
             for item in page.items:
-                if "start" in item and "end" in item:
-                    result.append(event_from_google(account_id, calendar.id, item))
+                if "start" in item and "end" in item and item.get("recurringEventId"):
+                    result.append(event_from_google(account_id, calendar.id, item, derived=True))
             token = page.next_page_token
             if token is None:
+                with self.storage.transaction():
+                    self.storage.replace_cached_instances(
+                        account_id, calendar.id, start, end, result
+                    )
                 return result
+
+    def load_occurrences(
+        self, account_id: str, calendar_id: str, start: datetime, end: datetime
+    ) -> list[Event]:
+        """Backward-compatible name for the explicit, caching occurrence refresh."""
+        return self.refresh_occurrences(account_id, calendar_id, start, end)
 
     @staticmethod
     def _non_idempotent_create(mutation: PendingMutation) -> bool:
@@ -661,6 +688,10 @@ class SyncEngine:
                 self.gateway.remove_calendar(_required_remote(remote, "calendar"))
                 return None
             if mutation.operation is MutationOperation.UPDATE:
+                if payload.get("resource") == "calendar-list":
+                    return self.gateway.update_calendar_list(
+                        _required_remote(remote, "calendar"), body, etag=etag
+                    )
                 return self.gateway.update_calendar(
                     _required_remote(remote, "calendar"), body, etag=etag
                 )

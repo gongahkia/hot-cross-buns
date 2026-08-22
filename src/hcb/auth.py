@@ -23,6 +23,16 @@ class KeyringLike(Protocol):
     def delete_password(self, service_name: str, username: str) -> None: ...
 
 
+class RefreshTokenStore(Protocol):
+    """Persistence boundary used by OAuth without prescribing its backing store."""
+
+    def get(self, account_id: str) -> str | None: ...
+
+    def set(self, account_id: str, refresh_token: str) -> None: ...
+
+    def delete(self, account_id: str) -> bool: ...
+
+
 def _system_keyring() -> KeyringLike:
     import keyring
 
@@ -79,7 +89,7 @@ class GoogleAuthenticator:
     def __init__(
         self,
         client_config: dict[str, Any],
-        token_store: TokenStore | None = None,
+        token_store: RefreshTokenStore | None = None,
         scopes: tuple[str, ...] = DEFAULT_SCOPES,
     ) -> None:
         if "installed" not in client_config:

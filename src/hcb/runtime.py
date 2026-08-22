@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Callable
 from dataclasses import replace
@@ -13,6 +12,7 @@ from typing import Any
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
 from .config import Config, ConfigError, load, save
+from .credentials import CredentialFileError, EncryptedFileTokenStore, load_client_config
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
 from .models import Account
@@ -33,11 +33,13 @@ class Runtime:
         environ: dict[str, str] | None = None,
         token_store: TokenStore | None = None,
         gateway_factory: GatewayFactory | None = None,
+        credential_file: Path | None = None,
     ) -> None:
         self.paths = paths or AppPaths.discover()
         self.environ = os.environ if environ is None else environ
         self._token_store = token_store
         self._gateway_factory = gateway_factory
+        self.credential_file_override = credential_file
 
     @cached_property
     def config(self) -> Config:
@@ -58,8 +60,20 @@ class Runtime:
         return ApplicationService(self.storage)
 
     @cached_property
-    def token_store(self) -> TokenStore:
+    def keyring_store(self) -> TokenStore:
         return self._token_store or TokenStore()
+
+    def credential_file(self, account_id: str) -> Path:
+        """Resolve one credential file per account, with explicit process overrides."""
+        configured = self.credential_file_override or self.environ.get("HCB_ENV_FILE")
+        if configured:
+            return Path(configured).expanduser()
+        return self.paths.config_dir / "accounts" / f"{account_id}.env"
+
+    def token_store_for(self, account_id: str) -> EncryptedFileTokenStore:
+        return EncryptedFileTokenStore(
+            account_id, self.credential_file(account_id), self.keyring_store
+        )
 
     def account_id(self, explicit: str | None = None) -> str:
         selected = (
@@ -81,29 +95,15 @@ class Runtime:
             "or preferences.default_account_id"
         )
 
-    def _client_config(self) -> dict[str, Any]:
-        raw = (
-            self.environ.get("HCB_GOOGLE_CLIENT_CONFIG")
-            or self.config.preferences.google_client_json
-        )
-        if not raw:
-            raise ConfigurationError(
-                "HCB_GOOGLE_CLIENT_CONFIG must name a Google OAuth client JSON file"
-            )
+    def _client_config(self, account_id: str) -> dict[str, Any]:
         try:
-            value = json.loads(Path(raw).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ConfigurationError(
-                f"cannot read Google OAuth client configuration: {exc}"
-            ) from exc
-        if not isinstance(value, dict):
-            raise ConfigurationError("Google OAuth client configuration must be an object")
-        return value
+            return load_client_config(self.credential_file(account_id))
+        except (OSError, CredentialFileError) as exc:
+            raise ConfigurationError(str(exc)) from exc
 
     def save_onboarding(
         self,
         *,
-        client_json: str,
         account_id: str,
         email: str,
         time_zone: str,
@@ -114,15 +114,12 @@ class Runtime:
             raise ValueError("account identifier is required and cannot contain whitespace")
         if "@" not in email or email.strip() != email:
             raise ValueError("a valid account email is required")
-        if client_json and not Path(client_json).expanduser().is_file():
-            raise ValueError("Desktop OAuth client JSON path does not exist")
         if theme not in {"system", "dark", "light", "mono"}:
             raise ValueError("theme must be system, dark, light, or mono")
         preferences = replace(
             self.config.preferences,
             default_account_id=account_id,
             time_zone=time_zone,
-            google_client_json=str(Path(client_json).expanduser()) if client_json else "",
             reminders_enabled=reminders_enabled,
         )
         updated = replace(
@@ -136,17 +133,18 @@ class Runtime:
             self.storage.upsert_account(Account(account_id, email))
         self.__dict__["config"] = updated
 
-    @cached_property
-    def authenticator(self) -> GoogleAuthenticator:
+    def authenticator(self, account_id: str) -> GoogleAuthenticator:
         try:
-            return GoogleAuthenticator(self._client_config(), self.token_store)
+            return GoogleAuthenticator(
+                self._client_config(account_id), self.token_store_for(account_id)
+            )
         except ValueError as exc:
             raise ConfigurationError(str(exc)) from exc
 
     def sync_engine(self, account_id: str) -> SyncEngine:
         try:
-            credentials = self.authenticator.credentials(account_id)
-        except LookupError as exc:
+            credentials = self.authenticator(account_id).credentials(account_id)
+        except (LookupError, CredentialFileError) as exc:
             raise AuthenticationRequired(str(exc), hint="Run `hcb auth connect`.") from exc
         gateway = (
             self._gateway_factory(credentials)
@@ -154,6 +152,14 @@ class Runtime:
             else GoogleApiClient(credentials)
         )
         return SyncEngine(self.storage, gateway)
+
+    def disconnect(self, account_id: str, *, reset_local_data: bool = False) -> bool:
+        """Remove local credentials without requiring a client configuration to be readable."""
+        removed = self.token_store_for(account_id).delete(account_id)
+        if reset_local_data:
+            with self.storage.transaction():
+                self.storage.delete_account(account_id)
+        return removed
 
     def update_tui_settings(
         self,

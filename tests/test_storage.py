@@ -12,6 +12,7 @@ from hcb.models import (
     EntityType,
     Event,
     EventDateTime,
+    Metadata,
     MutationOperation,
     PendingMutation,
     SyncCursor,
@@ -65,6 +66,56 @@ def test_event_occurrences_and_range_queries(store: Storage) -> None:
     assert store.get_event("a", "occ").is_occurrence
     assert len(store.list_events("a", start=date(2026, 8, 21), end=date(2026, 8, 22))) == 1
     assert store.search_events("a", "Plan") == [event]
+
+
+def test_calendar_list_metadata_and_cached_instance_range(store: Storage) -> None:
+    seed(store)
+    calendar = Calendar(
+        "cal",
+        "a",
+        "Primary",
+        color="#123456",
+        foreground_color="#ffffff",
+        location="Singapore",
+        summary_override="Work",
+        hidden=True,
+        selected=False,
+        notification_settings=({"type": "eventCreation", "method": "email"},),
+    )
+    store.upsert_calendar(calendar)
+    assert store.get_calendar("a", "cal") == calendar
+
+    start = datetime(2026, 8, 21, 9, tzinfo=UTC)
+    instance = Event(
+        "instance",
+        "a",
+        "cal",
+        "Standup",
+        EventDateTime(DateTimeKind.DATETIME, start),
+        EventDateTime(DateTimeKind.DATETIME, start.replace(hour=10)),
+        remote_id="instance-remote",
+        canonical_id="series",
+        occurrence_id=start.isoformat(),
+        derived=True,
+    )
+    with store.transaction():
+        store.replace_cached_instances("a", "cal", start, start.replace(day=28), [instance])
+    assert store.get_event("a", "instance").derived
+    assert store.list_instance_ranges("a", "cal")[0]["start_value"] == start.isoformat()
+
+    dirty = Event(
+        "local",
+        "a",
+        "cal",
+        "Local change",
+        EventDateTime(DateTimeKind.DATETIME, start),
+        EventDateTime(DateTimeKind.DATETIME, start.replace(hour=10)),
+        metadata=Metadata(dirty=True),
+    )
+    store.upsert_event(dirty)
+    store.clear_calendar_mirror("a", "cal")
+    assert store.get_event("a", "instance") is None
+    assert store.get_event("a", "local") == dirty
 
 
 def test_outbox_cursor_conflict_reminder_and_transaction(store: Storage) -> None:

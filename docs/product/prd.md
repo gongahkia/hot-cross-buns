@@ -14,7 +14,8 @@ Textual workspace; subcommands expose the same operations for scripts.
   batch actions, import/export, and quick capture.
 - Calendar agenda and time-grid workflows, event mutation, recurrence
   round-tripping, reminders, invitations, free/busy, and saved search.
-- Desktop OAuth with user-supplied credentials and OS-keyring token storage.
+- Desktop OAuth with user-supplied per-account `.env` credentials, encrypted
+  local refresh tokens, and an OS-keyring encryption key.
 - Stable JSON/TSV output, useful exit codes, and noninteractive parity for core
   TUI operations.
 - Optional local reminders that do not depend on the TUI remaining open.
@@ -31,9 +32,10 @@ Calendar events linked to their source tasks in local metadata.
 
 ## Privacy and reliability
 
-Refresh tokens belong in the operating-system credential store, access tokens
-remain in memory, and neither tokens nor OAuth secrets may enter SQLite, logs,
-exports, or diagnostics. Every schema change requires a tested migration.
+Refresh tokens belong only in the encrypted owner-only account environment
+file, their encryption keys belong in the operating-system credential store,
+and access tokens remain in memory. Neither tokens nor OAuth secrets may enter
+SQLite, logs, exports, or diagnostics. Every schema change requires a tested migration.
 Queued user writes must not be silently discarded.
 
 ## Acceptance

@@ -16,8 +16,8 @@ but does not replace, the automated suite or the live Google procedure.
 1. Point `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` at an empty
    temporary directory and start `hcb`.
 2. Confirm first-run setup says Google is optional until an explicit connection,
-   asks for a Desktop OAuth JSON path (never a secret), account, IANA timezone,
-   theme, and reminders.
+   asks for an optional local credential `.env` path, account, IANA timezone,
+   theme, and reminders. Do not enter OAuth values into TOML or the repository.
 3. Save an offline account, create a task list, task, calendar, and event using the
    CLI, then restart the TUI with the network disabled. Confirm cached rows appear.
 4. Switch Tasks, Notes, Agenda, Day, Week, and Month. Exercise create, edit,

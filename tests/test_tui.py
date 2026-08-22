@@ -163,7 +163,7 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
     app_test(app, actions)
     reopened = Runtime(paths, environ={})
     assert reopened.config.preferences.time_zone == "Asia/Singapore"
-    assert reopened.config.preferences.google_client_json == ""
+    assert "google_client_json" not in paths.config_file.read_text()
     assert not reopened.config.preferences.reminders_enabled
     assert reopened.storage.get_account("offline") is not None
     reopened.close()
@@ -171,8 +171,9 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
 
 def test_onboarding_connect_waits_for_explicit_confirmation(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
-    client = tmp_path / "desktop.json"
-    client.write_text('{"installed":{"client_id":"public-client"}}')
+    credential_file = tmp_path / "google.env"
+    credential_file.write_text("HCB_GOOGLE_CLIENT_ID=public-client\n")
+    credential_file.chmod(0o600)
     runtime = Runtime(paths, environ={})
     calls: list[str] = []
 
@@ -180,11 +181,11 @@ def test_onboarding_connect_waits_for_explicit_confirmation(tmp_path: Path) -> N
         def connect(self, account_id: str) -> None:
             calls.append(account_id)
 
-    runtime.__dict__["authenticator"] = Authenticator()
+    runtime.__dict__["authenticator"] = lambda _account: Authenticator()
     app = HcbApp(runtime)
 
     async def actions(pilot: object) -> None:
-        app.screen.query_one("#onboard-client", Input).value = str(client)
+        app.screen.query_one("#onboard-env-file", Input).value = str(credential_file)
         app.screen.query_one("#onboard-account", Input).value = "google"
         app.screen.query_one("#onboard-email", Input).value = "google@example.test"
         await pilot.click("#onboard-connect")  # type: ignore[attr-defined]

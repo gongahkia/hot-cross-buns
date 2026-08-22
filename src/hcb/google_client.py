@@ -106,7 +106,11 @@ class GoogleGateway(Protocol):
     def subscribe_calendar(self, calendar_id: str) -> Json: ...
     def remove_calendar(self, calendar_id: str) -> None: ...
     def update_calendar(self, calendar_id: str, body: Json, *, etag: str | None = None) -> Json: ...
+    def update_calendar_list(
+        self, calendar_id: str, body: Json, *, etag: str | None = None
+    ) -> Json: ...
     def delete_calendar(self, calendar_id: str, *, etag: str | None = None) -> None: ...
+    def calendar_colors(self) -> Json: ...
     def freebusy(self, body: Json) -> Json: ...
     def drive_metadata(self, file_id: str, *, fields: str = "*") -> Json: ...
     def search_drive_metadata(
@@ -380,8 +384,18 @@ class GoogleApiClient:
             self.calendar.calendars().patch(calendarId=calendar_id, body=body), etag=etag
         )
 
+    def update_calendar_list(
+        self, calendar_id: str, body: Json, *, etag: str | None = None
+    ) -> Json:
+        return self._execute(
+            self.calendar.calendarList().patch(calendarId=calendar_id, body=body), etag=etag
+        )
+
     def delete_calendar(self, calendar_id: str, *, etag: str | None = None) -> None:
         self._void(self.calendar.calendars().delete(calendarId=calendar_id), etag=etag)
+
+    def calendar_colors(self) -> Json:
+        return self._execute(self.calendar.colors().get())
 
     def freebusy(self, body: Json) -> Json:
         return self._execute(self.calendar.freebusy().query(body=body))
