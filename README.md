@@ -112,8 +112,8 @@ For a fully custom appearance, apply a strict standalone theme JSON document:
 hcb themes apply --file my-theme.json
 ```
 
-The file accepts every `theme` field accepted by `config.json`: `profile`,
-`density`, `borders`, `focus`, `mouse`, and all 14 semantic `colors` tokens.
+The file accepts every visual input field: `profile`, `density`, `borders`,
+`focus`, `mouse`, and all 14 semantic `colors` tokens.
 `hcb config set theme.colors.TOKEN VALUE` is useful for a single override and
 clears the preset provenance label. The complete Ghostty source inventory,
 selection method, and pinned upstream revision are in
