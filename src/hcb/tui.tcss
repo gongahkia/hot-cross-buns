@@ -121,6 +121,21 @@ Input, TextArea {
     border: ascii $border;
 }
 
+/* Make text entry unambiguous even when the terminal profile uses defaults. */
+.theme-terminal Input > .input--cursor, .theme-mono Input > .input--cursor,
+.theme-terminal TextArea .text-area--cursor, .theme-mono TextArea .text-area--cursor {
+    background: ansi_white;
+    color: ansi_black;
+    text-style: none;
+}
+
+.theme-dark Input > .input--cursor, .theme-light Input > .input--cursor,
+.theme-dark TextArea .text-area--cursor, .theme-light TextArea .text-area--cursor {
+    background: $foreground;
+    color: $background;
+    text-style: none;
+}
+
 Input.-invalid, TextArea.-invalid {
     background: $boost;
     color: $foreground;

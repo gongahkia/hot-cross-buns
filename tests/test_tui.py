@@ -25,6 +25,7 @@ from hcb.tui import (
     RsvpScreen,
     ScheduleScreen,
     SettingsScreen,
+    TerminalTextArea,
 )
 
 
@@ -80,6 +81,24 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("very-narrow")
         assert app.query_one("#inspector").display is False
+
+    app_test(app, assertions)
+
+
+def test_text_editors_have_a_persistent_high_contrast_block_cursor(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("n")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        title = app.screen.query_one("#editor-title", Input)
+        notes = app.screen.query_one("#editor-notes", TerminalTextArea)
+        assert title.has_focus
+        assert not title.cursor_blink
+        assert not notes.cursor_blink
+        cursor = title.get_component_rich_style("input--cursor")
+        assert cursor.bgcolor is not None and cursor.bgcolor.number == 7
+        assert cursor.color is not None and cursor.color.number == 0
 
     app_test(app, assertions)
 

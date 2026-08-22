@@ -24,12 +24,14 @@ from textual.theme import Theme as TextualTheme
 from textual.widgets import (
     Button,
     Footer,
-    Input,
     Label,
     ListItem,
     ListView,
     Static,
     TextArea,
+)
+from textual.widgets import (
+    Input as TextualInput,
 )
 
 from .application import ResponseStatus, SearchResult, TimeSlot
@@ -54,6 +56,13 @@ PALETTE_COMMANDS = (
     ("Conflicts", "conflicts"),
     ("First-run setup", "onboarding"),
 )
+
+
+class Input(TextualInput):
+    """Keep a visible terminal-style caret in every single-line editor."""
+
+    def on_mount(self) -> None:
+        self.cursor_blink = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +90,7 @@ class TerminalTextArea(TextArea):
     """Use terminal-default Rich colors where Textual itself needs an opaque base style."""
 
     def on_mount(self) -> None:
+        self.cursor_blink = False
         self.apply_terminal_theme()
 
     def apply_terminal_theme(self) -> None:
