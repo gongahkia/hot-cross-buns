@@ -8,7 +8,7 @@ Screen {
     padding: 1 2;
     background: $background;
     color: $foreground;
-    border-bottom: ascii $hcb-border;
+    border-bottom: ascii $border;
     text-style: bold;
 }
 
@@ -16,33 +16,33 @@ Screen {
     height: 3;
     padding: 0 1;
     background: $background;
-    border-bottom: ascii $hcb-border;
+    border-bottom: ascii $border;
 }
 
 Button {
     min-width: 10;
     height: 3;
     padding: 0 1;
-    background: $hcb-control;
+    background: $boost;
     color: $foreground;
-    border: ascii $hcb-border;
+    border: ascii $border;
 }
 
 Button.-primary, Button.-success, Button.-warning, Button.-error {
-    background: $hcb-control;
+    background: $boost;
     color: $foreground;
-    border: ascii $hcb-border;
+    border: ascii $border;
 }
 
 Button:hover, Button.-primary:hover, Button.-success:hover, Button.-warning:hover, Button.-error:hover {
-    background: $hcb-control;
+    background: $boost;
     color: $foreground;
-    border: ascii $hcb-focus;
+    border: ascii $primary;
     text-style: bold underline;
 }
 
 Button:focus, Input:focus, TextArea:focus, ListView:focus {
-    outline: ascii $hcb-focus;
+    outline: ascii $primary;
 }
 
 #tabs Button {
@@ -56,7 +56,7 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 #sidebar {
     width: 27;
     min-width: 22;
-    border-right: ascii $hcb-border;
+    border-right: ascii $border;
     background: $panel;
 }
 
@@ -101,13 +101,13 @@ ListView > ListItem {
 ListView > ListItem.--highlight {
     background: transparent;
     color: $foreground;
-    outline: ascii $hcb-focus;
+    outline: ascii $primary;
     text-style: bold underline;
 }
 
 #inspector {
     width: 32;
-    border-left: ascii $hcb-border;
+    border-left: ascii $border;
     background: $panel;
 }
 
@@ -116,13 +116,13 @@ ListView > ListItem.--highlight {
 }
 
 Input, TextArea {
-    background: $hcb-control;
+    background: $boost;
     color: $foreground;
-    border: ascii $hcb-border;
+    border: ascii $border;
 }
 
 Input.-invalid, TextArea.-invalid {
-    background: $hcb-control;
+    background: $boost;
     color: $foreground;
     border: ascii $error;
 }
@@ -143,12 +143,12 @@ Input.-invalid, TextArea.-invalid {
 .borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
 .borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog {
-    border: round $hcb-border;
+    border: round $border;
 }
 
 .focus-ascii Button:focus, .focus-ascii Input:focus, .focus-ascii TextArea:focus,
 .focus-ascii ListView:focus, .focus-ascii ListView > ListItem.--highlight {
-    outline: ascii $hcb-focus;
+    outline: ascii $primary;
     text-style: bold underline;
 }
 
@@ -171,7 +171,7 @@ Input.-invalid, TextArea.-invalid {
     height: auto;
     max-height: 80%;
     padding: 1 2;
-    border: ascii $hcb-border;
+    border: ascii $border;
     background: $surface;
 }
 
@@ -229,13 +229,13 @@ Input.-invalid, TextArea.-invalid {
 PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
 CalendarScreen, SettingsScreen, FindTimeScreen {
     align: center middle;
-    background: $hcb-overlay;
+    background: $footer-background;
 }
 
 Footer {
     background: $background;
     color: $foreground;
-    border-top: ascii $hcb-border;
+    border-top: ascii $border;
 }
 
 .narrow #inspector {

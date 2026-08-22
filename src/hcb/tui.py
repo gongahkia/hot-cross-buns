@@ -894,25 +894,25 @@ class HcbApp(App[None]):
         self.register_theme(
             TextualTheme(
                 name=name,
-                primary=colors.accent,
+                primary=colors.focus,
                 secondary=colors.accent,
                 accent=colors.accent,
                 foreground=colors.text,
                 background=colors.background,
                 surface=colors.surface,
                 panel=colors.panel,
+                boost=colors.control,
                 success=colors.success,
                 warning=colors.warning,
                 error=colors.danger,
                 dark=self.theme_mode != "light",
                 variables={
                     "text-muted": colors.muted,
-                    "hcb-border": colors.border,
-                    "hcb-control": colors.control,
-                    "hcb-focus": colors.focus,
-                    "hcb-overlay": colors.overlay,
-                    "hcb-selection": colors.selection,
+                    "border": colors.border,
+                    "border-blurred": colors.border,
+                    "footer-background": colors.overlay,
                     "input-selection-background": colors.selection,
+                    "screen-selection-background": colors.selection,
                 },
             )
         )
