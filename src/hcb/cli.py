@@ -1587,7 +1587,11 @@ def config_set(ctx: typer.Context, key: str, value: str) -> None:
     section = getattr(current, section_name)
     if field not in section.__dataclass_fields__:
         raise ValueError(f"unknown configuration key {key!r}")
+    if section_name == "theme" and field == "preset":
+        raise ValueError("apply a preset with `hcb themes apply NAME`, not config set")
     updated_section = replace(section, **{field: _coerce_config(getattr(section, field), value)})
+    if section_name == "theme":
+        updated_section = replace(updated_section, preset=None)
     updated = replace(current, **{section_name: updated_section})
     save(updated, state.runtime.paths.config_file)
     state.runtime.__dict__.pop("config", None)

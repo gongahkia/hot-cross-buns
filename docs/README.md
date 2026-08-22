@@ -5,6 +5,8 @@ This documentation describes the Python local-first TUI and CLI only.
 - [CLI reference](hcb-cli.md)
 - [Product requirements](product/prd.md)
 - [Local TUI architecture](architecture/local-tui.md)
+- [Ghostty bundled-theme inventory](architecture/ghostty-bundled-themes.md)
+- [Ghostty bundled-theme inventory](architecture/ghostty-bundled-themes.md)
 - [Google sync specification](specs/google-sync.md)
 - [Local data specification](specs/local-data.md)
 - [TUI parity matrix](product/tui-parity-matrix.md)

@@ -76,3 +76,12 @@ set covers background, surfaces, panels, controls, text, borders, focus,
 selection, and status colors. The default terminal profile uses terminal-default
 colors, ASCII borders, and outline focus. Valid visual edits reload while the TUI
 is running; nonvisual preferences and key bindings apply on the next start.
+
+The `themes` CLI group applies one of 30 bundled Ghostty-derived palettes or a
+strict standalone JSON theme. Bundled palettes are projections from the
+terminal palette into HCB's semantic UI tokens; they do not attempt to change
+the user's terminal emulator palette. A preset changes the complete HCB color
+set and light/dark profile while preserving density, borders, focus behavior,
+and mouse preference. Custom theme JSON can define every visual setting. The
+[Ghostty bundled-theme inventory](ghostty-bundled-themes.md) records the full
+upstream catalog, selected set, and pinned source revision.

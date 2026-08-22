@@ -12,7 +12,7 @@ hcb --tsv COMMAND
 ```
 
 Major command groups are `tasks`, `task-lists`, `notes`, `events`, `calendars`,
-`saved-searches`, `conflicts`, `import`, `auth`, `config`, `daemon`, and
+`saved-searches`, `conflicts`, `import`, `auth`, `config`, `themes`, `daemon`,
 `drive`, and `schema`. Top-level operations include `capture`, `search`, `find-time`,
 `freebusy`, `sync`, `export`, `undo`, `redo`, and `doctor`.
 
@@ -30,6 +30,10 @@ hcb events instance-cache --calendar CAL_ID
 hcb events duplicate EVENT_ID --include-attendees
 hcb events invite EVENT_ID guest@example.test --send-updates all
 hcb calendars set-list CAL_ID --color '#4285f4' --selected
+hcb themes list
+hcb themes show Dracula
+hcb themes apply "Catppuccin Mocha"
+hcb themes apply --file ~/.config/hcb/my-theme.json
 hcb capture "Call Sam tomorrow"
 hcb --json search "Sam"
 hcb schema show events.instances
@@ -80,6 +84,20 @@ named refresh marks coverage fresh again. `events edit` supports `--rrule` / `--
 JSON `null` and empty arrays as clears. `calendars edit` changes Calendar
 resource fields, while `calendars set-list` changes CalendarList settings such
 as selection, colors, default reminders, and notification preferences.
+
+`themes list` returns HCB's 30 bundled Ghostty-derived presets in rank order.
+`themes show NAME` returns one full semantic palette, and `themes apply NAME`
+writes it to `config.json` while retaining the current density, border, focus,
+and mouse choices. `themes apply --file PATH` accepts a strict standalone
+`theme` JSON object: `profile`, `density`, `borders`, `focus`, `mouse`, plus a
+`colors` object with any or all of `background`, `surface`, `panel`, `overlay`,
+`control`, `text`, `muted`, `border`, `focus`, `selection`, `accent`, `success`,
+`warning`, and `danger`. Omitted fields use the terminal-minimal defaults.
+Unknown fields, duplicate keys, and invalid Textual colors are rejected. A
+custom file replaces every supplied visual setting; a bundled preset replaces
+the full color palette and profile, but preserves UI layout and interaction
+settings. Any direct `hcb config set theme.*` visual edit clears the preset
+provenance label; use `hcb themes apply NAME` to select a bundled preset.
 
 The reminder process is explicit:
 

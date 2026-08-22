@@ -6,6 +6,62 @@ HCB does not bundle all 606 palettes. Its [top-30 preset data](../../src/hcb/sch
 
 Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/4cbae6273354e5e91a7641d72c69daa3de6a867f/ghostty>.
 
+## HCB bundled presets
+
+The order below is a curated popularity aggregate as of 2026-08-22, not a
+claim that each individual flavour has independently comparable usage data.
+Theme projects expose adoption at the family level, so the ranking combines
+that evidence with recurring inclusion in terminal/TUI theme curation; common
+light and dark flavours follow their popular family. The primary signals were
+the canonical [Dracula](https://github.com/dracula/dracula-theme),
+[Gruvbox](https://github.com/morhetz/gruvbox),
+[Catppuccin](https://github.com/catppuccin/catppuccin), and
+[TokyoNight](https://github.com/folke/tokyonight.nvim) projects, corroborated
+against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
+This avoids inventing a precise per-variant popularity number where the source
+projects do not publish one.
+
+HCB stores these 30 as a pinned semantic-token projection in
+[`hcb-theme-presets-v1.json`](../../src/hcb/schemas/hcb-theme-presets-v1.json).
+It uses the source foreground/background, cursor, selection, and ANSI palette
+colors for the equivalent HCB tokens; it does not modify the terminal emulator's
+own palette.
+
+| Rank | HCB preset | Ghostty source file | Family |
+| ---: | --- | --- | --- |
+| 1 | Dracula | Dracula | Dracula |
+| 2 | Catppuccin Mocha | Catppuccin Mocha | Catppuccin |
+| 3 | Catppuccin Macchiato | Catppuccin Macchiato | Catppuccin |
+| 4 | Catppuccin Frappe | Catppuccin Frappe | Catppuccin |
+| 5 | Catppuccin Latte | Catppuccin Latte | Catppuccin |
+| 6 | Gruvbox Dark | Gruvbox Dark | Gruvbox |
+| 7 | Gruvbox Light | Gruvbox Light | Gruvbox |
+| 8 | Nord | Nord | Nord |
+| 9 | TokyoNight | TokyoNight | TokyoNight |
+| 10 | TokyoNight Storm | TokyoNight Storm | TokyoNight |
+| 11 | TokyoNight Night | TokyoNight Night | TokyoNight |
+| 12 | iTerm2 Solarized Dark | iTerm2 Solarized Dark | Solarized |
+| 13 | iTerm2 Solarized Light | iTerm2 Solarized Light | Solarized |
+| 14 | One Dark Two | One Dark Two | One Dark |
+| 15 | Atom One Dark | Atom One Dark | One Dark |
+| 16 | Monokai Pro | Monokai Pro | Monokai |
+| 17 | Monokai Classic | Monokai Classic | Monokai |
+| 18 | GitHub Dark | GitHub Dark | GitHub |
+| 19 | GitHub Light Default | GitHub Light Default | GitHub |
+| 20 | Rose Pine | Rose Pine | Rosé Pine |
+| 21 | Rose Pine Moon | Rose Pine Moon | Rosé Pine |
+| 22 | Rose Pine Dawn | Rose Pine Dawn | Rosé Pine |
+| 23 | Kanagawa Wave | Kanagawa Wave | Kanagawa |
+| 24 | Kanagawa Dragon | Kanagawa Dragon | Kanagawa |
+| 25 | Kanagawa Lotus | Kanagawa Lotus | Kanagawa |
+| 26 | Everforest Dark Med | Everforest Dark Med | Everforest |
+| 27 | Everforest Light Med | Everforest Light Med | Everforest |
+| 28 | Night Owl | Night Owl | Night Owl |
+| 29 | Ayu Mirage | Ayu Mirage | Ayu |
+| 30 | Material Dark | Material Dark | Material |
+
+## Complete upstream name map
+
 |  |  |  |  |  |  |
 | --- | --- | --- | --- | --- | --- |
 | 0x96f | 12-bit Rainbow | 3024 Day | 3024 Night | Aardvark Blue | Aardvark Ink |

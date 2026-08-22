@@ -43,9 +43,15 @@ def presets() -> tuple[ThemePreset, ...]:
     if not isinstance(entries, list):
         raise RuntimeError("bundled theme presets must contain a presets array")
     result: list[ThemePreset] = []
+    color_fields = set(ThemeColors.__dataclass_fields__)
     for entry in entries:
         if not isinstance(entry, dict):
             raise RuntimeError("bundled theme preset must be an object")
+        colors = entry.get("colors")
+        if not isinstance(colors, dict) or set(colors) != color_fields:
+            raise RuntimeError("bundled theme preset must define every semantic color token")
+        if not all(isinstance(value, str) for value in colors.values()):
+            raise RuntimeError("bundled theme preset color values must be strings")
         try:
             result.append(
                 ThemePreset(
@@ -54,7 +60,7 @@ def presets() -> tuple[ThemePreset, ...]:
                     upstream_name=entry["upstream_name"],
                     family=entry["family"],
                     profile=entry["profile"],
-                    colors=ThemeColors(**entry["colors"]),
+                    colors=ThemeColors(**colors),
                 )
             )
         except (KeyError, TypeError, ValueError) as exc:

@@ -69,7 +69,7 @@ def test_invalid_strict_json_config_is_rejected(raw: str) -> None:
 
 
 def test_bundled_schema_accepts_saved_config_and_rejects_unknown_tokens(tmp_path: Path) -> None:
-    target = save(Config(), tmp_path / "config.json")
+    target = save(Config(theme=Theme(preset="Dracula")), tmp_path / "config.json")
     validator = Draft202012Validator(schema())
     assert list(validator.iter_errors(json.loads(target.read_text()))) == []
     invalid = {"theme": {"colors": {"unexpected": "red"}}}

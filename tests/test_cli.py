@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from hcb import cli
+from hcb.config import Theme, ThemeColors
 from hcb.models import Account, Conflict, EntityType
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
@@ -82,6 +84,7 @@ def test_help_has_completion_and_full_command_groups(cli_env: tuple[CliRunner, A
         "export",
         "auth",
         "config",
+        "themes",
         "doctor",
         "find-time",
         "daemon",
@@ -327,6 +330,50 @@ def test_config_commands_and_account_environment(
     with Storage(paths.database_file) as storage:
         assert len(storage.list_task_lists("second")) == 1
         assert storage.list_task_lists("first") == []
+
+
+def test_theme_commands_apply_bundled_and_complete_custom_themes(
+    cli_env: tuple[CliRunner, AppPaths], tmp_path: Path
+) -> None:
+    runner, paths = cli_env
+
+    listed = json_data(invoke(runner, ["--json", "themes", "list"]), "themes.list")
+    assert len(listed) == 30
+    assert listed[0]["rank"] == 1
+    assert listed[0]["name"] == "Dracula"
+    assert listed[0]["colors"]["background"] == "#282a36"
+
+    shown = json_data(
+        invoke(runner, ["--json", "themes", "show", "Catppuccin Latte"]), "themes.show"
+    )
+    assert shown["colors"]["background"] == "#eff1f5"
+    applied = json_data(
+        invoke(runner, ["--json", "themes", "apply", "Catppuccin Latte"]), "themes.apply"
+    )
+    assert applied["source"]["rank"] == 5
+    assert applied["theme"]["preset"] == "Catppuccin Latte"
+    assert json.loads(paths.config_file.read_text())["theme"]["preset"] == "Catppuccin Latte"
+
+    colors = ThemeColors(**{name: "#123456" for name in ThemeColors.__dataclass_fields__})
+    custom = Theme(
+        profile="light",
+        density="compact",
+        borders="unicode",
+        focus="reverse",
+        mouse=False,
+        colors=colors,
+    )
+    custom_path = tmp_path / "custom-theme.json"
+    custom_path.write_text(json.dumps(asdict(custom)), encoding="utf-8")
+    loaded = json_data(
+        invoke(runner, ["--json", "themes", "apply", "--file", str(custom_path)]),
+        "themes.apply",
+    )
+    assert loaded["source"] == {"kind": "custom", "path": str(custom_path)}
+    assert loaded["theme"] == asdict(custom)
+
+    invoke(runner, ["config", "set", "theme.colors.accent", "cyan"])
+    assert json.loads(paths.config_file.read_text())["theme"]["preset"] is None
 
 
 def test_local_reads_do_not_construct_google_or_keyring(

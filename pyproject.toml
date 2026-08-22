@@ -36,6 +36,8 @@ include = [
   "/docs/testing/local-tui-smoke.md",
   "/docs/testing/live-google-tui-smoke.md",
   "/docs/hcb-cli.md",
+  "/docs/architecture/ghostty-bundled-themes.md",
+  "/docs/architecture/ghostty-bundled-themes.md",
   "/pyproject.toml",
 ]
 exclude = ["**/__pycache__", "**/*.pyc"]

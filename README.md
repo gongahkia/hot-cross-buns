@@ -70,6 +70,8 @@ hcb --json tasks list
 hcb schema list
 hcb schema show events.instances
 hcb config schema
+hcb themes list
+hcb themes apply "Catppuccin Mocha"
 hcb export --format json --output hcb-export.json
 hcb doctor
 ```
@@ -95,6 +97,27 @@ interfaces.
 `hcb config path`. `hcb config schema` prints its Draft 2020-12 schema. The TUI
 uses its semantic theme tokens and reloads valid visual changes from that file;
 invalid edits leave the active appearance in place and report an error.
+
+## Themes
+
+HCB ships 30 Ghostty-derived visual presets, selected from Ghostty's bundled
+theme collection using family-level community adoption and recurrent terminal
+theme curation. `hcb themes list` shows the stable ranked set, `hcb themes show
+NAME` prints every semantic token, and `hcb themes apply NAME` writes it to
+`config.json`. The running TUI notices that edit and reloads it.
+
+For a fully custom appearance, apply a strict standalone theme JSON document:
+
+```sh
+hcb themes apply --file my-theme.json
+```
+
+The file accepts every `theme` field accepted by `config.json`: `profile`,
+`density`, `borders`, `focus`, `mouse`, and all 14 semantic `colors` tokens.
+`hcb config set theme.colors.TOKEN VALUE` is useful for a single override and
+clears the preset provenance label. The complete Ghostty source inventory,
+selection method, and pinned upstream revision are in
+[the bundled-theme inventory](docs/architecture/ghostty-bundled-themes.md).
 
 ## Privacy and local data
 
