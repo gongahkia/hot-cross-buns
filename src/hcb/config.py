@@ -142,7 +142,7 @@ def _type_label(expected: Any) -> str:
         return " or ".join(_type_label(member) for member in get_args(expected))
     if expected is type(None):
         return "null"
-    return expected.__name__
+    return str(getattr(expected, "__name__", expected))
 
 
 def loads(raw: bytes | str) -> Config:
