@@ -28,7 +28,7 @@ class ThemeColors:
     surface: str = "transparent"
     panel: str = "transparent"
     overlay: str = "transparent"
-    control: str = "transparent"
+    control: str = "ansi_default"
     text: str = "ansi_default"
     muted: str = "ansi_default"
     border: str = "ansi_default"

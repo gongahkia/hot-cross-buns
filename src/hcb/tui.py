@@ -10,10 +10,14 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar, cast
 
+from rich.color import Color as RichColor
+from rich.style import Style
 from rich.text import Text
 from textual import events, work
+from textual._text_area_theme import TextAreaTheme
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.color import Color
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.theme import Theme as TextualTheme
@@ -73,6 +77,33 @@ class EntityRow(ListItem):
         self.palette_action = action
 
 
+class TerminalTextArea(TextArea):
+    """Use terminal-default Rich colors where Textual itself needs an opaque base style."""
+
+    def on_mount(self) -> None:
+        self.apply_terminal_theme()
+
+    def apply_terminal_theme(self) -> None:
+        colors = cast(HcbApp, self.app).runtime.config.theme.colors
+        self.register_theme(
+            TextAreaTheme(
+                "hcb-terminal",
+                base_style=Style(
+                    color=self._rich_color(colors.text),
+                    bgcolor=self._rich_color(colors.control),
+                ),
+            )
+        )
+        self.theme = "css"
+        self.theme = "hcb-terminal"
+
+    @staticmethod
+    def _rich_color(value: str) -> RichColor | str:
+        if value in {"transparent", "ansi_default"}:
+            return "default"
+        return Color.parse(value).rich_color
+
+
 class EditorScreen(ModalScreen[dict[str, str] | None]):
     """Keyboard-first task editor and date-jump prompt."""
 
@@ -106,7 +137,7 @@ class EditorScreen(ModalScreen[dict[str, str] | None]):
                     placeholder="Due date (YYYY-MM-DD)",
                     id="editor-due",
                 )
-                yield TextArea(self.initial_notes, id="editor-notes")
+                yield TerminalTextArea(self.initial_notes, id="editor-notes")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Go" if self.jump else "Save", variant="primary", id="save")
                 yield Button("Cancel", id="cancel")
@@ -481,7 +512,7 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                 placeholder="Recurrence lines separated by |",
                 id="event-recurrence",
             )
-            yield TextArea(event.description or "" if event else "", id="event-description")
+            yield TerminalTextArea(event.description or "" if event else "", id="event-description")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="event-save")
                 yield Button("Cancel", id="event-cancel")
@@ -622,7 +653,7 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 id="setting-week",
             )
             yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
-            yield TextArea(values["colors"], id="settings-colors")
+            yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="settings-save")
                 yield Button("Cancel", id="settings-cancel")
@@ -941,6 +972,8 @@ class HcbApp(App[None]):
         self.set_class(self.border_style == "ascii", "ascii")
         self.set_class(not self.mouse_enabled, "no-mouse")
         self.dark = self.theme_mode != "light"
+        for text_area in self.query(TerminalTextArea):
+            text_area.apply_terminal_theme()
 
     def _config_marker(self) -> tuple[int, int] | None:
         try:
