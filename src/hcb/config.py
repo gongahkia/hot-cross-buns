@@ -1,14 +1,19 @@
-"""Validated TOML configuration with semantic presentation settings."""
+"""Validated strict JSON configuration and semantic terminal presentation settings."""
 
 from __future__ import annotations
 
-import tomllib
+import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
+
+from textual.color import Color, ColorParseError
 
 from .models import Preferences
 from .paths import AppPaths
+
+CONFIG_SCHEMA_VERSION = 1
 
 
 class ConfigError(ValueError):
@@ -16,22 +21,50 @@ class ConfigError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class Theme:
-    name: str = "system"
-    accent: str = "blue"
-    success: str = "green"
-    warning: str = "yellow"
-    danger: str = "red"
-    muted: str = "gray"
-    density: str = "comfortable"
-    borders: str = "unicode"
-    mouse: bool = True
+class ThemeColors:
+    """Semantic UI tokens, expressed in Textual-compatible color values."""
+
+    background: str = "transparent"
+    surface: str = "transparent"
+    panel: str = "transparent"
+    overlay: str = "transparent"
+    control: str = "transparent"
+    text: str = "ansi_default"
+    muted: str = "ansi_default"
+    border: str = "ansi_default"
+    focus: str = "ansi_default"
+    selection: str = "ansi_default"
+    accent: str = "ansi_default"
+    success: str = "ansi_default"
+    warning: str = "ansi_default"
+    danger: str = "ansi_default"
 
     def __post_init__(self) -> None:
+        for name, value in asdict(self).items():
+            try:
+                Color.parse(value)
+            except ColorParseError as exc:
+                raise ValueError(f"theme.colors.{name} must be a valid color") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class Theme:
+    profile: str = "terminal"
+    density: str = "comfortable"
+    borders: str = "ascii"
+    focus: str = "ascii"
+    mouse: bool = True
+    colors: ThemeColors = field(default_factory=ThemeColors)
+
+    def __post_init__(self) -> None:
+        if self.profile not in {"terminal", "dark", "light"}:
+            raise ValueError("theme.profile must be terminal, dark, or light")
         if self.density not in {"compact", "comfortable"}:
             raise ValueError("theme.density must be compact or comfortable")
         if self.borders not in {"unicode", "ascii"}:
             raise ValueError("theme.borders must be unicode or ascii")
+        if self.focus not in {"ascii", "underline", "reverse"}:
+            raise ValueError("theme.focus must be ascii, underline, or reverse")
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,15 +81,29 @@ class KeyBindings:
 
 @dataclass(frozen=True, slots=True)
 class Config:
+    schema_version: int = CONFIG_SCHEMA_VERSION
     preferences: Preferences = field(default_factory=Preferences)
     theme: Theme = field(default_factory=Theme)
     keys: KeyBindings = field(default_factory=KeyBindings)
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CONFIG_SCHEMA_VERSION:
+            raise ValueError(f"schema_version must be {CONFIG_SCHEMA_VERSION}")
+
+
+def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ConfigError(f"duplicate configuration key {key!r}")
+        result[key] = value
+    return result
 
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
     value = data.get(name, {})
     if not isinstance(value, dict):
-        raise ConfigError(f"[{name}] must be a table")
+        raise ConfigError(f"{name} must be an object")
     return value
 
 
@@ -68,32 +115,64 @@ def _construct(cls: type[Any], values: dict[str, Any], section: str) -> Any:
     try:
         result = cls(**values)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"invalid [{section}] configuration: {exc}") from exc
-    for name, definition in fields.items():
+        raise ConfigError(f"invalid {section} configuration: {exc}") from exc
+    for name, expected in get_type_hints(cls).items():
         value = getattr(result, name)
-        expected = definition.type
-        if expected in ("str", str) and not isinstance(value, str):
-            raise ConfigError(f"{section}.{name} must be a string")
-        if expected in ("bool", bool) and not isinstance(value, bool):
-            raise ConfigError(f"{section}.{name} must be a boolean")
-        if expected in ("int", int) and (not isinstance(value, int) or isinstance(value, bool)):
-            raise ConfigError(f"{section}.{name} must be an integer")
+        if not _matches_type(value, expected):
+            raise ConfigError(f"{section}.{name} must be {_type_label(expected)}")
     return result
+
+
+def _matches_type(value: Any, expected: Any) -> bool:
+    origin = get_origin(expected)
+    if origin in {Union, UnionType}:
+        return any(_matches_type(value, member) for member in get_args(expected))
+    if expected is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected is type(None):
+        return value is None
+    if expected in {str, bool}:
+        return isinstance(value, expected)
+    return isinstance(value, expected)
+
+
+def _type_label(expected: Any) -> str:
+    origin = get_origin(expected)
+    if origin in {Union, UnionType}:
+        return " or ".join(_type_label(member) for member in get_args(expected))
+    if expected is type(None):
+        return "null"
+    return expected.__name__
 
 
 def loads(raw: bytes | str) -> Config:
     try:
-        data = tomllib.loads(raw.decode() if isinstance(raw, bytes) else raw)
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
-        raise ConfigError(f"invalid TOML: {exc}") from exc
+        data = json.loads(
+            raw.decode("utf-8") if isinstance(raw, bytes) else raw,
+            object_pairs_hook=_object_without_duplicates,
+        )
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"invalid JSON encoding: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"invalid JSON: {exc}") from exc
     if not isinstance(data, dict):
-        raise ConfigError("configuration root must be a table")
-    unknown = data.keys() - {"preferences", "theme", "keys"}
+        raise ConfigError("configuration root must be an object")
+    unknown = data.keys() - {"schema_version", "preferences", "theme", "keys"}
     if unknown:
         raise ConfigError(f"unknown configuration section(s): {', '.join(sorted(unknown))}")
+    schema_version = data.get("schema_version", CONFIG_SCHEMA_VERSION)
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool):
+        raise ConfigError("schema_version must be an integer")
+    theme_data = _section(data, "theme")
+    theme_values = dict(theme_data)
+    colors = theme_data.get("colors", {})
+    if not isinstance(colors, dict):
+        raise ConfigError("theme.colors must be an object")
+    theme_values["colors"] = _construct(ThemeColors, colors, "theme.colors")
     return Config(
+        schema_version=schema_version,
         preferences=_construct(Preferences, _section(data, "preferences"), "preferences"),
-        theme=_construct(Theme, _section(data, "theme"), "theme"),
+        theme=_construct(Theme, theme_values, "theme"),
         keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
     )
 
@@ -108,27 +187,12 @@ def load(path: Path | None = None) -> Config:
         raise ConfigError(f"cannot read {target}: {exc}") from exc
 
 
-def _toml_value(value: Any) -> str:
-    if value is None:
-        raise TypeError("TOML has no null value")
-    if isinstance(value, bool):
-        return str(value).lower()
-    if isinstance(value, int):
-        return str(value)
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
 def save(config: Config, path: Path | None = None) -> Path:
     target = path or AppPaths.discover().config_file
     target.parent.mkdir(parents=True, exist_ok=True)
-    lines: list[str] = []
-    for section in ("preferences", "theme", "keys"):
-        lines.append(f"[{section}]")
-        for key, value in asdict(getattr(config, section)).items():
-            if value is not None:
-                lines.append(f"{key} = {_toml_value(value)}")
-        lines.append("")
     temporary = target.with_suffix(target.suffix + ".tmp")
-    temporary.write_text("\n".join(lines), encoding="utf-8")
+    temporary.write_text(
+        json.dumps(asdict(config), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(target)
     return target

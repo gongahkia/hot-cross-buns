@@ -1,33 +1,52 @@
-$hcb-surface: #11151c;
-$hcb-panel: #171d27;
-$hcb-text: #e7edf5;
-$hcb-muted: #8290a5;
-$hcb-accent: #66aaff;
-
 Screen {
-    background: $hcb-surface;
-    color: $hcb-text;
+    background: $background;
+    color: $foreground;
 }
 
 #topbar {
     height: 3;
     padding: 1 2;
-    background: $hcb-panel;
-    color: $hcb-accent;
+    background: $background;
+    color: $foreground;
+    border-bottom: ascii $hcb-border;
     text-style: bold;
 }
 
 #tabs {
     height: 3;
     padding: 0 1;
-    background: $hcb-panel;
+    background: $background;
+    border-bottom: ascii $hcb-border;
+}
+
+Button {
+    min-width: 10;
+    height: 3;
+    padding: 0 1;
+    background: $hcb-control;
+    color: $foreground;
+    border: ascii $hcb-border;
+}
+
+Button.-primary, Button.-success, Button.-warning, Button.-error {
+    background: $hcb-control;
+    color: $foreground;
+    border: ascii $hcb-border;
+}
+
+Button:hover, Button.-primary:hover, Button.-success:hover, Button.-warning:hover, Button.-error:hover {
+    background: $hcb-control;
+    color: $foreground;
+    border: ascii $hcb-focus;
+    text-style: bold underline;
+}
+
+Button:focus, Input:focus, TextArea:focus, ListView:focus {
+    outline: ascii $hcb-focus;
 }
 
 #tabs Button {
     min-width: 10;
-    height: 3;
-    border: none;
-    background: transparent;
 }
 
 #workspace {
@@ -37,21 +56,21 @@ Screen {
 #sidebar {
     width: 27;
     min-width: 22;
-    border-right: solid $hcb-accent;
-    background: $hcb-panel;
+    border-right: ascii $hcb-border;
+    background: $panel;
 }
 
 #mini-month {
     height: 10;
     padding: 0 1;
-    color: $hcb-muted;
+    color: $text-muted;
 }
 
 .section-title, #surface-title {
     height: 3;
     padding: 1;
     text-style: bold;
-    color: $hcb-accent;
+    color: $foreground;
 }
 
 #resources {
@@ -61,7 +80,7 @@ Screen {
 #sync-state {
     height: 3;
     padding: 1;
-    color: $hcb-muted;
+    color: $text-muted;
 }
 
 #center {
@@ -75,20 +94,37 @@ Screen {
 
 ListView > ListItem {
     padding: 0 1;
+    background: transparent;
+    color: $foreground;
 }
 
 ListView > ListItem.--highlight {
-    background: $hcb-accent 25%;
+    background: transparent;
+    color: $foreground;
+    outline: ascii $hcb-focus;
+    text-style: bold underline;
 }
 
 #inspector {
     width: 32;
-    border-left: solid $hcb-accent;
-    background: $hcb-panel;
+    border-left: ascii $hcb-border;
+    background: $panel;
 }
 
 #inspection {
     padding: 1 2;
+}
+
+Input, TextArea {
+    background: $hcb-control;
+    color: $foreground;
+    border: ascii $hcb-border;
+}
+
+Input.-invalid, TextArea.-invalid {
+    background: $hcb-control;
+    color: $foreground;
+    border: ascii $error;
 }
 
 .density-comfortable ListView > ListItem {
@@ -100,32 +136,32 @@ ListView > ListItem.--highlight {
     height: 1;
 }
 
-.theme-light {
-    background: #f4f6fa;
-    color: #18202b;
+.borders-unicode Button, .borders-unicode Input, .borders-unicode TextArea,
+.borders-unicode #sidebar, .borders-unicode #inspector,
+.borders-unicode #topbar, .borders-unicode #tabs,
+.borders-unicode #palette-dialog, .borders-unicode #editor-dialog,
+.borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
+.borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
+.borders-unicode #settings-dialog, .borders-unicode #find-time-dialog {
+    border: round $hcb-border;
 }
 
-.theme-light #topbar, .theme-light #tabs, .theme-light #sidebar, .theme-light #inspector {
-    background: #e5eaf1;
-    color: #18202b;
+.focus-ascii Button:focus, .focus-ascii Input:focus, .focus-ascii TextArea:focus,
+.focus-ascii ListView:focus, .focus-ascii ListView > ListItem.--highlight {
+    outline: ascii $hcb-focus;
+    text-style: bold underline;
 }
 
-.theme-mono, .theme-mono #topbar, .theme-mono #tabs,
-.theme-mono #sidebar, .theme-mono #inspector {
-    background: black;
-    color: white;
+.focus-underline Button:focus, .focus-underline Input:focus, .focus-underline TextArea:focus,
+.focus-underline ListView:focus, .focus-underline ListView > ListItem.--highlight {
+    outline: none;
+    text-style: bold underline;
 }
 
-.theme-mono #sidebar, .theme-mono #inspector {
-    border: solid white;
-}
-
-.ascii #sidebar {
-    border-right: ascii white;
-}
-
-.ascii #inspector {
-    border-left: ascii white;
+.focus-reverse Button:focus, .focus-reverse Input:focus, .focus-reverse TextArea:focus,
+.focus-reverse ListView:focus, .focus-reverse ListView > ListItem.--highlight {
+    outline: none;
+    text-style: reverse;
 }
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
@@ -135,8 +171,8 @@ ListView > ListItem.--highlight {
     height: auto;
     max-height: 80%;
     padding: 1 2;
-    border: round $hcb-accent;
-    background: $hcb-panel;
+    border: ascii $hcb-border;
+    background: $surface;
 }
 
 #palette-dialog {
@@ -148,7 +184,16 @@ ListView > ListItem.--highlight {
 }
 
 #settings-dialog {
-    height: 25;
+    height: 38;
+}
+
+#settings-colors-label {
+    height: 1;
+    color: $text-muted;
+}
+
+#settings-colors {
+    height: 10;
 }
 
 #rsvp-dialog {
@@ -184,7 +229,13 @@ ListView > ListItem.--highlight {
 PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
 CalendarScreen, SettingsScreen, FindTimeScreen {
     align: center middle;
-    background: black 50%;
+    background: $hcb-overlay;
+}
+
+Footer {
+    background: $background;
+    color: $foreground;
+    border-top: ascii $hcb-border;
 }
 
 .narrow #inspector {

@@ -11,7 +11,7 @@ from typing import Any
 
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
-from .config import Config, ConfigError, load, save
+from .config import Config, ConfigError, ThemeColors, load, save
 from .credentials import CredentialFileError, EncryptedFileTokenStore, load_client_config
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
@@ -107,15 +107,12 @@ class Runtime:
         account_id: str,
         email: str,
         time_zone: str,
-        theme: str,
         reminders_enabled: bool,
     ) -> None:
         if not account_id.strip() or any(character.isspace() for character in account_id):
             raise ValueError("account identifier is required and cannot contain whitespace")
         if "@" not in email or email.strip() != email:
             raise ValueError("a valid account email is required")
-        if theme not in {"system", "dark", "light", "mono"}:
-            raise ValueError("theme must be system, dark, light, or mono")
         preferences = replace(
             self.config.preferences,
             default_account_id=account_id,
@@ -125,7 +122,6 @@ class Runtime:
         updated = replace(
             self.config,
             preferences=preferences,
-            theme=replace(self.config.theme, name=theme),
         )
         # Constructing Preferences validates the IANA zone before any state is written.
         save(updated, self.paths.config_file)
@@ -164,11 +160,13 @@ class Runtime:
     def update_tui_settings(
         self,
         *,
-        theme: str,
+        profile: str,
         density: str,
         borders: str,
+        focus: str,
         mouse: bool,
         week_starts_on: int,
+        colors: ThemeColors,
     ) -> Config:
         """Persist interactive presentation settings through the runtime boundary."""
         current = self.config
@@ -177,10 +175,12 @@ class Runtime:
             preferences=replace(current.preferences, week_starts_on=week_starts_on),
             theme=replace(
                 current.theme,
-                name=theme,
+                profile=profile,
                 density=density,
                 borders=borders,
+                focus=focus,
                 mouse=mouse,
+                colors=colors,
             ),
         )
         save(updated, self.paths.config_file)

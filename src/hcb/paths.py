@@ -21,7 +21,7 @@ class AppPaths:
 
     @property
     def config_file(self) -> Path:
-        return self.config_dir / "config.toml"
+        return self.config_dir / "config.json"
 
     @property
     def database_file(self) -> Path:

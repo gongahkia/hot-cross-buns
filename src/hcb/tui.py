@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import calendar
+import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar, cast
@@ -28,6 +29,7 @@ from textual.widgets import (
 )
 
 from .application import ResponseStatus, SearchResult, TimeSlot
+from .config import Config, ConfigError, ThemeColors, load
 from .errors import AuthenticationRequired, HcbError
 from .import_export import ImportPreview
 from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
@@ -176,7 +178,6 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
             yield Input(placeholder="Local account identifier", id="onboard-account")
             yield Input(placeholder="Account email", id="onboard-email")
             yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
-            yield Input(value="system", placeholder="system/dark/light/mono", id="onboard-theme")
             yield Input(value="true", placeholder="Reminders: true/false", id="onboard-reminders")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save offline", id="onboard-offline")
@@ -194,7 +195,6 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                 "account_id": self.query_one("#onboard-account", Input).value.strip(),
                 "email": self.query_one("#onboard-email", Input).value.strip(),
                 "time_zone": self.query_one("#onboard-timezone", Input).value.strip(),
-                "theme": self.query_one("#onboard-theme", Input).value.strip(),
                 "reminders": self.query_one("#onboard-reminders", Input).value.strip(),
                 "connect": str(event.button.id == "onboard-connect").lower(),
             }
@@ -599,19 +599,30 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         values = self.hcb.settings_values()
         with Vertical(id="settings-dialog"):
             yield Label("Settings", id="dialog-title")
-            yield Input(value=values["theme"], placeholder="dark/light/mono", id="setting-theme")
+            yield Input(
+                value=values["profile"],
+                placeholder="terminal/dark/light",
+                id="setting-profile",
+            )
             yield Input(
                 value=values["density"],
                 placeholder="compact/comfortable",
                 id="setting-density",
             )
             yield Input(value=values["borders"], placeholder="unicode/ascii", id="setting-borders")
+            yield Input(
+                value=values["focus"],
+                placeholder="ascii/underline/reverse",
+                id="setting-focus",
+            )
             yield Input(value=values["mouse"], placeholder="true/false", id="setting-mouse")
             yield Input(
                 value=values["week_starts_on"],
                 placeholder="Week starts on: 0-6",
                 id="setting-week",
             )
+            yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
+            yield TextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="settings-save")
                 yield Button("Cancel", id="settings-cancel")
@@ -625,11 +636,13 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
             return
         self.dismiss(
             {
-                "theme": self.query_one("#setting-theme", Input).value.strip(),
+                "profile": self.query_one("#setting-profile", Input).value.strip(),
                 "density": self.query_one("#setting-density", Input).value.strip(),
                 "borders": self.query_one("#setting-borders", Input).value.strip(),
+                "focus": self.query_one("#setting-focus", Input).value.strip(),
                 "mouse": self.query_one("#setting-mouse", Input).value.strip(),
                 "week_starts_on": self.query_one("#setting-week", Input).value.strip(),
+                "colors": self.query_one("#settings-colors", TextArea).text.strip(),
             }
         )
 
@@ -823,20 +836,9 @@ class HcbApp(App[None]):
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
         self.syncing = False
-        config = self.runtime.config
-        forced_mono = (
-            self.runtime.environ.get("NO_COLOR") is not None
-            or self.runtime.environ.get("TERM") == "dumb"
-        )
-        configured = (
-            config.theme.name if config.theme.name != "system" else config.preferences.theme
-        )
-        self.theme_mode = "mono" if forced_mono else configured
-        if self.theme_mode not in {"dark", "light", "mono"}:
-            self.theme_mode = "dark"
-        self.density = config.theme.density
-        self.border_style = "ascii" if forced_mono else config.theme.borders
-        self.mouse_enabled = config.theme.mouse and not forced_mono
+        self._theme_revision = 0
+        self._observed_config_marker: tuple[int, int] | None = None
+        self._set_visual_state(self.runtime.config)
 
     def compose(self) -> ComposeResult:
         yield Static(id="topbar")
@@ -859,26 +861,9 @@ class HcbApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        configured_theme = self.runtime.config.theme
-        self.register_theme(
-            TextualTheme(
-                name="hcb-config",
-                primary=configured_theme.accent,
-                accent=configured_theme.accent,
-                success=configured_theme.success,
-                warning=configured_theme.warning,
-                error=configured_theme.danger,
-                dark=self.theme_mode != "light",
-                variables={"text-muted": configured_theme.muted},
-            )
-        )
-        self.theme = "hcb-config"
-        self.add_class(f"theme-{self.theme_mode}", f"density-{self.density}")
-        if self.border_style == "ascii":
-            self.add_class("ascii")
-        if not self.mouse_enabled:
-            self.add_class("no-mouse")
-        self.dark = self.theme_mode != "light"
+        self._apply_visual_config(self.runtime.config)
+        self._observed_config_marker = self._config_marker()
+        self.set_interval(0.5, self._reload_visual_config)
         self._bind_configured_keys()
         try:
             self.account_id = self.runtime.account_id(self.explicit_account)
@@ -889,6 +874,95 @@ class HcbApp(App[None]):
             self.call_after_refresh(
                 lambda: self.push_screen(OnboardingScreen(), self._onboarding_result)
             )
+
+    def _set_visual_state(self, config: Config) -> None:
+        forced_terminal = (
+            self.runtime.environ.get("NO_COLOR") is not None
+            or self.runtime.environ.get("TERM") == "dumb"
+        )
+        self.theme_mode = "mono" if forced_terminal else config.theme.profile
+        self.density = config.theme.density
+        self.border_style = "ascii" if forced_terminal else config.theme.borders
+        self.focus_style = "ascii" if forced_terminal else config.theme.focus
+        self.mouse_enabled = config.theme.mouse and not forced_terminal
+
+    def _apply_visual_config(self, config: Config) -> None:
+        self._set_visual_state(config)
+        colors = config.theme.colors
+        self._theme_revision += 1
+        name = f"hcb-config-{self._theme_revision}"
+        self.register_theme(
+            TextualTheme(
+                name=name,
+                primary=colors.accent,
+                secondary=colors.accent,
+                accent=colors.accent,
+                foreground=colors.text,
+                background=colors.background,
+                surface=colors.surface,
+                panel=colors.panel,
+                success=colors.success,
+                warning=colors.warning,
+                error=colors.danger,
+                dark=self.theme_mode != "light",
+                variables={
+                    "text-muted": colors.muted,
+                    "hcb-border": colors.border,
+                    "hcb-control": colors.control,
+                    "hcb-focus": colors.focus,
+                    "hcb-overlay": colors.overlay,
+                    "hcb-selection": colors.selection,
+                    "input-selection-background": colors.selection,
+                },
+            )
+        )
+        self.theme = name
+        self.remove_class(
+            "theme-terminal",
+            "theme-dark",
+            "theme-light",
+            "theme-mono",
+            "density-compact",
+            "density-comfortable",
+            "borders-ascii",
+            "borders-unicode",
+            "focus-ascii",
+            "focus-underline",
+            "focus-reverse",
+            "ascii",
+            "no-mouse",
+        )
+        self.add_class(
+            f"theme-{self.theme_mode}",
+            f"density-{self.density}",
+            f"borders-{self.border_style}",
+            f"focus-{self.focus_style}",
+        )
+        self.set_class(self.border_style == "ascii", "ascii")
+        self.set_class(not self.mouse_enabled, "no-mouse")
+        self.dark = self.theme_mode != "light"
+
+    def _config_marker(self) -> tuple[int, int] | None:
+        try:
+            stat = self.runtime.paths.config_file.stat()
+        except FileNotFoundError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _reload_visual_config(self) -> None:
+        marker = self._config_marker()
+        if marker == self._observed_config_marker:
+            return
+        self._observed_config_marker = marker
+        try:
+            config = load(self.runtime.paths.config_file)
+        except ConfigError as exc:
+            self.notify(f"config.json not applied: {exc}", severity="error")
+            return
+        self.runtime.__dict__["config"] = config
+        self._apply_visual_config(config)
+        self._render_chrome()
+        self.notify("config.json visual settings reloaded")
 
     def _onboarding_result(self, result: dict[str, str] | None) -> None:
         if result is None:
@@ -904,7 +978,6 @@ class HcbApp(App[None]):
                 account_id=result["account_id"],
                 email=result["email"],
                 time_zone=result["time_zone"],
-                theme=result["theme"],
                 reminders_enabled=reminders == "true",
             )
         except ValueError as exc:
@@ -1595,48 +1668,54 @@ class HcbApp(App[None]):
     def settings_values(self) -> dict[str, str]:
         config = self.runtime.config
         return {
-            "theme": config.theme.name,
+            "profile": config.theme.profile,
             "density": config.theme.density,
             "borders": config.theme.borders,
+            "focus": config.theme.focus,
             "mouse": str(config.theme.mouse).lower(),
             "week_starts_on": str(config.preferences.week_starts_on),
+            "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
         }
 
     def _settings_result(self, result: dict[str, str] | None) -> None:
         if result is None:
             return
         try:
-            theme = result["theme"]
+            profile = result["profile"]
             density = result["density"]
             borders = result["borders"]
+            focus = result["focus"]
             mouse_raw = result["mouse"].casefold()
-            if theme not in {"system", "dark", "light", "mono"}:
-                raise ValueError("theme must be system, dark, light, or mono")
+            if profile not in {"terminal", "dark", "light"}:
+                raise ValueError("profile must be terminal, dark, or light")
             if density not in {"compact", "comfortable"}:
                 raise ValueError("density must be compact or comfortable")
             if borders not in {"unicode", "ascii"}:
                 raise ValueError("borders must be unicode or ascii")
+            if focus not in {"ascii", "underline", "reverse"}:
+                raise ValueError("focus must be ascii, underline, or reverse")
             if mouse_raw not in {"true", "false"}:
                 raise ValueError("mouse must be true or false")
+            colors_data = json.loads(result["colors"])
+            if not isinstance(colors_data, dict):
+                raise ValueError("semantic colors must be a JSON object")
+            colors = ThemeColors(**colors_data)
             config = self.runtime.update_tui_settings(
-                theme=theme,
+                profile=profile,
                 density=density,
                 borders=borders,
+                focus=focus,
                 mouse=mouse_raw == "true",
                 week_starts_on=int(result["week_starts_on"]),
+                colors=colors,
             )
-        except ValueError as exc:
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
             self.notify(str(exc), severity="error")
             return
-        self.remove_class("density-compact", "density-comfortable", "ascii", "no-mouse")
-        self.density = config.theme.density
-        self.border_style = config.theme.borders
-        self.mouse_enabled = config.theme.mouse
-        self.add_class(f"density-{self.density}")
-        self.set_class(self.border_style == "ascii", "ascii")
-        self.set_class(not self.mouse_enabled, "no-mouse")
+        self._apply_visual_config(config)
+        self._observed_config_marker = self._config_marker()
         self._render_chrome()
-        self.notify("Settings saved; theme changes apply fully on restart")
+        self.notify("Settings saved and applied")
 
     def find_time_local(
         self, raw_day: str, raw_duration: str, raw_start: str, raw_end: str
