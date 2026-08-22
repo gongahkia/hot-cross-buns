@@ -1169,6 +1169,10 @@ class ApplicationService:
         )
         with self.storage.transaction():
             self.storage.upsert_event(event)
+            if event.recurrence:
+                self.storage.mark_instance_ranges_stale(
+                    account_id, calendar_id, reason="local-recurring-event-created"
+                )
             self._enqueue(
                 account_id,
                 EntityType.EVENT,
@@ -1226,6 +1230,7 @@ class ApplicationService:
         scope: Literal["this", "series"] = "this",
     ) -> Event:
         current = self._require_event(account_id, event_id)
+        affects_instance_cache = current.is_occurrence or bool(current.recurrence)
         if scope not in {"this", "series"}:
             raise ValueError("event scope must be this or series")
         if scope == "series" and current.is_occurrence:
@@ -1304,6 +1309,7 @@ class ApplicationService:
             ),
             metadata=_dirty(current.metadata),
         )
+        affects_instance_cache = affects_instance_cache or bool(updated.recurrence)
         body = self._event_body(updated)
         for key, value, changed in (
             ("description", updated.description, not isinstance(description, _Unset)),
@@ -1367,6 +1373,10 @@ class ApplicationService:
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(updated)
+            if affects_instance_cache:
+                self.storage.mark_instance_ranges_stale(
+                    account_id, current.calendar_id, reason="local-recurring-event-updated"
+                )
             self._enqueue(
                 account_id,
                 EntityType.EVENT,
@@ -1400,10 +1410,19 @@ class ApplicationService:
     def move_event(self, account_id: str, event_id: str, calendar_id: str) -> Event:
         current = self._require_event(account_id, event_id)
         self._require_calendar(account_id, calendar_id)
+        affects_instance_cache = current.is_occurrence or bool(current.recurrence)
         updated = replace(current, calendar_id=calendar_id, metadata=_dirty(current.metadata))
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(updated)
+            if affects_instance_cache:
+                self.storage.mark_instance_ranges_stale(
+                    account_id, current.calendar_id, reason="local-recurring-event-moved"
+                )
+                if calendar_id != current.calendar_id:
+                    self.storage.mark_instance_ranges_stale(
+                        account_id, calendar_id, reason="local-recurring-event-moved"
+                    )
             self._enqueue(
                 account_id,
                 EntityType.EVENT,
@@ -1553,6 +1572,7 @@ class ApplicationService:
         send_updates: str = "none",
     ) -> Event:
         current = self._require_event(account_id, event_id)
+        affects_instance_cache = current.is_occurrence or bool(current.recurrence)
         if scope not in {"this", "series"}:
             raise ValueError("event scope must be this or series")
         series_remote_id: str | None = None
@@ -1570,6 +1590,10 @@ class ApplicationService:
         with self.storage.transaction():
             before = self._snapshot("events", account_id, event_id)
             self.storage.upsert_event(deleted)
+            if affects_instance_cache:
+                self.storage.mark_instance_ranges_stale(
+                    account_id, current.calendar_id, reason="local-recurring-event-deleted"
+                )
             if series_remote_id:
                 self.storage.hide_cached_series_instances(
                     account_id, current.calendar_id, series_remote_id

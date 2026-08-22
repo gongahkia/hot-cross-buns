@@ -102,6 +102,23 @@ def test_calendar_list_metadata_and_cached_instance_range(store: Storage) -> Non
         store.replace_cached_instances("a", "cal", start, start.replace(day=28), [instance])
     assert store.get_event("a", "instance").derived
     assert store.list_instance_ranges("a", "cal")[0]["start_value"] == start.isoformat()
+    assert store.instance_cache_status(
+        "a", "cal", start.replace(day=22), start.replace(day=23)
+    )["state"] == "fresh"
+
+    store.mark_instance_ranges_stale("a", "cal", reason="local-recurring-event-updated")
+    stale = store.instance_cache_status("a", "cal", start.replace(day=22), start.replace(day=23))
+    assert stale["state"] == "stale"
+    assert stale["ranges"][0]["stale_reason"] == "local-recurring-event-updated"
+    with store.transaction():
+        store.replace_cached_instances(
+            "a", "cal", start.replace(day=22), start.replace(day=23), []
+        )
+    partial = store.instance_cache_status("a", "cal", start.replace(day=21), start.replace(day=24))
+    assert partial["state"] == "partial"
+    assert store.instance_cache_status(
+        "a", "cal", start.replace(day=22), start.replace(day=23)
+    )["state"] == "fresh"
 
     dirty = Event(
         "local",

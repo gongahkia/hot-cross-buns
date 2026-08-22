@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ from .models import (
 )
 from .paths import AppPaths
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -206,6 +206,14 @@ CREATE TABLE event_instance_ranges (
 );
 """
 
+_MIGRATION_7 = """
+ALTER TABLE event_instance_ranges ADD COLUMN state TEXT NOT NULL DEFAULT 'fresh';
+ALTER TABLE event_instance_ranges ADD COLUMN stale_at TEXT;
+ALTER TABLE event_instance_ranges ADD COLUMN stale_reason TEXT;
+CREATE INDEX event_instance_ranges_coverage
+ON event_instance_ranges(account_id,calendar_id,state,start_value,end_value);
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -274,6 +282,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_6)
                 self.connection.execute("PRAGMA user_version = 6")
+            version = 6
+        if version == 6:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_7)
+                self.connection.execute("PRAGMA user_version = 7")
 
     def close(self) -> None:
         self.connection.close()
@@ -831,10 +844,12 @@ class Storage:
             self.upsert_event(event)
         self.connection.execute(
             """INSERT INTO event_instance_ranges(
-            account_id,calendar_id,start_value,end_value,refreshed_at
+            account_id,calendar_id,start_value,end_value,refreshed_at,state,stale_at,stale_reason
             )
-            VALUES (?,?,?,?,?) ON CONFLICT(account_id,calendar_id,start_value,end_value)
-            DO UPDATE SET refreshed_at=excluded.refreshed_at""",
+            VALUES (?,?,?,?,?,'fresh',NULL,NULL)
+            ON CONFLICT(account_id,calendar_id,start_value,end_value)
+            DO UPDATE SET refreshed_at=excluded.refreshed_at,state='fresh',stale_at=NULL,
+            stale_reason=NULL""",
             (account_id, calendar_id, _iso(start), _iso(end), _iso(utc_now())),
         )
 
@@ -846,7 +861,84 @@ class Storage:
         if calendar_id is not None:
             sql += " AND calendar_id=?"
             arguments.append(calendar_id)
+        sql += " ORDER BY calendar_id,start_value,end_value"
         return [dict(row) for row in self.connection.execute(sql, arguments)]
+
+    def mark_instance_ranges_stale(
+        self, account_id: str, calendar_id: str, *, reason: str
+    ) -> int:
+        """Mark every cached occurrence range stale after a series-affecting change."""
+        cursor = self.connection.execute(
+            """UPDATE event_instance_ranges
+            SET state='stale',stale_at=?,stale_reason=?
+            WHERE account_id=? AND calendar_id=?""",
+            (utc_now().isoformat(), reason, account_id, calendar_id),
+        )
+        return cursor.rowcount
+
+    @staticmethod
+    def _range_datetime(value: date | datetime) -> datetime:
+        result = value if isinstance(value, datetime) else datetime.combine(value, datetime.min.time())
+        return (
+            result.astimezone(UTC).replace(tzinfo=None)
+            if result.tzinfo is not None
+            else result
+        )
+
+    def instance_cache_status(
+        self,
+        account_id: str,
+        calendar_id: str,
+        start: date | datetime,
+        end: date | datetime,
+    ) -> dict[str, Any]:
+        """Describe local instance-cache coverage for a half-open time range.
+
+        A range is fresh only when fresh cached ranges cover the complete query.
+        Stale ranges remain visible as diagnostic metadata; they never contribute
+        to fresh coverage.
+        """
+        start_at = self._range_datetime(start)
+        end_at = self._range_datetime(end)
+        if end_at <= start_at:
+            raise ValueError("instance cache range end must be after start")
+        ranges = self.list_instance_ranges(account_id, calendar_id)
+        overlaps: list[dict[str, Any]] = []
+        fresh: list[tuple[datetime, datetime]] = []
+        for item in ranges:
+            range_start = self._range_datetime(datetime.fromisoformat(item["start_value"]))
+            range_end = self._range_datetime(datetime.fromisoformat(item["end_value"]))
+            if range_end <= start_at or range_start >= end_at:
+                continue
+            overlaps.append(item)
+            if item["state"] == "fresh":
+                fresh.append((max(range_start, start_at), min(range_end, end_at)))
+        fresh.sort()
+        covered_until = start_at
+        for range_start, range_end in fresh:
+            if range_start > covered_until:
+                break
+            if range_end > covered_until:
+                covered_until = range_end
+            if covered_until >= end_at:
+                break
+        fresh_coverage = covered_until >= end_at
+        if fresh_coverage:
+            state = "fresh"
+        elif fresh:
+            state = "partial"
+        elif overlaps:
+            state = "stale"
+        else:
+            state = "missing"
+        return {
+            "calendar_id": calendar_id,
+            "start": start_at.isoformat(),
+            "end": end_at.isoformat(),
+            "state": state,
+            "fresh_coverage": fresh_coverage,
+            "ranges": overlaps,
+        }
 
     def clear_calendar_mirror(self, account_id: str, calendar_id: str) -> None:
         """Clear only server-derived rows, preserving local changes and pending outbox work."""

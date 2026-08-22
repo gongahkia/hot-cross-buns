@@ -110,6 +110,24 @@ def test_calendar_list_preferences_and_event_rich_clears(app: ApplicationService
     assert body["conferenceData"] is None
 
 
+def test_recurring_event_changes_stale_cached_instance_ranges(app: ApplicationService) -> None:
+    start = datetime(2026, 8, 21, tzinfo=UTC)
+    app.storage.replace_cached_instances("a", "cal", start, start.replace(day=28), [])
+    event = app.create_event(
+        "a",
+        "cal",
+        "Standup",
+        EventDateTime(DateTimeKind.DATETIME, start),
+        EventDateTime(DateTimeKind.DATETIME, start.replace(hour=1)),
+        recurrence=("RRULE:FREQ=DAILY",),
+    )
+    assert app.storage.list_instance_ranges("a", "cal")[0]["state"] == "stale"
+
+    app.storage.replace_cached_instances("a", "cal", start, start.replace(day=28), [])
+    app.update_event("a", event.id, summary="Daily standup")
+    assert app.storage.list_instance_ranges("a", "cal")[0]["state"] == "stale"
+
+
 def test_event_duplicate_invitations_and_cached_instance_agenda(app: ApplicationService) -> None:
     start = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC))
     end = EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC))

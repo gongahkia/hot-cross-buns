@@ -384,10 +384,20 @@ class SyncEngine:
 
         def apply(item: Json) -> None:
             existing = self.storage.get_event_by_remote(account_id, str(item["id"]))
+            affects_instance_cache = bool(
+                item.get("recurrence")
+                or item.get("recurringEventId")
+                or item.get("originalStartTime")
+                or (existing and (existing.recurrence or existing.is_occurrence))
+            )
             if item.get("status") == "cancelled" and ("start" not in item or "end" not in item):
                 if existing and not existing.metadata.dirty:
                     self.storage.upsert_event(
                         replace(existing, metadata=replace(existing.metadata, deleted=True))
+                    )
+                if affects_instance_cache:
+                    self.storage.mark_instance_ranges_stale(
+                        account_id, calendar.id, reason="remote-recurring-event-changed"
                     )
                 return
             if existing is None or not existing.metadata.dirty:
@@ -398,6 +408,10 @@ class SyncEngine:
                         item,
                         local_id=existing.id if existing else None,
                     )
+                )
+            if affects_instance_cache:
+                self.storage.mark_instance_ranges_stale(
+                    account_id, calendar.id, reason="remote-recurring-event-changed"
                 )
 
         reset = False

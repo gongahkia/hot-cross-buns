@@ -245,6 +245,26 @@ def test_explicit_instance_refresh_caches_only_recurring_instances(store):
     assert store.list_instance_ranges("a", "cal")
 
 
+def test_remote_recurring_series_change_stales_cached_instance_ranges(store):
+    gateway = FakeGateway()
+    store.replace_cached_instances(
+        "a",
+        "cal",
+        datetime(2026, 8, 21, tzinfo=UTC),
+        datetime(2026, 8, 28, tzinfo=UTC),
+        [],
+    )
+    gateway.event_pages = {
+        None: Page(({**EVENT, "recurrence": ["RRULE:FREQ=DAILY"]},), next_sync_token="sync-2")
+    }
+    calendar = store.get_calendar("a", "cal")
+    assert calendar is not None
+    SyncEngine(store, gateway).sync_events("a", calendar)
+    ranges = store.list_instance_ranges("a", "cal")
+    assert ranges[0]["state"] == "stale"
+    assert ranges[0]["stale_reason"] == "remote-recurring-event-changed"
+
+
 def test_outbox_create_reconciles_id_and_retry_retains_write(store):
     gateway = FakeGateway()
     store.upsert_task(Task("tmp", "a", "list", "Local"))
