@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hot-cross-buns.dev/schemas/config/v1/hcb-config-v1.schema.json",
+  "title": "HCB configuration v1",
+  "description": "Strict JSON configuration for Hot Cross Buns. Omitted sections use application defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "preferences": { "$ref": "#/$defs/preferences" },
+    "theme": { "$ref": "#/$defs/theme" },
+    "keys": { "$ref": "#/$defs/keys" }
+  },
+  "$defs": {
+    "color": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A Textual color value, including ansi_default or transparent."
+    },
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": { "type": "string" },
+        "keymap": { "type": "string" },
+        "week_starts_on": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "default_account_id": { "type": ["string", "null"] },
+        "default_task_list_id": { "type": ["string", "null"] },
+        "default_calendar_id": { "type": ["string", "null"] },
+        "reminders_enabled": { "type": "boolean" },
+        "reminder_catch_up_minutes": { "type": "integer", "minimum": 0 },
+        "reminder_poll_seconds": { "type": "integer", "minimum": 1 },
+        "reminder_jitter_seconds": { "type": "integer", "minimum": 0 },
+        "reminder_sync_interval_minutes": { "type": "integer", "minimum": 0 },
+        "reminder_sync_mode": { "enum": ["all", "pull", "off"] },
+        "time_zone": { "type": "string", "minLength": 1 }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "enum": ["terminal", "dark", "light"] },
+        "density": { "enum": ["compact", "comfortable"] },
+        "borders": { "enum": ["ascii", "unicode"] },
+        "focus": { "enum": ["ascii", "underline", "reverse"] },
+        "mouse": { "type": "boolean" },
+        "colors": { "$ref": "#/$defs/colors" }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": { "$ref": "#/$defs/color" },
+        "surface": { "$ref": "#/$defs/color" },
+        "panel": { "$ref": "#/$defs/color" },
+        "overlay": { "$ref": "#/$defs/color" },
+        "control": { "$ref": "#/$defs/color" },
+        "text": { "$ref": "#/$defs/color" },
+        "muted": { "$ref": "#/$defs/color" },
+        "border": { "$ref": "#/$defs/color" },
+        "focus": { "$ref": "#/$defs/color" },
+        "selection": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/color" },
+        "success": { "$ref": "#/$defs/color" },
+        "warning": { "$ref": "#/$defs/color" },
+        "danger": { "$ref": "#/$defs/color" }
+      }
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "quit": { "type": "string" },
+        "help": { "type": "string" },
+        "search": { "type": "string" },
+        "sync": { "type": "string" },
+        "create": { "type": "string" },
+        "edit": { "type": "string" },
+        "delete": { "type": "string" },
+        "complete": { "type": "string" }
+      }
+    }
+  }
+}

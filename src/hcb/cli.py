@@ -17,7 +17,7 @@ import typer
 from typer import _click as click
 
 from .application import SearchResult
-from .config import ConfigError, load, save
+from .config import ConfigError, load, save, schema as config_schema
 from .errors import ExitCode, HcbError
 from .import_export import (
     ImportedEvent,
@@ -1535,6 +1535,12 @@ def config_init(ctx: typer.Context, force: bool = typer.Option(False, "--force")
     _emit(ctx, {"path": str(target)}, human=lambda value: value["path"])
 
 
+@config_app.command("schema")
+def config_schema_show(ctx: typer.Context) -> None:
+    """Print the Draft 2020-12 schema for the strict ``config.json`` file."""
+    _emit(ctx, config_schema(), human=lambda value: json.dumps(value, indent=2, sort_keys=True))
+
+
 def _coerce_config(current: Any, raw: str) -> Any:
     if isinstance(current, bool):
         if raw.lower() not in {"true", "false"}:
@@ -1549,11 +1555,29 @@ def _coerce_config(current: Any, raw: str) -> Any:
 
 @config_app.command("set")
 def config_set(ctx: typer.Context, key: str, value: str) -> None:
-    if "." not in key:
-        raise ValueError("configuration key must be SECTION.NAME")
-    section_name, field = key.split(".", 1)
     state = _state(ctx)
     current = load(state.runtime.paths.config_file)
+    parts = key.split(".")
+    if parts[:2] == ["theme", "colors"] and len(parts) == 3:
+        color_name = parts[2]
+        if color_name not in current.theme.colors.__dataclass_fields__:
+            raise ValueError(f"unknown configuration key {key!r}")
+        colors = replace(
+            current.theme.colors,
+            **{color_name: _coerce_config(getattr(current.theme.colors, color_name), value)},
+        )
+        updated = replace(current, theme=replace(current.theme, colors=colors))
+        save(updated, state.runtime.paths.config_file)
+        state.runtime.__dict__.pop("config", None)
+        _emit(
+            ctx,
+            {"key": key, "value": getattr(colors, color_name)},
+            human=lambda row: f"{row['key']}={row['value']}",
+        )
+        return
+    if len(parts) != 2:
+        raise ValueError("configuration key must be SECTION.NAME or theme.colors.NAME")
+    section_name, field = parts
     if section_name not in {"preferences", "theme", "keys"}:
         raise ValueError(f"unknown configuration section {section_name!r}")
     section = getattr(current, section_name)

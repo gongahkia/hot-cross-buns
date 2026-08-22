@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from importlib.resources import files
 from pathlib import Path
 from types import UnionType
 from typing import Any, Union, get_args, get_origin, get_type_hints
@@ -14,6 +15,7 @@ from .models import Preferences
 from .paths import AppPaths
 
 CONFIG_SCHEMA_VERSION = 1
+CONFIG_SCHEMA_RESOURCE = "hcb-config-v1.schema.json"
 
 
 class ConfigError(ValueError):
@@ -196,3 +198,13 @@ def save(config: Config, path: Path | None = None) -> Path:
     )
     temporary.replace(target)
     return target
+
+
+def schema() -> dict[str, Any]:
+    """Return the bundled Draft 2020-12 schema for ``config.json``."""
+    document = json.loads(
+        files("hcb.schemas").joinpath(CONFIG_SCHEMA_RESOURCE).read_text(encoding="utf-8")
+    )
+    if not isinstance(document, dict):
+        raise RuntimeError("bundled config schema must be an object")
+    return document

@@ -28,6 +28,7 @@ JSON_COMMANDS = (
     "capture",
     "config.init",
     "config.path",
+    "config.schema",
     "config.set",
     "config.show",
     "conflicts.list",
