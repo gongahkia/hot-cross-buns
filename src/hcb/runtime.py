@@ -11,7 +11,7 @@ from typing import Any
 
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
-from .config import Config, ConfigError, ThemeColors, load, save
+from .config import Config, ConfigError, Theme, ThemeColors, load, save
 from .credentials import CredentialFileError, EncryptedFileTokenStore, load_client_config
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
@@ -176,6 +176,7 @@ class Runtime:
             theme=replace(
                 current.theme,
                 profile=profile,
+                preset=None,
                 density=density,
                 borders=borders,
                 focus=focus,
@@ -183,6 +184,13 @@ class Runtime:
                 colors=colors,
             ),
         )
+        save(updated, self.paths.config_file)
+        self.__dict__["config"] = updated
+        return updated
+
+    def update_theme(self, theme: Theme) -> Config:
+        """Persist a complete visual theme selected by the CLI or a custom file."""
+        updated = replace(self.config, theme=theme)
         save(updated, self.paths.config_file)
         self.__dict__["config"] = updated
         return updated

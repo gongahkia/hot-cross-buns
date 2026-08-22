@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from importlib.resources import files
 from pathlib import Path
 from types import UnionType
-from typing import Any, Union, get_args, get_origin, get_type_hints
+from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
 from textual.color import Color, ColorParseError
 
@@ -52,6 +52,7 @@ class ThemeColors:
 @dataclass(frozen=True, slots=True)
 class Theme:
     profile: str = "terminal"
+    preset: str | None = None
     density: str = "comfortable"
     borders: str = "ascii"
     focus: str = "ascii"
@@ -61,6 +62,8 @@ class Theme:
     def __post_init__(self) -> None:
         if self.profile not in {"terminal", "dark", "light"}:
             raise ValueError("theme.profile must be terminal, dark, or light")
+        if self.preset is not None and not self.preset.strip():
+            raise ValueError("theme.preset cannot be empty")
         if self.density not in {"compact", "comfortable"}:
             raise ValueError("theme.density must be compact or comfortable")
         if self.borders not in {"unicode", "ascii"}:
@@ -147,7 +150,7 @@ def _type_label(expected: Any) -> str:
     return str(getattr(expected, "__name__", expected))
 
 
-def loads(raw: bytes | str) -> Config:
+def _json_object(raw: bytes | str) -> dict[str, Any]:
     try:
         data = json.loads(
             raw.decode("utf-8") if isinstance(raw, bytes) else raw,
@@ -159,24 +162,37 @@ def loads(raw: bytes | str) -> Config:
         raise ConfigError(f"invalid JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise ConfigError("configuration root must be an object")
+    return data
+
+
+def _theme(values: dict[str, Any]) -> Theme:
+    theme_values = dict(values)
+    colors = values.get("colors", {})
+    if not isinstance(colors, dict):
+        raise ConfigError("theme.colors must be an object")
+    theme_values["colors"] = _construct(ThemeColors, colors, "theme.colors")
+    return cast(Theme, _construct(Theme, theme_values, "theme"))
+
+
+def loads(raw: bytes | str) -> Config:
+    data = _json_object(raw)
     unknown = data.keys() - {"schema_version", "preferences", "theme", "keys"}
     if unknown:
         raise ConfigError(f"unknown configuration section(s): {', '.join(sorted(unknown))}")
     schema_version = data.get("schema_version", CONFIG_SCHEMA_VERSION)
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
         raise ConfigError("schema_version must be an integer")
-    theme_data = _section(data, "theme")
-    theme_values = dict(theme_data)
-    colors = theme_data.get("colors", {})
-    if not isinstance(colors, dict):
-        raise ConfigError("theme.colors must be an object")
-    theme_values["colors"] = _construct(ThemeColors, colors, "theme.colors")
     return Config(
         schema_version=schema_version,
         preferences=_construct(Preferences, _section(data, "preferences"), "preferences"),
-        theme=_construct(Theme, theme_values, "theme"),
+        theme=_theme(_section(data, "theme")),
         keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
     )
+
+
+def loads_theme(raw: bytes | str) -> Theme:
+    """Parse a strict standalone visual-theme JSON object."""
+    return _theme(_json_object(raw))
 
 
 def load(path: Path | None = None) -> Config:

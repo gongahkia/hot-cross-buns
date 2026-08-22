@@ -28,7 +28,7 @@
         "daemon.install", "daemon.run", "daemon.status", "daemon.uninstall", "doctor", "drive.list", "drive.search",
         "events.agenda", "events.create", "events.delete", "events.delete-many", "events.duplicate", "events.edit", "events.instance-cache", "events.instances", "events.invitations", "events.invite", "events.move", "events.move-many", "events.refresh-instances", "events.respond", "events.respond-many", "events.set-properties", "events.show", "events.split",
         "export", "find-time", "freebusy", "import.apply", "import.preview", "notes.clear", "notes.list", "notes.mode", "notes.set", "notes.show", "redo", "saved-searches.delete", "saved-searches.list", "saved-searches.run", "saved-searches.save", "schema.list", "schema.show", "search", "sync",
-        "task-lists.create", "task-lists.delete", "task-lists.edit", "task-lists.list", "tasks.complete", "tasks.complete-many", "tasks.create", "tasks.delete", "tasks.delete-many", "tasks.edit", "tasks.list", "tasks.move", "tasks.reconcile-recurrence", "tasks.repair-schedule", "tasks.schedule", "tasks.unschedule", "undo"
+        "task-lists.create", "task-lists.delete", "task-lists.edit", "task-lists.list", "tasks.complete", "tasks.complete-many", "tasks.create", "tasks.delete", "tasks.delete-many", "tasks.edit", "tasks.list", "tasks.move", "tasks.reconcile-recurrence", "tasks.repair-schedule", "tasks.schedule", "tasks.unschedule", "themes.apply", "themes.list", "themes.show", "undo"
       ]
     },
     "successEnvelope": {

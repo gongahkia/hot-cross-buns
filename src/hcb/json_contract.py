@@ -94,6 +94,9 @@ JSON_COMMANDS = (
     "tasks.repair-schedule",
     "tasks.schedule",
     "tasks.unschedule",
+    "themes.apply",
+    "themes.list",
+    "themes.show",
     "undo",
 )
 

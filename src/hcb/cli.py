@@ -60,6 +60,7 @@ from .notifications import default_notifier
 from .output import to_primitive
 from .runtime import Runtime
 from .scheduler import DaemonState, ReminderScheduler, run_loop
+from .themes import apply_preset, load_custom_theme, preset, presets
 
 
 class HcbGroup(typer.core.TyperGroup):
@@ -131,6 +132,7 @@ conflicts_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Resolv
 import_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Preview or apply imports.")
 auth_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage authentication.")
 config_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage configuration.")
+themes_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage visual themes.")
 daemon_app = typer.Typer(
     cls=HcbGroup, context_settings=CONTEXT, help="Inspect sync daemon support."
 )
@@ -147,6 +149,7 @@ app.add_typer(conflicts_app, name="conflicts")
 app.add_typer(import_app, name="import")
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
+app.add_typer(themes_app, name="themes")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(drive_app, name="drive")
 app.add_typer(schema_app, name="schema")
@@ -1567,7 +1570,7 @@ def config_set(ctx: typer.Context, key: str, value: str) -> None:
             current.theme.colors,
             **{color_name: _coerce_config(getattr(current.theme.colors, color_name), value)},
         )
-        updated = replace(current, theme=replace(current.theme, colors=colors))
+        updated = replace(current, theme=replace(current.theme, colors=colors, preset=None))
         save(updated, state.runtime.paths.config_file)
         state.runtime.__dict__.pop("config", None)
         _emit(
@@ -1593,6 +1596,53 @@ def config_set(ctx: typer.Context, key: str, value: str) -> None:
         {"key": key, "value": getattr(updated_section, field)},
         human=lambda row: f"{row['key']}={row['value']}",
     )
+
+
+# Themes
+@themes_app.command("list")
+def themes_list(ctx: typer.Context) -> None:
+    """List the 30 built-in Ghostty-derived visual presets."""
+    _emit(
+        ctx,
+        presets(),
+        fields=("rank", "name", "family", "profile"),
+        human=lambda item: f"{item.rank:>2}  {item.name}  ·  {item.family} ({item.profile})",
+    )
+
+
+@themes_app.command("show")
+def themes_show(ctx: typer.Context, name: str) -> None:
+    """Show all semantic token values in one built-in preset."""
+    _emit(ctx, preset(name))
+
+
+@themes_app.command("apply")
+def themes_apply(
+    ctx: typer.Context,
+    name: str | None = typer.Argument(None),
+    file: Path | None = typer.Option(  # noqa: B008
+        None, "--file", help="Strict standalone Theme JSON file."
+    ),
+) -> None:
+    """Apply a bundled preset, or every visual setting from a custom theme file."""
+    if (name is None) == (file is None):
+        raise ValueError("provide exactly one preset NAME or --file PATH")
+    state = _state(ctx)
+    source: dict[str, object]
+    if file is not None:
+        theme = load_custom_theme(file)
+        source = {"kind": "custom", "path": str(file)}
+    else:
+        selected = preset(cast(str, name))
+        theme = apply_preset(state.runtime.config.theme, selected.name)
+        source = {
+            "kind": "builtin",
+            "rank": selected.rank,
+            "name": selected.name,
+            "upstream_name": selected.upstream_name,
+        }
+    updated = state.runtime.update_theme(theme)
+    _emit(ctx, {"source": source, "theme": updated.theme})
 
 
 @schema_app.command("list")

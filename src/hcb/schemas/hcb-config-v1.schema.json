@@ -41,6 +41,7 @@
       "additionalProperties": false,
       "properties": {
         "profile": { "enum": ["terminal", "dark", "light"] },
+        "preset": { "type": ["string", "null"], "minLength": 1 },
         "density": { "enum": ["compact", "comfortable"] },
         "borders": { "enum": ["ascii", "unicode"] },
         "focus": { "enum": ["ascii", "underline", "reverse"] },
