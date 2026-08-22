@@ -7,7 +7,7 @@ from pathlib import Path
 
 from textual.widgets import Input, ListView, Static
 
-from hcb.config import Config, Theme, save
+from hcb.config import Config, Theme, ThemeColors, save
 from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
@@ -175,7 +175,6 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
         app.screen.query_one("#onboard-account", Input).value = "offline"
         app.screen.query_one("#onboard-email", Input).value = "offline@example.test"
         app.screen.query_one("#onboard-timezone", Input).value = "Asia/Singapore"
-        app.screen.query_one("#onboard-theme", Input).value = "mono"
         app.screen.query_one("#onboard-reminders", Input).value = "false"
         await pilot.click("#onboard-offline")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
@@ -222,7 +221,7 @@ def test_onboarding_connect_waits_for_explicit_confirmation(tmp_path: Path) -> N
 
 def test_no_color_forces_mono_ascii_and_disables_mouse(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
-    save(Config(theme=Theme(name="light", borders="unicode", mouse=True)), paths.config_file)
+    save(Config(theme=Theme(profile="light", borders="unicode", mouse=True)), paths.config_file)
     app = HcbApp(Runtime(paths, environ={"NO_COLOR": "1"}))
 
     async def assertions(_: object) -> None:
