@@ -17,7 +17,7 @@ but does not replace, the automated suite or the live Google procedure.
    temporary directory and start `hcb`.
 2. Confirm first-run setup says Google is optional until an explicit connection,
    asks for an optional local credential `.env` path, account, IANA timezone,
-   theme, and reminders. Do not enter OAuth values into TOML or the repository.
+   and reminders. Do not enter OAuth values into `config.json` or the repository.
 3. Save an offline account, create a task list, task, calendar, and event using the
    CLI, then restart the TUI with the network disabled. Confirm cached rows appear.
 4. Switch Tasks, Notes, Agenda, Day, Week, and Month. Exercise create, edit,
@@ -30,7 +30,7 @@ but does not replace, the automated suite or the live Google procedure.
    restore, selection must remain stable, and long titles must visibly truncate or
    remain scroll-reachable.
 2. Repeat with CJK text and emoji in selected titles.
-3. Run with `NO_COLOR=1` and with the mono theme. Status must remain understandable
+3. Run with `NO_COLOR=1` and with the terminal profile. Status must remain understandable
    without color, borders must be ASCII, and mouse use must be optional.
 4. Pipe JSON and TSV output to files. No full-screen TUI or ANSI sequence may open
    in a pipe. TSV rows must retain a fixed column count.
@@ -44,6 +44,9 @@ but does not replace, the automated suite or the live Google procedure.
    local absolute paths.
 3. Disconnect and confirm cache remains. Run the separately confirmed reset command
    and confirm account cache and credentials are removed.
+4. Run `hcb config init`, edit a semantic color in `config.json`, and confirm the
+   running TUI reloads it. Then introduce an unknown token and confirm the TUI keeps
+   the previous appearance while reporting the local configuration error.
 
 ## Automated scale check
 

@@ -308,9 +308,21 @@ def test_config_commands_and_account_environment(
         storage.upsert_account(Account("second", "second@example.com"))
     runner = CliRunner()
     invoke(runner, ["config", "init"])
+    assert paths.config_file.name == "config.json"
     invoke(runner, ["config", "set", "preferences.week_starts_on", "6"])
+    invoke(runner, ["config", "set", "theme.colors.focus", "cyan"])
     shown = invoke(runner, ["--json", "config", "show"])
     assert json_data(shown, "config.show")["preferences"]["week_starts_on"] == 6
+    assert (
+        json_data(invoke(runner, ["--json", "config", "schema"]), "config.schema")["$schema"]
+        == "https://json-schema.org/draft/2020-12/schema"
+    )
+    assert (
+        json_data(invoke(runner, ["--json", "config", "show"]), "config.show")["theme"]["colors"][
+            "focus"
+        ]
+        == "cyan"
+    )
     assert invoke(runner, ["task-lists", "create", "Second"]).exit_code == 0
     with Storage(paths.database_file) as storage:
         assert len(storage.list_task_lists("second")) == 1

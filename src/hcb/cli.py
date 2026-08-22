@@ -17,7 +17,8 @@ import typer
 from typer import _click as click
 
 from .application import SearchResult
-from .config import ConfigError, load, save, schema as config_schema
+from .config import ConfigError, load, save
+from .config import schema as config_schema
 from .errors import ExitCode, HcbError
 from .import_export import (
     ImportedEvent,

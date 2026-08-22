@@ -2,8 +2,14 @@
 
 HCB stores its configuration, SQLite database, and runtime cache in
 platform-appropriate directories selected by `platformdirs`. Run
-`hcb config path` to locate `config.toml`; the database is `hcb.sqlite3` in the
+`hcb config path` to locate strict JSON `config.json`; the database is `hcb.sqlite3` in the
 corresponding user data directory.
+
+`config.json` is the sole configuration format. It rejects malformed JSON,
+duplicate keys, unknown fields, invalid types, and invalid semantic color tokens.
+Run `hcb config init` to write a complete document and `hcb config schema` to
+inspect its bundled Draft 2020-12 schema. Valid visual token changes are applied
+to the running TUI; invalid edits retain the last valid appearance.
 
 SQLite contains account metadata without credentials, Google Tasks and
 Calendar mirrors, local settings, search data, sync checkpoints, pending

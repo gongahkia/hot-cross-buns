@@ -233,6 +233,42 @@ def test_no_color_forces_mono_ascii_and_disables_mouse(tmp_path: Path) -> None:
     app_test(app, assertions)
 
 
+def test_visual_config_live_reloads_and_invalid_edits_keep_last_theme(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    app = HcbApp(runtime)
+    notifications: list[str] = []
+
+    async def assertions(pilot: object) -> None:
+        original_theme = app.theme
+        original_notify = app.notify
+
+        def record_notification(message: object, **kwargs: object) -> None:
+            notifications.append(str(message))
+            original_notify(message, **kwargs)
+
+        app.notify = record_notification  # type: ignore[method-assign]
+        save(
+            Config(
+                theme=Theme(colors=ThemeColors(focus="cyan", border="yellow", accent="magenta"))
+            ),
+            runtime.paths.config_file,
+        )
+        await asyncio.sleep(0.7)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.theme != original_theme
+        assert runtime.config.theme.colors.focus == "cyan"
+        current_theme = app.theme
+
+        runtime.paths.config_file.write_text('{"theme":{"colors":{"focus":"bad"}}}')
+        await asyncio.sleep(0.7)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.theme == current_theme
+        assert runtime.config.theme.colors.focus == "cyan"
+        assert any("config.json not applied" in message for message in notifications)
+
+    app_test(app, assertions)
+
+
 def test_event_modal_create_edit_rsvp_and_delete(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     database = runtime.paths.database_file

@@ -129,7 +129,7 @@ Legend in the **TUI** column uses the four labels. Evidence is abbreviated: **W*
 | User-supplied Google Cloud project; Tasks + Calendar APIs enabled | W onboarding, N README, D PRD | **Retain** |
 | Desktop OAuth client ID + PKCE loopback; optional local client secret | google-sync spec | **Retain** (replaces web GIS) |
 | Encrypted refresh token in owner-only account file; encryption key in OS credential store | google-sync spec | **Retain** |
-| Tokens never in SQLite, TOML, logs, diagnostics, or URLs; encrypted only in the owner-only account credential file | google-sync spec + diagnostics tests | **Retain** |
+| Tokens never in SQLite, `config.json`, logs, diagnostics, or URLs; encrypted only in the owner-only account credential file | google-sync spec + diagnostics tests | **Retain** |
 | OpenID subject partitions local data | W `localStore` + tests | **Retain** |
 | Connect / reconnect / disconnect; disconnect does not have to wipe cache without confirmation | W Settings, N | **Retain** |
 | Destructive clear-local-data requires confirmation | W, local-data spec | **Retain** |

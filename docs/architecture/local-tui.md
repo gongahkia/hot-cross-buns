@@ -16,7 +16,7 @@ OAuth uses a Desktop client and a temporary loopback callback with PKCE. The
 client ID and optional secret live in an owner-only per-account `.env` file.
 The refresh token is encrypted in that same file; only its per-file encryption
 key is held by the operating-system credential store. Tokens must not be
-written to SQLite, TOML, command output, logs, or diagnostics. Drive access is
+written to SQLite, `config.json`, command output, logs, or diagnostics. Drive access is
 requested only for user-initiated metadata searches.
 
 ## Layers
@@ -70,6 +70,9 @@ commands support JSON, avoid decoration, and use stable non-zero exit codes.
 The renderer honors `NO_COLOR`, `TERM=dumb`, narrow terminals, Unicode width,
 and an ASCII line-art fallback. Every core TUI operation has a non-TUI command.
 
-Themes and keymaps use semantic names rather than widget-specific colors.
-Built-in dark, light, and monochrome themes can be overridden in validated
-TOML without changing synchronization or domain behavior.
+Themes and keymaps use semantic names rather than widget-specific colors. The
+sole configuration file is strict JSON `config.json`; its complete semantic token
+set covers background, surfaces, panels, controls, text, borders, focus,
+selection, and status colors. The default terminal profile uses terminal-default
+colors, ASCII borders, and outline focus. Valid visual edits reload while the TUI
+is running; nonvisual preferences and key bindings apply on the next start.

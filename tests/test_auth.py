@@ -130,7 +130,6 @@ def test_diagnostics_config_and_sqlite_dump_never_contain_credentials(
         account_id="account",
         email="redacted@example.test",
         time_zone="UTC",
-        theme="mono",
         reminders_enabled=False,
     )
     runtime.token_store_for("account").set("account", refresh_token)

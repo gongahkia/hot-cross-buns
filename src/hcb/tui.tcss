@@ -184,7 +184,15 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #settings-dialog {
-    height: 38;
+    height: 26;
+}
+
+.settings-pair {
+    height: 3;
+}
+
+.settings-pair Input {
+    width: 1fr;
 }
 
 #settings-colors-label {
@@ -193,7 +201,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #settings-colors {
-    height: 10;
+    height: 4;
 }
 
 #rsvp-dialog {

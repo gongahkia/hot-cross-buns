@@ -48,7 +48,7 @@ hcb sync
 hcb
 ```
 
-The file is never read from the repository or configuration TOML. On first
+The file is never read from the repository or `config.json`. On first
 connection HCB adds an encrypted refresh-token value to that same file; its
 per-file encryption key remains in the operating-system keyring. HCB rejects a
 credential file that group or other users can read or write. Do not commit it.
@@ -69,6 +69,7 @@ hcb search "report"
 hcb --json tasks list
 hcb schema list
 hcb schema show events.instances
+hcb config schema
 hcb export --format json --output hcb-export.json
 hcb doctor
 ```
@@ -89,6 +90,11 @@ HCB bundles its Draft 2020-12 contract in the installed package. Use
 to print a self-contained schema for one command. The schema is intended for
 shell and program integrations; the human and TSV output formats are separate
 interfaces.
+
+`hcb config init` writes the complete strict JSON configuration to the path from
+`hcb config path`. `hcb config schema` prints its Draft 2020-12 schema. The TUI
+uses its semantic theme tokens and reloads valid visual changes from that file;
+invalid edits leave the active appearance in place and report an error.
 
 ## Privacy and local data
 

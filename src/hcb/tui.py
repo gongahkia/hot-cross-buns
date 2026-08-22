@@ -630,28 +630,35 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         values = self.hcb.settings_values()
         with Vertical(id="settings-dialog"):
             yield Label("Settings", id="dialog-title")
-            yield Input(
-                value=values["profile"],
-                placeholder="terminal/dark/light",
-                id="setting-profile",
-            )
-            yield Input(
-                value=values["density"],
-                placeholder="compact/comfortable",
-                id="setting-density",
-            )
-            yield Input(value=values["borders"], placeholder="unicode/ascii", id="setting-borders")
-            yield Input(
-                value=values["focus"],
-                placeholder="ascii/underline/reverse",
-                id="setting-focus",
-            )
-            yield Input(value=values["mouse"], placeholder="true/false", id="setting-mouse")
-            yield Input(
-                value=values["week_starts_on"],
-                placeholder="Week starts on: 0-6",
-                id="setting-week",
-            )
+            with Horizontal(classes="settings-pair"):
+                yield Input(
+                    value=values["profile"],
+                    placeholder="terminal/dark/light",
+                    id="setting-profile",
+                )
+                yield Input(
+                    value=values["density"],
+                    placeholder="compact/comfortable",
+                    id="setting-density",
+                )
+            with Horizontal(classes="settings-pair"):
+                yield Input(
+                    value=values["borders"],
+                    placeholder="unicode/ascii",
+                    id="setting-borders",
+                )
+                yield Input(
+                    value=values["focus"],
+                    placeholder="ascii/underline/reverse",
+                    id="setting-focus",
+                )
+            with Horizontal(classes="settings-pair"):
+                yield Input(value=values["mouse"], placeholder="true/false", id="setting-mouse")
+                yield Input(
+                    value=values["week_starts_on"],
+                    placeholder="Week starts on: 0-6",
+                    id="setting-week",
+                )
             yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
             yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
