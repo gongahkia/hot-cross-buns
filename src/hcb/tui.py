@@ -1310,7 +1310,7 @@ class HcbApp(App[None]):
         self.density = config.theme.density
         self.border_style = "ascii" if forced_terminal else config.theme.borders
         self.focus_style = "ascii" if forced_terminal else config.theme.focus
-        self.mouse_enabled = config.theme.mouse and not forced_terminal
+        self.mouse_enabled = config.theme.mouse
 
     def _apply_visual_config(self, config: Config) -> None:
         self._set_visual_state(config)
@@ -1870,9 +1870,21 @@ class HcbApp(App[None]):
     def _month_text(self) -> Text:
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
         value = cal.formatmonth(self.selected_date.year, self.selected_date.month, w=2, l=1)
-        if self.border_style == "ascii":
-            return Text(value)
-        return Text(value.replace(" ", " "))
+        if self.border_style != "ascii":
+            value = value.replace(" ", " ")
+        text = Text(value)
+        weeks = calendar.Calendar(self.runtime.config.preferences.week_starts_on).monthdayscalendar(
+            self.selected_date.year, self.selected_date.month
+        )
+        for week_index, week in enumerate(weeks):
+            if self.selected_date.day not in week:
+                continue
+            weekday = week.index(self.selected_date.day)
+            line_start = sum(len(line) + 1 for line in value.splitlines()[: week_index + 2])
+            cell_start = line_start + (weekday * 3)
+            text.stylize(Style(bold=True, reverse=True), cell_start, cell_start + 2)
+            break
+        return text
 
     def _mini_month_date_at(self, x: int, y: int) -> date | None:
         """Map a mini-month content coordinate to its visible calendar day."""

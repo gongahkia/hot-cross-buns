@@ -931,6 +931,36 @@ def test_mini_month_click_selects_a_day_without_rebuilding_resources(tmp_path: P
     app_test(app, assertions)
 
 
+def test_mini_month_visibly_marks_the_selected_day(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 23))
+
+    async def assertions(pilot: object) -> None:
+        text = app.query_one("#mini-month", Static).content
+        assert isinstance(text, Text)
+        assert any(
+            text.plain[span.start : span.end] == "23"
+            and span.style == Style(bold=True, reverse=True)
+            for span in text.spans
+        )
+
+    app_test(app, assertions)
+
+
+def test_mini_month_click_works_when_no_color_is_requested(tmp_path: Path) -> None:
+    app = HcbApp(
+        seeded_runtime(tmp_path, environ={"NO_COLOR": "1"}),
+        selected_date=date(2026, 8, 23),
+    )
+
+    async def assertions(pilot: object) -> None:
+        assert app.mouse_enabled
+        await pilot.click("#mini-month", offset=(1, 3))  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.selected_date == date(2026, 8, 3)
+
+    app_test(app, assertions)
+
+
 def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     original_storage = runtime.storage
