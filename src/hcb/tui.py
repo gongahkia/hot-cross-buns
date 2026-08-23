@@ -387,11 +387,21 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                     yield Input(placeholder="Account email", id="onboard-email")
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Time zone")
-                    yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
+                    yield Select(
+                        TIME_ZONE_OPTIONS,
+                        allow_blank=False,
+                        prompt="Time zone",
+                        value="UTC",
+                        id="onboard-timezone",
+                    )
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Reminders")
-                    yield Input(
-                        value="true", placeholder="Reminders: true/false", id="onboard-reminders"
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        allow_blank=False,
+                        prompt="Reminders",
+                        value="true",
+                        id="onboard-reminders",
                     )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save offline", id="onboard-offline")
@@ -408,11 +418,17 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                 "env_file": self.query_one("#onboard-env-file", Input).value.strip(),
                 "account_id": self.query_one("#onboard-account", Input).value.strip(),
                 "email": self.query_one("#onboard-email", Input).value.strip(),
-                "time_zone": self.query_one("#onboard-timezone", Input).value.strip(),
-                "reminders": self.query_one("#onboard-reminders", Input).value.strip(),
+                "time_zone": self._selected_value("#onboard-timezone", "a time zone"),
+                "reminders": self._selected_value("#onboard-reminders", "a reminder setting"),
                 "connect": str(event.button.id == "onboard-connect").lower(),
             }
         )
+
+    def _selected_value(self, selector: str, label: str) -> str:
+        value = self.query_one(selector, Select).value
+        if not isinstance(value, str):
+            raise ValueError(f"select {label}")
+        return value
 
 
 class ScheduleScreen(ModalScreen[None]):
@@ -818,32 +834,48 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         with Vertical(id="settings-dialog"):
             yield Label("Settings", id="dialog-title")
             with Horizontal(classes="settings-pair"):
-                yield Input(
+                yield Select(
+                    PROFILE_OPTIONS,
+                    allow_blank=False,
+                    prompt="Profile",
                     value=values["profile"],
-                    placeholder="terminal/dark/light",
                     id="setting-profile",
                 )
-                yield Input(
+                yield Select(
+                    DENSITY_OPTIONS,
+                    allow_blank=False,
+                    prompt="Density",
                     value=values["density"],
-                    placeholder="compact/comfortable",
                     id="setting-density",
                 )
             with Horizontal(classes="settings-pair"):
-                yield Input(
+                yield Select(
+                    BORDER_OPTIONS,
+                    allow_blank=False,
+                    prompt="Border style",
                     value=values["borders"],
-                    placeholder="unicode/ascii",
                     id="setting-borders",
                 )
-                yield Input(
+                yield Select(
+                    FOCUS_OPTIONS,
+                    allow_blank=False,
+                    prompt="Focus style",
                     value=values["focus"],
-                    placeholder="ascii/underline/reverse",
                     id="setting-focus",
                 )
             with Horizontal(classes="settings-pair"):
-                yield Input(value=values["mouse"], placeholder="true/false", id="setting-mouse")
-                yield Input(
+                yield Select(
+                    BOOLEAN_OPTIONS,
+                    allow_blank=False,
+                    prompt="Mouse support",
+                    value=values["mouse"],
+                    id="setting-mouse",
+                )
+                yield Select(
+                    WEEK_START_OPTIONS,
+                    allow_blank=False,
+                    prompt="Week starts on",
                     value=values["week_starts_on"],
-                    placeholder="Week starts on: 0-6",
                     id="setting-week",
                 )
             with Horizontal(classes="settings-pair"):
@@ -879,12 +911,12 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
             return
         self.dismiss(
             {
-                "profile": self.query_one("#setting-profile", Input).value.strip(),
-                "density": self.query_one("#setting-density", Input).value.strip(),
-                "borders": self.query_one("#setting-borders", Input).value.strip(),
-                "focus": self.query_one("#setting-focus", Input).value.strip(),
-                "mouse": self.query_one("#setting-mouse", Input).value.strip(),
-                "week_starts_on": self.query_one("#setting-week", Input).value.strip(),
+                "profile": self._selected_value("#setting-profile", "a profile"),
+                "density": self._selected_value("#setting-density", "a density"),
+                "borders": self._selected_value("#setting-borders", "a border style"),
+                "focus": self._selected_value("#setting-focus", "a focus style"),
+                "mouse": self._selected_value("#setting-mouse", "a mouse setting"),
+                "week_starts_on": self._selected_value("#setting-week", "a week start day"),
                 "editor": self.query_one("#setting-editor", Input).value.strip(),
                 "external_editor": self.query_one("#setting-external-editor", Input).value.strip(),
                 "loader": self._selected_loader(),
@@ -893,9 +925,12 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         )
 
     def _selected_loader(self) -> str:
-        value = self.query_one("#setting-loader", Select).value
+        return self._selected_value("#setting-loader", "a loading indicator")
+
+    def _selected_value(self, selector: str, label: str) -> str:
+        value = self.query_one(selector, Select).value
         if not isinstance(value, str):  # allow_blank=False makes this defensive only.
-            raise ValueError("choose a loading indicator")
+            raise ValueError(f"select {label}")
         return value
 
 

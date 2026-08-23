@@ -223,7 +223,8 @@ Input.-invalid, TextArea.-invalid {
     color: $text-muted;
 }
 
-.onboarding-field Input {
+.onboarding-field Input,
+.onboarding-field Select {
     width: 1fr;
 }
 

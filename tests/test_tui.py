@@ -347,6 +347,8 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
             "Time zone",
             "Reminders",
         ]
+        assert app.screen.query_one("#onboard-timezone", Select).value == "UTC"
+        assert app.screen.query_one("#onboard-reminders", Select).value == "true"
         assert app.screen.query_one("#onboard-offline", Button).display
         assert app.screen.query_one("#onboard-connect", Button).display
         state = str(app.query_one("#sync-state", Static).render())
@@ -366,8 +368,8 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
         assert isinstance(app.screen, OnboardingScreen)
         app.screen.query_one("#onboard-account", Input).value = "offline"
         app.screen.query_one("#onboard-email", Input).value = "offline@example.test"
-        app.screen.query_one("#onboard-timezone", Input).value = "Asia/Singapore"
-        app.screen.query_one("#onboard-reminders", Input).value = "false"
+        app.screen.query_one("#onboard-timezone", Select).value = "Asia/Singapore"
+        app.screen.query_one("#onboard-reminders", Select).value = "false"
         await pilot.click("#onboard-offline")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.account_id == "offline"
@@ -526,9 +528,18 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
         await pilot.press("escape")  # type: ignore[attr-defined]
         await activate_palette(pilot, app, "Settings")
         assert isinstance(app.screen, SettingsScreen)
-        app.screen.query_one("#setting-density", Input).value = "compact"
-        app.screen.query_one("#setting-borders", Input).value = "ascii"
-        app.screen.query_one("#setting-mouse", Input).value = "false"
+        for selector in (
+            "#setting-profile",
+            "#setting-density",
+            "#setting-borders",
+            "#setting-focus",
+            "#setting-mouse",
+            "#setting-week",
+        ):
+            assert isinstance(app.screen.query_one(selector), Select)
+        app.screen.query_one("#setting-density", Select).value = "compact"
+        app.screen.query_one("#setting-borders", Select).value = "ascii"
+        app.screen.query_one("#setting-mouse", Select).value = "false"
         app.screen.query_one("#setting-editor", Input).value = "hx"
         app.screen.query_one("#setting-external-editor", Input).value = "ctrl+o"
         app.screen.query_one("#setting-loader", Select).value = "emoji.weather"
