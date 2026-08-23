@@ -28,6 +28,7 @@ from hcb.storage import Storage
 from hcb.tui import (
     PALETTE_COMMANDS,
     CalendarScreen,
+    ConfirmScreen,
     ConflictScreen,
     EditorScreen,
     EntityRow,
@@ -176,6 +177,27 @@ def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) ->
     app_test(app, assertions)
 
 
+def test_day_surface_includes_timed_events_ending_on_the_selected_day(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Evening climb",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 17, 30, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 20, 30, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        app.action_surface("Day")
+        await pilot.pause()  # type: ignore[attr-defined]
+        content = app.query_one("#content", ListView)
+        assert event.id in {row.item_id for row in content.query(EntityRow)}
+
+    app_test(app, assertions)
+
+
 def test_links_in_workspace_text_open_only_safe_web_urls(tmp_path: Path) -> None:
     url = "https://example.test/guide"
     linked = linkify_urls(f"Read {url}.")
@@ -260,6 +282,20 @@ def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) 
         app.query_one("#resources", ListView).focus()
         await pilot.pause()  # type: ignore[attr-defined]
         assert rows[1].has_class("hcb-selected")
+
+    app_test(app, assertions)
+
+
+def test_topbar_uses_present_date_while_surface_uses_selected_date(tmp_path: Path) -> None:
+    selected_date = date(2001, 1, 2)
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=selected_date)
+
+    async def assertions(_: object) -> None:
+        topbar = str(app.query_one("#topbar", Static).render())
+        surface_title = str(app.query_one("#surface-title", Static).render())
+        assert app.format_date(app._present_date()) in topbar
+        assert app.format_date(selected_date) not in topbar
+        assert "Tuesday, 02 January 2001" in surface_title
 
     app_test(app, assertions)
 
@@ -604,6 +640,34 @@ def test_task_create_edit_complete_and_delete(tmp_path: Path) -> None:
         assert all(task.title != "Created in TUI" for task in storage.list_tasks("work"))
 
 
+def test_task_editor_uses_due_date_selects_and_can_delete_one_task(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    app = HcbApp(runtime)
+
+    async def actions(pilot: object) -> None:
+        await pilot.press("e")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EditorScreen)
+        assert app.screen.query_one("#delete", Button).display
+        app.screen.query_one("#editor-due-day", Select).value = "31"
+        app.screen.query_one("#editor-due-month", Select).value = "12"
+        app.screen.query_one("#editor-due-year", Select).value = "2027"
+        await pilot.click("#save")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.cache.tasks[0].due == date(2027, 12, 31)
+
+        await pilot.press("e")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        await pilot.click("#delete")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ConfirmScreen)
+        await pilot.press("y")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not app.cache.tasks
+
+    app_test(app, actions)
+
+
 def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
     app = HcbApp(Runtime(paths, environ={}))
@@ -767,7 +831,12 @@ def test_event_modal_create_edit_rsvp_and_delete(tmp_path: Path) -> None:
         await pilot.click("#accepted")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.cache.pending >= 2
-        await pilot.press("d")  # type: ignore[attr-defined]
+        await pilot.press("e")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.query_one("#event-delete", Button).display
+        await pilot.click("#event-delete")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ConfirmScreen)
         await pilot.press("y")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
 

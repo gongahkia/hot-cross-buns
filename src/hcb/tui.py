@@ -111,6 +111,8 @@ DATE_TIME_FORMAT_OPTIONS = (
     ("ISO 8601 (with seconds)", "iso"),
 )
 TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(available_timezones()))
+DUE_DAY_OPTIONS = tuple((f"{day:02d}", str(day)) for day in range(1, 32))
+DUE_MONTH_OPTIONS = tuple((calendar.month_name[month], str(month)) for month in range(1, 13))
 
 _EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
 _EMOJI_SUGGESTION_LIMIT = 8
@@ -313,12 +315,22 @@ class EditorScreen(ModalScreen[dict[str, str] | None]):
         notes: str = "",
         due: str = "",
         jump: bool = False,
+        deletable: bool = False,
     ) -> None:
         super().__init__()
         self.initial_title = title
         self.initial_notes = notes
         self.initial_due = due
         self.jump = jump
+        self.deletable = deletable
+        self._initial_due_date = date.fromisoformat(due) if due else None
+
+    def _due_year_options(self) -> tuple[tuple[str, str], ...]:
+        current_year = date.today().year
+        initial_year = self._initial_due_date.year if self._initial_due_date else current_year
+        start = min(current_year - 5, initial_year)
+        end = max(current_year + 10, initial_year)
+        return tuple((str(year), str(year)) for year in range(start, end + 1))
 
     def compose(self) -> ComposeResult:
         with Vertical(id="editor-dialog"):
@@ -329,14 +341,42 @@ class EditorScreen(ModalScreen[dict[str, str] | None]):
                 id="editor-title",
             )
             if not self.jump:
-                yield Input(
-                    value=self.initial_due,
-                    placeholder="Due date (YYYY-MM-DD)",
-                    id="editor-due",
-                )
+                with Horizontal(classes="due-date-fields"):
+                    yield Select(
+                        DUE_DAY_OPTIONS,
+                        prompt="Day",
+                        value=(
+                            str(self._initial_due_date.day)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-day",
+                    )
+                    yield Select(
+                        DUE_MONTH_OPTIONS,
+                        prompt="Month",
+                        value=(
+                            str(self._initial_due_date.month)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-month",
+                    )
+                    yield Select(
+                        self._due_year_options(),
+                        prompt="Year",
+                        value=(
+                            str(self._initial_due_date.year)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-year",
+                    )
                 yield TerminalTextArea(self.initial_notes, id="editor-notes")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Go" if self.jump else "Save", variant="primary", id="save")
+                if self.deletable:
+                    yield Button("Delete", variant="error", id="delete")
                 yield Button("Cancel", id="cancel")
 
     def on_mount(self) -> None:
@@ -350,16 +390,40 @@ class EditorScreen(ModalScreen[dict[str, str] | None]):
             return {"date": self.query_one("#editor-title", Input).value.strip()}
         return {
             "title": self.query_one("#editor-title", Input).value.strip(),
-            "due": self.query_one("#editor-due", Input).value.strip(),
+            "due": self._due_value(),
             "notes": self.query_one("#editor-notes", TextArea).text,
         }
 
+    def _due_value(self) -> str:
+        day_value = self.query_one("#editor-due-day", Select).value
+        month_value = self.query_one("#editor-due-month", Select).value
+        year_value = self.query_one("#editor-due-year", Select).value
+        values = (day_value, month_value, year_value)
+        if all(value is Select.NULL for value in values):
+            return ""
+        if not all(isinstance(value, str) for value in values):
+            raise ValueError("Choose a day, month, and year, or clear all due-date fields")
+        assert isinstance(day_value, str)
+        assert isinstance(month_value, str)
+        assert isinstance(year_value, str)
+        day, month, year = int(day_value), int(month_value), int(year_value)
+        return date(year, month, day).isoformat()
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if self.jump or event.input.id == "editor-due":
+        if self.jump:
             self.dismiss(self._result())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(self._result() if event.button.id == "save" else None)
+        if event.button.id == "delete":
+            self.dismiss({"action": "delete"})
+            return
+        if event.button.id != "save":
+            self.dismiss(None)
+            return
+        try:
+            self.dismiss(self._result())
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
 
 
 class ConfirmScreen(ModalScreen[bool]):
@@ -819,6 +883,8 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
             yield TerminalTextArea(event.description or "" if event else "", id="event-description")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="event-save")
+                if event is not None:
+                    yield Button("Delete", variant="error", id="event-delete")
                 yield Button("Cancel", id="event-cancel")
 
     def on_mount(self) -> None:
@@ -828,6 +894,9 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         self.dismiss(None)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "event-delete":
+            self.dismiss({"action": "delete"})
+            return
         if event.button.id != "event-save":
             self.dismiss(None)
             return
@@ -1236,7 +1305,7 @@ class HcbApp(App[None]):
         self.runtime = runtime or Runtime()
         self.explicit_account = account
         self.account_id: str | None = None
-        self.selected_date = selected_date or date.today()
+        self.selected_date = selected_date or self._present_date()
         self.surface = "Tasks"
         self.cache = CachedWorkspace()
         self.selected: tuple[str, str] | None = None
@@ -1824,7 +1893,7 @@ class HcbApp(App[None]):
     def _render_chrome(self, *, refresh_resources: bool = True) -> None:
         """Refresh chrome; only rebuild resources when workspace data has changed."""
         self.query_one("#topbar", Static).update(
-            f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self.selected_date)}"
+            f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self._present_date())}"
             "  ·  / command palette"
         )
         self._render_mini_month()
@@ -1905,6 +1974,10 @@ class HcbApp(App[None]):
         self.selected_date = value
         self._render_chrome(refresh_resources=False)
         self._render_surface()
+
+    def _present_date(self) -> date:
+        """Return today's date in the user's configured timezone."""
+        return datetime.now(ZoneInfo(self.runtime.config.preferences.time_zone)).date()
 
     def format_date(self, value: date) -> str:
         """Render a date using the selected user-facing display style."""
@@ -2039,10 +2112,6 @@ class HcbApp(App[None]):
             )
             row.set_class(selected, "hcb-selected")
 
-    @staticmethod
-    def _event_day(value: date | datetime) -> date:
-        return value.date() if isinstance(value, datetime) else value
-
     def _event_surface_range(self) -> tuple[date, date]:
         day = self.selected_date
         if self.surface == "Day":
@@ -2101,7 +2170,7 @@ class HcbApp(App[None]):
         events = tuple(
             event
             for event in self.cache.events
-            if self._event_day(event.end.value) > start and self._event_day(event.start.value) < end
+            if self._event_overlaps_range(event, start, end)
             if (
                 not self.resource_filter
                 or self.resource_filter[0] != "calendar"
@@ -2115,6 +2184,21 @@ class HcbApp(App[None]):
             event
             for event in events
             if event.derived or not event.recurrence or event.remote_id not in expanded_series
+        )
+
+    def _event_overlaps_range(self, event: Event, start: date, end: date) -> bool:
+        """Use instant boundaries for timed events and exclusive ones for all-day dates."""
+        event_start = event.start.value
+        event_end = event.end.value
+        if not isinstance(event_start, datetime) and not isinstance(event_end, datetime):
+            return event_end > start and event_start < end
+        if not isinstance(event_start, datetime) or not isinstance(event_end, datetime):
+            return False
+        zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+        range_start = datetime.combine(start, datetime.min.time(), tzinfo=zone)
+        range_end = datetime.combine(end, datetime.min.time(), tzinfo=zone)
+        return (
+            self._local_time(event_end) > range_start and self._local_time(event_start) < range_end
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -2393,13 +2477,19 @@ class HcbApp(App[None]):
                 title=task.title,
                 notes=task.notes or "",
                 due=task.due.isoformat() if task.due else "",
+                deletable=True,
             ),
             self._edit_result,
         )
 
     def _edit_result(self, result: dict[str, str] | None) -> None:
         task = self._selected_task()
-        if not result or not result["title"] or task is None or self.account_id is None:
+        if not result or task is None or self.account_id is None:
+            return
+        if result.get("action") == "delete":
+            self._confirm_editor_delete("task", task.id)
+            return
+        if not result["title"]:
             return
         try:
             self.runtime.application.update_task(
@@ -2449,7 +2539,12 @@ class HcbApp(App[None]):
 
     def _event_edit_result(self, result: dict[str, str] | None) -> None:
         event = self._selected_event()
-        if not result or not result["title"] or event is None or self.account_id is None:
+        if not result or event is None or self.account_id is None:
+            return
+        if result.get("action") == "delete":
+            self._confirm_editor_delete("event", event.id)
+            return
+        if not result["title"]:
             return
         try:
             if result["calendar"] != event.calendar_id:
@@ -2471,6 +2566,32 @@ class HcbApp(App[None]):
             return
         self.refresh_workspace()
         self.notify("Event updated")
+
+    def _confirm_editor_delete(self, kind: Literal["task", "event"], item_id: str) -> None:
+        self.push_screen(
+            ConfirmScreen(
+                f"Delete this {kind}?",
+                confirm_label="Delete",
+                confirm_variant="error",
+            ),
+            lambda confirmed: self._delete_editor_item(kind, item_id, confirmed),
+        )
+
+    def _delete_editor_item(
+        self, kind: Literal["task", "event"], item_id: str, confirmed: bool | None
+    ) -> None:
+        if not confirmed or self.account_id is None:
+            return
+        if kind == "task":
+            self.runtime.application.delete_tasks(self.account_id, [item_id])
+            self.marked.discard(item_id)
+        else:
+            self.runtime.application.delete_events(self.account_id, [item_id])
+            self.marked_events.discard(item_id)
+        if self.selected == (kind, item_id):
+            self.selected = None
+        self.refresh_workspace()
+        self.notify(f"{kind.title()} deleted")
 
     def action_rsvp(self) -> None:
         if self._selected_event() is None and not self.marked_events:

@@ -305,6 +305,14 @@ Input.-invalid, TextArea.-invalid {
     width: 1fr;
 }
 
+.due-date-fields {
+    height: 3;
+}
+
+.due-date-fields Select {
+    width: 1fr;
+}
+
 #loading-dialog {
     width: 38;
     min-height: 7;
