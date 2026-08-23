@@ -1310,7 +1310,7 @@ class HcbApp(App[None]):
         self.density = config.theme.density
         self.border_style = "ascii" if forced_terminal else config.theme.borders
         self.focus_style = "ascii" if forced_terminal else config.theme.focus
-        self.mouse_enabled = config.theme.mouse
+        self.mouse_enabled = config.theme.mouse and not forced_terminal
 
     def _apply_visual_config(self, config: Config) -> None:
         self._set_visual_state(config)

@@ -915,7 +915,9 @@ def test_ascii_chrome_keeps_a_visible_title_and_bottom_divider(tmp_path: Path) -
 
 
 def test_mini_month_click_selects_a_day_without_rebuilding_resources(tmp_path: Path) -> None:
-    app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 23))
+    runtime = seeded_runtime(tmp_path)
+    save(Config(theme=Theme(borders="unicode")), runtime.paths.config_file)
+    app = HcbApp(runtime, selected_date=date(2026, 8, 23))
 
     async def assertions(pilot: object) -> None:
         resources = app.query_one("#resources", ListView)
@@ -942,21 +944,6 @@ def test_mini_month_visibly_marks_the_selected_day(tmp_path: Path) -> None:
             and span.style == Style(bold=True, reverse=True)
             for span in text.spans
         )
-
-    app_test(app, assertions)
-
-
-def test_mini_month_click_works_when_no_color_is_requested(tmp_path: Path) -> None:
-    app = HcbApp(
-        seeded_runtime(tmp_path, environ={"NO_COLOR": "1"}),
-        selected_date=date(2026, 8, 23),
-    )
-
-    async def assertions(pilot: object) -> None:
-        assert app.mouse_enabled
-        await pilot.click("#mini-month", offset=(1, 3))  # type: ignore[attr-defined]
-        await pilot.pause()  # type: ignore[attr-defined]
-        assert app.selected_date == date(2026, 8, 3)
 
     app_test(app, assertions)
 
