@@ -180,7 +180,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
-#rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog {
+#rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog {
     width: 70;
     max-width: 90%;
     height: auto;
@@ -199,15 +199,26 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #settings-dialog {
-    height: 26;
+    height: 29;
 }
 
 .settings-pair {
     height: 3;
 }
 
-.settings-pair Input {
+.settings-pair Input, .settings-pair Select {
     width: 1fr;
+}
+
+#loading-dialog {
+    width: 38;
+    height: 7;
+    align: center middle;
+}
+
+#rattles-loader, #loading-message {
+    width: 1fr;
+    content-align: center middle;
 }
 
 #settings-colors-label {

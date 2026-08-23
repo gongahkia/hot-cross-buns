@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from time import monotonic
 from typing import ClassVar, cast
 
 from rich.color import Color as RichColor
@@ -27,6 +28,7 @@ from textual.widgets import (
     Label,
     ListItem,
     ListView,
+    Select,
     Static,
     TextArea,
 )
@@ -38,6 +40,7 @@ from .application import ResponseStatus, SearchResult, TimeSlot
 from .config import Config, ConfigError, ThemeColors, load
 from .errors import AuthenticationRequired, HcbError
 from .import_export import ImportPreview
+from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
 from .runtime import Runtime
 
@@ -112,6 +115,40 @@ class TerminalTextArea(TextArea):
         if value in {"transparent", "ansi_default"}:
             return "default"
         return Color.parse(value).rich_color
+
+
+class RattlesLoader(Static):
+    """Animate the configured Rattles preset using its source timing."""
+
+    def __init__(self) -> None:
+        super().__init__(id="rattles-loader")
+        self._started_at = monotonic()
+
+    def on_mount(self) -> None:
+        self._render_frame()
+        self.set_interval(0.05, self._render_frame)
+
+    def _render_frame(self) -> None:
+        app = cast(HcbApp, self.app)
+        preset = loader_preset(app.runtime.config.theme.loader)
+        self.update(preset.frame_at(monotonic() - self._started_at))
+
+
+class LoadingScreen(ModalScreen[None]):
+    """Non-dismissable progress surface shared by each remote TUI operation."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="loading-dialog"):
+            yield RattlesLoader()
+            yield Label(self.message, id="loading-message")
+
+    def set_message(self, message: str) -> None:
+        self.message = message
+        self.query_one("#loading-message", Label).update(message)
 
 
 class EditorScreen(ModalScreen[dict[str, str] | None]):
@@ -669,6 +706,13 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     placeholder="Week starts on: 0-6",
                     id="setting-week",
                 )
+            yield Select(
+                [(name, name) for name in LOADER_NAMES],
+                allow_blank=False,
+                prompt="Loading indicator",
+                value=values["loader"],
+                id="setting-loader",
+            )
             yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
             yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
@@ -690,9 +734,16 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "focus": self.query_one("#setting-focus", Input).value.strip(),
                 "mouse": self.query_one("#setting-mouse", Input).value.strip(),
                 "week_starts_on": self.query_one("#setting-week", Input).value.strip(),
+                "loader": self._selected_loader(),
                 "colors": self.query_one("#settings-colors", TextArea).text.strip(),
             }
         )
+
+    def _selected_loader(self) -> str:
+        value = self.query_one("#setting-loader", Select).value
+        if not isinstance(value, str):  # allow_blank=False makes this defensive only.
+            raise ValueError("choose a loading indicator")
+        return value
 
 
 class FindTimeScreen(ModalScreen[None]):
@@ -750,31 +801,43 @@ class FindTimeScreen(ModalScreen[None]):
         if event.button.id == "find-local":
             self.calculate()
         elif event.button.id == "find-remote":
-            try:
-                result = self.hcb.remote_freebusy(
-                    self.query_one("#find-date", Input).value,
-                    self.query_one("#find-start", Input).value,
-                    self.query_one("#find-end", Input).value,
-                )
-            except (ValueError, HcbError) as exc:
-                self.hcb.notify(str(exc), severity="error")
-                return
-            calendars = result.get("calendars", {})
-            busy = 0
-            if isinstance(calendars, dict):
-                for value in calendars.values():
-                    if isinstance(value, dict):
-                        intervals = value.get("busy", ())
-                        if isinstance(intervals, (list, tuple)):
-                            busy += len(intervals)
-            self.query_one("#find-disclosure", Static).update(
-                f"Explicit Google free/busy complete · {busy} busy interval(s)"
+            self.hcb.start_loading("Querying Google free/busy")
+            self.query_remote_freebusy(
+                self.query_one("#find-date", Input).value,
+                self.query_one("#find-start", Input).value,
+                self.query_one("#find-end", Input).value,
             )
         else:
             self.dismiss(None)
 
     def action_close(self) -> None:
         self.dismiss(None)
+
+    @work(thread=True, exclusive=True, group="freebusy")
+    def query_remote_freebusy(self, raw_day: str, raw_start: str, raw_end: str) -> None:
+        try:
+            result = self.hcb.remote_freebusy(raw_day, raw_start, raw_end)
+        except Exception as exc:  # Google failures must not tear down the workspace.
+            self.app.call_from_thread(
+                self.hcb.notify, f"Google free/busy failed: {exc}", severity="error"
+            )
+        else:
+            self.app.call_from_thread(self._show_remote_freebusy, result)
+        finally:
+            self.app.call_from_thread(self.hcb.stop_loading)
+
+    def _show_remote_freebusy(self, result: dict[str, object]) -> None:
+        calendars = result.get("calendars", {})
+        busy = 0
+        if isinstance(calendars, dict):
+            for value in calendars.values():
+                if isinstance(value, dict):
+                    intervals = value.get("busy", ())
+                    if isinstance(intervals, (list, tuple)):
+                        busy += len(intervals)
+        self.query_one("#find-disclosure", Static).update(
+            f"Explicit Google free/busy complete · {busy} busy interval(s)"
+        )
 
 
 class PaletteScreen(ModalScreen[tuple[str, str] | None]):
@@ -883,7 +946,8 @@ class HcbApp(App[None]):
         self.resource_filter: tuple[str, str] | None = None
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
-        self.syncing = False
+        self.loading_operation: str | None = None
+        self._loading_screen: LoadingScreen | None = None
         self._theme_revision = 0
         self._observed_config_marker: tuple[int, int] | None = None
         self._set_visual_state(self.runtime.config)
@@ -1050,12 +1114,21 @@ class HcbApp(App[None]):
         if not confirmed or self.account_id is None:
             self.notify("Google connection skipped; local cache remains available")
             return
+        self.start_loading("Connecting to Google")
+        self.connect_google()
+
+    @work(thread=True, exclusive=True, group="auth")
+    def connect_google(self) -> None:
+        if self.account_id is None:
+            return
         try:
             self.runtime.authenticator(self.account_id).connect(self.account_id)
         except Exception as exc:
-            self.notify(f"Google connection failed: {exc}", severity="error")
-            return
-        self.notify("Google connected; sync remains explicit")
+            self.call_from_thread(self.notify, f"Google connection failed: {exc}", severity="error")
+        else:
+            self.call_from_thread(self.notify, "Google connected; sync remains explicit")
+        finally:
+            self.call_from_thread(self.stop_loading)
 
     def _bind_configured_keys(self) -> None:
         keys = self.runtime.config.keys
@@ -1139,12 +1212,31 @@ class HcbApp(App[None]):
             resources.append(EntityRow(f"☐ {title}", kind="task-list", item_id=item_id))
         for item_id, title, _ in self.cache.calendars:
             resources.append(EntityRow(f"□ {title}", kind="calendar", item_id=item_id))
-        state = "syncing…" if self.syncing else "offline cache"
+        state = self.loading_operation or "offline cache"
         cache_badge = self._instance_cache_badge()
         suffix = f" · {cache_badge}" if cache_badge else ""
         self.query_one("#sync-state", Static).update(
             f"{state} · {self.cache.pending} pending{suffix}"
         )
+
+    def start_loading(self, operation: str) -> None:
+        """Show the selected loader while one explicit remote operation is in progress."""
+        self.loading_operation = operation
+        if self._loading_screen is None:
+            self._loading_screen = LoadingScreen(operation)
+            self.push_screen(self._loading_screen)
+        else:
+            self._loading_screen.set_message(operation)
+        self._render_chrome()
+
+    def stop_loading(self) -> None:
+        """Remove the active loading surface after its worker has completed."""
+        screen = self._loading_screen
+        self.loading_operation = None
+        self._loading_screen = None
+        if screen is not None and self.screen is screen:
+            self.pop_screen()
+        self._render_chrome()
 
     def _month_text(self) -> Text:
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
@@ -1723,6 +1815,7 @@ class HcbApp(App[None]):
             "borders": config.theme.borders,
             "focus": config.theme.focus,
             "mouse": str(config.theme.mouse).lower(),
+            "loader": config.theme.loader,
             "week_starts_on": str(config.preferences.week_starts_on),
             "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
         }
@@ -1746,6 +1839,9 @@ class HcbApp(App[None]):
                 raise ValueError("focus must be ascii, underline, or reverse")
             if mouse_raw not in {"true", "false"}:
                 raise ValueError("mouse must be true or false")
+            loader = result["loader"]
+            if loader not in LOADER_PRESETS:
+                raise ValueError("choose a bundled Rattles loading indicator")
             colors_data = json.loads(result["colors"])
             if not isinstance(colors_data, dict):
                 raise ValueError("semantic colors must be a JSON object")
@@ -1756,6 +1852,7 @@ class HcbApp(App[None]):
                 borders=borders,
                 focus=focus,
                 mouse=mouse_raw == "true",
+                loader=loader,
                 week_starts_on=int(result["week_starts_on"]),
                 colors=colors,
             )
@@ -1826,8 +1923,7 @@ class HcbApp(App[None]):
                 severity="warning",
             )
             return
-        self.syncing = True
-        self.call_from_thread(self._render_chrome)
+        self.call_from_thread(self.start_loading, "Syncing with Google")
         try:
             result = self.runtime.sync_engine(self.account_id).sync(self.account_id)
         except HcbError as exc:
@@ -1840,7 +1936,7 @@ class HcbApp(App[None]):
                 f"Sync complete: {result.pulled} pulled, {result.pushed} pushed",
             )
         finally:
-            self.syncing = False
+            self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
 
     @work(thread=True, exclusive=True, group="sync")
@@ -1864,6 +1960,7 @@ class HcbApp(App[None]):
             return
         start = datetime.combine(self.selected_date, datetime.min.time(), UTC)
         duration = {"Day": 1, "Week": 7, "Month": 35}.get(self.surface, 14)
+        self.call_from_thread(self.start_loading, "Refreshing recurring instances")
         try:
             events = self.runtime.sync_engine(self.account_id).refresh_occurrences(
                 self.account_id, calendar_id, start, start + timedelta(days=duration)
@@ -1873,6 +1970,7 @@ class HcbApp(App[None]):
         else:
             self.call_from_thread(self.notify, f"Refreshed {len(events)} recurring instances")
         finally:
+            self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
 
 
