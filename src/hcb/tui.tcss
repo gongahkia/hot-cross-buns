@@ -200,6 +200,11 @@ Input.-invalid, TextArea.-invalid {
     text-style: reverse;
 }
 
+/* This is the item shown in the Inspector, even after focus moves elsewhere. */
+#content > ListItem.hcb-selected {
+    text-style: bold reverse;
+}
+
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
 #onboarding-dialog, #google-setup-dialog {

@@ -27,6 +27,7 @@ from hcb.tui import (
     CalendarScreen,
     ConflictScreen,
     EditorScreen,
+    EntityRow,
     EventEditorScreen,
     FindTimeScreen,
     GoogleSetupScreen,
@@ -167,6 +168,30 @@ def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) ->
         labels = [str(row.query_one("Label").render()) for row in rows]
         assert any("26 May 2026, 7:23pm" in label for label in labels), labels
         assert all("T11:23:00" not in label for label in labels)
+
+    app_test(app, assertions)
+
+
+def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    runtime.application.create_task("work", task_list.id, "Second task")
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        content = app.query_one("#content", ListView)
+        rows = tuple(content.query(EntityRow))
+
+        content.index = 1
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        assert app.selected == ("task", rows[1].item_id)
+        assert rows[1].has_class("hcb-selected")
+        assert not rows[0].has_class("hcb-selected")
+
+        app.query_one("#resources", ListView).focus()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert rows[1].has_class("hcb-selected")
 
     app_test(app, assertions)
 

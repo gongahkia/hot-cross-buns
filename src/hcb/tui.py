@@ -1961,6 +1961,13 @@ class HcbApp(App[None]):
                 )
             )
         content.index = 0
+        self._update_content_selection()
+
+    def _update_content_selection(self) -> None:
+        """Keep the row that powers the Inspector visibly selected."""
+        content = self.query_one("#content", ListView)
+        for row in content.query(EntityRow):
+            row.set_class((row.kind, row.item_id) == self.selected, "hcb-selected")
 
     @staticmethod
     def _event_day(value: date | datetime) -> date:
@@ -2049,6 +2056,7 @@ class HcbApp(App[None]):
             return
         row = event.item
         self.selected = (row.kind, row.item_id)
+        self._update_content_selection()
         self._render_inspector()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
