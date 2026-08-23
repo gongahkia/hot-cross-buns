@@ -1359,7 +1359,7 @@ class HcbApp(App[None]):
             return
         self.runtime.__dict__["config"] = config
         self._apply_visual_config(config)
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
         self._render_surface()
         self._render_inspector()
         self.notify("config.json settings reloaded")
@@ -1637,7 +1637,17 @@ class HcbApp(App[None]):
             event.stop()
             event.prevent_default()
             return
-        if event.button != 1 or not isinstance(event.widget, Static):
+        if event.button != 1:
+            return
+        if event.widget.id == "mini-month":
+            offset = event.get_content_offset(event.widget)
+            selected_date = self._mini_month_date_at(offset.x, offset.y) if offset else None
+            if selected_date is not None:
+                self._select_date(selected_date)
+            event.stop()
+            event.prevent_default()
+            return
+        if not isinstance(event.widget, Static):
             return
         targets: dict[str, Literal["sidebar", "inspector"]] = {
             "sidebar-resize": "sidebar",
@@ -1762,7 +1772,7 @@ class HcbApp(App[None]):
         )
 
     def _render_chrome(self, *, refresh_resources: bool = True) -> None:
-        """Refresh stable chrome without resetting the resource selection during loading."""
+        """Refresh chrome; only rebuild resources when workspace data has changed."""
         self.query_one("#topbar", Static).update(
             f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self.selected_date)}"
             "  ·  / command palette"
@@ -1815,6 +1825,26 @@ class HcbApp(App[None]):
         if self.border_style == "ascii":
             return Text(value)
         return Text(value.replace(" ", " "))
+
+    def _mini_month_date_at(self, x: int, y: int) -> date | None:
+        """Map a mini-month content coordinate to its visible calendar day."""
+        week = y - 2  # month title and weekday labels precede the day rows
+        weekday = x // 3  # TextCalendar uses two columns plus one separator per day
+        weeks = calendar.Calendar(self.runtime.config.preferences.week_starts_on).monthdayscalendar(
+            self.selected_date.year, self.selected_date.month
+        )
+        if not (0 <= week < len(weeks) and 0 <= weekday < 7):
+            return None
+        day = weeks[week][weekday]
+        return date(self.selected_date.year, self.selected_date.month, day) if day else None
+
+    def _select_date(self, value: date) -> None:
+        """Apply a local date navigation without disturbing the resource list."""
+        if value == self.selected_date:
+            return
+        self.selected_date = value
+        self._render_chrome(refresh_resources=False)
+        self._render_surface()
 
     def format_date(self, value: date) -> str:
         """Render a date using the selected user-facing display style."""
@@ -2025,7 +2055,7 @@ class HcbApp(App[None]):
             return
         row = event.item
         self.resource_filter = None if row.kind == "resource-all" else (row.kind, row.item_id)
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
         self._render_surface()
 
     def _render_inspector(self) -> None:
@@ -2112,7 +2142,7 @@ class HcbApp(App[None]):
             return
         self.surface = name
         self.selected = None
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
         self._render_surface()
 
     def action_palette(self) -> None:
@@ -2154,21 +2184,21 @@ class HcbApp(App[None]):
             self.surface = "Tasks" if kind == "task" else "Agenda"
             self.resource_filter = None
             self.selected = (kind, value)
-            self._render_chrome()
+            self._render_chrome(refresh_resources=False)
             self._render_surface()
             self._render_inspector()
         elif kind == "task-list":
             self.surface = "Tasks"
             self.resource_filter = ("task-list", value)
             self.selected = None
-            self._render_chrome()
+            self._render_chrome(refresh_resources=False)
             self._render_surface()
             self._render_inspector()
         elif kind == "calendar":
             self.surface = "Agenda"
             self.resource_filter = ("calendar", value)
             self.selected = None
-            self._render_chrome()
+            self._render_chrome(refresh_resources=False)
             self._render_surface()
             self._render_inspector()
         elif kind == "drive":
@@ -2542,7 +2572,7 @@ class HcbApp(App[None]):
             return
         self._apply_visual_config(config)
         self._observed_config_marker = self._config_marker()
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
         self._render_surface()
         self._render_inspector()
         self.notify("Settings saved and applied")
@@ -2637,8 +2667,7 @@ class HcbApp(App[None]):
         except ValueError:
             self.notify("Use a date in YYYY-MM-DD format", severity="error")
             return
-        self._render_chrome()
-        self._render_surface()
+        self._select_date(date.fromisoformat(result["date"]))
 
     @work(thread=True, exclusive=True, group="sync")
     def action_sync(self) -> None:

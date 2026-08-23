@@ -789,6 +789,25 @@ def test_ascii_chrome_keeps_a_visible_title_and_bottom_divider(tmp_path: Path) -
     app_test(app, assertions)
 
 
+def test_mini_month_click_selects_a_day_without_rebuilding_resources(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 23))
+
+    async def assertions(pilot: object) -> None:
+        resources = app.query_one("#resources", ListView)
+        before = tuple(resources.children)
+
+        await pilot.click("#mini-month", offset=(1, 3))  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        assert app.selected_date == date(2026, 8, 3)
+        assert tuple(resources.children) == before
+        assert "Monday, 3 August 2026" in str(
+            app.query_one("#surface-title", Static).render()
+        )
+
+    app_test(app, assertions)
+
+
 def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     original_storage = runtime.storage
