@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from textual.widgets import Input, ListView, Static
+from textual.widgets import Input, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
 from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime
@@ -20,6 +20,7 @@ from hcb.tui import (
     FindTimeScreen,
     HcbApp,
     ImportScreen,
+    LoadingScreen,
     OnboardingScreen,
     PaletteScreen,
     RsvpScreen,
@@ -355,6 +356,7 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
         app.screen.query_one("#setting-density", Input).value = "compact"
         app.screen.query_one("#setting-borders", Input).value = "ascii"
         app.screen.query_one("#setting-mouse", Input).value = "false"
+        app.screen.query_one("#setting-loader", Select).value = "emoji.weather"
         await pilot.click("#settings-save")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("density-compact", "ascii", "no-mouse")
@@ -365,6 +367,23 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.theme.density == "compact"
     assert saved.theme.borders == "ascii"
     assert not saved.theme.mouse
+    assert saved.theme.loader == "emoji.weather"
+
+
+def test_loading_surface_uses_configured_rattles_loader(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+
+    async def assertions(pilot: object) -> None:
+        app.start_loading("Syncing with Google")
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, LoadingScreen)
+        loader = app.screen.query_one("#rattles-loader", Static)
+        assert str(loader.render()).strip() in {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+        app.stop_loading()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen is app
+
+    app_test(app, assertions)
 
 
 def test_palette_find_time_uses_only_cached_events(tmp_path: Path) -> None:

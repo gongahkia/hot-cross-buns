@@ -48,7 +48,7 @@ class LoaderPreset:
         return self.frames[frame_index % len(self.frames)]
 
 
-_RAW_PRESETS = r'''
+_RAW_PRESETS = r"""
 [
   [
     "arrows.arrow",
@@ -1032,7 +1032,7 @@ _RAW_PRESETS = r'''
     ]
   ]
 ]
-'''
+"""
 
 
 def _presets() -> dict[str, LoaderPreset]:

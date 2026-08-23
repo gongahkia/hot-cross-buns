@@ -113,7 +113,11 @@ hcb themes apply --file my-theme.json
 ```
 
 The file accepts every visual input field: `profile`, `density`, `borders`,
-`focus`, `mouse`, and all 14 semantic `colors` tokens.
+`focus`, `mouse`, `loader`, and all 14 semantic `colors` tokens. The Settings
+dialog includes a searchable picker for all 56 [Rattles](https://github.com/vyfor/rattles)
+loaders; `hcb config set theme.loader braille.dots` selects one noninteractively.
+The selected loader is used consistently while HCB is connecting, syncing,
+refreshing recurring instances, or querying Google free/busy.
 `hcb config set theme.colors.TOKEN VALUE` is useful for a single override and
 clears the preset provenance label. The complete Ghostty source inventory,
 selection method, and pinned upstream revision are in
