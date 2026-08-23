@@ -19,6 +19,7 @@ from .models import Account
 from .paths import AppPaths
 from .storage import Storage
 from .sync import SyncEngine
+from .themes import apply_preset
 
 GatewayFactory = Callable[[Any], GoogleGateway]
 DEFAULT_CREDENTIAL_FILE = Path("~/.config/hcb/personal.env")
@@ -109,6 +110,7 @@ class Runtime:
         email: str,
         time_zone: str,
         reminders_enabled: bool,
+        theme_preset: str | None = None,
     ) -> None:
         if not account_id.strip() or any(character.isspace() for character in account_id):
             raise ValueError("account identifier is required and cannot contain whitespace")
@@ -123,6 +125,9 @@ class Runtime:
         updated = replace(
             self.config,
             preferences=preferences,
+            theme=(
+                apply_preset(self.config.theme, theme_preset) if theme_preset else self.config.theme
+            ),
         )
         # Constructing Preferences validates the IANA zone before any state is written.
         save(updated, self.paths.config_file)

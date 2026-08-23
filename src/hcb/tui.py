@@ -48,12 +48,14 @@ from textual.widgets import (
 
 from .application import ResponseStatus, SearchResult, TimeSlot
 from .config import Config, ConfigError, ThemeColors, load
+from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, DriveFile, Event, EventDateTime, Task, TaskStatus
 from .runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from .storage import Storage
+from .themes import presets
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 MIN_SIDEBAR_WIDTH = 22
@@ -638,15 +640,91 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(event.button.id == "confirm")
 
 
+class OnboardingDiscovery(Static):
+    """Animate the local-only setup checks before presenting the editable form."""
+
+    def __init__(self, environment: LocalEnvironment) -> None:
+        super().__init__(id="onboarding-discovery-message", markup=False)
+        self.environment = environment
+        self.stage = 0
+
+    def on_mount(self) -> None:
+        self._render_stage()
+        self.set_interval(0.6, self._advance)
+
+    def _advance(self) -> None:
+        if self.stage < 3:
+            self.stage += 1
+            self._render_stage()
+
+    def _render_stage(self) -> None:
+        messages = (
+            "Checking this device locally…",
+            f"Device detected · {self.environment.device_label}",
+            f"Terminal detected · {self.environment.terminal_label}",
+            self._theme_message(),
+        )
+        self.update(messages[self.stage])
+
+    def _theme_message(self) -> str:
+        if self.environment.suggested_preset:
+            return (
+                f"Theme detected · {self.environment.terminal_theme} "
+                f"→ HCB {self.environment.suggested_preset}"
+            )
+        if self.environment.terminal_theme:
+            return f"Theme detected · {self.environment.terminal_theme} (no HCB preset match)"
+        return "No named terminal theme found · keeping this optional"
+
+
 class OnboardingScreen(ModalScreen[dict[str, str] | None]):
     """First-run setup; no network action occurs inside this screen."""
 
     BINDINGS = [Binding("escape", "offline", "Stay offline")]
 
+    def __init__(self, environment: LocalEnvironment) -> None:
+        super().__init__()
+        self.environment = environment
+
+    def _theme_options(self) -> tuple[tuple[str, str], ...]:
+        detected = self.environment.suggested_preset
+        options: list[tuple[str, str]] = [("Keep terminal defaults", "terminal")]
+        if detected:
+            options.append((f"Use detected {detected}", detected))
+        options.extend((item.name, item.name) for item in presets() if item.name != detected)
+        return tuple(options)
+
+    def _appearance_message(self) -> str:
+        theme = self.environment.terminal_theme
+        if self.environment.suggested_preset:
+            return (
+                f"Found {theme} in {self.environment.terminal_name}'s local configuration. "
+                f"Choose “Use detected {self.environment.suggested_preset}” below to save it "
+                "as HCB's default appearance."
+            )
+        if theme:
+            return (
+                f"Found {theme} in {self.environment.terminal_name}'s local configuration, "
+                "but HCB has no bundled palette with that name. Choose one below or keep "
+                "terminal defaults."
+            )
+        return (
+            "No named terminal color scheme was found in the standard local config locations. "
+            "Choose a palette below if you want, or keep terminal defaults."
+        )
+
     def compose(self) -> ComposeResult:
         with Vertical(id="onboarding-dialog"):
-            yield Label("First-run setup", id="dialog-title")
-            yield Static("Google is optional until you explicitly confirm connection.")
+            yield Label("Welcome to Hot Cross Buns", id="dialog-title")
+            with Horizontal(id="onboarding-discovery"):
+                yield RattlesLoader()
+                yield OnboardingDiscovery(self.environment)
+            yield Static(
+                "These checks are local only. HCB does not modify terminal settings or contact "
+                "Google during onboarding.",
+                id="onboarding-privacy",
+            )
+            yield Static(self._appearance_message(), id="onboarding-appearance", markup=False)
             with VerticalScroll(id="onboarding-fields"):
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Credential .env path")
@@ -679,6 +757,14 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                         value="true",
                         id="onboard-reminders",
                     )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Appearance")
+                    yield Select(
+                        self._theme_options(),
+                        allow_blank=False,
+                        value="terminal",
+                        id="onboard-theme",
+                    )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save offline", id="onboard-offline")
                 yield Button("Save and connect", variant="primary", id="onboard-connect")
@@ -696,6 +782,7 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                 "email": self.query_one("#onboard-email", Input).value.strip(),
                 "time_zone": self._selected_value("#onboard-timezone", "a time zone"),
                 "reminders": self._selected_value("#onboard-reminders", "a reminder setting"),
+                "theme_preset": self._selected_value("#onboard-theme", "an appearance"),
                 "connect": str(event.button.id == "onboard-connect").lower(),
             }
         )
@@ -1476,6 +1563,7 @@ class HcbApp(App[None]):
         editor_runner: EditorRunner | None = None,
         suspend: SuspendContext | None = None,
         url_opener: UrlOpener | None = None,
+        local_environment: LocalEnvironment | None = None,
     ) -> None:
         super().__init__()
         self.runtime = runtime or Runtime()
@@ -1507,6 +1595,7 @@ class HcbApp(App[None]):
         self._editor_runner = editor_runner or _run_editor
         self._editor_suspend = suspend or self.suspend
         self._url_opener = url_opener or _open_url
+        self.local_environment = local_environment
         self._set_visual_state(self.runtime.config)
 
     def compose(self) -> ComposeResult:
@@ -1554,7 +1643,7 @@ class HcbApp(App[None]):
         self._apply_column_widths()
         if self.account_id is None and not self.runtime.storage.list_accounts():
             self.call_after_refresh(
-                lambda: self.push_screen(OnboardingScreen(), self._onboarding_result)
+                lambda: self.push_screen(self._onboarding_screen(), self._onboarding_result)
             )
 
     def _set_visual_state(self, config: Config) -> None:
@@ -1657,7 +1746,7 @@ class HcbApp(App[None]):
         reminders = result["reminders"].casefold()
         if reminders not in {"true", "false"}:
             self.notify("Reminders must be true or false", severity="error")
-            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            self.push_screen(self._onboarding_screen(), self._onboarding_result)
             return
         try:
             self.runtime.save_onboarding(
@@ -1665,14 +1754,18 @@ class HcbApp(App[None]):
                 email=result["email"],
                 time_zone=result["time_zone"],
                 reminders_enabled=reminders == "true",
+                theme_preset=(
+                    None if result["theme_preset"] == "terminal" else result["theme_preset"]
+                ),
             )
         except ValueError as exc:
             self.notify(str(exc), severity="error")
-            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            self.push_screen(self._onboarding_screen(), self._onboarding_result)
             return
         self.account_id = result["account_id"]
         if result["env_file"]:
             self.runtime.credential_file_override = Path(result["env_file"]).expanduser()
+        self._apply_visual_config(self.runtime.config)
         self.refresh_workspace()
         if result["connect"] == "true":
             self.push_screen(
@@ -1684,6 +1777,11 @@ class HcbApp(App[None]):
             )
         else:
             self.notify("Offline account created; Google remains disconnected")
+
+    def _onboarding_screen(self) -> OnboardingScreen:
+        if self.local_environment is None:
+            self.local_environment = detect_local_environment(self.runtime.environ)
+        return OnboardingScreen(self.local_environment)
 
     def _onboarding_connect_confirmed(self, confirmed: bool | None) -> None:
         if not confirmed or self.account_id is None:
@@ -2560,7 +2658,7 @@ class HcbApp(App[None]):
         elif kind == "conflicts":
             self.push_screen(ConflictScreen(self))
         elif kind == "onboarding":
-            self.push_screen(OnboardingScreen(), self._onboarding_result)
+            self.push_screen(self._onboarding_screen(), self._onboarding_result)
         elif kind in {"task", "event"}:
             self.surface = "Tasks" if kind == "task" else "Agenda"
             self.resource_filter = None

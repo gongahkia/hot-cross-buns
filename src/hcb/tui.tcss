@@ -266,7 +266,29 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #onboarding-dialog {
-    height: 23;
+    height: 32;
+    max-height: 90%;
+}
+
+#onboarding-discovery {
+    height: 3;
+    padding: 0 1;
+    border: ascii $border;
+    background: $panel;
+}
+
+#onboarding-discovery #rattles-loader {
+    width: 12;
+    content-align: left middle;
+}
+
+#onboarding-discovery-message {
+    width: 1fr;
+    content-align: left middle;
+}
+
+#onboarding-privacy, #onboarding-appearance {
+    color: $text-muted;
 }
 
 #google-setup-dialog {

@@ -13,6 +13,7 @@ from textual.app import SuspendNotSupported
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
+from hcb.environment import LocalEnvironment
 from hcb.models import (
     Account,
     Conflict,
@@ -728,7 +729,16 @@ def test_task_editor_uses_due_date_selects_and_can_delete_one_task(tmp_path: Pat
 
 def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
-    app = HcbApp(Runtime(paths, environ={}))
+    app = HcbApp(
+        Runtime(paths, environ={}),
+        local_environment=LocalEnvironment(
+            "macOS",
+            "arm64",
+            "Ghostty",
+            terminal_theme="Rose Pine",
+            suggested_preset="Rose Pine",
+        ),
+    )
 
     async def assertions(pilot: object) -> None:
         assert app.account_id is None
@@ -743,9 +753,13 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
             "Account email",
             "Time zone",
             "Reminders",
+            "Appearance",
         ]
         assert app.screen.query_one("#onboard-timezone", Select).value == "UTC"
         assert app.screen.query_one("#onboard-reminders", Select).value == "true"
+        assert app.screen.query_one("#onboard-theme", Select).value == "terminal"
+        appearance = str(app.screen.query_one("#onboarding-appearance", Static).render())
+        assert "Use detected Rose Pine" in appearance
         assert app.screen.query_one("#onboard-offline", Button).display
         assert app.screen.query_one("#onboard-connect", Button).display
         state = str(app.query_one("#sync-state", Static).render())
@@ -767,6 +781,7 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
         app.screen.query_one("#onboard-email", Input).value = "offline@example.test"
         app.screen.query_one("#onboard-timezone", Select).value = "Asia/Singapore"
         app.screen.query_one("#onboard-reminders", Select).value = "false"
+        app.screen.query_one("#onboard-theme", Select).value = "Rose Pine"
         await pilot.click("#onboard-offline")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.account_id == "offline"
@@ -776,6 +791,7 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
     assert reopened.config.preferences.time_zone == "Asia/Singapore"
     assert "google_client_json" not in paths.config_file.read_text()
     assert not reopened.config.preferences.reminders_enabled
+    assert reopened.config.theme.preset == "Rose Pine"
     assert reopened.storage.get_account("offline") is not None
     reopened.close()
 

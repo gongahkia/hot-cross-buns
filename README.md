@@ -152,6 +152,14 @@ NAME` prints every semantic token, and `hcb themes apply NAME` writes it to
 preset, so `hcb themes 20` applies Rose Pine. The running TUI notices that edit
 and reloads it.
 
+On first-run onboarding, HCB identifies the local platform, architecture, and
+terminal, then checks the active terminal's standard local configuration paths
+for a named theme. Ghostty, Windows Terminal, WezTerm, and Kitty are currently
+supported. A matching bundled palette is offered as an explicit choice; **Keep
+terminal defaults** remains selected unless the user chooses otherwise. This
+read-only check never changes the terminal's configuration or connects to
+Google.
+
 For a fully custom appearance, apply a strict standalone theme JSON document:
 
 ```sh
