@@ -1,6 +1,6 @@
-"""Local, per-account Google OAuth credential files.
+"""Local Google OAuth credential files.
 
-Client identifiers are deliberately kept in a user-managed ``.env`` file.  A
+Client identifiers are deliberately kept in a user-managed ``.env`` file. A
 refresh token, when one is issued, is encrypted in that same file with a
 per-file Fernet key held by the operating-system keyring.
 """

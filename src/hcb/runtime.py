@@ -21,6 +21,7 @@ from .storage import Storage
 from .sync import SyncEngine
 
 GatewayFactory = Callable[[Any], GoogleGateway]
+DEFAULT_CREDENTIAL_FILE = Path("~/.config/hcb/personal.env")
 
 
 class Runtime:
@@ -64,11 +65,11 @@ class Runtime:
         return self._token_store or TokenStore()
 
     def credential_file(self, account_id: str) -> Path:
-        """Resolve one credential file per account, with explicit process overrides."""
+        """Resolve the default credential file, with explicit process overrides."""
         configured = self.credential_file_override or self.environ.get("HCB_ENV_FILE")
         if configured:
             return Path(configured).expanduser()
-        return self.paths.config_dir / "accounts" / f"{account_id}.env"
+        return DEFAULT_CREDENTIAL_FILE.expanduser()
 
     def token_store_for(self, account_id: str) -> EncryptedFileTokenStore:
         return EncryptedFileTokenStore(

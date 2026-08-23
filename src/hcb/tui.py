@@ -25,7 +25,7 @@ from textual._text_area_theme import TextAreaTheme
 from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.binding import Binding
 from textual.color import Color
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.theme import Theme as TextualTheme
 from textual.widgets import (
@@ -48,7 +48,7 @@ from .errors import AuthenticationRequired, HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
-from .runtime import Runtime
+from .runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from .storage import Storage
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
@@ -298,15 +298,23 @@ class ConfirmScreen(ModalScreen[bool]):
         Binding("n", "cancel", "Cancel"),
     ]
 
-    def __init__(self, message: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        confirm_label: str = "Confirm",
+        confirm_variant: str = "primary",
+    ) -> None:
         super().__init__()
         self.message = message
+        self.confirm_label = confirm_label
+        self.confirm_variant = confirm_variant
 
     def compose(self) -> ComposeResult:
         with Vertical(id="confirm-dialog"):
             yield Label(self.message, markup=False)
             with Horizontal(classes="dialog-buttons"):
-                yield Button("Delete", variant="error", id="confirm")
+                yield Button(self.confirm_label, variant=self.confirm_variant, id="confirm")
                 yield Button("Cancel", id="cancel")
 
     def action_confirm(self) -> None:
@@ -328,14 +336,28 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         with Vertical(id="onboarding-dialog"):
             yield Label("First-run setup", id="dialog-title")
             yield Static("Google is optional until you explicitly confirm connection.")
-            yield Input(
-                placeholder="Credential .env path (optional; default is per-account)",
-                id="onboard-env-file",
-            )
-            yield Input(placeholder="Local account identifier", id="onboard-account")
-            yield Input(placeholder="Account email", id="onboard-email")
-            yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
-            yield Input(value="true", placeholder="Reminders: true/false", id="onboard-reminders")
+            with VerticalScroll(id="onboarding-fields"):
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Credential .env path")
+                    yield Input(
+                        value=str(DEFAULT_CREDENTIAL_FILE),
+                        placeholder="Credential .env path",
+                        id="onboard-env-file",
+                    )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Local account identifier")
+                    yield Input(placeholder="Local account identifier", id="onboard-account")
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Account email")
+                    yield Input(placeholder="Account email", id="onboard-email")
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Time zone")
+                    yield Input(value="UTC", placeholder="IANA timezone", id="onboard-timezone")
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Reminders")
+                    yield Input(
+                        value="true", placeholder="Reminders: true/false", id="onboard-reminders"
+                    )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save offline", id="onboard-offline")
                 yield Button("Save and connect", variant="primary", id="onboard-connect")
@@ -391,7 +413,11 @@ class ScheduleScreen(ModalScreen[None]):
         try:
             if event.button.id == "schedule-remove":
                 self.app.push_screen(
-                    ConfirmScreen("Delete this task's active calendar block?"),
+                    ConfirmScreen(
+                        "Delete this task's active calendar block?",
+                        confirm_label="Delete",
+                        confirm_variant="error",
+                    ),
                     lambda confirmed: self._unschedule(task_id, confirmed),
                 )
                 return
@@ -498,7 +524,7 @@ class ImportScreen(ModalScreen[None]):
                 raise ValueError("preview the import before applying it")
             else:
                 self.app.push_screen(
-                    ConfirmScreen("Apply all accepted import rows atomically?"),
+                ConfirmScreen("Apply all accepted import rows atomically?"),
                     self._apply_confirmed,
                 )
         except (OSError, ValueError, HcbError) as exc:

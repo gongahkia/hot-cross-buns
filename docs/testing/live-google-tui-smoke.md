@@ -15,7 +15,7 @@ screenshots, or raw logs.
    client and add the disposable account as a test user when required.
 2. Create an owner-only account `.env` outside the repository with
    `HCB_GOOGLE_CLIENT_ID` and optional `HCB_GOOGLE_CLIENT_SECRET`; set
-   `HCB_ENV_FILE` to its path when not using HCB's default account path. Do not
+   `HCB_ENV_FILE` to its path when not using HCB's default personal path. Do not
    print or copy its contents.
 3. Use an isolated config/data/cache directory and OS credential store. Confirm the
    requested scopes are Tasks, Calendar, and Drive metadata read-only.

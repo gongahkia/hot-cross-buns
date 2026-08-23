@@ -8,7 +8,7 @@ from hcb.auth import GoogleAuthenticator, TokenStore
 from hcb.credentials import EncryptedFileTokenStore, load_client_config
 from hcb.models import Account
 from hcb.paths import AppPaths
-from hcb.runtime import Runtime
+from hcb.runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from hcb.storage import Storage
 
 
@@ -71,13 +71,32 @@ def test_disconnect_retains_cache_and_explicit_reset_removes_it(tmp_path: Path) 
 
 def test_runtime_disconnect_does_not_require_a_credential_file(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
-    runtime = Runtime(paths, environ={}, token_store=TokenStore(FakeKeyring()))
+    runtime = Runtime(
+        paths,
+        environ={},
+        token_store=TokenStore(FakeKeyring()),
+        credential_file=tmp_path / "personal.env",
+    )
     runtime.storage.upsert_account(Account("offline", "offline@example.test"))
     assert not runtime.disconnect("offline")
     assert runtime.storage.get_account("offline") is not None
     assert not runtime.disconnect("offline", reset_local_data=True)
     assert runtime.storage.get_account("offline") is None
     runtime.close()
+
+
+def test_runtime_defaults_to_the_personal_credential_file(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    runtime = Runtime(paths, environ={})
+    assert runtime.credential_file("any-account") == DEFAULT_CREDENTIAL_FILE.expanduser()
+    assert (
+        Runtime(paths, environ={"HCB_ENV_FILE": "~/alternate.env"}).credential_file("any-account")
+        == Path("~/alternate.env").expanduser()
+    )
+    assert (
+        Runtime(paths, credential_file=tmp_path / "override.env").credential_file("any-account")
+        == tmp_path / "override.env"
+    )
 
 
 def test_invalid_client_and_missing_credentials() -> None:
@@ -125,7 +144,7 @@ def test_diagnostics_config_and_sqlite_dump_never_contain_credentials(
         "HCB_GOOGLE_CLIENT_SECRET=not-a-real-secret\n"
     )
     os.chmod(credential_file, 0o600)
-    runtime = Runtime(paths, environ={}, token_store=tokens)
+    runtime = Runtime(paths, environ={}, token_store=tokens, credential_file=credential_file)
     runtime.save_onboarding(
         account_id="account",
         email="redacted@example.test",

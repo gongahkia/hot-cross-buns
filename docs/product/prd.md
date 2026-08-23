@@ -14,7 +14,7 @@ Textual workspace; subcommands expose the same operations for scripts.
   batch actions, import/export, and quick capture.
 - Calendar agenda and time-grid workflows, event mutation, recurrence
   round-tripping, reminders, invitations, free/busy, and saved search.
-- Desktop OAuth with user-supplied per-account `.env` credentials, encrypted
+- Desktop OAuth with user-supplied `.env` credentials, encrypted
   local refresh tokens, and an OS-keyring encryption key.
 - Stable JSON/TSV output, useful exit codes, and noninteractive parity for core
   TUI operations.

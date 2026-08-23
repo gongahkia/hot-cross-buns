@@ -5,8 +5,8 @@
 HCB uses a user-supplied Google OAuth **Desktop app** client, PKCE, and a
 temporary `127.0.0.1` callback. Each account reads `HCB_GOOGLE_CLIENT_ID` and
 an optional `HCB_GOOGLE_CLIENT_SECRET` from an owner-only local `.env` file.
-The default file is `accounts/ACCOUNT_ID.env` below HCB's configuration
-directory; `--env-file` and `HCB_ENV_FILE` are process-level overrides.
+The default file is `~/.config/hcb/personal.env`; `--env-file` and
+`HCB_ENV_FILE` are process-level overrides.
 Refresh tokens are encrypted in that file with a per-file Fernet key in the OS
 keyring; access tokens remain in memory.
 

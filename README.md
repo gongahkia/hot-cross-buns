@@ -2,8 +2,8 @@
 
 Hot Cross Buns (`hcb`) is a local-first terminal interface and scriptable CLI
 for Google Tasks and Google Calendar. It keeps an SQLite mirror on your device,
-queues offline changes, and keeps a per-account Google credential file on the
-local machine.
+queues offline changes, and keeps a local Google credential file on the local
+machine.
 
 ## Install
 
@@ -53,12 +53,12 @@ file.
 3. Configure the OAuth consent screen and add your Google account as a test user
    when the app is in testing mode.
 4. Create an OAuth client with application type **Desktop app**.
-5. Create an owner-only environment file for the account. HCB's default is
-   `accounts/<account>.env` below its platform configuration directory; pass
-   `--env-file` or set `HCB_ENV_FILE` to use another local path.
+5. Create HCB's owner-only default credential file at `~/.config/hcb/personal.env`.
+   Pass `--env-file` or set `HCB_ENV_FILE` to use another local path.
 
 ```sh
-credential_file="$HOME/hcb-personal.env"
+credential_file="$HOME/.config/hcb/personal.env"
+mkdir -p "${credential_file%/*}"
 $EDITOR "$credential_file"
 # HCB_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 # HCB_GOOGLE_CLIENT_SECRET=...  # optional for a Desktop client

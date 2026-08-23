@@ -66,10 +66,9 @@ Account selection uses `--account`, `HCB_ACCOUNT`, or
 `preferences.default_account_id`; a sole configured account is selected
 automatically. OAuth setup requires a local owner-only `.env` file containing
 `HCB_GOOGLE_CLIENT_ID` and, when supplied by Google, `HCB_GOOGLE_CLIENT_SECRET`.
-The default is `accounts/ACCOUNT_ID.env` below HCB's configuration directory;
-`--env-file PATH` and `HCB_ENV_FILE` override it for the process. The refresh
-token is encrypted in that file and its encryption key is stored in the OS
-keyring.
+The default is `~/.config/hcb/personal.env`; `--env-file PATH` and
+`HCB_ENV_FILE` override it for the process. The refresh token is encrypted in
+that file and its encryption key is stored in the OS keyring.
 
 `preferences.editor` stores the external editor command used by TUI text
 fields (default `nvim`), and `keys.external_editor` stores its shortcut

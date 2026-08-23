@@ -78,7 +78,7 @@ colors, ASCII borders, and outline focus. Valid visual edits reload while the TU
 is running; nonvisual preferences and key bindings apply on the next start.
 `preferences.editor` and `keys.external_editor` configure the text-field
 external-editor command and shortcut; `HCB_EDITOR` is a process-only override.
-The per-account `.env` remains restricted to OAuth credentials.
+The credential `.env` remains restricted to OAuth credentials.
 
 The `themes` CLI group applies one of 30 bundled Ghostty-derived palettes or a
 strict standalone JSON theme. Bundled palettes are projections from the

@@ -336,6 +336,9 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
     async def assertions(pilot: object) -> None:
         assert app.account_id is None
         assert isinstance(app.screen, OnboardingScreen)
+        assert (
+            app.screen.query_one("#onboard-env-file", Input).value == "~/.config/hcb/personal.env"
+        )
         state = str(app.query_one("#sync-state", Static).render())
         assert "no network activity" in state
         row = app.query_one("#content", ListView).children[0]
