@@ -88,6 +88,10 @@ class KeyBindings:
     complete: str = "space"
     external_editor: str = "ctrl+g"
 
+    def __post_init__(self) -> None:
+        if not self.external_editor.strip():
+            raise ValueError("external_editor must not be empty")
+
 
 @dataclass(frozen=True, slots=True)
 class Config:

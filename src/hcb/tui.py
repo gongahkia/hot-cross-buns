@@ -781,6 +781,17 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     placeholder="Week starts on: 0-6",
                     id="setting-week",
                 )
+            with Horizontal(classes="settings-pair"):
+                yield Input(
+                    value=values["editor"],
+                    placeholder="External editor command",
+                    id="setting-editor",
+                )
+                yield Input(
+                    value=values["external_editor"],
+                    placeholder="External editor shortcut",
+                    id="setting-external-editor",
+                )
             yield Select(
                 [(name, name) for name in LOADER_NAMES],
                 allow_blank=False,
@@ -809,6 +820,8 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "focus": self.query_one("#setting-focus", Input).value.strip(),
                 "mouse": self.query_one("#setting-mouse", Input).value.strip(),
                 "week_starts_on": self.query_one("#setting-week", Input).value.strip(),
+                "editor": self.query_one("#setting-editor", Input).value.strip(),
+                "external_editor": self.query_one("#setting-external-editor", Input).value.strip(),
                 "loader": self._selected_loader(),
                 "colors": self.query_one("#settings-colors", TextArea).text.strip(),
             }
@@ -2043,6 +2056,8 @@ class HcbApp(App[None]):
             "mouse": str(config.theme.mouse).lower(),
             "loader": config.theme.loader,
             "week_starts_on": str(config.preferences.week_starts_on),
+            "editor": config.preferences.editor,
+            "external_editor": config.keys.external_editor,
             "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
         }
 
@@ -2068,6 +2083,10 @@ class HcbApp(App[None]):
             loader = result["loader"]
             if loader not in LOADER_PRESETS:
                 raise ValueError("choose a bundled Rattles loading indicator")
+            if not result["editor"]:
+                raise ValueError("external editor command must not be empty")
+            if not result["external_editor"]:
+                raise ValueError("external editor shortcut must not be empty")
             colors_data = json.loads(result["colors"])
             if not isinstance(colors_data, dict):
                 raise ValueError("semantic colors must be a JSON object")
@@ -2080,6 +2099,8 @@ class HcbApp(App[None]):
                 mouse=mouse_raw == "true",
                 loader=loader,
                 week_starts_on=int(result["week_starts_on"]),
+                editor=result["editor"],
+                external_editor=result["external_editor"],
                 colors=colors,
             )
         except (TypeError, ValueError, json.JSONDecodeError) as exc:

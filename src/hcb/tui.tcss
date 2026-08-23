@@ -1,6 +1,7 @@
 Screen {
     background: $background;
     color: $foreground;
+    layers: base overlay;
 }
 
 #topbar {
@@ -199,7 +200,8 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #settings-dialog {
-    height: 29;
+    height: 32;
+    max-height: 90%;
 }
 
 .settings-pair {
@@ -228,6 +230,18 @@ Input.-invalid, TextArea.-invalid {
 
 #settings-colors {
     height: 4;
+}
+
+EmojiCompletion {
+    layer: overlay;
+    position: absolute;
+    offset: 2 1;
+    width: 32;
+    height: auto;
+    padding: 0 1;
+    border: ascii $primary;
+    background: $surface;
+    color: $foreground;
 }
 
 #rsvp-dialog {

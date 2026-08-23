@@ -92,7 +92,7 @@
         "edit": { "type": "string" },
         "delete": { "type": "string" },
         "complete": { "type": "string" },
-        "external_editor": { "type": "string" }
+        "external_editor": { "type": "string", "minLength": 1 }
       }
     }
   }
