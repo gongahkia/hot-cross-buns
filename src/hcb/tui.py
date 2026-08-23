@@ -4,19 +4,25 @@ from __future__ import annotations
 
 import calendar
 import json
+import re
+import shlex
+import subprocess
+import tempfile
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import ClassVar, cast
 
+from rich._emoji_codes import EMOJI as RICH_EMOJI
 from rich.color import Color as RichColor
 from rich.style import Style
 from rich.text import Text
 from textual import events, work
 from textual._text_area_theme import TextAreaTheme
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.binding import Binding
 from textual.color import Color
 from textual.containers import Horizontal, Vertical
@@ -61,12 +67,58 @@ PALETTE_COMMANDS = (
     ("First-run setup", "onboarding"),
 )
 
+_EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
+_EMOJI_SUGGESTION_LIMIT = 8
+_EMOJI_NAMES = tuple(sorted(RICH_EMOJI))
+
+
+def emoji_suggestions(text: str, cursor: int) -> tuple[int, tuple[tuple[str, str], ...]] | None:
+    """Return the active ``:emoji`` token and its Rich-backed prefix matches."""
+    match = _EMOJI_QUERY.search(text[: max(0, min(cursor, len(text)))])
+    if match is None:
+        return None
+    query = match.group(1).casefold()
+    candidates = tuple(
+        (name, RICH_EMOJI[name]) for name in _EMOJI_NAMES if name.casefold().startswith(query)
+    )[:_EMOJI_SUGGESTION_LIMIT]
+    return (match.start(), candidates) if candidates else None
+
+
+class EmojiCompletion(Static):
+    """A non-focus-stealing suggestion surface shared by text editors."""
+
+    def __init__(self) -> None:
+        super().__init__(id="emoji-completion", markup=False)
+        self.display = False
+
+    def set_candidates(self, candidates: tuple[tuple[str, str], ...], selected: int) -> None:
+        self.update(
+            "\n".join(
+                f"{'> ' if index == selected else '  '}:{name}: {emoji}"
+                for index, (name, emoji) in enumerate(candidates)
+            )
+        )
+        self.display = True
+
 
 class Input(TextualInput):
     """Keep a visible terminal-style caret in every single-line editor."""
 
     def on_mount(self) -> None:
         self.cursor_blink = False
+
+    async def _on_key(self, event: events.Key) -> None:
+        app = self.app
+        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+            return
+        await super()._on_key(event)
+        if isinstance(app, HcbApp):
+            app.update_emoji_completion(self)
+
+    def on_blur(self, event: events.Blur) -> None:
+        app = self.app
+        if isinstance(app, HcbApp):
+            app.dismiss_emoji_completion(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +149,19 @@ class TerminalTextArea(TextArea):
         self.cursor_blink = False
         self.apply_terminal_theme()
 
+    async def _on_key(self, event: events.Key) -> None:
+        app = self.app
+        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+            return
+        await super()._on_key(event)
+        if isinstance(app, HcbApp):
+            app.update_emoji_completion(self)
+
+    def on_blur(self, event: events.Blur) -> None:
+        app = self.app
+        if isinstance(app, HcbApp):
+            app.dismiss_emoji_completion(self)
+
     def apply_terminal_theme(self) -> None:
         colors = cast(HcbApp, self.app).runtime.config.theme.colors
         self.register_theme(
@@ -116,6 +181,15 @@ class TerminalTextArea(TextArea):
         if value in {"transparent", "ansi_default"}:
             return "default"
         return Color.parse(value).rich_color
+
+
+type EmojiTarget = Input | TerminalTextArea
+type EditorRunner = Callable[[list[str]], int]
+type SuspendContext = Callable[[], AbstractContextManager[None]]
+
+
+def _run_editor(command: list[str]) -> int:
+    return subprocess.run(command, check=False).returncode
 
 
 class RattlesLoader(Static):
@@ -922,6 +996,8 @@ class HcbApp(App[None]):
         *,
         account: str | None = None,
         selected_date: date | None = None,
+        editor_runner: EditorRunner | None = None,
+        suspend: SuspendContext | None = None,
     ) -> None:
         super().__init__()
         self.runtime = runtime or Runtime()
@@ -938,6 +1014,14 @@ class HcbApp(App[None]):
         self._loading_screen: LoadingScreen | None = None
         self._theme_revision = 0
         self._observed_config_marker: tuple[int, int] | None = None
+        self._emoji_target: EmojiTarget | None = None
+        self._emoji_token_start: int | None = None
+        self._emoji_matches: tuple[tuple[str, str], ...] = ()
+        self._emoji_selection = 0
+        self._emoji_popup: EmojiCompletion | None = None
+        self._emoji_popup_screen: object | None = None
+        self._editor_runner = editor_runner or _run_editor
+        self._editor_suspend = suspend or self.suspend
         self._set_visual_state(self.runtime.config)
 
     def compose(self) -> ComposeResult:
@@ -1128,8 +1212,162 @@ class HcbApp(App[None]):
             (keys.edit, "edit"),
             (keys.delete, "delete"),
             (keys.complete, "complete"),
+            (keys.external_editor, "external_editor"),
         ):
             self.bind(key, action)
+
+    def on_input_changed(self, event: TextualInput.Changed) -> None:
+        if isinstance(event.input, Input):
+            self.update_emoji_completion(event.input)
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if isinstance(event.text_area, TerminalTextArea):
+            self.update_emoji_completion(event.text_area)
+
+    def update_emoji_completion(self, target: EmojiTarget) -> None:
+        """Refresh suggestions for the focused editor's active colon token."""
+        if self.focused is not target:
+            self.dismiss_emoji_completion(target)
+            return
+        text, cursor = self._emoji_text_and_cursor(target)
+        suggestion = emoji_suggestions(text, cursor)
+        if suggestion is None:
+            self.dismiss_emoji_completion(target)
+            return
+        token_start, matches = suggestion
+        self._emoji_target = target
+        self._emoji_token_start = token_start
+        self._emoji_matches = matches
+        self._emoji_selection = 0
+        self._render_emoji_completion()
+
+    def handle_emoji_key(self, target: EmojiTarget, event: events.Key) -> bool:
+        """Consume navigation keys only while this editor owns an emoji menu."""
+        if target is not self._emoji_target or not self._emoji_matches:
+            return False
+        if event.key == "up":
+            self._emoji_selection = (self._emoji_selection - 1) % len(self._emoji_matches)
+        elif event.key == "down":
+            self._emoji_selection = (self._emoji_selection + 1) % len(self._emoji_matches)
+        elif event.key in {"tab", "enter"}:
+            self._accept_emoji_completion(target)
+        elif event.key == "escape":
+            self.dismiss_emoji_completion(target)
+        else:
+            return False
+        event.stop()
+        event.prevent_default()
+        if event.key in {"up", "down"}:
+            self._render_emoji_completion()
+        return True
+
+    def dismiss_emoji_completion(self, target: EmojiTarget | None = None) -> None:
+        if target is not None and target is not self._emoji_target:
+            return
+        self._emoji_target = None
+        self._emoji_token_start = None
+        self._emoji_matches = ()
+        self._emoji_selection = 0
+        if self._emoji_popup is not None:
+            self._emoji_popup.display = False
+
+    def _render_emoji_completion(self) -> None:
+        if not self._emoji_matches:
+            return
+        screen = self.screen
+        if self._emoji_popup_screen is not screen:
+            if self._emoji_popup is not None:
+                self._emoji_popup.display = False
+            self._emoji_popup = EmojiCompletion()
+            self._emoji_popup_screen = screen
+            screen.mount(self._emoji_popup)
+        assert self._emoji_popup is not None
+        self._emoji_popup.set_candidates(self._emoji_matches, self._emoji_selection)
+
+    @staticmethod
+    def _emoji_text_and_cursor(target: EmojiTarget) -> tuple[str, int]:
+        if isinstance(target, Input):
+            return target.value, target.cursor_position
+        row, column = target.cursor_location
+        offset = sum(
+            len(target.document[index]) + len(target.document.newline) for index in range(row)
+        )
+        return target.text, offset + column
+
+    @staticmethod
+    def _text_area_location(target: TerminalTextArea, offset: int) -> tuple[int, int]:
+        remaining = max(0, min(offset, len(target.text)))
+        for row in range(target.document.line_count):
+            length = len(target.document[row])
+            if remaining <= length:
+                return row, remaining
+            remaining -= length
+            if row < target.document.line_count - 1:
+                remaining -= len(target.document.newline)
+        return target.document.end
+
+    def _accept_emoji_completion(self, target: EmojiTarget) -> None:
+        if self._emoji_token_start is None or not self._emoji_matches:
+            return
+        token_start = self._emoji_token_start
+        emoji = self._emoji_matches[self._emoji_selection][1]
+        if isinstance(target, Input):
+            target.replace(emoji, token_start, target.cursor_position)
+            target.cursor_position = token_start + len(emoji)
+        else:
+            result = target.replace(
+                emoji,
+                self._text_area_location(target, token_start),
+                target.cursor_location,
+                maintain_selection_offset=False,
+            )
+            target.cursor_location = result.end_location
+        self.dismiss_emoji_completion(target)
+
+    def _editor_command(self) -> str:
+        return self.runtime.environ.get("HCB_EDITOR") or self.runtime.config.preferences.editor
+
+    def action_external_editor(self) -> None:
+        target = self.focused
+        if not isinstance(target, (Input, TerminalTextArea)):
+            return
+        self.dismiss_emoji_completion(target)
+        temporary_path: Path | None = None
+        try:
+            command = shlex.split(self._editor_command())
+            if not command:
+                raise ValueError("external editor command is empty")
+            source = target.value if isinstance(target, Input) else target.text
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                prefix="hcb-",
+                suffix=".txt",
+                delete=False,
+            ) as temporary:
+                temporary.write(source)
+                temporary_path = Path(temporary.name)
+            with self._editor_suspend():
+                return_code = self._editor_runner([*command, str(temporary_path)])
+            if return_code != 0:
+                self.notify(f"External editor exited with status {return_code}", severity="error")
+                return
+            edited = temporary_path.read_text(encoding="utf-8")
+        except SuspendNotSupported:
+            self.notify("External editor is unavailable in this environment", severity="error")
+            return
+        except (OSError, UnicodeError, ValueError) as exc:
+            self.notify(f"External editor failed: {exc}", severity="error")
+            return
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+        if isinstance(target, Input):
+            target.value = " ".join(edited.rstrip("\r\n").splitlines())
+            target.cursor_position = len(target.value)
+        else:
+            target.load_text(edited)
+            target.cursor_location = target.document.end
 
     def on_unmount(self) -> None:
         self.runtime.close()

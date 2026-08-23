@@ -23,6 +23,7 @@
       "properties": {
         "theme": { "type": "string" },
         "keymap": { "type": "string" },
+        "editor": { "type": "string", "minLength": 1 },
         "week_starts_on": { "type": "integer", "minimum": 0, "maximum": 6 },
         "default_account_id": { "type": ["string", "null"] },
         "default_task_list_id": { "type": ["string", "null"] },
@@ -90,7 +91,8 @@
         "create": { "type": "string" },
         "edit": { "type": "string" },
         "delete": { "type": "string" },
-        "complete": { "type": "string" }
+        "complete": { "type": "string" },
+        "external_editor": { "type": "string" }
       }
     }
   }

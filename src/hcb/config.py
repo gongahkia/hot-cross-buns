@@ -86,6 +86,7 @@ class KeyBindings:
     edit: str = "e"
     delete: str = "d"
     complete: str = "space"
+    external_editor: str = "ctrl+g"
 
 
 @dataclass(frozen=True, slots=True)

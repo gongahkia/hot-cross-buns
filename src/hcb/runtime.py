@@ -167,13 +167,20 @@ class Runtime:
         mouse: bool,
         loader: str,
         week_starts_on: int,
+        editor: str,
+        external_editor: str,
         colors: ThemeColors,
     ) -> Config:
         """Persist interactive presentation settings through the runtime boundary."""
         current = self.config
         updated = replace(
             current,
-            preferences=replace(current.preferences, week_starts_on=week_starts_on),
+            preferences=replace(
+                current.preferences,
+                week_starts_on=week_starts_on,
+                editor=editor,
+            ),
+            keys=replace(current.keys, external_editor=external_editor),
             theme=replace(
                 current.theme,
                 profile=profile,

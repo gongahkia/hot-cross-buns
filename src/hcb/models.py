@@ -266,6 +266,7 @@ class Conflict:
 class Preferences:
     theme: str = "system"
     keymap: str = "default"
+    editor: str = "nvim"
     week_starts_on: int = 0
     default_account_id: str | None = None
     default_task_list_id: str | None = None
@@ -279,6 +280,8 @@ class Preferences:
     time_zone: str = "UTC"
 
     def __post_init__(self) -> None:
+        if not self.editor.strip():
+            raise ValueError("editor must not be empty")
         if not 0 <= self.week_starts_on <= 6:
             raise ValueError("week_starts_on must be between 0 and 6")
         if self.reminder_catch_up_minutes < 0:
