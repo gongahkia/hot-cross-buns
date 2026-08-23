@@ -25,6 +25,27 @@ uv run hcb --help
 Run `hcb` in a terminal to open the Textual TUI. Run `hcb --help` to discover
 scriptable commands.
 
+## Text editing
+
+Every TUI text field supports Slack-style emoji completion: type a colon and an
+emoji code such as `:smile` or alias such as `:+1`, then use `↑`/`↓` and `Tab`
+or `Enter` to insert the selected emoji. `Escape` dismisses the suggestions.
+
+Press `Ctrl+G` in a text field to edit its value in `nvim` by default. HCB
+suspends its terminal UI, passes a private temporary file directly to the
+editor command, then restores the changed value. Multiline fields retain their
+text; single-line fields join edited lines with spaces. Configure the command
+and shortcut in `config.json` or through the CLI:
+
+```sh
+hcb config set preferences.editor "nvim"
+hcb config set keys.external_editor "ctrl+g"
+```
+
+`HCB_EDITOR` overrides `preferences.editor` for the current process. It is a
+normal environment variable, separate from HCB's account `.env` credential
+file.
+
 ## Desktop OAuth setup
 
 1. In Google Cloud Console, create or select a project.

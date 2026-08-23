@@ -71,6 +71,20 @@ The default is `accounts/ACCOUNT_ID.env` below HCB's configuration directory;
 token is encrypted in that file and its encryption key is stored in the OS
 keyring.
 
+`preferences.editor` stores the external editor command used by TUI text
+fields (default `nvim`), and `keys.external_editor` stores its shortcut
+(default `ctrl+g`). For the current process, `HCB_EDITOR` takes precedence over
+`preferences.editor`; it does not use the account credential `.env` file.
+For example:
+
+```sh
+hcb config set preferences.editor "nvim"
+hcb config set keys.external_editor "ctrl+g"
+```
+
+TUI text fields offer standard Rich emoji codes and aliases after `:`; use
+`↑`/`↓` to select and `Tab` or `Enter` to insert the displayed emoji.
+
 `events agenda`, `events instances`, and `events instance-cache` read SQLite
 only. Normal `sync` updates canonical event records; `events refresh-instances
 --calendar --from --to` is the explicit remote operation that expands a range

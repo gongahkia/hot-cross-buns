@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from hcb.tui import (
     ScheduleScreen,
     SettingsScreen,
     TerminalTextArea,
+    emoji_suggestions,
 )
 
 
@@ -102,6 +104,129 @@ def test_text_editors_have_a_persistent_high_contrast_block_cursor(tmp_path: Pat
         assert cursor.color is not None and cursor.color.number == 0
 
     app_test(app, assertions)
+
+
+def test_text_editors_complete_rich_emoji_names_and_aliases(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+    alias = emoji_suggestions(":+1", 3)
+    assert alias is not None and ("+1", "👍") in alias[1]
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("n")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        title = app.screen.query_one("#editor-title", Input)
+        await pilot.press(":", "s", "m", "i")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        popup = app.screen.query_one("#emoji-completion", Static)
+        assert ":smile: 😄" in str(popup.render())
+        assert app._emoji_selection == 0
+        await pilot.press("down")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app._emoji_selection == 1
+        await pilot.press("tab")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert title.value == "😸"
+        assert not popup.display
+
+        title.value = ":heart"
+        title.cursor_position = len(title.value)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert popup.display
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EditorScreen)
+        assert title.value == ":heart"
+        assert not popup.display
+
+        notes = app.screen.query_one("#editor-notes", TerminalTextArea)
+        notes.focus()
+        notes.load_text("Before :heart")
+        notes.cursor_location = notes.document.end
+        await pilot.pause()  # type: ignore[attr-defined]
+        await pilot.press("enter")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert notes.text == "Before ❤"
+
+    app_test(app, assertions)
+
+
+def test_external_editor_replaces_shared_input_widgets(tmp_path: Path) -> None:
+    commands: list[list[str]] = []
+    temporary_files: list[Path] = []
+    contents = iter(("first\nsecond\n", "one\n\ntwo\n"))
+    suspensions: list[bool] = []
+
+    @contextmanager
+    def suspended() -> Iterator[None]:
+        suspensions.append(True)
+        yield
+
+    def run_editor(command: list[str]) -> int:
+        commands.append(command)
+        path = Path(command[-1])
+        temporary_files.append(path)
+        path.write_text(next(contents), encoding="utf-8")
+        return 0
+
+    app = HcbApp(
+        seeded_runtime(tmp_path, environ={"HCB_EDITOR": "vim -n"}),
+        editor_runner=run_editor,
+        suspend=suspended,
+    )
+
+    async def assertions(pilot: object) -> None:
+        app.action_external_editor()
+        assert not commands
+        await pilot.press("n")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        title = app.screen.query_one("#editor-title", Input)
+        title.value = "original"
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert title.value == "first second"
+        notes = app.screen.query_one("#editor-notes", TerminalTextArea)
+        notes.focus()
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert notes.text == "one\n\ntwo\n"
+
+    app_test(app, assertions)
+    assert [command[:-1] for command in commands] == [["vim", "-n"], ["vim", "-n"]]
+    assert len(suspensions) == 2
+    assert all(not path.exists() for path in temporary_files)
+
+
+def test_external_editor_failure_leaves_input_unchanged(tmp_path: Path) -> None:
+    notifications: list[str] = []
+
+    @contextmanager
+    def suspended() -> Iterator[None]:
+        yield
+
+    def run_editor(command: list[str]) -> int:
+        Path(command[-1]).write_text("changed", encoding="utf-8")
+        return 9
+
+    app = HcbApp(seeded_runtime(tmp_path), editor_runner=run_editor, suspend=suspended)
+
+    async def assertions(pilot: object) -> None:
+        original_notify = app.notify
+
+        def record_notification(message: object, **kwargs: object) -> None:
+            notifications.append(str(message))
+            original_notify(message, **kwargs)
+
+        app.notify = record_notification  # type: ignore[method-assign]
+        await pilot.press("n")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        title = app.screen.query_one("#editor-title", Input)
+        title.value = "original"
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert title.value == "original"
+
+    app_test(app, assertions)
+    assert "External editor exited with status 9" in notifications
 
 
 def test_event_surface_marks_stale_instance_cache_ranges(tmp_path: Path) -> None:
@@ -356,6 +481,8 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
         app.screen.query_one("#setting-density", Input).value = "compact"
         app.screen.query_one("#setting-borders", Input).value = "ascii"
         app.screen.query_one("#setting-mouse", Input).value = "false"
+        app.screen.query_one("#setting-editor", Input).value = "hx"
+        app.screen.query_one("#setting-external-editor", Input).value = "ctrl+o"
         app.screen.query_one("#setting-loader", Select).value = "emoji.weather"
         await pilot.click("#settings-save")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
@@ -368,6 +495,8 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.theme.borders == "ascii"
     assert not saved.theme.mouse
     assert saved.theme.loader == "emoji.weather"
+    assert saved.preferences.editor == "hx"
+    assert saved.keys.external_editor == "ctrl+o"
 
 
 def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> None:

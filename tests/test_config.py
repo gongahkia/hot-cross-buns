@@ -27,6 +27,8 @@ def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
     assert config.theme.colors.background == "transparent"
     assert config.theme.colors.control == "ansi_default"
     assert config.keys.search == "/"
+    assert config.keys.external_editor == "ctrl+g"
+    assert config.preferences.editor == "nvim"
     assert config.preferences.week_starts_on == 0
     assert config.theme.loader == DEFAULT_LOADER
 
@@ -98,9 +100,11 @@ def test_rattles_loader_catalog_is_complete_and_preserves_source_timing() -> Non
 
 def test_json_round_trip(tmp_path: Path) -> None:
     expected = Config(
-        preferences=Preferences(theme="dark", week_starts_on=6, reminders_enabled=False),
+        preferences=Preferences(
+            theme="dark", editor="hx", week_starts_on=6, reminders_enabled=False
+        ),
         theme=Theme(profile="dark", colors=ThemeColors(accent="#88c0d0")),
-        keys=KeyBindings(sync="ctrl+r"),
+        keys=KeyBindings(sync="ctrl+r", external_editor="ctrl+g"),
     )
     target = tmp_path / "nested" / "config.json"
     assert save(expected, target) == target
@@ -126,6 +130,8 @@ def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
         '{"keys":{"quit":3}}',
         '{"unknown":{"value":true}}',
         '{"preferences":{"week_starts_on":"0"}}',
+        '{"preferences":{"editor":""}}',
+        '{"keys":{"external_editor":""}}',
         '{"theme":{"colors":{"accent":"not-a-color"}}}',
         '{"theme":{"loader":"not-a-loader"}}',
         '{"theme":{"colors":{"accent":"red","accent":"blue"}}}',

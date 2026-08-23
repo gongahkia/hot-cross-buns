@@ -315,9 +315,13 @@ def test_config_commands_and_account_environment(
     invoke(runner, ["config", "set", "preferences.week_starts_on", "6"])
     invoke(runner, ["config", "set", "theme.colors.focus", "cyan"])
     invoke(runner, ["config", "set", "theme.loader", "emoji.weather"])
+    invoke(runner, ["config", "set", "preferences.editor", "hx"])
+    invoke(runner, ["config", "set", "keys.external_editor", "ctrl+o"])
     shown = invoke(runner, ["--json", "config", "show"])
     assert json_data(shown, "config.show")["preferences"]["week_starts_on"] == 6
     assert json_data(shown, "config.show")["theme"]["loader"] == "emoji.weather"
+    assert json_data(shown, "config.show")["preferences"]["editor"] == "hx"
+    assert json_data(shown, "config.show")["keys"]["external_editor"] == "ctrl+o"
     assert (
         json_data(invoke(runner, ["--json", "config", "schema"]), "config.schema")["$schema"]
         == "https://json-schema.org/draft/2020-12/schema"
