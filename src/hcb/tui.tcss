@@ -181,7 +181,8 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
-#rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog {
+#rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
+#onboarding-dialog {
     width: 70;
     max-width: 90%;
     height: auto;
@@ -202,6 +203,28 @@ Input.-invalid, TextArea.-invalid {
 #settings-dialog {
     height: 32;
     max-height: 90%;
+}
+
+#onboarding-dialog {
+    height: 23;
+}
+
+#onboarding-fields {
+    height: 1fr;
+}
+
+.onboarding-field {
+    height: 3;
+}
+
+.onboarding-field Label {
+    width: 24;
+    padding-top: 1;
+    color: $text-muted;
+}
+
+.onboarding-field Input {
+    width: 1fr;
 }
 
 .settings-pair {
@@ -275,7 +298,7 @@ EmojiCompletion {
 }
 
 PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
-CalendarScreen, SettingsScreen, FindTimeScreen {
+CalendarScreen, SettingsScreen, FindTimeScreen, OnboardingScreen {
     align: center middle;
     background: $footer-background;
 }

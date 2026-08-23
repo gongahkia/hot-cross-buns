@@ -14,7 +14,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
-from typing import ClassVar, cast
+from typing import ClassVar, Literal, cast
+from zoneinfo import available_timezones
 
 from rich._emoji_codes import EMOJI as RICH_EMOJI
 from rich.color import Color as RichColor
@@ -66,6 +67,40 @@ PALETTE_COMMANDS = (
     ("Conflicts", "conflicts"),
     ("First-run setup", "onboarding"),
 )
+
+PROFILE_OPTIONS = (
+    ("Terminal", "terminal"),
+    ("Dark", "dark"),
+    ("Light", "light"),
+)
+DENSITY_OPTIONS = (
+    ("Comfortable", "comfortable"),
+    ("Compact", "compact"),
+)
+BORDER_OPTIONS = (
+    ("ASCII", "ascii"),
+    ("Unicode", "unicode"),
+    ("None", "none"),
+)
+FOCUS_OPTIONS = (
+    ("ASCII", "ascii"),
+    ("Underline", "underline"),
+    ("Inverse", "inverse"),
+)
+BOOLEAN_OPTIONS = (
+    ("Enabled", "true"),
+    ("Disabled", "false"),
+)
+WEEK_START_OPTIONS = (
+    ("Monday", "0"),
+    ("Tuesday", "1"),
+    ("Wednesday", "2"),
+    ("Thursday", "3"),
+    ("Friday", "4"),
+    ("Saturday", "5"),
+    ("Sunday", "6"),
+)
+TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(available_timezones()))
 
 _EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
 _EMOJI_SUGGESTION_LIMIT = 8
@@ -303,7 +338,7 @@ class ConfirmScreen(ModalScreen[bool]):
         message: str,
         *,
         confirm_label: str = "Confirm",
-        confirm_variant: str = "primary",
+        confirm_variant: Literal["default", "primary", "success", "warning", "error"] = "primary",
     ) -> None:
         super().__init__()
         self.message = message
@@ -524,7 +559,7 @@ class ImportScreen(ModalScreen[None]):
                 raise ValueError("preview the import before applying it")
             else:
                 self.app.push_screen(
-                ConfirmScreen("Apply all accepted import rows atomically?"),
+                    ConfirmScreen("Apply all accepted import rows atomically?"),
                     self._apply_confirmed,
                 )
         except (OSError, ValueError, HcbError) as exc:
@@ -1219,7 +1254,10 @@ class HcbApp(App[None]):
         self.refresh_workspace()
         if result["connect"] == "true":
             self.push_screen(
-                ConfirmScreen("Open the browser and connect this Google account now?"),
+                ConfirmScreen(
+                    "Open the browser and connect this Google account now?",
+                    confirm_label="Connect",
+                ),
                 self._onboarding_connect_confirmed,
             )
         else:
@@ -2009,7 +2047,11 @@ class HcbApp(App[None]):
             return
         count = len(ids) + len(event_ids) or 1
         self.push_screen(
-            ConfirmScreen(f"Delete {count} selected item(s)?"),
+            ConfirmScreen(
+                f"Delete {count} selected item(s)?",
+                confirm_label="Delete",
+                confirm_variant="error",
+            ),
             self._delete_result,
         )
 
@@ -2081,7 +2123,14 @@ class HcbApp(App[None]):
                 callback()
                 self.notify("Calendar deleted")
 
-        self.push_screen(ConfirmScreen("Delete this calendar and its cached events?"), apply)
+        self.push_screen(
+            ConfirmScreen(
+                "Delete this calendar and its cached events?",
+                confirm_label="Delete",
+                confirm_variant="error",
+            ),
+            apply,
+        )
 
     def settings_values(self) -> dict[str, str]:
         config = self.runtime.config

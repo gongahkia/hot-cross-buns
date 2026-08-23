@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from textual.app import SuspendNotSupported
-from textual.widgets import Input, ListView, Select, Static
+from textual.widgets import Button, Input, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
 from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime
@@ -339,13 +339,23 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
         assert (
             app.screen.query_one("#onboard-env-file", Input).value == "~/.config/hcb/personal.env"
         )
+        labels = [str(label.render()) for label in app.screen.query(".onboarding-field Label")]
+        assert labels == [
+            "Credential .env path",
+            "Local account identifier",
+            "Account email",
+            "Time zone",
+            "Reminders",
+        ]
+        assert app.screen.query_one("#onboard-offline", Button).display
+        assert app.screen.query_one("#onboard-connect", Button).display
         state = str(app.query_one("#sync-state", Static).render())
         assert "no network activity" in state
         row = app.query_one("#content", ListView).children[0]
         assert "hcb auth connect" in str(row.query_one("Label").render())
         await pilot.press("escape")  # type: ignore[attr-defined]
 
-    app_test(app, assertions)
+    app_test(app, assertions, size=(58, 24))
 
 
 def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path) -> None:
@@ -393,6 +403,7 @@ def test_onboarding_connect_waits_for_explicit_confirmation(tmp_path: Path) -> N
         await pilot.click("#onboard-connect")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert calls == []
+        assert app.screen.query_one("#confirm", Button).label == "Connect"
         await pilot.press("y")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert calls == ["google"]
