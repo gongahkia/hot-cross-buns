@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import tempfile
+import webbrowser
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
@@ -15,6 +16,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import ClassVar, Literal, cast
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, available_timezones
 
 from rich._emoji_codes import EMOJI as RICH_EMOJI
@@ -113,6 +115,7 @@ TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(availab
 _EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
 _EMOJI_SUGGESTION_LIMIT = 8
 _EMOJI_NAMES = tuple(sorted(RICH_EMOJI))
+_URL_PATTERN = re.compile(r"https?://[^\s<>'\"]+")
 
 
 def emoji_suggestions(text: str, cursor: int) -> tuple[int, tuple[tuple[str, str], ...]] | None:
@@ -125,6 +128,24 @@ def emoji_suggestions(text: str, cursor: int) -> tuple[int, tuple[tuple[str, str
         (name, RICH_EMOJI[name]) for name in _EMOJI_NAMES if name.casefold().startswith(query)
     )[:_EMOJI_SUGGESTION_LIMIT]
     return (match.start(), candidates) if candidates else None
+
+
+def is_web_url(value: str) -> bool:
+    """Return whether a URL is safe to open in the user's browser."""
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def linkify_urls(value: str | Text) -> Text:
+    """Underline and attach click targets to every safe web URL in displayed text."""
+    text = value.copy() if isinstance(value, Text) else Text(value)
+    for match in _URL_PATTERN.finditer(text.plain):
+        url = match.group().rstrip(".,;:!?")
+        while url.endswith(")") and url.count("(") < url.count(")"):
+            url = url[:-1]
+        if url and is_web_url(url):
+            text.stylize(Style(link=url, underline=True), match.start(), match.start() + len(url))
+    return text
 
 
 class EmojiCompletion(Static):
@@ -180,8 +201,10 @@ class CachedWorkspace:
 class EntityRow(ListItem):
     """A selectable row carrying a domain identity."""
 
-    def __init__(self, label: str, *, kind: str, item_id: str, action: str | None = None) -> None:
-        super().__init__(Label(label, markup=False))
+    def __init__(
+        self, label: str | Text, *, kind: str, item_id: str, action: str | None = None
+    ) -> None:
+        super().__init__(Label(linkify_urls(label), markup=False))
         self.kind = kind
         self.item_id = item_id
         self.palette_action = action
@@ -233,10 +256,15 @@ class TerminalTextArea(TextArea):
 type EmojiTarget = Input | TerminalTextArea
 type EditorRunner = Callable[[list[str]], int]
 type SuspendContext = Callable[[], AbstractContextManager[None]]
+type UrlOpener = Callable[[str], bool]
 
 
 def _run_editor(command: list[str]) -> int:
     return subprocess.run(command, check=False).returncode
+
+
+def _open_url(url: str) -> bool:
+    return webbrowser.open(url, new=2)
 
 
 class RattlesLoader(Static):
@@ -1202,6 +1230,7 @@ class HcbApp(App[None]):
         selected_date: date | None = None,
         editor_runner: EditorRunner | None = None,
         suspend: SuspendContext | None = None,
+        url_opener: UrlOpener | None = None,
     ) -> None:
         super().__init__()
         self.runtime = runtime or Runtime()
@@ -1231,6 +1260,7 @@ class HcbApp(App[None]):
         self._emoji_popup_screen: object | None = None
         self._editor_runner = editor_runner or _run_editor
         self._editor_suspend = suspend or self.suspend
+        self._url_opener = url_opener or _open_url
         self._set_visual_state(self.runtime.config)
 
     def compose(self) -> ComposeResult:
@@ -1664,6 +1694,22 @@ class HcbApp(App[None]):
         event.stop()
         event.prevent_default()
 
+    def on_click(self, event: events.Click) -> None:
+        """Open a link only when its Rich style supplied an allowed URL target."""
+        url = event.style.link
+        if not self.mouse_enabled or event.button != 1 or url is None or not is_web_url(url):
+            return
+        try:
+            opened = self._url_opener(url)
+        except (OSError, webbrowser.Error) as exc:
+            self.notify(f"Could not open link: {exc}", severity="error")
+            return
+        if not opened:
+            self.notify("Could not open link in your default browser", severity="error")
+            return
+        event.stop()
+        event.prevent_default()
+
     def on_mouse_move(self, event: events.MouseMove) -> None:
         if self._resize_target is None:
             return
@@ -1787,6 +1833,7 @@ class HcbApp(App[None]):
                 resources.append(EntityRow(f"☐ {title}", kind="task-list", item_id=item_id))
             for item_id, title, _ in self.cache.calendars:
                 resources.append(EntityRow(f"□ {title}", kind="calendar", item_id=item_id))
+        self._update_resource_selection()
         state = self.loading_operation or "offline cache"
         cache_badge = self._instance_cache_badge()
         suffix = f" · {cache_badge}" if cache_badge else ""
@@ -1969,6 +2016,17 @@ class HcbApp(App[None]):
         for row in content.query(EntityRow):
             row.set_class((row.kind, row.item_id) == self.selected, "hcb-selected")
 
+    def _update_resource_selection(self) -> None:
+        """Keep the active resource visible after focus moves to another pane."""
+        resources = self.query_one("#resources", ListView)
+        for row in resources.query(EntityRow):
+            selected = (
+                row.kind == "resource-all"
+                if self.resource_filter is None
+                else (row.kind, row.item_id) == self.resource_filter
+            )
+            row.set_class(selected, "hcb-selected")
+
     @staticmethod
     def _event_day(value: date | datetime) -> date:
         return value.date() if isinstance(value, datetime) else value
@@ -2067,11 +2125,71 @@ class HcbApp(App[None]):
         self._render_chrome(refresh_resources=False)
         self._render_surface()
 
+    @staticmethod
+    def _attachment_target(attachment: dict[str, object]) -> tuple[str, str | None]:
+        title = attachment.get("title") or attachment.get("fileId") or "Attachment"
+        url = next(
+            (
+                value
+                for key in ("fileUrl", "webViewLink", "url")
+                if isinstance((value := attachment.get(key)), str) and is_web_url(value)
+            ),
+            None,
+        )
+        return str(title), url
+
+    @staticmethod
+    def _append_link(text: Text, label: str, url: str) -> None:
+        start = len(text)
+        text.append(label)
+        text.stylize(Style(link=url, underline=True), start, len(text))
+
+    def _event_inspection_text(self, event: Event) -> Text:
+        details = (
+            f"Type: {event.event_type or 'default'}\n"
+            f"Visibility: {event.visibility or 'default'}\n"
+            f"Transparency: {event.transparency or 'default'}\n"
+            f"Color: {event.color_id or 'default'}\n"
+            f"Attendees: {len(event.attendees)}\n"
+            f"RSVP: {event.attendee_response or 'none'}\n"
+            "Reminders: "
+            f"{'default' if event.reminder_use_default else len(event.reminder_overrides)}\n"
+            f"Attachments: {len(event.attachments)}\n"
+            f"Conference: {'yes' if event.conference else 'no'}\n"
+            f"Guest flags: invite={event.guests_can_invite_others}, "
+            f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
+        )
+        properties = (
+            event.focus_time_properties
+            or event.out_of_office_properties
+            or event.working_location_properties
+        )
+        text = linkify_urls(
+            f"{event.summary}\n\n{self.format_date_time(event.start.value)} → "
+            f"{self.format_date_time(event.end.value)}\n{event.location or ''}\n\n"
+            f"{event.description or 'No description'}\n\n{details}"
+            + (f"\nProperties: {properties}" if properties else "")
+        )
+        if event.attachments:
+            text.append("\n\nAttachments:\n")
+            for attachment in event.attachments:
+                title, url = self._attachment_target(attachment)
+                text.append("• ")
+                if url is None:
+                    text.append(title)
+                else:
+                    self._append_link(text, title, url)
+                    text.append("  ")
+                    self._append_link(text, url, url)
+                text.append("\n")
+        text.append("\nStructured CLI editing preserves specialist fields.")
+        return text
+
     def _render_inspector(self) -> None:
         target = self._selected_task()
         if target:
             self.query_one("#inspection", Static).update(
-                Text(
+                linkify_urls(
                     f"{target.title}\n\nStatus: {target.status.value}\n"
                     f"Due: {self.format_date(target.due) if target.due else '—'}\n"
                     f"Priority: {target.priority.value}\n\n"
@@ -2081,48 +2199,24 @@ class HcbApp(App[None]):
             return
         event = self._selected_event()
         if event:
-            details = (
-                f"Type: {event.event_type or 'default'}\n"
-                f"Visibility: {event.visibility or 'default'}\n"
-                f"Transparency: {event.transparency or 'default'}\n"
-                f"Color: {event.color_id or 'default'}\n"
-                f"Attendees: {len(event.attendees)}\n"
-                f"RSVP: {event.attendee_response or 'none'}\n"
-                "Reminders: "
-                f"{'default' if event.reminder_use_default else len(event.reminder_overrides)}\n"
-                f"Attachments: {len(event.attachments)}\n"
-                f"Conference: {'yes' if event.conference else 'no'}\n"
-                f"Guest flags: invite={event.guests_can_invite_others}, "
-                f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
-            )
-            properties = (
-                event.focus_time_properties
-                or event.out_of_office_properties
-                or event.working_location_properties
-            )
-            self.query_one("#inspection", Static).update(
-                Text(
-                    f"{event.summary}\n\n{self.format_date_time(event.start.value)} → "
-                    f"{self.format_date_time(event.end.value)}\n{event.location or ''}\n\n"
-                    f"{event.description or 'No description'}\n\n{details}"
-                    + (f"\nProperties: {properties}" if properties else "")
-                    + "\n\nStructured CLI editing preserves specialist fields."
-                )
-            )
+            self.query_one("#inspection", Static).update(self._event_inspection_text(event))
             return
         drive_file = self._selected_drive()
         if drive_file:
             modified = (
                 self.format_date_time(drive_file.modified_time) if drive_file.modified_time else "—"
             )
-            self.query_one("#inspection", Static).update(
-                Text(
-                    f"{drive_file.name}\n\n"
-                    f"Type: {drive_file.mime_type or 'unknown'}\n"
-                    f"Modified: {modified}\n\n"
-                    f"{drive_file.web_view_link or 'No web link cached'}"
-                )
-            )
+            text = Text()
+            if drive_file.web_view_link and is_web_url(drive_file.web_view_link):
+                self._append_link(text, drive_file.name, drive_file.web_view_link)
+            else:
+                text.append(drive_file.name)
+            text.append(f"\n\nType: {drive_file.mime_type or 'unknown'}\nModified: {modified}\n\n")
+            if drive_file.web_view_link and is_web_url(drive_file.web_view_link):
+                self._append_link(text, drive_file.web_view_link, drive_file.web_view_link)
+            else:
+                text.append("No web link cached")
+            self.query_one("#inspection", Static).update(linkify_urls(text))
             return
         self.query_one("#inspection", Static).update("Select an item")
 

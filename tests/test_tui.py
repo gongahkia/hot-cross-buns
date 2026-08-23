@@ -6,6 +6,9 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from rich.style import Style
+from rich.text import Text
+from textual import events
 from textual.app import SuspendNotSupported
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
@@ -41,6 +44,7 @@ from hcb.tui import (
     SettingsScreen,
     TerminalTextArea,
     emoji_suggestions,
+    linkify_urls,
 )
 
 
@@ -172,6 +176,70 @@ def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) ->
     app_test(app, assertions)
 
 
+def test_links_in_workspace_text_open_only_safe_web_urls(tmp_path: Path) -> None:
+    url = "https://example.test/guide"
+    linked = linkify_urls(f"Read {url}.")
+    assert linked.plain == f"Read {url}."
+    assert [span.style.link for span in linked.spans] == [url]
+
+    opened: list[str] = []
+    app = HcbApp(seeded_runtime(tmp_path), url_opener=lambda target: opened.append(target) or True)
+
+    async def assertions(_: object) -> None:
+        app.on_click(events.Click(app, 0, 0, 0, 0, 1, False, False, False, style=Style(link=url)))
+        app.on_click(
+            events.Click(
+                app, 0, 0, 0, 0, 1, False, False, False, style=Style(link="file:///tmp/no")
+            )
+        )
+        assert opened == [url]
+
+    app_test(app, assertions)
+
+
+def test_inspector_links_event_attachments_and_drive_files(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    description_url = "https://example.test/event-notes"
+    attachment_url = "https://drive.google.com/open?id=attachment"
+    drive_url = "https://drive.google.com/open?id=file"
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Planning",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 24)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 25)),
+        description=f"Read {description_url}",
+        attachments=({"title": "Planning brief", "fileUrl": attachment_url},),
+    )
+    runtime.storage.upsert_drive_file(
+        DriveFile("brief", "work", "Planning brief", "application/pdf", drive_url)
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    def targets(value: object) -> set[str]:
+        assert isinstance(value, Text)
+        return {
+            span.style.link
+            for span in value.spans
+            if isinstance(span.style, Style) and span.style.link
+        }
+
+    async def assertions(pilot: object) -> None:
+        app.selected = ("event", event.id)
+        app._render_inspector()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert {description_url, attachment_url} <= targets(
+            app.query_one("#inspection", Static).content
+        )
+
+        app.selected = ("drive", "brief")
+        app._render_inspector()
+        assert drive_url in targets(app.query_one("#inspection", Static).content)
+
+    app_test(app, assertions)
+
+
 def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
@@ -192,6 +260,38 @@ def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) 
         app.query_one("#resources", ListView).focus()
         await pilot.pause()  # type: ignore[attr-defined]
         assert rows[1].has_class("hcb-selected")
+
+    app_test(app, assertions)
+
+
+def test_resource_selection_persistently_marks_the_active_filter(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.application.create_task_list("work", "Plans")
+    calendar = runtime.application.create_calendar("work", "Work")
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        resources = app.query_one("#resources", ListView)
+        rows = tuple(resources.query(EntityRow))
+        all_resources = next(row for row in rows if row.kind == "resource-all")
+        plans = next(row for row in rows if row.item_id == task_list.id)
+        work = next(row for row in rows if row.item_id == calendar.id)
+
+        assert all_resources.has_class("hcb-selected")
+        assert not plans.has_class("hcb-selected")
+
+        app.resource_filter = ("task-list", task_list.id)
+        app._render_chrome(refresh_resources=False)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert plans.has_class("hcb-selected")
+        assert not all_resources.has_class("hcb-selected")
+
+        app.resource_filter = ("calendar", calendar.id)
+        app._render_chrome(refresh_resources=False)
+        app.query_one("#content", ListView).focus()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert work.has_class("hcb-selected")
+        assert not plans.has_class("hcb-selected")
 
     app_test(app, assertions)
 

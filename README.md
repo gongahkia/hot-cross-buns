@@ -59,6 +59,12 @@ hcb config set preferences.date_time_format friendly
 normal environment variable, separate from HCB's account `.env` credential
 file.
 
+## Links
+
+Web links in task and note titles or text, event titles and descriptions, and
+Google Drive attachments are underlined in the TUI. Click one to open it in
+your default browser. HCB opens only `http` and `https` URLs.
+
 `preferences.date_time_format` controls TUI timestamps: `friendly` (the
 default, `26 May 2026, 7:23pm`), `friendly_24h` (`26 May 2026, 19:23`), or
 `iso`.

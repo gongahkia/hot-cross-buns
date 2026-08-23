@@ -201,7 +201,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 /* This is the item shown in the Inspector, even after focus moves elsewhere. */
-#content > ListItem.hcb-selected {
+#content > ListItem.hcb-selected, #resources > ListItem.hcb-selected {
     text-style: bold reverse;
 }
 
