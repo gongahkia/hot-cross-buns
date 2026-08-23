@@ -46,6 +46,7 @@ from hcb.tui import (
     TerminalTextArea,
     emoji_suggestions,
     linkify_urls,
+    render_inspector_markup,
 )
 
 
@@ -258,6 +259,63 @@ def test_inspector_links_event_attachments_and_drive_files(tmp_path: Path) -> No
         app.selected = ("drive", "brief")
         app._render_inspector()
         assert drive_url in targets(app.query_one("#inspection", Static).content)
+
+    app_test(app, assertions)
+
+
+def test_inspector_renders_markdown_and_safe_html(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    task = runtime.application.create_task(
+        "work",
+        task_list.id,
+        "## Task heading",
+        notes="**Important**: _review_ the [brief](https://example.test/brief).",
+    )
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "## Event heading",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 24)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 25)),
+        description=(
+            "<p>Use <strong>bold</strong> and <em>italics</em>.</p>"
+            "<ul><li>First step</li></ul>"
+            "<script>do-not-render()</script>"
+        ),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    rendered = render_inspector_markup(
+        '<h2>Plan</h2><p>Use **bold** and _italics_ <a href="https://example.test">docs</a> '
+        "and [unsafe](javascript:bad).</p>"
+    )
+    assert rendered.plain == "Plan\n\nUse bold and italics docs and unsafe."
+    assert any(span.style == "bold" for span in rendered.spans)
+    assert any(span.style == "italic" for span in rendered.spans)
+    assert any(
+        isinstance(span.style, Style) and span.style.link == "https://example.test"
+        for span in rendered.spans
+    )
+
+    async def assertions(_: object) -> None:
+        app.selected = ("event", event.id)
+        app._render_inspector()
+        event_text = app.query_one("#inspection", Static).content
+        assert isinstance(event_text, Text)
+        assert "<p>" not in event_text.plain
+        assert "do-not-render" not in event_text.plain
+        assert "• First step" in event_text.plain
+
+        app.selected = ("task", task.id)
+        app._render_inspector()
+        task_text = app.query_one("#inspection", Static).content
+        assert isinstance(task_text, Text)
+        assert "## Task heading" not in task_text.plain
+        assert "**Important**" not in task_text.plain
+        assert "Task heading" in task_text.plain
+        assert "Important" in task_text.plain
 
     app_test(app, assertions)
 

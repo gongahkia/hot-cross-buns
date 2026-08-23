@@ -13,6 +13,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
+from html.parser import HTMLParser
 from pathlib import Path
 from time import monotonic
 from typing import ClassVar, Literal, cast
@@ -118,6 +119,20 @@ _EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
 _EMOJI_SUGGESTION_LIMIT = 8
 _EMOJI_NAMES = tuple(sorted(RICH_EMOJI))
 _URL_PATTERN = re.compile(r"https?://[^\s<>'\"]+")
+_HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
+_MARKDOWN_HEADING_PATTERN = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?$")
+_MARKDOWN_LIST_PATTERN = re.compile(r"^(\s*)(?:[-+*]|\d+[.)])\s+(.*)$")
+_MARKDOWN_QUOTE_PATTERN = re.compile(r"^\s*>\s?(.*)$")
+_INLINE_MARKDOWN_PATTERN = re.compile(
+    r"(?P<link>\[(?P<link_label>[^\]\n]+)\]\((?P<link_url>[^)\s]+)\))"
+    r"|(?P<bold_asterisk>\*\*(?P<bold_asterisk_text>[^*\n]+)\*\*)"
+    r"|(?P<bold_underscore>__(?P<bold_underscore_text>[^_\n]+)__)"
+    r"|(?P<code>`(?P<code_text>[^`\n]+)`)"
+)
+_ITALIC_MARKDOWN_PATTERN = re.compile(
+    r"(?P<asterisk>(?<!\*)\*(?P<asterisk_text>[^*\n]+)\*(?!\*))"
+    r"|(?P<underscore>(?<!\w)_(?P<underscore_text>[^_\n]+)_(?!\w))"
+)
 
 
 def emoji_suggestions(text: str, cursor: int) -> tuple[int, tuple[tuple[str, str], ...]] | None:
@@ -148,6 +163,167 @@ def linkify_urls(value: str | Text) -> Text:
         if url and is_web_url(url):
             text.stylize(Style(link=url, underline=True), match.start(), match.start() + len(url))
     return text
+
+
+class _InspectorHtmlParser(HTMLParser):
+    """Turn a safe, readable HTML subset into Markdown before Rich rendering."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.links: list[str | None] = []
+        self.suppressed_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.casefold()
+        if tag in {"script", "style"}:
+            self.suppressed_depth += 1
+            return
+        if self.suppressed_depth:
+            return
+        attributes = {key.casefold(): value for key, value in attrs}
+        if tag in {"p", "div", "section", "article", "ul", "ol"}:
+            self.parts.append("\n\n")
+        elif tag == "br":
+            self.parts.append("\n")
+        elif tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append(f"\n\n{'#' * int(tag[1])} ")
+        elif tag == "li":
+            self.parts.append("\n- ")
+        elif tag == "blockquote":
+            self.parts.append("\n\n> ")
+        elif tag == "hr":
+            self.parts.append("\n\n---\n\n")
+        elif tag in {"b", "strong"}:
+            self.parts.append("**")
+        elif tag in {"i", "em"}:
+            self.parts.append("_")
+        elif tag in {"code", "kbd"}:
+            self.parts.append("`")
+        elif tag == "pre":
+            self.parts.append("\n\n```\n")
+        elif tag == "a":
+            href = attributes.get("href")
+            target = href if isinstance(href, str) and is_web_url(href) else None
+            self.links.append(target)
+            if target is not None:
+                self.parts.append("[")
+        elif tag == "img":
+            alt = attributes.get("alt")
+            if isinstance(alt, str):
+                self.parts.append(alt)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+        self.handle_endtag(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.casefold()
+        if tag in {"script", "style"}:
+            self.suppressed_depth = max(0, self.suppressed_depth - 1)
+            return
+        if self.suppressed_depth:
+            return
+        if tag in {"p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append("\n\n")
+        elif tag == "li":
+            self.parts.append("\n")
+        elif tag == "blockquote":
+            self.parts.append("\n\n")
+        elif tag in {"b", "strong"}:
+            self.parts.append("**")
+        elif tag in {"i", "em"}:
+            self.parts.append("_")
+        elif tag in {"code", "kbd"}:
+            self.parts.append("`")
+        elif tag == "pre":
+            self.parts.append("\n```\n\n")
+        elif tag == "a" and self.links:
+            target = self.links.pop()
+            if target is not None:
+                self.parts.append(f"]({target})")
+
+    def handle_data(self, data: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(data)
+
+    def markdown(self) -> str:
+        return re.sub(r"\n{3,}", "\n\n", "".join(self.parts)).strip()
+
+
+def _html_to_markdown(value: str) -> str:
+    if not _HTML_TAG_PATTERN.search(value):
+        return value
+    parser = _InspectorHtmlParser()
+    parser.feed(value)
+    parser.close()
+    return parser.markdown()
+
+
+def _render_markdown_inline(value: str) -> Text:
+    """Render links, bold, italics, and code without interpreting terminal markup."""
+    result = Text()
+    position = 0
+    for match in _INLINE_MARKDOWN_PATTERN.finditer(value):
+        result.append(value[position : match.start()])
+        if match.group("link") is not None:
+            label = _render_markdown_inline(match.group("link_label"))
+            url = match.group("link_url")
+            if is_web_url(url):
+                label.stylize(Style(link=url, underline=True), 0, len(label))
+            result.append_text(label)
+        elif match.group("bold_asterisk") is not None:
+            bold = _render_markdown_inline(match.group("bold_asterisk_text"))
+            bold.stylize("bold", 0, len(bold))
+            result.append_text(bold)
+        elif match.group("bold_underscore") is not None:
+            bold = _render_markdown_inline(match.group("bold_underscore_text"))
+            bold.stylize("bold", 0, len(bold))
+            result.append_text(bold)
+        else:
+            code = Text(match.group("code_text"))
+            code.stylize(Style(reverse=True), 0, len(code))
+            result.append_text(code)
+        position = match.end()
+    result.append(value[position:])
+
+    rendered = Text()
+    position = 0
+    for match in _ITALIC_MARKDOWN_PATTERN.finditer(result.plain):
+        rendered.append_text(result[position : match.start()])
+        italic = Text(match.group("asterisk_text") or match.group("underscore_text") or "")
+        italic.stylize("italic", 0, len(italic))
+        rendered.append_text(italic)
+        position = match.end()
+    rendered.append_text(result[position:])
+    return rendered
+
+
+def render_inspector_markup(value: str) -> Text:
+    """Render the supported Markdown and HTML subset used by Google descriptions."""
+    source = _html_to_markdown(value)
+    rendered = Text()
+    lines = source.splitlines() or [""]
+    for index, line in enumerate(lines):
+        heading = _MARKDOWN_HEADING_PATTERN.match(line)
+        list_item = _MARKDOWN_LIST_PATTERN.match(line)
+        quote = _MARKDOWN_QUOTE_PATTERN.match(line)
+        if heading is not None:
+            body = _render_markdown_inline(heading.group(2))
+            body.stylize(Style(bold=True, underline=len(heading.group(1)) <= 2), 0, len(body))
+            rendered.append_text(body)
+        elif list_item is not None:
+            rendered.append(list_item.group(1) + "• ")
+            rendered.append_text(_render_markdown_inline(list_item.group(2)))
+        elif quote is not None:
+            body = _render_markdown_inline(quote.group(1))
+            body.stylize("dim", 0, len(body))
+            rendered.append_text(body)
+        else:
+            rendered.append_text(_render_markdown_inline(line))
+        if index < len(lines) - 1:
+            rendered.append("\n")
+    return linkify_urls(rendered)
 
 
 class EmojiCompletion(Static):
@@ -2263,12 +2439,15 @@ class HcbApp(App[None]):
             or event.out_of_office_properties
             or event.working_location_properties
         )
-        text = linkify_urls(
-            f"{event.summary}\n\n{self.format_date_time(event.start.value)} → "
-            f"{self.format_date_time(event.end.value)}\n{event.location or ''}\n\n"
-            f"{event.description or 'No description'}\n\n{details}"
-            + (f"\nProperties: {properties}" if properties else "")
+        text = render_inspector_markup(event.summary)
+        text.append(
+            f"\n\n{self.format_date_time(event.start.value)} → "
+            f"{self.format_date_time(event.end.value)}\n"
         )
+        text.append_text(render_inspector_markup(event.location or ""))
+        text.append("\n\n")
+        text.append_text(render_inspector_markup(event.description or "No description"))
+        text.append(f"\n\n{details}" + (f"\nProperties: {properties}" if properties else ""))
         if event.attachments:
             text.append("\n\nAttachments:\n")
             for attachment in event.attachments:
@@ -2287,14 +2466,14 @@ class HcbApp(App[None]):
     def _render_inspector(self) -> None:
         target = self._selected_task()
         if target:
-            self.query_one("#inspection", Static).update(
-                linkify_urls(
-                    f"{target.title}\n\nStatus: {target.status.value}\n"
-                    f"Due: {self.format_date(target.due) if target.due else '—'}\n"
-                    f"Priority: {target.priority.value}\n\n"
-                    f"{target.notes or 'No notes'}"
-                )
+            text = render_inspector_markup(target.title)
+            text.append(
+                f"\n\nStatus: {target.status.value}\n"
+                f"Due: {self.format_date(target.due) if target.due else '—'}\n"
+                f"Priority: {target.priority.value}\n\n"
             )
+            text.append_text(render_inspector_markup(target.notes or "No notes"))
+            self.query_one("#inspection", Static).update(text)
             return
         event = self._selected_event()
         if event:
