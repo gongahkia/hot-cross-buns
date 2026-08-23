@@ -111,6 +111,8 @@ class Input(TextualInput):
         app = self.app
         if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
             return
+        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
+            return
         await super()._on_key(event)
         if isinstance(app, HcbApp):
             app.update_emoji_completion(self)
@@ -152,6 +154,8 @@ class TerminalTextArea(TextArea):
     async def _on_key(self, event: events.Key) -> None:
         app = self.app
         if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+            return
+        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
             return
         await super()._on_key(event)
         if isinstance(app, HcbApp):
@@ -1225,7 +1229,6 @@ class HcbApp(App[None]):
             (keys.edit, "edit"),
             (keys.delete, "delete"),
             (keys.complete, "complete"),
-            (keys.external_editor, "external_editor"),
         ):
             self.bind(key, action)
 
@@ -1272,6 +1275,14 @@ class HcbApp(App[None]):
         event.prevent_default()
         if event.key in {"up", "down"}:
             self._render_emoji_completion()
+        return True
+
+    def handle_external_editor_key(self, target: EmojiTarget, event: events.Key) -> bool:
+        if event.key != self.runtime.config.keys.external_editor:
+            return False
+        event.stop()
+        event.prevent_default()
+        self.action_external_editor()
         return True
 
     def dismiss_emoji_completion(self, target: EmojiTarget | None = None) -> None:

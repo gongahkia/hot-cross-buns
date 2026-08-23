@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import contextmanager
 from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from textual.app import SuspendNotSupported
 from textual.widgets import Input, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
@@ -17,6 +18,7 @@ from hcb.tui import (
     PALETTE_COMMANDS,
     CalendarScreen,
     ConflictScreen,
+    EditorScreen,
     EventEditorScreen,
     FindTimeScreen,
     HcbApp,
@@ -227,6 +229,38 @@ def test_external_editor_failure_leaves_input_unchanged(tmp_path: Path) -> None:
 
     app_test(app, assertions)
     assert "External editor exited with status 9" in notifications
+
+
+def test_external_editor_reports_unsupported_suspension(tmp_path: Path) -> None:
+    notifications: list[str] = []
+
+    def unsupported() -> None:
+        raise SuspendNotSupported("unsupported")
+
+    app = HcbApp(
+        seeded_runtime(tmp_path),
+        editor_runner=lambda command: (_ for _ in ()).throw(AssertionError(command)),
+        suspend=unsupported,  # type: ignore[arg-type]
+    )
+
+    async def assertions(pilot: object) -> None:
+        original_notify = app.notify
+
+        def record_notification(message: object, **kwargs: object) -> None:
+            notifications.append(str(message))
+            original_notify(message, **kwargs)
+
+        app.notify = record_notification  # type: ignore[method-assign]
+        await pilot.press("n")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        title = app.screen.query_one("#editor-title", Input)
+        title.value = "original"
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert title.value == "original"
+
+    app_test(app, assertions)
+    assert "External editor is unavailable in this environment" in notifications
 
 
 def test_event_surface_marks_stale_instance_cache_ranges(tmp_path: Path) -> None:
