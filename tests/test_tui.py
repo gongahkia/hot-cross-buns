@@ -370,7 +370,7 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.theme.loader == "emoji.weather"
 
 
-def test_loading_surface_uses_configured_rattles_loader(tmp_path: Path) -> None:
+def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> None:
     app = HcbApp(seeded_runtime(tmp_path))
 
     async def assertions(pilot: object) -> None:
@@ -381,7 +381,7 @@ def test_loading_surface_uses_configured_rattles_loader(tmp_path: Path) -> None:
         assert str(loader.render()).strip() in {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
         app.stop_loading()
         await pilot.pause()  # type: ignore[attr-defined]
-        assert app.screen is app
+        assert not isinstance(app.screen, LoadingScreen)
 
     app_test(app, assertions)
 
@@ -490,8 +490,12 @@ def test_conflict_resolution_and_explicit_remote_freebusy(tmp_path: Path) -> Non
         await activate_palette(pilot, app, "Find a time")
         assert isinstance(app.screen, FindTimeScreen)
         await pilot.click("#find-remote")  # type: ignore[attr-defined]
-        await pilot.pause()  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()  # type: ignore[attr-defined]
+            if calls:
+                break
         assert calls
+        assert isinstance(app.screen, FindTimeScreen)
         assert "Explicit Google free/busy" in str(
             app.screen.query_one("#find-disclosure", Static).render()
         )

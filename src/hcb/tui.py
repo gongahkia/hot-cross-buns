@@ -43,6 +43,7 @@ from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
 from .runtime import Runtime
+from .storage import Storage
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 PALETTE_COMMANDS = (
@@ -801,30 +802,17 @@ class FindTimeScreen(ModalScreen[None]):
         if event.button.id == "find-local":
             self.calculate()
         elif event.button.id == "find-remote":
-            self.hcb.start_loading("Querying Google free/busy")
-            self.query_remote_freebusy(
+            self.hcb.request_remote_freebusy(
                 self.query_one("#find-date", Input).value,
                 self.query_one("#find-start", Input).value,
                 self.query_one("#find-end", Input).value,
+                self._show_remote_freebusy,
             )
         else:
             self.dismiss(None)
 
     def action_close(self) -> None:
         self.dismiss(None)
-
-    @work(thread=True, exclusive=True, group="freebusy")
-    def query_remote_freebusy(self, raw_day: str, raw_start: str, raw_end: str) -> None:
-        try:
-            result = self.hcb.remote_freebusy(raw_day, raw_start, raw_end)
-        except Exception as exc:  # Google failures must not tear down the workspace.
-            self.app.call_from_thread(
-                self.hcb.notify, f"Google free/busy failed: {exc}", severity="error"
-            )
-        else:
-            self.app.call_from_thread(self._show_remote_freebusy, result)
-        finally:
-            self.app.call_from_thread(self.hcb.stop_loading)
 
     def _show_remote_freebusy(self, result: dict[str, object]) -> None:
         calendars = result.get("calendars", {})
@@ -1877,25 +1865,62 @@ class HcbApp(App[None]):
             day_end=int(raw_end),
         )
 
-    def remote_freebusy(self, raw_day: str, raw_start: str, raw_end: str) -> dict[str, object]:
+    def _freebusy_request(
+        self, raw_day: str, raw_start: str, raw_end: str
+    ) -> tuple[str, dict[str, object]]:
         if self.account_id is None:
             raise ValueError("connect an account before querying Google")
+        account_id = self.account_id
         day = date.fromisoformat(raw_day)
         start = datetime.combine(day, datetime.min.time(), UTC) + timedelta(hours=int(raw_start))
         end = datetime.combine(day, datetime.min.time(), UTC) + timedelta(hours=int(raw_end))
         calendars: list[dict[str, str]] = []
         for item_id, _summary, selected in self.cache.calendars:
-            calendar_item = self.runtime.storage.get_calendar(self.account_id, item_id)
+            calendar_item = self.runtime.storage.get_calendar(account_id, item_id)
             if selected and calendar_item and calendar_item.remote_id:
                 calendars.append({"id": calendar_item.remote_id})
-        result = self.runtime.sync_engine(self.account_id).gateway.freebusy(
-            {
-                "timeMin": start.isoformat().replace("+00:00", "Z"),
-                "timeMax": end.isoformat().replace("+00:00", "Z"),
-                "items": calendars,
-            }
-        )
-        return result
+        return account_id, {
+            "timeMin": start.isoformat().replace("+00:00", "Z"),
+            "timeMax": end.isoformat().replace("+00:00", "Z"),
+            "items": calendars,
+        }
+
+    def remote_freebusy(self, raw_day: str, raw_start: str, raw_end: str) -> dict[str, object]:
+        """Run the explicit Google request synchronously for non-TUI callers."""
+        account_id, body = self._freebusy_request(raw_day, raw_start, raw_end)
+        return self.runtime.sync_engine(account_id).gateway.freebusy(body)
+
+    def request_remote_freebusy(
+        self,
+        raw_day: str,
+        raw_start: str,
+        raw_end: str,
+        callback: Callable[[dict[str, object]], None],
+    ) -> None:
+        """Run the explicit Google query without suspending the active modal screen."""
+        try:
+            account_id, body = self._freebusy_request(raw_day, raw_start, raw_end)
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self.start_loading("Querying Google free/busy")
+        self.query_remote_freebusy(account_id, body, callback)
+
+    @work(thread=True, exclusive=True, group="freebusy")
+    def query_remote_freebusy(
+        self,
+        account_id: str,
+        body: dict[str, object],
+        callback: Callable[[dict[str, object]], None],
+    ) -> None:
+        try:
+            result = self.runtime.sync_engine(account_id).gateway.freebusy(body)
+        except Exception as exc:  # Google failures must not tear down the workspace.
+            self.call_from_thread(self.notify, f"Google free/busy failed: {exc}", severity="error")
+        else:
+            self.call_from_thread(callback, result)
+        finally:
+            self.call_from_thread(self.stop_loading)
 
     def action_jump(self) -> None:
         self.push_screen(
@@ -1924,8 +1949,12 @@ class HcbApp(App[None]):
             )
             return
         self.call_from_thread(self.start_loading, "Syncing with Google")
+        worker_storage: Storage | None = None
         try:
-            result = self.runtime.sync_engine(self.account_id).sync(self.account_id)
+            engine = self.runtime.sync_engine(self.account_id)
+            worker_storage = Storage(self.runtime.paths.database_file)
+            engine.storage = worker_storage
+            result = engine.sync(self.account_id)
         except HcbError as exc:
             self.call_from_thread(self.notify, str(exc), severity="error")
         except Exception as exc:  # provider failures must not tear down the workspace
@@ -1936,6 +1965,8 @@ class HcbApp(App[None]):
                 f"Sync complete: {result.pulled} pulled, {result.pushed} pushed",
             )
         finally:
+            if worker_storage is not None:
+                worker_storage.close()
             self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
 
@@ -1961,8 +1992,12 @@ class HcbApp(App[None]):
         start = datetime.combine(self.selected_date, datetime.min.time(), UTC)
         duration = {"Day": 1, "Week": 7, "Month": 35}.get(self.surface, 14)
         self.call_from_thread(self.start_loading, "Refreshing recurring instances")
+        worker_storage: Storage | None = None
         try:
-            events = self.runtime.sync_engine(self.account_id).refresh_occurrences(
+            engine = self.runtime.sync_engine(self.account_id)
+            worker_storage = Storage(self.runtime.paths.database_file)
+            engine.storage = worker_storage
+            events = engine.refresh_occurrences(
                 self.account_id, calendar_id, start, start + timedelta(days=duration)
             )
         except Exception as exc:
@@ -1970,6 +2005,8 @@ class HcbApp(App[None]):
         else:
             self.call_from_thread(self.notify, f"Refreshed {len(events)} recurring instances")
         finally:
+            if worker_storage is not None:
+                worker_storage.close()
             self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
 
